@@ -42,110 +42,143 @@ def _env(key: str, default: str = "") -> str:
     return os.getenv(key, default).strip()
 
 
-# ─── Affiliate Link Database ──────────────────────────────────────────────────
+def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
+    """
+    Build affiliate rules from environment variables.
+    Each program reads its referral/affiliate link from .env so you can
+    swap in your own links without touching code.
 
-# Niche: AI tools for making money, stock insights, crypto trends
-AFFILIATE_RULES: List[Tuple[List[str], str, str, str]] = [
-    # ── AI Tools ──────────────────────────────────────────────────────────────
-    (
-        ["chatgpt", "openai", "gpt-4", "gpt", "ai writing", "ai content"],
-        "ChatGPT Plus — The #1 AI Tool for Making Money",
-        "https://chat.openai.com",
-        "sponsored",
-    ),
-    (
-        ["jasper", "ai copywriting", "ai write", "copy.ai", "ai blog", "content ai"],
-        "Jasper AI — Write 10x Faster (Free Trial)",
-        "https://www.jasper.ai",
-        "sponsored",
-    ),
-    (
-        ["midjourney", "dall-e", "ai image", "ai art", "ai design", "stable diffusion"],
-        "Midjourney — Turn AI Art Into Income",
-        "https://www.midjourney.com",
-        "sponsored",
-    ),
-    (
-        ["automation", "zapier", "make.com", "workflow", "automate", "no-code"],
-        "Make.com — Automate Everything (Free Plan)",
-        "https://www.make.com",
-        "sponsored",
-    ),
-    (
-        ["ai tools", "llm", "machine learning", "ai software", "artificial intelligence"],
-        "Top AI Tools for Entrepreneurs 2025",
-        "https://www.amazon.com/s?k=ai+tools+entrepreneurs+2025&tag={tag}",
-        "affiliate",
-    ),
-    # ── Crypto + Investing ────────────────────────────────────────────────────
-    (
-        ["bitcoin", "btc", "crypto buy", "buy bitcoin", "coinbase"],
-        "Coinbase — Buy Bitcoin & Crypto (Get $10 Free)",
-        "https://www.coinbase.com",
-        "sponsored",
-    ),
-    (
-        ["crypto trading", "binance", "altcoin", "defi", "web3", "ethereum trading"],
-        "Binance — World's Largest Crypto Exchange",
-        "https://www.binance.com",
-        "sponsored",
-    ),
-    (
-        ["stocks", "stock market", "investing", "etf", "portfolio", "robinhood"],
-        "Robinhood — Invest in Stocks & Crypto, Commission-Free",
-        "https://robinhood.com",
-        "sponsored",
-    ),
-    (
-        ["options", "day trading", "stock analysis", "trading platform", "tasty"],
-        "TastyTrade — Advanced Trading Platform (Free)",
-        "https://tastytrade.com",
-        "sponsored",
-    ),
-    (
-        ["crypto book", "investing book", "finance book", "learn crypto", "learn stocks"],
-        "Best Crypto & Investing Books on Amazon",
-        "https://www.amazon.com/s?k=crypto+investing+books+2025&tag={tag}",
-        "affiliate",
-    ),
-    # ── Make Money Online ─────────────────────────────────────────────────────
-    (
-        ["side hustle", "passive income", "make money online", "freelance", "income stream"],
-        "Fiverr — Sell Your Skills, Earn $500-$5000/mo",
-        "https://www.fiverr.com",
-        "sponsored",
-    ),
-    (
-        ["affiliate marketing", "affiliate program", "commission", "clickbank"],
-        "ClickBank — Top Affiliate Programs (Free to Join)",
-        "https://www.clickbank.com",
-        "sponsored",
-    ),
-    (
-        ["email list", "newsletter", "subscribers", "email marketing", "convertkit"],
-        "ConvertKit — Build Your Email List Free (Up to 1,000 subs)",
-        "https://convertkit.com",
-        "sponsored",
-    ),
-    (
-        ["seo", "google traffic", "keyword research", "backlinks", "rank on google"],
-        "Ahrefs — The SEO Tool That Pays for Itself",
-        "https://ahrefs.com",
-        "sponsored",
-    ),
-    (
-        ["hosting", "wordpress", "website", "domain", "blog start"],
-        "Bluehost — Start a Blog for $2.95/mo",
-        "https://www.bluehost.com",
-        "sponsored",
-    ),
-    (
-        ["software deal", "saas", "lifetime deal", "appsumo", "tool deal"],
-        "AppSumo — Lifetime Software Deals (Save 90%)",
-        "https://appsumo.com",
-        "sponsored",
-    ),
-]
+    Set these in .env:
+      AFFILIATE_AMAZON_TAG      — your Amazon Associates tag (e.g. yoursite-20)
+      AFFILIATE_COINBASE_URL    — your Coinbase referral link
+      AFFILIATE_BINANCE_URL     — your Binance referral link
+      AFFILIATE_ROBINHOOD_URL   — your Robinhood referral link
+      AFFILIATE_CONVERTKIT_URL  — your ConvertKit affiliate link
+      AFFILIATE_JASPER_URL      — your Jasper AI affiliate link
+      AFFILIATE_BLUEHOST_URL    — your Bluehost affiliate link
+      AFFILIATE_FIVERR_URL      — your Fiverr affiliate link
+      AFFILIATE_CLICKBANK_URL   — your ClickBank hop link
+      AFFILIATE_APPSUMO_URL     — your AppSumo affiliate link
+    """
+    amz_tag        = _env("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+    coinbase_url   = _env("AFFILIATE_COINBASE_URL",   "https://coinbase.com/join/wheellsverse")
+    binance_url    = _env("AFFILIATE_BINANCE_URL",    "https://www.binance.com/en/activity/referral")
+    robinhood_url  = _env("AFFILIATE_ROBINHOOD_URL",  "https://join.robinhood.com/")
+    convertkit_url = _env("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/?lmref=wheellsverse")
+    jasper_url     = _env("AFFILIATE_JASPER_URL",     "https://www.jasper.ai/")
+    bluehost_url   = _env("AFFILIATE_BLUEHOST_URL",   "https://www.bluehost.com/track/wheellsverse/")
+    fiverr_url     = _env("AFFILIATE_FIVERR_URL",     "https://www.fiverr.com/")
+    clickbank_url  = _env("AFFILIATE_CLICKBANK_URL",  "https://www.clickbank.com/")
+    appsumo_url    = _env("AFFILIATE_APPSUMO_URL",    "https://appsumo.com/")
+
+    amz_ai_url     = f"https://www.amazon.com/s?k=ai+tools+entrepreneurs+2025&tag={amz_tag}"
+    amz_crypto_url = f"https://www.amazon.com/s?k=crypto+investing+books+2025&tag={amz_tag}"
+
+    return [
+        # ── AI Tools ──────────────────────────────────────────────────────────
+        (
+            ["chatgpt", "openai", "gpt-4", "gpt", "ai writing", "ai content"],
+            "ChatGPT Plus — The #1 AI Tool for Making Money",
+            "https://chat.openai.com",
+            "sponsored",
+        ),
+        (
+            ["jasper", "ai copywriting", "ai write", "copy.ai", "ai blog", "content ai"],
+            "Jasper AI — Write 10x Faster (Free Trial)",
+            jasper_url,
+            "affiliate",
+        ),
+        (
+            ["midjourney", "dall-e", "ai image", "ai art", "ai design", "stable diffusion"],
+            "Midjourney — Turn AI Art Into Income",
+            "https://www.midjourney.com",
+            "sponsored",
+        ),
+        (
+            ["automation", "zapier", "make.com", "workflow", "automate", "no-code"],
+            "Make.com — Automate Everything (Free Plan)",
+            "https://www.make.com",
+            "sponsored",
+        ),
+        (
+            ["ai tools", "llm", "machine learning", "ai software", "artificial intelligence"],
+            "Top AI Tools for Entrepreneurs 2025",
+            amz_ai_url,
+            "affiliate",
+        ),
+        # ── Crypto + Investing ────────────────────────────────────────────────
+        (
+            ["bitcoin", "btc", "crypto buy", "buy bitcoin", "coinbase"],
+            "Coinbase — Buy Bitcoin & Crypto (Get $10 Free)",
+            coinbase_url,
+            "affiliate",
+        ),
+        (
+            ["crypto trading", "binance", "altcoin", "defi", "web3", "ethereum trading"],
+            "Binance — World's Largest Crypto Exchange",
+            binance_url,
+            "affiliate",
+        ),
+        (
+            ["stocks", "stock market", "investing", "etf", "portfolio", "robinhood"],
+            "Robinhood — Invest in Stocks & Crypto, Commission-Free",
+            robinhood_url,
+            "affiliate",
+        ),
+        (
+            ["options", "day trading", "stock analysis", "trading platform", "tasty"],
+            "TastyTrade — Advanced Trading Platform (Free)",
+            "https://tastytrade.com",
+            "sponsored",
+        ),
+        (
+            ["crypto book", "investing book", "finance book", "learn crypto", "learn stocks"],
+            "Best Crypto & Investing Books on Amazon",
+            amz_crypto_url,
+            "affiliate",
+        ),
+        # ── Make Money Online ─────────────────────────────────────────────────
+        (
+            ["side hustle", "passive income", "make money online", "freelance", "income stream"],
+            "Fiverr — Sell Your Skills, Earn $500-$5000/mo",
+            fiverr_url,
+            "affiliate",
+        ),
+        (
+            ["affiliate marketing", "affiliate program", "commission", "clickbank"],
+            "ClickBank — Top Affiliate Programs (Free to Join)",
+            clickbank_url,
+            "affiliate",
+        ),
+        (
+            ["email list", "newsletter", "subscribers", "email marketing", "convertkit"],
+            "ConvertKit — Build Your Email List Free (Up to 1,000 subs)",
+            convertkit_url,
+            "affiliate",
+        ),
+        (
+            ["seo", "google traffic", "keyword research", "backlinks", "rank on google"],
+            "Ahrefs — The SEO Tool That Pays for Itself",
+            "https://ahrefs.com",
+            "sponsored",
+        ),
+        (
+            ["hosting", "wordpress", "website", "domain", "blog start"],
+            "Bluehost — Start a Blog for $2.95/mo",
+            bluehost_url,
+            "affiliate",
+        ),
+        (
+            ["software deal", "saas", "lifetime deal", "appsumo", "tool deal"],
+            "AppSumo — Lifetime Software Deals (Save 90%)",
+            appsumo_url,
+            "affiliate",
+        ),
+    ]
+
+
+# Build rules at import time (reads .env)
+AFFILIATE_RULES = _build_affiliate_rules()
 
 
 # ─── CTA Templates ────────────────────────────────────────────────────────────
