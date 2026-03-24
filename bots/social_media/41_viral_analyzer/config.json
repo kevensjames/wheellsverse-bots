@@ -1,0 +1,5 @@
+{
+  "description": "Viral content analysis and replication",
+  "enabled": true,
+  "schedule": "@daily 07:00"
+}

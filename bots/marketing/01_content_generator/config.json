@@ -1,0 +1,10 @@
+{
+  "description": "Generates blog posts, articles, ad copy, and marketing content using GPT",
+  "default_topic": "AI automation for entrepreneurs",
+  "default_type": "blog_post",
+  "word_count": 800,
+  "tone": "professional, engaging, bold",
+  "keywords": "AI, automation, productivity, growth",
+  "schedule": "@daily 08:00",
+  "enabled": true
+}

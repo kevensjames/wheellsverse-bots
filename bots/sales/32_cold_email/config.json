@@ -1,0 +1,5 @@
+{
+  "description": "Cold email sequences",
+  "enabled": true,
+  "schedule": "@daily 09:00"
+}

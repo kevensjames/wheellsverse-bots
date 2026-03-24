@@ -1,0 +1,36 @@
+app = "wheellsverse-bots"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "8080"
+  PYTHONUNBUFFERED = "1"
+  DECISION_ENGINE_ENABLED = "true"
+  DECISION_ENGINE_INTERVAL = "15"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 80
+
+[[vm]]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[mounts]
+  source = "wheellsverse_data"
+  destination = "/app/data"
+
+[[statics]]
+  guest_path = "/app/outputs/published"
+  url_prefix = "/published"

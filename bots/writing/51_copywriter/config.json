@@ -1,0 +1,5 @@
+{
+  "description": "Sales and marketing copy",
+  "enabled": true,
+  "schedule": "@daily"
+}

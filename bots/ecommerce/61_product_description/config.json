@@ -1,0 +1,5 @@
+{
+  "description": "Product descriptions for all platforms",
+  "enabled": true,
+  "schedule": "@weekly"
+}

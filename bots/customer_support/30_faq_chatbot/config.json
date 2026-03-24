@@ -1,0 +1,5 @@
+{
+  "description": "Local FAQ chatbot",
+  "enabled": true,
+  "schedule": "@every_hour"
+}

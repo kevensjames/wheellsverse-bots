@@ -1,0 +1,5 @@
+{
+  "description": "Invoice creation and tracking",
+  "enabled": true,
+  "schedule": "@daily 08:00"
+}

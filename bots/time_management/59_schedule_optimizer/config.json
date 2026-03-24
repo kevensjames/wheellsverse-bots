@@ -1,0 +1,5 @@
+{
+  "description": "Daily schedule optimization",
+  "enabled": true,
+  "schedule": "@daily 06:30"
+}

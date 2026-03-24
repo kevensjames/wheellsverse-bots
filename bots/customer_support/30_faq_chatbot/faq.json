@@ -1,0 +1,15 @@
+{
+  "company": "WheellsVerse",
+  "faqs": [
+    {"q": "How do I get started?", "a": "Sign up at wheellsverse.com and you'll get a 14-day free trial with full access to all 70 bots."},
+    {"q": "What is WheellsVerse?", "a": "WheellsVerse is an AI-powered automation platform with 70 autonomous bots that handle marketing, sales, writing, analytics, and more."},
+    {"q": "What payment methods do you accept?", "a": "We accept Visa, Mastercard, American Express, PayPal, and all major credit cards via Stripe."},
+    {"q": "Can I cancel anytime?", "a": "Yes, you can cancel your subscription anytime from your account settings. No long-term contracts."},
+    {"q": "Do you offer refunds?", "a": "Yes, we have a 30-day money-back guarantee, no questions asked."},
+    {"q": "How do I contact support?", "a": "Email support@wheellsverse.com or use our live chat. We respond within 24 hours."},
+    {"q": "Do I need coding knowledge?", "a": "No coding required for most bots. For technical bots, basic Python knowledge helps but is not required."},
+    {"q": "Can I run multiple bots at once?", "a": "Yes! The orchestrator runs bots in parallel. You can run all 70 bots simultaneously."},
+    {"q": "What's your pricing?", "a": "Plans start at $47/month (Starter), $97/month (Pro), and $197/month (Agency). Annual plans save 30%."},
+    {"q": "Is my data secure?", "a": "Yes. All data stays local on your machine unless you configure cloud integrations. We never store your API keys or content."}
+  ]
+}

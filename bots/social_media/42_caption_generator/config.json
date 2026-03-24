@@ -1,0 +1,5 @@
+{
+  "description": "Social media captions",
+  "enabled": true,
+  "schedule": "@daily 08:00"
+}

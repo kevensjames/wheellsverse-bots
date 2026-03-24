@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: wheellsverse-bots
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: OPENAI_API_KEY
+        sync: false   # set in Render dashboard
+      - key: DECISION_ENGINE_ENABLED
+        value: "true"
+      - key: DECISION_ENGINE_INTERVAL
+        value: "15"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+    healthCheckPath: /api/health
+    autoDeploy: true
+    # Persistent disk for outputs/data
+    disk:
+      name: wheellsverse-data
+      mountPath: /app/data
+      sizeGB: 1

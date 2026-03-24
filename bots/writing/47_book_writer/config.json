@@ -1,0 +1,5 @@
+{
+  "description": "Book chapters and outlines",
+  "enabled": true,
+  "schedule": "@weekly"
+}

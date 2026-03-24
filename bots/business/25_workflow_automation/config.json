@@ -1,0 +1,5 @@
+{
+  "description": "Business process automation design",
+  "enabled": true,
+  "schedule": "@weekly"
+}

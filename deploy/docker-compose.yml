@@ -1,0 +1,35 @@
+version: "3.9"
+
+services:
+  wheellsverse:
+    build: ..
+    container_name: wheellsverse_bots
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5050}:5050"
+    env_file:
+      - ../.env
+    environment:
+      - PORT=5050
+      - PYTHONUNBUFFERED=1
+      # Decision engine runs every 15 min automatically
+      - DECISION_ENGINE_INTERVAL=15
+      - DECISION_ENGINE_ENABLED=true
+    volumes:
+      # Persist outputs, data, and logs between restarts
+      - ../outputs:/app/outputs
+      - ../data:/app/data
+      - ../memory:/app/memory
+      - ../logs:/app/logs
+      - ../projects:/app/projects
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5050/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"

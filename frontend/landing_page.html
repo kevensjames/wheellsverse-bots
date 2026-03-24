@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WheellsVerse — Free Daily AI + Market Signals</title>
+<meta name="description" content="Get daily AI-powered insights on stocks, crypto, and AI tools. Automated signals that help you make smarter money decisions. Free to join.">
+<meta property="og:title" content="Free Daily AI + Market Signals">
+<meta property="og:description" content="Automated insights on stocks, crypto, and AI tools delivered daily.">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #080b11;
+    --surface: #0f1320;
+    --card:    #141825;
+    --border:  #1e2435;
+    --cyan:    #00d4ff;
+    --green:   #00ff88;
+    --gold:    #ffd700;
+    --text:    #e0e6f0;
+    --muted:   #6b7694;
+    --accent2: #7c3aed;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Nav ──────────────────────────────────────────────────────────────── */
+  nav {
+    position: fixed; top: 0; width: 100%; z-index: 100;
+    background: rgba(8,11,17,.95);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    padding: 14px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-logo {
+    font-size: 1.1rem; font-weight: 800; color: var(--text); text-decoration: none;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .nav-logo span { color: var(--cyan); }
+  .nav-cta {
+    background: var(--cyan); color: #000; border: none;
+    padding: 8px 20px; border-radius: 6px; font-weight: 700;
+    font-size: 13px; cursor: pointer; text-decoration: none;
+    transition: opacity .2s;
+  }
+  .nav-cta:hover { opacity: .85; }
+
+  /* ── Hero ─────────────────────────────────────────────────────────────── */
+  .hero {
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    padding: 120px 24px 80px;
+    background: radial-gradient(ellipse at 60% 20%, rgba(0,212,255,.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 20% 80%, rgba(124,58,237,.06) 0%, transparent 50%),
+                var(--bg);
+    text-align: center;
+  }
+  .hero-inner { max-width: 760px; }
+
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(0,255,136,.1); color: var(--green);
+    border: 1px solid rgba(0,255,136,.25);
+    border-radius: 20px; padding: 5px 14px;
+    font-size: 12px; font-weight: 700; letter-spacing: .5px;
+    margin-bottom: 24px;
+    animation: pulse-badge 3s ease infinite;
+  }
+  .badge::before { content: '●'; font-size: 8px; animation: blink 1.5s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+  @keyframes pulse-badge { 0%,100%{box-shadow:0 0 0 0 rgba(0,255,136,.2)} 50%{box-shadow:0 0 0 6px rgba(0,255,136,0)} }
+
+  h1 {
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    font-weight: 900;
+    line-height: 1.15;
+    color: var(--text);
+    margin-bottom: 20px;
+  }
+  h1 em { font-style: normal; color: var(--cyan); }
+
+  .subhead {
+    font-size: clamp(1rem, 2.5vw, 1.2rem);
+    color: var(--muted);
+    max-width: 560px;
+    margin: 0 auto 36px;
+    line-height: 1.7;
+  }
+
+  /* ── Capture Form ──────────────────────────────────────────────────────── */
+  .capture-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px 28px;
+    max-width: 480px;
+    margin: 0 auto 48px;
+    box-shadow: 0 20px 60px rgba(0,0,0,.4);
+  }
+  .capture-label {
+    font-size: 13px; color: var(--muted); margin-bottom: 16px;
+    text-transform: uppercase; letter-spacing: 1px; font-weight: 600;
+  }
+  .capture-box input {
+    width: 100%; padding: 13px 16px;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); font-size: 14px;
+    margin-bottom: 10px; outline: none; transition: border-color .2s;
+  }
+  .capture-box input:focus { border-color: var(--cyan); }
+  .capture-box input::placeholder { color: var(--muted); }
+  .btn-primary {
+    width: 100%; padding: 14px;
+    background: linear-gradient(135deg, var(--cyan), #0099bb);
+    color: #000; border: none; border-radius: 8px;
+    font-weight: 800; font-size: 15px; cursor: pointer;
+    transition: opacity .2s, transform .1s;
+    letter-spacing: .3px;
+  }
+  .btn-primary:hover { opacity: .9; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .fine-print { font-size: 11px; color: var(--muted); margin-top: 10px; }
+
+  /* ── Social proof strip ─────────────────────────────────────────────────── */
+  .proof-strip {
+    display: flex; align-items: center; justify-content: center; gap: 20px;
+    flex-wrap: wrap; margin-bottom: 0;
+  }
+  .proof-item { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 5px; }
+  .proof-item .dot { color: var(--green); font-size: 8px; }
+
+  /* ── Ticker bar ─────────────────────────────────────────────────────────── */
+  .ticker-bar {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 10px 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .ticker-inner {
+    display: inline-flex; gap: 40px;
+    animation: scroll-ticker 25s linear infinite;
+  }
+  @keyframes scroll-ticker {
+    0%   { transform: translateX(0); }
+    100% { transform: translateX(-50%); }
+  }
+  .ticker-item { font-size: 12px; font-weight: 600; }
+  .ticker-item .up   { color: var(--green); }
+  .ticker-item .down { color: #ff4d6d; }
+  .ticker-item .name { color: var(--muted); margin-right: 4px; }
+
+  /* ── Features ───────────────────────────────────────────────────────────── */
+  section { padding: 80px 24px; }
+  .section-inner { max-width: 960px; margin: 0 auto; }
+  .section-tag {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 2px;
+    color: var(--cyan); font-weight: 700; margin-bottom: 12px;
+  }
+  .section-title {
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 800; margin-bottom: 14px; color: var(--text);
+  }
+  .section-sub { font-size: 1rem; color: var(--muted); max-width: 520px; margin-bottom: 48px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 14px; padding: 28px 24px;
+    transition: border-color .2s, transform .2s;
+  }
+  .card:hover { border-color: rgba(0,212,255,.3); transform: translateY(-2px); }
+  .card-icon { font-size: 2rem; margin-bottom: 14px; }
+  .card-title { font-size: 1rem; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .card-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ── Signals Preview ────────────────────────────────────────────────────── */
+  .signals-preview {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .signals-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600;
+  }
+  .signals-header .dot-live { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: blink 1.5s infinite; }
+  .signal-row {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(30,36,53,.6);
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    font-size: 13px; align-items: center;
+  }
+  .signal-row:last-child { border-bottom: none; }
+  .signal-row .topic { font-weight: 600; }
+  .signal-row .type  { color: var(--muted); font-size: 11px; }
+  .signal-row .score { text-align: right; font-weight: 700; color: var(--cyan); }
+
+  /* ── How it works ───────────────────────────────────────────────────────── */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 32px; margin-top: 48px; }
+  .step { text-align: center; }
+  .step-num {
+    width: 44px; height: 44px; border-radius: 50%;
+    background: rgba(0,212,255,.12);
+    border: 2px solid rgba(0,212,255,.3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 800; color: var(--cyan);
+    margin: 0 auto 14px;
+  }
+  .step-title { font-weight: 700; margin-bottom: 6px; }
+  .step-desc  { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+  /* ── CTA Section ────────────────────────────────────────────────────────── */
+  .cta-section {
+    background: linear-gradient(135deg, rgba(0,212,255,.07) 0%, rgba(124,58,237,.07) 100%);
+    border-top: 1px solid var(--border);
+    text-align: center; padding: 80px 24px;
+  }
+  .cta-section h2 { font-size: clamp(1.6rem, 3.5vw, 2.4rem); font-weight: 800; margin-bottom: 14px; }
+  .cta-section p  { color: var(--muted); max-width: 500px; margin: 0 auto 36px; }
+
+  /* ── Footer ─────────────────────────────────────────────────────────────── */
+  footer {
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    padding: 32px 24px;
+    text-align: center;
+    font-size: 12px; color: var(--muted);
+  }
+  footer a { color: var(--cyan); text-decoration: none; }
+
+  /* ── Success State ──────────────────────────────────────────────────────── */
+  .success-box {
+    text-align: center; padding: 24px 20px;
+    animation: fadeIn .4s ease;
+  }
+  .success-box h3 { font-size: 1.5rem; color: var(--green); margin-bottom: 8px; }
+  .success-box p  { color: var(--muted); font-size: 14px; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* ── Mobile ─────────────────────────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    .hero { padding: 100px 16px 60px; }
+    .capture-box { padding: 24px 16px; }
+    .proof-strip { gap: 12px; }
+    section { padding: 60px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── NAV ────────────────────────────────────────────────────────────────── -->
+<nav>
+  <a href="/" class="nav-logo">Wheells<span>Verse</span></a>
+  <a href="#join" class="nav-cta">Get Free Signals</a>
+</nav>
+
+<!-- ── TICKER ─────────────────────────────────────────────────────────────── -->
+<div class="ticker-bar" style="margin-top:56px">
+  <div class="ticker-inner" id="ticker">
+    <span class="ticker-item"><span class="name">BTC</span><span class="up">+3.2%</span></span>
+    <span class="ticker-item"><span class="name">ETH</span><span class="up">+1.8%</span></span>
+    <span class="ticker-item"><span class="name">AI Tools</span><span class="up">🔥 Trending</span></span>
+    <span class="ticker-item"><span class="name">SOL</span><span class="down">-0.9%</span></span>
+    <span class="ticker-item"><span class="name">ChatGPT</span><span class="up">+5.1%</span></span>
+    <span class="ticker-item"><span class="name">NVDA</span><span class="up">+2.4%</span></span>
+    <span class="ticker-item"><span class="name">Passive Income</span><span class="up">🔥 Trending</span></span>
+    <span class="ticker-item"><span class="name">BNB</span><span class="up">+0.7%</span></span>
+    <span class="ticker-item"><span class="name">Make Money AI</span><span class="up">📈 High Demand</span></span>
+    <!-- duplicated for seamless scroll -->
+    <span class="ticker-item"><span class="name">BTC</span><span class="up">+3.2%</span></span>
+    <span class="ticker-item"><span class="name">ETH</span><span class="up">+1.8%</span></span>
+    <span class="ticker-item"><span class="name">AI Tools</span><span class="up">🔥 Trending</span></span>
+    <span class="ticker-item"><span class="name">SOL</span><span class="down">-0.9%</span></span>
+    <span class="ticker-item"><span class="name">ChatGPT</span><span class="up">+5.1%</span></span>
+    <span class="ticker-item"><span class="name">NVDA</span><span class="up">+2.4%</span></span>
+    <span class="ticker-item"><span class="name">Passive Income</span><span class="up">🔥 Trending</span></span>
+    <span class="ticker-item"><span class="name">BNB</span><span class="up">+0.7%</span></span>
+    <span class="ticker-item"><span class="name">Make Money AI</span><span class="up">📈 High Demand</span></span>
+  </div>
+</div>
+
+<!-- ── HERO ───────────────────────────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-inner">
+    <div class="badge">FREE DAILY SIGNALS — AI + FINANCE</div>
+
+    <h1>Get Daily <em>AI + Market Signals</em><br>That Help You Make Money</h1>
+
+    <p class="subhead">
+      Automated insights on stocks, crypto, and AI tools —
+      delivered every morning before the market opens.
+      No fluff. Just actionable data.
+    </p>
+
+    <!-- Capture Form -->
+    <div class="capture-box" id="join">
+      <p class="capture-label">Join 10,000+ subscribers — it's free</p>
+      <form id="hero-form" onsubmit="submitLead(event,'hero-form','hero-box')">
+        <input type="text"  name="name"  placeholder="Your first name" required>
+        <input type="email" name="email" placeholder="Your best email address" required>
+        <button type="submit" class="btn-primary" id="hero-btn">
+          → Send Me Free Daily Signals
+        </button>
+      </form>
+      <p class="fine-print">No spam. Unsubscribe anytime. 100% free.</p>
+    </div>
+
+    <div class="proof-strip">
+      <span class="proof-item"><span class="dot">●</span> Updated daily at 7am</span>
+      <span class="proof-item"><span class="dot">●</span> AI-generated insights</span>
+      <span class="proof-item"><span class="dot">●</span> Stocks + Crypto + AI tools</span>
+    </div>
+  </div>
+</section>
+
+<!-- ── TICKER (live signals preview) ─────────────────────────────────────── -->
+<section style="padding: 60px 24px; background: var(--surface); border-top: 1px solid var(--border);">
+  <div class="section-inner">
+    <div class="section-tag">Sample Signals</div>
+    <h2 class="section-title">What You'll Receive Every Day</h2>
+    <p class="section-sub">Real signals generated by 70 AI bots scanning markets and trends 24/7.</p>
+    <div class="signals-preview">
+      <div class="signals-header">
+        <div class="dot-live"></div>
+        Today's AI-Generated Signals
+      </div>
+      <div class="signal-row">
+        <div><div class="topic">Bitcoin 30-day outlook</div><div class="type">Crypto Signal</div></div>
+        <div style="color:#00ff88; font-size:12px; font-weight:600;">📈 BULLISH</div>
+        <div class="score">9.2/10</div>
+      </div>
+      <div class="signal-row">
+        <div><div class="topic">Best AI tools for passive income</div><div class="type">AI Tools Report</div></div>
+        <div style="color:#ffd700; font-size:12px; font-weight:600;">🔥 TRENDING</div>
+        <div class="score">8.7/10</div>
+      </div>
+      <div class="signal-row">
+        <div><div class="topic">NVIDIA earnings analysis</div><div class="type">Stock Signal</div></div>
+        <div style="color:#00ff88; font-size:12px; font-weight:600;">📈 BULLISH</div>
+        <div class="score">8.1/10</div>
+      </div>
+      <div class="signal-row">
+        <div><div class="topic">How to make money with ChatGPT</div><div class="type">AI Opportunity</div></div>
+        <div style="color:#7c3aed; font-size:12px; font-weight:600;">⚡ HOT TOPIC</div>
+        <div class="score">9.5/10</div>
+      </div>
+      <div class="signal-row">
+        <div><div class="topic">Ethereum Layer 2 adoption surge</div><div class="type">Crypto Trend</div></div>
+        <div style="color:#00d4ff; font-size:12px; font-weight:600;">🌊 RISING</div>
+        <div class="score">7.9/10</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BENEFITS ───────────────────────────────────────────────────────────── -->
+<section>
+  <div class="section-inner">
+    <div class="section-tag">Why WheellsVerse</div>
+    <h2 class="section-title">Built to Help You Make Money</h2>
+    <p class="section-sub">Everything you need to stay ahead of markets and find AI income opportunities.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="card-icon">📊</div>
+        <div class="card-title">Daily Market Signals</div>
+        <div class="card-desc">Crypto and stock insights generated by AI every morning. Know what's moving before everyone else.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🤖</div>
+        <div class="card-title">AI Tools Briefing</div>
+        <div class="card-desc">New AI tools that can generate income. We scan 1000+ sources daily so you don't have to.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🔥</div>
+        <div class="card-title">Trending Opportunities</div>
+        <div class="card-desc">Topics going viral in the AI and finance space. Be first to create content and capture traffic.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">💰</div>
+        <div class="card-title">Income Strategies</div>
+        <div class="card-desc">Tested side hustles, affiliate programs, and tools that actually pay. No theory — pure action.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">⚡</div>
+        <div class="card-title">Free Starter Toolkit</div>
+        <div class="card-desc">Get our AI Entrepreneur Blueprint PDF free when you sign up. 47 pages of real strategies.</div>
+      </div>
+      <div class="card">
+        <div class="card-icon">🎯</div>
+        <div class="card-title">Zero Noise Policy</div>
+        <div class="card-desc">One email per day. Short. Actionable. You read it in 3 minutes and know exactly what to do.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ───────────────────────────────────────────────────────── -->
+<section style="background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);">
+  <div class="section-inner" style="text-align: center;">
+    <div class="section-tag" style="text-align:center;">How It Works</div>
+    <h2 class="section-title" style="text-align:center;">Signals on Autopilot</h2>
+    <p class="section-sub" style="margin: 0 auto 0; text-align:center;">Our 70 AI bots scan markets, trends, and opportunities 24/7 — so you always know where to focus.</p>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-title">AI Scans Markets</div>
+        <div class="step-desc">70 bots monitor crypto prices, stock movements, and AI trends around the clock.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-title">Signals Are Ranked</div>
+        <div class="step-desc">Our Decision Engine scores every opportunity by potential and trend strength.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-title">You Get the Best 5</div>
+        <div class="step-desc">Every morning, the top signals land in your inbox — curated, clear, actionable.</div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-title">You Take Action</div>
+        <div class="step-desc">Each signal includes a specific recommendation: buy, create, publish, or avoid.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── FINAL CTA ──────────────────────────────────────────────────────────── -->
+<div class="cta-section">
+  <div class="section-inner">
+    <h2>Start Getting AI + Market Signals Today</h2>
+    <p>Join thousands of entrepreneurs who get smarter about money every morning. It's free. Takes 30 seconds.</p>
+    <div class="capture-box" id="bottom-box" style="background: var(--card);">
+      <form id="bottom-form" onsubmit="submitLead(event,'bottom-form','bottom-box')">
+        <input type="text"  name="name"  placeholder="Your first name" required>
+        <input type="email" name="email" placeholder="Your best email address" required>
+        <button type="submit" class="btn-primary">
+          → Get Free Daily Signals
+        </button>
+      </form>
+      <p class="fine-print">No spam. Unsubscribe anytime. 100% free forever.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── FOOTER ─────────────────────────────────────────────────────────────── -->
+<footer>
+  <p>
+    &copy; 2026 WheellsVerse &nbsp;·&nbsp;
+    <a href="/dashboard">Dashboard</a> &nbsp;·&nbsp;
+    <a href="/api/health">System Status</a>
+  </p>
+  <p style="margin-top:8px; font-size:11px; color: #3a4260;">
+    Signals are AI-generated for informational purposes only. Not financial advice. Do your own research.
+  </p>
+</footer>
+
+<script>
+// ── Live ticker update ──────────────────────────────────────────────────────
+async function loadLivePrices() {
+  try {
+    const r = await fetch('/api/integrations/crypto');
+    const d = await r.json();
+    if (!d.prices) return;
+    const ticker = document.getElementById('ticker');
+    let html = '';
+    const items = Object.entries(d.prices).slice(0, 6);
+    for (const [sym, data] of items) {
+      const chg = (data.change_24h || 0).toFixed(2);
+      const cls = chg >= 0 ? 'up' : 'down';
+      const sign = chg >= 0 ? '+' : '';
+      html += `<span class="ticker-item"><span class="name">${sym.toUpperCase()}</span><span class="${cls}">${sign}${chg}%</span></span>`;
+    }
+    if (html) {
+      ticker.innerHTML = html + html; // duplicate for seamless loop
+    }
+  } catch(e) {}
+}
+loadLivePrices();
+
+// ── Lead capture ────────────────────────────────────────────────────────────
+async function submitLead(event, formId, boxId) {
+  event.preventDefault();
+  const form = document.getElementById(formId);
+  const box  = document.getElementById(boxId);
+  const btn  = form.querySelector('button');
+
+  btn.textContent = 'Joining...';
+  btn.disabled    = true;
+
+  const payload = {
+    name:   form.name.value.trim(),
+    email:  form.email.value.trim().toLowerCase(),
+    source: 'landing_page',
+    topic:  'AI + Market Signals',
+  };
+
+  try {
+    const r    = await fetch('/api/lead', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify(payload),
+    });
+    const data = await r.json();
+
+    if (['new', 'duplicate'].includes(data.status)) {
+      box.innerHTML = `<div class="success-box">
+        <h3>🎉 You're In!</h3>
+        <p>Check <strong>${payload.email}</strong><br>Your first signal is on its way.</p>
+      </div>`;
+    } else {
+      btn.textContent = '→ Get Free Daily Signals';
+      btn.disabled    = false;
+    }
+  } catch(err) {
+    btn.textContent = '→ Get Free Daily Signals';
+    btn.disabled    = false;
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,5 @@
+{
+  "description": "Online course curriculum design",
+  "enabled": true,
+  "schedule": "@monthly"
+}

@@ -1,0 +1,5 @@
+{
+  "description": "growth hacking bot",
+  "enabled": true,
+  "schedule": "@weekly mon 08:00"
+}

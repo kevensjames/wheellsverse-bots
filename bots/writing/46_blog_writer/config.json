@@ -1,0 +1,5 @@
+{
+  "description": "Full blog articles",
+  "enabled": true,
+  "schedule": "@daily 08:00"
+}

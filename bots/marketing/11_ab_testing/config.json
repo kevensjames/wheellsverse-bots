@@ -1,0 +1,5 @@
+{
+  "description": "ab testing bot",
+  "enabled": true,
+  "schedule": "@daily 10:00"
+}

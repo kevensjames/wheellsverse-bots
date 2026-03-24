@@ -1,0 +1,5 @@
+{
+  "description": "hashtag generator bot",
+  "enabled": true,
+  "schedule": "@daily 10:00"
+}

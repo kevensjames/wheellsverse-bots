@@ -1,0 +1,5 @@
+{
+  "description": "Content scheduling plan",
+  "enabled": true,
+  "schedule": "@weekly mon 07:00"
+}

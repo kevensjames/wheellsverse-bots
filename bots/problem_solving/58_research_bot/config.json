@@ -1,0 +1,5 @@
+{
+  "description": "Deep research reports",
+  "enabled": true,
+  "schedule": "@daily 09:00"
+}

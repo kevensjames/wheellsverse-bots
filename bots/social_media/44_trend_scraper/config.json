@@ -1,0 +1,5 @@
+{
+  "description": "Social media trend research",
+  "enabled": true,
+  "schedule": "@daily 06:00"
+}

@@ -1,0 +1,5 @@
+{
+  "description": "ATS-optimized resumes",
+  "enabled": true,
+  "schedule": "@monthly"
+}

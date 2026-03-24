@@ -1,0 +1,5 @@
+{
+  "description": "Professional sales proposals",
+  "enabled": true,
+  "schedule": "@weekly"
+}

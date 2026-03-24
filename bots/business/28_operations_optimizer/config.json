@@ -1,0 +1,5 @@
+{
+  "description": "Operations efficiency analysis",
+  "enabled": true,
+  "schedule": "@monthly"
+}

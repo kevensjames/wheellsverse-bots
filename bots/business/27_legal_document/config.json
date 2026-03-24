@@ -1,0 +1,5 @@
+{
+  "description": "Basic legal document templates",
+  "enabled": true,
+  "schedule": "@monthly"
+}

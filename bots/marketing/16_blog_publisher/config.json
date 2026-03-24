@@ -1,0 +1,5 @@
+{
+  "description": "blog publisher bot",
+  "enabled": true,
+  "schedule": "@weekly mon 08:00"
+}

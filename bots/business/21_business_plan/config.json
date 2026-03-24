@@ -1,0 +1,6 @@
+{
+  "description": "Investor-ready business plan",
+  "enabled": true,
+  "schedule": "@monthly",
+  "business_name": "WheellsVerse"
+}

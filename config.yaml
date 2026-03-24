@@ -1,0 +1,93 @@
+# ============================================================
+# WheellsVerse Bot Ecosystem — Central Configuration
+# ============================================================
+
+system:
+  name: WheellsVerse Bot Ecosystem
+  version: 2.0.0
+  port: 5050
+  log_level: INFO
+  model: gpt-4o-mini
+  max_workers: 6
+  retry_attempts: 3
+  retry_delay: 5
+
+# ─── Pipelines ───────────────────────────────────────────────────────────────
+# Bots run in sequence, each passing context forward to the next.
+
+pipelines:
+
+  morning_blast:
+    name: Morning Blast
+    description: Trend research → content creation → SEO → publish → analytics
+    bots:
+      - social_media/44_trend_scraper
+      - marketing/01_content_generator
+      - marketing/02_seo_optimizer
+      - marketing/16_blog_publisher
+      - marketing/10_analytics_reporter
+
+  sales_engine:
+    name: Sales Engine
+    description: Cold outreach → follow-up sequences → CRM update → proposals
+    bots:
+      - sales/32_cold_email
+      - sales/33_follow_up
+      - sales/34_crm_updater
+      - sales/35_proposal_generator
+
+  social_domination:
+    name: Social Domination
+    description: Trend research → viral analysis → captions → scheduling → posting
+    bots:
+      - social_media/44_trend_scraper
+      - social_media/41_viral_analyzer
+      - social_media/42_caption_generator
+      - social_media/14_hashtag_generator
+      - social_media/37_auto_post
+      - social_media/38_content_scheduler
+
+  content_machine:
+    name: Content Machine
+    description: Keywords → blog writing → SEO optimize → proofread → publish
+    bots:
+      - marketing/07_keyword_scraper
+      - marketing/13_trend_analyzer
+      - writing/46_blog_writer
+      - marketing/02_seo_optimizer
+      - writing/53_proofreader
+      - marketing/16_blog_publisher
+
+  business_intelligence:
+    name: Business Intelligence
+    description: KPI tracking → analytics → financial projections → full report
+    bots:
+      - business/23_kpi_tracker
+      - marketing/10_analytics_reporter
+      - business/22_financial_projection
+      - specialized/70_reporting_dashboard
+
+  weekly_report:
+    name: Weekly Report
+    description: Business KPIs → full report → newsletter generation
+    bots:
+      - business/23_kpi_tracker
+      - specialized/70_reporting_dashboard
+      - marketing/17_newsletter_generator
+
+  growth_sprint:
+    name: Growth Sprint
+    description: Competitor analysis → growth hacking → outreach → conversion optimization
+    bots:
+      - marketing/08_competitor_analyzer
+      - marketing/20_growth_hacking
+      - marketing/15_outreach_automation
+      - marketing/18_conversion_optimizer
+
+  customer_success:
+    name: Customer Success
+    description: Ticket classification → auto-replies → FAQ refresh
+    bots:
+      - customer_support/31_ticket_classifier
+      - customer_support/29_auto_reply_email
+      - customer_support/30_faq_chatbot

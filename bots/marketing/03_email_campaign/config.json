@@ -1,0 +1,7 @@
+{
+  "description": "Creates complete email marketing campaigns with subject lines, body, and CTAs",
+  "campaign_type": "welcome_series",
+  "num_emails": 5,
+  "schedule": "@weekly mon 09:00",
+  "enabled": true
+}

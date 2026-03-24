@@ -1,0 +1,5 @@
+{
+  "description": "Negotiation strategy and scripts",
+  "enabled": true,
+  "schedule": "@weekly"
+}

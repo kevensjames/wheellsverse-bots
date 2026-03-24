@@ -1,0 +1,6 @@
+{
+  "description": "Builds complete marketing funnel copy from awareness to conversion",
+  "funnel_type": "lead_generation",
+  "schedule": "@weekly fri 09:00",
+  "enabled": true
+}

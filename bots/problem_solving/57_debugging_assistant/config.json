@@ -1,0 +1,5 @@
+{
+  "description": "Code debugging and analysis",
+  "enabled": true,
+  "schedule": "@every_2hours"
+}

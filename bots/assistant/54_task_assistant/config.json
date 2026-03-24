@@ -1,0 +1,5 @@
+{
+  "description": "Daily task planning and prioritization",
+  "enabled": true,
+  "schedule": "@daily 07:00"
+}

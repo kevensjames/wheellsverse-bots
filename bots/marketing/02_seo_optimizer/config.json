@@ -1,0 +1,7 @@
+{
+  "description": "Analyzes content and provides SEO optimization recommendations",
+  "target_keyword_density": 0.02,
+  "min_word_count": 300,
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Classify and triage support tickets",
+  "enabled": true,
+  "schedule": "@every_30min"
+}

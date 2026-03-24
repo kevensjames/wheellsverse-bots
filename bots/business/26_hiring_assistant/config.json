@@ -1,0 +1,5 @@
+{
+  "description": "Job descriptions and interview questions",
+  "enabled": true,
+  "schedule": "@weekly"
+}

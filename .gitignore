@@ -1,0 +1,45 @@
+# Environment & secrets — NEVER commit these
+.env
+*.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Generated outputs (large files, regenerated on demand)
+outputs/
+logs/
+data/leads/
+
+# Intelligence + analytics (persisted on server volume)
+data/intelligence.json
+data/strategy.json
+outputs/reports/platform_analytics.json
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/

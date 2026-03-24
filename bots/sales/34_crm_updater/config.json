@@ -1,0 +1,5 @@
+{
+  "description": "CRM data and contact updates",
+  "enabled": true,
+  "schedule": "@daily 08:00"
+}

@@ -1,0 +1,5 @@
+{
+  "description": "7-day social media post calendar",
+  "enabled": true,
+  "schedule": "@weekly sun 20:00"
+}

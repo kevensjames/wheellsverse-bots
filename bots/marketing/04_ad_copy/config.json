@@ -1,0 +1,7 @@
+{
+  "description": "Generates high-converting ad copy for Facebook, Google, Instagram ads",
+  "platforms": ["facebook", "google", "instagram"],
+  "num_variations": 5,
+  "schedule": "@weekly wed 09:00",
+  "enabled": true
+}

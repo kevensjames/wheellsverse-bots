@@ -1,0 +1,5 @@
+{
+  "description": "trend analyzer bot",
+  "enabled": true,
+  "schedule": "@daily 10:00"
+}

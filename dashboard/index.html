@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>WheellsVerse — AI Command Center</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--bg2:#13161d;--bg3:#1a1e28;--bg4:#20253300;
+  --border:#2a2f3e;--cyan:#00d4ff;--cyan2:#0099bb;--green:#00ff88;
+  --red:#ff4444;--yellow:#ffcc00;--purple:#aa88ff;--orange:#ff8844;
+  --text:#e0e6f0;--text2:#8891a8;--text3:#555e77;--r:8px;--r2:12px;
+}
+body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+.layout{display:flex;height:100vh}
+.sidebar{width:215px;min-width:215px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;height:100vh;z-index:100;overflow-y:auto}
+.main{margin-left:215px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.content{flex:1;padding:20px;overflow-y:auto;max-height:calc(100vh - 50px)}
+.brand{padding:18px 14px 14px;border-bottom:1px solid var(--border)}
+.brand-name{font-size:12px;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase}
+.brand-sub{font-size:9px;color:var(--text3);margin-top:2px}
+.nav{flex:1;padding:8px 0}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 14px;cursor:pointer;border-left:3px solid transparent;transition:all .13s;font-size:11px;color:var(--text2);user-select:none}
+.nav-item:hover{background:var(--bg3);color:var(--text)}
+.nav-item.active{border-left-color:var(--cyan);background:rgba(0,212,255,.07);color:var(--cyan)}
+.nav-item .ic{font-size:14px;width:17px;text-align:center}
+.nav-sec{padding:10px 14px 3px;font-size:9px;letter-spacing:2px;color:var(--text3);text-transform:uppercase}
+.sidebar-foot{padding:10px 14px;border-top:1px solid var(--border);font-size:10px;color:var(--text3)}
+.tb-title{font-size:13px;font-weight:600;color:var(--text)}
+.tb-right{display:flex;align-items:center;gap:14px}
+.sdot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)}
+.sdot.idle{background:var(--text3);box-shadow:none}.sdot.error{background:var(--red);box-shadow:0 0 6px var(--red)}
+.ts{font-size:10px;color:var(--text2)}.ts span{color:var(--cyan);font-weight:700}
+.clk{font-size:10px;color:var(--text3)}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:20px}
+.g2{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:18px}
+.csm{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:14px}
+.ct{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--text3);margin-bottom:10px}
+.cv{font-size:28px;font-weight:700;color:var(--text);line-height:1}
+.cv.cy{color:var(--cyan)}.cv.gr{color:var(--green)}.cv.rd{color:var(--red)}.cv.yl{color:var(--yellow)}.cv.pu{color:var(--purple)}
+.csb{font-size:10px;color:var(--text3);margin-top:5px}
+.sh{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.st{font-size:13px;font-weight:600;color:var(--text)}.ss{font-size:11px;color:var(--text3);margin-top:2px}
+.bdg{display:inline-block;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:600}
+.bc{background:rgba(0,212,255,.13);color:var(--cyan);border:1px solid rgba(0,212,255,.28)}
+.bg{background:rgba(0,255,136,.1);color:var(--green);border:1px solid rgba(0,255,136,.22)}
+.br{background:rgba(255,68,68,.1);color:var(--red);border:1px solid rgba(255,68,68,.22)}
+.by{background:rgba(255,204,0,.1);color:var(--yellow);border:1px solid rgba(255,204,0,.22)}
+.bp{background:rgba(170,136,255,.1);color:var(--purple);border:1px solid rgba(170,136,255,.22)}
+.bz{background:rgba(136,145,168,.09);color:var(--text2);border:1px solid var(--border)}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r);border:1px solid;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer;transition:all .13s;white-space:nowrap}
+.bc2{background:rgba(0,212,255,.08);border-color:var(--cyan2);color:var(--cyan)}.bc2:hover{background:rgba(0,212,255,.18)}
+.bg2{background:rgba(0,255,136,.08);border-color:rgba(0,255,136,.35);color:var(--green)}.bg2:hover{background:rgba(0,255,136,.18)}
+.br2{background:rgba(255,68,68,.08);border-color:rgba(255,68,68,.35);color:var(--red)}.br2:hover{background:rgba(255,68,68,.18)}
+.bgh{background:transparent;border-color:var(--border);color:var(--text2)}.bgh:hover{border-color:var(--text2);color:var(--text)}
+.bsm{padding:4px 9px;font-size:10px}
+.tw{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden}
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl th{background:var(--bg3);padding:9px 13px;text-align:left;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--text3);border-bottom:1px solid var(--border)}
+.tbl td{padding:8px 13px;border-bottom:1px solid rgba(42,47,62,.4);color:var(--text2);vertical-align:middle}
+.tbl tr:last-child td{border-bottom:none}.tbl tr:hover td{background:rgba(255,255,255,.015)}
+.tbl .nc{color:var(--text);font-weight:500}
+.ss2{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:20px;font-size:9px;font-weight:600}
+.ss2::before{content:'';width:5px;height:5px;border-radius:50%}
+.si{color:var(--text3);background:rgba(85,94,119,.13)}.si::before{background:var(--text3)}
+.sr{color:var(--yellow);background:rgba(255,204,0,.08)}.sr::before{background:var(--yellow);box-shadow:0 0 4px var(--yellow);animation:pl 1s infinite}
+.sd{color:var(--green);background:rgba(0,255,136,.07)}.sd::before{background:var(--green)}
+.se{color:var(--red);background:rgba(255,68,68,.08)}.se::before{background:var(--red)}
+.sok{color:var(--green);background:rgba(0,255,136,.07)}.sok::before{background:var(--green)}
+@keyframes pl{0%,100%{opacity:1}50%{opacity:.35}}
+.sb{display:flex;gap:9px;margin-bottom:14px;align-items:center;flex-wrap:wrap}
+.si2{flex:1;min-width:180px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:7px 11px;color:var(--text);font-family:inherit;font-size:11px;outline:none;transition:border-color .13s}
+.si2:focus{border-color:var(--cyan2)}.si2::placeholder{color:var(--text3)}select.si2{cursor:pointer}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.pc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;transition:border-color .13s}.pc:hover{border-color:var(--cyan2)}
+.pc-n{font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px}
+.pc-d{font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.5}
+.pc-b{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:12px}
+.bp2{background:var(--bg3);border:1px solid var(--border);border-radius:20px;padding:2px 7px;font-size:9px;color:var(--text3)}
+.pc-f{display:flex;align-items:center;justify-content:space-between}
+.lc{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);height:440px;overflow-y:auto;padding:10px;font-size:10px;line-height:1.9}
+.le{display:flex;gap:9px;padding:1px 0}
+.lt{color:var(--text3);min-width:57px;flex-shrink:0}
+.ll{min-width:42px;flex-shrink:0;font-weight:700}
+.ll.INFO{color:var(--cyan)}.ll.ERROR{color:var(--red)}.ll.WARN,.ll.WARNING{color:var(--yellow)}
+.lm{color:var(--text2);word-break:break-word}
+.cw{position:relative;margin-bottom:18px}
+.ci{width:100%;background:var(--bg3);border:1px solid var(--cyan2);border-radius:var(--r);padding:13px 46px 13px 14px;color:var(--text);font-family:inherit;font-size:13px;outline:none}
+.ci:focus{border-color:var(--cyan);box-shadow:0 0 0 2px rgba(0,212,255,.08)}.ci::placeholder{color:var(--text3)}
+.cs{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--cyan);font-size:17px;cursor:pointer}
+.ch{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);max-height:300px;overflow-y:auto}
+.chi{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-size:11px}.chi:last-child{border-bottom:none}
+.cq{color:var(--cyan)}.ca{color:var(--text2);margin-top:3px;line-height:1.6}
+.cts{font-size:9px;color:var(--text3);margin-left:auto;flex-shrink:0}
+.csgs{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.csg{padding:5px 11px;background:var(--bg3);border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--text2);cursor:pointer;transition:all .13s}
+.csg:hover{border-color:var(--cyan2);color:var(--cyan)}
+.sg{display:grid;gap:8px}
+.sr2{display:flex;align-items:center;gap:10px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px}
+.sk{font-size:11px;color:var(--cyan);min-width:210px;font-family:monospace}
+.sv{flex:1;font-size:11px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.se2{background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);padding:5px 8px;color:var(--text);font-family:monospace;font-size:11px;flex:1;outline:none}
+.se2:focus{border-color:var(--cyan2)}
+.ov{background:var(--bg);border:1px solid var(--border);border-radius:var(--r2);padding:14px;max-height:380px;overflow-y:auto;white-space:pre-wrap;font-size:10px;color:var(--text2);line-height:1.7}
+#toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:7px}
+.tst{padding:10px 16px;border-radius:var(--r);font-size:11px;font-weight:500;animation:si3 .2s ease;border-left:3px solid}
+.ts-success{background:rgba(0,255,136,.13);border-color:var(--green);color:var(--green)}
+.ts-error{background:rgba(255,68,68,.13);border-color:var(--red);color:var(--red)}
+.ts-info{background:rgba(0,212,255,.13);border-color:var(--cyan);color:var(--cyan)}
+@keyframes si3{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:translateX(0)}}
+.page{display:none}.page.active{display:block}
+.tnav{display:flex;gap:0;margin-bottom:14px;background:var(--bg3);border-radius:var(--r);padding:3px}
+.tbtn{padding:6px 12px;border-radius:6px;font-size:10px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--text3);font-family:inherit;transition:all .13s}
+.tbtn.active{background:var(--bg2);color:var(--cyan);box-shadow:0 1px 3px rgba(0,0,0,.3)}
+/* health bars */
+.hbar{height:6px;border-radius:3px;background:var(--bg3);overflow:hidden;margin-top:4px}
+.hbar-fill{height:100%;border-radius:3px;transition:width .4s}
+/* decision rule card */
+.rule-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px}
+.rule-name{font-size:12px;font-weight:600;color:var(--text)}
+.rule-desc{font-size:10px;color:var(--text2);margin:4px 0 8px}
+.rule-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+/* project card */
+.proj-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;transition:border-color .13s;cursor:pointer}
+.proj-card:hover{border-color:var(--cyan2)}.proj-card.active-proj{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+/* memory entry */
+.mem-entry{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:8px}
+.mem-key{font-size:10px;color:var(--cyan);font-family:monospace;margin-bottom:4px}
+.mem-content{font-size:11px;color:var(--text2);max-height:60px;overflow:hidden;text-overflow:ellipsis;line-height:1.5}
+.mem-meta{font-size:9px;color:var(--text3);margin-top:5px;display:flex;gap:10px}
+/* progress ring */
+.pring{display:inline-flex;align-items:center;justify-content:center;position:relative}
+.pring svg{transform:rotate(-90deg)}
+.pring-val{position:absolute;font-size:11px;font-weight:700}
+@media(max-width:768px){
+  .sidebar{width:52px;min-width:52px}.brand-name,.brand-sub,.nav-item span,.nav-sec,.sidebar-foot{display:none}
+  .main{margin-left:52px}.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+<!-- SIDEBAR -->
+<nav class="sidebar">
+  <div class="brand"><div class="brand-name">WHEELLSVERSE</div><div class="brand-sub">AI Command Center v2.0</div></div>
+  <div class="nav">
+    <div class="nav-sec">Control</div>
+    <div class="nav-item active" onclick="nav('overview')" id="nav-overview"><span class="ic">⬡</span><span>Overview</span></div>
+    <div class="nav-item" onclick="nav('bots')" id="nav-bots"><span class="ic">🤖</span><span>Bots (70)</span></div>
+    <div class="nav-item" onclick="nav('pipelines')" id="nav-pipelines"><span class="ic">🔗</span><span>Pipelines</span></div>
+    <div class="nav-item" onclick="nav('scheduler')" id="nav-scheduler"><span class="ic">📅</span><span>Scheduler</span></div>
+    <div class="nav-sec">Intelligence</div>
+    <div class="nav-item" onclick="nav('decisions')" id="nav-decisions"><span class="ic">🧠</span><span>Decision Engine</span></div>
+    <div class="nav-item" onclick="nav('health')" id="nav-health"><span class="ic">❤️</span><span>Bot Health</span></div>
+    <div class="nav-item" onclick="nav('memory')" id="nav-memory"><span class="ic">💾</span><span>Memory</span></div>
+    <div class="nav-sec">Revenue</div>
+    <div class="nav-item" onclick="nav('content')" id="nav-content"><span class="ic">✍️</span><span>Content Engine</span></div>
+    <div class="nav-item" onclick="nav('intelligence')" id="nav-intelligence"><span class="ic">🔬</span><span>Intelligence</span></div>
+    <div class="nav-sec">Live Data</div>
+    <div class="nav-item" onclick="nav('integrations')" id="nav-integrations"><span class="ic">📡</span><span>Market Data</span></div>
+    <div class="nav-item" onclick="nav('automation')" id="nav-automation"><span class="ic">📤</span><span>Automation</span></div>
+    <div class="nav-sec">Data</div>
+    <div class="nav-item" onclick="nav('outputs')" id="nav-outputs"><span class="ic">📁</span><span>Outputs</span></div>
+    <div class="nav-item" onclick="nav('logs')" id="nav-logs"><span class="ic">📜</span><span>Live Logs</span></div>
+    <div class="nav-sec">Config</div>
+    <div class="nav-item" onclick="nav('projects')" id="nav-projects"><span class="ic">🗂</span><span>Projects</span></div>
+    <div class="nav-item" onclick="nav('settings')" id="nav-settings"><span class="ic">⚙️</span><span>Settings</span></div>
+    <div class="nav-item" onclick="nav('command')" id="nav-command"><span class="ic">⌨️</span><span>Command</span></div>
+  </div>
+  <div class="sidebar-foot" id="uptime-lbl">Loading...</div>
+</nav>
+
+<!-- MAIN -->
+<div class="main">
+<div class="topbar">
+  <div><div class="tb-title" id="page-title">Overview</div></div>
+  <div class="tb-right">
+    <div class="ts">Bots:<span id="tb-total">—</span></div>
+    <div class="ts">Running:<span id="tb-run">—</span></div>
+    <div class="ts">Failed:<span id="tb-fail">—</span></div>
+    <span id="sdot" class="sdot idle"></span>
+    <div class="clk" id="clk">—</div>
+  </div>
+</div>
+<div class="content">
+
+<!-- ══ OVERVIEW ══════════════════════════════════════════════════════════ -->
+<div class="page active" id="page-overview">
+  <div class="g4">
+    <div class="card"><div class="ct">Total Bots</div><div class="cv cy" id="ov-total">—</div><div class="csb">Loaded</div></div>
+    <div class="card"><div class="ct">Running</div><div class="cv yl" id="ov-run">—</div><div class="csb">Active now</div></div>
+    <div class="card"><div class="ct">Completed</div><div class="cv gr" id="ov-done">—</div><div class="csb">Since start</div></div>
+    <div class="card"><div class="ct">Failed</div><div class="cv rd" id="ov-fail">—</div><div class="csb">Error state</div></div>
+  </div>
+  <div class="g4">
+    <div class="card"><div class="ct">Scheduler</div><div class="cv" id="ov-sched" style="font-size:18px">—</div></div>
+    <div class="card"><div class="ct">Decision Engine</div><div class="cv" id="ov-de" style="font-size:18px">—</div></div>
+    <div class="card"><div class="ct">Avg Health</div><div class="cv pu" id="ov-health">—</div><div class="csb">All bots</div></div>
+    <div class="card"><div class="ct">Uptime</div><div class="cv" id="ov-up" style="font-size:18px;color:var(--cyan)">—</div></div>
+  </div>
+  <div class="sh"><div><div class="st">Quick Actions</div></div></div>
+  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:24px">
+    <button class="btn bc2" onclick="runAll()">🚀 Run All 70</button>
+    <button class="btn bg2" onclick="startSched()">▶ Scheduler</button>
+    <button class="btn bc2" onclick="startDE()">🧠 Decision Engine</button>
+    <button class="btn br2" onclick="stopSched()">⏹ Stop Scheduler</button>
+    <button class="btn bgh" onclick="nav('pipelines')">🔗 Pipelines</button>
+    <button class="btn bgh" onclick="deCycle()">⚡ Run Decision Cycle</button>
+  </div>
+  <div class="sh"><div class="st">Categories</div></div>
+  <div class="g3" id="cat-grid"></div>
+</div>
+
+<!-- ══ BOTS ════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-bots">
+  <div class="sb">
+    <input class="si2" type="text" id="bsrch" placeholder="Search bots..." oninput="filterBots()">
+    <select class="si2" id="bcat" onchange="filterBots()" style="max-width:170px"><option value="">All Categories</option></select>
+    <select class="si2" id="bstat" onchange="filterBots()" style="max-width:130px"><option value="">All Status</option><option value="idle">Idle</option><option value="running">Running</option><option value="done">Done</option><option value="error">Failed</option></select>
+    <button class="btn bc2 bsm" onclick="refreshBots()">↺</button>
+    <button class="btn bg2 bsm" onclick="runAll()">🚀 All</button>
+  </div>
+  <div class="tw"><table class="tbl"><thead><tr><th>#</th><th>Bot Name</th><th>Category</th><th>Status</th><th>Runs</th><th>Last Run</th><th>Schedule</th><th>Actions</th></tr></thead><tbody id="bots-tb"><tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text3)">Loading...</td></tr></tbody></table></div>
+  <div id="out-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;padding:36px;overflow-y:auto">
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);max-width:800px;margin:0 auto;padding:22px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div class="st" id="modal-t">Output</div><button class="btn bgh bsm" onclick="closeModal()">✕ Close</button></div>
+      <div id="modal-c"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ PIPELINES ════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-pipelines">
+  <div class="sh" style="margin-bottom:18px"><div><div class="st">Pipelines</div><div class="ss">Chain multiple bots with shared context</div></div></div>
+  <div class="pgrid" id="pl-grid"><div style="color:var(--text3);font-size:12px">Loading...</div></div>
+</div>
+
+<!-- ══ SCHEDULER ════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-scheduler">
+  <div style="display:flex;gap:9px;align-items:center;margin-bottom:18px">
+    <div style="font-size:13px;font-weight:600">Scheduler: <span id="sc-lbl" style="color:var(--text3)">Unknown</span></div>
+    <button class="btn bg2 bsm" onclick="startSched()">▶ Start</button>
+    <button class="btn br2 bsm" onclick="stopSched()">⏹ Stop</button>
+    <button class="btn bgh bsm" onclick="refreshSched()">↺</button>
+  </div>
+  <div class="tw"><table class="tbl"><thead><tr><th>#</th><th>Bot</th><th>Schedule</th><th>Next Run</th></tr></thead><tbody id="sc-tb"><tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text3)">Loading...</td></tr></tbody></table></div>
+</div>
+
+<!-- ══ DECISION ENGINE ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-decisions">
+  <!-- Stats row -->
+  <div class="g4" style="margin-bottom:16px">
+    <div class="card"><div class="ct">Engine Status</div><div class="cv" id="de-status" style="font-size:16px">—</div><div class="csb" id="de-last-run">Never ran</div></div>
+    <div class="card"><div class="ct">Rules Active</div><div class="cv cy" id="de-rules">—</div><div class="csb" id="de-rules-sub">of total</div></div>
+    <div class="card"><div class="ct">Total Decisions</div><div class="cv pu" id="de-total">—</div><div class="csb">all time</div></div>
+    <div class="card"><div class="ct">Alerts Sent</div><div class="cv rd" id="de-alerts">—</div><div class="csb">this session</div></div>
+  </div>
+
+  <!-- Last run summary strip -->
+  <div id="de-run-strip" style="display:none;background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.18);border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:11px;color:var(--text2)">
+    <span style="color:var(--cyan);font-weight:700">Last Intelligence Run:</span>
+    <span id="de-strip-market" style="margin-left:10px">📈 Market: —</span>
+    <span id="de-strip-trend" style="margin-left:10px">📡 Trend: —</span>
+    <span id="de-strip-health" style="margin-left:10px">❤️ Health: —</span>
+    <span id="de-strip-rules" style="margin-left:10px">🧠 Rules: —</span>
+    <span id="de-strip-dur" style="margin-left:10px;color:var(--text3)"></span>
+  </div>
+
+  <!-- Controls -->
+  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:18px">
+    <button class="btn bg2 bsm" onclick="startDE()">▶ Start Engine</button>
+    <button class="btn br2 bsm" onclick="stopDE()">⏹ Stop</button>
+    <button class="btn bc2 bsm" onclick="runIntelligence()">🧠 Run Intelligence</button>
+    <button class="btn bgh bsm" onclick="deCycle()">⚡ Rule Cycle</button>
+    <button class="btn bgh bsm" onclick="refreshDE()">↺ Refresh</button>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tnav">
+    <button class="tbtn active" onclick="deTab('rules',this)">Rules</button>
+    <button class="tbtn" onclick="deTab('log',this)">Decision Log</button>
+    <button class="tbtn" onclick="deTab('intel',this)">Intelligence Log</button>
+    <button class="tbtn" onclick="deTab('state',this)">System State</button>
+  </div>
+  <div id="de-rules-panel">
+    <div id="de-rules-list"><div style="color:var(--text3)">Loading...</div></div>
+  </div>
+  <div id="de-log-panel" style="display:none">
+    <div id="de-log-list"><div style="color:var(--text3)">No decisions yet</div></div>
+  </div>
+  <div id="de-intel-panel" style="display:none">
+    <div id="de-intel-list"><div style="color:var(--text3);padding:14px">Click "Run Intelligence" to see market, trend, and health evaluations here.</div></div>
+  </div>
+  <div id="de-state-panel" style="display:none">
+    <pre id="de-state-json" class="ov"></pre>
+  </div>
+</div>
+
+<!-- ══ HEALTH ════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-health">
+  <div class="g4" style="margin-bottom:20px">
+    <div class="card"><div class="ct">Tracked Bots</div><div class="cv cy" id="h-tracked">—</div></div>
+    <div class="card"><div class="ct">Bots Ran</div><div class="cv gr" id="h-ran">—</div></div>
+    <div class="card"><div class="ct">Currently Failed</div><div class="cv rd" id="h-fail">—</div></div>
+    <div class="card"><div class="ct">Avg Health Score</div><div class="cv pu" id="h-score">—</div></div>
+  </div>
+  <div class="sb"><input class="si2" type="text" id="h-srch" placeholder="Filter bots..." oninput="filterHealth()"><button class="btn bc2 bsm" onclick="refreshHealth()">↺ Refresh</button></div>
+  <div class="tw"><table class="tbl"><thead><tr><th>Bot</th><th>Category</th><th>Health</th><th>Status</th><th>Runs</th><th>Success Rate</th><th>Avg Duration</th><th>Last Run</th><th>Errors</th></tr></thead><tbody id="h-tb"></tbody></table></div>
+</div>
+
+<!-- ══ MEMORY ════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-memory">
+  <div class="g3" style="margin-bottom:18px">
+    <div class="card"><div class="ct">Total Entries</div><div class="cv cy" id="mem-total">—</div></div>
+    <div class="card"><div class="ct">Project</div><div class="cv" id="mem-proj" style="font-size:16px;color:var(--text)">global</div></div>
+    <div class="card"><div class="ct">Top Source</div><div class="cv" id="mem-src" style="font-size:14px;color:var(--purple)">—</div></div>
+  </div>
+  <div style="display:flex;gap:9px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
+    <div class="cw" style="margin:0;flex:1;min-width:200px"><input class="ci" style="padding:9px 40px 9px 12px;font-size:11px" id="mem-query" placeholder="Search memory (semantic or keyword)..." onkeydown="if(event.key==='Enter')searchMem()"><button class="cs" onclick="searchMem()" style="font-size:14px">🔍</button></div>
+    <button class="btn bc2 bsm" onclick="refreshMemory()">↺ Refresh</button>
+    <button class="btn bgh bsm" onclick="clearMemSearch()">✕ Clear</button>
+  </div>
+  <div id="mem-list"></div>
+</div>
+
+<!-- ══ OUTPUTS ═══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-outputs">
+  <div class="tnav" id="out-tnav"></div>
+  <div id="out-content"><div style="color:var(--text3)">Loading...</div></div>
+</div>
+
+<!-- ══ LOGS ══════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-logs">
+  <div style="display:flex;gap:9px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+    <button class="btn bc2 bsm" onclick="toggleLog()"><span id="log-tog">⏸ Pause</span></button>
+    <button class="btn bgh bsm" onclick="clearLogs()">🗑 Clear</button>
+    <select class="si2" id="log-lvl" onchange="filterLogs()" style="max-width:120px"><option value="">All Levels</option><option value="INFO">INFO</option><option value="ERROR">ERROR</option><option value="WARN">WARN</option></select>
+    <div style="margin-left:auto;font-size:10px;color:var(--text3)" id="log-cnt">0</div>
+  </div>
+  <div class="lc" id="log-c"></div>
+</div>
+
+<!-- ══ PROJECTS ══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-projects">
+  <div class="sh" style="margin-bottom:16px">
+    <div><div class="st">Projects / Clients</div><div class="ss">Each project has isolated outputs, memory, and config</div></div>
+    <button class="btn bc2 bsm" onclick="showNewProj()">+ New Project</button>
+  </div>
+  <div id="new-proj-form" style="display:none;background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:16px;margin-bottom:16px">
+    <div class="st" style="margin-bottom:12px">Create New Project</div>
+    <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:12px">
+      <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">Slug (ID)</div><input class="se2" style="width:100%" id="np-slug" placeholder="client_acme"></div>
+      <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">Name</div><input class="se2" style="width:100%" id="np-name" placeholder="Acme Corp"></div>
+      <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">Brand</div><input class="se2" style="width:100%" id="np-brand" placeholder="Acme / J.K. Blaze"></div>
+      <div><div style="font-size:10px;color:var(--text3);margin-bottom:4px">Niche</div><input class="se2" style="width:100%" id="np-niche" placeholder="SaaS, ecommerce, coaching..."></div>
+      <div style="grid-column:1/-1"><div style="font-size:10px;color:var(--text3);margin-bottom:4px">Goal</div><input class="se2" style="width:100%" id="np-goal" placeholder="Generate $10k/month with automation"></div>
+    </div>
+    <div style="display:flex;gap:9px"><button class="btn bg2 bsm" onclick="createProj()">Create Project</button><button class="btn bgh bsm" onclick="document.getElementById('new-proj-form').style.display='none'">Cancel</button></div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px" id="proj-grid"></div>
+</div>
+
+<!-- ══ SETTINGS ══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-settings">
+  <div class="sh" style="margin-bottom:14px"><div><div class="st">Environment Settings</div><div class="ss">API keys and system configuration</div></div><button class="btn bc2 bsm" onclick="refreshSettings()">↺ Refresh</button></div>
+  <div class="sg" id="settings-g"></div>
+</div>
+
+<!-- ══ CONTENT ENGINE ════════════════════════════════════════════════════════ -->
+<div class="page" id="page-content">
+  <div class="sh" style="margin-bottom:16px">
+    <div><div class="st">Content Engine</div><div class="ss">AI content generation → SEO → monetization → publish</div></div>
+    <button class="btn bc2 bsm" onclick="refreshContent()">↺ Refresh</button>
+  </div>
+  <div class="g4" style="margin-bottom:16px" id="content-stats"></div>
+  <div class="g2" style="margin-bottom:18px">
+    <div class="card">
+      <div class="ct">Generate Content</div>
+      <input class="si2" id="cp-topics" placeholder="Topics (comma-separated, or leave blank for auto)" style="width:100%;margin-bottom:8px">
+      <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center">
+        <label style="font-size:11px;color:var(--text2)">Top N:</label>
+        <select class="si2" id="cp-topn" style="width:80px">
+          <option value="1">1</option><option value="2" selected>2</option><option value="3">3</option>
+        </select>
+        <label style="font-size:11px;color:var(--text2);margin-left:8px"><input type="checkbox" id="cp-publish"> Auto-publish</label>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text2)"><input type="checkbox" id="pub-static" checked> Static HTML</label>
+        <label style="font-size:10px;color:var(--text2)"><input type="checkbox" id="pub-wp"> WordPress</label>
+        <label style="font-size:10px;color:var(--text2)"><input type="checkbox" id="pub-medium"> Medium</label>
+      </div>
+      <button class="btn bg2 bsm" style="width:100%" onclick="runContentPipeline()">✍️ Generate Content</button>
+    </div>
+    <div class="card">
+      <div class="ct">Publisher Status</div>
+      <div id="pub-status"></div>
+      <div style="margin-top:12px">
+        <div class="ct">Quick Publish Last Piece</div>
+        <button class="btn bc2 bsm" style="width:100%;margin-top:6px" onclick="publishLast()">📤 Publish Latest Content</button>
+      </div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="sh"><div class="ct" style="margin:0">Content History</div><button class="btn bgh bsm" onclick="refreshContent()">↺</button></div>
+    <div id="content-history" style="margin-top:10px;max-height:300px;overflow-y:auto"></div>
+  </div>
+</div>
+
+<!-- ══ INTELLIGENCE ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-intelligence">
+  <div class="sh" style="margin-bottom:16px">
+    <div><div class="st">Intelligence System</div><div class="ss">Self-improving performance tracker and strategy advisor</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bc2 bsm" onclick="genIntelReport()">📊 Generate Report</button>
+      <button class="btn bgh bsm" onclick="refreshIntelligence()">↺ Refresh</button>
+    </div>
+  </div>
+  <div class="g4" style="margin-bottom:16px" id="intel-stats"></div>
+  <div class="g2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="ct">Strategy Recommendation</div>
+      <div id="intel-strategy" style="font-size:11px;color:var(--text2);margin-top:6px">Loading...</div>
+    </div>
+    <div class="card">
+      <div class="ct">Top Performing Topics</div>
+      <div id="intel-topics"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct">Content Records</div>
+    <div id="intel-records" style="max-height:300px;overflow-y:auto;margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- ══ INTEGRATIONS ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-integrations">
+  <div class="sh" style="margin-bottom:16px">
+    <div><div class="st">Market Data &amp; Trends</div><div class="ss">Live crypto, stocks, news, and Google Trends</div></div>
+    <div style="display:flex;gap:8px">
+      <select class="si2" id="int-feed" style="width:180px">
+        <option value="market">Market Summary</option>
+        <option value="crypto">Crypto Prices</option>
+        <option value="stocks">Tech Stocks</option>
+        <option value="news">AI News</option>
+        <option value="content-intel">Content Intelligence</option>
+        <option value="reddit">Reddit Trends</option>
+      </select>
+      <button class="btn bc2 bsm" onclick="refreshIntegrations()">↺ Fetch</button>
+    </div>
+  </div>
+  <div class="g4" id="int-stats"></div>
+  <div class="card" id="int-content" style="min-height:200px">
+    <div style="color:var(--text3);text-align:center;padding:30px">Select a feed and click Fetch</div>
+  </div>
+</div>
+
+<!-- ══ AUTOMATION ═════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-automation">
+  <div class="sh" style="margin-bottom:16px">
+    <div><div class="st">Output Automation</div><div class="ss">Email, Slack, Discord, exports &amp; report queue</div></div>
+    <button class="btn bc2 bsm" onclick="refreshAutomation()">↺ Refresh</button>
+  </div>
+
+  <!-- Status cards -->
+  <div class="g4" id="auto-status-cards" style="margin-bottom:18px"></div>
+
+  <div class="g2" style="margin-bottom:18px">
+    <!-- Quick Post -->
+    <div class="card">
+      <div class="ct">Quick Post</div>
+      <select class="si2" id="auto-platform" style="width:100%;margin-bottom:8px">
+        <option value="slack">Slack</option>
+        <option value="discord">Discord</option>
+        <option value="email">Email</option>
+      </select>
+      <input class="si2" id="auto-topic" placeholder="Topic (optional)" style="width:100%;margin-bottom:8px">
+      <textarea class="si2" id="auto-content" placeholder="Content to post..." style="width:100%;height:80px;resize:vertical"></textarea>
+      <button class="btn bc2 bsm" style="margin-top:8px;width:100%" onclick="autoPost()">📤 Post</button>
+    </div>
+
+    <!-- Send Alert -->
+    <div class="card">
+      <div class="ct">Broadcast Alert</div>
+      <input class="si2" id="alert-title" placeholder="Alert title" style="width:100%;margin-bottom:8px">
+      <textarea class="si2" id="alert-msg" placeholder="Alert message..." style="width:100%;height:80px;resize:vertical"></textarea>
+      <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+        <label style="font-size:10px;color:var(--text2)"><input type="checkbox" id="al-slack" checked> Slack</label>
+        <label style="font-size:10px;color:var(--text2)"><input type="checkbox" id="al-discord"> Discord</label>
+        <label style="font-size:10px;color:var(--text2)"><input type="checkbox" id="al-email"> Email</label>
+      </div>
+      <button class="btn br2 bsm" style="margin-top:10px;width:100%" onclick="sendAlert()">🚨 Send Alert</button>
+    </div>
+  </div>
+
+  <!-- Report Queue + Delivery Log -->
+  <div class="g2">
+    <div class="card">
+      <div class="sh">
+        <div class="ct" style="margin:0">Report Queue</div>
+        <button class="btn bg2 bsm" onclick="flushDigest()">📨 Flush Digest</button>
+      </div>
+      <div id="auto-queue" style="margin-top:10px"></div>
+    </div>
+    <div class="card">
+      <div class="ct">Delivery Log</div>
+      <div id="auto-log" style="max-height:220px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ COMMAND ═══════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-command">
+  <div class="sh" style="margin-bottom:14px"><div><div class="st">Command Center</div><div class="ss">Natural language control</div></div></div>
+  <div class="csgs" id="sug-list">
+    <div class="csg" onclick="sug(this)">Run all marketing bots</div>
+    <div class="csg" onclick="sug(this)">Start morning pipeline</div>
+    <div class="csg" onclick="sug(this)">Run sales engine</div>
+    <div class="csg" onclick="sug(this)">Generate content for today</div>
+    <div class="csg" onclick="sug(this)">Start scheduler</div>
+    <div class="csg" onclick="sug(this)">Run weekly report</div>
+    <div class="csg" onclick="sug(this)">Run social domination</div>
+    <div class="csg" onclick="sug(this)">Show status</div>
+    <div class="csg" onclick="sug(this)">Run business intelligence</div>
+    <div class="csg" onclick="sug(this)">Start decision engine</div>
+  </div>
+  <div class="cw">
+    <input class="ci" id="cmd-in" type="text" placeholder="e.g. 'Run all marketing bots', 'Start morning pipeline'..." onkeydown="if(event.key==='Enter')sendCmd()">
+    <button class="cs" onclick="sendCmd()">⏎</button>
+  </div>
+  <div style="font-size:10px;color:var(--text3);margin-bottom:10px">History</div>
+  <div class="ch" id="cmd-hist"><div style="padding:18px;text-align:center;color:var(--text3);font-size:11px">No commands yet.</div></div>
+</div>
+
+</div></div></div>
+<div id="toast-container"></div>
+
+<script>
+const API='';
+let botsData=[],allLogs=[],logRunning=true,sseSource=null;
+let healthData=[],projData={};
+const TITLES={overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center'};
+const API_KEY = '';  // injected by server when API_KEY env is set
+
+function nav(p){
+  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.getElementById('nav-'+p).classList.add('active');
+  document.getElementById('page-title').textContent=TITLES[p]||p;
+  if(p==='bots') refreshBots();
+  if(p==='pipelines') refreshPL();
+  if(p==='scheduler') refreshSched();
+  if(p==='outputs') refreshOutputs();
+  if(p==='settings') refreshSettings();
+  if(p==='logs'){startSSE();}
+  if(p==='decisions') refreshDE();
+  if(p==='health') refreshHealth();
+  if(p==='memory') refreshMemory();
+  if(p==='projects') refreshProjects();
+  if(p==='integrations') refreshIntegrations();
+  if(p==='automation') refreshAutomation();
+  if(p==='content') refreshContent();
+  if(p==='intelligence') refreshIntelligence();
+}
+setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
+
+function toast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`tst ts-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.remove(),3200);}
+async function api(path,method='GET',body=null){
+  const h={'Content-Type':'application/json'};
+  if(API_KEY) h['X-API-Key']=API_KEY;
+  const o={method,headers:h};
+  if(body)o.body=JSON.stringify(body);
+  const r=await fetch(API+path,o);
+  if(!r.ok)throw new Error(`${r.status}`);
+  return r.json();
+}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function stBadge(s){const m={idle:'si',running:'sr',done:'sd',ok:'sok',error:'se',failed:'se'};return `<span class="ss2 ${m[s]||'si'}">${s||'idle'}</span>`;}
+function hColor(s){if(s>=80)return'var(--green)';if(s>=50)return'var(--yellow)';return'var(--red)';}
+
+// ── Overview ─────────────────────────────────────────────────────────────────
+async function refreshOV(){
+  try{
+    const[d,hs]=await Promise.all([api('/api/overview'),api('/api/health/summary').catch(()=>({avg_health_score:100}))]);
+    document.getElementById('ov-total').textContent=d.total_bots;
+    document.getElementById('ov-run').textContent=d.running;
+    document.getElementById('ov-done').textContent=d.done;
+    document.getElementById('ov-fail').textContent=d.failed;
+    const sc=d.scheduler_running;
+    document.getElementById('ov-sched').innerHTML=sc?'<span style="color:var(--green)">🟢 ON</span>':'<span style="color:var(--text3)">⚫ OFF</span>';
+    const up=d.uptime_seconds,h=Math.floor(up/3600),m=Math.floor((up%3600)/60),s2=up%60;
+    document.getElementById('ov-up').textContent=`${h}h ${m}m ${s2}s`;
+    document.getElementById('ov-health').textContent=`${Math.round(hs.avg_health_score||100)}%`;
+    document.getElementById('tb-total').textContent=d.total_bots;
+    document.getElementById('tb-run').textContent=d.running;
+    document.getElementById('tb-fail').textContent=d.failed;
+    const dot=document.getElementById('sdot');dot.className='sdot'+(d.running>0?'':d.failed>0?' error':' idle');
+    document.getElementById('uptime-lbl').textContent=`${h}h ${m}m uptime`;
+    // DE status
+    try{const de=await api('/api/decisions');document.getElementById('ov-de').innerHTML=de.status.running?'<span style="color:var(--cyan)">🧠 ON</span>':'<span style="color:var(--text3)">⚫ OFF</span>';}catch(_){}
+  }catch(e){console.error(e);}
+}
+
+async function refreshCatGrid(){
+  try{
+    const[cats,bots]=await Promise.all([api('/api/categories'),api('/api/bots')]);
+    const g=document.getElementById('cat-grid');g.innerHTML='';
+    const f=document.getElementById('bcat');f.innerHTML='<option value="">All Categories</option>';
+    cats.forEach(cat=>{
+      const cb=bots.filter(b=>b.category===cat);
+      const done=cb.filter(b=>b.status==='done').length;
+      const run=cb.filter(b=>b.status==='running').length;
+      const fail=cb.filter(b=>b.status==='error').length;
+      g.innerHTML+=`<div class="csm"><div class="ct">${cat.replace(/_/g,' ')}</div><div style="display:flex;align-items:baseline;gap:7px;margin-bottom:8px"><div class="cv cy" style="font-size:20px">${cb.length}</div><div style="font-size:10px;color:var(--text3)">bots</div></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${done>0?`<span class="bdg bg">${done} done</span>`:''}${run>0?`<span class="bdg by">${run} running</span>`:''}${fail>0?`<span class="bdg br">${fail} failed</span>`:''}</div><button class="btn bgh bsm" onclick="runCat('${cat}')">▶ Run</button></div>`;
+      f.innerHTML+=`<option value="${cat}">${cat.replace(/_/g,' ')}</option>`;
+    });
+  }catch(e){}
+}
+
+// ── Bots ─────────────────────────────────────────────────────────────────────
+async function refreshBots(){
+  try{botsData=await api('/api/bots');renderBots(botsData);}catch(e){toast('Failed to load bots','error');}
+}
+function renderBots(bots){
+  const tb=document.getElementById('bots-tb');
+  if(!bots.length){tb.innerHTML='<tr><td colspan="8" style="text-align:center;padding:28px;color:var(--text3)">No bots</td></tr>';return;}
+  tb.innerHTML=bots.map((b,i)=>{
+    const[cat,nm]=b.full_name.split('/');
+    const lr=b.last_run?new Date(b.last_run).toLocaleTimeString():'Never';
+    return`<tr><td style="color:var(--text3)">${i+1}</td><td class="nc">${b.name}</td><td><span class="bdg bz">${(b.category||'').replace(/_/g,' ')}</span></td><td>${stBadge(b.status)}</td><td style="color:var(--cyan)">${b.run_count||0}</td><td style="color:var(--text3);font-size:10px">${lr}</td><td style="color:var(--text3);font-size:9px">${b.schedule||'—'}</td><td style="display:flex;gap:5px"><button class="btn bg2 bsm" onclick="runBot('${cat}','${nm}')">▶</button><button class="btn bgh bsm" onclick="viewOut('${cat}','${nm}','${b.name}')">📄</button></td></tr>`;
+  }).join('');
+}
+function filterBots(){
+  const q=document.getElementById('bsrch').value.toLowerCase();
+  const cat=document.getElementById('bcat').value;
+  const st=document.getElementById('bstat').value;
+  renderBots(botsData.filter(b=>(!q||b.name.includes(q)||(b.category||'').includes(q))&&(!cat||(b.category||'')===cat)&&(!st||b.status===st)));
+}
+async function runBot(cat,nm){try{await api(`/api/bots/${cat}/${nm}/run`,'POST',{kwargs:{}});toast(`▶ ${nm} started`,'success');setTimeout(refreshBots,1500);}catch(e){toast('Failed','error');}}
+async function viewOut(cat,nm,display){
+  try{
+    const files=await api(`/api/bots/${cat}/${nm}/output`);
+    document.getElementById('modal-t').textContent=`📄 ${display}`;
+    document.getElementById('modal-c').innerHTML=!files.length?'<div style="color:var(--text3);padding:16px">No outputs yet</div>':files.map(f=>`<div style="margin-bottom:18px"><div style="display:flex;gap:9px;align-items:center;margin-bottom:7px"><span style="font-size:11px;color:var(--cyan)">${f.name}</span><span style="font-size:9px;color:var(--text3)">${(f.size/1024).toFixed(1)}KB · ${new Date(f.modified).toLocaleString()}</span></div>${f.content?`<pre class="ov">${esc(f.content)}</pre>`:''}</div>`).join('<hr style="border-color:var(--border);margin:14px 0">');
+    document.getElementById('out-modal').style.display='block';
+  }catch(e){toast('Failed to load output','error');}
+}
+function closeModal(){document.getElementById('out-modal').style.display='none';}
+
+// ── Pipelines ─────────────────────────────────────────────────────────────────
+async function refreshPL(){
+  try{
+    const pls=await api('/api/pipelines');
+    const g=document.getElementById('pl-grid');
+    if(!pls.length){g.innerHTML='<div style="color:var(--text3)">No pipelines</div>';return;}
+    g.innerHTML=pls.map(p=>`<div class="pc"><div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px"><div class="pc-n">${p.display_name}</div>${stBadge(p.status||'idle')}</div><div class="pc-d">${p.description||''}</div><div class="pc-b">${(p.bots||[]).slice(0,6).map(b=>`<span class="bp2">${b.split('/').pop()}</span>`).join('')}${(p.bots||[]).length>6?`<span class="bp2">+${(p.bots||[]).length-6}</span>`:''}</div><div class="pc-f"><div style="font-size:9px;color:var(--text3)">${p.bot_count} bots · ${p.run_count||0} runs</div><button class="btn bg2 bsm" onclick="runPL('${p.name}')">▶ Run</button></div></div>`).join('');
+  }catch(e){toast('Failed to load pipelines','error');}
+}
+async function runPL(nm){try{await api(`/api/pipelines/${nm}/run`,'POST');toast(`▶ Pipeline '${nm}' started`,'success');setTimeout(refreshPL,2000);}catch(e){toast('Failed','error');}}
+
+// ── Scheduler ─────────────────────────────────────────────────────────────────
+async function refreshSched(){
+  try{
+    const d=await api('/api/scheduler');
+    const lbl=document.getElementById('sc-lbl');
+    lbl.textContent=d.running?'🟢 Running':'⚫ Stopped';lbl.style.color=d.running?'var(--green)':'var(--text3)';
+    const tb=document.getElementById('sc-tb');
+    if(!d.jobs||!d.jobs.length){tb.innerHTML='<tr><td colspan="4" style="text-align:center;padding:28px;color:var(--text3)">No jobs</td></tr>';return;}
+    tb.innerHTML=d.jobs.map((j,i)=>`<tr><td style="color:var(--text3)">${i+1}</td><td class="nc">${j.bot}</td><td><span class="bdg bc">${j.schedule}</span></td><td style="color:var(--text3);font-size:10px">${j.next_run||'—'}</td></tr>`).join('');
+  }catch(e){}
+}
+async function startSched(){try{await api('/api/scheduler/start','POST');toast('✅ Scheduler started','success');setTimeout(refreshOV,1000);}catch(e){toast('Failed','error');}}
+async function stopSched(){try{await api('/api/scheduler/stop','POST');toast('⏹ Stopped','info');setTimeout(refreshOV,1000);}catch(e){toast('Failed','error');}}
+async function runCat(cat){try{await api(`/api/categories/${cat}/run`,'POST');toast(`▶ ${cat} started`,'success');}catch(e){toast('Failed','error');}}
+async function runAll(){if(!confirm('Run all 70 bots? Uses OpenAI API credits.'))return;try{await api('/api/run-all','POST');toast('🚀 All bots queued!','success');}catch(e){toast('Failed','error');}}
+
+// ── Decision Engine ───────────────────────────────────────────────────────────
+let _deData={};
+async function refreshDE(){
+  try{
+    _deData=await api('/api/decisions');
+    const s=_deData.status||{};
+    document.getElementById('de-status').innerHTML=s.running?'<span style="color:var(--cyan)">🧠 Running</span>':'<span style="color:var(--text3)">⚫ Stopped</span>';
+    document.getElementById('de-rules').textContent=`${s.enabled_rules||0}`;
+    document.getElementById('de-rules-sub').textContent=`of ${s.total_rules||0} rules`;
+    document.getElementById('de-total').textContent=s.total_decisions||0;
+    document.getElementById('de-alerts').textContent=s.alerts_sent||0;
+    // Last run
+    if(s.last_run){document.getElementById('de-last-run').textContent='Last: '+new Date(s.last_run).toLocaleString();}
+    // Last run summary strip
+    const ls=s.last_run_summary;
+    if(ls){
+      document.getElementById('de-run-strip').style.display='block';
+      document.getElementById('de-strip-market').textContent=`📈 Market: ${ls.market_actions||0}`;
+      document.getElementById('de-strip-trend').textContent=`📡 Trend: ${ls.trend_actions||0}`;
+      document.getElementById('de-strip-health').textContent=`❤️ Health: ${ls.health_actions||0}`;
+      document.getElementById('de-strip-rules').textContent=`🧠 Rules: ${ls.rule_actions||0}`;
+      document.getElementById('de-strip-dur').textContent=`${ls.duration_s||0}s`;
+    }
+    renderDERules(_deData.rules||[]);
+    renderDELog(_deData.log||[]);
+  }catch(e){}
+}
+function renderDERules(rules){
+  const el=document.getElementById('de-rules-list');
+  if(!rules.length){el.innerHTML='<div style="color:var(--text3)">No rules</div>';return;}
+  el.innerHTML=rules.map(r=>`
+    <div class="rule-card">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+        <div class="rule-name">${r.name}</div>
+        <span class="bdg ${r.enabled?'bg':'bz'}">${r.enabled?'enabled':'disabled'}</span>
+        <span class="bdg bc">P${r.priority}</span>
+        <div style="margin-left:auto;font-size:9px;color:var(--text3)">${r.trigger_count||0} triggers</div>
+      </div>
+      <div class="rule-desc">${r.description}</div>
+      <div class="rule-meta">
+        <span style="font-size:9px;color:var(--text3)">Cooldown: ${r.cooldown_minutes}min</span>
+        <span style="font-size:9px;color:var(--text3)">Last: ${r.last_triggered?new Date(r.last_triggered).toLocaleString():'Never'}</span>
+        <div style="margin-left:auto;display:flex;gap:6px">
+          <button class="btn ${r.enabled?'br2':'bg2'} bsm" onclick="toggleRule('${r.name}',${!r.enabled})">${r.enabled?'Disable':'Enable'}</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function renderDELog(log){
+  const el=document.getElementById('de-log-list');
+  if(!log.length){el.innerHTML='<div style="color:var(--text3);padding:16px">No decisions logged yet</div>';return;}
+  el.innerHTML=log.map(e=>`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:7px"><div style="display:flex;align-items:center;gap:9px;margin-bottom:4px"><span style="font-size:10px;color:var(--cyan)">${e.rule}</span><span class="bdg ${e.result==='success'?'bg':'br'}">${e.result}</span><span style="font-size:9px;color:var(--text3);margin-left:auto">${new Date(e.ts).toLocaleTimeString()}</span></div><div style="font-size:10px;color:var(--text2)">${e.description||''}</div><div style="font-size:9px;color:var(--text3);margin-top:3px">${e.output||''}</div></div>`).join('');
+}
+function renderDEIntelLog(entries){
+  const el=document.getElementById('de-intel-list');
+  if(!entries||!entries.length){el.innerHTML='<div style="color:var(--text3);padding:14px">No intelligence decisions yet. Click "Run Intelligence" to start.</div>';return;}
+  const typeColors={market:'var(--yellow)',trend:'var(--cyan)',system:'var(--red)'};
+  const typeIcons={market:'📈',trend:'📡',system:'❤️'};
+  el.innerHTML=entries.map(e=>{
+    const tc=typeColors[e.type]||'var(--purple)';
+    const ic=typeIcons[e.type]||'🧠';
+    return`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;margin-bottom:7px">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:4px">
+        <span style="font-size:10px;color:${tc};font-weight:700">${ic} ${(e.type||'rule').toUpperCase()}</span>
+        <span style="font-size:10px;color:var(--text2)">${e.rule||e.name||''}</span>
+        <span class="bdg ${e.result==='success'||e.result==='alert_sent'||e.result==='pipeline_triggered'?'bg':'br'}">${e.result||'—'}</span>
+        <span style="font-size:9px;color:var(--text3);margin-left:auto">${e.ts?new Date(e.ts).toLocaleTimeString():''}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text2)">${esc(e.description||'')}</div>
+      ${e.output?`<div style="font-size:9px;color:var(--text3);margin-top:3px">${esc(e.output)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+function deTab(tab,btn){
+  ['rules','log','intel','state'].forEach(t=>{document.getElementById(`de-${t}-panel`).style.display=t===tab?'block':'none';});
+  document.querySelectorAll('#page-decisions .tnav .tbtn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(tab==='state') loadDEState();
+  if(tab==='intel'&&_deData) renderDEIntelLog((_deData.log||[]).filter(e=>['market','trend','system'].includes(e.type)));
+}
+async function runIntelligence(){
+  toast('🧠 Running full intelligence cycle...','info');
+  try{
+    await api('/api/decision/run','POST');
+    toast('🧠 Intelligence cycle started — check log in ~15s','success');
+    setTimeout(()=>{refreshDE();refreshOV();},4000);
+  }catch(e){toast('Intelligence run failed: '+e.message,'error');}
+}
+async function loadDEState(){try{const s=await api('/api/decisions/state');document.getElementById('de-state-json').textContent=JSON.stringify(s,null,2);}catch(e){}}
+async function startDE(){try{await api('/api/decisions/start','POST');toast('🧠 Decision engine started','success');setTimeout(refreshDE,1500);}catch(e){toast('Failed','error');}}
+async function stopDE(){try{await api('/api/decisions/stop','POST');toast('⏹ Stopped','info');setTimeout(refreshDE,1500);}catch(e){toast('Failed','error');}}
+async function deCycle(){try{await api('/api/decisions/cycle','POST');toast('⚡ Decision cycle triggered','info');setTimeout(refreshDE,2000);}catch(e){toast('Failed','error');}}
+async function toggleRule(name,enabled){try{await api(`/api/decisions/rules/${name}?enabled=${enabled}`,'PATCH');toast(`Rule '${name}' ${enabled?'enabled':'disabled'}`,'info');setTimeout(refreshDE,500);}catch(e){toast('Failed','error');}}
+
+// ── Health ────────────────────────────────────────────────────────────────────
+async function refreshHealth(){
+  try{
+    const d=await api('/api/health/bots');
+    healthData=d.bots||[];
+    const s=d.summary||{};
+    document.getElementById('h-tracked').textContent=s.total_tracked||0;
+    document.getElementById('h-ran').textContent=s.bots_ran||0;
+    document.getElementById('h-fail').textContent=s.currently_failed||0;
+    document.getElementById('h-score').textContent=`${Math.round(s.avg_health_score||100)}%`;
+    renderHealth(healthData);
+  }catch(e){}
+}
+function renderHealth(bots){
+  const tb=document.getElementById('h-tb');
+  const q=(document.getElementById('h-srch')||{}).value||'';
+  const filtered=bots.filter(b=>!q||b.name.toLowerCase().includes(q.toLowerCase()));
+  if(!filtered.length){tb.innerHTML='<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text3)">No health data yet. Run some bots first.</td></tr>';return;}
+  tb.innerHTML=filtered.map(b=>{
+    const hs=b.health_score||100;
+    const hc=hColor(hs);
+    const sr=Math.round((b.success_rate||1)*100);
+    const lr=b.last_run?new Date(b.last_run).toLocaleString():'Never';
+    return`<tr><td class="nc">${b.name}</td><td><span class="bdg bz">${(b.category||'').replace(/_/g,' ')}</span></td><td style="min-width:90px"><div style="display:flex;align-items:center;gap:6px"><span style="font-size:11px;font-weight:700;color:${hc}">${hs}</span><div class="hbar" style="flex:1"><div class="hbar-fill" style="width:${hs}%;background:${hc}"></div></div></div></td><td>${stBadge(b.status)}</td><td style="color:var(--cyan)">${b.run_count||0}</td><td style="color:${hColor(sr)};font-weight:600">${sr}%</td><td style="color:var(--text3);font-size:10px">${b.avg_duration||0}s</td><td style="color:var(--text3);font-size:10px">${lr}</td><td style="color:var(--red);font-size:9px;max-width:120px;overflow:hidden;text-overflow:ellipsis">${b.last_error||'—'}</td></tr>`;
+  }).join('');
+}
+function filterHealth(){renderHealth(healthData);}
+
+// ── Memory ────────────────────────────────────────────────────────────────────
+async function refreshMemory(){
+  try{
+    const d=await api('/api/memory?limit=50');
+    const stats=d.stats||{};
+    document.getElementById('mem-total').textContent=stats.total_entries||0;
+    const topSrc=Object.keys(stats.top_sources||{})[0]||'—';
+    document.getElementById('mem-src').textContent=topSrc;
+    renderMemory(d.entries||[]);
+  }catch(e){}
+}
+function renderMemory(entries){
+  const el=document.getElementById('mem-list');
+  if(!entries.length){el.innerHTML='<div style="color:var(--text3);padding:16px">No memories stored yet. Run bots to populate memory.</div>';return;}
+  el.innerHTML=entries.map(e=>`<div class="mem-entry"><div class="mem-key">${esc(e.key)}</div><div class="mem-content">${esc(e.content||'')}</div><div class="mem-meta"><span>Source: ${e.source||'?'}</span><span>Updated: ${e.updated_at?new Date(e.updated_at).toLocaleString():''}</span><span>Tags: ${(e.tags||[]).slice(0,3).join(', ')||'none'}</span></div></div>`).join('');
+}
+async function searchMem(){
+  const q=document.getElementById('mem-query').value.trim();
+  if(!q)return refreshMemory();
+  try{
+    const d=await api('/api/memory/search','POST',{query:q,project:'global',limit:20});
+    renderMemory(d.results||[]);
+    toast(`Found ${d.count} memories`,'info');
+  }catch(e){toast('Search failed','error');}
+}
+function clearMemSearch(){document.getElementById('mem-query').value='';refreshMemory();}
+
+// ── Outputs ───────────────────────────────────────────────────────────────────
+async function refreshOutputs(){
+  try{
+    const data=await api('/api/outputs');
+    const cats=Object.keys(data);
+    const nav2=document.getElementById('out-tnav'),content=document.getElementById('out-content');
+    if(!cats.length){content.innerHTML='<div style="color:var(--text3)">No outputs yet</div>';nav2.innerHTML='';return;}
+    nav2.innerHTML=cats.map((c,i)=>`<button class="tbtn ${i===0?'active':''}" onclick="showOutCat('${c}',this)">${c.replace(/_/g,' ')}</button>`).join('');
+    window._outData=data;showOutCat(cats[0]);
+  }catch(e){}
+}
+function showOutCat(cat,btn){
+  document.querySelectorAll('#out-tnav .tbtn').forEach(b=>b.classList.remove('active'));
+  if(btn)btn.classList.add('active');
+  const files=(window._outData||{})[cat]||[];
+  document.getElementById('out-content').innerHTML=files.length?`<div style="display:grid;gap:7px">${files.map(f=>`<div class="sr2" style="cursor:pointer" onclick="viewFileModal('${f.path}','${f.file}')"><span style="font-size:13px">📄</span><div><div style="font-size:12px;color:var(--text)">${f.file}</div><div style="font-size:9px;color:var(--text3)">${f.bot}</div></div><div style="font-size:9px;color:var(--text3);margin-left:auto">${(f.size/1024).toFixed(1)}KB · ${new Date(f.modified).toLocaleString()}</div></div>`).join('')}</div>`:'<div style="color:var(--text3)">No files here yet</div>';
+}
+async function viewFileModal(path,name){
+  try{
+    document.getElementById('modal-t').textContent=`📄 ${name}`;
+    document.getElementById('modal-c').innerHTML='<div style="color:var(--text3)">Loading...</div>';
+    document.getElementById('out-modal').style.display='block';
+    const r=await fetch('/'+path);const text=await r.text();
+    document.getElementById('modal-c').innerHTML=`<pre class="ov">${esc(text.slice(0,5000))}</pre>`;
+  }catch(e){document.getElementById('modal-c').innerHTML='<div style="color:var(--red)">Could not load file</div>';}
+}
+
+// ── Logs ─────────────────────────────────────────────────────────────────────
+function startSSE(){
+  if(sseSource)return;
+  try{
+    sseSource=new EventSource(API+'/api/logs/stream');
+    sseSource.onmessage=e=>{
+      if(!logRunning)return;
+      const entry=JSON.parse(e.data);
+      allLogs.push(entry);if(allLogs.length>500)allLogs=allLogs.slice(-500);
+      const lf=document.getElementById('log-lvl').value;
+      if(!lf||entry.level===lf){appendLog(entry);document.getElementById('log-cnt').textContent=`${allLogs.length} entries`;}
+    };
+    sseSource.onerror=()=>{sseSource.close();sseSource=null;};
+  }catch(_){setInterval(async()=>{try{const logs=await api('/api/logs?limit=30');logs.forEach(l=>{if(!allLogs.find(x=>x.ts===l.ts)){allLogs.push(l);appendLog(l);}});}catch(_){};},2500);}
+}
+function appendLog(e){
+  const c=document.getElementById('log-c');
+  const el=document.createElement('div');
+  el.className='le';el.innerHTML=`<span class="lt">${e.time}</span><span class="ll ${e.level}">${e.level}</span><span class="lm">${esc(e.message)}</span>`;
+  c.appendChild(el);c.scrollTop=c.scrollHeight;
+}
+function toggleLog(){logRunning=!logRunning;document.getElementById('log-tog').textContent=logRunning?'⏸ Pause':'▶ Resume';}
+function clearLogs(){document.getElementById('log-c').innerHTML='';allLogs=[];document.getElementById('log-cnt').textContent='0 entries';}
+function filterLogs(){const lf=document.getElementById('log-lvl').value;const c=document.getElementById('log-c');c.innerHTML='';(lf?allLogs.filter(l=>l.level===lf):allLogs).forEach(appendLog);}
+
+// ── Projects ─────────────────────────────────────────────────────────────────
+async function refreshProjects(){
+  try{
+    const d=await api('/api/projects');
+    projData=d;
+    const g=document.getElementById('proj-grid');
+    if(!d.projects||!d.projects.length){g.innerHTML='<div style="color:var(--text3)">No projects</div>';return;}
+    g.innerHTML=d.projects.map(p=>`
+      <div class="proj-card ${p.slug===d.active?'active-proj':''}" onclick="switchProj('${p.slug}')">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:13px;font-weight:600;color:var(--text)">${p.name}</div>
+          ${p.slug===d.active?'<span class="bdg bc">ACTIVE</span>':'<span class="bdg bz">inactive</span>'}
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-bottom:8px">${p.brand||''}</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:10px">${p.niche||''}</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <span class="bdg bz">${p.output_count||0} outputs</span>
+          <span class="bdg bz">${(p.enabled_categories||[]).length} categories</span>
+        </div>
+        <div style="margin-top:10px;display:flex;gap:7px">
+          <button class="btn bc2 bsm" onclick="event.stopPropagation();switchProj('${p.slug}')">Switch</button>
+        </div>
+      </div>`).join('');
+  }catch(e){}
+}
+async function switchProj(slug){
+  try{await api(`/api/projects/${slug}/switch`,'POST');toast(`✅ Switched to project: ${slug}`,'success');setTimeout(refreshProjects,500);}
+  catch(e){toast('Failed','error');}
+}
+function showNewProj(){document.getElementById('new-proj-form').style.display='block';}
+async function createProj(){
+  const slug=document.getElementById('np-slug').value.trim();
+  if(!slug){toast('Slug required','error');return;}
+  const body={slug,name:document.getElementById('np-name').value,brand:document.getElementById('np-brand').value,niche:document.getElementById('np-niche').value,goal:document.getElementById('np-goal').value};
+  try{await api('/api/projects','POST',body);toast(`✅ Project '${slug}' created`,'success');document.getElementById('new-proj-form').style.display='none';setTimeout(refreshProjects,500);}
+  catch(e){toast('Failed: '+e.message,'error');}
+}
+
+// ── Settings ─────────────────────────────────────────────────────────────────
+async function refreshSettings(){
+  try{
+    const d=await api('/api/settings');
+    const g=document.getElementById('settings-g');
+    const entries=Object.entries(d);
+    if(!entries.length){g.innerHTML='<div style="color:var(--text3)">No settings found</div>';return;}
+    g.innerHTML=entries.map(([k,v])=>`<div class="sr2"><div class="sk">${k}</div><input class="se2" id="set-${k}" value="${esc(v)}" type="${k.includes('KEY')||k.includes('SECRET')||k.includes('TOKEN')?'password':'text'}"><button class="btn bgh bsm" onclick="saveSetting('${k}')">Save</button></div>`).join('');
+  }catch(e){}
+}
+async function saveSetting(key){const val=document.getElementById('set-'+key).value;try{await api('/api/settings','POST',{key,value:val});toast(`✅ ${key} saved`,'success');}catch(e){toast('Failed','error');}}
+
+// ── Command ───────────────────────────────────────────────────────────────────
+function sug(el){document.getElementById('cmd-in').value=el.textContent;document.getElementById('cmd-in').focus();}
+async function sendCmd(){
+  const inp=document.getElementById('cmd-in');const cmd=inp.value.trim();if(!cmd)return;inp.value='';
+  const hist=document.getElementById('cmd-hist');const empty=hist.querySelector('[data-empty]');if(empty)empty.remove();
+  const item=document.createElement('div');item.className='chi';const rid='r'+Date.now();
+  item.innerHTML=`<div><div class="cq">❯ ${esc(cmd)}</div><div class="ca" id="${rid}">Processing...</div></div><div class="cts">${new Date().toLocaleTimeString()}</div>`;
+  hist.insertBefore(item,hist.firstChild);
+  try{
+    const r=await api('/api/command','POST',{command:cmd});
+    document.getElementById(rid).textContent=r.preview||'✅ Queued';
+    toast(r.preview||'Command sent','info');setTimeout(refreshOV,2000);
+  }catch(e){document.getElementById(rid).textContent='❌ '+e.message;toast('Failed','error');}
+}
+
+// ── Content Engine ────────────────────────────────────────────────────────────
+async function refreshContent(){
+  try{
+    const[hist,pubSt]=await Promise.all([
+      api('/api/content/history?limit=10'),
+      api('/api/publish/status'),
+    ]);
+    // Stats
+    const analytics=(hist.analytics||[]);
+    const total=analytics.reduce((s,r)=>s+(r.pieces_created||0),0);
+    const published=analytics.reduce((s,r)=>s+(r.pieces_published||0),0);
+    const words=analytics.reduce((s,r)=>s+((r.word_counts||[]).reduce((a,b)=>a+b,0)),0);
+    document.getElementById('content-stats').innerHTML=`
+      <div class="csm"><div class="ct">Pieces Created</div><div class="cv cy">${total}</div><div class="csb">all time</div></div>
+      <div class="csm"><div class="ct">Published</div><div class="cv gr">${published}</div></div>
+      <div class="csm"><div class="ct">Total Words</div><div class="cv pu">${words.toLocaleString()}</div></div>
+      <div class="csm"><div class="ct">Pipeline Runs</div><div class="cv">${analytics.length}</div></div>`;
+    // Publisher status
+    const ps=pubSt||{};
+    const platIcon=(ok)=>ok?'<span style="color:var(--green)">✓</span>':'<span style="color:var(--text3)">✗</span>';
+    document.getElementById('pub-status').innerHTML=`
+      <div style="font-size:11px;line-height:2">
+        ${platIcon(true)} Static HTML (always)<br>
+        ${platIcon(ps.wordpress)} WordPress<br>
+        ${platIcon(ps.medium)} Medium<br>
+        ${platIcon(ps.ghost)} Ghost<br>
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:6px">Configure in Settings or .env</div>`;
+    // History
+    const h=hist.history||[];
+    const hEl=document.getElementById('content-history');
+    if(!h.length){hEl.innerHTML='<div style="color:var(--text3);font-size:11px">No runs yet. Click "Generate Content" to start.</div>';return;}
+    hEl.innerHTML=h.map(r=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="font-size:11px;color:var(--cyan);font-weight:600">${r.pieces||0} pieces</span>
+        <span class="bdg bc">${r.published||0} published</span>
+        ${r.errors?`<span class="bdg br">${r.errors} errors</span>`:''}
+        <span style="font-size:9px;color:var(--text3);margin-left:auto">${r.run_at?new Date(r.run_at).toLocaleString():''} · ${r.duration_s||0}s</span>
+      </div>
+      <div style="font-size:10px;color:var(--text2);margin-top:3px">${(r.topics||[]).slice(0,2).map(t=>esc(t.slice(0,40))).join(' • ')}</div>
+    </div>`).join('');
+  }catch(e){document.getElementById('content-stats').innerHTML=`<div style="color:var(--text3)">Error loading content data</div>`;}
+}
+async function runContentPipeline(){
+  const topicsRaw=document.getElementById('cp-topics').value.trim();
+  const topics=topicsRaw?topicsRaw.split(',').map(t=>t.trim()).filter(Boolean):null;
+  const top_n=parseInt(document.getElementById('cp-topn').value)||2;
+  const publish=document.getElementById('cp-publish').checked;
+  const platforms=[];
+  if(document.getElementById('pub-static').checked) platforms.push('static');
+  if(document.getElementById('pub-wp').checked) platforms.push('wordpress');
+  if(document.getElementById('pub-medium').checked) platforms.push('medium');
+  try{
+    await api('/api/content/run','POST',{topics,top_n,publish,publish_platforms:platforms});
+    toast('✍️ Content pipeline started — check Logs for progress','success');
+    setTimeout(refreshContent,5000);
+  }catch(e){toast('Pipeline failed: '+e.message,'error');}
+}
+async function publishLast(){
+  try{
+    await api('/api/content/publish','POST',{piece_index:0,platforms:['static']});
+    toast('📤 Publishing latest content...','info');
+  }catch(e){toast('Publish failed: '+e.message,'error');}
+}
+
+// ── Intelligence ──────────────────────────────────────────────────────────────
+async function refreshIntelligence(){
+  try{
+    const[sum,strat,recs]=await Promise.all([
+      api('/api/intelligence/summary'),
+      api('/api/intelligence/strategy'),
+      api('/api/intelligence/records?limit=20'),
+    ]);
+    // Stats
+    document.getElementById('intel-stats').innerHTML=`
+      <div class="csm"><div class="ct">Content Tracked</div><div class="cv cy">${sum.total_content_pieces||0}</div></div>
+      <div class="csm"><div class="ct">Published</div><div class="cv gr">${sum.published_pieces||0}</div></div>
+      <div class="csm"><div class="ct">Avg Score</div><div class="cv pu">${sum.avg_performance_score||0}<span style="font-size:14px">/100</span></div></div>
+      <div class="csm"><div class="ct">Topic Scores</div><div class="cv">${sum.total_topic_scores||0}</div><div class="csb">tracked</div></div>`;
+    // Strategy
+    const sEl=document.getElementById('intel-strategy');
+    if(strat.status==='insufficient_data'){
+      sEl.innerHTML=`<span style="color:var(--text3)">${strat.message}</span>`;
+    }else{
+      const trendCol=strat.trend==='improving'?'var(--green)':strat.trend==='declining'?'var(--red)':'var(--yellow)';
+      sEl.innerHTML=`<div style="margin-bottom:8px"><span style="color:${trendCol};font-weight:700">${strat.trend?.toUpperCase()||'NEUTRAL'}</span> · Score: ${strat.avg_recent_score||0}</div>`
+        +(strat.recommendations||[]).map(r=>`<div style="padding:4px 0;border-bottom:1px solid var(--border);color:var(--text2)">→ ${esc(r)}</div>`).join('');
+    }
+    // Top topics
+    const tEl=document.getElementById('intel-topics');
+    const tops=(strat.top_topics||sum.top_topics||[]);
+    tEl.innerHTML=tops.length?tops.map((t,i)=>`<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <span style="color:var(--cyan)">#${i+1}</span> ${esc(t.topic)} <span style="color:var(--text3);float:right">${t.avg_score} · ${t.count}×</span></div>`).join('')
+      :'<div style="color:var(--text3);font-size:11px">No data yet</div>';
+    // Records
+    const recEl=document.getElementById('intel-records');
+    const records=(recs.records||[]);
+    if(!records.length){recEl.innerHTML='<div style="color:var(--text3);font-size:11px">No content records yet</div>';return;}
+    recEl.innerHTML=records.map(r=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:11px">
+      <span style="color:var(--text)">${esc(r.topic.slice(0,50))}</span>
+      <span class="bdg ${r.published_at?'bg':'bz'}" style="margin-left:6px">${r.published_at?'published':'draft'}</span>
+      <span style="color:var(--text3);float:right">${Math.round(r.performance_score||0)}/100</span>
+    </div>`).join('');
+  }catch(e){document.getElementById('intel-stats').innerHTML=`<div style="color:var(--text3)">Error loading intelligence data</div>`;}
+}
+async function genIntelReport(){
+  try{await api('/api/intelligence/report','POST');toast('📊 Intelligence report generating...','info');setTimeout(refreshIntelligence,3000);}
+  catch(e){toast('Failed: '+e.message,'error');}
+}
+
+// ── Integrations ─────────────────────────────────────────────────────────────
+async function refreshIntegrations(){
+  const feed=document.getElementById('int-feed').value;
+  const statsEl=document.getElementById('int-stats');
+  const contentEl=document.getElementById('int-content');
+  contentEl.innerHTML='<div style="color:var(--text3);text-align:center;padding:30px">Fetching live data...</div>';
+  statsEl.innerHTML='';
+  try{
+    const d=await api(`/api/integrations/${feed}`);
+    // Render stats
+    if(feed==='market'){
+      const fg=d.fear_greed||{};
+      const fgColor=fg.value>=60?'var(--green)':fg.value>=40?'var(--yellow)':'var(--red)';
+      statsEl.innerHTML=`
+        <div class="csm"><div class="ct">Fear &amp; Greed</div><div class="cv" style="color:${fgColor}">${fg.value||'—'}</div><div class="csb">${fg.label||'N/A'}</div></div>
+        <div class="csm"><div class="ct">Top Crypto</div><div class="cv cy">${d.crypto&&d.crypto[0]?'$'+d.crypto[0].price_usd.toLocaleString():'—'}</div><div class="csb">${d.crypto&&d.crypto[0]?d.crypto[0].coin:''}</div></div>
+        <div class="csm"><div class="ct">Top Stock</div><div class="cv">${d.stocks&&d.stocks[0]?'$'+d.stocks[0].price:'—'}</div><div class="csb">${d.stocks&&d.stocks[0]?d.stocks[0].ticker+' ('+d.stocks[0].change_pct+'%)':''}</div></div>
+        <div class="csm"><div class="ct">News Articles</div><div class="cv cy">${d.top_news?d.top_news.length:0}</div><div class="csb">fetched</div></div>`;
+    }
+    // Render content
+    contentEl.innerHTML=renderIntFeed(feed,d);
+  }catch(e){contentEl.innerHTML=`<div style="color:var(--red);padding:16px">Error: ${esc(String(e))} <br><small style="color:var(--text3)">Make sure yfinance/pytrends are installed: <code>pip install yfinance pytrends</code></small></div>`;}
+}
+
+function renderIntFeed(feed,d){
+  if(feed==='market'){
+    let h='';
+    if(d.top_news&&d.top_news.length){
+      h+=`<div class="ct" style="margin-bottom:10px">Top News</div>`;
+      h+=d.top_news.map(n=>`<div style="padding:10px 0;border-bottom:1px solid var(--border)"><a href="${n.url||'#'}" target="_blank" style="color:var(--cyan);text-decoration:none;font-size:12px;font-weight:600">${esc(n.title)}</a><div style="font-size:10px;color:var(--text3);margin-top:3px">${esc(n.source)} · ${esc(n.published)}</div></div>`).join('');
+    }
+    if(d.crypto&&d.crypto.length){
+      h+=`<div class="ct" style="margin-top:16px;margin-bottom:8px">Crypto Prices</div>`;
+      h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px">`;
+      h+=d.crypto.map(c=>{const chg=c.change_24h||0;const col=chg>=0?'var(--green)':'var(--red)';return`<div class="csm"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:var(--cyan)">${c.coin}</div><div style="font-size:16px;font-weight:700;color:var(--text);margin:4px 0">$${Number(c.price_usd).toLocaleString()}</div><div style="font-size:10px;color:${col}">${chg>=0?'+':''}${Number(chg).toFixed(2)}%</div></div>`;}).join('');
+      h+=`</div>`;
+    }
+    return h||'<div style="color:var(--text3);padding:16px">No data returned</div>';
+  }
+  if(feed==='crypto'){
+    const prices=(d.prices||[]);
+    return`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px">`+
+    prices.map(c=>{const chg=c.change_24h||0;const col=chg>=0?'var(--green)':'var(--red)';return`<div class="csm"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--cyan)">${c.coin}</div><div style="font-size:18px;font-weight:700;color:var(--text);margin:4px 0">$${Number(c.price_usd).toLocaleString()}</div><div style="font-size:10px;color:${col}">${chg>=0?'+':''}${Number(chg).toFixed(2)}% (24h)</div><div style="font-size:10px;color:var(--text3)">MCap: $${(c.market_cap/1e9).toFixed(1)}B</div></div>`;}).join('')+`</div>`;
+  }
+  if(feed==='stocks'){
+    const stocks=(d.stocks||[]);
+    return`<table class="tbl" style="width:100%"><thead><tr><th>Ticker</th><th>Price</th><th>Change</th><th>Volume</th></tr></thead><tbody>`+
+    stocks.map(s=>{if(s.error)return`<tr><td class="nc">${s.ticker}</td><td colspan="3" style="color:var(--text3)">${s.error}</td></tr>`;
+      const chg=s.change_pct||0;const col=chg>=0?'var(--green)':'var(--red)';
+      return`<tr><td class="nc">${s.ticker}</td><td>$${s.price}</td><td style="color:${col}">${chg>=0?'+':''}${chg}%</td><td>${s.volume?s.volume.toLocaleString():'—'}</td></tr>`;}).join('')+
+    `</tbody></table>`;
+  }
+  if(feed==='news'){
+    const arts=(d.articles||[]);
+    return arts.map(a=>`<div style="padding:12px 0;border-bottom:1px solid var(--border)"><a href="${a.url||'#'}" target="_blank" style="color:var(--cyan);text-decoration:none;font-size:12px;font-weight:600">${esc(a.title)}</a><div style="font-size:10px;color:var(--text3);margin-top:4px">${esc(a.source)} · ${esc(a.published)}</div>${a.description?`<div style="font-size:11px;color:var(--text2);margin-top:4px">${esc(a.description)}</div>`:''}</div>`).join('')||'<div style="color:var(--text3)">No articles returned</div>';
+  }
+  if(feed==='content-intel'){
+    let h='';
+    if(d.trending_now&&d.trending_now.length){
+      h+=`<div class="ct" style="margin-bottom:8px">Trending Now (Google)</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">`;
+      h+=d.trending_now.map(t=>`<span class="bdg bc">${esc(t)}</span>`).join('');
+      h+=`</div>`;
+    }
+    if(d.reddit&&d.reddit.length){
+      h+=`<div class="ct" style="margin-bottom:8px">Top Reddit Posts (r/entrepreneur + more)</div>`;
+      h+=d.reddit.map(p=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><a href="${p.url||'#'}" target="_blank" style="color:var(--cyan);text-decoration:none;font-size:12px">${esc(p.title)}</a><div style="font-size:10px;color:var(--text3);margin-top:2px">▲ ${p.score} · ${p.comments} comments${p.flair?' · '+p.flair:''}</div></div>`).join('');
+    }
+    if(d.news&&d.news.length){
+      h+=`<div class="ct" style="margin-top:16px;margin-bottom:8px">Business News</div>`;
+      h+=d.news.map(a=>`<div style="padding:8px 0;border-bottom:1px solid var(--border)"><a href="${a.url||'#'}" target="_blank" style="color:var(--cyan);text-decoration:none;font-size:12px">${esc(a.title)}</a><div style="font-size:10px;color:var(--text3);margin-top:2px">${esc(a.source)}</div></div>`).join('');
+    }
+    return h||'<div style="color:var(--text3);padding:16px">No data returned</div>';
+  }
+  if(feed==='reddit'){
+    const posts=(d.posts||[]);
+    return posts.map(p=>`<div style="padding:10px 0;border-bottom:1px solid var(--border)"><a href="${p.url||'#'}" target="_blank" style="color:var(--cyan);text-decoration:none;font-size:12px;font-weight:600">${esc(p.title)}</a><div style="font-size:10px;color:var(--text3);margin-top:3px">▲ ${p.score} · ${p.comments} comments${p.flair?' · '+p.flair:''}</div></div>`).join('')||'<div style="color:var(--text3)">No posts returned</div>';
+  }
+  return`<pre style="color:var(--text2);font-size:10px;white-space:pre-wrap">${esc(JSON.stringify(d,null,2))}</pre>`;
+}
+
+// ── Automation ────────────────────────────────────────────────────────────────
+async function refreshAutomation(){
+  try{
+    const[st,q,log]=await Promise.all([
+      api('/api/automation/status'),
+      api('/api/automation/queue'),
+      api('/api/automation/log?limit=50'),
+    ]);
+    // Status cards
+    const cards=document.getElementById('auto-status-cards');
+    const ch=(c,l,v)=>`<div class="csm"><div class="ct">${l}</div><div class="cv ${v?'cy':'rd'}" style="font-size:16px">${v?'✅ Ready':'❌ Not Set'}</div></div>`;
+    cards.innerHTML=
+      ch('Email','Email (SMTP)',st.email_configured)+
+      ch('Slack','Slack Webhook',st.slack_configured)+
+      ch('Discord','Discord Webhook',st.discord_configured)+
+      `<div class="csm"><div class="ct">Report Queue</div><div class="cv cy">${st.queue_size||0}</div><div class="csb">items pending</div></div>`;
+    // Queue
+    const qEl=document.getElementById('auto-queue');
+    if(!q.items||!q.items.length){qEl.innerHTML='<div style="color:var(--text3);font-size:11px">Queue is empty</div>';}
+    else{qEl.innerHTML=q.items.map(i=>`<div style="padding:6px 0;border-bottom:1px solid var(--border);font-size:11px"><span style="color:var(--cyan)">${esc(i.bot)}</span> — ${esc(i.title)}<div style="font-size:9px;color:var(--text3)">${esc(i.timestamp)}</div></div>`).join('');}
+    // Delivery log
+    const lEl=document.getElementById('auto-log');
+    if(!log||!log.length){lEl.innerHTML='<div style="color:var(--text3);font-size:11px">No deliveries yet</div>';}
+    else{lEl.innerHTML=log.reverse().map(l=>{const col=l.status==='ok'?'var(--green)':'var(--red)';return`<div style="padding:5px 0;border-bottom:1px solid var(--border);font-size:10px"><span style="color:${col}">${l.status==='ok'?'✓':'✗'}</span> <span style="color:var(--cyan2)">${esc(l.channel)}</span> — ${esc(l.detail)} <span style="color:var(--text3)">${esc(l.timestamp)}</span></div>`;}).join('');}
+  }catch(e){document.getElementById('auto-status-cards').innerHTML=`<div style="color:var(--text3)">Error loading automation status</div>`;}
+}
+async function autoPost(){
+  const platform=document.getElementById('auto-platform').value;
+  const topic=document.getElementById('auto-topic').value;
+  const content=document.getElementById('auto-content').value.trim();
+  if(!content){toast('Enter content to post','error');return;}
+  try{await api('/api/automation/post','POST',{content,platform,topic});toast(`✅ Posted to ${platform}`,'success');document.getElementById('auto-content').value='';}
+  catch(e){toast('Post failed: '+e.message,'error');}
+}
+async function sendAlert(){
+  const title=document.getElementById('alert-title').value.trim();
+  const message=document.getElementById('alert-msg').value.trim();
+  if(!title||!message){toast('Fill in title and message','error');return;}
+  const channels=[];
+  if(document.getElementById('al-slack').checked)channels.push('slack');
+  if(document.getElementById('al-discord').checked)channels.push('discord');
+  if(document.getElementById('al-email').checked)channels.push('email');
+  try{await api('/api/automation/alert','POST',{title,message,channels});toast(`✅ Alert sent to ${channels.join(', ')}`,'success');}
+  catch(e){toast('Alert failed: '+e.message,'error');}
+}
+async function flushDigest(){
+  try{await api('/api/automation/digest','POST');toast('✅ Digest flushed — check Slack/email','success');setTimeout(refreshAutomation,1500);}
+  catch(e){toast('Flush failed: '+e.message,'error');}
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init(){await refreshOV();await refreshCatGrid();}
+setInterval(refreshOV,9000);
+init();
+</script>
+</body>
+</html>

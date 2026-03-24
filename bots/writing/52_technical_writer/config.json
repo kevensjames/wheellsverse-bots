@@ -1,0 +1,5 @@
+{
+  "description": "Technical documentation",
+  "enabled": true,
+  "schedule": "@weekly"
+}

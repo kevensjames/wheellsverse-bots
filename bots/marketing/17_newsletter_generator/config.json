@@ -1,0 +1,5 @@
+{
+  "description": "newsletter generator bot",
+  "enabled": true,
+  "schedule": "@weekly mon 08:00"
+}

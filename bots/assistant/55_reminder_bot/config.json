@@ -1,0 +1,5 @@
+{
+  "description": "Smart reminder system",
+  "enabled": true,
+  "schedule": "@every_30min"
+}

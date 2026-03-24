@@ -1,0 +1,185 @@
+#!/usr/bin/env python3
+"""
+Bot #2 — SEO Optimizer
+Category: Marketing
+Purpose: Analyze existing content and return a full SEO audit + rewrite.
+Inputs:  content (raw text or file path), target_keyword, url (optional)
+Outputs: SEO report + optimized version of content
+"""
+
+import re
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from core.base_bot import BaseBot
+
+
+class SEOOptimizerBot(BaseBot):
+
+    def __init__(self):
+        super().__init__("02_seo_optimizer", "marketing")
+
+    # ─── Helpers ───────────────────────────────────────────────────────────────
+
+    def _word_count(self, text: str) -> int:
+        return len(text.split())
+
+    def _keyword_density(self, text: str, keyword: str) -> float:
+        words = text.lower().split()
+        kw_count = sum(1 for w in words if keyword.lower() in w)
+        return round(kw_count / max(len(words), 1), 4)
+
+    def _count_headings(self, text: str) -> dict:
+        h1 = len(re.findall(r'^# .+', text, re.MULTILINE))
+        h2 = len(re.findall(r'^## .+', text, re.MULTILINE))
+        h3 = len(re.findall(r'^### .+', text, re.MULTILINE))
+        return {"h1": h1, "h2": h2, "h3": h3}
+
+    def _readability_score(self, text: str) -> str:
+        words = text.split()
+        sentences = re.split(r'[.!?]+', text)
+        sentences = [s for s in sentences if s.strip()]
+        if not sentences:
+            return "N/A"
+        avg_words_per_sentence = len(words) / len(sentences)
+        if avg_words_per_sentence < 15:
+            return "Easy"
+        elif avg_words_per_sentence < 25:
+            return "Medium"
+        else:
+            return "Hard"
+
+    # ─── Main ──────────────────────────────────────────────────────────────────
+
+    def run(self, content: str = None, file_path: str = None,
+            target_keyword: str = None, url: str = None, **kwargs):
+
+        # Get content
+        if file_path:
+            fp = Path(file_path)
+            if fp.exists():
+                content = fp.read_text(encoding="utf-8")
+                self.logger.info(f"Loaded content from: {fp}")
+            else:
+                raise FileNotFoundError(f"File not found: {file_path}")
+
+        if not content:
+            content = self.config.get("sample_content",
+                "This is sample content about AI and automation for entrepreneurs.")
+
+        target_keyword = target_keyword or self.config.get("target_keyword", "AI automation")
+
+        self.logger.info(f"Analyzing SEO for keyword: '{target_keyword}'")
+
+        # ─── Basic metrics
+        wc = self._word_count(content)
+        density = self._keyword_density(content, target_keyword)
+        headings = self._count_headings(content)
+        readability = self._readability_score(content)
+
+        # ─── AI SEO Audit
+        system = (
+            "You are an expert SEO strategist with 10+ years of experience. "
+            "Provide detailed, actionable SEO analysis and improvements."
+        )
+
+        audit_prompt = f"""Perform a complete SEO audit for this content:
+
+TARGET KEYWORD: {target_keyword}
+WORD COUNT: {wc}
+KEYWORD DENSITY: {density:.2%}
+HEADINGS: {headings}
+READABILITY: {readability}
+
+CONTENT (first 2000 chars):
+{content[:2000]}
+
+Provide:
+1. OVERALL SEO SCORE (0-100) with explanation
+2. TITLE TAG recommendation (under 60 chars, keyword-first)
+3. META DESCRIPTION (under 160 chars)
+4. 5 FOCUS KEYWORDS (LSI + variations)
+5. HEADING STRUCTURE analysis and recommendations
+6. CONTENT GAPS (what topics to add)
+7. INTERNAL LINKING suggestions
+8. TOP 5 PRIORITY FIXES (ranked by impact)
+9. SCHEMA MARKUP recommendation
+10. ESTIMATED RANKING DIFFICULTY (1-10)
+
+Format each section clearly with headers."""
+
+        audit = self.ai(audit_prompt, system=system, max_tokens=2000)
+
+        # ─── AI Content Rewrite
+        rewrite_prompt = f"""Rewrite this content for maximum SEO performance:
+
+TARGET KEYWORD: {target_keyword}
+CURRENT CONTENT:
+{content[:3000]}
+
+Rules:
+- Use {target_keyword} in H1, first paragraph, 1-2 H2s naturally
+- Keyword density: ~1.5-2%
+- Add FAQ section at end with 3 questions
+- Improve readability: shorter sentences, bullet points
+- Add power words in headline
+- Keep the core message but make it more SEO-friendly
+- Total ~1000 words
+
+Format as Markdown."""
+
+        optimized = self.ai(rewrite_prompt, system=system, max_tokens=2500)
+
+        # ─── Build report
+        report = f"""# SEO Analysis Report
+**Keyword:** {target_keyword}
+**URL:** {url or 'N/A'}
+**Analyzed:** {self._now()}
+
+## 📊 Current Metrics
+| Metric | Value |
+|--------|-------|
+| Word Count | {wc} |
+| Keyword Density | {density:.2%} |
+| H1 Tags | {headings['h1']} |
+| H2 Tags | {headings['h2']} |
+| H3 Tags | {headings['h3']} |
+| Readability | {readability} |
+
+---
+
+## 🔍 SEO Audit
+{audit}
+
+---
+
+## ✅ Optimized Content
+{optimized}
+
+---
+*Generated by WheellsVerse SEO Optimizer Bot*
+"""
+        safe_kw = target_keyword.replace(" ", "_")[:30]
+        path = self.save_output(report, f"seo_report_{safe_kw}.md", ext="md")
+        self.logger.info(f"SEO report saved → {path}")
+        return {"file": str(path), "word_count": wc,
+                "keyword_density": density, "readability": readability}
+
+    def _now(self):
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="SEO Optimizer Bot")
+    parser.add_argument("--file",    type=str, default=None, help="Path to content file")
+    parser.add_argument("--content", type=str, default=None, help="Raw content string")
+    parser.add_argument("--keyword", type=str, default="AI automation")
+    parser.add_argument("--url",     type=str, default=None)
+    args = parser.parse_args()
+    bot = SEOOptimizerBot()
+    result = bot.execute(file_path=args.file, content=args.content,
+                         target_keyword=args.keyword, url=args.url)
+    print(f"\n✅ SEO Report: {result['file']}")

@@ -1,0 +1,5 @@
+{
+  "description": "Grammar and style editing",
+  "enabled": true,
+  "schedule": "@daily"
+}

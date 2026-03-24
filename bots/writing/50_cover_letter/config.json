@@ -1,0 +1,5 @@
+{
+  "description": "Personalized cover letters",
+  "enabled": true,
+  "schedule": "@monthly"
+}

@@ -1,0 +1,5 @@
+{
+  "description": "Business expense analysis and reporting",
+  "enabled": true,
+  "schedule": "@monthly"
+}

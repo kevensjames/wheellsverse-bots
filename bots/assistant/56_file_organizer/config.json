@@ -1,0 +1,5 @@
+{
+  "description": "Organize files by type and date",
+  "enabled": true,
+  "schedule": "@daily 23:00"
+}

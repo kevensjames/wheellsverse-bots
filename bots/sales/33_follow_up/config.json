@@ -1,0 +1,5 @@
+{
+  "description": "Sales follow-up automation",
+  "enabled": true,
+  "schedule": "@daily 10:00"
+}

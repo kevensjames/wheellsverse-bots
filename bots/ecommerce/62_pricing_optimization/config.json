@@ -1,0 +1,5 @@
+{
+  "description": "Pricing strategy and optimization",
+  "enabled": true,
+  "schedule": "@monthly"
+}

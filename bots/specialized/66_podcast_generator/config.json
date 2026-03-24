@@ -1,0 +1,5 @@
+{
+  "description": "Podcast episode scripts",
+  "enabled": true,
+  "schedule": "@weekly wed 09:00"
+}

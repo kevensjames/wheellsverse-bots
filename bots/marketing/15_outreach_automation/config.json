@@ -1,0 +1,5 @@
+{
+  "description": "outreach automation bot",
+  "enabled": true,
+  "schedule": "@daily 10:00"
+}

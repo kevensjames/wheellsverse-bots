@@ -1,0 +1,5 @@
+{
+  "description": "Cross-platform content adaptation",
+  "enabled": true,
+  "schedule": "@daily 08:30"
+}

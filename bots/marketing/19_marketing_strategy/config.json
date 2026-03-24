@@ -1,0 +1,5 @@
+{
+  "description": "marketing strategy bot",
+  "enabled": true,
+  "schedule": "@weekly mon 08:00"
+}

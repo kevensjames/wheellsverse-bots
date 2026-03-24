@@ -1,0 +1,5 @@
+{
+  "description": "Short-form video scripts",
+  "enabled": true,
+  "schedule": "@weekly tue 09:00"
+}

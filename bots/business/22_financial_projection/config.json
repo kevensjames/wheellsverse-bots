@@ -1,0 +1,5 @@
+{
+  "description": "36-month financial projections",
+  "enabled": true,
+  "schedule": "@monthly"
+}

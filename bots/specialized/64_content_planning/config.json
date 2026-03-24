@@ -1,0 +1,5 @@
+{
+  "description": "30-60-90 day content plans",
+  "enabled": true,
+  "schedule": "@monthly"
+}

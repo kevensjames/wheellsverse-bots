@@ -1,0 +1,5 @@
+{
+  "description": "AI-powered customer email replies",
+  "enabled": true,
+  "schedule": "@every_hour"
+}
