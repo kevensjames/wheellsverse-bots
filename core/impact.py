@@ -65,8 +65,8 @@ def get_earnings(days: int = 30) -> Dict:
     Pull commission earnings for the last N days.
     Returns total earned, by program, and daily breakdown.
     """
-    start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
-    end   = datetime.now().strftime("%Y-%m-%dT23:59:59")
+    start = (datetime.now() - timedelta(days=min(days, 44))).strftime("%Y-%m-%dT00:00:00Z")
+    end   = datetime.now().strftime("%Y-%m-%dT23:59:59Z")
 
     data = _get("Actions", {
         "StartDate":  start,
@@ -120,8 +120,8 @@ def get_today_earnings() -> Dict:
 
 
 def get_lifetime_earnings() -> Dict:
-    """Pull last 365 days as a lifetime proxy."""
-    return get_earnings(days=365)
+    """Pull last 44 days (Impact.com max window is 45 days)."""
+    return get_earnings(days=44)
 
 
 # ─── Clicks & Conversions ─────────────────────────────────────────────────────
