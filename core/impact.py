@@ -29,18 +29,21 @@ load_dotenv(ROOT / ".env")
 logger = logging.getLogger("impact")
 
 ACCOUNT_SID  = os.getenv("IMPACT_ACCOUNT_SID", "")
+API_TOKEN    = os.getenv("IMPACT_API_TOKEN", "")
 API_PASSWORD = os.getenv("IMPACT_API_PASSWORD", "")
 BASE_URL     = f"https://api.impact.com/Mediapartners/{ACCOUNT_SID}"
 
 
 def _get(endpoint: str, params: dict = None) -> dict:
-    """Authenticated GET request to Impact.com API."""
-    if not ACCOUNT_SID or not API_PASSWORD:
-        return {"error": "IMPACT_ACCOUNT_SID / IMPACT_API_PASSWORD not set in .env"}
+    """Authenticated GET request to Impact.com API.
+    Impact uses: Basic Auth with API Token as username, API Password as secret.
+    """
+    if not ACCOUNT_SID or not API_TOKEN or not API_PASSWORD:
+        return {"error": "IMPACT_ACCOUNT_SID / IMPACT_API_TOKEN / IMPACT_API_PASSWORD not set in .env"}
     try:
         resp = requests.get(
             f"{BASE_URL}/{endpoint}",
-            auth=(ACCOUNT_SID, API_PASSWORD),
+            auth=(API_TOKEN, API_PASSWORD),
             params=params or {},
             timeout=15,
             headers={"Accept": "application/json"},
