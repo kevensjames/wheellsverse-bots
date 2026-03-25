@@ -22,17 +22,17 @@ COPY . .
 RUN mkdir -p outputs/content outputs/reports outputs/published \
     data memory logs projects
 
-# Expose dashboard port
-EXPOSE 5050
+# Expose default port (Railway overrides with $PORT)
+EXPOSE 8080
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:5050/api/health || exit 1
+# Health check — uses $PORT at runtime
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+    CMD curl -f http://localhost:${PORT:-8080}/api/health || exit 1
 
-# Environment defaults (override via .env or platform env vars)
-ENV PORT=5050
+# Environment defaults (Railway/Render override PORT automatically)
+ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# Start command — dashboard mode with auto-scheduler
-CMD ["python", "main.py", "--dashboard", "--port", "5050"]
+# Shell form so $PORT is expanded at runtime
+CMD python main.py --dashboard

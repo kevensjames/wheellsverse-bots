@@ -213,7 +213,7 @@ def parse_args():
     p.add_argument("--parallel",  action="store_true", help="Run in parallel")
     p.add_argument("--schedule",  action="store_true", help="Start scheduler (blocking)")
     p.add_argument("--dashboard", action="store_true", help="Start web dashboard")
-    p.add_argument("--port",      type=int, default=5050, help="Dashboard port (default 5050)")
+    p.add_argument("--port",      type=int, default=int(os.getenv("PORT", "5050")), help="Dashboard port (default: $PORT or 5050)")
     p.add_argument("--check",     action="store_true", help="Check setup & .env")
     p.add_argument("--command",   type=str, metavar="CMD", help="Execute a natural language command")
     return p.parse_args()
