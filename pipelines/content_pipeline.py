@@ -629,6 +629,9 @@ class ContentPipeline:
                 logger.error(f"Content generation failed for '{topic}': {e}")
                 result["errors"].append(f"{topic[:40]}: {e}")
 
+        # ── 5b. Auto-post to social (browser automation)
+        self._auto_post_social(result["pieces"])
+
         # ── 6. Publish (optional)
         if publish and result["pieces"]:
             try:
@@ -670,6 +673,48 @@ class ContentPipeline:
             f"{result['duration_s']}s"
         )
         return result
+
+    def _auto_post_social(self, pieces: List[Dict]):
+        """
+        Auto-post generated content to Twitter/X and LinkedIn if:
+          - AUTO_POST_TWITTER=true (or AUTO_POST_LINKEDIN=true) in .env
+          - Matching credentials are set
+          - Playwright browsers are available
+        """
+        auto_tw = os.getenv("AUTO_POST_TWITTER", "false").lower() == "true"
+        auto_li = os.getenv("AUTO_POST_LINKEDIN", "false").lower() == "true"
+        if not auto_tw and not auto_li:
+            return
+
+        try:
+            from core.browser import is_available, post_twitter_thread, post_linkedin
+            if not is_available():
+                logger.warning("Auto-post skipped — Playwright not available")
+                return
+        except ImportError:
+            logger.warning("Auto-post skipped — core.browser not found")
+            return
+
+        for piece in pieces:
+            topic = piece.get("topic", "")[:60]
+
+            if auto_tw and os.getenv("TWITTER_EMAIL") and os.getenv("TWITTER_PASSWORD"):
+                tweets = piece.get("twitter", {}).get("tweets", [])
+                if tweets:
+                    try:
+                        post_twitter_thread(tweets)
+                        logger.info(f"Auto-posted Twitter thread: {topic}")
+                    except Exception as e:
+                        logger.error(f"Twitter auto-post failed for '{topic}': {e}")
+
+            if auto_li and os.getenv("LINKEDIN_EMAIL") and os.getenv("LINKEDIN_PASSWORD"):
+                li_content = piece.get("linkedin", {}).get("content", "")
+                if li_content:
+                    try:
+                        post_linkedin(li_content)
+                        logger.info(f"Auto-posted LinkedIn: {topic}")
+                    except Exception as e:
+                        logger.error(f"LinkedIn auto-post failed for '{topic}': {e}")
 
     def _send_completion_notify(self, result: Dict):
         try:

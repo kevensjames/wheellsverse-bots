@@ -574,7 +574,17 @@ async def handle_command(req: CommandRequest, background_tasks: BackgroundTasks)
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "uptime": int(time.time() - _server_start)}
+    browser_ok = False
+    try:
+        from core.browser import is_available
+        browser_ok = is_available()
+    except Exception:
+        pass
+    return {
+        "status":   "ok",
+        "uptime":   int(time.time() - _server_start),
+        "browser":  browser_ok,
+    }
 
 
 @app.get("/api/health/bots")
@@ -1324,6 +1334,204 @@ async def get_conversion_stats():
     return get_intelligence().get_conversion_stats()
 
 
+# ─── Browser Automation (Playwright) ─────────────────────────────────────────
+
+class ScreenshotRequest(BaseModel):
+    url: str
+    filename: str = ""
+
+class TwitterPostRequest(BaseModel):
+    tweets: List[str]
+
+class LinkedInPostRequest(BaseModel):
+    content: str
+
+class ScrapeRequest(BaseModel):
+    url: str
+    selector: str = ""
+    wait_for: str = ""
+
+
+@app.get("/api/browser/status")
+async def browser_status():
+    """Check if Playwright browsers are installed and ready."""
+    try:
+        from core.browser import is_available
+        available = is_available()
+        twitter_set  = bool(os.getenv("TWITTER_EMAIL") and os.getenv("TWITTER_PASSWORD"))
+        linkedin_set = bool(os.getenv("LINKEDIN_EMAIL") and os.getenv("LINKEDIN_PASSWORD"))
+        return {
+            "playwright_available": available,
+            "twitter_configured":   twitter_set,
+            "linkedin_configured":  linkedin_set,
+            "auto_post_twitter":    os.getenv("AUTO_POST_TWITTER", "false").lower() == "true",
+            "auto_post_linkedin":   os.getenv("AUTO_POST_LINKEDIN", "false").lower() == "true",
+        }
+    except ImportError:
+        return {"playwright_available": False, "reason": "playwright not installed"}
+
+
+@app.post("/api/browser/screenshot")
+async def take_screenshot(req: ScreenshotRequest, background_tasks: BackgroundTasks):
+    """Take a full-page screenshot of any URL."""
+    from core.browser import is_available
+    if not is_available():
+        raise HTTPException(503, "Playwright not available. Run: playwright install chromium")
+
+    result_holder: Dict[str, Any] = {}
+
+    def _run():
+        from core.browser import screenshot
+        try:
+            path = screenshot(req.url, req.filename)
+            result_holder["path"] = str(path)
+            _add_log(f"Screenshot taken: {req.url[:60]}", "INFO")
+        except Exception as e:
+            result_holder["error"] = str(e)
+            _add_log(f"Screenshot failed: {e}", "ERROR")
+
+    background_tasks.add_task(_run)
+    return {"status": "capturing", "url": req.url}
+
+
+@app.post("/api/browser/post-twitter")
+async def post_to_twitter(req: TwitterPostRequest, background_tasks: BackgroundTasks):
+    """Post a Twitter/X thread. Requires TWITTER_EMAIL + TWITTER_PASSWORD in .env."""
+    if not (os.getenv("TWITTER_EMAIL") and os.getenv("TWITTER_PASSWORD")):
+        raise HTTPException(400, "TWITTER_EMAIL / TWITTER_PASSWORD not set in .env")
+
+    result_holder: Dict[str, Any] = {}
+
+    def _run():
+        from core.browser import post_twitter_thread
+        try:
+            result = post_twitter_thread(req.tweets)
+            result_holder.update(result)
+            _add_log(f"Twitter thread posted: {len(req.tweets)} tweets", "INFO")
+        except Exception as e:
+            result_holder["error"] = str(e)
+            _add_log(f"Twitter post failed: {e}", "ERROR")
+
+    background_tasks.add_task(_run)
+    return {"status": "posting", "tweet_count": len(req.tweets)}
+
+
+@app.post("/api/browser/post-linkedin")
+async def post_to_linkedin(req: LinkedInPostRequest, background_tasks: BackgroundTasks):
+    """Post to LinkedIn. Requires LINKEDIN_EMAIL + LINKEDIN_PASSWORD in .env."""
+    if not (os.getenv("LINKEDIN_EMAIL") and os.getenv("LINKEDIN_PASSWORD")):
+        raise HTTPException(400, "LINKEDIN_EMAIL / LINKEDIN_PASSWORD not set in .env")
+
+    def _run():
+        from core.browser import post_linkedin
+        try:
+            result = post_linkedin(req.content)
+            _add_log(f"LinkedIn post published ({len(req.content)} chars)", "INFO")
+        except Exception as e:
+            _add_log(f"LinkedIn post failed: {e}", "ERROR")
+
+    background_tasks.add_task(_run)
+    return {"status": "posting", "chars": len(req.content)}
+
+
+@app.get("/api/browser/trends")
+async def browser_trends():
+    """Scrape Google Trends real-time (full JS-rendered data via Playwright)."""
+    from core.browser import is_available
+    if not is_available():
+        raise HTTPException(503, "Playwright not available. Run: playwright install chromium")
+    from core.browser import scrape_google_trends
+    try:
+        return scrape_google_trends()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/browser/crypto")
+async def browser_crypto():
+    """Scrape live crypto prices from CoinMarketCap (JS-rendered)."""
+    from core.browser import is_available
+    if not is_available():
+        raise HTTPException(503, "Playwright not available. Run: playwright install chromium")
+    from core.browser import scrape_crypto_prices
+    try:
+        return scrape_crypto_prices()
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/browser/scrape")
+async def browser_scrape(req: ScrapeRequest):
+    """Scrape a JS-rendered page and return its text content."""
+    from core.browser import is_available
+    if not is_available():
+        raise HTTPException(503, "Playwright not available. Run: playwright install chromium")
+    from core.browser import scrape_page
+    try:
+        return scrape_page(req.url, req.selector, req.wait_for)
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
+@app.post("/api/browser/post-latest-content")
+async def post_latest_content_to_social(background_tasks: BackgroundTasks):
+    """
+    Auto-post the most recently generated content to Twitter and LinkedIn
+    (if credentials are configured).
+    """
+    from pipelines.content_pipeline import OUTPUTS_DIR
+    import json as _json
+
+    content_dirs = sorted(
+        [d for d in OUTPUTS_DIR.iterdir() if d.is_dir()],
+        key=lambda d: d.stat().st_mtime, reverse=True,
+    )
+    if not content_dirs:
+        raise HTTPException(404, "No content found. Run /api/content/run first.")
+
+    json_file = content_dirs[0] / "content_data.json"
+    if not json_file.exists():
+        raise HTTPException(404, "content_data.json not found in latest output")
+
+    piece = _json.loads(json_file.read_text(encoding="utf-8"))
+    topic   = piece.get("topic", "")
+    tweets  = piece.get("twitter", {}).get("tweets", [])
+    li_text = piece.get("linkedin", {}).get("content", "")
+    posted: List[str] = []
+
+    if tweets and os.getenv("TWITTER_EMAIL") and os.getenv("TWITTER_PASSWORD"):
+        def _tw():
+            from core.browser import post_twitter_thread
+            try:
+                post_twitter_thread(tweets)
+                _add_log(f"Auto-posted Twitter thread: {topic[:50]}", "INFO")
+            except Exception as e:
+                _add_log(f"Twitter auto-post failed: {e}", "ERROR")
+        background_tasks.add_task(_tw)
+        posted.append("twitter")
+
+    if li_text and os.getenv("LINKEDIN_EMAIL") and os.getenv("LINKEDIN_PASSWORD"):
+        def _li():
+            from core.browser import post_linkedin
+            try:
+                post_linkedin(li_text)
+                _add_log(f"Auto-posted LinkedIn: {topic[:50]}", "INFO")
+            except Exception as e:
+                _add_log(f"LinkedIn auto-post failed: {e}", "ERROR")
+        background_tasks.add_task(_li)
+        posted.append("linkedin")
+
+    if not posted:
+        return {"status": "skipped", "reason": "No social credentials configured"}
+
+    return {
+        "status":  "posting",
+        "topic":   topic,
+        "posting_to": posted,
+        "tweet_count": len(tweets),
+    }
+
+
 # ─── Static published files ───────────────────────────────────────────────────
 
 @app.get("/api/published")
@@ -1354,6 +1562,43 @@ async def serve_published(filename: str):
     if not path.exists() or path.suffix != ".html":
         raise HTTPException(404, "Published page not found")
     return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+# ─── Impact.com Affiliate Earnings ───────────────────────────────────────────
+
+@app.get("/api/affiliate/earnings")
+async def affiliate_earnings(days: int = 30):
+    """Pull real earnings from Impact.com (Robinhood + Coinbase + all programs)."""
+    from core.impact import get_earnings
+    return get_earnings(days=days)
+
+
+@app.get("/api/affiliate/today")
+async def affiliate_today():
+    """Today's affiliate earnings."""
+    from core.impact import get_today_earnings
+    return get_today_earnings()
+
+
+@app.get("/api/affiliate/clicks")
+async def affiliate_clicks(days: int = 7):
+    """Click stats from Impact.com."""
+    from core.impact import get_clicks
+    return get_clicks(days=days)
+
+
+@app.get("/api/affiliate/programs")
+async def affiliate_programs():
+    """List all joined affiliate programs on Impact.com."""
+    from core.impact import get_programs
+    return get_programs()
+
+
+@app.get("/api/affiliate/summary")
+async def affiliate_summary():
+    """Full affiliate dashboard — earnings + clicks + programs."""
+    from core.impact import get_summary
+    return get_summary()
 
 
 # ─── Launch helper ────────────────────────────────────────────────────────────
