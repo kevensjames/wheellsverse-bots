@@ -65,8 +65,8 @@ def get_earnings(days: int = 30) -> Dict:
     Pull commission earnings for the last N days.
     Returns total earned, by program, and daily breakdown.
     """
-    start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    end   = datetime.now().strftime("%Y-%m-%d")
+    start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
+    end   = datetime.now().strftime("%Y-%m-%dT23:59:59")
 
     data = _get("Actions", {
         "StartDate":  start,
@@ -128,8 +128,8 @@ def get_lifetime_earnings() -> Dict:
 
 def get_clicks(days: int = 7) -> Dict:
     """Pull click stats for the last N days."""
-    start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
-    end   = datetime.now().strftime("%Y-%m-%d")
+    start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00")
+    end   = datetime.now().strftime("%Y-%m-%dT23:59:59")
 
     data = _get("MediaPartnerClicks", {
         "StartDate": start,
@@ -138,7 +138,14 @@ def get_clicks(days: int = 7) -> Dict:
     })
 
     if "error" in data:
-        return data
+        # Clicks endpoint may not be available on all accounts — return empty gracefully
+        return {
+            "period_days":  days,
+            "total_clicks": 0,
+            "by_program":   {},
+            "fetched_at":   datetime.now().isoformat(),
+            "note":         data.get("error", "Click data unavailable"),
+        }
 
     clicks = data.get("Clicks", [])
     total_clicks = sum(int(c.get("Clicks", 0) or 0) for c in clicks)
