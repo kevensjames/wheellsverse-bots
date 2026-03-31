@@ -1,0 +1,8 @@
+# Cloudflare Pages _redirects
+# Root → landing page
+/                           /landing_page.html          200
+
+# TikTok domain verification
+/terms.html/tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt   /tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt   200
+/privacy.html/tiktoknwcXTU3Nm4se6bEg1d3uBx1856QZojZp.txt /tiktoknwcXTU3Nm4se6bEg1d3uBx1856QZojZp.txt   200
+/terms.html/tiktokgrDzX7CUTNXdWJx4p7UpCvmgDv4IJPpd.txt   /tiktokgrDzX7CUTNXdWJx4p7UpCvmgDv4IJPpd.txt   200
