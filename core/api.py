@@ -2825,11 +2825,12 @@ async def whatsapp_webhook_verify(
 
 
 @app.post("/api/whatsapp/webhook")
-async def whatsapp_webhook_receive(request: Request):
+async def whatsapp_webhook_receive(request: Request, background_tasks: BackgroundTasks):
     """Receive incoming WhatsApp messages and status updates."""
     data = await request.json()
     logger.info("WhatsApp webhook received: %s", json.dumps(data)[:500])
-    # TODO: handle messages here
+    from core.whatsapp import get_client
+    background_tasks.add_task(get_client().handle_payload, data)
     return {"status": "ok"}
 
 
