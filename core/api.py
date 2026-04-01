@@ -69,9 +69,9 @@ def _setup_logging():
 
 _setup_logging()
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger("api")
@@ -2805,6 +2805,32 @@ async def stripe_webhook(request: Request):
         return result
     except ValueError as e:
         raise HTTPException(400, str(e))
+
+
+# ─── WhatsApp Webhook ─────────────────────────────────────────────────────────
+
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "wheellsverse_whatsapp")
+
+
+@app.get("/api/whatsapp/webhook")
+async def whatsapp_webhook_verify(
+    hub_mode: str = Query(None, alias="hub.mode"),
+    hub_challenge: str = Query(None, alias="hub.challenge"),
+    hub_verify_token: str = Query(None, alias="hub.verify_token"),
+):
+    """Meta webhook verification handshake."""
+    if hub_mode == "subscribe" and hub_verify_token == WHATSAPP_VERIFY_TOKEN:
+        return PlainTextResponse(hub_challenge)
+    raise HTTPException(403, "Verification failed")
+
+
+@app.post("/api/whatsapp/webhook")
+async def whatsapp_webhook_receive(request: Request):
+    """Receive incoming WhatsApp messages and status updates."""
+    data = await request.json()
+    logger.info("WhatsApp webhook received: %s", json.dumps(data)[:500])
+    # TODO: handle messages here
+    return {"status": "ok"}
 
 
 # ─── Reddit Automation ───────────────────────────────────────────────────────
