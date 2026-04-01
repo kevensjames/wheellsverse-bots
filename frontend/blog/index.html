@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blog — WheellsVerse | Daily AI + Money Insights</title>
+<meta name="description" content="Daily articles on crypto, stocks, passive income, AI tools, and side hustles. New content every morning. Real strategies, honest numbers.">
+<meta property="og:title" content="WheellsVerse Blog — Daily Money & AI Insights">
+<meta property="og:description" content="Fresh guides on crypto, stocks, passive income, AI tools, and side hustles — published daily.">
+<link rel="canonical" href="https://wheellsverse-bots.pages.dev/blog/">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#080b11;--surface:#0f1320;--card:#141825;--border:#1e2435;
+      --cyan:#00d4ff;--green:#00ff88;--gold:#ffd700;--text:#e0e6f0;--muted:#6b7694}
+html{scroll-behavior:smooth}
+body{font-family:'Inter','Segoe UI',Arial,sans-serif;background:var(--bg);color:var(--text);
+      line-height:1.6;-webkit-font-smoothing:antialiased}
+
+/* Nav */
+nav{position:fixed;top:0;width:100%;z-index:100;background:rgba(8,11,17,.95);
+     border-bottom:1px solid var(--border);backdrop-filter:blur(12px);
+     padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+.nav-logo{font-size:1.1rem;font-weight:800;color:var(--text);text-decoration:none;display:flex;align-items:center;gap:8px}
+.nav-logo span{color:var(--cyan)}
+.nav-links{display:flex;gap:20px;align-items:center}
+.nav-links a{color:var(--muted);text-decoration:none;font-size:14px;font-weight:500;transition:color .2s}
+.nav-links a:hover,.nav-links a.active{color:var(--cyan)}
+.nav-cta{background:var(--cyan);color:#000;border:none;padding:8px 20px;border-radius:6px;
+          font-weight:700;font-size:13px;cursor:pointer;text-decoration:none;transition:opacity .2s}
+.nav-cta:hover{opacity:.85}
+
+/* Hero */
+.blog-hero{padding:120px 24px 60px;text-align:center;
+            background:radial-gradient(ellipse at 60% 0%,rgba(0,212,255,.07) 0%,transparent 60%),var(--bg)}
+.blog-hero h1{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:900;margin-bottom:14px}
+.blog-hero h1 em{font-style:normal;color:var(--cyan)}
+.blog-hero p{color:var(--muted);font-size:1rem;max-width:500px;margin:0 auto 32px}
+.post-count{display:inline-block;background:rgba(0,212,255,.1);color:var(--cyan);
+             border:1px solid rgba(0,212,255,.25);border-radius:20px;
+             padding:4px 14px;font-size:12px;font-weight:700;margin-bottom:20px}
+
+/* Filter */
+.filters{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:0}
+.filter-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);
+             border-radius:20px;padding:6px 16px;font-size:13px;font-weight:600;
+             cursor:pointer;transition:all .2s}
+.filter-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.filter-btn.active{background:rgba(0,212,255,.12);border-color:rgba(0,212,255,.4);color:var(--cyan)}
+
+/* Grid */
+.blog-section{padding:60px 24px 80px;max-width:1100px;margin:0 auto}
+.blog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:24px}
+
+/* Card */
+.post-card{background:var(--card);border:1px solid var(--border);border-radius:14px;
+            padding:24px;display:flex;flex-direction:column;gap:12px;
+            transition:border-color .2s,transform .2s}
+.post-card:hover{border-color:rgba(0,212,255,.3);transform:translateY(-2px)}
+.card-cat{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:700;
+           letter-spacing:1px;text-transform:uppercase;border:1px solid;
+           border-radius:20px;padding:3px 10px;width:fit-content}
+.card-title{font-size:1.05rem;font-weight:700;line-height:1.4;flex:1}
+.card-title a{color:var(--text);text-decoration:none;transition:color .2s}
+.card-title a:hover{color:var(--cyan)}
+.card-desc{font-size:13px;color:var(--muted);line-height:1.6}
+.card-footer{display:flex;align-items:center;justify-content:space-between;margin-top:auto;padding-top:8px;border-top:1px solid var(--border)}
+.card-date{font-size:12px;color:var(--muted)}
+.card-read{font-size:13px;font-weight:700;color:var(--cyan);text-decoration:none;transition:opacity .2s}
+.card-read:hover{opacity:.75}
+.post-card.hidden{display:none}
+
+/* CTA */
+.cta-bar{background:linear-gradient(135deg,rgba(0,212,255,.07),rgba(124,58,237,.07));
+          border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+          padding:60px 24px;text-align:center}
+.cta-bar h2{font-size:clamp(1.4rem,3vw,2rem);font-weight:800;margin-bottom:12px}
+.cta-bar p{color:var(--muted);max-width:460px;margin:0 auto 28px}
+.cta-form{display:flex;gap:10px;max-width:420px;margin:0 auto;flex-wrap:wrap;justify-content:center}
+.cta-form input{flex:1;min-width:200px;padding:12px 16px;background:var(--surface);
+                  border:1px solid var(--border);border-radius:8px;color:var(--text);
+                  font-size:14px;outline:none;transition:border-color .2s}
+.cta-form input:focus{border-color:var(--cyan)}
+.cta-form input::placeholder{color:var(--muted)}
+.cta-form button{padding:12px 24px;background:var(--cyan);color:#000;border:none;
+                   border-radius:8px;font-weight:800;font-size:14px;cursor:pointer;
+                   transition:opacity .2s;white-space:nowrap}
+.cta-form button:hover{opacity:.85}
+.cta-fine{font-size:11px;color:var(--muted);margin-top:10px}
+.cta-success{color:var(--green);font-weight:700;font-size:1rem;margin-top:12px;display:none}
+
+/* Affiliate */
+.aff-bar{padding:40px 24px;max-width:1100px;margin:0 auto}
+.aff-bar-inner{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+                padding:24px 28px;display:flex;align-items:center;gap:24px;flex-wrap:wrap}
+.aff-bar p{color:var(--muted);font-size:13px;flex:1;min-width:200px}
+.aff-links{display:flex;gap:10px;flex-wrap:wrap}
+.aff-link{padding:9px 18px;border-radius:8px;font-size:13px;font-weight:700;
+           text-decoration:none;transition:opacity .2s;white-space:nowrap}
+.aff-link:hover{opacity:.82}
+.aff-link--cyan{background:rgba(0,212,255,.12);border:1px solid rgba(0,212,255,.3);color:var(--cyan)}
+.aff-link--green{background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.25);color:var(--green)}
+.aff-link--gold{background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.2);color:var(--gold)}
+
+/* Footer */
+footer{background:var(--surface);border-top:1px solid var(--border);
+        padding:28px 24px;text-align:center;font-size:12px;color:var(--muted)}
+footer a{color:var(--cyan);text-decoration:none}
+
+@media(max-width:640px){
+  .blog-hero{padding:100px 16px 48px}
+  .blog-section{padding:40px 16px 60px}
+  .aff-bar-inner{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">Wheells<span>Verse</span></a>
+  <div class="nav-links">
+    <a href="/blog/" class="active">Blog</a>
+    <a href="/#earn">Earn</a>
+    <a href="/#join" class="nav-cta">Free Signals</a>
+  </div>
+</nav>
+
+<div class="blog-hero">
+  <div class="post-count">20 Articles Published</div>
+  <h1>Daily <em>Money & AI</em> Insights</h1>
+  <p>Guides on crypto, stocks, passive income, AI tools, and side hustles — published every morning.</p>
+  <div class="filters">
+    <button class="filter-btn active" data-filter="all">All</button>
+<button class="filter-btn" data-filter="AI Tools">AI Tools</button>
+<button class="filter-btn" data-filter="Crypto">Crypto</button>
+<button class="filter-btn" data-filter="Passive Income">Passive Income</button>
+<button class="filter-btn" data-filter="Side Hustles">Side Hustles</button>
+<button class="filter-btn" data-filter="Stocks">Stocks</button>
+  </div>
+</div>
+
+<section class="blog-section">
+  <div class="blog-grid" id="grid">
+
+    <article class="post-card" data-cat="AI Tools">
+      <div class="card-cat" style="color:#a78bfa;border-color:#a78bfa30">🤖 AI Tools</div>
+      <h2 class="card-title"><a href="/blog/20260326-10-ai-tools-that-replace-500-month-in-software-subscriptions.html">10 AI Tools That Replace $500/Month in Software Subscriptions</a></h2>
+      <p class="card-desc">The best AI tools that eliminate bloated software subscriptions — ranked by ROI for solo entrepreneurs and creators.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-10-ai-tools-that-replace-500-month-in-software-subscriptions.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="AI Tools">
+      <div class="card-cat" style="color:#a78bfa;border-color:#a78bfa30">🤖 AI Tools</div>
+      <h2 class="card-title"><a href="/blog/20260326-5-ai-tools-that-help-you-make-money-while-you-sleep.html">5 AI Tools That Help You Make Money While You Sleep</a></h2>
+      <p class="card-desc">Automate your income with these five AI tools that generate revenue, handle tasks, and keep your business running 24/7.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-5-ai-tools-that-help-you-make-money-while-you-sleep.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Crypto">
+      <div class="card-cat" style="color:#00d4ff;border-color:#00d4ff30">₿ Crypto</div>
+      <h2 class="card-title"><a href="/blog/20260326-best-beginner-crypto-wallets-2025-safety-guide.html">Best Beginner Crypto Wallets 2025: Safety Guide</a></h2>
+      <p class="card-desc">A practical safety guide to the top wallets for new crypto investors — what to look for and what to avoid.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-best-beginner-crypto-wallets-2025-safety-guide.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Crypto">
+      <div class="card-cat" style="color:#00d4ff;border-color:#00d4ff30">₿ Crypto</div>
+      <h2 class="card-title"><a href="/blog/20260326-best-crypto-exchange-for-beginners-in-2025-coinbase-vs-binan.html">Best Crypto Exchange for Beginners in 2025: Coinbase vs Binance vs Kraken</a></h2>
+      <p class="card-desc">Side-by-side comparison of the three biggest exchanges — fees, features, and which one is actually beginner-friendly.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-best-crypto-exchange-for-beginners-in-2025-coinbase-vs-binan.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Crypto">
+      <div class="card-cat" style="color:#00d4ff;border-color:#00d4ff30">₿ Crypto</div>
+      <h2 class="card-title"><a href="/blog/20260326-boost-your-crypto-portfolio-with-smart-investing-strategies.html">Boost Your Crypto Portfolio with Smart Investing Strategies</a></h2>
+      <p class="card-desc">Strategies, benefits, and tips to maximize your crypto returns — without gambling your savings on hype.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-boost-your-crypto-portfolio-with-smart-investing-strategies.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Crypto">
+      <div class="card-cat" style="color:#00d4ff;border-color:#00d4ff30">₿ Crypto</div>
+      <h2 class="card-title"><a href="/blog/20260326-coinbase-vs-kraken-vs-binance-which-is-best-for-beginners.html">Coinbase vs Kraken vs Binance: Which is Best for Beginners?</a></h2>
+      <p class="card-desc">An in-depth look at three leading exchanges to help first-time crypto buyers pick the right platform from day one.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-coinbase-vs-kraken-vs-binance-which-is-best-for-beginners.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Crypto">
+      <div class="card-cat" style="color:#00d4ff;border-color:#00d4ff30">₿ Crypto</div>
+      <h2 class="card-title"><a href="/blog/20260326-cryptocurrency-trends-insights-and-opportunities.html">Cryptocurrency Trends: Insights and Opportunities</a></h2>
+      <p class="card-desc">The key trends shaping crypto markets in 2025 — and how to position yourself for the opportunities ahead.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-cryptocurrency-trends-insights-and-opportunities.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Crypto">
+      <div class="card-cat" style="color:#00d4ff;border-color:#00d4ff30">₿ Crypto</div>
+      <h2 class="card-title"><a href="/blog/20260326-latest-in-crypto-news.html">Your Essential Guide to the Latest Crypto News</a></h2>
+      <p class="card-desc">Stay ahead of the market with a roundup of the most important crypto developments, trends, and analysis.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-latest-in-crypto-news.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Stocks">
+      <div class="card-cat" style="color:#00ff88;border-color:#00ff8830">📈 Stocks</div>
+      <h2 class="card-title"><a href="/blog/20260326-dividend-stocks-that-pay-monthly-income-2025.html">7 Monthly Dividend Stocks to Earn $500/Month in Passive Income</a></h2>
+      <p class="card-desc">These dividend stocks pay out every month — build a portfolio that covers your bills with passive income by 2025.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-dividend-stocks-that-pay-monthly-income-2025.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Stocks">
+      <div class="card-cat" style="color:#00ff88;border-color:#00ff8830">📈 Stocks</div>
+      <h2 class="card-title"><a href="/blog/20260326-how-to-get-a-free-stock-on-robinhood-in-2025-and-what-to-inv.html">How to Get a Free Stock on Robinhood in 2025 — and What to Invest in Next</a></h2>
+      <p class="card-desc">Step-by-step guide to claiming your Robinhood signup bonus and a smart first investment strategy for new accounts.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-how-to-get-a-free-stock-on-robinhood-in-2025-and-what-to-inv.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Stocks">
+      <div class="card-cat" style="color:#00ff88;border-color:#00ff8830">📈 Stocks</div>
+      <h2 class="card-title"><a href="/blog/20260326-how-to-start-investing-in-etfs-with-100.html">How to Start Investing in ETFs with $100</a></h2>
+      <p class="card-desc">A beginner's guide to ETF investing — how to pick funds, what fees to avoid, and how to grow wealth on any budget.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-how-to-start-investing-in-etfs-with-100.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Stocks">
+      <div class="card-cat" style="color:#00ff88;border-color:#00ff8830">📈 Stocks</div>
+      <h2 class="card-title"><a href="/blog/20260326-affiliate-campaign-best-investing-apps-with-signup-bonuses-i.html">Best Investing Apps with Signup Bonuses in 2025</a></h2>
+      <p class="card-desc">Robinhood, Coinbase, and Webull compared — which signup bonus is actually worth it for new investors?</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-affiliate-campaign-best-investing-apps-with-signup-bonuses-i.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Passive Income">
+      <div class="card-cat" style="color:#ffd700;border-color:#ffd70030">💰 Passive Income</div>
+      <h2 class="card-title"><a href="/blog/20260326-exploring-high-ticket-affiliate-programs-maximize-your-earni.html">The Ultimate Guide to High-Ticket Affiliate Programs</a></h2>
+      <p class="card-desc">How to unlock serious affiliate commissions with high-ticket programs — complete with the best networks to join today.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-exploring-high-ticket-affiliate-programs-maximize-your-earni.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Passive Income">
+      <div class="card-cat" style="color:#ffd700;border-color:#ffd70030">💰 Passive Income</div>
+      <h2 class="card-title"><a href="/blog/20260326-how-to-build-3-passive-income-streams-in-90-days-starting-wi.html">How to Build 3 Passive Income Streams in 90 Days Starting with $0</a></h2>
+      <p class="card-desc">A practical 90-day roadmap to creating three income streams from scratch — no starting capital required.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-how-to-build-3-passive-income-streams-in-90-days-starting-wi.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Passive Income">
+      <div class="card-cat" style="color:#ffd700;border-color:#ffd70030">💰 Passive Income</div>
+      <h2 class="card-title"><a href="/blog/20260326-passive-income-7-passive-income-streams-that-made-real-peopl.html">7 Passive Income Streams That Made Real People $500/Month — With Proof</a></h2>
+      <p class="card-desc">Real-world results: seven income streams that ordinary people used to hit $500/month — with numbers to back it up.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-passive-income-7-passive-income-streams-that-made-real-peopl.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Passive Income">
+      <div class="card-cat" style="color:#ffd700;border-color:#ffd70030">💰 Passive Income</div>
+      <h2 class="card-title"><a href="/blog/20260326-passive-income-how-to-make-500-a-month-in-passive-income-fro.html">How to Make $500 a Month in Passive Income from Home</a></h2>
+      <p class="card-desc">A comprehensive beginner's guide to building home-based passive income — from affiliate marketing to digital products.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-passive-income-how-to-make-500-a-month-in-passive-income-fro.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Passive Income">
+      <div class="card-cat" style="color:#ffd700;border-color:#ffd70030">💰 Passive Income</div>
+      <h2 class="card-title"><a href="/blog/20260327-best-of-passive-income-march-2026-unlock-financial-freedom-w.html">Best of Passive Income: March 2026 — Unlock Financial Freedom</a></h2>
+      <p class="card-desc">A curated roundup of the best passive income strategies and AI-powered opportunities available this month.</p>
+      <div class="card-footer">
+        <span class="card-date">March 27, 2026</span>
+        <a href="/blog/20260327-best-of-passive-income-march-2026-unlock-financial-freedom-w.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Side Hustles">
+      <div class="card-cat" style="color:#ff7849;border-color:#ff784930">⚡ Side Hustles</div>
+      <h2 class="card-title"><a href="/blog/20260326-side-hustles-that-made-real-people-1-000-month-in-2025-no-ex.html">Side Hustles That Made Real People $1,000+/Month in 2025</a></h2>
+      <p class="card-desc">No experience required: real side hustles that crossed $1,000/month in 2025 — with actionable starting points for anyone.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-side-hustles-that-made-real-people-1-000-month-in-2025-no-ex.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Side Hustles">
+      <div class="card-cat" style="color:#ff7849;border-color:#ff784930">⚡ Side Hustles</div>
+      <h2 class="card-title"><a href="/blog/20260326-top-side-hustles-earning-2000-a-month-in-2025.html">Top Side Hustles Earning $2,000 a Month in 2025</a></h2>
+      <p class="card-desc">The highest-earning digital side hustles of 2025 — focused on products and online businesses you can start today.</p>
+      <div class="card-footer">
+        <span class="card-date">March 26, 2026</span>
+        <a href="/blog/20260326-top-side-hustles-earning-2000-a-month-in-2025.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+    <article class="post-card" data-cat="Side Hustles">
+      <div class="card-cat" style="color:#ff7849;border-color:#ff784930">⚡ Side Hustles</div>
+      <h2 class="card-title"><a href="/blog/20260327-can-startups-with-no-revenue-still-get-grants-grantwatch.html">Can Startups With No Revenue Still Get Grants?</a></h2>
+      <p class="card-desc">A practical look at startup grants available to early-stage founders — even before you've made your first dollar.</p>
+      <div class="card-footer">
+        <span class="card-date">March 27, 2026</span>
+        <a href="/blog/20260327-can-startups-with-no-revenue-still-get-grants-grantwatch.html" class="card-read">Read →</a>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- Affiliate bar -->
+<div class="aff-bar">
+  <div class="aff-bar-inner">
+    <p><strong style="color:var(--text)">Recommended picks from today's articles:</strong><br>
+    All links below are affiliate links — we earn a commission at no cost to you.</p>
+    <div class="aff-links">
+      <a href="https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1" target="_blank" class="aff-link aff-link--cyan">📈 Free Stock — Robinhood</a>
+      <a href="https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1" target="_blank" class="aff-link aff-link--green">₿ $10 BTC — Coinbase</a>
+      <a href="https://www.amazon.com/s?k=passive+income+investing&tag=wheellsverse-20" target="_blank" class="aff-link aff-link--gold">📚 Best Books — Amazon</a>
+    </div>
+  </div>
+</div>
+
+<!-- Newsletter CTA -->
+<div class="cta-bar">
+  <h2>Get These Articles in Your Inbox</h2>
+  <p>Daily signals on crypto, stocks, and AI money strategies. Free. One email per day.</p>
+  <form class="cta-form" id="blog-subscribe-form">
+    <input type="email" placeholder="your@email.com" required id="blog-email">
+    <button type="submit" id="blog-sub-btn">Subscribe Free →</button>
+  </form>
+  <p class="cta-fine">No spam. Unsubscribe anytime.</p>
+  <p class="cta-success" id="blog-success">✓ You're subscribed! Check your inbox.</p>
+</div>
+
+<footer>
+  <p>&copy; 2026 WheellsVerse by J.K. Blaze &nbsp;·&nbsp;
+     <a href="/">Home</a> &nbsp;·&nbsp;
+     <a href="/blog/">Blog</a> &nbsp;·&nbsp;
+     <a href="/#earn">Earn</a>
+  </p>
+  <p style="margin-top:8px;font-size:11px;color:#3a4260">
+    Content is AI-generated for informational purposes only. Not financial advice. Do your own research.
+  </p>
+</footer>
+
+<script>
+// Category filter
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const f = btn.dataset.filter;
+    document.querySelectorAll('.post-card').forEach(card => {
+      card.classList.toggle('hidden', f !== 'all' && card.dataset.cat !== f);
+    });
+  });
+});
+
+// Newsletter form → Railway backend
+document.getElementById('blog-subscribe-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = document.getElementById('blog-email').value.trim();
+  const btn   = document.getElementById('blog-sub-btn');
+  btn.textContent = 'Joining...';
+  btn.disabled = true;
+  try {
+    await fetch('https://grateful-flexibility-production.up.railway.app/api/lead', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email, name:'', source:'blog_index', topic:'Money & AI'}),
+    });
+  } catch(err) {}
+  document.getElementById('blog-success').style.display = 'block';
+  document.getElementById('blog-subscribe-form').style.display = 'none';
+});
+</script>
+</body>
+</html>
