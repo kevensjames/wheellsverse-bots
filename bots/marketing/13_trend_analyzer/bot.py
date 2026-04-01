@@ -1,70 +1,131 @@
 #!/usr/bin/env python3
-"""TrendAnalyzerBot — market trend analysis"""
+"""
+Bot #13 — Market Trend Analyzer
+Category: Marketing
+Purpose: Analyze market trends in a niche, identify opportunities, and generate
+         a trend-driven content and business strategy report.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class TrendAnalyzerBot(BaseBot):
+
     def __init__(self):
         super().__init__("13_trend_analyzer", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI tools for business 2025")
-        self.logger.info("Running 13_trend_analyzer: " + str(topic))
+    def run(self, niche: str = None, timeframe: str = None,
+            platforms: str = None, goal: str = None, **kwargs):
+
+        cfg = self.config
+        niche     = niche or cfg.get("niche", "AI automation for entrepreneurs")
+        timeframe = timeframe or cfg.get("timeframe", "2025 Q1-Q2")
+        platforms = platforms or cfg.get("platforms", "TikTok, YouTube, Twitter/X, LinkedIn")
+        goal      = goal or cfg.get("goal", "content strategy and product ideas")
+
+        self.logger.info(f"Analyzing trends for: {niche} | {timeframe}")
 
         system = (
-            "You are a world-class expert in market trend analysis. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a market research analyst and trend forecaster who specializes in "
+            "identifying emerging opportunities before they peak. You combine social media "
+            "signal analysis, search trend data, competitor research, and consumer behavior "
+            "insights to give actionable intelligence. Your reports are specific, data-informed, "
+            "and directly tied to business and content opportunities."
         )
 
-        task_title = "13_trend_analyzer".replace("_", " ").title()
+        prompt = f"""Conduct a comprehensive market trend analysis for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+NICHE: {niche}
+TIMEFRAME: {timeframe}
+PLATFORMS TO ANALYZE: {platforms}
+GOAL: {goal}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## 1. TREND OVERVIEW
+**The Big Picture:** What's happening in "{niche}" right now?
+- Top 3 macro trends shaping this niche in {timeframe}
+- What's driving these trends (technology, culture, economy, regulation)
+- Where this niche is heading in the next 6-12 months
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## 2. RISING TRENDS (Early-Stage Opportunities)
+List 5 trends that are gaining traction but not yet saturated:
+For each:
+- **Trend name:** [name]
+- **Evidence:** Why you believe this is rising (search volume signals, viral content, news)
+- **Audience:** Who is driving this trend
+- **Opportunity window:** How much time before this peaks
+- **Content angle:** How to cover this NOW
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## 3. PEAK TRENDS (High Volume, High Competition)
+List 3 trends currently at peak — how to compete or differentiate:
+- What's already saturated
+- The unique angle that can still break through
 
-Be specific, professional, and immediately actionable."""
+## 4. DECLINING TRENDS (What to Avoid)
+3 trends that are losing momentum — why and what replaced them
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+## 5. PLATFORM-BY-PLATFORM BREAKDOWN
+For each platform in "{platforms}":
+- Top 3 content formats performing in {niche}
+- Posting frequency sweet spot
+- Emerging content styles gaining traction
+- Top creators/accounts to study in this niche
 
-        from datetime import datetime
-        output_text = (
-            "# TrendAnalyzerBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 13_trend_analyzer Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"13_trend_analyzer_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+## 6. KEYWORD & SEARCH OPPORTUNITY
+10 trending search terms in {niche} with:
+| Keyword | Trend Direction | Content Opportunity | Competition Level |
+
+## 7. CONTENT CALENDAR IDEAS
+15 specific content ideas based on rising trends — ready to execute
+
+## 8. BUSINESS OPPORTUNITIES
+3 product/service gaps these trends reveal:
+- The gap
+- The audience pain point
+- A possible solution
+- Revenue model
+
+## 9. 30-DAY ACTION PLAN
+Prioritized steps to capitalize on the top trend identified."""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_niche = "".join(c if c.isalnum() else "_" for c in niche[:30])
+
+        output = f"""# Market Trend Analysis: {niche}
+**Timeframe:** {timeframe}
+**Platforms:** {platforms}
+**Goal:** {goal}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Trend Analyzer Bot*
+"""
+        path = self.save_output(output, f"trends_{safe_niche}_{ts}.md", ext="md")
+        self.logger.info(f"Trend analysis saved → {path}")
+        return {"file": str(path), "niche": niche, "timeframe": timeframe}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="market trend analysis")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Market Trend Analyzer")
+    parser.add_argument("--niche",     type=str, default=None)
+    parser.add_argument("--timeframe", type=str, default="2025 Q2")
+    parser.add_argument("--platforms", type=str, default="TikTok, YouTube, Twitter/X")
+    parser.add_argument("--goal",      type=str, default="content strategy")
     args = parser.parse_args()
     bot = TrendAnalyzerBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(niche=args.niche, timeframe=args.timeframe,
+                         platforms=args.platforms, goal=args.goal)
+    print(f"\n✅ Trend Report: {result['file']}")

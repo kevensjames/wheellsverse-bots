@@ -1,70 +1,137 @@
 #!/usr/bin/env python3
-"""HashtagGeneratorBot — hashtag strategy for social media"""
+"""
+Bot #14 — Hashtag Strategy Generator
+Category: Marketing
+Purpose: Generate platform-optimized hashtag sets with reach estimates,
+         usage tips, and a full hashtag strategy document.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class HashtagGeneratorBot(BaseBot):
+
     def __init__(self):
         super().__init__("14_hashtag_generator", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI automation Instagram strategy")
-        self.logger.info("Running 14_hashtag_generator: " + str(topic))
+    def run(self, topic: str = None, platforms: str = None,
+            niche: str = None, num_sets: int = None, **kwargs):
+
+        cfg = self.config
+        topic    = topic or cfg.get("topic", "AI automation for entrepreneurs")
+        platforms = platforms or cfg.get("platforms", "instagram,tiktok,twitter,linkedin")
+        niche    = niche or cfg.get("niche", "AI and entrepreneurship")
+        num_sets = num_sets or cfg.get("num_sets", 5)
+
+        platform_list = [p.strip() for p in platforms.split(",")]
+        self.logger.info(f"Generating hashtag strategy for: {topic} on {platforms}")
 
         system = (
-            "You are a world-class expert in hashtag strategy for social media. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a social media growth strategist with expertise in hashtag research "
+            "and platform algorithm optimization. You understand how reach, engagement, "
+            "and discoverability work differently on each platform. You create hashtag "
+            "strategies that balance reach (large hashtags) with discoverability "
+            "(niche hashtags) for maximum organic growth. You focus on relevance and "
+            "targeting to ensure the highest engagement and visibility."
         )
 
-        task_title = "14_hashtag_generator".replace("_", " ").title()
+        platform_rules = {
+            "instagram": "Mix of 3-5 large (1M+), 5-8 medium (100K-1M), and 5-7 niche (<100K). Max 30 total.",
+            "tiktok":    "Use 3-5 highly relevant tags only. Include 1-2 trending sounds-related tags. TikTok penalizes hashtag stuffing.",
+            "twitter":   "1-3 hashtags max. Use current trending tags when relevant. Short, memorable.",
+            "linkedin":  "3-5 professional hashtags. Mix of broad industry + specific niche. No trending chasing.",
+            "youtube":   "15-20 in description. Mix of broad (100K+ searches) and specific. Include 3-5 exact-match keywords.",
+            "pinterest": "Keyword-rich phrases as hashtags. 2-5 per pin. Focus on searchability.",
+        }
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        prompt = f"""Create a comprehensive hashtag strategy for:
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+TOPIC/CONTENT: {topic}
+NICHE: {niche}
+PLATFORMS: {', '.join(platform_list)}
+NUMBER OF HASHTAG SETS TO CREATE: {num_sets}
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## HASHTAG RESEARCH REPORT
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+### Platform-by-Platform Strategy
 
-Be specific, professional, and immediately actionable."""
+{"".join(f"**{p.upper()}:** {platform_rules.get(p, 'Research and optimize for this platform')}" + chr(10) for p in platform_list)}
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+### {num_sets} READY-TO-USE HASHTAG SETS
 
-        from datetime import datetime
-        output_text = (
-            "# HashtagGeneratorBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 14_hashtag_generator Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"14_hashtag_generator_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+For each set, provide:
+**SET [#] — [Theme/Angle Name]**
+Best for: [specific content type this set works for]
+Platform: [which platform this set is optimized for]
+
+```
+[hashtag1] [hashtag2] [hashtag3] ... [all hashtags for this set]
+```
+
+*Reach estimate: [small/medium/large] | Competition: [low/medium/high]*
+
+### HASHTAG PERFORMANCE TIERS
+
+**Tier 1 — Brand Hashtags (Create & Own These):**
+[3-5 original hashtags to build around {niche}]
+
+**Tier 2 — Community Hashtags (Join These Conversations):**
+[10 active community hashtags in {niche}]
+
+**Tier 3 — Trending Hashtags (Monitor & Use When Relevant):**
+[5 currently trending tags in {niche}]
+
+### HASHTAG ROTATION SCHEDULE
+How to rotate sets to avoid algorithm shadowbanning
+
+### HASHTAG ANALYTICS
+What metrics to track and how to optimize over time
+
+### COMMON HASHTAG MISTAKES
+Top 5 errors that kill reach and how to avoid them
+
+### BANNED/SHADOW-BANNED HASHTAGS TO AVOID
+[List any known problematic hashtags in {niche} if applicable]"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_topic = "".join(c if c.isalnum() else "_" for c in topic[:30])
+
+        output = f"""# Hashtag Strategy: {topic}
+**Platforms:** {platforms}
+**Niche:** {niche}
+**Sets Generated:** {num_sets}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Hashtag Generator Bot*
+"""
+        path = self.save_output(output, f"hashtags_{safe_topic}_{ts}.md", ext="md")
+        self.logger.info(f"Hashtag strategy saved → {path}")
+        return {"file": str(path), "topic": topic, "platforms": platform_list, "sets": num_sets}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="hashtag strategy for social media")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Hashtag Strategy Generator")
+    parser.add_argument("--topic",     type=str, default=None)
+    parser.add_argument("--platforms", type=str, default="instagram,tiktok,twitter")
+    parser.add_argument("--niche",     type=str, default=None)
+    parser.add_argument("--sets",      type=int, default=5)
     args = parser.parse_args()
     bot = HashtagGeneratorBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(topic=args.topic, platforms=args.platforms,
+                         niche=args.niche, num_sets=args.sets)
+    print(f"\n✅ Hashtag Strategy: {result['file']}")

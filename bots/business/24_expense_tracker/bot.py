@@ -1,70 +1,148 @@
 #!/usr/bin/env python3
-"""ExpenseTrackerBot — expense tracking and reporting"""
+"""
+Bot #24 — Expense Tracker & Budget Optimizer
+Category: Business
+Purpose: Create a detailed expense tracking framework, categorization system,
+         budget allocation plan, and cost-cutting analysis for any business.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class ExpenseTrackerBot(BaseBot):
+
     def __init__(self):
         super().__init__("24_expense_tracker", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Monthly expense analysis")
-        self.logger.info("Running 24_expense_tracker: " + str(topic))
+    def run(self, business_type: str = None, monthly_revenue: float = None,
+            monthly_expenses: float = None, cost_concern: str = None, **kwargs):
+
+        cfg = self.config
+        business_type    = business_type or cfg.get("business_type", "online business / SaaS")
+        monthly_revenue  = monthly_revenue or cfg.get("monthly_revenue", 2000)
+        monthly_expenses = monthly_expenses or cfg.get("monthly_expenses", 800)
+        cost_concern     = cost_concern or cfg.get("cost_concern", "optimize for profitability")
+
+        self.logger.info(f"Building expense tracker: {business_type} | Revenue: ${monthly_revenue}")
 
         system = (
-            "You are a world-class expert in expense tracking and reporting. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a CFO consultant and business financial advisor who specializes in "
+            "helping small businesses and solopreneurs achieve profitable operations. "
+            "You're direct about where money is wasted and specific about how to optimize. "
+            "You build practical expense systems that take minutes per week to maintain, "
+            "not complex spreadsheets that get ignored."
         )
 
-        task_title = "24_expense_tracker".replace("_", " ").title()
+        profit_margin = ((monthly_revenue - monthly_expenses) / monthly_revenue * 100) if monthly_revenue > 0 else 0
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        prompt = f"""Build a complete expense tracking and budget optimization system for:
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+BUSINESS TYPE: {business_type}
+MONTHLY REVENUE: ${monthly_revenue:,.0f}
+MONTHLY EXPENSES: ${monthly_expenses:,.0f}
+CURRENT PROFIT MARGIN: {profit_margin:.1f}%
+MAIN CONCERN: {cost_concern}
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## FINANCIAL HEALTH SNAPSHOT
+- **Revenue:** ${monthly_revenue:,.0f}/month
+- **Expenses:** ${monthly_expenses:,.0f}/month
+- **Net Profit:** ${(monthly_revenue - monthly_expenses):,.0f}/month
+- **Profit Margin:** {profit_margin:.1f}%
+- **Assessment:** [Good/Needs Work/Critical] — brief explanation
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## EXPENSE CATEGORIZATION SYSTEM
 
-Be specific, professional, and immediately actionable."""
+Organize all expenses for {business_type} into these buckets:
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+### FIXED COSTS (Same every month)
+| Category | Examples | Recommended % of Revenue | Your Target |
+[8-10 fixed cost categories with % benchmarks for {business_type}]
 
-        from datetime import datetime
-        output_text = (
-            "# ExpenseTrackerBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 24_expense_tracker Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"24_expense_tracker_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+### VARIABLE COSTS (Scale with revenue)
+| Category | Examples | Recommended % of Revenue | Your Target |
+[5-7 variable cost categories]
+
+### INVESTMENT COSTS (Growth-focused)
+| Category | Examples | ROI Expectation | Priority |
+[4-5 growth investment categories]
+
+## BUDGET ALLOCATION FRAMEWORK
+Recommended percentage splits for {business_type} at ${monthly_revenue:,.0f}/month revenue:
+
+| Category | % of Revenue | Monthly Budget | Annual Budget |
+|----------|-------------|----------------|---------------|
+| Product/Service Delivery | | | |
+| Marketing & Acquisition | | | |
+| Tools & Software | | | |
+| Contractor/Team | | | |
+| Operations | | | |
+| Learning & Development | | | |
+| Emergency Reserve | | | |
+| **Owner Pay / Profit** | | | |
+
+## EXPENSE AUDIT: WHERE MONEY LEAKS
+For {business_type}, the most common hidden costs:
+| Cost Category | Average Waste | How to Catch It | How to Cut It |
+
+## TOP 10 COST-CUTTING OPPORTUNITIES
+For a business with ${monthly_expenses:,.0f}/month in expenses:
+1. [Opportunity] — Potential savings: $[X]/month — How: [specific action]
+[Repeat for all 10]
+
+## EXPENSE TRACKING SYSTEM
+**Weekly Expense Review (10 minutes):**
+[Simple process to track expenses without complex software]
+
+**Monthly Expense Report Template:**
+[Fill-in template to review monthly finances]
+
+## TOOL RECOMMENDATIONS
+Best expense tracking tools for {business_type} (free and paid):
+| Tool | Best For | Cost | Key Feature |
+
+## PROFITABILITY TARGETS
+- **Year 1 target margin:** [X]%
+- **Year 2 target margin:** [X]%
+- **Path to get there:** [Specific actions]"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_type = "".join(c if c.isalnum() else "_" for c in business_type[:20])
+
+        output = f"""# Expense Tracker & Budget: {business_type}
+**Revenue:** ${monthly_revenue:,.0f}/month | **Expenses:** ${monthly_expenses:,.0f}/month
+**Profit Margin:** {profit_margin:.1f}%
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Expense Tracker Bot*
+"""
+        path = self.save_output(output, f"expenses_{safe_type}_{ts}.md", ext="md")
+        self.logger.info(f"Expense tracker saved → {path}")
+        return {"file": str(path), "business_type": business_type, "profit_margin": profit_margin}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="expense tracking and reporting")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Expense Tracker & Budget Optimizer")
+    parser.add_argument("--business",  type=str, default=None)
+    parser.add_argument("--revenue",   type=float, default=2000)
+    parser.add_argument("--expenses",  type=float, default=800)
+    parser.add_argument("--concern",   type=str, default="optimize for profitability")
     args = parser.parse_args()
     bot = ExpenseTrackerBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(business_type=args.business, monthly_revenue=args.revenue,
+                         monthly_expenses=args.expenses, cost_concern=args.concern)
+    print(f"\n✅ Expense Tracker: {result['file']}")

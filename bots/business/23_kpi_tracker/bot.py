@@ -1,70 +1,157 @@
 #!/usr/bin/env python3
-"""KPITrackerBot — business KPI tracking"""
+"""
+Bot #23 — KPI Dashboard Builder
+Category: Business
+Purpose: Build a custom KPI framework with metrics, targets, tracking cadence,
+         and a reporting template for any business type.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class KPITrackerBot(BaseBot):
+
     def __init__(self):
         super().__init__("23_kpi_tracker", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Monthly KPI dashboard")
-        self.logger.info("Running 23_kpi_tracker: " + str(topic))
+    def run(self, business_type: str = None, stage: str = None,
+            focus_area: str = None, review_cadence: str = None, **kwargs):
+
+        cfg = self.config
+        business_type   = business_type or cfg.get("business_type", "SaaS / digital business")
+        stage           = stage or cfg.get("stage", "early growth")
+        focus_area      = focus_area or cfg.get("focus_area", "all areas")
+        review_cadence  = review_cadence or cfg.get("review_cadence", "weekly + monthly")
+
+        self.logger.info(f"Building KPI dashboard: {business_type} | {stage}")
 
         system = (
-            "You are a world-class expert in business KPI tracking. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a business intelligence analyst and operations consultant. "
+            "You design KPI frameworks that give founders and operators a clear "
+            "picture of business health with minimal dashboard clutter. You follow "
+            "the principle that tracking too many metrics is as dangerous as tracking none. "
+            "You build 'north star' metric frameworks around the 3-5 numbers that truly "
+            "predict business success at each stage."
         )
 
-        task_title = "23_kpi_tracker".replace("_", " ").title()
+        prompt = f"""Build a comprehensive KPI tracking framework for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+BUSINESS TYPE: {business_type}
+BUSINESS STAGE: {stage}
+FOCUS AREA: {focus_area}
+REVIEW CADENCE: {review_cadence}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## NORTH STAR METRIC
+The single most important metric for {business_type} at {stage} stage:
+- **North Star:** [Metric name]
+- **Why this metric:** [Why it predicts long-term success]
+- **Formula:** [How to calculate it]
+- **Current benchmark:** [Industry average or target]
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## KPI FRAMEWORK (Organized by Business Area)
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+### GROWTH METRICS
+| KPI | Formula | Review Frequency | Healthy Range | Red Flag |
+[5-7 growth KPIs relevant to {business_type}]
 
-Be specific, professional, and immediately actionable."""
+### REVENUE METRICS
+| KPI | Formula | Review Frequency | Healthy Range | Red Flag |
+[5-7 revenue KPIs]
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+### PRODUCT/SERVICE METRICS
+| KPI | Formula | Review Frequency | Healthy Range | Red Flag |
+[4-5 product KPIs]
 
-        from datetime import datetime
-        output_text = (
-            "# KPITrackerBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 23_kpi_tracker Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"23_kpi_tracker_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+### OPERATIONAL METRICS
+| KPI | Formula | Review Frequency | Healthy Range | Red Flag |
+[4-5 operational KPIs]
+
+### FINANCIAL HEALTH METRICS
+| KPI | Formula | Review Frequency | Healthy Range | Red Flag |
+[4-5 financial KPIs: runway, burn rate, gross margin, etc.]
+
+## METRIC HIERARCHY
+Tier 1 — Check Daily: [3 metrics]
+Tier 2 — Check Weekly: [5-7 metrics]
+Tier 3 — Check Monthly: [8-10 metrics]
+Tier 4 — Check Quarterly: [Strategic metrics]
+
+## WEEKLY REVIEW TEMPLATE
+Fill-in template for a 15-minute weekly KPI review:
+
+---
+**Week of:** [Date]
+**North Star Metric:** [Current] vs [Target] — [Status: ✅/⚠️/❌]
+
+| KPI | This Week | Last Week | Target | Trend |
+[Top 10 weekly KPIs]
+
+**What's Working:** [1-2 wins]
+**What Needs Attention:** [1-2 issues]
+**Next Week Priority:** [1 action]
+
+---
+
+## MONTHLY REVIEW TEMPLATE
+Template for monthly business health review including:
+- MoM growth comparison
+- Revenue vs targets
+- Cohort performance
+- Team/ops review
+- 30-day goal setting
+
+## DATA SOURCES & TRACKING SETUP
+How to track each KPI without expensive tools:
+| KPI | Track In | Update Frequency | Automation Possible? |
+
+## LEADING vs LAGGING INDICATORS
+Separate the KPIs into:
+- **Leading indicators** (predict future results)
+- **Lagging indicators** (confirm past results)
+
+## ALERT THRESHOLDS
+Specific numbers that should trigger immediate review:
+| Metric | Trigger Threshold | Action to Take |"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_type = "".join(c if c.isalnum() else "_" for c in business_type[:20])
+
+        output = f"""# KPI Dashboard: {business_type}
+**Stage:** {stage}
+**Focus:** {focus_area}
+**Review Cadence:** {review_cadence}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse KPI Tracker Bot*
+"""
+        path = self.save_output(output, f"kpis_{safe_type}_{ts}.md", ext="md")
+        self.logger.info(f"KPI framework saved → {path}")
+        return {"file": str(path), "business_type": business_type}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="business KPI tracking")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="KPI Dashboard Builder")
+    parser.add_argument("--business",  type=str, default=None)
+    parser.add_argument("--stage",     type=str, default="early growth")
+    parser.add_argument("--focus",     type=str, default="all areas")
+    parser.add_argument("--cadence",   type=str, default="weekly + monthly")
     args = parser.parse_args()
     bot = KPITrackerBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(business_type=args.business, stage=args.stage,
+                         focus_area=args.focus, review_cadence=args.cadence)
+    print(f"\n✅ KPI Dashboard: {result['file']}")

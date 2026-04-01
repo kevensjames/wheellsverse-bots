@@ -1,70 +1,151 @@
 #!/usr/bin/env python3
-"""FinancialProjectionBot — financial models and projections"""
+"""
+Bot #22 — Financial Projection Generator
+Category: Business
+Purpose: Build realistic 12-month and 3-year financial projections with revenue models,
+         expense forecasts, cash flow analysis, and break-even analysis.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class FinancialProjectionBot(BaseBot):
+
     def __init__(self):
         super().__init__("22_financial_projection", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "SaaS subscription projections")
-        self.logger.info("Running 22_financial_projection: " + str(topic))
+    def run(self, business_type: str = None, revenue_model: str = None,
+            starting_mrr: float = None, monthly_growth_rate: float = None,
+            monthly_expenses: float = None, **kwargs):
+
+        cfg = self.config
+        business_type      = business_type or cfg.get("business_type", "SaaS")
+        revenue_model      = revenue_model or cfg.get("revenue_model", "subscription + affiliate")
+        starting_mrr       = starting_mrr or cfg.get("starting_mrr", 500)
+        monthly_growth_rate = monthly_growth_rate or cfg.get("monthly_growth_rate", 15)
+        monthly_expenses   = monthly_expenses or cfg.get("monthly_expenses", 300)
+
+        self.logger.info(f"Building financial projections: {business_type} | MRR: ${starting_mrr}")
 
         system = (
-            "You are a world-class expert in financial models and projections. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a financial analyst and CFO consultant who builds financial models "
+            "for startups and small businesses. You think in unit economics, cohort analysis, "
+            "and scenario planning. You build projections that are optimistic but grounded — "
+            "always showing the assumptions behind every number so founders understand "
+            "what they need to believe for the projections to hold."
         )
 
-        task_title = "22_financial_projection".replace("_", " ").title()
+        prompt = f"""Build comprehensive financial projections for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+BUSINESS TYPE: {business_type}
+REVENUE MODEL: {revenue_model}
+STARTING MRR/MONTHLY REVENUE: ${starting_mrr}
+ASSUMED MONTHLY GROWTH RATE: {monthly_growth_rate}%
+MONTHLY OPERATING EXPENSES: ${monthly_expenses}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## UNIT ECONOMICS
+Define and calculate the key unit economics:
+- **Average Revenue Per User (ARPU):** $[X]/month
+- **Customer Acquisition Cost (CAC):** $[X] (estimate based on typical {business_type})
+- **Customer Lifetime Value (LTV):** $[X] (based on churn assumption)
+- **LTV:CAC Ratio:** [X]:1 (target > 3:1)
+- **Payback Period:** [X] months
+- **Gross Margin:** [X]% (estimate for {business_type})
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## 12-MONTH PROJECTION TABLE
+Show monthly progression from Month 1 to Month 12:
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+| Month | MRR | New Users | Total Users | Revenue | Expenses | Net Cash Flow | Cumulative P&L |
+|-------|-----|-----------|-------------|---------|----------|---------------|----------------|
+[All 12 months with calculated numbers based on {starting_mrr} start and {monthly_growth_rate}% monthly growth]
 
-Be specific, professional, and immediately actionable."""
+## KEY MILESTONES
+Based on the projections:
+- **Break-even month:** Month [X] (when cumulative P&L turns positive)
+- **$1K MRR milestone:** Month [X]
+- **$5K MRR milestone:** Month [X]
+- **$10K MRR milestone:** Month [X]
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+## 3-YEAR SUMMARY
+| | Year 1 | Year 2 | Year 3 |
+|-|--------|--------|--------|
+| Annual Revenue | | | |
+| Annual Expenses | | | |
+| Net Income | | | |
+| Year-End MRR | | | |
+| Total Customers | | | |
 
-        from datetime import datetime
-        output_text = (
-            "# FinancialProjectionBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 22_financial_projection Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"22_financial_projection_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+## SCENARIO ANALYSIS
+Run 3 scenarios (conservative, base, optimistic) for Year 1:
+
+| Scenario | Growth Rate | Year-End MRR | Year-End Revenue |
+|----------|-------------|--------------|------------------|
+| Conservative | [X-5]% | | |
+| Base Case | {monthly_growth_rate}% | | |
+| Optimistic | [X+5]% | | |
+
+## EXPENSE BREAKDOWN
+Detailed monthly expense categories for {business_type}:
+| Category | Monthly Cost | Annual Cost | % of Revenue |
+[All expense categories]
+
+## CASH FLOW ANALYSIS
+- **Starting cash needed:** $[X] to reach break-even
+- **Burn rate:** $[X]/month until profitable
+- **Runway:** [X] months on $[Y] starting capital
+- **Reinvestment strategy:** What to do with profits at each stage
+
+## REVENUE GROWTH LEVERS
+The top 5 levers that will determine if projections are met or exceeded:
+1. [Lever] → Impact on MRR if improved by 10%
+2. [Lever] → Impact
+...
+
+## MODEL ASSUMPTIONS
+List the 10 key assumptions behind these projections and the risk if each is wrong."""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_type = business_type.replace(" ", "_")[:20]
+
+        output = f"""# Financial Projections: {business_type}
+**Revenue Model:** {revenue_model}
+**Starting MRR:** ${starting_mrr}
+**Monthly Growth Rate:** {monthly_growth_rate}%
+**Monthly Expenses:** ${monthly_expenses}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Financial Projection Bot*
+"""
+        path = self.save_output(output, f"projections_{safe_type}_{ts}.md", ext="md")
+        self.logger.info(f"Financial projections saved → {path}")
+        return {"file": str(path), "business_type": business_type, "starting_mrr": starting_mrr}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="financial models and projections")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Financial Projection Generator")
+    parser.add_argument("--type",     type=str, default="SaaS")
+    parser.add_argument("--model",    type=str, default="subscription", dest="rev_model")
+    parser.add_argument("--mrr",      type=float, default=500)
+    parser.add_argument("--growth",   type=float, default=15)
+    parser.add_argument("--expenses", type=float, default=300)
     args = parser.parse_args()
     bot = FinancialProjectionBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(business_type=args.type, revenue_model=args.rev_model,
+                         starting_mrr=args.mrr, monthly_growth_rate=args.growth,
+                         monthly_expenses=args.expenses)
+    print(f"\n✅ Projections: {result['file']}")

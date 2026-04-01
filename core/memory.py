@@ -330,6 +330,10 @@ class MemoryManager:
     def get_stats(self, project: str = "global") -> Dict:
         return self._get_store(project).get_stats()
 
+    def save_decision(self, decision: Dict):
+        """Delegate to the global store's save_decision."""
+        self._global.save_decision(decision)
+
     def list_projects(self) -> List[str]:
         """List all projects that have memory stores."""
         projects = ["global"]

@@ -1,40 +1,144 @@
 #!/usr/bin/env python3
-"""ContentSchedulerBot — social media content scheduling"""
+"""
+Bot #38 — Content Scheduling Strategy Builder
+Category: Social Media
+Purpose: Build a complete content scheduling strategy with optimal posting times,
+         frequency recommendations, batch creation workflow, and tool setup.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class ContentSchedulerBot(BaseBot):
+
     def __init__(self):
         super().__init__("38_content_scheduler", "social_media")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI business content calendar")
-        self.logger.info(f"Running 38_content_scheduler: {topic}")
+    def run(self, platforms: str = None, audience_timezone: str = None,
+            content_types: str = None, weekly_capacity: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in social media content scheduling."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        platforms        = platforms or cfg.get("platforms", "twitter,linkedin,instagram,tiktok")
+        audience_timezone = audience_timezone or cfg.get("audience_timezone", "US Eastern Time")
+        content_types    = content_types or cfg.get("content_types", "text posts, carousels, short videos, stories")
+        weekly_capacity  = weekly_capacity or cfg.get("weekly_capacity", "5-10 hours/week for content")
 
-TOPIC/REQUEST: {topic}
+        platform_list = [p.strip() for p in platforms.split(",")]
+        self.logger.info(f"Building scheduling strategy for: {platforms}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a social media operations expert and content strategist. "
+            "You design posting schedules based on algorithm behavior, audience psychology, "
+            "and platform best practices — not guesswork. You help creators post "
+            "smarter, not harder. Your schedules are sustainable for the long term "
+            "and built around batch creation to prevent burnout."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Build a complete content scheduling strategy for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# ContentSchedulerBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 38_content_scheduler Bot*"
-        path = self.save_output(out, f"38_content_scheduler_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+PLATFORMS: {', '.join(platform_list)}
+AUDIENCE TIMEZONE: {audience_timezone}
+CONTENT TYPES: {content_types}
+WEEKLY CREATION CAPACITY: {weekly_capacity}
+
+## OPTIMAL POSTING SCHEDULE
+
+For each platform, provide:
+
+### [PLATFORM] SCHEDULE
+**Algorithm insight:** How this platform's algorithm affects timing
+**Best posting days:** [Ranked 1-7 by day of week]
+**Best posting times:** [3-4 time windows with performance context]
+**Minimum viable frequency:** [Posts per week to maintain algorithm favor]
+**Optimal frequency:** [Posts per week for growth]
+**Maximum frequency:** [Before diminishing returns]
+
+**Weekly schedule template:**
+| Day | Time | Content Type | Notes |
+[Full week schedule]
+
+[Repeat for all platforms: {', '.join(platform_list)}]
+
+## CROSS-PLATFORM COORDINATION
+- **Content repurposing flow:** [Which platform to post to first, then repurpose to others]
+- **Spacing between platforms:** [How long to wait before cross-posting]
+- **Platform-specific adaptations:** [How to adjust the same core piece for each]
+
+## BATCH CREATION WORKFLOW
+
+### Weekly Batch Session (Recommended: {weekly_capacity})
+
+**Session 1 (Content Creation):**
+[What to create + how long each takes]
+
+**Session 2 (Editing & Scheduling):**
+[How to prepare and schedule everything]
+
+**Template: Weekly Content Batch Checklist**
+- [ ] [Task 1] — X min
+- [ ] [Task 2] — X min
+[Full checklist with time estimates]
+
+## SCHEDULING TOOL COMPARISON
+| Tool | Best For | Free Plan | Paid Starting At | Platforms Supported |
+[5 scheduling tools: Buffer, Later, Hootsuite, Publer, etc.]
+
+**Recommendation for your setup:** [Best tool based on {platforms} and {weekly_capacity}]
+
+## CONTENT STOCKPILE SYSTEM
+How to build a 30-day buffer of scheduled content:
+1. [Strategy]
+2. [Batch method]
+3. [Emergency post template for dry spells]
+
+## POSTING CADENCE BY GROWTH STAGE
+| Growth Stage | Followers | Recommended Posts/Week |
+| Starting out | 0-1K | |
+| Building momentum | 1K-10K | |
+| Scaling | 10K+ | |
+
+## ANALYTICS-DRIVEN OPTIMIZATION
+What data to check weekly to refine your schedule:
+| Metric | Platform | How to Read It | How to Adjust |"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+
+        output = f"""# Content Scheduling Strategy
+**Platforms:** {platforms}
+**Timezone:** {audience_timezone}
+**Capacity:** {weekly_capacity}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Content Scheduler Bot*
+"""
+        path = self.save_output(output, f"schedule_{ts}.md", ext="md")
+        self.logger.info(f"Scheduling strategy saved → {path}")
+        return {"file": str(path), "platforms": platform_list}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="social media content scheduling")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Content Scheduling Strategy Builder")
+    parser.add_argument("--platforms", type=str, default="twitter,linkedin,instagram")
+    parser.add_argument("--timezone",  type=str, default="US Eastern")
+    parser.add_argument("--types",     type=str, default="posts, videos, stories")
+    parser.add_argument("--capacity",  type=str, default="5-10 hours/week")
+    args = parser.parse_args()
     bot = ContentSchedulerBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(platforms=args.platforms, audience_timezone=args.timezone,
+                         content_types=args.types, weekly_capacity=args.capacity)
+    print(f"\n✅ Scheduling Strategy: {result['file']}")

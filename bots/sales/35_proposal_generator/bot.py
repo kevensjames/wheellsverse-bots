@@ -1,70 +1,201 @@
 #!/usr/bin/env python3
-"""ProposalGeneratorBot — professional sales proposals"""
+"""
+Bot #35 — Sales Proposal Generator
+Category: Sales
+Purpose: Generate professional, client-specific sales proposals with
+         executive summary, solution design, pricing, and ROI analysis.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class ProposalGeneratorBot(BaseBot):
+
     def __init__(self):
         super().__init__("35_proposal_generator", "sales")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI automation implementation")
-        self.logger.info("Running 35_proposal_generator: " + str(topic))
+    def run(self, client_name: str = None, client_challenge: str = None,
+            your_solution: str = None, investment: str = None,
+            timeline: str = None, **kwargs):
+
+        cfg = self.config
+        client_name      = client_name or cfg.get("client_name", "[Client Company]")
+        client_challenge = client_challenge or cfg.get("client_challenge",
+            "manual processes taking too much time, unable to scale operations")
+        your_solution    = your_solution or cfg.get("your_solution",
+            "WheellsVerse AI automation platform — custom bot setup and training")
+        investment       = investment or cfg.get("investment", "$497/month or $4,997/year")
+        timeline         = timeline or cfg.get("timeline", "30-day implementation")
+
+        self.logger.info(f"Generating proposal for: {client_name}")
 
         system = (
-            "You are a world-class expert in professional sales proposals. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a senior sales consultant and proposal writer who has closed "
+            "$M in B2B deals. You write proposals that win — not because they're "
+            "pretty, but because they make the ROI undeniable and the decision obvious. "
+            "You mirror the client's language, lead with their problem (not your product), "
+            "and make the investment feel small compared to the value. "
+            "Every section answers: 'Why them? Why us? Why now?'"
         )
 
-        task_title = "35_proposal_generator".replace("_", " ").title()
+        prompt = f"""Write a comprehensive, winning sales proposal for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+CLIENT: {client_name}
+THEIR CHALLENGE: {client_challenge}
+YOUR SOLUTION: {your_solution}
+INVESTMENT: {investment}
+TIMELINE: {timeline}
+PROPOSAL FROM: WheellsVerse (AI automation solutions)
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+---
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+# PROPOSAL
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+**Prepared For:** {client_name}
+**Prepared By:** WheellsVerse
+**Date:** [Today's Date]
+**Proposal Valid Until:** [Date + 30 days]
 
-Be specific, professional, and immediately actionable."""
+---
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+## EXECUTIVE SUMMARY
+(3-4 sentences: their problem → your solution → the outcome → the investment)
 
-        from datetime import datetime
-        output_text = (
-            "# ProposalGeneratorBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 35_proposal_generator Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"35_proposal_generator_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+---
+
+## UNDERSTANDING YOUR SITUATION
+
+### The Challenge You're Facing
+[Empathetically describe {client_challenge} using their language, not yours.
+Show you understand the real impact — time lost, revenue missed, stress caused.]
+
+### The Cost of the Status Quo
+**If nothing changes in 12 months:**
+- Time wasted: [X hours/month] × [team members] = [Y hours/year]
+- Estimated cost: [Calculate based on context]
+- Opportunity cost: [What they can't do while stuck in manual work]
+
+---
+
+## THE SOLUTION
+
+### Our Recommendation: {your_solution}
+
+**How It Works:**
+[3-4 phase implementation overview, specific to {client_challenge}]
+
+**Phase 1 ({timeline[:10]} to complete):**
+[Deliverables and milestones]
+
+**Phase 2 (Month 2):**
+[Next phase]
+
+**Phase 3 (Month 3+):**
+[Ongoing value delivery]
+
+---
+
+## THE RESULTS YOU CAN EXPECT
+
+### ROI Analysis
+| Metric | Before | After | Impact |
+| Hours saved/month | | | |
+| Revenue unlocked | | | |
+| Cost reduced | | | |
+| **Net Annual Benefit** | | | |
+
+**Payback Period:** [X months]
+**12-Month ROI:** [X]%
+
+### Case Study / Similar Client Result
+[Realistic example of a similar client's outcome — be specific with numbers]
+
+---
+
+## INVESTMENT
+
+### Option A — Full Implementation
+[Description] — {investment}
+
+### Option B — Starter Package
+[Lower-tier option] — [Price]
+
+### Option C — Enterprise
+[Higher-tier option] — [Price]
+
+**What's Included in All Options:**
+[Feature list]
+
+**Payment Terms:** [Options]
+
+---
+
+## WHY WHEELLSVERSE
+
+**3 Reasons [Client] Should Work With Us:**
+1. [Specific differentiator]
+2. [Specific differentiator]
+3. [Specific differentiator]
+
+**Our Guarantee:** [Risk reversal — make it easy to say yes]
+
+---
+
+## NEXT STEPS
+
+To get started:
+1. **Sign the proposal** — [Simple e-signature process]
+2. **Complete onboarding call** — [30 minutes to kick off]
+3. **We begin implementation** — [Timeline]
+
+**Your decision needs to be made by [date] to start by [date].**
+
+---
+
+## FREQUENTLY ASKED QUESTIONS
+5 questions {client_name} is likely asking internally — answered:"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_client = "".join(c if c.isalnum() else "_" for c in client_name[:20])
+
+        output = f"""# Sales Proposal: {client_name}
+**Solution:** {your_solution}
+**Investment:** {investment}
+**Timeline:** {timeline}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Proposal Generator Bot*
+"""
+        path = self.save_output(output, f"proposal_{safe_client}_{ts}.md", ext="md")
+        self.logger.info(f"Proposal saved → {path}")
+        return {"file": str(path), "client": client_name, "investment": investment}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="professional sales proposals")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Sales Proposal Generator")
+    parser.add_argument("--client",     type=str, default=None)
+    parser.add_argument("--challenge",  type=str, default=None)
+    parser.add_argument("--solution",   type=str, default=None)
+    parser.add_argument("--investment", type=str, default=None)
+    parser.add_argument("--timeline",   type=str, default="30 days")
     args = parser.parse_args()
     bot = ProposalGeneratorBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(client_name=args.client, client_challenge=args.challenge,
+                         your_solution=args.solution, investment=args.investment,
+                         timeline=args.timeline)
+    print(f"\n✅ Proposal: {result['file']}")

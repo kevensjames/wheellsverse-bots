@@ -1,5 +1,6 @@
 # Environment & secrets — NEVER commit these
 .env
+!.env.example
 *.env.local
 
 # Python

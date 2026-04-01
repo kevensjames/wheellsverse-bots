@@ -71,7 +71,12 @@ MENU = """
 CATEGORIES = [
     "marketing", "business", "customer_support", "sales", "social_media",
     "writing", "assistant", "problem_solving", "time_management",
-    "ecommerce", "specialized"
+    "ecommerce", "specialized",
+    # New categories (v2.1)
+    "affiliate_scout", "tool_catalog", "agent_workforce", "aeo",
+    "prompt_intel", "receptionist", "seo_autopilot", "seo_command",
+    # NarAI — General Overseer (v3.0)
+    "narai",
 ]
 
 

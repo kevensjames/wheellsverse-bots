@@ -1,70 +1,160 @@
 #!/usr/bin/env python3
-"""WorkflowAutomationBot — business process automation"""
+"""
+Bot #25 — Workflow Automation Designer
+Category: Business
+Purpose: Design complete business process automation workflows with tool recommendations,
+         SOPs, trigger/action maps, and implementation roadmaps.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class WorkflowAutomationBot(BaseBot):
+
     def __init__(self):
         super().__init__("25_workflow_automation", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Customer onboarding workflow")
-        self.logger.info("Running 25_workflow_automation: " + str(topic))
+    def run(self, process: str = None, business_type: str = None,
+            current_tools: str = None, pain_point: str = None, **kwargs):
+
+        cfg = self.config
+        process       = process or cfg.get("process", "content creation and publishing")
+        business_type = business_type or cfg.get("business_type", "online business / content creator")
+        current_tools = current_tools or cfg.get("current_tools", "manual / Google Docs / email")
+        pain_point    = pain_point or cfg.get("pain_point", "too much manual work, not enough time")
+
+        self.logger.info(f"Designing workflow automation: {process}")
 
         system = (
-            "You are a world-class expert in business process automation. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a business automation consultant and systems designer who has helped "
+            "hundreds of entrepreneurs systematize their operations. You build workflows that "
+            "eliminate repetitive tasks, reduce errors, and free up time for high-value work. "
+            "You think in triggers, conditions, and actions. You recommend the right tools "
+            "for the budget and complexity level — from no-code (Zapier, Make) to custom solutions."
         )
 
-        task_title = "25_workflow_automation".replace("_", " ").title()
+        prompt = f"""Design a complete workflow automation system for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+PROCESS TO AUTOMATE: {process}
+BUSINESS TYPE: {business_type}
+CURRENT TOOLS: {current_tools}
+MAIN PAIN POINT: {pain_point}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## PROCESS AUDIT
+**Current State:** Map the manual steps in "{process}" as-is:
+[Step 1] → [Step 2] → [Step 3] → ... → [Final Output]
+Time currently taken: [X hours/week]
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+**Bottlenecks Identified:** Where the most time is wasted
+**Error-Prone Steps:** Where mistakes typically happen
+**Automation Potential:** What % of this process can be automated
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## AUTOMATION ARCHITECTURE
 
-Be specific, professional, and immediately actionable."""
+### TRIGGER → ACTION FLOW
+Design the automated workflow:
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+```
+TRIGGER: [What starts the workflow]
+   ↓
+CONDITION: [Any if/then logic]
+   ↓
+ACTION 1: [First automated step]
+   ↓
+ACTION 2: [Second automated step]
+   ↓
+ACTION 3: [Third automated step]
+   ↓
+OUTPUT: [Final result / notification]
+```
 
-        from datetime import datetime
-        output_text = (
-            "# WorkflowAutomationBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 25_workflow_automation Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"25_workflow_automation_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+### PARALLEL AUTOMATIONS
+Any sub-workflows that can run simultaneously
+
+## TOOL STACK RECOMMENDATION
+
+**No-Code Option (Budget: $0-50/month):**
+| Tool | Purpose | Cost | Integration |
+[5-7 tools with specific use cases]
+
+**Mid-Tier Option (Budget: $50-200/month):**
+[Alternative stack for more power]
+
+**Enterprise Option (Budget: $200+/month):**
+[If scaling is needed]
+
+## STEP-BY-STEP IMPLEMENTATION
+
+### Phase 1 (Week 1): Quick Wins
+[Automations to set up immediately that save the most time]
+
+### Phase 2 (Week 2-3): Core Automation
+[Build the main workflow]
+
+### Phase 3 (Month 2): Optimization
+[Refine, add error handling, scale]
+
+## SOP (STANDARD OPERATING PROCEDURE)
+Written SOP for the automated process:
+- What gets automated (and what stays manual)
+- How to monitor for failures
+- What to do when the automation breaks
+- How to update the workflow
+
+## ROI CALCULATION
+| | Before Automation | After Automation |
+|---|---|---|
+| Time spent/week | [X hours] | [Y hours] |
+| Cost (at $[X]/hour) | $[X]/week | $[Y]/week |
+| Tool cost | $0 | $[Z]/month |
+| **Monthly savings** | | **$[N]** |
+| Payback period | | [X weeks] |
+
+## AUTOMATION MISTAKES TO AVOID
+5 common automation errors and how to prevent them
+
+## MONITORING & MAINTENANCE
+Weekly automation health check process (5 minutes)"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_process = "".join(c if c.isalnum() else "_" for c in process[:30])
+
+        output = f"""# Workflow Automation: {process}
+**Business:** {business_type}
+**Current Tools:** {current_tools}
+**Pain Point:** {pain_point}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Workflow Automation Bot*
+"""
+        path = self.save_output(output, f"workflow_{safe_process}_{ts}.md", ext="md")
+        self.logger.info(f"Workflow design saved → {path}")
+        return {"file": str(path), "process": process}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="business process automation")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Workflow Automation Designer")
+    parser.add_argument("--process",   type=str, default=None)
+    parser.add_argument("--business",  type=str, default=None)
+    parser.add_argument("--tools",     type=str, default=None)
+    parser.add_argument("--painpoint", type=str, default=None)
     args = parser.parse_args()
     bot = WorkflowAutomationBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(process=args.process, business_type=args.business,
+                         current_tools=args.tools, pain_point=args.painpoint)
+    print(f"\n✅ Workflow Design: {result['file']}")

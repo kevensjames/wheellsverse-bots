@@ -1,70 +1,158 @@
 #!/usr/bin/env python3
-"""ConversionOptimizerBot — conversion rate optimization"""
+"""
+Bot #18 — Conversion Rate Optimizer
+Category: Marketing
+Purpose: Analyze a page or funnel and generate a full CRO audit with
+         prioritized fixes, copy rewrites, and A/B test recommendations.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class ConversionOptimizerBot(BaseBot):
+
     def __init__(self):
         super().__init__("18_conversion_optimizer", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "landing page with 2.5pct CVR")
-        self.logger.info("Running 18_conversion_optimizer: " + str(topic))
+    def run(self, page_type: str = None, current_conversion: float = None,
+            page_description: str = None, goal: str = None, **kwargs):
+
+        cfg = self.config
+        page_type          = page_type or cfg.get("page_type", "landing_page")
+        current_conversion = current_conversion or cfg.get("current_conversion", 2.5)
+        page_description   = page_description or cfg.get("page_description",
+            "WheellsVerse AI platform landing page — sells monthly subscription, cold traffic from social ads")
+        goal               = goal or cfg.get("goal", "increase signups by 50%")
+
+        self.logger.info(f"CRO audit for {page_type}: current CVR {current_conversion}%")
 
         system = (
-            "You are a world-class expert in conversion rate optimization. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a conversion rate optimization expert and behavioral psychologist. "
+            "You've improved conversion rates on hundreds of landing pages and funnels. "
+            "You think in terms of: removing friction, building trust, creating desire, "
+            "and making the next step obvious. Your audits are specific and prioritized — "
+            "you give exactly what to change and why, not vague advice."
         )
 
-        task_title = "18_conversion_optimizer".replace("_", " ").title()
+        page_type_context = {
+            "landing_page": "Homepage or campaign landing page focused on lead capture or sales",
+            "sales_page":   "Long-form sales page for a product or service",
+            "checkout":     "Shopping cart or checkout flow",
+            "opt_in":       "Email opt-in or lead magnet page",
+            "pricing":      "Pricing page with plan tiers",
+            "product":      "E-commerce product page",
+            "webinar":      "Webinar registration page",
+        }
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        context_label = page_type_context.get(page_type, page_type)
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+        prompt = f"""Conduct a comprehensive CRO audit and optimization plan for:
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+PAGE TYPE: {page_type} — {context_label}
+CURRENT CONVERSION RATE: {current_conversion}%
+OPTIMIZATION GOAL: {goal}
+PAGE CONTEXT: {page_description}
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## QUICK WINS (Implement This Week)
+5 changes you can make today that historically improve CVR by 10-30%:
+For each: [Change] → [Expected Impact] → [Implementation Notes]
 
-Be specific, professional, and immediately actionable."""
+## FULL CRO AUDIT
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+### 1. ABOVE THE FOLD
+- Headline effectiveness (clarity, value prop, specificity)
+- Hero image/video alignment with offer
+- CTA placement and copy
+- Load speed impact
+**Rewrite the headline:** [Provide 3 headline variants to test]
 
-        from datetime import datetime
-        output_text = (
-            "# ConversionOptimizerBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 18_conversion_optimizer Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"18_conversion_optimizer_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+### 2. TRUST SIGNALS
+- Social proof placement and type
+- Trust badges and guarantees
+- Testimonial format and specificity
+**Recommended trust stack:** [Exact elements to add/improve]
+
+### 3. VALUE PROPOSITION
+- Is the primary benefit immediately clear?
+- Features vs benefits balance
+- Specificity of claims
+**Rewrite the hero subheadline:** [Provide improved version]
+
+### 4. FRICTION POINTS
+- Form length and field requirements
+- Number of decisions required
+- Visual clutter and cognitive load
+- Mobile optimization issues
+**Top 3 friction removals:** [Specific changes]
+
+### 5. CTA OPTIMIZATION
+Current CTA weaknesses and improvements:
+- **Button text:** Current → Recommended (3 variants)
+- **Button placement:** Where to add secondary CTAs
+- **Color and contrast:** Recommendations
+- **Urgency/scarcity elements:** What to add
+
+### 6. OBJECTION HANDLING
+Top 5 objections visitors have at {current_conversion}% CVR:
+| Objection | Current Handling | Recommended Fix |
+
+### 7. COPY REWRITE SECTIONS
+Rewrite these specific sections with improved copy:
+- **Pain section:** [New version]
+- **Benefits list:** [New version — benefits not features]
+- **Guarantee/risk reversal:** [New version]
+
+## PRIORITIZED IMPLEMENTATION ROADMAP
+| Priority | Change | Effort | Expected CVR Lift |
+|----------|--------|--------|-------------------|
+[10 changes ranked by impact/effort ratio]
+
+## A/B TEST QUEUE
+5 specific tests to run in order, starting with highest impact:
+
+## EXPECTED OUTCOME
+If top recommendations are implemented, estimated CVR improvement to [X]% and why."""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_type = page_type.replace(" ", "_")[:20]
+
+        output = f"""# CRO Audit: {page_type.replace("_", " ").title()}
+**Current CVR:** {current_conversion}%
+**Goal:** {goal}
+**Context:** {page_description}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Conversion Optimizer Bot*
+"""
+        path = self.save_output(output, f"cro_{safe_type}_{ts}.md", ext="md")
+        self.logger.info(f"CRO audit saved → {path}")
+        return {"file": str(path), "page_type": page_type, "current_cvr": current_conversion}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="conversion rate optimization")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Conversion Rate Optimizer")
+    parser.add_argument("--page",        type=str, default="landing_page",
+                        choices=["landing_page", "sales_page", "checkout", "opt_in", "pricing", "product", "webinar"])
+    parser.add_argument("--cvr",         type=float, default=2.5, help="Current conversion rate %")
+    parser.add_argument("--description", type=str, default=None)
+    parser.add_argument("--goal",        type=str, default="increase conversions by 50%")
     args = parser.parse_args()
     bot = ConversionOptimizerBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(page_type=args.page, current_conversion=args.cvr,
+                         page_description=args.description, goal=args.goal)
+    print(f"\n✅ CRO Audit: {result['file']}")

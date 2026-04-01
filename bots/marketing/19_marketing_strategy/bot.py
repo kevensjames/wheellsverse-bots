@@ -1,40 +1,169 @@
 #!/usr/bin/env python3
-"""MarketingStrategyBot — full marketing strategy planning"""
+"""
+Bot #19 — Marketing Strategy Planner
+Category: Marketing
+Purpose: Build a complete go-to-market or growth marketing strategy with
+         channel mix, budget allocation, 90-day roadmap, and KPIs.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class MarketingStrategyBot(BaseBot):
+
     def __init__(self):
         super().__init__("19_marketing_strategy", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI automation SaaS go-to-market")
-        self.logger.info(f"Running 19_marketing_strategy: {topic}")
+    def run(self, product: str = None, stage: str = None,
+            budget: str = None, goal: str = None,
+            timeframe: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in full marketing strategy planning."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        product   = product or cfg.get("product", "WheellsVerse AI automation platform")
+        stage     = stage or cfg.get("stage", "early_traction")
+        budget    = budget or cfg.get("budget", "$500/month")
+        goal      = goal or cfg.get("goal", "reach 1,000 paid users")
+        timeframe = timeframe or cfg.get("timeframe", "90 days")
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Building marketing strategy: {product} | {stage} | {budget}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a growth marketing strategist who has taken multiple SaaS products "
+            "from 0 to 10,000+ users. You think in experiments, not campaigns. "
+            "You prioritize channels with the highest signal-to-noise ratio for the "
+            "product's stage and budget. You build strategies around measurable outcomes "
+            "and know when to double down vs when to pivot."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        stage_context = {
+            "pre_launch":    "No product yet — building waitlist and initial buzz",
+            "early_traction":"Product launched, <100 users, finding product-market fit",
+            "growth":        "100-1,000 users, repeatable acquisition channels emerging",
+            "scale":         "1,000+ users, doubling down on proven channels",
+            "enterprise":    "Moving upmarket, longer sales cycles, larger deals",
+        }
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# MarketingStrategyBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 19_marketing_strategy Bot*"
-        path = self.save_output(out, f"19_marketing_strategy_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+        stage_label = stage_context.get(stage, stage)
+
+        prompt = f"""Create a comprehensive marketing strategy for:
+
+PRODUCT/BUSINESS: {product}
+CURRENT STAGE: {stage} — {stage_label}
+MONTHLY MARKETING BUDGET: {budget}
+PRIMARY GOAL: {goal}
+TIMEFRAME: {timeframe}
+
+## EXECUTIVE SUMMARY
+3-sentence summary of the strategy — the big bet and why.
+
+## MARKET POSITIONING
+- **ICP (Ideal Customer Profile):** Specific demographics + psychographics
+- **Core Value Proposition:** One sentence that makes them buy
+- **Category:** What category does this compete in / create?
+- **Positioning Statement:** [Brand] is the [category] for [ICP] who [pain point]. Unlike [alternative], we [key differentiator].
+
+## CHANNEL STRATEGY
+For each recommended channel, provide:
+
+### PRIMARY CHANNELS (60% of budget and effort)
+**[Channel 1]:**
+- Why this channel fits the product + stage
+- Specific tactics to deploy
+- Monthly budget allocation
+- KPIs to track
+- 30-day playbook to get started
+- Expected results at 90 days
+
+**[Channel 2]:** [Same structure]
+
+### SECONDARY CHANNELS (30% of budget)
+**[Channel 3] and [Channel 4]:** Brief overview + budget split
+
+### EXPERIMENTAL CHANNELS (10% of budget)
+One channel to test this quarter with a clear hypothesis
+
+## 90-DAY ROADMAP
+
+### Month 1: Foundation (Days 1-30)
+- Week 1-2: [Specific tasks]
+- Week 3-4: [Specific tasks]
+- Success milestone: [What "good" looks like]
+
+### Month 2: Momentum (Days 31-60)
+- [Focus areas and specific actions]
+- Success milestone: [Metric target]
+
+### Month 3: Scale (Days 61-90)
+- [Double down on winners, cut losers]
+- Success milestone: [Target metric for goal progress]
+
+## BUDGET ALLOCATION
+| Channel | Monthly Budget | % of Total | Expected ROI |
+|---------|----------------|------------|--------------|
+[All channels + total]
+
+## KPI DASHBOARD
+| Metric | Baseline | 30-Day Target | 90-Day Target |
+|--------|----------|---------------|---------------|
+[10 metrics to track weekly]
+
+## CONTENT STRATEGY
+- Pillar content topics (5 core pieces to create)
+- Distribution amplification plan
+- Repurposing workflow
+
+## COMPETITIVE DIFFERENTIATION
+3 ways to position against the top 2 competitors in {timeframe}
+
+## RISK FACTORS
+Top 3 things that could derail this strategy + mitigation plans
+
+## AFFILIATE STRATEGY
+- Identify high-value affiliate partners
+- Develop compelling affiliate offers
+- Track performance and optimize campaigns
+"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_product = "".join(c if c.isalnum() else "_" for c in product[:25])
+
+        output = f"""# Marketing Strategy: {product}
+**Stage:** {stage} | **Budget:** {budget} | **Goal:** {goal}
+**Timeframe:** {timeframe}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Marketing Strategy Bot*
+"""
+        path = self.save_output(output, f"strategy_{safe_product}_{ts}.md", ext="md")
+        self.logger.info(f"Marketing strategy saved → {path}")
+        return {"file": str(path), "product": product, "stage": stage, "budget": budget}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="full marketing strategy planning")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Marketing Strategy Planner")
+    parser.add_argument("--product",   type=str, default=None)
+    parser.add_argument("--stage",     type=str, default="early_traction",
+                        choices=["pre_launch", "early_traction", "growth", "scale", "enterprise"])
+    parser.add_argument("--budget",    type=str, default="$500/month")
+    parser.add_argument("--goal",      type=str, default=None)
+    parser.add_argument("--timeframe", type=str, default="90 days")
+    args = parser.parse_args()
     bot = MarketingStrategyBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(product=args.product, stage=args.stage, budget=args.budget,
+                         goal=args.goal, timeframe=args.timeframe)
+    print(f"\n✅ Marketing Strategy: {result['file']}")

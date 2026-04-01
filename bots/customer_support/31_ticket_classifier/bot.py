@@ -1,70 +1,184 @@
 #!/usr/bin/env python3
-"""TicketClassifierBot — support ticket classification"""
+"""
+Bot #31 — Support Ticket Classifier & Response System
+Category: Customer Support
+Purpose: Build a ticket classification system with routing rules, priority scoring,
+         response templates, and SLA framework for support operations.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class TicketClassifierBot(BaseBot):
+
     def __init__(self):
         super().__init__("31_ticket_classifier", "customer_support")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Billing issue ticket")
-        self.logger.info("Running 31_ticket_classifier: " + str(topic))
+    def run(self, product: str = None, ticket_categories: str = None,
+            team_size: str = None, sla_target: str = None, **kwargs):
+
+        cfg = self.config
+        product           = product or cfg.get("product", "WheellsVerse AI platform")
+        ticket_categories = ticket_categories or cfg.get("ticket_categories",
+            "billing, technical bug, feature request, how-to question, account issue, refund")
+        team_size         = team_size or cfg.get("team_size", "1-2 person support team")
+        sla_target        = sla_target or cfg.get("sla_target", "same-day response")
+
+        categories = [c.strip() for c in ticket_categories.split(",")]
+        self.logger.info(f"Building ticket classification system for: {product}")
 
         system = (
-            "You are a world-class expert in support ticket classification. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a customer support operations expert who has scaled support teams "
+            "from chaos to systematic efficiency. You design ticket triage systems that "
+            "ensure the right issues get the fastest response, protect revenue (billing "
+            "issues always first), and keep customers informed at every step. "
+            "You build systems that work even with small teams."
         )
 
-        task_title = "31_ticket_classifier".replace("_", " ").title()
+        prompt = f"""Build a complete support ticket classification and response system for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+PRODUCT: {product}
+TICKET CATEGORIES: {', '.join(categories)}
+SUPPORT TEAM SIZE: {team_size}
+SLA TARGET: {sla_target}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## TICKET CLASSIFICATION SYSTEM
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+### PRIORITY LEVELS
+Define 4 priority tiers with criteria and SLA:
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+**P0 — CRITICAL (Respond in: 1 hour)**
+Criteria: [What makes a ticket P0]
+Examples: [3-4 example ticket types]
+SLA: First response 1 hour | Resolution 4 hours
 
-Be specific, professional, and immediately actionable."""
+**P1 — HIGH (Respond in: 4 hours)**
+Criteria: [P1 criteria]
+Examples: [Examples]
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+**P2 — MEDIUM (Respond in: {sla_target})**
+Criteria: [P2 criteria]
+Examples: [Examples]
 
-        from datetime import datetime
-        output_text = (
-            "# TicketClassifierBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 31_ticket_classifier Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"31_ticket_classifier_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+**P3 — LOW (Respond in: 3 business days)**
+Criteria: [P3 criteria]
+Examples: [Examples]
+
+### CATEGORY ROUTING RULES
+
+For each category in "{ticket_categories}":
+
+**CATEGORY: [Name]**
+- Priority level: [Default priority]
+- Assign to: [Who handles this]
+- First response template: [Template name]
+- Resolution steps: [Standard process]
+- Escalation path: [When to escalate]
+
+## AUTO-CLASSIFICATION KEYWORDS
+Keywords that should auto-tag tickets:
+| Keyword/Phrase | Category | Priority |
+[20+ keywords for your ticket system]
+
+## RESPONSE TEMPLATES LIBRARY
+
+For each category, provide:
+
+### TEMPLATE: [CATEGORY] — FIRST RESPONSE
+```
+Subject: Re: [Ticket Subject] — [Reference #]
+
+Hi [Name],
+
+[Category-specific empathetic opener]
+
+[Specific next steps or information needed]
+
+[Timeline commitment]
+
+[Support signature]
+```
+
+### TEMPLATE: [CATEGORY] — RESOLUTION
+[Template for when issue is resolved]
+
+### TEMPLATE: [CATEGORY] — ESCALATION NOTICE
+[Template when escalating to senior/technical team]
+
+[Repeat for all {len(categories)} categories]
+
+## TICKET LIFECYCLE WORKFLOW
+```
+New Ticket Received
+    ↓
+Auto-classification by keywords
+    ↓
+Priority assignment
+    ↓
+Agent assignment
+    ↓
+First response (within SLA)
+    ↓
+Investigation/Resolution
+    ↓
+Customer confirmation
+    ↓
+Ticket closure + CSAT survey
+```
+
+## CSAT SURVEY
+3-question post-resolution survey to send automatically
+
+## WEEKLY TICKET METRICS
+| Metric | Target | How to Measure |
+| First Response Time | | |
+| Resolution Time | | |
+| CSAT Score | | |
+| Ticket Volume by Category | | |
+| Escalation Rate | | |
+
+## COMMON DEFLECTION STRATEGIES
+For each high-volume category, how to deflect tickets with self-serve resources"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_product = "".join(c if c.isalnum() else "_" for c in product[:25])
+
+        output = f"""# Ticket Classification System: {product}
+**Categories:** {ticket_categories}
+**Team:** {team_size}
+**SLA Target:** {sla_target}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Ticket Classifier Bot*
+"""
+        path = self.save_output(output, f"tickets_{safe_product}_{ts}.md", ext="md")
+        self.logger.info(f"Ticket system saved → {path}")
+        return {"file": str(path), "product": product, "categories": len(categories)}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="support ticket classification")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Support Ticket Classifier")
+    parser.add_argument("--product",    type=str, default=None)
+    parser.add_argument("--categories", type=str, default=None)
+    parser.add_argument("--team",       type=str, default="1-2 person team")
+    parser.add_argument("--sla",        type=str, default="same-day response")
     args = parser.parse_args()
     bot = TicketClassifierBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(product=args.product, ticket_categories=args.categories,
+                         team_size=args.team, sla_target=args.sla)
+    print(f"\n✅ Ticket System: {result['file']}")

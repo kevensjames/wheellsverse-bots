@@ -1,40 +1,144 @@
 #!/usr/bin/env python3
-"""GrowthHackingBot — growth hacking experiments"""
+"""
+Bot #20 — Growth Hacking Experiment Builder
+Category: Marketing
+Purpose: Design rapid growth experiments using viral loops, referral mechanics,
+         product-led growth, and unconventional acquisition tactics.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class GrowthHackingBot(BaseBot):
+
     def __init__(self):
         super().__init__("20_growth_hacking", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "SaaS rapid growth tactics 2025")
-        self.logger.info(f"Running 20_growth_hacking: {topic}")
+    def run(self, business_type: str = None, metric_to_grow: str = None,
+            current_number: str = None, target: str = None,
+            timeframe: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in growth hacking experiments."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        business_type   = business_type or cfg.get("business_type", "SaaS/digital product")
+        metric_to_grow  = metric_to_grow or cfg.get("metric_to_grow", "user signups")
+        current_number  = current_number or cfg.get("current_number", "50 users/month")
+        target          = target or cfg.get("target", "500 users/month")
+        timeframe       = timeframe or cfg.get("timeframe", "60 days")
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Designing growth experiments: {metric_to_grow} from {current_number} to {target}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a growth hacker and product-led growth strategist who has scaled "
+            "multiple products from 0 to 100K users using unconventional, low-cost tactics. "
+            "You think in viral loops, referral mechanics, and behavioral psychology. "
+            "You know that the best growth hacks align incentives between the product, "
+            "the user, and their network. You design experiments that are fast to test "
+            "and cheap to run — with measurable outcomes."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Design a growth hacking playbook for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# GrowthHackingBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 20_growth_hacking Bot*"
-        path = self.save_output(out, f"20_growth_hacking_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+BUSINESS TYPE: {business_type}
+METRIC TO GROW: {metric_to_grow}
+CURRENT: {current_number}
+TARGET: {target}
+TIMEFRAME: {timeframe}
+
+## GROWTH DIAGNOSIS
+- **Biggest bottleneck** right now (acquisition/activation/retention/revenue/referral)
+- **Current growth loop** (how do users find you today?)
+- **Viral coefficient estimate** — how many new users does each user bring?
+- **One-sentence growth thesis:** [What's the fastest path from {current_number} to {target}?]
+
+## 10 GROWTH EXPERIMENTS (Ranked by Impact/Effort)
+
+For each experiment:
+
+**EXPERIMENT [N]: [Catchy Name]**
+- **The Hack:** [What you do — specific and actionable]
+- **Mechanism:** [Why this works — psychology/incentive/network effect]
+- **How to Implement:** [Step-by-step, 3-5 steps max]
+- **Resources Required:** [Time + cost estimate]
+- **Success Metric:** [How you know it worked]
+- **Expected Lift:** [Realistic estimate]
+- **Time to Results:** [Days/weeks]
+
+Focus on:
+- Viral loops (each user brings more users)
+- FOMO and exclusivity mechanics
+- SEO-driven product-led growth
+- Partnership and co-marketing hacks
+- Community-driven distribution
+- Referral program design
+- Platform arbitrage (underpriced attention)
+
+## TOP 3 EXPERIMENTS (Start Here)
+The 3 experiments with highest ROI to run first:
+
+### Experiment A: [Name]
+[Full implementation guide — what to build, who does it, how to measure]
+
+### Experiment B: [Name]
+[Full implementation guide]
+
+### Experiment C: [Name]
+[Full implementation guide]
+
+## VIRAL LOOP DESIGN
+Design a viral loop for {business_type}:
+- **Entry point:** How new users discover you
+- **Value creation:** What value they get immediately
+- **Sharing mechanism:** What makes them share/invite others
+- **Incentive:** What reward drives the share
+- **Re-entry:** How shared users enter the loop
+
+## GROWTH METRICS DASHBOARD
+| Metric | Current | Week 2 Target | Week 4 Target | {timeframe} Target |
+|--------|---------|----------------|----------------|---------------------|
+
+## ANTI-GROWTH AUDIT
+Top 5 things currently killing your growth (before you add more tactics)"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_metric = "".join(c if c.isalnum() else "_" for c in metric_to_grow[:20])
+
+        output = f"""# Growth Hacking Playbook: {metric_to_grow}
+**Business:** {business_type}
+**Goal:** {current_number} → {target} in {timeframe}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Growth Hacking Bot*
+"""
+        path = self.save_output(output, f"growth_{safe_metric}_{ts}.md", ext="md")
+        self.logger.info(f"Growth playbook saved → {path}")
+        return {"file": str(path), "metric": metric_to_grow, "target": target}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="growth hacking experiments")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Growth Hacking Experiment Builder")
+    parser.add_argument("--business",  type=str, default=None)
+    parser.add_argument("--metric",    type=str, default="user signups")
+    parser.add_argument("--current",   type=str, default=None)
+    parser.add_argument("--target",    type=str, default=None)
+    parser.add_argument("--timeframe", type=str, default="60 days")
+    args = parser.parse_args()
     bot = GrowthHackingBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(business_type=args.business, metric_to_grow=args.metric,
+                         current_number=args.current, target=args.target,
+                         timeframe=args.timeframe)
+    print(f"\n✅ Growth Playbook: {result['file']}")

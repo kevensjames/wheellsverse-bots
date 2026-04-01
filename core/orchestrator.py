@@ -76,6 +76,10 @@ class Orchestrator:
                 bot_name = bot_dir.name
                 full_name = f"{category}/{bot_name}"
 
+                # Feature flag — skip disabled bots
+                if not config.get("enabled", True):
+                    continue
+
                 try:
                     instance = self._import_bot(bot_py, bot_name, category, config)
                     self.bots[full_name] = instance

@@ -1,40 +1,164 @@
 #!/usr/bin/env python3
-"""EngagementReplyBot — social media engagement replies"""
+"""
+Bot #39 — Social Media Engagement Reply Generator
+Category: Social Media
+Purpose: Generate authentic, on-brand reply templates for comments, mentions,
+         and interactions across social media platforms to boost engagement.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+COMMENT_TYPES = [
+    "question about product/service",
+    "positive feedback or compliment",
+    "negative feedback or complaint",
+    "skeptical or challenging comment",
+    "someone sharing their struggle",
+    "asking for more information",
+    "tagging a friend in comments",
+    "off-topic or random comment",
+    "collaboration or partnership inquiry",
+    "comparison to competitors",
+]
+
+
 class EngagementReplyBot(BaseBot):
+
     def __init__(self):
         super().__init__("39_engagement_reply", "social_media")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Reply to comments about AI automation")
-        self.logger.info(f"Running 39_engagement_reply: {topic}")
+    def run(self, comment_type: str = None, platform: str = None,
+            niche: str = None, num_replies: int = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in social media engagement replies."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        comment_type = comment_type or cfg.get("comment_type", "question about product/service")
+        platform     = platform or cfg.get("platform", "instagram,twitter,linkedin")
+        niche        = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        num_replies  = num_replies or cfg.get("num_replies", 5)
 
-TOPIC/REQUEST: {topic}
+        platform_list = [p.strip() for p in platform.split(",")]
+        self.logger.info(f"Generating engagement replies for: {comment_type} on {platform}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a community manager and social media engagement specialist who has "
+            "built loyal audiences of 100K+ followers. You write replies that feel human, "
+            "not corporate — warm, specific, and conversation-continuing. You know that "
+            "the reply section is the most underrated growth tool in social media. "
+            "Great replies turn passive viewers into fans, and fans into customers. "
+            "You never use generic filler phrases like 'Thanks for sharing!' You always "
+            "add value, ask a follow-up question, or create a reason to keep the conversation going."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Generate a complete engagement reply system for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# EngagementReplyBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 39_engagement_reply Bot*"
-        path = self.save_output(out, f"39_engagement_reply_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+COMMENT TYPE: {comment_type}
+PLATFORMS: {', '.join(platform_list)}
+NICHE: {niche}
+BRAND: WheellsVerse — AI automation tools for entrepreneurs
+
+## REPLY PSYCHOLOGY
+
+**Why people leave this type of comment:**
+[What's the emotional driver or intent behind "{comment_type}"]
+
+**What a bad reply looks like:**
+[Example of the generic, forgettable response most brands send]
+
+**What a great reply accomplishes:**
+[3 specific goals a reply to this comment type should achieve]
+
+## {num_replies} REPLY TEMPLATES
+
+For each reply, provide:
+- **Tone:** [e.g., warm/professional/playful/empathetic]
+- **When to use:** [specific scenario this fits best]
+- **Reply:**
+```
+[Full reply text — conversational, under 3 sentences, ends with engagement hook]
+```
+- **Follow-up if they respond:** [One more reply to keep conversation alive]
+
+[Provide {num_replies} distinct variations — different tones, angles, and lengths]
+
+## PLATFORM-SPECIFIC ADAPTATIONS
+
+For each platform in [{', '.join(platform_list)}]:
+**[PLATFORM NAME]**
+- Character/length norms: [What works on this platform]
+- Tone adjustment: [How to adapt the above replies]
+- Platform-specific tactics: [e.g., emoji use, @mentions, hashtags in replies]
+- Best reply timing: [When to reply for algorithm boost]
+
+## ENGAGEMENT AMPLIFIERS
+
+**5 phrases that consistently boost reply engagement:**
+1. [Phrase + why it works]
+2. [Phrase + why it works]
+3. [Phrase + why it works]
+4. [Phrase + why it works]
+5. [Phrase + why it works]
+
+**Questions that spark conversation threads:**
+[5 open-ended follow-up questions relevant to {niche} that invite deeper discussion]
+
+## REPLY WORKFLOW
+
+**Daily engagement routine (15 minutes):**
+1. [Step 1 — what to prioritize first]
+2. [Step 2]
+3. [Step 3]
+4. [Step 4]
+
+**Comments NEVER to ignore:** [Types that require immediate response]
+**Comments to skip:** [Types not worth engaging with]
+
+## BRAND VOICE GUARDRAILS
+
+✅ Always:
+[3 things WheellsVerse replies always do]
+
+❌ Never:
+[3 things WheellsVerse replies never do]"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_type = "".join(c if c.isalnum() else "_" for c in comment_type[:25])
+
+        output = f"""# Engagement Reply Templates
+**Comment Type:** {comment_type}
+**Platforms:** {platform}
+**Niche:** {niche}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Engagement Reply Bot*
+"""
+        path = self.save_output(output, f"replies_{safe_type}_{ts}.md", ext="md")
+        self.logger.info(f"Engagement replies saved → {path}")
+        return {"file": str(path), "comment_type": comment_type, "platforms": platform_list}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="social media engagement replies")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Social Media Engagement Reply Generator")
+    parser.add_argument("--comment-type", type=str, default=None)
+    parser.add_argument("--platform",     type=str, default="instagram,twitter,linkedin")
+    parser.add_argument("--niche",        type=str, default=None)
+    parser.add_argument("--replies",      type=int, default=5)
+    args = parser.parse_args()
     bot = EngagementReplyBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(comment_type=args.comment_type, platform=args.platform,
+                         niche=args.niche, num_replies=args.replies)
+    print(f"\n✅ Engagement Replies: {result['file']}")

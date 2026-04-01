@@ -1,40 +1,153 @@
 #!/usr/bin/env python3
-"""OperationsOptimizerBot — business operations efficiency"""
+"""
+Bot #28 — Operations Optimizer
+Category: Business
+Purpose: Audit business operations, identify inefficiencies, and build SOPs,
+         delegation frameworks, and systems for running a lean, scalable business.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class OperationsOptimizerBot(BaseBot):
+
     def __init__(self):
         super().__init__("28_operations_optimizer", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Streamline customer onboarding")
-        self.logger.info(f"Running 28_operations_optimizer: {topic}")
+    def run(self, department: str = None, bottleneck: str = None,
+            team_size: str = None, current_process: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in business operations efficiency."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        department      = department or cfg.get("department", "content creation and publishing")
+        bottleneck      = bottleneck or cfg.get("bottleneck", "too much time on repetitive tasks")
+        team_size       = team_size or cfg.get("team_size", "solo founder")
+        current_process = current_process or cfg.get("current_process", "mostly manual, some tools")
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Optimizing operations: {department}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are an operations consultant and systems thinker who has helped hundreds "
+            "of entrepreneurs build businesses that run without them. You use the 80/20 rule "
+            "ruthlessly — finding the 20% of activities that produce 80% of results. "
+            "You build SOPs that a new hire could follow on day one. You design delegation "
+            "frameworks that let founders focus on high-leverage activities. "
+            "You're direct: you identify waste and build better systems, not just advice."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Conduct a full operations audit and optimization for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# OperationsOptimizerBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 28_operations_optimizer Bot*"
-        path = self.save_output(out, f"28_operations_optimizer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+DEPARTMENT/AREA: {department}
+MAIN BOTTLENECK: {bottleneck}
+TEAM SIZE: {team_size}
+CURRENT PROCESS: {current_process}
+
+## OPERATIONS AUDIT REPORT
+
+### CURRENT STATE MAPPING
+Map the current workflow in "{department}":
+[Step 1] → [Step 2] → [Decision point] → ... → [Output]
+
+**Time Investment Estimate:**
+- High-value activities (founder-only): [X] hours/week
+- Medium-value (can be delegated): [X] hours/week
+- Low-value (should be automated): [X] hours/week
+- Waste (eliminate): [X] hours/week
+
+### ROOT CAUSE ANALYSIS
+Why "{bottleneck}" is happening:
+1. [Root cause 1]
+2. [Root cause 2]
+3. [Root cause 3]
+
+## OPTIMIZATION RECOMMENDATIONS
+
+### IMMEDIATE WINS (This Week)
+5 changes to implement immediately that require no tools or budget:
+| Change | Time Saved/Week | Effort to Implement |
+
+### PROCESS REDESIGN
+Reengineered workflow for "{department}":
+[Optimized step-by-step flow with automation points marked]
+
+### AUTOMATION OPPORTUNITIES
+| Task | Current Time | Automation Tool | Estimated Time After | Savings |
+
+### DELEGATION FRAMEWORK
+For {team_size} — what to delegate first:
+**Zone of Genius (Keep):** Tasks only the founder can do
+**Zone of Excellence (Systemize):** Tasks to create SOPs for
+**Zone of Competence (Delegate):** Tasks to hire for immediately
+**Zone of Incompetence (Eliminate):** Tasks to stop doing entirely
+
+## SOP LIBRARY
+
+### SOP #1: [Most Critical Process in {department}]
+**Purpose:** [What this SOP accomplishes]
+**Trigger:** [What starts this process]
+**Frequency:** [How often it runs]
+**Owner:** [Who is responsible]
+**Steps:**
+1. [Step 1 — specific action, tool used, time estimate]
+2. [Step 2]
+3. [Step 3]
+...
+**Quality Check:** [How to know it was done correctly]
+**Common Mistakes:** [What to watch for]
+
+### SOP #2: [Second Most Critical Process]
+[Same structure]
+
+## TOOLS & TECH STACK
+Recommended tools for a {team_size} operation in {department}:
+| Category | Current Tool | Recommended Tool | Reason | Cost |
+
+## 90-DAY OPERATIONS ROADMAP
+| Week | Focus | Deliverable | Owner |
+[12 weeks of specific improvements]
+
+## ROI OF OPTIMIZATION
+Time savings per week: [X hours]
+Value of recovered time (at $[X]/hour): $[Y]/week
+Annual value: $[Z]/year"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_dept = "".join(c if c.isalnum() else "_" for c in department[:25])
+
+        output = f"""# Operations Optimizer: {department}
+**Team Size:** {team_size}
+**Bottleneck:** {bottleneck}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Operations Optimizer Bot*
+"""
+        path = self.save_output(output, f"ops_{safe_dept}_{ts}.md", ext="md")
+        self.logger.info(f"Operations plan saved → {path}")
+        return {"file": str(path), "department": department}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="business operations efficiency")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Operations Optimizer")
+    parser.add_argument("--department",  type=str, default=None)
+    parser.add_argument("--bottleneck",  type=str, default=None)
+    parser.add_argument("--team",        type=str, default="solo founder")
+    parser.add_argument("--process",     type=str, default=None)
+    args = parser.parse_args()
     bot = OperationsOptimizerBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(department=args.department, bottleneck=args.bottleneck,
+                         team_size=args.team, current_process=args.process)
+    print(f"\n✅ Operations Plan: {result['file']}")

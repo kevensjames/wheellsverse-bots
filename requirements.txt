@@ -14,7 +14,7 @@ requests>=2.31.0
 httpx>=0.27.0
 beautifulsoup4>=4.12.0
 lxml>=5.2.0
-playwright>=1.44.0
+# playwright — local only (browser automation)
 
 # Scheduling
 schedule>=1.2.0
@@ -75,7 +75,34 @@ textstat>=0.7.3
 
 # PDF generation
 reportlab>=4.2.0
-weasyprint>=62.0
+# weasyprint — local only (PDF generation)
 
 # Markdown
 markdown>=3.6.0
+
+# ── New integrations (added 2026-03) ─────────────────────────────────────────
+
+# Reddit automation
+praw>=7.7.1
+
+# YouTube Data API v3
+google-api-python-client>=2.130.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+
+# ── New integrations (v2.1 — 8 new bot categories) ──────────────────────────
+
+# Claude / Anthropic API
+anthropic>=0.39.0
+
+# Twilio (Receptionist bots — voice + SMS)
+twilio>=9.0.0
+
+# SendGrid (Email receptionist)
+sendgrid>=6.11.0
+
+# Hunter.io email validation (Affiliate Scout)
+pyhunter>=1.7.0
+
+# WebSocket support (Live Chat bot)
+websockets>=12.0

@@ -1,40 +1,167 @@
 #!/usr/bin/env python3
-"""NegotiationAssistantBot — negotiation strategy and scripts"""
+"""
+Bot #36 — Negotiation Strategy Assistant
+Category: Sales
+Purpose: Build negotiation strategies, scripts, BATNA analysis, and counter-offer
+         frameworks for sales deals, partnerships, and contracts.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class NegotiationAssistantBot(BaseBot):
+
     def __init__(self):
         super().__init__("36_negotiation_assistant", "sales")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Software pricing negotiation")
-        self.logger.info(f"Running 36_negotiation_assistant: {topic}")
+    def run(self, negotiation_context: str = None, your_goals: str = None,
+            their_likely_goals: str = None, deal_value: str = None,
+            your_leverage: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in negotiation strategy and scripts."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        negotiation_context = negotiation_context or cfg.get("negotiation_context",
+            "Client wants 40% discount on WheellsVerse annual plan")
+        your_goals          = your_goals or cfg.get("your_goals",
+            "maintain pricing integrity, close the deal, get a 12-month commitment")
+        their_likely_goals  = their_likely_goals or cfg.get("their_likely_goals",
+            "reduce budget impact, minimize risk, get flexibility to cancel")
+        deal_value          = deal_value or cfg.get("deal_value", "$4,997/year")
+        your_leverage       = your_leverage or cfg.get("your_leverage",
+            "uniquely solves their stated problem, competitors are more expensive")
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Building negotiation strategy: {negotiation_context}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a negotiation strategist and sales coach trained in principled "
+            "negotiation (Harvard Method), SPIN selling, and deal-closing psychology. "
+            "You approach every negotiation as a problem-solving exercise — finding "
+            "solutions that both parties feel good about. You never recommend giving "
+            "discounts without getting something in return. You teach 'expand the pie' "
+            "tactics before 'split the pie' tactics."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Build a complete negotiation strategy for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# NegotiationAssistantBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 36_negotiation_assistant Bot*"
-        path = self.save_output(out, f"36_negotiation_assistant_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+SITUATION: {negotiation_context}
+YOUR GOALS: {your_goals}
+THEIR LIKELY GOALS: {their_likely_goals}
+DEAL VALUE: {deal_value}
+YOUR LEVERAGE: {your_leverage}
+
+## NEGOTIATION ANALYSIS
+
+### BATNA (Best Alternative to Negotiated Agreement)
+- **Your BATNA:** [What happens if this deal doesn't close]
+- **Their BATNA:** [What alternatives they have]
+- **Power assessment:** [Who has more leverage and why]
+
+### INTERESTS VS POSITIONS
+- **Their stated position:** [What they're asking for]
+- **Their underlying interests:** [What they actually want/fear]
+- **Your position:** [What you're offering]
+- **Your interests:** [What you actually need]
+
+**Key Insight:** [Where interests align — this is where the deal gets done]
+
+## NEGOTIATION STRATEGY
+
+### Opening Move
+[How to respond to their first ask — what to say first, exactly]
+
+### Value Expansion Tactics (Before Price Discussion)
+3 ways to increase perceived value before touching price:
+1. [Tactic + exact script]
+2. [Tactic + exact script]
+3. [Tactic + exact script]
+
+### Trade-Off Menu (Never Give — Always Trade)
+Instead of discounts, offer trades:
+| Give (concession) | Get (what you require in return) | Value to Them | Value to You |
+[5-7 trade pairs — discount, payment terms, features, timeline, etc.]
+
+## NEGOTIATION SCRIPTS
+
+### When they ask for a discount:
+```
+[Exact response — don't say yes, don't say no, reframe]
+```
+
+### When they say "we can't afford it":
+```
+[Exact response — ROI reframe + alternative structure]
+```
+
+### When they threaten to go to a competitor:
+```
+[Exact response — confident, not defensive]
+```
+
+### When they ask for a free trial extension:
+```
+[Exact response with alternative offer]
+```
+
+### The Closing Script (After Agreement):
+```
+[Exact language to confirm the deal and move to next steps]
+```
+
+## CONCESSION STRATEGY
+If you must concede on price, here's how:
+- **First concession:** [What to offer and how to frame it]
+- **Second concession:** [If needed — smaller, with bigger ask in return]
+- **Walk-away point:** [The line you won't cross and why]
+
+## DEAL STRUCTURE ALTERNATIVES
+3 alternative deal structures that solve their budget concern without losing value:
+1. [Structure] — How it works + benefit to them + benefit to you
+2. [Structure]
+3. [Structure]
+
+## POST-NEGOTIATION CHECKLIST
+5 things to do immediately after agreement to prevent buyer's remorse"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_ctx = "".join(c if c.isalnum() else "_" for c in negotiation_context[:25])
+
+        output = f"""# Negotiation Strategy
+**Situation:** {negotiation_context}
+**Deal Value:** {deal_value}
+**Your Goals:** {your_goals}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Negotiation Assistant Bot*
+"""
+        path = self.save_output(output, f"negotiation_{safe_ctx}_{ts}.md", ext="md")
+        self.logger.info(f"Negotiation strategy saved → {path}")
+        return {"file": str(path), "context": negotiation_context, "deal_value": deal_value}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="negotiation strategy and scripts")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Negotiation Strategy Assistant")
+    parser.add_argument("--context",   type=str, default=None)
+    parser.add_argument("--goals",     type=str, default=None)
+    parser.add_argument("--theirs",    type=str, default=None)
+    parser.add_argument("--value",     type=str, default=None)
+    parser.add_argument("--leverage",  type=str, default=None)
+    args = parser.parse_args()
     bot = NegotiationAssistantBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(negotiation_context=args.context, your_goals=args.goals,
+                         their_likely_goals=args.theirs, deal_value=args.value,
+                         your_leverage=args.leverage)
+    print(f"\n✅ Negotiation Strategy: {result['file']}")

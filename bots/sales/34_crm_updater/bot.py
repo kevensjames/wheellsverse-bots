@@ -1,40 +1,165 @@
 #!/usr/bin/env python3
-"""CRMUpdaterBot — CRM management and data hygiene"""
+"""
+Bot #34 — CRM Updater & Sales Process Builder
+Category: Sales
+Purpose: Build CRM pipeline stages, deal notes templates, activity logging frameworks,
+         and sales process documentation for consistent pipeline management.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class CRMUpdaterBot(BaseBot):
+
     def __init__(self):
         super().__init__("34_crm_updater", "sales")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Update contact and deal notes")
-        self.logger.info(f"Running 34_crm_updater: {topic}")
+    def run(self, crm_tool: str = None, sales_cycle: str = None,
+            deal_type: str = None, team_size: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in CRM management and data hygiene."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        crm_tool   = crm_tool or cfg.get("crm_tool", "HubSpot / Notion / Airtable")
+        sales_cycle = sales_cycle or cfg.get("sales_cycle", "30-60 days")
+        deal_type  = deal_type or cfg.get("deal_type", "B2B SaaS monthly subscription")
+        team_size  = team_size or cfg.get("team_size", "solo founder")
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Building CRM system: {crm_tool} | {deal_type}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a sales operations consultant and CRM specialist who has built "
+            "sales pipelines for companies from solopreneur to Series B. "
+            "You design CRM systems that salespeople actually use — simple enough to "
+            "maintain in 10 minutes a day, comprehensive enough to forecast accurately. "
+            "You believe in pipeline hygiene: bad data in CRM = bad decisions."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Build a complete CRM pipeline and sales process system for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# CRMUpdaterBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 34_crm_updater Bot*"
-        path = self.save_output(out, f"34_crm_updater_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+CRM TOOL: {crm_tool}
+SALES CYCLE: {sales_cycle}
+DEAL TYPE: {deal_type}
+TEAM SIZE: {team_size}
+COMPANY: WheellsVerse (AI automation tools)
+
+## PIPELINE ARCHITECTURE
+
+### STAGE DEFINITIONS
+Design 6-8 pipeline stages for a {sales_cycle} sales cycle:
+
+| Stage | Name | Entry Criteria | Exit Criteria | Probability | Target Time in Stage |
+[All stages from Lead → Closed Won/Lost]
+
+### STAGE-BY-STAGE PLAYBOOKS
+
+For each stage, provide:
+**STAGE [N]: [Name]**
+- **Objective:** What you're trying to learn/accomplish
+- **Required Activities:**
+  1. [Activity 1]
+  2. [Activity 2]
+- **Questions to Answer Before Advancing:**
+  1. [Question 1]
+  2. [Question 2]
+- **CRM Fields to Update:** [Specific fields]
+- **Disqualification Criteria:** [When to mark Lost]
+
+## DEAL NOTES TEMPLATES
+
+### POST-DISCOVERY CALL NOTES
+```
+Date: [Date]
+Attendees: [Names]
+Company: [Company]
+Deal Size: $[X]/month
+Decision Timeline: [X weeks]
+
+PAIN POINTS IDENTIFIED:
+1. [Pain]
+2. [Pain]
+
+SUCCESS CRITERIA (what does winning look like for them?):
+[Answer]
+
+DECISION PROCESS:
+- Decision maker: [Name/Title]
+- Influencers: [Names]
+- Blockers: [Anyone who might object]
+- Budget confirmed: [Yes/No]
+
+NEXT STEPS:
+- Them: [Commitment]
+- Us: [Action] by [Date]
+
+PROBABILITY: [X]%
+NOTES: [Other observations]
+```
+
+### POST-DEMO NOTES
+[Template for after a product demo]
+
+### DEAL STUCK NOTES
+[Template when a deal has been dormant > {sales_cycle} without movement]
+
+## ACTIVITY LOGGING FRAMEWORK
+What activities to log and how:
+| Activity | When to Log | Required Fields | Time to Complete |
+
+## CRM HYGIENE RULES
+5 non-negotiable CRM hygiene rules for {team_size}:
+1. [Rule] — Why it matters
+[All 5]
+
+## WEEKLY PIPELINE REVIEW TEMPLATE
+15-minute weekly pipeline review process:
+- Deals to advance this week: [How to identify]
+- Deals at risk: [Warning signs]
+- Deals to close: [Next steps]
+- Deals to disqualify: [Criteria]
+
+## FORECASTING MODEL
+How to calculate a realistic monthly forecast from pipeline data:
+Formula: Σ(Deal Value × Stage Probability) = Weighted Pipeline
+Target pipeline multiple: [X]x monthly revenue goal"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_tool = "".join(c if c.isalnum() else "_" for c in crm_tool[:20])
+
+        output = f"""# CRM Pipeline System: {crm_tool}
+**Deal Type:** {deal_type}
+**Sales Cycle:** {sales_cycle}
+**Team:** {team_size}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse CRM Updater Bot*
+"""
+        path = self.save_output(output, f"crm_{safe_tool}_{ts}.md", ext="md")
+        self.logger.info(f"CRM system saved → {path}")
+        return {"file": str(path), "crm": crm_tool, "deal_type": deal_type}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="CRM management and data hygiene")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="CRM Updater & Sales Process Builder")
+    parser.add_argument("--crm",     type=str, default=None)
+    parser.add_argument("--cycle",   type=str, default="30-60 days")
+    parser.add_argument("--deal",    type=str, default=None)
+    parser.add_argument("--team",    type=str, default="solo founder")
+    args = parser.parse_args()
     bot = CRMUpdaterBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(crm_tool=args.crm, sales_cycle=args.cycle,
+                         deal_type=args.deal, team_size=args.team)
+    print(f"\n✅ CRM System: {result['file']}")

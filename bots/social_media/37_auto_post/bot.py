@@ -1,70 +1,141 @@
 #!/usr/bin/env python3
-"""AutoPostBot — social media post calendar"""
+"""
+Bot #37 — Social Media Auto Post Calendar
+Category: Social Media
+Purpose: Generate a complete, ready-to-post social media content calendar with
+         posts for multiple platforms, optimized for engagement and growth.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class AutoPostBot(BaseBot):
+
     def __init__(self):
         super().__init__("37_auto_post", "social_media")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI and entrepreneurship content")
-        self.logger.info("Running 37_auto_post: " + str(topic))
+    def run(self, niche: str = None, platforms: str = None,
+            num_days: int = None, posting_frequency: str = None, **kwargs):
+
+        cfg = self.config
+        niche             = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        platforms         = platforms or cfg.get("platforms", "twitter,linkedin,instagram")
+        num_days          = num_days or cfg.get("num_days", 14)
+        posting_frequency = posting_frequency or cfg.get("posting_frequency", "1x daily per platform")
+
+        platform_list = [p.strip() for p in platforms.split(",")]
+        self.logger.info(f"Generating {num_days}-day content calendar for {niche}")
+
+        content_mix = {
+            "twitter":   "Threads, single tweets, polls, replies to trending topics",
+            "linkedin":  "Long-form posts, carousels (listed as bullet points), professional insights",
+            "instagram": "Reels concepts, carousels, single image posts, Stories",
+            "tiktok":    "60-90 second video scripts, trending audio hooks, educational series",
+        }
+
+        mix_desc = " | ".join([f"{p.upper()}: {content_mix.get(p, 'mixed content')}" for p in platform_list])
+
+        # Pre-compute platform block to avoid nested triple-quoted f-strings (Python 3.11)
+        platform_block = "".join(
+            f"**{p.upper()}:**\n"
+            "Post type: [Type]\n"
+            "Caption/Copy:\n"
+            "```\n"
+            "[Exact post text - platform-optimized]\n"
+            "```\n"
+            "Hashtags: [Platform-appropriate hashtags]\n"
+            "Best time to post: [Time + timezone note]\n"
+            "Visual note: [What image/graphic would work]\n"
+            "---\n"
+            for p in platform_list
+        )
 
         system = (
-            "You are a world-class expert in social media post calendar. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a social media strategist and content creator who has grown "
+            "multiple accounts to 10K-100K+ followers. You know that consistent, "
+            "high-quality content beats viral attempts. You create calendars that "
+            "mix content types (education, entertainment, inspiration, promotion) "
+            "in the right ratio -- typically 80% value, 20% promotional. "
+            "Every post has a clear purpose and drives toward a business goal."
         )
 
-        task_title = "37_auto_post".replace("_", " ").title()
+        prompt = f"""Create a {num_days}-day social media content calendar for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+NICHE: {niche}
+PLATFORMS: {', '.join(platform_list)}
+POSTING: {posting_frequency}
+BRAND: WheellsVerse - AI automation tools
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+Content mix guidance: {mix_desc}
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## CONTENT STRATEGY
+- **Content pillars** for {niche} (4-5 recurring themes)
+- **Target audience:** Who is this content for?
+- **Content ratio:** [X% educational : Y% inspirational : Z% promotional]
+- **Growth goal:** What this calendar is designed to achieve
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## {num_days}-DAY CONTENT CALENDAR
 
-Be specific, professional, and immediately actionable."""
+For each day, provide posts for each platform:
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+---
+### DAY [N] - [Day of Week] - [Theme/Pillar]
 
-        from datetime import datetime
-        output_text = (
-            "# AutoPostBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 37_auto_post Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"37_auto_post_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+{platform_block}
+[Repeat for all {num_days} days]
+
+## RECURRING CONTENT SERIES
+2-3 recurring series to run weekly (e.g., "Monday Motivation", "Friday Tool Review"):
+| Series Name | Day | Format | Hook Template |
+
+## CONTENT BATCH GUIDE
+How to create all {num_days} days of content in one 3-hour session:
+1. [Step 1]
+2. [Step 2]
+...
+
+## PERFORMANCE TRACKER
+Weekly metrics to track for this calendar:
+| Metric | Baseline | Week 2 Target | Month-End Target |"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_niche = "".join(c if c.isalnum() else "_" for c in niche[:20])
+
+        output = f"""# {num_days}-Day Content Calendar: {niche}
+**Platforms:** {platforms}
+**Frequency:** {posting_frequency}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Auto Post Bot*
+"""
+        path = self.save_output(output, f"calendar_{safe_niche}_{ts}.md", ext="md")
+        self.logger.info(f"Content calendar saved -> {path}")
+        return {"file": str(path), "niche": niche, "days": num_days, "platforms": platform_list}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="social media post calendar")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Social Media Auto Post Calendar")
+    parser.add_argument("--niche",     type=str, default=None)
+    parser.add_argument("--platforms", type=str, default="twitter,linkedin,instagram")
+    parser.add_argument("--days",      type=int, default=14)
+    parser.add_argument("--frequency", type=str, default="1x daily per platform")
     args = parser.parse_args()
     bot = AutoPostBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(niche=args.niche, platforms=args.platforms,
+                         num_days=args.days, posting_frequency=args.frequency)
+    print(f"\n✅ Content Calendar: {result['file']}")

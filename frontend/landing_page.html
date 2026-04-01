@@ -55,6 +55,9 @@
     transition: opacity .2s;
   }
   .nav-cta:hover { opacity: .85; }
+  .nav-link { color: var(--muted); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
+  .nav-link:hover { color: var(--cyan); }
+  .nav-right { display: flex; align-items: center; gap: 20px; }
 
   /* ── Hero ─────────────────────────────────────────────────────────────── */
   .hero {
@@ -318,7 +321,10 @@
 <!-- ── NAV ────────────────────────────────────────────────────────────────── -->
 <nav>
   <a href="/" class="nav-logo">Wheells<span>Verse</span></a>
-  <a href="#join" class="nav-cta">Get Free Signals</a>
+  <div class="nav-right">
+    <a href="/blog/" class="nav-link">Blog</a>
+    <a href="#join" class="nav-cta">Get Free Signals</a>
+  </div>
 </nav>
 
 <!-- ── TICKER ─────────────────────────────────────────────────────────────── -->

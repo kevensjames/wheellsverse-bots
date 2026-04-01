@@ -1,70 +1,134 @@
 #!/usr/bin/env python3
-"""BrandVoiceBot — brand voice guide creation"""
+"""
+Bot #12 — Brand Voice Guide Creator
+Category: Marketing
+Purpose: Build a complete brand voice and tone guide with writing examples,
+         do/don't guidelines, and ready-to-use content templates.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class BrandVoiceBot(BaseBot):
+
     def __init__(self):
         super().__init__("12_brand_voice", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "WheellsVerse brand voice")
-        self.logger.info("Running 12_brand_voice: " + str(topic))
+    def run(self, brand_name: str = None, niche: str = None,
+            target_audience: str = None, tone_words: str = None,
+            values: str = None, **kwargs):
+
+        cfg = self.config
+        brand_name      = brand_name or cfg.get("brand_name", "WheellsVerse")
+        niche           = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        target_audience = target_audience or cfg.get("target_audience", "ambitious entrepreneurs and creators")
+        tone_words      = tone_words or cfg.get("tone_words", "bold, direct, knowledgeable, inspiring")
+        values          = values or cfg.get("values", "automation, freedom, results, innovation")
+
+        self.logger.info(f"Building brand voice guide for: {brand_name}")
 
         system = (
-            "You are a world-class expert in brand voice guide creation. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a brand strategist and copywriting director who has built the voice "
+            "guides for multiple 7-figure brands. You understand that consistent brand voice "
+            "builds trust, recognition, and loyal communities. You create practical guides "
+            "that any team member or AI can use to write on-brand content instantly."
         )
 
-        task_title = "12_brand_voice".replace("_", " ").title()
+        prompt = f"""Create a comprehensive Brand Voice & Tone Guide for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+BRAND: {brand_name}
+NICHE: {niche}
+TARGET AUDIENCE: {target_audience}
+DESIRED TONE: {tone_words}
+CORE VALUES: {values}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## SECTION 1: BRAND PERSONALITY
+Define the brand as if it were a person:
+- **Archetype:** (Hero, Sage, Creator, Explorer, etc.) + why
+- **If {brand_name} were a person, they'd be:** [describe in 2-3 sentences]
+- **Celebrity/character comparison:** Who does this brand sound like?
+- **3 brands {brand_name} sounds like** + **3 brands {brand_name} does NOT sound like**
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## SECTION 2: VOICE ATTRIBUTES
+For each tone word in "{tone_words}", define:
+- What it means in practice for {brand_name}
+- What it does NOT mean (to prevent misinterpretation)
+- Example sentence that demonstrates it
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## SECTION 3: WRITING PRINCIPLES
+5-7 core writing rules specific to {brand_name}:
+- Sentence structure preferences
+- Vocabulary level and word choices to use/avoid
+- How to handle jargon
+- Perspective (we/I/you/they)
+- Punctuation and capitalization style
 
-Be specific, professional, and immediately actionable."""
+## SECTION 4: DO's AND DON'Ts
+| Do | Don't |
+|----|-------|
+[8-10 specific pairs with examples]
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+## SECTION 5: TONE BY CHANNEL
+How the voice adapts (not changes) across:
+- **Website copy** — tone and approach
+- **Email marketing** — tone and opening style
+- **Social media (Twitter/X)** — tone and format
+- **TikTok/Video** — tone and energy
+- **Customer support** — tone and empathy level
 
-        from datetime import datetime
-        output_text = (
-            "# BrandVoiceBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 12_brand_voice Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"12_brand_voice_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+## SECTION 6: READY-TO-USE TEMPLATES
+Provide exact copy examples for each:
+- **Brand tagline** (3 options)
+- **Email sign-off** (2 styles)
+- **Social bio** (Twitter + Instagram versions)
+- **About us** (2-sentence version)
+- **CTA button text** (5 options beyond "Click Here")
+- **Error message** (on-brand way to say something went wrong)
+
+## SECTION 7: EDITORIAL CHECKLIST
+A 10-item checklist writers use before publishing any content."""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_brand = brand_name.replace(" ", "_")[:20]
+
+        output = f"""# Brand Voice Guide: {brand_name}
+**Niche:** {niche}
+**Audience:** {target_audience}
+**Tone:** {tone_words}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Brand Voice Bot*
+"""
+        path = self.save_output(output, f"brand_voice_{safe_brand}_{ts}.md", ext="md")
+        self.logger.info(f"Brand voice guide saved → {path}")
+        return {"file": str(path), "brand": brand_name}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="brand voice guide creation")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Brand Voice Guide Creator")
+    parser.add_argument("--brand",    type=str, default=None)
+    parser.add_argument("--niche",    type=str, default=None)
+    parser.add_argument("--audience", type=str, default=None)
+    parser.add_argument("--tone",     type=str, default="bold, direct, knowledgeable")
+    parser.add_argument("--values",   type=str, default=None)
     args = parser.parse_args()
     bot = BrandVoiceBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(brand_name=args.brand, niche=args.niche,
+                         target_audience=args.audience, tone_words=args.tone,
+                         values=args.values)
+    print(f"\n✅ Brand Voice Guide: {result['file']}")

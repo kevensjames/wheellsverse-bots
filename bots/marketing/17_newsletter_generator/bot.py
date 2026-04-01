@@ -1,70 +1,131 @@
 #!/usr/bin/env python3
-"""NewsletterBot — newsletter content creation"""
+"""
+Bot #17 — Newsletter Generator
+Category: Marketing
+Purpose: Generate complete, ready-to-send email newsletter issues with all sections,
+         subject lines, preview text, and engaging content.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class NewsletterBot(BaseBot):
+
     def __init__(self):
         super().__init__("17_newsletter_generator", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "AI trends this week")
-        self.logger.info("Running 17_newsletter_generator: " + str(topic))
+    def run(self, newsletter_name: str = None, topic: str = None,
+            sections: int = None, tone: str = None,
+            include_cta: bool = True, **kwargs):
+
+        cfg = self.config
+        newsletter_name = newsletter_name or cfg.get("newsletter_name", "The WheellsVerse Dispatch")
+        topic           = topic or cfg.get("topic", "AI automation tools and entrepreneurship")
+        sections        = sections or cfg.get("sections", 4)
+        tone            = tone or cfg.get("tone", "conversational, insightful, actionable")
+        include_cta     = cfg.get("include_cta", include_cta)
+
+        self.logger.info(f"Generating newsletter: {newsletter_name} — {topic}")
 
         system = (
-            "You are a world-class expert in newsletter content creation. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a top newsletter writer who has built engaged email lists from scratch. "
+            "You know that the best newsletters feel like a message from a smart friend — "
+            "not a marketing blast. You write with personality, include specific insights "
+            "readers can't get elsewhere, and always leave them wanting the next issue. "
+            "Open rates above 40% come from consistency, relevance, and genuine value."
         )
 
-        task_title = "17_newsletter_generator".replace("_", " ").title()
+        from datetime import datetime as _dt
+        current_date = _dt.now().strftime("%B %d, %Y")
+        issue_num = _dt.now().strftime("%Y%W")  # Year + week number as issue
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        prompt = f"""Write a complete, ready-to-send newsletter issue:
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+NEWSLETTER NAME: {newsletter_name}
+ISSUE DATE: {current_date}
+MAIN TOPIC: {topic}
+NUMBER OF SECTIONS: {sections}
+TONE: {tone}
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## HEADER BLOCK
+- **Subject Line:** (A version — main option)
+- **Subject Line:** (B version — test alternative)
+- **Preview Text:** (under 100 chars — the text that shows after subject in inbox)
+- **From Name:** [recommended sender name]
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## ISSUE INTRO (100-150 words)
+Personal, warm opener that references {current_date} or something timely.
+Don't start with "Welcome!" — open with something interesting.
 
-Be specific, professional, and immediately actionable."""
+## MAIN SECTIONS ({sections} total)
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+For each section, provide:
 
-        from datetime import datetime
-        output_text = (
-            "# NewsletterBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 17_newsletter_generator Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"17_newsletter_generator_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+### SECTION [N]: [Section Name/Hook Headline]
+**Format:** [tip/insight/resource/story/news/tool]
+**Content:** (200-300 words of actual content — not placeholders)
+Include: specific examples, data points, or actionable steps
+
+---
+
+## QUICK HITS
+3-5 bullet points — short, punchy, interesting facts or links from {topic}
+
+## TOOL/RESOURCE OF THE WEEK
+One specific tool, book, or resource with:
+- What it is
+- Why it's useful for this audience
+- Where to get it (use a link placeholder)
+
+{"## CALL TO ACTION" if include_cta else "## COMMUNITY QUESTION"}
+{"A clear, single ask — what do you want readers to do after reading?" if include_cta else "A thought-provoking question to encourage replies"}
+
+## SIGN-OFF
+Warm, on-brand closing with signature
+
+## METADATA FOR EMAIL PLATFORM
+- **Segment:** All subscribers (or suggest segments)
+- **Send time:** Best day/time recommendation
+- **Tags to add:** Based on engagement with this topic"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = newsletter_name.replace(" ", "_")[:25]
+
+        output = f"""# Newsletter Issue: {newsletter_name}
+**Date:** {current_date}
+**Topic:** {topic}
+**Sections:** {sections}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Newsletter Generator Bot*
+"""
+        path = self.save_output(output, f"newsletter_{safe_name}_{ts}.md", ext="md")
+        self.logger.info(f"Newsletter saved → {path}")
+        return {"file": str(path), "newsletter": newsletter_name, "topic": topic}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="newsletter content creation")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Newsletter Generator")
+    parser.add_argument("--name",     type=str, default=None)
+    parser.add_argument("--topic",    type=str, default=None)
+    parser.add_argument("--sections", type=int, default=4)
+    parser.add_argument("--tone",     type=str, default="conversational, insightful")
     args = parser.parse_args()
     bot = NewsletterBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(newsletter_name=args.name, topic=args.topic,
+                         sections=args.sections, tone=args.tone)
+    print(f"\n✅ Newsletter: {result['file']}")

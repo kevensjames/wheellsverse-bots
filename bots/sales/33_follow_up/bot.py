@@ -1,40 +1,129 @@
 #!/usr/bin/env python3
-"""FollowUpBot — sales follow-up sequences"""
+"""
+Bot #33 — Sales Follow-Up Sequence Builder
+Category: Sales
+Purpose: Generate strategic follow-up sequences for warm leads, proposals, demos,
+         and dormant opportunities — with timing, angles, and value-adds.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class FollowUpBot(BaseBot):
+
     def __init__(self):
         super().__init__("33_follow_up", "sales")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Follow up on proposal sent 3 days ago")
-        self.logger.info(f"Running 33_follow_up: {topic}")
+    def run(self, context: str = None, relationship_stage: str = None,
+            goal: str = None, days_since_contact: int = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in sales follow-up sequences."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        context           = context or cfg.get("context",
+            "prospect attended a product demo but hasn't responded to the proposal")
+        relationship_stage = relationship_stage or cfg.get("relationship_stage", "warm — had a demo call")
+        goal              = goal or cfg.get("goal", "close the deal or understand the objection")
+        days_since_contact = days_since_contact or cfg.get("days_since_contact", 7)
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Building follow-up sequence: {context}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a sales coach and closer who turns stalled deals into closed revenue. "
+            "You know that most deals close on the 5th-8th follow-up. You follow up with "
+            "purpose — each touch adds value or creates a reason to respond. "
+            "You're persistent without being annoying, confident without being pushy. "
+            "You understand that silence usually means internal friction, not rejection."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Build a strategic follow-up sequence for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# FollowUpBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 33_follow_up Bot*"
-        path = self.save_output(out, f"33_follow_up_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+SITUATION: {context}
+RELATIONSHIP STAGE: {relationship_stage}
+DAYS SINCE LAST CONTACT: {days_since_contact}
+GOAL: {goal}
+YOUR BRAND: WheellsVerse (AI automation solutions)
+
+## SITUATION ANALYSIS
+- **Why they might be silent:** [3 likely reasons based on the context]
+- **Best follow-up angle:** [What will get a response]
+- **Risk of over-following-up:** [How aggressive to be]
+
+## FOLLOW-UP SEQUENCE (6 touches)
+
+For each touch:
+
+---
+### TOUCH [N] — [Days After Last Contact]: [Angle Name]
+
+**Channel:** [Email/LinkedIn/Phone/Text]
+**Subject/Opener:** [Specific opener]
+**Body:**
+```
+[Full message — short, value-focused]
+```
+**Value Add:** [What new information or resource you're providing]
+**Ask:** [The specific, frictionless request]
+**If No Response:** [Move to Touch N+1 after X days]
+
+---
+
+Touch order: Initial re-engage | New value add | Case study / social proof | Direct question | Alternative offer | Final "break up" message
+
+## OBJECTION HANDLING
+If they respond with objections, handle:
+
+**"We need more time"** → [Response that respects timeline + keeps momentum]
+**"Budget is the issue"** → [Response with payment flexibility / ROI framing]
+**"We're going with a competitor"** → [Response that reopens without pressure]
+**"Not a priority right now"** → [Response that creates urgency without manipulation]
+
+## MULTI-CHANNEL STRATEGY
+When and how to add these channels:
+- LinkedIn message: [Timing and approach]
+- Phone call: [When to call + voicemail script]
+- Video message (Loom): [When this works best]
+
+## WINNING FOLLOW-UP PRINCIPLES
+5 rules that separate good follow-up from annoying follow-up:"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_stage = "".join(c if c.isalnum() else "_" for c in relationship_stage[:20])
+
+        output = f"""# Follow-Up Sequence: {relationship_stage}
+**Context:** {context}
+**Goal:** {goal}
+**Days Since Contact:** {days_since_contact}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Follow-Up Bot*
+"""
+        path = self.save_output(output, f"followup_{safe_stage}_{ts}.md", ext="md")
+        self.logger.info(f"Follow-up sequence saved → {path}")
+        return {"file": str(path), "stage": relationship_stage, "goal": goal}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="sales follow-up sequences")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Sales Follow-Up Sequence Builder")
+    parser.add_argument("--context", type=str, default=None)
+    parser.add_argument("--stage",   type=str, default="warm lead")
+    parser.add_argument("--goal",    type=str, default="close the deal")
+    parser.add_argument("--days",    type=int, default=7)
+    args = parser.parse_args()
     bot = FollowUpBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(context=args.context, relationship_stage=args.stage,
+                         goal=args.goal, days_since_contact=args.days)
+    print(f"\n✅ Follow-Up Sequence: {result['file']}")

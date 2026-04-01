@@ -1,70 +1,130 @@
 #!/usr/bin/env python3
-"""AutoReplyEmailBot — customer email auto-replies"""
+"""
+Bot #29 — Auto Reply Email Generator
+Category: Customer Support
+Purpose: Generate a library of professional, on-brand auto-reply email templates
+         for common customer support scenarios.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class AutoReplyEmailBot(BaseBot):
+
     def __init__(self):
         super().__init__("29_auto_reply_email", "customer_support")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Login issue support email")
-        self.logger.info("Running 29_auto_reply_email: " + str(topic))
+    def run(self, scenarios: str = None, brand_name: str = None,
+            brand_tone: str = None, product_type: str = None, **kwargs):
+
+        cfg = self.config
+        scenarios    = scenarios or cfg.get("scenarios",
+            "order confirmation, shipping update, refund request, general inquiry, technical issue")
+        brand_name   = brand_name or cfg.get("brand_name", "WheellsVerse")
+        brand_tone   = brand_tone or cfg.get("brand_tone", "professional, friendly, helpful")
+        product_type = product_type or cfg.get("product_type", "AI automation software/tools")
+
+        scenario_list = [s.strip() for s in scenarios.split(",")]
+        self.logger.info(f"Generating auto-reply templates for {brand_name}: {scenarios}")
 
         system = (
-            "You are a world-class expert in customer email auto-replies. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a customer experience specialist and email copywriter. "
+            "You write support emails that solve problems AND build brand loyalty. "
+            "You know that every support email is a brand touchpoint — a chance to "
+            "turn a frustrated customer into a loyal advocate. Your emails are "
+            "empathetic, clear, specific, and always leave the customer with "
+            "a clear next step and confidence the issue will be resolved."
         )
 
-        task_title = "29_auto_reply_email".replace("_", " ").title()
+        prompt = f"""Generate a complete library of auto-reply email templates for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+BRAND: {brand_name}
+PRODUCT/SERVICE: {product_type}
+TONE: {brand_tone}
+SCENARIOS: {', '.join(scenario_list)}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+For EACH scenario, create a complete email template:
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+---
+### TEMPLATE: [Scenario Name in All Caps]
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+**Subject Line:** [Specific, clear — not generic]
+**Trigger:** [When this email sends automatically]
 
-Be specific, professional, and immediately actionable."""
+**Email Body:**
+```
+Hi [First Name],
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+[Full email body — specific to this scenario]
 
-        from datetime import datetime
-        output_text = (
-            "# AutoReplyEmailBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 29_auto_reply_email Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"29_auto_reply_email_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+[Sign-off with name placeholder]
+[Brand name + support contact]
+```
+
+**Personalization Variables:** [List {{placeholders}} used]
+**Response SLA:** [Expected response time if further action needed]
+**Escalation Trigger:** [When to flag for human review]
+
+---
+
+[Repeat for all scenarios: {', '.join(scenario_list)}]
+
+## BONUS TEMPLATES
+
+### PROACTIVE OUTREACH (Check-in after purchase)
+[Template for 7-day post-purchase check-in]
+
+### POSITIVE FEEDBACK RESPONSE
+[Template when customer leaves a great review]
+
+### WIN-BACK EMAIL
+[Template for churned/inactive customer]
+
+## EMAIL SYSTEM SETUP NOTES
+- Recommended auto-reply tool for {product_type}
+- Subject line formatting best practices
+- Personalization variables to always include
+- A/B testing suggestions for response rate optimization"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_brand = brand_name.replace(" ", "_")[:20]
+
+        output = f"""# Auto-Reply Email Library: {brand_name}
+**Scenarios:** {scenarios}
+**Tone:** {brand_tone}
+**Product:** {product_type}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Auto Reply Email Bot*
+"""
+        path = self.save_output(output, f"email_templates_{safe_brand}_{ts}.md", ext="md")
+        self.logger.info(f"Email templates saved → {path}")
+        return {"file": str(path), "brand": brand_name, "scenarios": len(scenario_list)}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="customer email auto-replies")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Auto Reply Email Generator")
+    parser.add_argument("--scenarios", type=str, default=None)
+    parser.add_argument("--brand",     type=str, default=None)
+    parser.add_argument("--tone",      type=str, default="professional, friendly")
+    parser.add_argument("--product",   type=str, default=None)
     args = parser.parse_args()
     bot = AutoReplyEmailBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(scenarios=args.scenarios, brand_name=args.brand,
+                         brand_tone=args.tone, product_type=args.product)
+    print(f"\n✅ Email Templates: {result['file']}")

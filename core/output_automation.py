@@ -191,7 +191,7 @@ class SlackSender:
 
     @property
     def is_configured(self) -> bool:
-        return bool(self.webhook_url)
+        return bool(self.webhook_url) and "your/webhook" not in self.webhook_url
 
     def send(self, text: str, blocks: Optional[List] = None) -> Dict:
         if not self.is_configured:

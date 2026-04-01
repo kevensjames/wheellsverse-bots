@@ -1,70 +1,148 @@
 #!/usr/bin/env python3
-"""FAQChatbot — FAQ chatbot responses"""
+"""
+Bot #30 — FAQ Chatbot Builder
+Category: Customer Support
+Purpose: Generate a complete FAQ knowledge base with question-answer pairs,
+         chatbot script, and support documentation for a product or service.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class FAQChatBot(BaseBot):
+
     def __init__(self):
         super().__init__("30_faq_chatbot", "customer_support")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "How do I get started")
-        self.logger.info("Running 30_faq_chatbot: " + str(topic))
+    def run(self, product: str = None, common_questions: str = None,
+            brand_tone: str = None, num_faqs: int = None, **kwargs):
+
+        cfg = self.config
+        product          = product or cfg.get("product", "WheellsVerse AI automation platform")
+        common_questions = common_questions or cfg.get("common_questions",
+            "pricing, how to get started, integrations, cancellation, technical issues")
+        brand_tone       = brand_tone or cfg.get("brand_tone", "helpful, clear, friendly")
+        num_faqs         = num_faqs or cfg.get("num_faqs", 25)
+
+        question_areas = [q.strip() for q in common_questions.split(",")]
+        self.logger.info(f"Building FAQ system for: {product}")
 
         system = (
-            "You are a world-class expert in FAQ chatbot responses. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a customer success manager and technical writer who builds "
+            "knowledge bases that actually deflect support tickets. You know that "
+            "the best FAQs anticipate the REAL question behind the question — "
+            "what the customer is actually worried about. Your answers are complete "
+            "but concise, include specific steps where relevant, and always "
+            "tell the customer exactly what to do next."
         )
 
-        task_title = "30_faq_chatbot".replace("_", " ").title()
+        prompt = f"""Build a comprehensive FAQ knowledge base for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+PRODUCT: {product}
+QUESTION AREAS: {', '.join(question_areas)}
+TONE: {brand_tone}
+NUMBER OF FAQ ENTRIES: {num_faqs}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## FAQ KNOWLEDGE BASE
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+Organize FAQs by category. For each FAQ entry:
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+**Q: [Specific question customers actually ask]**
+A: [Complete, specific answer — not "contact us"]
+*Tags: [category, keyword, keyword]*
+*Related questions: [2-3 related Q IDs]*
 
-Be specific, professional, and immediately actionable."""
+### CATEGORY 1: GETTING STARTED
+[8-10 Q&As covering first-time setup, onboarding, account creation]
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+### CATEGORY 2: PRICING & BILLING
+[5-7 Q&As covering costs, payment, refunds, trials, upgrades]
 
-        from datetime import datetime
-        output_text = (
-            "# FAQChatbot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 30_faq_chatbot Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"30_faq_chatbot_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+### CATEGORY 3: FEATURES & HOW-TO
+[8-10 Q&As covering how to use key features of {product}]
+
+### CATEGORY 4: TECHNICAL ISSUES & TROUBLESHOOTING
+[5-7 Q&As covering common errors, fixes, compatibility]
+
+### CATEGORY 5: ACCOUNT & SETTINGS
+[4-5 Q&As covering account management, password, data]
+
+### CATEGORY 6: INTEGRATIONS & COMPATIBILITY
+[4-5 Q&As covering what {product} works with]
+
+---
+
+## CHATBOT DECISION TREE
+A simple decision tree for a website chatbot:
+
+```
+User opens chat
+│
+├─ "How can I help you today?"
+│   ├─ Pricing questions → [script]
+│   ├─ Technical issue → [script]
+│   ├─ Getting started → [script]
+│   ├─ Billing → [script]
+│   └─ Other → Collect email + route to human
+```
+
+Write the full chatbot script for the top 3 paths including:
+- Greeting message
+- Question options
+- Response for each selection
+- Escalation to human trigger
+
+## SUPPORT TIER GUIDE
+| Issue Type | Self-Serve FAQ | Chatbot | Email Support | Priority Support |
+
+## MISSING FAQ DETECTOR
+10 questions customers commonly ask that most FAQ pages miss — add these to your knowledge base
+
+## FAQ MAINTENANCE SCHEDULE
+How to keep the FAQ updated:
+- When to add new entries (after 3+ tickets on same topic)
+- Monthly review checklist
+- Sunset process for outdated answers"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=3500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_product = "".join(c if c.isalnum() else "_" for c in product[:25])
+
+        output = f"""# FAQ Knowledge Base: {product}
+**Questions Covered:** {common_questions}
+**Entries Generated:** ~{num_faqs}
+**Tone:** {brand_tone}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse FAQ Chatbot Bot*
+"""
+        path = self.save_output(output, f"faq_{safe_product}_{ts}.md", ext="md")
+        self.logger.info(f"FAQ knowledge base saved → {path}")
+        return {"file": str(path), "product": product, "num_faqs": num_faqs}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="FAQ chatbot responses")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="FAQ Chatbot Builder")
+    parser.add_argument("--product",    type=str, default=None)
+    parser.add_argument("--questions",  type=str, default=None)
+    parser.add_argument("--tone",       type=str, default="helpful, friendly")
+    parser.add_argument("--count",      type=int, default=25)
     args = parser.parse_args()
     bot = FAQChatBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(product=args.product, common_questions=args.questions,
+                         brand_tone=args.tone, num_faqs=args.count)
+    print(f"\n✅ FAQ Knowledge Base: {result['file']}")

@@ -159,10 +159,101 @@ def _get_cmd():
 
 # ─── FastAPI App ───────────────────────────────────────────────────────────────
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def _lifespan(application: FastAPI):
+    # Startup
+    from core.job_queue import get_queue
+    await get_queue().start()
+    _add_log("Async job queue started", "INFO")
+    # Auto-start scheduler so bots run on their cron schedules
+    try:
+        sched = _get_scheduler()
+        sched.start(blocking=False)
+        _add_log("Scheduler auto-started on server boot", "INFO")
+    except Exception as _e:
+        _add_log(f"Scheduler auto-start failed: {_e}", "WARNING")
+    # Twitter Blitz: post 1 thread 3× per day (08:00, 12:00, 18:00)
+    try:
+        import schedule as _sched
+        _sched.every().day.at("08:00").do(_blitz_scheduled_post, count=1)
+        _sched.every().day.at("12:00").do(_blitz_scheduled_post, count=1)
+        _sched.every().day.at("18:00").do(_blitz_scheduled_post, count=1)
+        _add_log("Twitter Blitz auto-post scheduled: 08:00, 12:00, 18:00", "INFO")
+    except Exception as _e:
+        _add_log(f"Twitter Blitz schedule setup failed: {_e}", "WARNING")
+    # Weekly newsletter: every Monday at 09:00
+    try:
+        import schedule as _sched2
+        def _weekly_newsletter():
+            import asyncio as _asyncio
+            try:
+                loop = _asyncio.new_event_loop()
+                loop.run_until_complete(generate_newsletter())
+                loop.close()
+                _add_log("Weekly newsletter auto-generated", "INFO")
+            except Exception as _e2:
+                _add_log(f"Weekly newsletter failed: {_e2}", "ERROR")
+        _sched2.every().monday.at("09:00").do(_weekly_newsletter)
+        _add_log("Weekly newsletter scheduled: Monday 09:00", "INFO")
+    except Exception as _e:
+        _add_log(f"Newsletter schedule setup failed: {_e}", "WARNING")
+    # Reddit Blitz: post 1 article per day at 10:00
+    try:
+        import schedule as _sched3
+        _sched3.every().day.at("10:00").do(_reddit_scheduled_post, count=1)
+        _add_log("Reddit Blitz auto-post scheduled: 10:00 daily", "INFO")
+    except Exception as _e:
+        _add_log(f"Reddit Blitz schedule setup failed: {_e}", "WARNING")
+    # NarAI hourly diagnostic
+    try:
+        import schedule as _schedN
+        def _narai_hourly():
+            try:
+                narai = _get_narai()
+                if narai:
+                    narai.execute(action="diagnostic")
+                    _add_log("NarAI: hourly diagnostic complete", "INFO")
+            except Exception as _eN:
+                _add_log(f"NarAI hourly diagnostic failed: {_eN}", "WARNING")
+        _schedN.every().hour.do(_narai_hourly)
+        # Also boot-time diagnostic in background
+        import threading as _threading
+        _threading.Thread(target=_narai_hourly, daemon=True).start()
+        _add_log("NarAI: hourly diagnostic scheduled", "INFO")
+    except Exception as _eN:
+        _add_log(f"NarAI schedule setup failed: {_eN}", "WARNING")
+    # Telegram daily summary: 07:00 every day
+    try:
+        import schedule as _sched4
+        import asyncio as _asyncio2
+        def _telegram_daily():
+            try:
+                loop = _asyncio2.new_event_loop()
+                loop.run_until_complete(telegram_daily_alert())
+                loop.close()
+            except Exception as _e2:
+                _add_log(f"Telegram daily alert failed: {_e2}", "ERROR")
+        _sched4.every().day.at("07:00").do(_telegram_daily)
+        _add_log("Telegram daily summary scheduled: 07:00 daily", "INFO")
+    except Exception as _e:
+        _add_log(f"Telegram schedule setup failed: {_e}", "WARNING")
+    yield
+    # Shutdown
+    from core.job_queue import get_queue
+    await get_queue().stop()
+    if _scheduler:
+        try:
+            _scheduler.stop()
+        except Exception:
+            pass
+
 app = FastAPI(
     title="WheellsVerse Bot Ecosystem",
     version="2.0.0",
     description="70 Autonomous AI Bots — Production Control API",
+    lifespan=_lifespan,
 )
 
 app.add_middleware(
@@ -171,6 +262,8 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-NarAI-Text", "X-NarAI-Mood", "X-NarAI-Emoji", "X-NarAI-Energy",
+                    "Content-Length", "Content-Type"],
 )
 
 
@@ -289,23 +382,47 @@ async def run_bot_endpoint(
     category: str,
     bot_name: str,
     req: BotRunRequest,
-    background_tasks: BackgroundTasks,
 ):
+    from core.job_queue import get_queue
     orch = _get_orch()
     full_name = f"{category}/{bot_name}"
     if full_name not in orch.bots:
         raise HTTPException(404, f"Bot '{full_name}' not found")
 
+    kwargs = req.kwargs
+
     def _run():
         _add_log(f"Running bot: {full_name}", "INFO")
-        try:
-            orch.run_bot(full_name, **req.kwargs)
-            _add_log(f"Bot completed: {full_name}", "INFO")
-        except Exception as e:
-            _add_log(f"Bot failed: {full_name} — {e}", "ERROR")
+        result = orch.run_bot(full_name, **kwargs)
+        _add_log(f"Bot completed: {full_name}", "INFO")
+        return result
 
-    background_tasks.add_task(_run)
-    return {"status": "started", "bot": full_name}
+    job_id = await get_queue().submit(
+        name=full_name,
+        fn=_run,
+        meta={"bot": full_name, "kwargs": kwargs},
+    )
+    return {"status": "queued", "bot": full_name, "job_id": job_id}
+
+
+@app.get("/api/jobs")
+async def list_jobs(status: str = "", limit: int = 50):
+    """List recent async jobs with status and results."""
+    from core.job_queue import get_queue
+    return {
+        "jobs":  get_queue().list_jobs(status=status, limit=limit),
+        "stats": get_queue().stats(),
+    }
+
+
+@app.get("/api/jobs/{job_id}")
+async def get_job(job_id: str):
+    """Get status and result of a specific job by ID."""
+    from core.job_queue import get_queue
+    job = get_queue().get_job(job_id)
+    if not job:
+        raise HTTPException(404, f"Job {job_id} not found")
+    return job
 
 
 @app.get("/api/bots/{category}/{bot_name}/output")
@@ -1275,7 +1392,18 @@ async def capture_lead(req: LeadRequest):
             get_intelligence().record_lead(topic=req.topic, source=req.source)
         except Exception:
             pass
-        _add_log(f"Lead captured: {req.email[:30]} from {req.source}", "INFO")
+        # Auto-add to ConvertKit
+        try:
+            from core.drip import enroll_in_drip
+            enroll_in_drip(email=req.email, first_name=req.name, source=req.source)
+        except Exception:
+            pass
+        try:
+            from core.telegram import notify_new_lead
+            notify_new_lead(email=req.email, source=req.source, topic=req.topic)
+        except Exception:
+            pass
+        _add_log(f"Lead captured + drip enrolled: {req.email[:30]} from {req.source}", "INFO")
     return {"status": result["status"], "message": "Thanks! You'll hear from us soon."}
 
 
@@ -1293,6 +1421,163 @@ async def list_leads(limit: int = 100, source: str = ""):
 async def lead_stats():
     from core.email_capture import get_email_capture
     return get_email_capture().get_stats()
+
+
+@app.post("/api/leads/sync-convertkit")
+async def sync_leads_to_convertkit():
+    """
+    Backfill all local leads into ConvertKit.
+    Skips emails already tagged 'ck_synced' in their metadata.
+    """
+    from core.email_capture import get_email_capture
+    from core.drip import enroll_in_drip
+    cap = get_email_capture()
+    leads = cap.get_leads(limit=10000)
+    synced, skipped, failed = 0, 0, 0
+    for lead in leads:
+        if lead.get("metadata", {}).get("ck_synced"):
+            skipped += 1
+            continue
+        try:
+            result = enroll_in_drip(
+                email=lead["email"],
+                first_name=lead.get("name", ""),
+                source=lead.get("source", "backfill"),
+            )
+            if result.get("status") != "skipped":
+                # Mark synced in local record
+                lead.setdefault("metadata", {})["ck_synced"] = True
+                synced += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            failed += 1
+            _add_log(f"CK sync failed for {lead['email'][:20]}: {e}", "ERROR")
+    # Persist updated metadata
+    try:
+        import json as _json
+        from pathlib import Path as _Path
+        _f = _Path(__file__).parent.parent / "data" / "leads" / "leads.json"
+        _f.write_text(_json.dumps(leads, indent=2, ensure_ascii=False))
+    except Exception:
+        pass
+    _add_log(f"ConvertKit sync: {synced} synced, {skipped} skipped, {failed} failed", "INFO")
+    return {"synced": synced, "skipped": skipped, "failed": failed, "total": len(leads)}
+
+
+@app.get("/api/leads/scored")
+async def scored_leads():
+    """
+    Return all leads with a 0-100 score based on source, topic, and recency.
+    High score = higher purchase intent.
+    """
+    from core.email_capture import get_email_capture
+    from datetime import datetime, timedelta
+    SOURCE_SCORES = {
+        "blog_cta": 30, "blog_index": 25, "landing_page": 20,
+        "twitter": 15, "tiktok": 15, "smoke_test": 0,
+    }
+    TOPIC_SCORES = {
+        "crypto": 35, "bitcoin": 35, "investing": 30, "stocks": 30,
+        "passive income": 25, "ai tools": 20, "side hustle": 20,
+    }
+    now = datetime.now()
+    leads = get_email_capture().get_leads(limit=10000)
+    scored = []
+    for lead in leads:
+        score = 0
+        src = lead.get("source", "").lower()
+        topic = lead.get("topic", "").lower()
+        captured = lead.get("captured_at", "")
+        score += SOURCE_SCORES.get(src, 10)
+        for kw, pts in TOPIC_SCORES.items():
+            if kw in topic:
+                score += pts
+                break
+        # Recency bonus: max 20 pts if captured in last 24h, decays over 30 days
+        try:
+            dt = datetime.fromisoformat(captured)
+            days_old = (now - dt).days
+            score += max(0, 20 - days_old)
+        except Exception:
+            pass
+        # CK synced bonus
+        if lead.get("metadata", {}).get("ck_synced"):
+            score += 5
+        scored.append({**lead, "score": min(score, 100)})
+    scored.sort(key=lambda x: x["score"], reverse=True)
+    return {"leads": scored, "total": len(scored)}
+
+
+@app.post("/api/report/weekly")
+async def generate_weekly_report():
+    """
+    AI-generated weekly performance report.
+    Pulls all live metrics and uses GPT to write a branded HTML summary.
+    """
+    from core.email_capture import get_email_capture
+    from core.click_tracker import get_stats as click_stats
+
+    # Gather metrics
+    try:
+        from core.impact import get_earnings
+        earned_7d_raw = get_earnings(days=7)
+        earned_7d = earned_7d_raw.get("total_earned", 0) or 0
+    except Exception:
+        earned_7d = 0.0
+
+    lead_stats_data = get_email_capture().get_stats()
+    clicks_data = click_stats()
+    total_articles = 20
+    total_leads = lead_stats_data.get("total_leads", 0)
+    leads_today = lead_stats_data.get("leads_today", 0)
+    total_clicks = clicks_data.get("total_clicks", 0)
+    top_partner = max(
+        clicks_data.get("by_partner", {}).items(),
+        key=lambda x: x[1], default=("none", 0)
+    )[0]
+
+    from datetime import datetime
+    week = datetime.now().strftime("%B %d, %Y")
+
+    prompt = f"""You are the AI report writer for WheellsVerse — a professional AI content and affiliate marketing agency.
+
+Write a concise, professional weekly performance report as styled HTML. Use inline CSS. Dark theme (#0d0f14 bg, #00d4ff cyan accents, #e0e6f0 text).
+
+This week's data (week ending {week}):
+- Articles live on blog: {total_articles}
+- New email leads: {total_leads} total, {leads_today} today
+- Affiliate clicks tracked: {total_clicks}
+- Top affiliate program by clicks: {top_partner}
+- Revenue earned (7 days): ${earned_7d:.2f}
+
+Write a report with:
+1. A headline "WheellsVerse — Weekly Performance Report"
+2. An executive summary paragraph (3 sentences, specific numbers)
+3. 3 stat cards (Revenue, Leads, Clicks) as styled boxes
+4. What's working (2 bullet points based on the data)
+5. Recommended action for next week (1 specific, actionable item)
+6. A professional closing line
+
+Keep total length under 600 words. Use clean HTML with inline styles. No markdown."""
+
+    import os
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    resp = client.chat.completions.create(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=1500,
+        temperature=0.6,
+    )
+    import re as _re
+    html = resp.choices[0].message.content.strip()
+    html = _re.sub(r"^```html?\s*", "", html).rstrip("`").strip()
+    _add_log("Weekly report generated", "INFO")
+    return {"html": html, "generated_at": datetime.now().isoformat(), "metrics": {
+        "articles": total_articles, "leads": total_leads,
+        "clicks": total_clicks, "revenue_7d": earned_7d,
+    }}
 
 
 # ─── Analytics ────────────────────────────────────────────────────────────────
@@ -1601,6 +1886,2461 @@ async def affiliate_summary():
     return get_summary()
 
 
+# ─── SuperAgent ───────────────────────────────────────────────────────────────
+
+def _get_superagent():
+    from core.superagent import get_superagent
+    return get_superagent(orchestrator=_get_orch())
+
+
+@app.get("/api/superagent/status")
+async def superagent_status():
+    """SuperAgent current state, decision log, and created bots."""
+    return _get_superagent().get_status()
+
+
+@app.post("/api/superagent/cycle")
+async def superagent_cycle(background_tasks: BackgroundTasks):
+    """Trigger one full assess→plan→execute cycle."""
+    sa = _get_superagent()
+    if sa.status == "running":
+        return {"status": "busy", "message": "Cycle already running"}
+    result_holder: Dict[str, Any] = {}
+
+    def _run():
+        result_holder.update(sa.run_cycle())
+
+    background_tasks.add_task(_run)
+    _add_log("SuperAgent cycle triggered", "INFO")
+    return {"status": "started", "message": "Cycle running in background"}
+
+
+@app.post("/api/superagent/start")
+async def superagent_start_auto(interval_minutes: int = 120):
+    """Start autonomous mode (runs a full cycle every N minutes)."""
+    result = _get_superagent().start_auto(interval_minutes=interval_minutes)
+    _add_log(f"SuperAgent auto-mode started ({interval_minutes}m interval)", "INFO")
+    return result
+
+
+@app.post("/api/superagent/stop")
+async def superagent_stop_auto():
+    """Stop autonomous mode."""
+    result = _get_superagent().stop_auto()
+    _add_log("SuperAgent auto-mode stopped", "INFO")
+    return result
+
+
+class GoalRequest(BaseModel):
+    daily_usd: float
+
+
+@app.post("/api/superagent/goal")
+async def superagent_set_goal(req: GoalRequest):
+    """Update the daily revenue goal."""
+    return _get_superagent().set_goal(req.daily_usd)
+
+
+@app.get("/api/superagent/log")
+async def superagent_log(limit: int = 100):
+    """Return the last N decision log entries."""
+    sa = _get_superagent()
+    return {"log": sa.decision_log[-limit:], "total": len(sa.decision_log)}
+
+
+@app.get("/api/superagent/bots")
+async def superagent_created_bots():
+    """List all bots created by the SuperAgent."""
+    sa = _get_superagent()
+    return {"created_bots": sa.created_bots, "count": len(sa.created_bots)}
+
+
+class ChatRequest(BaseModel):
+    message: str
+
+
+@app.post("/api/superagent/chat")
+async def superagent_chat(req: ChatRequest):
+    """
+    Send a natural-language message to the SuperAgent.
+    It understands intent, responds, and can execute actions (run bots,
+    create bots, upgrade bots, change goals, etc.).
+    """
+    sa = _get_superagent()
+    result = sa.chat(req.message)
+    _add_log(f"SuperAgent chat: {req.message[:60]}", "INFO")
+    return result
+
+
+class UpgradeRequest(BaseModel):
+    target: str
+    improvement: str = "improve revenue generation and affiliate link placement"
+
+
+@app.post("/api/superagent/upgrade")
+async def superagent_upgrade(req: UpgradeRequest, background_tasks: BackgroundTasks):
+    """Upgrade an existing bot with GPT-4-generated improvements."""
+    sa = _get_superagent()
+
+    def _run():
+        result = sa._action_upgrade_bot({"target": req.target, "improvement": req.improvement})
+        _add_log(f"Bot upgrade: {req.target} → {result}", "INFO")
+
+    background_tasks.add_task(_run)
+    return {"status": "upgrading", "target": req.target}
+
+
+@app.get("/api/revenue")
+async def revenue_dashboard(days: int = 30):
+    """
+    Single combined endpoint for the Money Board.
+    Returns affiliate earnings, bot statuses, and system config in one call.
+    """
+    from core.impact import get_earnings, get_clicks
+
+    earnings = get_earnings(days=days)
+    earnings_7 = get_earnings(days=7)
+    clicks = get_clicks(days=7)
+
+    # Revenue bots status
+    orch = _get_orch()
+    revenue_bot_keys = [
+        "marketing/01_content_generator", "marketing/02_seo_optimizer",
+        "marketing/03_email_campaign", "marketing/05_funnel_builder",
+        "marketing/07_keyword_scraper", "marketing/09_landing_page",
+        "marketing/16_blog_publisher", "marketing/17_newsletter_generator",
+        "social_media/37_auto_post", "social_media/38_content_scheduler",
+        "social_media/40_dm_automation", "social_media/45_multi_platform_poster",
+        "ecommerce/61_product_description", "ecommerce/62_pricing_optimization",
+    ]
+    revenue_bots = []
+    for key in revenue_bot_keys:
+        bot = orch.bots.get(key)
+        if bot:
+            s = bot.get_status()
+            s["full_name"] = key
+            revenue_bots.append(s)
+        else:
+            cat, name = key.split("/", 1)
+            revenue_bots.append({"full_name": key, "name": name, "category": cat,
+                                  "status": "idle", "run_count": 0, "last_run": None})
+
+    return {
+        "earnings": earnings,
+        "earnings_7d": earnings_7,
+        "clicks": clicks,
+        "revenue_bots": revenue_bots,
+        "amazon_tag": os.getenv("AFFILIATE_AMAZON_TAG", ""),
+        "impact_configured": bool(os.getenv("IMPACT_ACCOUNT_SID") and os.getenv("IMPACT_API_PASSWORD")),
+    }
+
+
+# ─── TikTok ────────────────────────────────────────────────────────────────────
+
+def _get_tiktok():
+    from core.tiktok import get_tiktok
+    return get_tiktok()
+
+
+@app.get("/api/tiktok/status")
+async def tiktok_status():
+    """TikTok connection status — credentials, token expiry, auth URL."""
+    return _get_tiktok().get_status()
+
+
+@app.get("/api/tiktok/auth")
+async def tiktok_auth():
+    """Redirect user to TikTok OAuth consent screen."""
+    from fastapi.responses import RedirectResponse
+    url = _get_tiktok().get_auth_url(fresh=True)
+    _add_log("TikTok OAuth initiated", "INFO")
+    return RedirectResponse(url)
+
+
+@app.get("/api/tiktok/callback")
+async def tiktok_callback(code: str = "", state: str = "", error: str = ""):
+    """Handle TikTok OAuth callback — exchange code for tokens."""
+    if error:
+        _add_log(f"TikTok OAuth error: {error}", "ERROR")
+        return HTMLResponse(
+            f"<h2>TikTok Auth Failed</h2><p>{error}</p>"
+            "<p><a href='/'>Back to dashboard</a></p>"
+        )
+    if not code:
+        raise HTTPException(400, "Missing code parameter")
+
+    try:
+        token_data = _get_tiktok().exchange_code(code, state=state)
+        _add_log(f"TikTok connected — open_id: {token_data.get('open_id','')[:12]}", "INFO")
+        return HTMLResponse(
+            "<h2 style='font-family:monospace;color:#00d4ff'>✅ TikTok Connected!</h2>"
+            "<p style='font-family:monospace'>Your account is now linked. "
+            "You can close this tab and return to the dashboard.</p>"
+            "<script>setTimeout(()=>window.close(),3000);</script>"
+        )
+    except Exception as e:
+        _add_log(f"TikTok token exchange failed: {e}", "ERROR")
+        raise HTTPException(500, str(e))
+
+
+@app.get("/api/tiktok/me")
+async def tiktok_me():
+    """Return the authenticated TikTok user's profile."""
+    try:
+        return _get_tiktok().get_user_info()
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+class TikTokVideoRequest(BaseModel):
+    video_url: str
+    caption: str
+    privacy: str = "SELF_ONLY"
+    disable_comment: bool = False
+    disable_duet: bool = False
+    disable_stitch: bool = False
+
+
+@app.post("/api/tiktok/post/video")
+async def tiktok_post_video(req: TikTokVideoRequest):
+    """Post a video to TikTok from a URL."""
+    try:
+        result = _get_tiktok().post_video_from_url(
+            video_url=req.video_url,
+            caption=req.caption,
+            privacy=req.privacy,
+            disable_comment=req.disable_comment,
+            disable_duet=req.disable_duet,
+            disable_stitch=req.disable_stitch,
+        )
+        _add_log(f"TikTok video posted — publish_id: {result.get('publish_id','')}", "INFO")
+        return result
+    except Exception as e:
+        _add_log(f"TikTok post failed: {e}", "ERROR")
+        raise HTTPException(400, str(e))
+
+
+class TikTokPhotoRequest(BaseModel):
+    photo_urls: List[str]
+    caption: str
+    privacy: str = "SELF_ONLY"
+
+
+@app.post("/api/tiktok/post/photo")
+async def tiktok_post_photo(req: TikTokPhotoRequest):
+    """Post a photo carousel to TikTok."""
+    try:
+        result = _get_tiktok().post_photo_carousel(
+            photo_urls=req.photo_urls,
+            caption=req.caption,
+            privacy=req.privacy,
+        )
+        _add_log(f"TikTok photo carousel posted — publish_id: {result.get('publish_id','')}", "INFO")
+        return result
+    except Exception as e:
+        _add_log(f"TikTok photo post failed: {e}", "ERROR")
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/tiktok/post/{publish_id}/status")
+async def tiktok_post_status(publish_id: str):
+    """Check the publish status of a TikTok post."""
+    try:
+        return _get_tiktok().get_post_status(publish_id)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/tiktok/disconnect")
+async def tiktok_disconnect():
+    """Revoke TikTok access token and clear stored credentials."""
+    _get_tiktok().revoke()
+    _add_log("TikTok disconnected", "INFO")
+    return {"status": "disconnected"}
+
+
+# ─── Twitter/X ────────────────────────────────────────────────────────────────
+
+@app.get("/api/twitter/status")
+async def twitter_status():
+    from core.twitter import get_twitter
+    return get_twitter().get_status()
+
+
+class TweetRequest(BaseModel):
+    text: str
+
+
+class ThreadRequest(BaseModel):
+    tweets: List[str]
+
+
+class ThreadFromContentRequest(BaseModel):
+    content: str
+    max_tweets: int = 8
+
+
+@app.post("/api/twitter/tweet")
+async def post_tweet(req: TweetRequest):
+    import asyncio
+    from core.twitter import get_twitter
+    try:
+        tw = get_twitter()
+        result = await asyncio.to_thread(tw.post_tweet, req.text)
+        _add_log(f"Tweet posted: {result.get('url','')}", "INFO")
+        return result
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/twitter/thread")
+async def post_thread(req: ThreadRequest):
+    import asyncio
+    from core.twitter import get_twitter
+    try:
+        tw = get_twitter()
+        results = await asyncio.to_thread(tw.post_thread, req.tweets)
+        _add_log(f"Thread posted: {len(results)} tweets", "INFO")
+        return {"tweets": results, "count": len(results)}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/twitter/thread/from-content")
+async def thread_from_content(req: ThreadFromContentRequest):
+    """Convert markdown content into a Twitter thread preview (does not post)."""
+    from core.twitter import TwitterClient
+    tweets = TwitterClient.format_thread_from_markdown(req.content, req.max_tweets)
+    return {"tweets": tweets, "count": len(tweets)}
+
+
+# ─── Twitter Blitz ────────────────────────────────────────────────────────────
+
+_BLITZ_QUEUE_FILE = Path(__file__).parent.parent / "data" / "twitter_queue.json"
+_NETLIFY_BLOG = "https://wheellsverse-bots.pages.dev/blog/"
+
+def _load_blitz_queue() -> Dict:
+    if _BLITZ_QUEUE_FILE.exists():
+        try:
+            return json.loads(_BLITZ_QUEUE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"queue": [], "total_posted": 0, "last_post": None}
+
+def _save_blitz_queue(data: Dict):
+    _BLITZ_QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _BLITZ_QUEUE_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def _generate_thread_for_article(title: str, category: str, url: str,
+                                  affiliates: List[str]) -> List[str]:
+    """Use GPT to write a punchy 7-tweet thread from article metadata."""
+    import os
+    from openai import OpenAI
+
+    AFF_CTAS = {
+        "robinhood": "📈 Free stock → https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1",
+        "coinbase":  "₿ $10 free BTC → https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1",
+        "amazon":    "📚 Best books on this → https://amzn.to/wheellsverse",
+    }
+    cta_links = "\n".join(AFF_CTAS[a] for a in affiliates if a in AFF_CTAS)
+
+    prompt = f"""Write a Twitter thread for this blog article. 7 tweets max, each ≤280 characters.
+
+Article: "{title}"
+Category: {category}
+Read more: {url}
+
+Rules:
+- Tweet 1: Hook — bold statement or surprising fact that stops scrolling. End with "(thread 🧵)"
+- Tweets 2-6: One key insight per tweet, numbered "2/" "3/" etc. Concrete, specific, no fluff.
+- Tweet 7: Call to action. Include the article link and these affiliate links on separate lines:
+{cta_links}
+  Follow @wheelsverse for daily money moves 🚀
+
+Return ONLY the 7 tweets, separated by "---" on its own line. No other text."""
+
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    resp = client.chat.completions.create(
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=900,
+        temperature=0.8,
+    )
+    raw = resp.choices[0].message.content.strip()
+    tweets = [t.strip() for t in raw.split("---") if t.strip()]
+    # Hard cap each at 280 chars
+    return [t[:280] for t in tweets if t][:7]
+
+
+@app.get("/api/twitter/blitz/queue")
+async def blitz_queue():
+    """Return the full Twitter Blitz queue."""
+    return _load_blitz_queue()
+
+
+@app.post("/api/twitter/blitz/generate")
+async def blitz_generate(background_tasks: BackgroundTasks):
+    """
+    Generate Twitter threads for all 20 blog articles that don't have one yet.
+    Runs in background — check /api/twitter/blitz/queue for progress.
+    """
+    data = _load_blitz_queue()
+    existing_slugs = {item["slug"] for item in data["queue"]}
+
+    new_articles = [a for a in _BLOG_ARTICLES if a["filename"].replace(".html", "") not in existing_slugs]
+
+    if not new_articles:
+        return {"status": "already_complete", "message": "All articles already have threads queued."}
+
+    async def _run():
+        d = _load_blitz_queue()
+        for art in new_articles:
+            slug = art["filename"].replace(".html", "")
+            try:
+                tweets = _generate_thread_for_article(
+                    title=art["title"],
+                    category=art["category"],
+                    url=_NETLIFY_BLOG + art["filename"],
+                    affiliates=art["affiliates"],
+                )
+                d["queue"].append({
+                    "slug":         slug,
+                    "title":        art["title"],
+                    "category":     art["category"],
+                    "url":          _NETLIFY_BLOG + art["filename"],
+                    "affiliates":   art["affiliates"],
+                    "tweets":       tweets,
+                    "status":       "pending",
+                    "generated_at": datetime.now().isoformat(),
+                    "posted_at":    None,
+                    "tweet_urls":   [],
+                })
+                _save_blitz_queue(d)
+                _add_log(f"Thread generated: {art['title'][:60]}", "INFO")
+            except Exception as e:
+                _add_log(f"Thread gen failed for {slug}: {e}", "ERROR")
+
+    background_tasks.add_task(_run)
+    return {
+        "status":    "generating",
+        "articles":  len(new_articles),
+        "message":   f"Generating {len(new_articles)} threads in background. Check /api/twitter/blitz/queue.",
+    }
+
+
+@app.post("/api/twitter/blitz/post-next")
+async def blitz_post_next(count: int = 1):
+    """Post the next N pending threads from the queue. Default: 1."""
+    import asyncio
+    from core.twitter import get_twitter
+    tw = get_twitter()
+    if not tw.is_connected():
+        raise HTTPException(400, "Twitter not connected — check .env credentials")
+
+    data = _load_blitz_queue()
+    pending = [item for item in data["queue"] if item["status"] == "pending"]
+    if not pending:
+        return {"status": "empty", "message": "No pending threads in queue."}
+
+    to_post = pending[:count]
+    results = []
+    for item in to_post:
+        try:
+            posted = await asyncio.to_thread(tw.post_thread, item["tweets"])
+            item["status"]     = "posted"
+            item["posted_at"]  = datetime.now().isoformat()
+            item["tweet_urls"] = [t.get("url", "") for t in posted]
+            item.pop("last_error", None)
+            data["total_posted"] = data.get("total_posted", 0) + 1
+            data["last_post"]    = datetime.now().isoformat()
+            results.append({"slug": item["slug"], "status": "posted", "url": item["tweet_urls"][0] if item["tweet_urls"] else ""})
+            _add_log(f"Thread posted: {item['title'][:60]}", "INFO")
+        except Exception as e:
+            item["status"]     = "failed"
+            item["last_error"] = str(e)[:300]
+            results.append({"slug": item["slug"], "status": "failed", "error": str(e)[:200]})
+            _add_log(f"Thread post failed: {item['title'][:40]} — {e}", "ERROR")
+        _save_blitz_queue(data)
+
+    return {"posted": len([r for r in results if r["status"] == "posted"]),
+            "failed": len([r for r in results if r["status"] == "failed"]),
+            "results": results}
+
+
+@app.post("/api/twitter/blitz/reset/{slug}")
+async def blitz_reset_item(slug: str):
+    """Reset a posted/failed thread back to pending so it can be re-posted."""
+    data = _load_blitz_queue()
+    for item in data["queue"]:
+        if item["slug"] == slug:
+            item["status"]    = "pending"
+            item["posted_at"] = None
+            item["tweet_urls"] = []
+            _save_blitz_queue(data)
+            return {"status": "reset", "slug": slug}
+    raise HTTPException(404, f"Slug not found: {slug}")
+
+
+@app.post("/api/twitter/blitz/reset-failed")
+async def blitz_reset_failed():
+    """Reset all failed threads back to pending so they can be re-tried."""
+    data = _load_blitz_queue()
+    count = 0
+    for item in data["queue"]:
+        if item["status"] == "failed":
+            item["status"] = "pending"
+            item["posted_at"] = None
+            item["tweet_urls"] = []
+            item.pop("last_error", None)
+            count += 1
+    _save_blitz_queue(data)
+    return {"status": "reset", "count": count}
+
+
+@app.delete("/api/twitter/blitz/queue")
+async def blitz_clear_queue():
+    """Clear the entire queue (keeps posted history, removes pending)."""
+    data = _load_blitz_queue()
+    data["queue"] = [i for i in data["queue"] if i["status"] == "posted"]
+    _save_blitz_queue(data)
+    return {"status": "cleared", "kept_posted": len(data["queue"])}
+
+
+def _blitz_scheduled_post(count: int = 1) -> None:
+    """Sync helper called by the scheduler to post N pending Twitter threads."""
+    try:
+        from core.twitter import get_twitter
+        tw = get_twitter()
+        if not tw.is_connected():
+            _add_log("Blitz auto-post skipped — Twitter not connected", "WARNING")
+            return
+        data = _load_blitz_queue()
+        pending = [item for item in data["queue"] if item["status"] == "pending"]
+        if not pending:
+            _add_log("Blitz auto-post: no pending threads in queue", "INFO")
+            return
+        for item in pending[:count]:
+            try:
+                posted = tw.post_thread(item["tweets"])
+                item["status"] = "posted"
+                item["posted_at"] = datetime.now().isoformat()
+                item["tweet_urls"] = [t.get("url", "") for t in posted]
+                item.pop("last_error", None)
+                data["total_posted"] = data.get("total_posted", 0) + 1
+                data["last_post"] = datetime.now().isoformat()
+                _add_log(f"Auto-post ✅ {item['title'][:60]}", "INFO")
+            except Exception as e:
+                item["status"] = "failed"
+                item["last_error"] = str(e)[:300]
+                _add_log(f"Auto-post ❌ {item['title'][:40]} — {e}", "ERROR")
+            _save_blitz_queue(data)
+    except Exception as e:
+        _add_log(f"Blitz scheduled post error: {e}", "ERROR")
+
+
+# ─── ConvertKit ───────────────────────────────────────────────────────────────
+
+@app.get("/api/convertkit/status")
+async def convertkit_status():
+    from core.convertkit import get_convertkit
+    return get_convertkit().get_status()
+
+
+class SubscriberRequest(BaseModel):
+    email: str
+    first_name: str = ""
+    tags: List[str] = []
+
+
+@app.post("/api/convertkit/subscribe")
+async def convertkit_subscribe(req: SubscriberRequest):
+    from core.convertkit import get_convertkit
+    try:
+        result = get_convertkit().add_subscriber(req.email, req.first_name, req.tags)
+        _add_log(f"ConvertKit subscriber: {req.email}", "INFO")
+        return result
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/convertkit/subscribers")
+async def convertkit_subscribers():
+    from core.convertkit import get_convertkit
+    try:
+        return get_convertkit().list_subscribers()
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+# ─── Publish Pipeline ─────────────────────────────────────────────────────────
+
+def _get_publisher():
+    from core.publish_pipeline import get_publisher
+    return get_publisher()
+
+
+@app.get("/api/pipeline/status")
+async def pipeline_status():
+    """Which social/email platforms are connected and ready."""
+    return _get_publisher().get_status()
+
+
+class PublishRequest(BaseModel):
+    content: str
+    title: str = ""
+    platforms: Optional[List[str]] = None   # None = all
+    video_url: Optional[str] = None
+    hashtags: Optional[List[str]] = None
+    slug: str = ""
+
+
+@app.post("/api/pipeline/publish")
+async def publish_content(req: PublishRequest, background_tasks: BackgroundTasks):
+    """Publish content to all connected platforms simultaneously."""
+    pub = _get_publisher()
+    result_holder: Dict[str, Any] = {}
+
+    def _run():
+        result = pub.publish(
+            content=req.content,
+            title=req.title,
+            platforms=req.platforms,
+            video_url=req.video_url,
+            hashtags=req.hashtags,
+            slug=req.slug,
+        )
+        result_holder.update(result)
+        _add_log(
+            f"Published '{req.title or 'content'}' — "
+            f"{result['published']} published, {result['skipped']} skipped",
+            "INFO",
+        )
+
+    background_tasks.add_task(_run)
+    _add_log(f"Publish pipeline triggered: {req.title or 'content'}", "INFO")
+    return {"status": "publishing", "platforms": req.platforms or ["twitter","tiktok","email","blog"]}
+
+
+class PublishFileRequest(BaseModel):
+    file_path: str
+    platforms: Optional[List[str]] = None
+    video_url: Optional[str] = None
+
+
+@app.post("/api/pipeline/publish/file")
+async def publish_file(req: PublishFileRequest, background_tasks: BackgroundTasks):
+    """Publish directly from a generated .md file path."""
+    full_path = ROOT / req.file_path
+    if not full_path.exists():
+        raise HTTPException(404, f"File not found: {req.file_path}")
+
+    pub = _get_publisher()
+
+    def _run():
+        result = pub.publish_from_file(
+            str(full_path),
+            platforms=req.platforms,
+            video_url=req.video_url,
+        )
+        _add_log(
+            f"Published file '{req.file_path}' — "
+            f"{result['published']} published, {result['skipped']} skipped",
+            "INFO",
+        )
+
+    background_tasks.add_task(_run)
+    return {"status": "publishing", "file": req.file_path}
+
+
+@app.post("/api/pipeline/batch")
+async def publish_batch(background_tasks: BackgroundTasks,
+                        limit: int = 10, platforms: Optional[str] = None):
+    """Publish the N most recent unpublished bot outputs."""
+    platform_list = [p.strip() for p in platforms.split(",")] if platforms else None
+    outputs_dir = ROOT / "outputs"
+    blog_dir    = ROOT / "outputs" / "published" / "blog"
+
+    # Gather recent markdown files not yet in blog
+    existing_slugs = {f.stem[9:] for f in blog_dir.glob("*.html")} if blog_dir.exists() else set()
+
+    md_files = sorted(
+        [f for f in outputs_dir.rglob("*.md")
+         if "published" not in str(f)],
+        key=lambda f: f.stat().st_mtime,
+        reverse=True,
+    )[:limit]
+
+    pub = _get_publisher()
+
+    def _run():
+        for f in md_files:
+            try:
+                result = pub.publish_from_file(str(f), platforms=platform_list)
+                _add_log(
+                    f"Batch published: {f.name} — "
+                    f"{result['published']} channels",
+                    "INFO",
+                )
+            except Exception as e:
+                _add_log(f"Batch publish failed {f.name}: {e}", "ERROR")
+
+    background_tasks.add_task(_run)
+    return {"status": "batch_publishing", "files": len(md_files),
+            "platforms": platform_list or ["twitter","tiktok","email","blog"]}
+
+
+# ─── Daily Auto-Publish ───────────────────────────────────────────────────────
+
+@app.post("/api/publish/daily")
+async def trigger_daily_publish(background_tasks: BackgroundTasks):
+    """Manually trigger the daily auto-publish job right now."""
+    def _run():
+        from scripts.daily_publish import run_daily_publish
+        result = run_daily_publish()
+        _add_log(
+            f"Manual daily publish: {len(result['published'])} posts published, "
+            f"{len(result['errors'])} errors",
+            "INFO",
+        )
+    background_tasks.add_task(_run)
+    _add_log("Manual daily publish triggered", "INFO")
+    return {
+        "status": "running",
+        "posts_per_run": int(os.getenv("DAILY_POSTS_COUNT", "5")),
+        "schedule_time": os.getenv("DAILY_PUBLISH_TIME", "08:00"),
+    }
+
+
+@app.get("/api/publish/schedule")
+async def get_publish_schedule():
+    """Return current auto-publish schedule settings."""
+    from core.click_tracker import _load_clicks
+    import json
+    used_file = ROOT / "data" / "used_topics.json"
+    used_count = 0
+    if used_file.exists():
+        try:
+            used_count = len(json.loads(used_file.read_text()))
+        except Exception:
+            pass
+    return {
+        "daily_publish_time":  os.getenv("DAILY_PUBLISH_TIME", "08:00"),
+        "posts_per_run":       int(os.getenv("DAILY_POSTS_COUNT", "5")),
+        "topic_pool_size":     27,
+        "topics_used":         used_count,
+        "topics_remaining":    max(0, 27 - used_count),
+        "netlify_site":        "https://wheellsverse-bots.pages.dev",
+    }
+
+
+# ─── YouTube Integration ──────────────────────────────────────────────────────
+
+class YouTubeUploadRequest(BaseModel):
+    video_path:     str
+    title:          str
+    description:    str = ""
+    content:        str = ""        # markdown article → auto-builds description
+    tags:           Optional[List[str]] = None
+    privacy:        str = "private" # private | unlisted | public
+    thumbnail_path: str = ""
+    publish_at:     str = ""        # ISO 8601 scheduled time
+
+
+class YouTubeScriptUploadRequest(BaseModel):
+    script_path: str   # path to script_writer .md output
+    video_path:  str   # path to rendered MP4
+    privacy:     str = "private"
+
+
+@app.get("/api/youtube/status")
+async def youtube_status():
+    """YouTube connection status + channel stats."""
+    from core.youtube import get_youtube
+    return get_youtube().get_status()
+
+
+@app.post("/api/youtube/auth")
+async def youtube_auth():
+    """Trigger YouTube OAuth flow (opens browser for one-time authorization)."""
+    from core.youtube import get_youtube
+    try:
+        result = get_youtube().auth()
+        _add_log("YouTube OAuth complete — token saved", "INFO")
+        return result
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/youtube/upload")
+async def youtube_upload(req: YouTubeUploadRequest, background_tasks: BackgroundTasks):
+    """Upload a video to YouTube with auto-generated description + affiliate links."""
+    def _run():
+        from core.youtube import get_youtube
+        result = get_youtube().upload_video(
+            video_path=req.video_path,
+            title=req.title,
+            description=req.description,
+            content=req.content,
+            tags=req.tags,
+            privacy=req.privacy,
+            thumbnail_path=req.thumbnail_path,
+            publish_at=req.publish_at,
+        )
+        _add_log(f"YouTube upload complete: {result.get('url', '')}", "INFO")
+        try:
+            from core.telegram import notify_post_live
+            notify_post_live(title=req.title, platform="YouTube",
+                             url=result.get("url", ""))
+        except Exception:
+            pass
+
+    background_tasks.add_task(_run)
+    return {"status": "uploading", "title": req.title, "privacy": req.privacy}
+
+
+@app.post("/api/youtube/upload-from-script")
+async def youtube_upload_from_script(req: YouTubeScriptUploadRequest,
+                                     background_tasks: BackgroundTasks):
+    """Upload a video using a script_writer bot output as title + description source."""
+    script = ROOT / req.script_path
+    if not script.exists():
+        raise HTTPException(404, f"Script file not found: {req.script_path}")
+
+    def _run():
+        from core.youtube import get_youtube
+        result = get_youtube().upload_from_script(
+            script_path=str(script),
+            video_path=req.video_path,
+            privacy=req.privacy,
+        )
+        _add_log(f"YouTube script-upload complete: {result.get('url', '')}", "INFO")
+        try:
+            from core.telegram import notify_post_live
+            notify_post_live(title=result.get("title", req.script_path),
+                             platform="YouTube", url=result.get("url", ""))
+        except Exception:
+            pass
+
+    background_tasks.add_task(_run)
+    return {"status": "uploading", "script": req.script_path}
+
+
+@app.get("/api/youtube/videos")
+async def youtube_list_videos(limit: int = 10):
+    """List recent YouTube videos with view/like/comment counts."""
+    from core.youtube import get_youtube
+    try:
+        return {"videos": get_youtube().list_videos(limit=limit)}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+# ─── Stripe Payments ─────────────────────────────────────────────────────────
+
+class InvoiceItem(BaseModel):
+    description: str
+    amount_cents: int
+    quantity: int = 1
+
+class InvoiceRequest(BaseModel):
+    customer_email: str
+    items: List[InvoiceItem]
+    send: bool = True
+
+
+@app.get("/api/stripe/status")
+async def stripe_status():
+    """Stripe connection status + account info."""
+    from core.stripe_client import get_stripe
+    return get_stripe().get_status()
+
+
+@app.post("/api/stripe/setup")
+async def stripe_setup():
+    """Create default WheellsVerse products + prices on Stripe (run once)."""
+    from core.stripe_client import get_stripe
+    try:
+        result = get_stripe().setup_default_products()
+        _add_log("Stripe products created", "INFO")
+        return result
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/stripe/checkout-links")
+async def stripe_checkout_links():
+    """Return ready-to-use Stripe payment links for all products."""
+    from core.stripe_client import get_stripe
+    try:
+        return get_stripe().get_checkout_links()
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/stripe/invoice")
+async def create_invoice(req: InvoiceRequest):
+    """Create and send a Stripe invoice to a customer."""
+    from core.stripe_client import get_stripe
+    try:
+        result = get_stripe().create_invoice(
+            customer_email=req.customer_email,
+            items=[i.dict() for i in req.items],
+            send=req.send,
+        )
+        _add_log(f"Invoice created for {req.customer_email}", "INFO")
+        return result
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook events (payment success → drip enroll)."""
+    from core.stripe_client import get_stripe
+    payload    = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    try:
+        result = get_stripe().handle_webhook(payload, sig_header)
+        return result
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ─── Reddit Automation ───────────────────────────────────────────────────────
+
+class RedditPostRequest(BaseModel):
+    title: str
+    body:  str
+    niche: str = ""                         # auto-detect if empty
+    subreddits: Optional[List[str]] = None  # override auto-routing
+
+
+@app.get("/api/reddit/status")
+async def reddit_status():
+    """Reddit connection status."""
+    from core.reddit import get_reddit
+    return get_reddit().get_status()
+
+
+@app.post("/api/reddit/post")
+async def reddit_post(req: RedditPostRequest, background_tasks: BackgroundTasks):
+    """Post content to targeted subreddits based on niche."""
+    result_holder: list = []
+
+    def _run():
+        from core.reddit import get_reddit
+        results = get_reddit().post_to_niche(
+            title=req.title,
+            body=req.body,
+            niche=req.niche or None,
+            subreddits=req.subreddits,
+        )
+        result_holder.extend(results)
+        posted = [r for r in results if r.get("status") == "posted"]
+        _add_log(f"Reddit: posted to {len(posted)} subreddits", "INFO")
+
+    background_tasks.add_task(_run)
+    return {"status": "posting", "title": req.title[:80]}
+
+
+class RepurposeRequest(BaseModel):
+    content: str
+    title:   str = ""
+    formats: Optional[List[str]] = None   # None = all 6 formats
+
+
+@app.post("/api/reddit/post-repurposed")
+async def reddit_post_repurposed(req: RepurposeRequest, background_tasks: BackgroundTasks):
+    """Repurpose content then post the Reddit format automatically."""
+    def _run():
+        from core.repurpose import repurpose
+        from core.reddit import get_reddit
+        repurposed = repurpose(content=req.content, title=req.title,
+                               formats=["reddit_post"])
+        results = get_reddit().post_from_repurposed(repurposed)
+        posted = [r for r in results if r.get("status") == "posted"]
+        _add_log(f"Reddit repurpose+post: {len(posted)} subreddits", "INFO")
+
+    background_tasks.add_task(_run)
+    return {"status": "repurposing_and_posting"}
+
+
+# ─── Telegram Notifications ──────────────────────────────────────────────────
+
+@app.get("/api/telegram/status")
+async def telegram_status():
+    """Telegram bot connection status."""
+    from core.telegram import get_notifier
+    return get_notifier().get_status()
+
+
+@app.post("/api/telegram/test")
+async def telegram_test():
+    """Send a test Telegram notification."""
+    from core.telegram import notify
+    ok = notify("🤖 <b>WheellsVerse</b> — Telegram notifications are working! ✅")
+    if ok:
+        return {"status": "sent"}
+    raise HTTPException(400, "Telegram not configured — add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env")
+
+
+# ─── Auto-Repurposing Pipeline ───────────────────────────────────────────────
+
+@app.post("/api/repurpose")
+async def repurpose_content(req: RepurposeRequest, background_tasks: BackgroundTasks):
+    """Repurpose markdown content into Twitter thread, TikTok caption, email subjects,
+    Reddit post, Instagram caption, and LinkedIn post — all at once."""
+    result_holder: Dict[str, Any] = {}
+
+    def _run():
+        from core.repurpose import repurpose
+        result = repurpose(content=req.content, title=req.title, formats=req.formats)
+        result_holder.update(result)
+        _add_log(f"Repurposed '{result.get('title', 'content')}' into "
+                 f"{len(result.get('formats', {}))} formats", "INFO")
+
+    background_tasks.add_task(_run)
+    return {"status": "repurposing", "formats": req.formats or ["twitter_thread","tiktok_caption",
+            "email_subjects","reddit_post","instagram_caption","linkedin_post"]}
+
+
+@app.post("/api/repurpose/file")
+async def repurpose_file(file_path: str, background_tasks: BackgroundTasks,
+                         formats: Optional[str] = None):
+    """Repurpose a markdown file from outputs/ into all platform formats."""
+    full_path = ROOT / file_path
+    if not full_path.exists():
+        raise HTTPException(404, f"File not found: {file_path}")
+
+    fmt_list = [f.strip() for f in formats.split(",")] if formats else None
+
+    def _run():
+        from core.repurpose import repurpose_file as _repurpose
+        result = _repurpose(str(full_path), formats=fmt_list)
+        _add_log(f"Repurposed file {file_path} → {len(result.get('formats',{}))} formats", "INFO")
+
+    background_tasks.add_task(_run)
+    return {"status": "repurposing", "file": file_path}
+
+
+# ─── Affiliate Click Tracking ────────────────────────────────────────────────
+
+@app.get("/go/{partner}")
+async def affiliate_redirect(partner: str, request: Request):
+    """Track affiliate click then redirect to partner URL."""
+    from core.click_tracker import record_click
+    from fastapi.responses import RedirectResponse
+    referrer = request.headers.get("referer", "")
+    ip = request.client.host if request.client else ""
+    dest = record_click(partner, referrer=referrer, ip=ip)
+    if not dest:
+        raise HTTPException(404, f"Unknown affiliate partner: {partner}")
+    _add_log(f"Affiliate click: {partner}", "INFO")
+    return RedirectResponse(url=dest, status_code=302)
+
+
+@app.get("/api/clicks")
+async def get_click_stats():
+    """Affiliate click stats — total, by partner, recent 20."""
+    from core.click_tracker import get_stats
+    return get_stats()
+
+
+# ─── Blog Command Board ───────────────────────────────────────────────────────
+
+_BLOG_ARTICLES = [
+    {"filename":"20260326-10-ai-tools-that-replace-500-month-in-software-subscriptions.html","title":"10 AI Tools That Replace $500/Month in Software Subscriptions","category":"AI Tools","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260326-5-ai-tools-that-help-you-make-money-while-you-sleep.html","title":"5 AI Tools That Help You Make Money While You Sleep","category":"AI Tools","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260326-best-beginner-crypto-wallets-2025-safety-guide.html","title":"Best Beginner Crypto Wallets 2025 — Safety Guide","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
+    {"filename":"20260326-best-crypto-exchange-for-beginners-in-2025-coinbase-vs-binan.html","title":"Best Crypto Exchange for Beginners in 2025: Coinbase vs Binance","category":"Crypto","date":"2026-03-26","affiliates":["coinbase","robinhood"]},
+    {"filename":"20260326-boost-your-crypto-portfolio-with-smart-investing-strategies.html","title":"Boost Your Crypto Portfolio With Smart Investing Strategies","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
+    {"filename":"20260326-coinbase-vs-kraken-vs-binance-which-is-best-for-beginners.html","title":"Coinbase vs Kraken vs Binance: Which Is Best for Beginners?","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
+    {"filename":"20260326-cryptocurrency-trends-insights-and-opportunities.html","title":"Cryptocurrency Trends, Insights and Opportunities","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
+    {"filename":"20260326-latest-in-crypto-news.html","title":"Latest in Crypto News","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
+    {"filename":"20260326-dividend-stocks-that-pay-monthly-income-2025.html","title":"Dividend Stocks That Pay Monthly Income 2025","category":"Stocks","date":"2026-03-26","affiliates":["robinhood","amazon"]},
+    {"filename":"20260326-how-to-get-a-free-stock-on-robinhood-in-2025-and-what-to-inv.html","title":"How to Get a Free Stock on Robinhood in 2025","category":"Stocks","date":"2026-03-26","affiliates":["robinhood"]},
+    {"filename":"20260326-how-to-start-investing-in-etfs-with-100.html","title":"How to Start Investing in ETFs With $100","category":"Stocks","date":"2026-03-26","affiliates":["robinhood","amazon"]},
+    {"filename":"20260326-affiliate-campaign-best-investing-apps-with-signup-bonuses-i.html","title":"Best Investing Apps With Signup Bonuses in 2025","category":"Stocks","date":"2026-03-26","affiliates":["robinhood","coinbase"]},
+    {"filename":"20260326-exploring-high-ticket-affiliate-programs-maximize-your-earni.html","title":"The Ultimate Guide to High-Ticket Affiliate Programs","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260326-how-to-build-3-passive-income-streams-in-90-days-starting-wi.html","title":"How to Build 3 Passive Income Streams in 90 Days Starting With $0","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260326-passive-income-7-passive-income-streams-that-made-real-peopl.html","title":"7 Passive Income Streams That Made Real People $500/Month — With Proof","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260326-passive-income-how-to-make-500-a-month-in-passive-income-fro.html","title":"How to Make $500 a Month in Passive Income From Home","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260327-best-of-passive-income-march-2026-unlock-financial-freedom-w.html","title":"Best of Passive Income: March 2026 — Unlock Financial Freedom","category":"Passive Income","date":"2026-03-27","affiliates":["amazon"]},
+    {"filename":"20260326-side-hustles-that-made-real-people-1-000-month-in-2025-no-ex.html","title":"Side Hustles That Made Real People $1,000+/Month in 2025","category":"Side Hustles","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260326-top-side-hustles-earning-2000-a-month-in-2025.html","title":"Top Side Hustles Earning $2,000 a Month in 2025","category":"Side Hustles","date":"2026-03-26","affiliates":["amazon"]},
+    {"filename":"20260327-can-startups-with-no-revenue-still-get-grants-grantwatch.html","title":"Can Startups With No Revenue Still Get Grants?","category":"Side Hustles","date":"2026-03-27","affiliates":["amazon"]},
+]
+
+_NETLIFY_BASE = "https://wheellsverse-bots.pages.dev/blog/"
+
+@app.get("/api/blog/articles")
+async def blog_articles():
+    """Blog Command Board — 20 live articles with per-article click attribution."""
+    from core.click_tracker import _load_clicks
+    raw_clicks = _load_clicks()
+    slug_clicks: Dict[str, int] = {}
+    for c in raw_clicks:
+        ref = c.get("referrer", "")
+        for art in _BLOG_ARTICLES:
+            slug = art["filename"].replace(".html", "")
+            if slug in ref:
+                slug_clicks[slug] = slug_clicks.get(slug, 0) + 1
+
+    cat_counts: Dict[str, int] = {}
+    for art in _BLOG_ARTICLES:
+        cat_counts[art["category"]] = cat_counts.get(art["category"], 0) + 1
+    top_category = max(cat_counts, key=lambda k: cat_counts[k]) if cat_counts else ""
+
+    all_affiliates: set = set()
+    for art in _BLOG_ARTICLES:
+        all_affiliates.update(art["affiliates"])
+
+    articles = []
+    for art in _BLOG_ARTICLES:
+        slug = art["filename"].replace(".html", "")
+        articles.append({
+            "filename":   art["filename"],
+            "title":      art["title"],
+            "category":   art["category"],
+            "date":       art["date"],
+            "slug":       slug,
+            "url":        _NETLIFY_BASE + art["filename"],
+            "affiliates": art["affiliates"],
+            "clicks":     slug_clicks.get(slug, 0),
+            "status":     "live",
+        })
+
+    return {
+        "articles":        articles,
+        "total":           len(articles),
+        "clicks_total":    len(raw_clicks),
+        "top_category":    top_category,
+        "active_programs": len(all_affiliates),
+        "category_counts": cat_counts,
+    }
+
+
+# ─── Reddit Blitz ─────────────────────────────────────────────────────────────
+
+_REDDIT_QUEUE_FILE = Path(__file__).parent.parent / "data" / "reddit_queue.json"
+
+
+def _load_reddit_queue() -> Dict:
+    if _REDDIT_QUEUE_FILE.exists():
+        try:
+            return json.loads(_REDDIT_QUEUE_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"queue": [], "generated_at": None, "total_posted": 0}
+
+
+def _save_reddit_queue(data: Dict):
+    _REDDIT_QUEUE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _REDDIT_QUEUE_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def _generate_reddit_post(title: str, category: str, url: str) -> Dict:
+    """GPT writes a Reddit self-post in personal-story format."""
+    cat_map = {
+        "Crypto": "crypto",
+        "Stocks": "investing",
+        "Passive Income": "passive_income",
+        "Side Hustles": "side_hustle",
+        "AI Tools": "ai_tools",
+    }
+    niche = cat_map.get(category, "passive_income")
+    prompt = (
+        f"Write a Reddit self-post for r/{niche} in an honest personal-story format.\n"
+        f"Topic: {title}\nBlog URL: {url}\n\n"
+        "Rules: No obvious promotion. Start with a personal experience. "
+        "Share 3 genuine insights. End with a question to spark discussion. "
+        "Mention the blog link naturally as 'I wrote more about this here: [link]'.\n"
+        "Return exactly this JSON (no other text):\n"
+        '{"reddit_title":"<post title max 200 chars>","body":"<self-post body 150-250 words>","niche":"' + niche + '"}'
+    )
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=500, temperature=0.75,
+        )
+        import re as _re
+        raw = resp.choices[0].message.content.strip()
+        raw = _re.sub(r"^```json?\s*", "", raw).rstrip("`").strip()
+        return json.loads(raw)
+    except Exception as e:
+        _add_log(f"Reddit post gen failed for {title[:40]}: {e}", "ERROR")
+        return {
+            "reddit_title": title[:200],
+            "body": f"I've been researching {title.lower()} and found some great insights. Here's what I learned:\n\n{url}\n\nWhat's your experience with this?",
+            "niche": niche,
+        }
+
+
+@app.get("/api/reddit/blitz/queue")
+async def reddit_blitz_queue():
+    data = _load_reddit_queue()
+    queue = data.get("queue", [])
+    arts = [{
+        "slug":          item["slug"],
+        "title":         item["title"],
+        "category":      item.get("category", ""),
+        "reddit_title":  item.get("reddit_title", ""),
+        "body":          item.get("body", ""),
+        "niche":         item.get("niche", ""),
+        "status":        item.get("status", "pending"),
+        "posted_at":     item.get("posted_at"),
+        "reddit_url":    item.get("reddit_url", ""),
+        "url":           item.get("url", ""),
+    } for item in queue]
+    return {
+        "articles":     arts,
+        "total":        len(arts),
+        "pending":      len([a for a in arts if a["status"] == "pending"]),
+        "posted":       len([a for a in arts if a["status"] == "posted"]),
+        "failed":       len([a for a in arts if a["status"] == "failed"]),
+        "generated_at": data.get("generated_at"),
+    }
+
+
+@app.post("/api/reddit/blitz/generate")
+async def reddit_blitz_generate(background_tasks: BackgroundTasks):
+    existing = {item["slug"] for item in _load_reddit_queue().get("queue", [])}
+    new_articles = [a for a in _BLOG_ARTICLES if a["filename"].replace(".html", "") not in existing]
+    if not new_articles:
+        return {"status": "already_generated", "message": "All articles already have Reddit posts."}
+
+    def _generate_all():
+        data = _load_reddit_queue()
+        for art in new_articles:
+            slug = art["filename"].replace(".html", "")
+            url  = _NETLIFY_BASE + art["filename"]
+            result = _generate_reddit_post(art["title"], art["category"], url)
+            data["queue"].append({
+                "slug":         slug,
+                "title":        art["title"],
+                "category":     art["category"],
+                "url":          url,
+                "reddit_title": result.get("reddit_title", art["title"]),
+                "body":         result.get("body", ""),
+                "niche":        result.get("niche", "passive_income"),
+                "status":       "pending",
+                "posted_at":    None,
+                "reddit_url":   "",
+            })
+            _save_reddit_queue(data)
+        data["generated_at"] = datetime.now().isoformat()
+        _save_reddit_queue(data)
+        _add_log(f"Reddit Blitz: {len(new_articles)} posts generated", "INFO")
+
+    background_tasks.add_task(_generate_all)
+    return {"status": "generating", "count": len(new_articles)}
+
+
+@app.post("/api/reddit/blitz/post-next")
+async def reddit_blitz_post_next(count: int = 1):
+    from core.reddit import get_reddit
+    reddit = get_reddit()
+    if not reddit.is_connected():
+        raise HTTPException(400, "Reddit not connected — add credentials to .env")
+
+    data = _load_reddit_queue()
+    pending = [item for item in data["queue"] if item["status"] == "pending"]
+    if not pending:
+        return {"status": "empty", "message": "No pending Reddit posts."}
+
+    results = []
+    for item in pending[:count]:
+        try:
+            posts = reddit.post_to_niche(
+                title=item["reddit_title"],
+                body=item["body"],
+                niche=item["niche"],
+                delay_seconds=5,
+            )
+            posted = [p for p in posts if p.get("status") == "posted"]
+            item["status"] = "posted" if posted else "failed"
+            item["posted_at"] = datetime.now().isoformat()
+            item["reddit_url"] = posted[0]["url"] if posted else ""
+            data["total_posted"] = data.get("total_posted", 0) + len(posted)
+            results.append({"slug": item["slug"], "status": item["status"], "url": item["reddit_url"]})
+            _add_log(f"Reddit posted: {item['title'][:50]}", "INFO")
+        except Exception as e:
+            item["status"] = "failed"
+            results.append({"slug": item["slug"], "status": "failed", "error": str(e)})
+            _add_log(f"Reddit post failed: {item['title'][:40]} — {e}", "ERROR")
+        _save_reddit_queue(data)
+
+    return {"posted": len([r for r in results if r["status"] == "posted"]),
+            "failed":  len([r for r in results if r["status"] == "failed"]),
+            "results": results}
+
+
+@app.post("/api/reddit/blitz/reset/{slug}")
+async def reddit_blitz_reset(slug: str):
+    data = _load_reddit_queue()
+    for item in data["queue"]:
+        if item["slug"] == slug:
+            item["status"] = "pending"
+            item["posted_at"] = None
+            item["reddit_url"] = ""
+            _save_reddit_queue(data)
+            return {"status": "reset", "slug": slug}
+    raise HTTPException(404, f"Slug not found: {slug}")
+
+
+def _reddit_scheduled_post(count: int = 1) -> None:
+    """Sync helper called by scheduler to post N pending Reddit posts."""
+    try:
+        from core.reddit import get_reddit
+        reddit = get_reddit()
+        if not reddit.is_connected():
+            _add_log("Reddit auto-post skipped — not connected", "WARNING")
+            return
+        data = _load_reddit_queue()
+        pending = [item for item in data["queue"] if item["status"] == "pending"]
+        if not pending:
+            _add_log("Reddit auto-post: no pending posts", "INFO")
+            return
+        for item in pending[:count]:
+            try:
+                posts = reddit.post_to_niche(title=item["reddit_title"], body=item["body"],
+                                             niche=item["niche"], delay_seconds=5)
+                posted = [p for p in posts if p.get("status") == "posted"]
+                item["status"] = "posted" if posted else "failed"
+                item["posted_at"] = datetime.now().isoformat()
+                item["reddit_url"] = posted[0]["url"] if posted else ""
+                _add_log(f"Reddit auto-post ✅ {item['title'][:50]}", "INFO")
+            except Exception as e:
+                item["status"] = "failed"
+                _add_log(f"Reddit auto-post ❌ {item['title'][:40]} — {e}", "ERROR")
+            _save_reddit_queue(data)
+    except Exception as e:
+        _add_log(f"Reddit scheduled post error: {e}", "ERROR")
+
+
+# ─── Google Search Console ────────────────────────────────────────────────────
+
+@app.get("/api/gsc/status")
+async def gsc_status():
+    from core.gsc import get_gsc
+    return get_gsc().get_status()
+
+
+@app.get("/api/gsc/data")
+async def gsc_data(days: int = 28):
+    from core.gsc import get_gsc
+    gsc = get_gsc()
+    if not gsc.is_connected():
+        return {"error": "GSC not connected", "setup": gsc.get_status().get("setup_steps", [])}
+    try:
+        return {
+            "summary":     gsc.get_summary(days=days),
+            "top_queries": gsc.get_top_queries(days=days),
+            "top_pages":   gsc.get_top_pages(days=days),
+            "property":    gsc.property_url,
+        }
+    except Exception as e:
+        raise HTTPException(500, f"GSC API error: {e}")
+
+
+@app.post("/api/gsc/submit-sitemap")
+async def gsc_submit_sitemap():
+    from core.gsc import get_gsc
+    gsc = get_gsc()
+    if not gsc.is_connected():
+        raise HTTPException(400, "GSC not connected")
+    try:
+        return gsc.submit_sitemap()
+    except Exception as e:
+        raise HTTPException(500, f"Sitemap submit error: {e}")
+
+
+# ─── Telegram Alerts ─────────────────────────────────────────────────────────
+
+@app.post("/api/telegram/alerts/daily")
+async def telegram_daily_alert():
+    """Send a daily revenue + activity summary to Telegram."""
+    from core.telegram import notify
+    from core.impact import get_earnings
+    try:
+        earn = get_earnings(days=1)
+        today_earned = earn.get("total_earned", 0)
+    except Exception:
+        today_earned = 0
+
+    try:
+        earn7 = get_earnings(days=7)
+        week_earned = earn7.get("total_earned", 0)
+    except Exception:
+        week_earned = 0
+
+    blog_dir = ROOT / "frontend" / "blog"
+    article_count = max(0, len(list(blog_dir.glob("*.html"))) - 1) if blog_dir.exists() else 0
+
+    try:
+        from core.click_tracker import _load_clicks
+        clicks_today = sum(1 for c in _load_clicks()
+                           if c.get("timestamp", "")[:10] == datetime.now().strftime("%Y-%m-%d"))
+    except Exception:
+        clicks_today = 0
+
+    msg = (
+        f"📊 <b>WheellsVerse Daily Summary</b>\n"
+        f"📅 {datetime.now().strftime('%B %d, %Y')}\n\n"
+        f"💰 Today's Earnings: <b>${today_earned:.2f}</b>\n"
+        f"📈 7-Day Total: <b>${week_earned:.2f}</b>\n"
+        f"🖱 Affiliate Clicks Today: <b>{clicks_today}</b>\n"
+        f"📝 Blog Articles Live: <b>{article_count}</b>\n\n"
+        f"🌐 <a href='https://wheellsverse-bots.pages.dev'>View Blog</a>"
+    )
+    ok = notify(msg)
+    if ok:
+        return {"status": "sent", "message": msg[:100]}
+    raise HTTPException(400, "Telegram not configured — add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env")
+
+
+@app.get("/api/telegram/alerts/config")
+async def telegram_alerts_config():
+    from core.telegram import get_notifier
+    status = get_notifier().get_status()
+    return {
+        **status,
+        "scheduled_alerts": [
+            {"event": "Daily Summary",     "time": "07:00",         "active": status.get("connected", False)},
+            {"event": "Publish Complete",  "time": "after publish", "active": True},
+            {"event": "New Blog Article",  "time": "on publish",    "active": True},
+        ],
+    }
+
+
+# ─── Blog Email Capture Injection ────────────────────────────────────────────
+
+_CAPTURE_FORM_HTML = """\
+<div style="background:linear-gradient(135deg,#0d0f14,#1a1a2e);border:1px solid #00d4ff;border-radius:12px;padding:28px 32px;margin:40px 0;text-align:center">
+  <h3 style="color:#00d4ff;margin:0 0 8px;font-size:1.3em">📬 Get Free Weekly Money Tips</h3>
+  <p style="color:#ccc;margin:0 0 20px;font-size:14px">Join thousands of readers getting passive income strategies every Monday. Free.</p>
+  <form id="wv-capture" onsubmit="wvSubscribe(event)" style="display:flex;gap:10px;max-width:420px;margin:0 auto;flex-wrap:wrap;justify-content:center">
+    <input type="email" id="wv-email" placeholder="your@email.com" required
+           style="flex:1;min-width:200px;padding:12px 16px;border-radius:8px;border:1px solid #00d4ff;background:#0d0f14;color:#fff;font-size:14px;outline:none">
+    <button type="submit" id="wv-btn"
+            style="background:#00d4ff;color:#000;padding:12px 22px;border-radius:8px;border:none;font-weight:700;cursor:pointer;font-size:14px">
+      Subscribe →
+    </button>
+  </form>
+  <p id="wv-msg" style="color:#00ff88;margin:12px 0 0;display:none;font-weight:600">✅ You are in! Check your inbox.</p>
+  <p style="color:#666;font-size:11px;margin:10px 0 0">No spam. Unsubscribe any time.</p>
+</div>
+<script>
+async function wvSubscribe(e){
+  e.preventDefault();
+  var btn=document.getElementById('wv-btn');
+  btn.textContent='...';btn.disabled=true;
+  try{
+    await fetch('/.netlify/functions/subscribe',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:document.getElementById('wv-email').value})
+    });
+    document.getElementById('wv-capture').style.display='none';
+    document.getElementById('wv-msg').style.display='block';
+  }catch(err){btn.textContent='Subscribe →';btn.disabled=false;}
+}
+</script>"""
+
+
+@app.post("/api/blog/inject-capture-form")
+async def inject_capture_form():
+    """Inject email capture form into all existing blog articles that don't have it yet."""
+    blog_dir = ROOT / "frontend" / "blog"
+    if not blog_dir.exists():
+        raise HTTPException(404, "Blog directory not found")
+
+    injected = []
+    skipped  = []
+    errors   = []
+
+    for html_file in blog_dir.glob("*.html"):
+        if html_file.name == "index.html":
+            continue
+        try:
+            content = html_file.read_text(encoding="utf-8")
+            if "wv-capture" in content or "wvSubscribe" in content:
+                skipped.append(html_file.name)
+                continue
+            # Inject before </footer> or before </body>
+            if "<footer" in content:
+                content = content.replace("<footer", _CAPTURE_FORM_HTML + "\n<footer", 1)
+            elif "</body>" in content:
+                content = content.replace("</body>", _CAPTURE_FORM_HTML + "\n</body>", 1)
+            else:
+                content += "\n" + _CAPTURE_FORM_HTML
+            html_file.write_text(content, encoding="utf-8")
+            injected.append(html_file.name)
+        except Exception as e:
+            errors.append(f"{html_file.name}: {e}")
+
+    _add_log(f"Email capture form injected into {len(injected)} articles", "INFO")
+    return {"injected": len(injected), "skipped": len(skipped), "errors": errors,
+            "files": injected}
+
+
+# ─── TikTok Blitz ─────────────────────────────────────────────────────────────
+
+_TIKTOK_BLITZ_FILE = Path(__file__).parent.parent / "data" / "tiktok_queue.json"
+
+
+def _load_tiktok_queue() -> Dict:
+    if _TIKTOK_BLITZ_FILE.exists():
+        try:
+            return json.loads(_TIKTOK_BLITZ_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"queue": [], "generated_at": None, "total_done": 0}
+
+
+def _save_tiktok_queue(data: Dict):
+    _TIKTOK_BLITZ_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _TIKTOK_BLITZ_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False))
+
+
+def _generate_tiktok_script(title: str, category: str, url: str,
+                             affiliates: List[str]) -> Dict:
+    """GPT generates a 60-second TikTok script for a blog article."""
+    aff_line = ""
+    if "coinbase" in affiliates:
+        aff_line += " Sign up to Coinbase and earn free Bitcoin."
+    if "robinhood" in affiliates:
+        aff_line += " Get a free stock on Robinhood."
+    if "amazon" in affiliates:
+        aff_line += " Shop the best tools on Amazon."
+    prompt = (
+        f"Write a punchy 60-second TikTok video script for this blog article.\n"
+        f"Title: {title}\nCategory: {category}\nURL: {url}\n"
+        f"Affiliate CTAs to weave in:{aff_line if aff_line else ' none'}\n\n"
+        "Return exactly this JSON (no other text):\n"
+        '{"hook":"<15-second attention-grabbing opening line>","script":"<45-second main content, 3-4 sentences>","caption":"<TikTok caption max 150 chars with emoji>","hashtags":["<tag1>","<tag2>","<tag3>","<tag4>","<tag5>"]}'
+    )
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=400, temperature=0.8,
+        )
+        import re as _re
+        raw = resp.choices[0].message.content.strip()
+        raw = _re.sub(r"^```json?\s*", "", raw).rstrip("`").strip()
+        return json.loads(raw)
+    except Exception as e:
+        _add_log(f"TikTok script gen failed for {title[:40]}: {e}", "ERROR")
+        return {
+            "hook": f"Did you know {title[:60]}?",
+            "script": f"Here's what you need to know about {title}. Visit the link in bio to read more.",
+            "caption": f"{title[:100]} #passiveincome #financetips",
+            "hashtags": ["#passiveincome", "#financetips", "#crypto", "#investing", "#sidehustle"],
+        }
+
+
+@app.get("/api/tiktok/blitz/queue")
+async def tiktok_blitz_queue():
+    data = _load_tiktok_queue()
+    queue = data.get("queue", [])
+    arts = []
+    for item in queue:
+        arts.append({
+            "slug":     item["slug"],
+            "title":    item["title"],
+            "category": item.get("category", ""),
+            "date":     item.get("date", ""),
+            "url":      item.get("url", ""),
+            "status":   item.get("status", "pending"),
+            "hook":     item.get("hook", ""),
+            "script":   item.get("script", ""),
+            "caption":  item.get("caption", ""),
+            "hashtags": item.get("hashtags", []),
+            "done_at":  item.get("done_at"),
+        })
+    pending = len([a for a in arts if a["status"] == "pending"])
+    done    = len([a for a in arts if a["status"] == "done"])
+    return {
+        "articles":    arts,
+        "total":       len(arts),
+        "pending":     pending,
+        "done":        done,
+        "generated_at": data.get("generated_at"),
+    }
+
+
+@app.post("/api/tiktok/blitz/generate")
+async def tiktok_blitz_generate(background_tasks: BackgroundTasks):
+    """Generate TikTok scripts for all 20 blog articles (background task)."""
+    existing = {item["slug"] for item in _load_tiktok_queue().get("queue", [])}
+    new_articles = [a for a in _BLOG_ARTICLES if a["filename"].replace(".html", "") not in existing]
+    if not new_articles:
+        return {"status": "already_generated", "message": "All articles already have scripts."}
+
+    def _generate_all():
+        data = _load_tiktok_queue()
+        for art in new_articles:
+            slug = art["filename"].replace(".html", "")
+            url  = _NETLIFY_BASE + art["filename"]
+            _add_log(f"TikTok script generating: {art['title'][:50]}", "INFO")
+            scripts = _generate_tiktok_script(art["title"], art["category"], url, art["affiliates"])
+            data["queue"].append({
+                "slug":     slug,
+                "title":    art["title"],
+                "category": art["category"],
+                "date":     art["date"],
+                "url":      url,
+                "status":   "pending",
+                "hook":     scripts.get("hook", ""),
+                "script":   scripts.get("script", ""),
+                "caption":  scripts.get("caption", ""),
+                "hashtags": scripts.get("hashtags", []),
+                "done_at":  None,
+            })
+            _save_tiktok_queue(data)
+        data["generated_at"] = datetime.now().isoformat()
+        _save_tiktok_queue(data)
+        _add_log(f"TikTok Blitz: {len(new_articles)} scripts generated", "INFO")
+
+    background_tasks.add_task(_generate_all)
+    return {"status": "generating", "count": len(new_articles),
+            "message": f"Generating {len(new_articles)} TikTok scripts in background."}
+
+
+@app.post("/api/tiktok/blitz/done/{slug}")
+async def tiktok_blitz_done(slug: str):
+    """Mark a script as recorded / done."""
+    data = _load_tiktok_queue()
+    for item in data["queue"]:
+        if item["slug"] == slug:
+            item["status"] = "done"
+            item["done_at"] = datetime.now().isoformat()
+            _save_tiktok_queue(data)
+            return {"status": "done", "slug": slug}
+    raise HTTPException(404, f"Slug not found: {slug}")
+
+
+@app.post("/api/tiktok/blitz/reset/{slug}")
+async def tiktok_blitz_reset(slug: str):
+    """Reset a done script back to pending."""
+    data = _load_tiktok_queue()
+    for item in data["queue"]:
+        if item["slug"] == slug:
+            item["status"] = "pending"
+            item["done_at"] = None
+            _save_tiktok_queue(data)
+            return {"status": "reset", "slug": slug}
+    raise HTTPException(404, f"Slug not found: {slug}")
+
+
+# ─── Publish Log ──────────────────────────────────────────────────────────────
+
+@app.get("/api/publish/log")
+async def get_publish_log(lines: int = 50):
+    """Return the last N lines from the daily publish log as structured entries."""
+    log_file = ROOT / "logs" / "daily_publish.log"
+    entries = []
+    if log_file.exists():
+        try:
+            raw_lines = log_file.read_text(encoding="utf-8", errors="ignore").splitlines()
+            for line in raw_lines[-lines:]:
+                # Format: 2026-03-27 08:00:01 [INFO] message
+                parts = line.split(" ", 3)
+                if len(parts) >= 4:
+                    entries.append({
+                        "ts":      parts[0] + " " + parts[1],
+                        "level":   parts[2].strip("[]"),
+                        "message": parts[3],
+                    })
+                elif line.strip():
+                    entries.append({"ts": "", "level": "INFO", "message": line.strip()})
+        except Exception as e:
+            entries = [{"ts": "", "level": "ERROR", "message": str(e)}]
+    # Article count from frontend/blog/
+    blog_dir = ROOT / "frontend" / "blog"
+    article_count = len(list(blog_dir.glob("*.html"))) - 1 if blog_dir.exists() else 0  # -1 for index.html
+    return {
+        "entries":       entries[-lines:],
+        "log_path":      str(log_file),
+        "article_count": max(0, article_count),
+        "topic_pool":    len([
+            ("specialized/74_passive_income_bot", ""), ("specialized/71_crypto_content_creator", ""),
+            ("specialized/72_stock_investing_content_creator", ""), ("specialized/78_side_hustle_affiliate_bot", ""),
+            ("specialized/77_ai_tools_affiliate_bot", ""), ("specialized/82_high_ticket_affiliate_bot", ""),
+        ]) * 4,  # approx pool size
+        "daily_publish_time": os.getenv("DAILY_PUBLISH_TIME", "08:00"),
+        "posts_per_run":      int(os.getenv("DAILY_POSTS_COUNT", "5")),
+    }
+
+
+# ─── Newsletter Bot ───────────────────────────────────────────────────────────
+
+_NEWSLETTER_LOG_FILE = Path(__file__).parent.parent / "data" / "newsletter_log.json"
+
+
+def _load_newsletter_log() -> List[Dict]:
+    if _NEWSLETTER_LOG_FILE.exists():
+        try:
+            return json.loads(_NEWSLETTER_LOG_FILE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return []
+
+
+@app.get("/api/newsletter/history")
+async def newsletter_history():
+    """Return last 10 newsletter drafts."""
+    return {"history": _load_newsletter_log()[-10:]}
+
+
+@app.post("/api/newsletter/generate")
+async def generate_newsletter():
+    """GPT writes a weekly digest email and creates a ConvertKit broadcast draft."""
+    from core.convertkit import get_convertkit
+    from core.impact import get_earnings
+
+    ck = get_convertkit()
+    # Revenue snapshot
+    try:
+        rev = get_earnings(days=7)
+        earned_7d = rev.get("total_earned", 0)
+    except Exception:
+        earned_7d = 0
+
+    # Top 5 latest articles
+    top_articles = _BLOG_ARTICLES[-5:]
+    art_lines = "\n".join(
+        f"- [{a['title']}]({_NETLIFY_BASE + a['filename']}) ({a['category']})"
+        for a in top_articles
+    )
+    today = datetime.now().strftime("%B %d, %Y")
+    prompt = (
+        f"Write a short, punchy email newsletter for WheellsVerse subscribers.\n"
+        f"Brand: WheellsVerse | Author: J.K. Blaze | Date: {today}\n"
+        f"Weekly affiliate revenue: ${earned_7d:.2f}\n"
+        f"Featured articles this week:\n{art_lines}\n\n"
+        "Write an HTML email body (no <html>/<head> tags — just <body> content) with:\n"
+        "1. A catchy subject line (first line, prefixed 'SUBJECT: ')\n"
+        "2. 2-3 short paragraphs with financial/crypto/passive income insights\n"
+        "3. 3 featured article links with 1-line descriptions\n"
+        "4. A CTA to join Robinhood or Coinbase\n"
+        "5. Branded footer\n"
+        "Keep it under 400 words. Use inline CSS. Make it look premium."
+    )
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1200, temperature=0.7,
+        )
+        raw = resp.choices[0].message.content.strip()
+    except Exception as e:
+        raise HTTPException(500, f"GPT error: {e}")
+
+    # Extract subject from first line
+    subject = f"WheellsVerse Weekly — {today}"
+    lines = raw.split("\n")
+    if lines[0].upper().startswith("SUBJECT:"):
+        subject = lines[0].split(":", 1)[1].strip()
+        raw = "\n".join(lines[1:]).strip()
+
+    # Create ConvertKit draft
+    ck_result = {}
+    ck_id = None
+    if ck.is_connected():
+        try:
+            ck_result = ck.create_broadcast(subject=subject, content=raw)
+            ck_id = ck_result.get("broadcast", {}).get("id")
+        except Exception as e:
+            ck_result = {"error": str(e)}
+
+    # Log it
+    log = _load_newsletter_log()
+    log.append({
+        "date":       today,
+        "subject":    subject,
+        "ck_id":      ck_id,
+        "ck_status":  "draft" if ck_id else ck_result.get("status", "not_created"),
+        "preview":    raw[:300],
+        "html":       raw,
+        "earned_7d":  earned_7d,
+    })
+    _NEWSLETTER_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _NEWSLETTER_LOG_FILE.write_text(json.dumps(log[-50:], indent=2, ensure_ascii=False))
+    _add_log(f"Newsletter generated: {subject}", "INFO")
+    return {
+        "subject":    subject,
+        "html":       raw,
+        "ck_id":      ck_id,
+        "ck_status":  ck_result.get("status", ""),
+        "ck_message": ck_result.get("message", ""),
+        "earned_7d":  earned_7d,
+    }
+
+
+# ─── Revenue Tracker V2 ───────────────────────────────────────────────────────
+
+@app.get("/api/revenue/v2")
+async def revenue_v2():
+    """Enhanced revenue endpoint: Impact + click tracker + sparklines + goal tracking."""
+    from core.impact import get_earnings, get_clicks
+    from core.click_tracker import _load_clicks
+
+    # Impact data
+    try:
+        earn30 = get_earnings(days=30)
+        earn7  = get_earnings(days=7)
+        earn1  = get_earnings(days=1)
+    except Exception as e:
+        earn30 = earn7 = earn1 = {"error": str(e), "total_earned": 0, "by_program": {}, "by_day": {}}
+
+    # Build 14-day daily chart
+    from datetime import timedelta
+    today = datetime.now()
+    daily_chart = []
+    by_day = earn30.get("by_day", {})
+    for i in range(13, -1, -1):
+        d = (today - timedelta(days=i)).strftime("%Y-%m-%d")
+        daily_chart.append({"date": d, "earned": round(by_day.get(d, 0.0), 2)})
+
+    # Goal tracking ($500/month target)
+    earned_7d     = earn7.get("total_earned", 0)
+    earned_today  = earn1.get("total_earned", 0)
+    projection_30 = round(earned_7d / 7 * 30, 2) if earned_7d > 0 else 0
+    goal          = float(os.getenv("REVENUE_GOAL", "500"))
+    goal_pct      = min(100, round(projection_30 / goal * 100, 1)) if goal > 0 else 0
+
+    # Click tracker — local affiliate link clicks per article
+    try:
+        raw_clicks = _load_clicks()
+        tracker_total = len(raw_clicks)
+        tracker_today = sum(1 for c in raw_clicks
+                            if c.get("timestamp", "")[:10] == today.strftime("%Y-%m-%d"))
+    except Exception:
+        tracker_total = tracker_today = 0
+
+    # Per-program cards with program metadata
+    PROGRAM_META = {
+        "coinbase":  {"icon": "₿",  "color": "#00d4ff", "target": 200},
+        "robinhood": {"icon": "📈", "color": "#00ff88", "target": 150},
+        "amazon":    {"icon": "📚", "color": "#ffd700", "target": 150},
+    }
+    by_program = earn30.get("by_program", {})
+    programs = []
+    for name, meta in PROGRAM_META.items():
+        earned = 0.0
+        for prog_name, amount in by_program.items():
+            if name.lower() in prog_name.lower():
+                earned += amount
+        pct = min(100, round(earned / meta["target"] * 100, 1)) if meta["target"] > 0 else 0
+        programs.append({
+            "name":    name.title(),
+            "icon":    meta["icon"],
+            "color":   meta["color"],
+            "earned":  round(earned, 2),
+            "target":  meta["target"],
+            "pct":     pct,
+        })
+
+    return {
+        "today":           round(earned_today, 2),
+        "this_week":       round(earned_7d, 2),
+        "this_month":      round(earn30.get("total_earned", 0), 2),
+        "projection_30d":  projection_30,
+        "goal":            goal,
+        "goal_pct":        goal_pct,
+        "daily_chart":     daily_chart,
+        "programs":        programs,
+        "tracker_clicks":  tracker_total,
+        "tracker_today":   tracker_today,
+        "pending":         earn30.get("pending", 0),
+        "locked":          earn30.get("locked", 0),
+        "top_programs":    by_program,
+        "fetched_at":      datetime.now().isoformat(),
+    }
+
+
+# ─── Content Performance ──────────────────────────────────────────────────────
+
+@app.post("/api/performance/refresh")
+async def refresh_performance(background_tasks: BackgroundTasks):
+    """Pull Twitter engagement metrics + click data → update intelligence.json."""
+    def _run():
+        from core.performance import refresh_performance as _refresh
+        result = _refresh()
+        _add_log(
+            f"Performance refreshed — {result['tweets_tracked']} tweets, "
+            f"{result['topics_scored']} topics scored",
+            "INFO",
+        )
+    background_tasks.add_task(_run)
+    return {"status": "refreshing"}
+
+
+@app.get("/api/performance")
+async def get_performance():
+    """Latest performance data — top topics, tweet metrics, affiliate clicks."""
+    from core.performance import _load_json, PERF_FILE, INTELLIGENCE_FILE
+    perf  = _load_json(PERF_FILE, {})
+    intel = _load_json(INTELLIGENCE_FILE, {})
+    return {
+        "top_topics":      intel.get("top_topics", []),
+        "topic_scores":    dict(list(sorted(
+            intel.get("topic_scores", {}).items(),
+            key=lambda x: x[1], reverse=True
+        ))[:20]),
+        "tweets_tracked":  len(perf.get("tweets", {})),
+        "affiliate_clicks": intel.get("affiliate_clicks", {}),
+        "updated_at":      intel.get("performance_updated", "never"),
+    }
+
+
+# ─── Ads Board ────────────────────────────────────────────────────────────────
+
+_ADS_FILE = ROOT / "data" / "ads_queue.json"
+
+def _load_ads() -> dict:
+    if _ADS_FILE.exists():
+        try:
+            return json.loads(_ADS_FILE.read_text())
+        except Exception:
+            pass
+    return {"queue": [], "updated_at": None}
+
+def _save_ads(data: dict):
+    _ADS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    data["updated_at"] = datetime.now().isoformat()
+    _ADS_FILE.write_text(json.dumps(data, indent=2))
+
+def _generate_ad_copy(product: str, ad_type: str, cta_url: str, tone: str, platform: str) -> str:
+    """Use OpenAI to generate platform-tailored ad copy."""
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY", "")
+    model = os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini")
+
+    platform_guides = {
+        "twitter":    "Max 280 chars. Hook first. Add 2-3 hashtags. Include CTA link.",
+        "reddit":     "No hard selling. Write as a helpful community post. 2-3 sentences + link. Use subreddit-style casual tone.",
+        "tiktok":     "Hook in first 3 words. Viral energy. 3-5 punchy lines + hashtags. Emoji-friendly.",
+        "facebook":   "Conversational. 2-4 sentences with a value proposition. End with a question or CTA.",
+        "instagram":  "Visual storytelling tone. 3-4 lines + 5-10 hashtags. Use emojis naturally.",
+        "linkedin":   "Professional. Insight-driven. 3-5 lines with stats or a bold claim. CTA at end.",
+        "forum":      "Helpful and non-promotional. Provide value first, mention product naturally. 3-4 sentences.",
+        "blog":       "SEO-friendly paragraph. 50-80 words. Include the CTA as an inline hyperlink anchor text.",
+        "email":      "Subject line + 3-4 sentence body. Personalized opener. Clear CTA button text at the end.",
+        "telegram":   "Short and punchy. 2-3 lines. Bold key phrase. Link at end.",
+    }
+
+    guide = platform_guides.get(platform, "Write a concise, compelling ad. Include CTA link.")
+    prompt = (
+        f"Write a {tone} ad for: {product}\n"
+        f"Ad type: {ad_type}\n"
+        f"CTA URL: {cta_url}\n"
+        f"Platform: {platform.upper()} — {guide}\n"
+        f"Brand: WheellsVerse (AI tools, crypto, passive income niche)\n"
+        f"Return ONLY the ad copy, no labels or explanation."
+    )
+
+    resp = openai.chat.completions.create(
+        model=model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=300,
+        temperature=0.85,
+    )
+    return resp.choices[0].message.content.strip()
+
+
+class AdsGenerateRequest(BaseModel):
+    product: str
+    ad_type: str = "affiliate"          # affiliate | product | content
+    cta_url: str = ""
+    tone: str = "bold"                  # bold | professional | casual | urgent
+    platforms: List[str] = ["twitter", "reddit", "tiktok", "facebook", "instagram", "linkedin", "forum", "blog", "email", "telegram"]
+
+
+class AdsDeployRequest(BaseModel):
+    slug: str
+
+
+@app.get("/api/ads/queue")
+async def get_ads_queue():
+    return _load_ads()
+
+
+@app.post("/api/ads/generate")
+async def ads_generate(req: AdsGenerateRequest, background_tasks: BackgroundTasks):
+    """Generate platform-specific ad copies in background."""
+    import uuid
+    batch_id = uuid.uuid4().hex[:8]
+
+    def _run():
+        d = _load_ads()
+        for platform in req.platforms:
+            slug = f"{batch_id}-{platform}"
+            try:
+                copy = _generate_ad_copy(req.product, req.ad_type, req.cta_url, req.tone, platform)
+                d["queue"].append({
+                    "slug":        slug,
+                    "batch_id":    batch_id,
+                    "product":     req.product,
+                    "ad_type":     req.ad_type,
+                    "platform":    platform,
+                    "cta_url":     req.cta_url,
+                    "tone":        req.tone,
+                    "copy":        copy,
+                    "status":      "ready",
+                    "deployed_at": None,
+                    "result":      None,
+                    "created_at":  datetime.now().isoformat(),
+                })
+                _save_ads(d)
+                _add_log(f"Ad generated [{platform}]: {req.product[:40]}", "INFO")
+            except Exception as e:
+                _add_log(f"Ad gen failed [{platform}]: {e}", "ERROR")
+
+    background_tasks.add_task(_run)
+    return {
+        "status":    "generating",
+        "batch_id":  batch_id,
+        "platforms": req.platforms,
+        "message":   f"Generating {len(req.platforms)} ads in background. Check /api/ads/queue.",
+    }
+
+
+@app.post("/api/ads/deploy")
+async def ads_deploy(req: AdsDeployRequest, background_tasks: BackgroundTasks):
+    """Deploy a single ad by slug to its target platform."""
+    d = _load_ads()
+    item = next((x for x in d["queue"] if x["slug"] == req.slug), None)
+    if not item:
+        raise HTTPException(404, "Ad not found")
+    if item["status"] == "deployed":
+        return {"status": "already_deployed"}
+
+    def _deploy(item, d):
+        platform = item["platform"]
+        copy     = item["copy"]
+        result   = {"status": "unsupported"}
+        try:
+            if platform == "twitter":
+                from core.twitter import get_twitter
+                tw = get_twitter()
+                if tw.is_connected():
+                    r = tw.post_tweet(copy[:280])
+                    result = {"status": "posted", "url": r.get("url", "")}
+                else:
+                    result = {"status": "not_connected"}
+
+            elif platform == "reddit":
+                from core.reddit import get_reddit
+                rd = get_reddit()
+                subreddit = "passive_income"
+                if rd.is_connected():
+                    r = rd.submit_text(subreddit, item["product"], copy)
+                    result = {"status": "posted", "url": r.get("url", "")}
+                else:
+                    result = {"status": "not_connected"}
+
+            elif platform == "telegram":
+                from core.telegram import get_notifier
+                tg = get_notifier()
+                if tg.is_connected():
+                    tg.send_message(copy)
+                    result = {"status": "sent"}
+                else:
+                    result = {"status": "not_connected"}
+
+            elif platform == "blog":
+                from core.publish_pipeline import get_publisher
+                pp = get_publisher()
+                r = pp.publish(item["product"] + " — Sponsored", copy, platforms=["blog"])
+                result = {"status": "published", "results": r}
+
+            elif platform == "email":
+                from core.convertkit import get_convertkit
+                ck = get_convertkit()
+                if ck.is_connected():
+                    r = ck.create_broadcast(
+                        subject=f"[Ad] {item['product']}",
+                        content=copy,
+                        description=f"Ad campaign — {item['product']}",
+                    )
+                    result = {"status": "draft_created", "id": r.get("broadcast", {}).get("id")}
+                else:
+                    result = {"status": "not_connected"}
+
+            else:
+                # Facebook, Instagram, LinkedIn, Forum, TikTok — copy ready, paste manually
+                result = {"status": "ready_to_post", "note": "Copy ready — paste manually or connect API"}
+
+        except Exception as e:
+            result = {"status": "error", "error": str(e)}
+            _add_log(f"Ad deploy failed [{platform}]: {e}", "ERROR")
+
+        # Update queue
+        d2 = _load_ads()
+        for x in d2["queue"]:
+            if x["slug"] == item["slug"]:
+                x["status"] = "deployed" if result.get("status") in ("posted", "sent", "published", "draft_created", "ready_to_post") else "failed"
+                x["deployed_at"] = datetime.now().isoformat()
+                x["result"] = result
+                break
+        _save_ads(d2)
+        _add_log(f"Ad deployed [{platform}]: {result['status']}", "INFO")
+
+    background_tasks.add_task(_deploy, item, d)
+    return {"status": "deploying", "slug": req.slug, "platform": item["platform"]}
+
+
+@app.post("/api/ads/deploy-all")
+async def ads_deploy_all(background_tasks: BackgroundTasks):
+    """Deploy all ready ads in the queue."""
+    d = _load_ads()
+    ready = [x for x in d["queue"] if x["status"] == "ready"]
+    if not ready:
+        return {"status": "nothing_to_deploy", "message": "No ready ads in queue."}
+
+    def _run_all():
+        for item in ready:
+            req = AdsDeployRequest(slug=item["slug"])
+            # inline deploy logic per item
+            platform = item["platform"]
+            copy     = item["copy"]
+            result   = {"status": "unsupported"}
+            try:
+                if platform == "twitter":
+                    from core.twitter import get_twitter
+                    tw = get_twitter()
+                    if tw.is_connected():
+                        r = tw.post_tweet(copy[:280])
+                        result = {"status": "posted", "url": r.get("url", "")}
+                    else:
+                        result = {"status": "not_connected"}
+                elif platform == "reddit":
+                    from core.reddit import get_reddit
+                    rd = get_reddit()
+                    if rd.is_connected():
+                        r = rd.submit_text("passive_income", item["product"], copy)
+                        result = {"status": "posted", "url": r.get("url", "")}
+                    else:
+                        result = {"status": "not_connected"}
+                elif platform == "telegram":
+                    from core.telegram import get_notifier
+                    tg = get_notifier()
+                    if tg.is_connected():
+                        tg.send_message(copy)
+                        result = {"status": "sent"}
+                    else:
+                        result = {"status": "not_connected"}
+                elif platform == "blog":
+                    from core.publish_pipeline import get_publisher
+                    pp = get_publisher()
+                    r = pp.publish(item["product"] + " — Ad", copy, platforms=["blog"])
+                    result = {"status": "published"}
+                elif platform == "email":
+                    from core.convertkit import get_convertkit
+                    ck = get_convertkit()
+                    if ck.is_connected():
+                        r = ck.create_broadcast(subject=f"[Ad] {item['product']}", content=copy)
+                        result = {"status": "draft_created"}
+                    else:
+                        result = {"status": "not_connected"}
+                else:
+                    result = {"status": "ready_to_post"}
+            except Exception as e:
+                result = {"status": "error", "error": str(e)}
+
+            d2 = _load_ads()
+            for x in d2["queue"]:
+                if x["slug"] == item["slug"]:
+                    x["status"] = "deployed" if result.get("status") in ("posted", "sent", "published", "draft_created", "ready_to_post") else "failed"
+                    x["deployed_at"] = datetime.now().isoformat()
+                    x["result"] = result
+                    break
+            _save_ads(d2)
+            _add_log(f"Batch ad deployed [{platform}]: {result['status']}", "INFO")
+
+    background_tasks.add_task(_run_all)
+    return {"status": "deploying_all", "count": len(ready)}
+
+
+@app.delete("/api/ads/queue")
+async def ads_clear_queue():
+    _save_ads({"queue": []})
+    return {"status": "cleared"}
+
+
+# ─── NarAI — General Overseer AI ─────────────────────────────────────────────
+
+_narai = None
+
+def _get_narai():
+    global _narai
+    if _narai is None:
+        try:
+            from bots.narai.bot import get_narai
+            _narai = get_narai()
+        except Exception as e:
+            logger.error(f"NarAI init failed: {e}")
+    return _narai
+
+
+class NarAICommandRequest(BaseModel):
+    text: str
+
+class NarAISkillRequest(BaseModel):
+    name: str
+    description: str
+
+class NarAIRunBotRequest(BaseModel):
+    bot: Optional[str] = None
+    pipeline: Optional[str] = None
+
+class NarAIVoiceChatRequest(BaseModel):
+    text: str
+
+class NarAILearnHumanRequest(BaseModel):
+    question: str
+    answer: str
+
+
+@app.get("/api/narai/status")
+async def narai_status():
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    return narai.get_status()
+
+
+@app.get("/api/narai/log")
+async def narai_log(limit: int = 50):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    return {"log": narai.get_activity_log(limit=limit)}
+
+
+@app.get("/api/narai/report")
+async def narai_report():
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    return narai.get_report()
+
+
+@app.get("/api/narai/skills")
+async def narai_skills():
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    return narai.get_skills()
+
+
+@app.post("/api/narai/diagnostic")
+async def narai_diagnostic(background_tasks: BackgroundTasks):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    background_tasks.add_task(narai.execute, action="diagnostic")
+    _add_log("NarAI: diagnostic triggered", "INFO")
+    return {"status": "diagnostic_started"}
+
+
+@app.post("/api/narai/analyze")
+async def narai_analyze(background_tasks: BackgroundTasks):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    background_tasks.add_task(narai.execute, action="analyze")
+    _add_log("NarAI: deep analysis triggered", "INFO")
+    return {"status": "analysis_started"}
+
+
+@app.post("/api/narai/fix")
+async def narai_fix(background_tasks: BackgroundTasks):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    background_tasks.add_task(narai.execute, action="fix")
+    _add_log("NarAI: auto-fix triggered", "INFO")
+    return {"status": "fix_started"}
+
+
+@app.post("/api/narai/command")
+async def narai_command(req: NarAICommandRequest, background_tasks: BackgroundTasks):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    # Run synchronously so we get the response back
+    try:
+        response = narai.run(action="command", text=req.text)
+        return {"response": response, "mood": narai.get_mood()}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/create_skill")
+async def narai_create_skill(req: NarAISkillRequest, background_tasks: BackgroundTasks):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    background_tasks.add_task(narai.execute, action="create_skill", name=req.name, description=req.description)
+    return {"status": "skill_creation_started", "skill": req.name}
+
+
+@app.post("/api/narai/run_bot")
+async def narai_run_bot(req: NarAIRunBotRequest, background_tasks: BackgroundTasks):
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    if req.bot:
+        background_tasks.add_task(narai.execute, action="run_bot", bot=req.bot)
+        return {"status": "bot_triggered", "bot": req.bot}
+    if req.pipeline:
+        background_tasks.add_task(narai.execute, action="run_pipeline", pipeline=req.pipeline)
+        return {"status": "pipeline_triggered", "pipeline": req.pipeline}
+    raise HTTPException(status_code=400, detail="Provide 'bot' or 'pipeline'")
+
+
+@app.post("/api/narai/voice_chat")
+async def narai_voice_chat(req: NarAIVoiceChatRequest):
+    """Live voice conversation — synchronous, short spoken reply."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    try:
+        result = narai.voice_chat(req.text)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class NarAITTSRequest(BaseModel):
+    text: str
+    voice: str = "nova"
+    speed: float = 0.88
+
+
+@app.post("/api/narai/tts")
+async def narai_tts(req: NarAITTSRequest):
+    """Convert text to speech via OpenAI TTS-HD."""
+    import io
+    text = req.text.strip()[:600]
+    if not text:
+        raise HTTPException(status_code=400, detail="No text provided")
+    try:
+        from openai import OpenAI as _OAI
+        client = _OAI(api_key=os.getenv("OPENAI_API_KEY"))
+        audio = client.audio.speech.create(
+            model="tts-1", voice=req.voice, input=text,
+            speed=max(0.25, min(4.0, req.speed)),
+        )
+        b = audio.content
+        return StreamingResponse(io.BytesIO(b), media_type="audio/mpeg",
+            headers={"Content-Length": str(len(b)), "Cache-Control": "no-store"})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS failed: {e}")
+
+
+class NarAISpeakRequest(BaseModel):
+    text: str   # the user's spoken input
+
+
+@app.post("/api/narai/speak")
+async def narai_speak(req: NarAISpeakRequest):
+    """
+    Single-call endpoint: user text → NarAI reply → TTS audio (MP3).
+    Returns audio/mpeg directly so the browser only makes ONE request.
+    Also returns NarAI's text reply and mood in response headers.
+    """
+    import io, urllib.parse
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    # Step 1: generate conversational reply (Claude)
+    try:
+        result = narai.voice_chat(req.text)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"NarAI reply failed: {e}")
+
+    reply_text = result.get("response", "").strip()[:600]
+    mood       = result.get("mood", {})
+
+    # Step 2: generate TTS audio from that reply
+    try:
+        from openai import OpenAI as _OAI
+        client = _OAI(api_key=os.getenv("OPENAI_API_KEY"))
+        audio = client.audio.speech.create(
+            model="tts-1", voice="nova", input=reply_text, speed=0.9,
+        )
+        audio_bytes = audio.content
+    except Exception:
+        # TTS failed — return text-only JSON so frontend can show the reply
+        return JSONResponse({"response": reply_text, "mood": mood, "audio": False})
+
+    # Encode reply text into header (URL-encoded, safe for HTTP)
+    safe_text  = urllib.parse.quote(reply_text, safe='')
+    safe_mood  = urllib.parse.quote(str(mood.get("mood","curious")), safe='')
+    safe_emoji = urllib.parse.quote(str(mood.get("emoji","🌟")), safe='')
+
+    return StreamingResponse(
+        io.BytesIO(audio_bytes),
+        media_type="audio/mpeg",
+        headers={
+            "Content-Length":      str(len(audio_bytes)),
+            "Cache-Control":       "no-store",
+            "X-NarAI-Text":        safe_text,
+            "X-NarAI-Mood":        safe_mood,
+            "X-NarAI-Emoji":       safe_emoji,
+            "X-NarAI-Energy":      str(mood.get("energy", 0.85)),
+        },
+    )
+
+
+@app.get("/api/narai/greeting")
+async def narai_greeting():
+    """NarAI generates a unique, memory-aware opening greeting for this session."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    try:
+        return narai.get_greeting()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/narai/ask_human")
+async def narai_ask_human():
+    """NarAI picks her next humanity question to ask the user."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    try:
+        return narai.ask_about_humanity()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/learn_human")
+async def narai_learn_human(req: NarAILearnHumanRequest):
+    """Store user's answer and get NarAI's reflection."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    try:
+        return narai.learn_from_human(req.question, req.answer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
@@ -1622,6 +4362,30 @@ def launch(port: int = 5050, preload: bool = True):
             _add_log(f"Decision engine scheduled every {de_interval}min", "INFO")
         except Exception as e:
             _add_log(f"Decision engine scheduler registration failed: {e}", "WARNING")
+
+        # Schedule daily auto-publish
+        try:
+            import schedule as _sched
+            import threading as _threading
+            from scripts.daily_publish import run_daily_publish
+
+            publish_time = os.getenv("DAILY_PUBLISH_TIME", "08:00")
+            _sched.every().day.at(publish_time).do(
+                lambda: (_add_log("Daily publish started", "INFO"),
+                         run_daily_publish(),
+                         _add_log("Daily publish complete", "INFO"))
+            )
+
+            def _sched_loop():
+                while True:
+                    _sched.run_pending()
+                    import time as _t; _t.sleep(30)
+
+            t = _threading.Thread(target=_sched_loop, daemon=True, name="daily-publisher")
+            t.start()
+            _add_log(f"Daily publish scheduled at {publish_time} every day", "INFO")
+        except Exception as e:
+            _add_log(f"Daily publish scheduler failed: {e}", "WARNING")
 
     uvicorn.run(
         "core.api:app",

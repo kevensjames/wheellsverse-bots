@@ -6,6 +6,7 @@ Purpose: Generate comprehensive keyword lists with search intent, difficulty est
          content ideas, and cluster mapping for SEO/PPC campaigns.
 """
 
+import os
 import sys
 import json
 from pathlib import Path
@@ -79,7 +80,7 @@ Top 5 keywords with highest affiliate/CPC potential
 Use realistic search volume estimates for 2024-2025.
 Mark search intent as: Informational | Navigational | Commercial | Transactional"""
 
-        research = self.ai(prompt, system=system, max_tokens=3000)
+        research = self.ai(prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST","gpt-4o-mini"), max_tokens=3000)
 
         # Also generate JSON version for programmatic use
         json_prompt = f"""Based on this seed keyword: "{seed_keyword}"

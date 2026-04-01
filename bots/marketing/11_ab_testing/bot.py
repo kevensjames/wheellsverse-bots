@@ -1,70 +1,136 @@
 #!/usr/bin/env python3
-"""ABTestingBot — AB testing for marketing"""
+"""
+Bot #11 — A/B Testing Generator
+Category: Marketing
+Purpose: Generate A/B test variations for headlines, CTAs, email subjects, ad copy,
+         and landing page elements with hypothesis, metrics, and analysis framework.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class ABTestingBot(BaseBot):
+
     def __init__(self):
         super().__init__("11_ab_testing", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "email subject line optimization")
-        self.logger.info("Running 11_ab_testing: " + str(topic))
+    def run(self, element: str = None, context: str = None,
+            num_variations: int = None, goal: str = None, **kwargs):
+
+        cfg = self.config
+        element        = element or cfg.get("element", "headline")
+        context        = context or cfg.get("context", "WheellsVerse AI automation platform landing page")
+        num_variations = num_variations or cfg.get("num_variations", 5)
+        goal           = goal or cfg.get("goal", "increase click-through rate")
+
+        self.logger.info(f"Generating A/B test for {element}: {context}")
 
         system = (
-            "You are a world-class expert in AB testing for marketing. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a conversion rate optimization (CRO) expert with a background in "
+            "behavioral psychology and data-driven marketing. You design A/B tests that "
+            "isolate one variable at a time, generate statistically meaningful insights, "
+            "and follow scientific best practices for experiment design. You give "
+            "exactly the test copy/content needed — not vague suggestions."
         )
 
-        task_title = "11_ab_testing".replace("_", " ").title()
+        element_guides = {
+            "headline":     "Test different value propositions, emotional hooks, specificity levels, question vs statement formats",
+            "cta_button":   "Test button text, urgency, benefit-focused vs action-focused copy, first vs second person",
+            "email_subject":"Test curiosity gaps, personalization, length, emojis, numbers, questions vs statements",
+            "ad_copy":      "Test pain-point vs aspiration angles, social proof, specificity, tone",
+            "landing_page": "Test hero sections, social proof placement, pricing presentation, form length",
+            "pricing":      "Test price anchoring, plan names, feature emphasis, discount framing",
+        }
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        guidance = element_guides.get(element.lower(), "Test copy angles, tone, specificity, and emotional triggers")
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+        prompt = f"""Design a complete A/B testing framework for:
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+ELEMENT TO TEST: {element}
+CONTEXT/PAGE: {context}
+OPTIMIZATION GOAL: {goal}
+NUMBER OF VARIATIONS: {num_variations}
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## HYPOTHESIS
+Write a clear hypothesis: "We believe that [change] will [expected outcome] because [rationale]."
 
-Be specific, professional, and immediately actionable."""
+## CONTROL (VERSION A)
+Describe the current/baseline version and its assumed performance.
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+## TEST VARIATIONS
+Generate {num_variations} distinct test variations with the actual copy to use:
 
-        from datetime import datetime
-        output_text = (
-            "# ABTestingBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 11_ab_testing Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"11_ab_testing_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+For each variation:
+**Variation [Letter] — [Angle Name]**
+- **Exact copy:** "[The actual text to test]"
+- **Psychological trigger:** [urgency/curiosity/social proof/authority/etc.]
+- **Why this might win:** [specific reasoning based on CRO principles]
+
+Testing guidance: {guidance}
+
+## TECHNICAL SETUP
+- **Test type:** A/B or Multivariate recommendation
+- **Minimum sample size:** Estimate (assume 3% baseline conversion, 95% confidence, 10% uplift target)
+- **Recommended duration:** Minimum run time
+- **What to measure:** Exact events/goals in GA4 or ad platform
+- **Segmentation:** Any audience splits to consider
+
+## SUCCESS METRICS
+| Metric Type | Metric | Target |
+|-------------|--------|--------|
+| Primary KPI | [metric] | [target] |
+| Secondary | [metrics] | |
+| Guardrail | [what not to harm] | |
+
+## WHEN TO CALL A WINNER
+Statistical significance rules and minimum thresholds.
+
+## ANALYSIS TEMPLATE
+A fill-in template to document results after the test completes.
+
+## NEXT TEST IDEAS
+3 follow-up experiments based on expected learnings."""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_el = element.replace(" ", "_")[:20]
+
+        output = f"""# A/B Test Plan: {element.title()}
+**Context:** {context}
+**Goal:** {goal}
+**Variations:** {num_variations}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse A/B Testing Bot*
+"""
+        path = self.save_output(output, f"abtest_{safe_el}_{ts}.md", ext="md")
+        self.logger.info(f"A/B test plan saved → {path}")
+        return {"file": str(path), "element": element, "variations": num_variations}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="AB testing for marketing")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="A/B Testing Generator")
+    parser.add_argument("--element",    type=str, default="headline",
+                        choices=["headline", "cta_button", "email_subject", "ad_copy", "landing_page", "pricing"])
+    parser.add_argument("--context",    type=str, default=None)
+    parser.add_argument("--variations", type=int, default=5)
+    parser.add_argument("--goal",       type=str, default="increase click-through rate")
     args = parser.parse_args()
     bot = ABTestingBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(element=args.element, context=args.context,
+                         num_variations=args.variations, goal=args.goal)
+    print(f"\n✅ A/B Test Plan: {result['file']}")

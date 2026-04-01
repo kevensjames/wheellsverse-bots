@@ -43,7 +43,7 @@ pipelines:
       - social_media/44_trend_scraper
       - social_media/41_viral_analyzer
       - social_media/42_caption_generator
-      - social_media/14_hashtag_generator
+      - marketing/14_hashtag_generator
       - social_media/37_auto_post
       - social_media/38_content_scheduler
 
@@ -91,3 +91,124 @@ pipelines:
       - customer_support/31_ticket_classifier
       - customer_support/29_auto_reply_email
       - customer_support/30_faq_chatbot
+
+  # ── REVENUE OPTIMIZATION PIPELINES ─────────────────────────────────────────
+
+  affiliate_revenue:
+    name: Affiliate Revenue Engine
+    description: "Layer 1 — crypto + stocks + AI tools + side hustles content with affiliate links -> SEO -> publish"
+    bots:
+      - specialized/71_crypto_content_creator
+      - specialized/72_stock_investing_content_creator
+      - specialized/74_passive_income_bot
+      - specialized/77_ai_tools_affiliate_bot
+      - specialized/78_side_hustle_affiliate_bot
+      - marketing/02_seo_optimizer
+      - marketing/16_blog_publisher
+
+  email_funnel:
+    name: Email Monetization Funnel
+    description: "Layer 2 — passive income content -> newsletter -> conversion optimizer -> outreach"
+    bots:
+      - specialized/74_passive_income_bot
+      - marketing/73_passive_income_strategy
+      - marketing/17_newsletter_generator
+      - marketing/18_conversion_optimizer
+      - marketing/15_outreach_automation
+
+  traffic_authority:
+    name: Traffic and Authority Engine
+    description: "Layer 3 — keyword research -> long-form SEO blog -> viral social -> affiliate boosters -> publish"
+    bots:
+      - marketing/07_keyword_scraper
+      - marketing/13_trend_analyzer
+      - social_media/44_trend_scraper
+      - writing/46_blog_writer
+      - marketing/02_seo_optimizer
+      - writing/53_proofreader
+      - social_media/41_viral_analyzer
+      - social_media/42_caption_generator
+      - specialized/76_crypto_affiliate_booster
+      - marketing/16_blog_publisher
+
+  full_revenue_blast:
+    name: Full Revenue Blast
+    description: "All three layers in one daily run — maximum content output with affiliate monetization + SEO + email"
+    bots:
+      - social_media/44_trend_scraper
+      - marketing/07_keyword_scraper
+      - specialized/71_crypto_content_creator
+      - specialized/72_stock_investing_content_creator
+      - specialized/74_passive_income_bot
+      - specialized/77_ai_tools_affiliate_bot
+      - specialized/78_side_hustle_affiliate_bot
+      - marketing/73_passive_income_strategy
+      - marketing/02_seo_optimizer
+      - social_media/42_caption_generator
+      - marketing/17_newsletter_generator
+      - marketing/18_conversion_optimizer
+      - marketing/16_blog_publisher
+      - marketing/10_analytics_reporter
+
+  # ── SEO AUTOPILOT PIPELINES ──────────────────────────────────────────────────
+
+  seo_daily:
+    name: SEO Daily Run
+    description: "Keyword research → content writing → GEO optimize → publish → rank track"
+    bots:
+      - seo_autopilot/111_keyword_research
+      - seo_autopilot/112_content_writer
+      - seo_autopilot/114_geo_optimizer
+      - seo_autopilot/113_publisher
+      - seo_autopilot/115_rank_tracker
+
+  seo_weekly:
+    name: SEO Weekly Audit
+    description: "Competitor analysis → backlink scan → content calendar → AEO audit"
+    bots:
+      - seo_command/119_competitor_analysis
+      - seo_autopilot/116_backlink_monitor
+      - seo_command/118_content_calendar
+      - aeo/102_aeo_audit
+
+  aeo_optimize:
+    name: AEO Optimization Run
+    description: "AEO audit → rewrite content for AI engines → track score progress"
+    bots:
+      - aeo/102_aeo_audit
+      - aeo/103_aeo_editor
+      - aeo/104_aeo_tracker
+
+  prompt_intelligence:
+    name: Prompt Intelligence
+    description: "Analyze brand visibility in AI responses → generate content fix plan"
+    bots:
+      - prompt_intel/105_prompt_analysis
+      - prompt_intel/106_prompt_fix
+      - seo_autopilot/112_content_writer
+
+  # ── AGENT WORKFORCE PIPELINES ────────────────────────────────────────────────
+
+  agent_ops:
+    name: Agent Operations
+    description: "Analytics review → PM board update → ops routing"
+    bots:
+      - agent_workforce/101_analytics_bot
+      - agent_workforce/100_pm_bot
+      - agent_workforce/97_ops_bot
+
+  full_seo_blast:
+    name: Full SEO Blast
+    description: "Complete SEO pipeline — keywords → content → GEO → AEO → publish → rank → competitor intel"
+    bots:
+      - seo_autopilot/111_keyword_research
+      - seo_command/117_keyword_tracker
+      - seo_command/119_competitor_analysis
+      - seo_autopilot/112_content_writer
+      - seo_autopilot/114_geo_optimizer
+      - aeo/103_aeo_editor
+      - seo_autopilot/113_publisher
+      - seo_autopilot/115_rank_tracker
+      - seo_autopilot/116_backlink_monitor
+      - aeo/102_aeo_audit
+      - agent_workforce/101_analytics_bot

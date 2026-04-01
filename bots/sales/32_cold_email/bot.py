@@ -1,70 +1,154 @@
 #!/usr/bin/env python3
-"""ColdEmailBot — cold email sequences"""
+"""
+Bot #32 — Cold Email Sequence Builder
+Category: Sales
+Purpose: Generate personalized, high-converting cold email sequences with
+         subject lines, body copy, follow-ups, and reply handling.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class ColdEmailBot(BaseBot):
+
     def __init__(self):
         super().__init__("32_cold_email", "sales")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "CEO of SaaS startup outreach")
-        self.logger.info("Running 32_cold_email: " + str(topic))
+    def run(self, prospect_type: str = None, your_offer: str = None,
+            sequence_length: int = None, goal: str = None,
+            pain_point: str = None, **kwargs):
+
+        cfg = self.config
+        prospect_type   = prospect_type or cfg.get("prospect_type", "founder of small SaaS company (10-50 employees)")
+        your_offer      = your_offer or cfg.get("your_offer", "AI automation tools that reduce manual work by 80%")
+        sequence_length = sequence_length or cfg.get("sequence_length", 5)
+        goal            = goal or cfg.get("goal", "book a 20-minute discovery call")
+        pain_point      = pain_point or cfg.get("pain_point", "spending too much time on repetitive tasks")
+
+        self.logger.info(f"Building cold email sequence for: {prospect_type}")
 
         system = (
-            "You are a world-class expert in cold email sequences. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a sales development expert and cold email specialist who consistently "
+            "achieves 15-25% reply rates. You know that cold email success comes from "
+            "relevance, brevity, and a frictionless ask. Your emails never start with "
+            "'I hope this email finds you well.' You open with something specific to them, "
+            "offer real value immediately, and make a small, easy-to-say-yes-to request. "
+            "You treat cold email as starting a conversation, not closing a sale."
         )
 
-        task_title = "32_cold_email".replace("_", " ").title()
+        prompt = f"""Create a {sequence_length}-email cold email sequence targeting:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+PROSPECT: {prospect_type}
+YOUR OFFER: {your_offer}
+THEIR PAIN POINT: {pain_point}
+GOAL: {goal}
+SENDER: WheellsVerse — AI automation solutions
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+## SEQUENCE STRATEGY
+- **Hook:** What angle makes this feel relevant, not generic?
+- **Offer frame:** How to present {your_offer} as solving {pain_point}
+- **Ask:** The easiest possible yes that moves toward {goal}
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## THE SEQUENCE
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+For each email provide:
 
-Be specific, professional, and immediately actionable."""
+---
+### EMAIL [N] — Day [X]: [Angle/Theme]
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+**Subject Line (3 options — A/B/C):**
+A: [Option]
+B: [Option]
+C: [Option]
 
-        from datetime import datetime
-        output_text = (
-            "# ColdEmailBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 32_cold_email Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"32_cold_email_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+**Preview Text:** [Under 90 chars]
+
+**Body:**
+```
+[Full email — keep under 120 words]
+```
+
+**Send Time:** [Best day and time]
+**Stop Condition:** [What triggers this email to NOT send]
+
+---
+
+[Emails: Initial pitch, Follow-up 1 (new angle), Follow-up 2 (social proof), Follow-up 3 (objection handler), Final "break-up" email]
+
+## PERSONALIZATION RESEARCH CHECKLIST
+Before sending, find these 5 data points about each prospect:
+1. [Research point]
+2. [Research point]
+...
+[Use these to customize email 1 specifically]
+
+## REPLY HANDLING SCRIPTS
+When they reply with:
+
+**"Not interested"** →
+[Short, gracious response that leaves door open]
+
+**"Tell me more"** →
+[Response with next step + value proof]
+
+**"I'm busy right now"** →
+[Response + specific follow-up timing]
+
+**"How much does it cost?"** →
+[Response that qualifies before revealing price]
+
+**"We already have something"** →
+[Response that differentiates without badmouthing]
+
+## SEQUENCE METRICS
+Expected benchmarks for a well-optimized sequence like this:
+| Metric | Industry Average | Target for This Sequence |
+| Open Rate | | |
+| Reply Rate | | |
+| Positive Reply Rate | | |
+| Meeting Booked Rate | | |"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_prospect = "".join(c if c.isalnum() else "_" for c in prospect_type[:25])
+
+        output = f"""# Cold Email Sequence: {prospect_type}
+**Offer:** {your_offer}
+**Goal:** {goal}
+**Emails:** {sequence_length}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Cold Email Bot*
+"""
+        path = self.save_output(output, f"cold_email_{safe_prospect}_{ts}.md", ext="md")
+        self.logger.info(f"Cold email sequence saved → {path}")
+        return {"file": str(path), "prospect": prospect_type, "emails": sequence_length}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="cold email sequences")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Cold Email Sequence Builder")
+    parser.add_argument("--prospect", type=str, default=None)
+    parser.add_argument("--offer",    type=str, default=None)
+    parser.add_argument("--emails",   type=int, default=5)
+    parser.add_argument("--goal",     type=str, default="book a call")
+    parser.add_argument("--pain",     type=str, default=None)
     args = parser.parse_args()
     bot = ColdEmailBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(prospect_type=args.prospect, your_offer=args.offer,
+                         sequence_length=args.emails, goal=args.goal,
+                         pain_point=args.pain)
+    print(f"\n✅ Cold Email Sequence: {result['file']}")

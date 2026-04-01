@@ -1,70 +1,149 @@
 #!/usr/bin/env python3
-"""OutreachBot — cold outreach templates"""
+"""
+Bot #15 — Outreach Automation Builder
+Category: Marketing
+Purpose: Generate multi-touch outreach sequences (cold email, LinkedIn DM, follow-ups)
+         for partnerships, sales, PR, or guest posting — personalized and conversion-focused.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class OutreachBot(BaseBot):
+
     def __init__(self):
         super().__init__("15_outreach_automation", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Startup founders cold email")
-        self.logger.info("Running 15_outreach_automation: " + str(topic))
+    def run(self, outreach_type: str = None, target_role: str = None,
+            your_offer: str = None, num_touchpoints: int = None,
+            channel: str = None, **kwargs):
+
+        cfg = self.config
+        outreach_type   = outreach_type or cfg.get("outreach_type", "partnership")
+        target_role     = target_role or cfg.get("target_role", "marketing director at SaaS company")
+        your_offer      = your_offer or cfg.get("your_offer", "AI automation tools that save 10+ hours/week")
+        num_touchpoints = num_touchpoints or cfg.get("num_touchpoints", 4)
+        channel         = channel or cfg.get("channel", "email")
+
+        self.logger.info(f"Building {channel} outreach sequence for {outreach_type}: {target_role}")
 
         system = (
-            "You are a world-class expert in cold outreach templates. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a growth marketer and outreach expert who has booked hundreds of "
+            "meetings through cold outreach. You know that the best outreach feels like "
+            "a warm, personal message — not a sales pitch. You lead with value, reference "
+            "specific details, keep it short, and make the ask frictionless. "
+            "You never use generic templates — every touch feels custom."
         )
 
-        task_title = "15_outreach_automation".replace("_", " ").title()
+        outreach_types = {
+            "partnership":  "co-promotion, affiliate, or joint venture partnership",
+            "sales":        "B2B sales outreach to book a demo or discovery call",
+            "pr":           "media/press outreach for coverage or feature",
+            "guest_post":   "guest blogging or content collaboration request",
+            "influencer":   "influencer collaboration or sponsored content",
+            "job":          "job application or freelance opportunity outreach",
+            "investor":     "fundraising or investor introduction",
+        }
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        outreach_label = outreach_types.get(outreach_type, outreach_type)
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+        prompt = f"""Build a complete {num_touchpoints}-touch outreach sequence for:
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+OUTREACH TYPE: {outreach_label}
+TARGET ROLE/PERSON: {target_role}
+YOUR OFFER/VALUE: {your_offer}
+CHANNEL: {channel.upper()}
+BRAND: WheellsVerse (AI automation tools for entrepreneurs)
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## OUTREACH STRATEGY
+Before the sequence, define:
+- **The Hook:** What will make this person stop and read?
+- **The Value-First Approach:** What can we give before asking?
+- **The Personalization Angle:** What to research before sending each message
 
-Be specific, professional, and immediately actionable."""
+## THE SEQUENCE
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+For each touchpoint, provide:
 
-        from datetime import datetime
-        output_text = (
-            "# OutreachBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 15_outreach_automation Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"15_outreach_automation_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+---
+### TOUCH {"{n}"}: [Day Sent] — [Objective of this touch]
+
+**Subject Line (email) / Opening Line (DM):**
+[Exact copy — specific and personalized]
+
+**Body:**
+[Full message — short, punchy, clear ask]
+
+**CTA:**
+[One clear, low-friction ask]
+
+**Follow-up Notes:**
+[What to reference in the next touch if no reply]
+
+---
+[Repeat for all {num_touchpoints} touchpoints]
+
+## PERSONALIZATION CHECKLIST
+5 things to research about the prospect before sending touch 1
+
+## OBJECTION RESPONSES
+Quick replies to the 3 most common responses:
+1. "Not interested right now" →
+2. "Can you send more info?" →
+3. "Who are you again?" →
+
+## SEQUENCE TIMING
+| Touch | Send On | Time of Day | Day of Week |
+|-------|---------|-------------|-------------|
+
+## SUCCESS METRICS
+What reply rate and booking rate to expect + when to pause a sequence"""
+
+        # Replace the placeholder since we can't use .format() with the nested braces
+        prompt = prompt.replace("{n}", "N")
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=2500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_type = outreach_type.replace(" ", "_")[:20]
+
+        output = f"""# Outreach Sequence: {outreach_type.title()} — {target_role}
+**Channel:** {channel.upper()}
+**Touchpoints:** {num_touchpoints}
+**Offer:** {your_offer}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Outreach Automation Bot*
+"""
+        path = self.save_output(output, f"outreach_{safe_type}_{ts}.md", ext="md")
+        self.logger.info(f"Outreach sequence saved → {path}")
+        return {"file": str(path), "outreach_type": outreach_type, "touchpoints": num_touchpoints}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="cold outreach templates")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Outreach Automation Builder")
+    parser.add_argument("--type",        type=str, default="partnership",
+                        choices=["partnership", "sales", "pr", "guest_post", "influencer", "job", "investor"])
+    parser.add_argument("--target",      type=str, default=None)
+    parser.add_argument("--offer",       type=str, default=None)
+    parser.add_argument("--touchpoints", type=int, default=4)
+    parser.add_argument("--channel",     type=str, default="email", choices=["email", "linkedin", "twitter"])
     args = parser.parse_args()
     bot = OutreachBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(outreach_type=args.type, target_role=args.target,
+                         your_offer=args.offer, num_touchpoints=args.touchpoints,
+                         channel=args.channel)
+    print(f"\n✅ Outreach Sequence: {result['file']}")

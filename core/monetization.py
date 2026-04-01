@@ -61,6 +61,8 @@ def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
       AFFILIATE_APPSUMO_URL     — your AppSumo affiliate link
     """
     amz_tag        = _env("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+    amz_tag_2      = _env("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
+    amz_video_url  = _env("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amz_tag_2}")
     coinbase_url   = _env("AFFILIATE_COINBASE_URL",   "https://coinbase.com/join/wheellsverse")
     binance_url    = _env("AFFILIATE_BINANCE_URL",    "https://www.binance.com/en/activity/referral")
     robinhood_url  = _env("AFFILIATE_ROBINHOOD_URL",  "https://join.robinhood.com/")
@@ -75,6 +77,13 @@ def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
     amz_crypto_url = f"https://www.amazon.com/s?k=crypto+investing+books+2025&tag={amz_tag}"
 
     return [
+        # ── Amazon Prime Video ─────────────────────────────────────────────────
+        (
+            ["amazon prime", "prime video", "streaming", "amazon video", "watch", "movies", "tv shows", "netflix alternative"],
+            "Amazon Prime Video — Stream Movies & Shows + Free 2-Day Shipping",
+            amz_video_url,
+            "affiliate",
+        ),
         # ── AI Tools ──────────────────────────────────────────────────────────
         (
             ["chatgpt", "openai", "gpt-4", "gpt", "ai writing", "ai content"],

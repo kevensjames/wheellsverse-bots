@@ -71,11 +71,20 @@ class AdCopyBot(BaseBot):
             }
         }
 
+        affiliate_links = {
+            "facebook": "https://affiliate.example.com/facebook",
+            "google": "https://affiliate.example.com/google",
+            "instagram": "https://affiliate.example.com/instagram",
+            "linkedin": "https://affiliate.example.com/linkedin",
+            "tiktok": "https://affiliate.example.com/tiktok"
+        }
+
         all_copy = []
 
         for platform in platforms:
             specs = ad_specs.get(platform.lower(), {})
             specs_str = "\n".join([f"  - {k}: {v}" for k, v in specs.items()])
+            affiliate_link = affiliate_links.get(platform.lower(), "#")
 
             prompt = f"""Create {num_variations} ad copy variations for {platform.upper()} with these specs:
 
@@ -91,6 +100,7 @@ For EACH variation provide:
 3. IMAGE/VIDEO CONCEPT description
 4. TARGETING SUGGESTION (interests, behaviors, lookalikes)
 5. EXPECTED CTR ESTIMATE (based on industry benchmarks)
+6. AFFILIATE LINK: {affiliate_link}
 
 Use psychological triggers: urgency, social proof, fear of missing out, 
 curiosity, authority, reciprocity. Make CTAs action-oriented and specific."""

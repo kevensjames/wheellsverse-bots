@@ -68,6 +68,7 @@ For EACH email provide:
 
 Make each email feel personal, valuable, and different from the previous one.
 Use storytelling, social proof, urgency where appropriate.
+Integrate personalized affiliate links based on audience segmentation to improve conversion rates.
 Format clearly with === separators between emails."""
 
         campaign = self.ai(prompt, system=system, max_tokens=3500)

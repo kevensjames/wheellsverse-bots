@@ -7,6 +7,7 @@ Inputs:  content (raw text or file path), target_keyword, url (optional)
 Outputs: SEO report + optimized version of content
 """
 
+import os
 import re
 import sys
 from pathlib import Path
@@ -109,7 +110,7 @@ Provide:
 
 Format each section clearly with headers."""
 
-        audit = self.ai(audit_prompt, system=system, max_tokens=2000)
+        audit = self.ai(audit_prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST","gpt-4o-mini"), max_tokens=2000)
 
         # ─── AI Content Rewrite
         rewrite_prompt = f"""Rewrite this content for maximum SEO performance:
@@ -129,7 +130,7 @@ Rules:
 
 Format as Markdown."""
 
-        optimized = self.ai(rewrite_prompt, system=system, max_tokens=2500)
+        optimized = self.ai(rewrite_prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST","gpt-4o-mini"), max_tokens=2500)
 
         # ─── Build report
         report = f"""# SEO Analysis Report

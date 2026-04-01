@@ -1,40 +1,156 @@
 #!/usr/bin/env python3
-"""HiringAssistantBot — hiring and team building"""
+"""
+Bot #26 — Hiring Assistant
+Category: Business
+Purpose: Generate complete hiring packages including job descriptions, interview questions,
+         scoring rubrics, offer letter templates, and onboarding plans.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
+
 class HiringAssistantBot(BaseBot):
+
     def __init__(self):
         super().__init__("26_hiring_assistant", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "Senior Python Developer JD")
-        self.logger.info(f"Running 26_hiring_assistant: {topic}")
+    def run(self, role: str = None, employment_type: str = None,
+            company_stage: str = None, key_requirements: str = None,
+            salary_range: str = None, **kwargs):
 
-        system = "You are an expert AI assistant specialized in hiring and team building."
-        prompt = f"""Complete this professional task:
+        cfg = self.config
+        role              = role or cfg.get("role", "Content Creator / Social Media Manager")
+        employment_type   = employment_type or cfg.get("employment_type", "freelance / part-time")
+        company_stage     = company_stage or cfg.get("company_stage", "early-stage startup")
+        key_requirements  = key_requirements or cfg.get("key_requirements", "content creation, social media, AI tools")
+        salary_range      = salary_range or cfg.get("salary_range", "$20-35/hour")
 
-TOPIC/REQUEST: {topic}
+        self.logger.info(f"Building hiring package: {role}")
 
-Context: This is for WheellsVerse, an AI automation company owned by Jhon Kevens D Wheeler.
-Business niche: AI, automation, entrepreneurship.
+        system = (
+            "You are a talent acquisition specialist and HR consultant who has helped "
+            "startups and small businesses hire their first key team members. "
+            "You write job descriptions that attract A-players and repel wrong fits. "
+            "Your interview questions reveal real competence and cultural alignment. "
+            "You help small teams hire smart without expensive HR software."
+        )
 
-Provide a comprehensive, professional, and actionable result.
-Include specific examples, metrics, and step-by-step guidance where relevant.
-Format with clear headers and sections."""
+        prompt = f"""Create a complete hiring package for:
 
-        result = self.ai(prompt, system=system, max_tokens=2000)
-        from datetime import datetime
-        out = f"# HiringAssistantBot Output\n**Topic:** {topic}\n**Date:** {datetime.now():%Y-%m-%d %H:%M}\n\n---\n\n{result}\n\n---\n*WheellsVerse 26_hiring_assistant Bot*"
-        path = self.save_output(out, f"26_hiring_assistant_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md", ext="md")
-        return {"file": str(path), "topic": topic}
+ROLE: {role}
+EMPLOYMENT TYPE: {employment_type}
+COMPANY STAGE: {company_stage}
+KEY REQUIREMENTS: {key_requirements}
+COMPENSATION: {salary_range}
+COMPANY: WheellsVerse — AI automation tools for entrepreneurs
+
+## 1. JOB DESCRIPTION (Post-Ready)
+
+**[Role Title]**
+*{employment_type} | {salary_range} | Remote*
+
+**About WheellsVerse**
+[2-sentence company description — energetic, mission-driven]
+
+**The Opportunity**
+[3-4 sentences: what makes this role exciting, not just what it is]
+
+**What You'll Do** (Day-to-Day)
+[8-10 specific bullet points — concrete tasks, not vague responsibilities]
+
+**What We're Looking For**
+Must-have (5 items):
+Nice-to-have (3 items):
+
+**Why Join Us**
+[5 compelling reasons beyond salary — growth, mission, flexibility, etc.]
+
+**How to Apply**
+[Application process + what to include]
+
+---
+
+## 2. SCREENING QUESTIONS
+5 application questions to qualify candidates before interview:
+[Include at least 1 skills test question and 1 cultural fit question]
+
+## 3. INTERVIEW PROCESS
+Recommended stages for {role}:
+| Stage | Format | Duration | Who | Purpose |
+
+## 4. INTERVIEW QUESTIONS (30 Questions)
+
+### Technical/Skills Questions (10)
+[Specific to {key_requirements}]
+
+### Behavioral Questions (10)
+[STAR-format questions revealing past performance]
+
+### Cultural Fit Questions (5)
+[Values and working style alignment]
+
+### Scenario/Problem-Solving Questions (5)
+[Real situations they'd face in this role at WheellsVerse]
+
+## 5. SCORING RUBRIC
+| Criteria | Weight | 1 (Poor) | 3 (Good) | 5 (Excellent) |
+[8-10 evaluation criteria with scoring guide]
+
+## 6. REFERENCE CHECK QUESTIONS
+7 specific questions to ask previous employers/clients
+
+## 7. OFFER LETTER TEMPLATE
+Fill-in offer letter including:
+- Role and responsibilities summary
+- Compensation and payment terms
+- Start date and notice period
+- Confidentiality clause
+- At-will or contract terms
+
+## 8. 30-DAY ONBOARDING PLAN
+| Week | Focus | Key Tasks | Success Milestone |"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3000)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_role = "".join(c if c.isalnum() else "_" for c in role[:25])
+
+        output = f"""# Hiring Package: {role}
+**Type:** {employment_type}
+**Compensation:** {salary_range}
+**Stage:** {company_stage}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Hiring Assistant Bot*
+"""
+        path = self.save_output(output, f"hiring_{safe_role}_{ts}.md", ext="md")
+        self.logger.info(f"Hiring package saved → {path}")
+        return {"file": str(path), "role": role}
+
 
 if __name__ == "__main__":
     import argparse
-    p = argparse.ArgumentParser(description="hiring and team building")
-    p.add_argument("--topic", default=None)
-    a = p.parse_args()
+    parser = argparse.ArgumentParser(description="Hiring Assistant")
+    parser.add_argument("--role",         type=str, default=None)
+    parser.add_argument("--type",         type=str, default="freelance", dest="emp_type")
+    parser.add_argument("--stage",        type=str, default="startup")
+    parser.add_argument("--requirements", type=str, default=None)
+    parser.add_argument("--salary",       type=str, default="$25-40/hour")
+    args = parser.parse_args()
     bot = HiringAssistantBot()
-    print(bot.execute(topic=a.topic))
+    result = bot.execute(role=args.role, employment_type=args.emp_type,
+                         company_stage=args.stage, key_requirements=args.requirements,
+                         salary_range=args.salary)
+    print(f"\n✅ Hiring Package: {result['file']}")

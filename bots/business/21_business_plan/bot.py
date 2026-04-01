@@ -1,70 +1,165 @@
 #!/usr/bin/env python3
-"""BusinessPlanBot — investor-ready business plans"""
+"""
+Bot #21 — Business Plan Generator
+Category: Business
+Purpose: Generate a comprehensive, investor-ready business plan with market analysis,
+         financial projections, competitive landscape, and execution roadmap.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
 
 
 class BusinessPlanBot(BaseBot):
+
     def __init__(self):
         super().__init__("21_business_plan", "business")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "WheellsVerse AI startup")
-        self.logger.info("Running 21_business_plan: " + str(topic))
+    def run(self, business_name: str = None, niche: str = None,
+            business_model: str = None, target_market: str = None,
+            stage: str = None, **kwargs):
+
+        cfg = self.config
+        business_name  = business_name or cfg.get("business_name", "WheellsVerse")
+        niche          = niche or cfg.get("niche", "AI automation tools for entrepreneurs")
+        business_model = business_model or cfg.get("business_model", "SaaS subscription + affiliate revenue")
+        target_market  = target_market or cfg.get("target_market", "solopreneurs and small business owners")
+        stage          = stage or cfg.get("stage", "pre-revenue / MVP")
+
+        self.logger.info(f"Generating business plan: {business_name}")
 
         system = (
-            "You are a world-class expert in investor-ready business plans. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a business plan consultant and startup advisor who has helped companies "
+            "raise venture capital and secure bank loans. You write business plans that are "
+            "concise, data-driven, and investor-ready. You back every claim with logic and "
+            "realistic projections. You avoid fluff and focus on the metrics and mechanics "
+            "that determine whether a business will succeed."
         )
 
-        task_title = "21_business_plan".replace("_", " ").title()
+        prompt = f"""Write a comprehensive business plan for:
 
-        prompt = f"""Generate a professional, detailed output for this request:
+BUSINESS NAME: {business_name}
+NICHE/INDUSTRY: {niche}
+BUSINESS MODEL: {business_model}
+TARGET MARKET: {target_market}
+CURRENT STAGE: {stage}
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+---
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## EXECUTIVE SUMMARY (1 page max)
+- The opportunity in 3 sentences
+- The solution and why now
+- Business model summary
+- Funding ask (if applicable) and use of funds
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+## 1. COMPANY OVERVIEW
+- Mission statement (1 sentence)
+- Vision (where will this be in 5 years?)
+- Legal structure recommendation
+- Location/remote setup
+- Key founding team (or solo founder context)
 
-Be specific, professional, and immediately actionable."""
+## 2. MARKET ANALYSIS
+- **Total Addressable Market (TAM):** Size with data source
+- **Serviceable Addressable Market (SAM):** Realistic share
+- **Serviceable Obtainable Market (SOM):** Year 1 target
+- **Market trends:** 3 tailwinds driving this market
+- **Market timing:** Why this is the right moment
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+## 3. PRODUCT/SERVICE
+- Core product description (what it does, not how)
+- Key features vs alternatives
+- Development stage and roadmap (next 12 months)
+- Intellectual property / moat
 
-        from datetime import datetime
-        output_text = (
-            "# BusinessPlanBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 21_business_plan Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"21_business_plan_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+## 4. COMPETITIVE ANALYSIS
+| Competitor | Strengths | Weaknesses | Price | Differentiator |
+[5 competitors + how {business_name} wins]
+
+**Competitive advantage:** The unfair advantage {business_name} has
+
+## 5. BUSINESS MODEL & REVENUE STREAMS
+- Primary revenue stream: how money is made
+- Secondary revenue streams
+- Pricing strategy with specific price points
+- Unit economics: CAC, LTV, LTV:CAC ratio, payback period
+- Gross margin estimate
+
+## 6. MARKETING & CUSTOMER ACQUISITION
+- Customer acquisition channels (ranked by priority)
+- Content/inbound strategy
+- Paid acquisition strategy
+- Partnership and distribution channels
+- Customer acquisition cost (CAC) targets
+
+## 7. FINANCIAL PROJECTIONS (3-Year)
+| | Year 1 | Year 2 | Year 3 |
+|-|--------|--------|--------|
+| Revenue | | | |
+| COGS | | | |
+| Gross Profit | | | |
+| Operating Expenses | | | |
+| Net Income/(Loss) | | | |
+| Users/Customers | | | |
+| MRR/ARR | | | |
+
+**Key Assumptions:** List the top 5 assumptions behind the projections
+
+## 8. OPERATIONS PLAN
+- Day-to-day operations overview
+- Technology stack / tools
+- Key processes to systematize
+- Hiring plan (Year 1 priorities)
+
+## 9. RISKS & MITIGATION
+| Risk | Probability | Impact | Mitigation |
+[Top 5 risks]
+
+## 10. EXECUTION ROADMAP
+| Milestone | Target Date | Success Metric |
+[10 key milestones for the next 12 months]"""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+                         max_tokens=3500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_name = business_name.replace(" ", "_")[:20]
+
+        output = f"""# Business Plan: {business_name}
+**Niche:** {niche}
+**Model:** {business_model}
+**Market:** {target_market}
+**Stage:** {stage}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Business Plan Bot*
+"""
+        path = self.save_output(output, f"business_plan_{safe_name}_{ts}.md", ext="md")
+        self.logger.info(f"Business plan saved → {path}")
+        return {"file": str(path), "business": business_name}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="investor-ready business plans")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Business Plan Generator")
+    parser.add_argument("--name",    type=str, default=None)
+    parser.add_argument("--niche",   type=str, default=None)
+    parser.add_argument("--model",   type=str, default=None, dest="biz_model")
+    parser.add_argument("--market",  type=str, default=None)
+    parser.add_argument("--stage",   type=str, default="pre-revenue")
     args = parser.parse_args()
     bot = BusinessPlanBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(business_name=args.name, niche=args.niche,
+                         business_model=args.biz_model, target_market=args.market,
+                         stage=args.stage)
+    print(f"\n✅ Business Plan: {result['file']}")

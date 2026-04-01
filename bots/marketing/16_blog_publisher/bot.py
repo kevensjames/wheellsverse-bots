@@ -1,70 +1,202 @@
 #!/usr/bin/env python3
-"""BlogPublisherBot — SEO-optimized blog writing"""
+"""
+Bot #16 — Blog Publisher
+Category: Marketing
+Purpose: Write a complete, publication-ready blog post with SEO optimization,
+         internal links, meta tags, and publish-ready formatting.
+"""
+import os
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 from core.base_bot import BaseBot
+
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 
 class BlogPublisherBot(BaseBot):
+
     def __init__(self):
         super().__init__("16_blog_publisher", "marketing")
 
-    def run(self, topic: str = None, **kwargs):
-        topic = topic or self.config.get("topic", "How AI transforms small business")
-        self.logger.info("Running 16_blog_publisher: " + str(topic))
+    def run(self, topic: str = None, target_keyword: str = None,
+            word_count: int = None, tone: str = None,
+            include_affiliate: bool = False, **kwargs):
+
+        cfg = self.config
+        topic           = topic or cfg.get("topic", "How to automate your business with AI in 2025")
+        target_keyword  = target_keyword or cfg.get("target_keyword", "AI automation for business")
+        word_count      = word_count or cfg.get("word_count", 1500)
+        tone            = tone or cfg.get("tone", "authoritative, practical, engaging")
+        include_affiliate = include_affiliate or cfg.get("include_affiliate", False)
+
+        self.logger.info(f"Publishing blog post: {topic}")
 
         system = (
-            "You are a world-class expert in SEO-optimized blog writing. "
-            "You produce comprehensive, actionable, and professional-grade outputs. "
-            "Format responses with clear headers, specific examples, and step-by-step guidance."
+            "You are a senior content strategist and SEO blogger who consistently "
+            "ranks articles on page 1 of Google. You write long-form content that "
+            "is genuinely useful — not padded fluff. Every section earns its place. "
+            "You weave in keywords naturally, structure posts for featured snippets, "
+            "and always include actionable takeaways readers can use immediately."
         )
 
-        task_title = "16_blog_publisher".replace("_", " ").title()
+        affiliate_section = ""
+        if include_affiliate:
+            affiliate_section = f"""
+**Affiliate Resources to Include Naturally:**
+- Amazon book recommendations: [Explore top books on {topic}](https://www.amazon.com/s?k={topic.replace(' ', '+')}&tag={AMAZON_TAG})
+- Only include if genuinely relevant to the topic"""
 
-        prompt = f"""Generate a professional, detailed output for this request:
+        prompt = f"""Write a complete, publication-ready blog post:
 
-TASK: {task_title}
-INPUT/TOPIC: {topic}
+TOPIC: {topic}
+TARGET KEYWORD: {target_keyword}
+TARGET WORD COUNT: ~{word_count} words
+TONE: {tone}
+{affiliate_section}
 
-Business Context:
-- Brand: WheellsVerse / J.K. Blaze
-- Owner: Jhon Kevens D Wheeler
-- Niche: AI automation and entrepreneurship
-- Goal: Build automated income streams and a scalable business
+## SEO REQUIREMENTS
 
-Provide:
-1. Comprehensive main output (the primary deliverable)
-2. Key insights and recommendations
-3. Step-by-step implementation guide
-4. Success metrics to track
-5. Common mistakes to avoid
+**Meta Block (for WordPress/CMS):**
+- **Title tag:** [under 60 chars, keyword-first]
+- **Meta description:** [under 160 chars, includes keyword + compelling hook]
+- **URL slug:** [keyword-optimized, 3-5 words]
+- **Focus keyword:** {target_keyword}
+- **Secondary keywords:** [5 LSI keywords to weave in naturally]
 
-Be specific, professional, and immediately actionable."""
+## ARTICLE STRUCTURE
 
-        result = self.ai(prompt, system=system, max_tokens=2500)
+**H1 Headline:** [Power headline with primary keyword, 50-70 chars]
 
-        from datetime import datetime
-        output_text = (
-            "# BlogPublisherBot Output\n"
-            f"**Topic:** {topic}\n"
-            f"**Generated:** {datetime.now():%Y-%m-%d %H:%M:%S}\n\n"
-            "---\n\n"
-            f"{result}\n\n"
-            "---\n"
-            "*WheellsVerse 16_blog_publisher Bot*"
-        )
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        path = self.save_output(output_text, f"16_blog_publisher_{ts}.md", ext="md")
-        self.logger.info(f"Saved: {path}")
-        return {"file": str(path), "topic": topic}
+**Introduction (150-200 words):**
+- Open with a hook (stat, question, or scenario)
+- State the problem this post solves
+- Include primary keyword in first 100 words
+- Tell readers what they'll learn
+
+**Main Body:**
+- 5-7 H2 sections with H3 subsections where needed
+- Each section must have a clear point and actionable insight
+- Include at least one: numbered list, bullet list, and table
+- Place primary keyword in 2-3 H2 headings naturally
+- Add 1-2 bolded key sentences per section for scanners
+
+**FAQ Section (3 questions):**
+- Use question-based H2s for featured snippet potential
+- Keep answers under 50 words for snippet optimization
+
+**Conclusion (100-150 words):**
+- Summarize top 3 takeaways
+- Include a strong CTA (what to do next)
+
+## POST-PUBLISH CHECKLIST
+5 things to do after publishing to maximize traffic."""
+
+        result = self.ai(prompt, system=system,
+                         model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                         max_tokens=3500)
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_keyword = target_keyword.replace(" ", "_")[:30]
+
+        output = f"""# Blog Post: {topic}
+**Target Keyword:** {target_keyword}
+**Target Word Count:** {word_count}
+**Tone:** {tone}
+**Generated:** {_dt.now().strftime('%Y-%m-%d %H:%M')}
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse Blog Publisher Bot*
+"""
+        path = self.save_output(output, f"blog_{safe_keyword}_{ts}.md", ext="md")
+        self.logger.info(f"Blog post saved → {path}")
+        word_count_actual = len(result.split())
+
+        publish_results = {}
+
+        # ── Publish to WordPress ───────────────────────────────────────────────
+        wp_url  = os.getenv("WORDPRESS_URL", "").rstrip("/")
+        wp_user = os.getenv("WORDPRESS_USER", "")
+        wp_pass = os.getenv("WORDPRESS_APP_PASS", "").replace(" ", "")
+        if wp_url and wp_user and wp_pass:
+            try:
+                import requests as _req
+                from requests.auth import HTTPBasicAuth as _BA
+                import re as _re
+                # Extract clean title from result
+                title_match = _re.search(r'^#\s+(.+)$', result, _re.MULTILINE)
+                wp_title = title_match.group(1).strip() if title_match else topic
+                # Convert markdown to basic HTML for WordPress
+                html_body = result.replace("\n\n", "</p><p>").replace("\n", "<br>")
+                html_body = _re.sub(r'^#{1,6}\s+(.+)$', r'<h2>\1</h2>', html_body, flags=_re.MULTILINE)
+                html_body = f"<p>{html_body}</p>"
+                r = _req.post(
+                    f"{wp_url}/wp-json/wp/v2/posts",
+                    auth=_BA(wp_user, wp_pass),
+                    json={"title": wp_title, "content": html_body, "status": "publish",
+                          "format": "standard"},
+                    timeout=20,
+                )
+                if r.ok:
+                    wp_link = r.json().get("link", "")
+                    publish_results["wordpress"] = {"status": "published", "url": wp_link, "id": r.json().get("id")}
+                    self.logger.info(f"✅ WordPress published → {wp_link}")
+                else:
+                    publish_results["wordpress"] = {"status": "error", "code": r.status_code}
+                    self.logger.warning(f"WordPress publish failed: {r.status_code} {r.text[:100]}")
+            except Exception as e:
+                publish_results["wordpress"] = {"status": "error", "reason": str(e)}
+                self.logger.warning(f"WordPress publish error: {e}")
+
+        # ── Post to Telegram ───────────────────────────────────────────────────
+        tg_token   = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        tg_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+        if tg_token and tg_chat_id:
+            try:
+                import requests as _req
+                wp_link = publish_results.get("wordpress", {}).get("url", "")
+                tg_text = (
+                    f"📝 <b>New Post Published</b>\n\n"
+                    f"<b>{topic}</b>\n\n"
+                    f"🔑 Keyword: <i>{target_keyword}</i>\n"
+                    f"📊 {word_count_actual} words\n"
+                )
+                if wp_link:
+                    tg_text += f"\n🔗 <a href='{wp_link}'>Read it here</a>"
+                r = _req.post(
+                    f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                    json={"chat_id": tg_chat_id, "text": tg_text, "parse_mode": "HTML"},
+                    timeout=10,
+                )
+                if r.ok:
+                    publish_results["telegram"] = {"status": "sent"}
+                    self.logger.info("✅ Telegram notification sent")
+                else:
+                    publish_results["telegram"] = {"status": "error", "code": r.status_code}
+            except Exception as e:
+                publish_results["telegram"] = {"status": "error", "reason": str(e)}
+
+        return {"file": str(path), "topic": topic, "word_count": word_count_actual,
+                "keyword": target_keyword, "published": publish_results}
 
 
 if __name__ == "__main__":
     import argparse
-    parser = argparse.ArgumentParser(description="SEO-optimized blog writing")
-    parser.add_argument("--topic", type=str, default=None)
+    parser = argparse.ArgumentParser(description="Blog Publisher Bot")
+    parser.add_argument("--topic",     type=str, default=None)
+    parser.add_argument("--keyword",   type=str, default=None)
+    parser.add_argument("--words",     type=int, default=1500)
+    parser.add_argument("--tone",      type=str, default="authoritative, practical")
+    parser.add_argument("--affiliate", action="store_true", help="Include affiliate links")
     args = parser.parse_args()
     bot = BlogPublisherBot()
-    result = bot.execute(topic=args.topic)
-    print(f"\n Output: {result['file']}")
+    result = bot.execute(topic=args.topic, target_keyword=args.keyword,
+                         word_count=args.words, tone=args.tone,
+                         include_affiliate=args.affiliate)
+    print(f"\n✅ Blog Post: {result['file']} ({result['word_count']} words)")

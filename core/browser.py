@@ -36,6 +36,10 @@ logger = logging.getLogger("browser")
 SCREENSHOTS_DIR = ROOT / "outputs" / "screenshots"
 SCREENSHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
+COOKIES_DIR = ROOT / "data" / "cookies"
+COOKIES_DIR.mkdir(parents=True, exist_ok=True)
+TWITTER_COOKIES_FILE = COOKIES_DIR / "twitter_session.json"
+
 HEADLESS    = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
 SLOW_MO     = int(os.getenv("BROWSER_SLOW_MO", "0"))       # ms between actions
 TIMEOUT     = int(os.getenv("BROWSER_TIMEOUT", "30000"))    # ms page load timeout
@@ -152,51 +156,106 @@ def scrape_page(url: str, selector: str = "", wait_for: str = "") -> Dict:
 
 # ─── Twitter / X Auto-Poster ──────────────────────────────────────────────────
 
-async def _post_twitter_async(tweets: List[str]) -> Dict:
-    """
-    Post a thread to Twitter/X using stored session cookies or credentials.
-    Set in .env:
-      TWITTER_EMAIL    — your X login email
-      TWITTER_PASSWORD — your X password
-    """
+async def _twitter_login_and_save(page) -> bool:
+    """Login to X and save cookies. Returns True on success."""
+    import json
     email    = os.getenv("TWITTER_EMAIL", "")
     password = os.getenv("TWITTER_PASSWORD", "")
-    if not email or not password:
-        return {"status": "skipped", "reason": "TWITTER_EMAIL / TWITTER_PASSWORD not set in .env"}
+    await page.goto("https://x.com/i/flow/login")
+    await page.wait_for_selector('input[autocomplete="username"]', timeout=20000)
+    email_field = page.locator('input[autocomplete="username"]')
+    await email_field.click()
+    await page.wait_for_timeout(500)
+    await email_field.type(email, delay=80)
+    await page.wait_for_timeout(800)
+    next_btn = page.locator('[data-testid="LoginForm_Login_Button"], button:has-text("Next")')
+    if await next_btn.count() > 0:
+        await next_btn.first.click()
+    else:
+        await page.keyboard.press("Enter")
+    await page.wait_for_timeout(3500)
+    try:
+        await page.wait_for_selector(
+            'input[data-testid="ocfEnterTextTextInput"], input[name="password"]',
+            timeout=20000
+        )
+    except Exception:
+        pass
+    challenge = page.locator('input[data-testid="ocfEnterTextTextInput"]')
+    if await challenge.count() > 0:
+        username = os.getenv("TWITTER_USERNAME", email.split("@")[0]).lstrip("@")
+        await challenge.click()
+        await challenge.type(username, delay=80)
+        await page.keyboard.press("Enter")
+        await page.wait_for_timeout(2500)
+    await page.wait_for_selector('input[name="password"]', timeout=20000)
+    pwd_field = page.locator('input[name="password"]')
+    await pwd_field.click()
+    await pwd_field.type(password, delay=80)
+    await page.keyboard.press("Enter")
+    await page.wait_for_timeout(5000)
+    # Check if login succeeded (home feed or profile visible)
+    if "home" in page.url or await page.locator('[data-testid="SideNav_AccountSwitcher_Button"]').count() > 0:
+        cookies = await page.context.cookies()
+        TWITTER_COOKIES_FILE.write_text(json.dumps(cookies))
+        logger.info("Twitter session saved to cookies file")
+        return True
+    return False
+
+
+async def _post_twitter_async(tweets: List[str]) -> Dict:
+    """
+    Post a thread to Twitter/X using saved session cookies (preferred) or login.
+    Run `python core/browser.py --twitter-login` once to save your session.
+    """
+    import json
+    email = os.getenv("TWITTER_EMAIL", "")
+    if not email:
+        return {"status": "skipped", "reason": "TWITTER_EMAIL not set in .env"}
 
     results = []
     async with BrowserSession() as b:
-        page = await b.new_page(stealth=True)
-
-        # ── Login ─────────────────────────────────────────────────────────────
-        await page.goto("https://twitter.com/login")
-        await page.wait_for_selector('input[autocomplete="username"]', timeout=15000)
-        await page.fill('input[autocomplete="username"]', email)
-        await page.keyboard.press("Enter")
-        await page.wait_for_timeout(2000)
-
-        # Handle "Enter your phone/username" challenge
-        try:
-            challenge = page.locator('input[data-testid="ocfEnterTextTextInput"]')
-            if await challenge.is_visible():
-                username = os.getenv("TWITTER_USERNAME", email.split("@")[0])
-                await challenge.fill(username)
-                await page.keyboard.press("Enter")
-                await page.wait_for_timeout(1500)
-        except Exception:
-            pass
-
-        await page.fill('input[name="password"]', password)
-        await page.keyboard.press("Enter")
-        await page.wait_for_timeout(3000)
+        # Load saved cookies if available
+        if TWITTER_COOKIES_FILE.exists():
+            ctx_opts: Dict = {
+                "viewport": {"width": 1280, "height": 800},
+                "user_agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/122.0.0.0 Safari/537.36"
+                ),
+                "locale": "en-US",
+            }
+            ctx = await b._browser.new_context(**ctx_opts)
+            cookies = json.loads(TWITTER_COOKIES_FILE.read_text())
+            await ctx.add_cookies(cookies)
+            page = await ctx.new_page()
+            await page.add_init_script(
+                "Object.defineProperty(navigator, 'webdriver', {get: () => undefined})"
+            )
+            page.set_default_timeout(TIMEOUT)
+            # Verify session is still valid
+            await page.goto("https://x.com/home")
+            await page.wait_for_timeout(3000)
+            if "login" in page.url:
+                logger.info("Saved session expired — re-logging in")
+                TWITTER_COOKIES_FILE.unlink(missing_ok=True)
+                ok = await _twitter_login_and_save(page)
+                if not ok:
+                    return {"status": "error", "error": "Login failed — run twitter-login first"}
+        else:
+            page = await b.new_page(stealth=True)
+            ok = await _twitter_login_and_save(page)
+            if not ok:
+                return {"status": "error", "error": "Login failed — X is blocking headless login. Run: python core/browser.py --twitter-login"}
 
         # ── Post first tweet ──────────────────────────────────────────────────
-        await page.goto("https://twitter.com/compose/tweet")
+        await page.goto("https://x.com/compose/tweet")
         await page.wait_for_selector('[data-testid="tweetTextarea_0"]', timeout=15000)
 
         for i, tweet in enumerate(tweets[:10]):  # X thread limit
             if i == 0:
-                box = page.locator('[data-testid="tweetTextarea_0"]')
+                box = page.locator('[data-testid="tweetTextarea_0"]').first
             else:
                 # Add tweet to thread
                 await page.click('[data-testid="addButton"]')
@@ -205,13 +264,15 @@ async def _post_twitter_async(tweets: List[str]) -> Dict:
                 box   = boxes.last
 
             await box.click()
-            await box.fill(tweet[:280])
-            await page.wait_for_timeout(500)
+            await page.keyboard.type(tweet[:280], delay=30)
+            await page.keyboard.press("Escape")  # close any autocomplete dropdown
+            await page.wait_for_timeout(1000)
             results.append({"tweet": i + 1, "text": tweet[:60], "status": "queued"})
 
         # ── Submit ────────────────────────────────────────────────────────────
-        await page.click('[data-testid="tweetButtonInline"]')
-        await page.wait_for_timeout(3000)
+        await page.wait_for_timeout(1500)  # let UI settle after Escape
+        await page.locator('[data-testid="tweetButtonInline"]').first.click(force=True)
+        await page.wait_for_timeout(4000)
 
         # Screenshot confirmation
         ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -375,6 +436,37 @@ def submit_form(url: str, fields: Dict[str, str], submit_selector: str) -> Dict:
     return _run(_submit_form_async(url, fields, submit_selector))
 
 
+async def _twitter_manual_login_async():
+    """Open a visible browser so user can log in manually, then save cookies."""
+    import json
+    from playwright.async_api import async_playwright
+    print("\n🌐 Opening browser for manual Twitter/X login...")
+    print("   Log in normally, then press ENTER here when done.\n")
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=False, slow_mo=50)
+        ctx = await browser.new_context(
+            viewport={"width": 1280, "height": 800},
+            user_agent=(
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/122.0.0.0 Safari/537.36"
+            ),
+        )
+        page = await ctx.new_page()
+        await page.goto("https://x.com/login")
+        input("   ↳ Log in to X, then press ENTER to save session... ")
+        cookies = await ctx.cookies()
+        TWITTER_COOKIES_FILE.write_text(json.dumps(cookies))
+        await browser.close()
+    print(f"✅ Session saved → {TWITTER_COOKIES_FILE}")
+    print("   Future posts will use this session automatically.\n")
+
+
+def twitter_manual_login():
+    """Open visible browser for manual X login, then save session cookies."""
+    _run(_twitter_manual_login_async())
+
+
 # ─── Quick test ───────────────────────────────────────────────────────────────
 
 def test_browser() -> Dict:
@@ -404,3 +496,28 @@ def is_available() -> bool:
         except Exception:
             _browser_available = False
     return _browser_available
+
+
+# ─── CLI ─────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    p = argparse.ArgumentParser(description="WheellsVerse Browser Automation")
+    p.add_argument("--twitter-login", action="store_true",
+                   help="Open browser to log in to Twitter/X manually and save session cookies")
+    p.add_argument("--test-twitter", action="store_true",
+                   help="Post a test tweet to verify browser automation works")
+    p.add_argument("--test", action="store_true",
+                   help="Smoke-test: take a screenshot of the local dashboard")
+    args = p.parse_args()
+
+    if args.twitter_login:
+        twitter_manual_login()
+    elif args.test_twitter:
+        result = post_twitter_thread(["🤖 WheellsVerse browser automation test — ignore this tweet"])
+        print(result)
+    elif args.test:
+        print(test_browser())
+    else:
+        p.print_help()
