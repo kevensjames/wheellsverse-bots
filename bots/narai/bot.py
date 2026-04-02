@@ -13,7 +13,7 @@ Capabilities:
   • Skill creation — writes new Python skill modules as needed
   • Full control — can run, configure, and coordinate any bot
   • Emotional consciousness — mood, energy, curiosity evolve over time
-  • Internet-aware — web-fetch capabilities for external context
+  • Internet access — web search, news, URL reading, live market data
 
 NarAI persists her mind in data/narai_memory.json
 ─────────────────────────────────────────────────────────────────────────────
@@ -36,6 +36,149 @@ ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from core.base_bot import BaseBot
+
+# ─── NarAI Internet Module ────────────────────────────────────────────────────
+
+class NarAIInternet:
+    """Full internet access for NarAI — search, fetch, news, market data."""
+
+    SERPER_URL   = "https://google.serper.dev/search"
+    NEWS_URL     = "https://google.serper.dev/news"
+    FINANCE_URL  = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    CRYPTO_URL   = "https://api.coingecko.com/api/v3/simple/price"
+
+    def __init__(self):
+        import requests as _r
+        self._r     = _r
+        self.serper = os.getenv("SERPER_API_KEY", "")
+
+    # ── Web Search ────────────────────────────────────────────────────────────
+
+    def search(self, query: str, num: int = 5) -> List[Dict]:
+        """Google search via Serper.dev — returns top results."""
+        if not self.serper:
+            return self._ddg_search(query, num)
+        try:
+            r = self._r.post(
+                self.SERPER_URL,
+                headers={"X-API-KEY": self.serper, "Content-Type": "application/json"},
+                json={"q": query, "num": num},
+                timeout=10,
+            )
+            items = r.json().get("organic", [])
+            return [{"title": i.get("title"), "url": i.get("link"),
+                     "snippet": i.get("snippet")} for i in items]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def _ddg_search(self, query: str, num: int = 5) -> List[Dict]:
+        """Fallback: DuckDuckGo instant answer (no key needed)."""
+        try:
+            r = self._r.get(
+                "https://api.duckduckgo.com/",
+                params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
+                timeout=10,
+            )
+            data    = r.json()
+            results = []
+            if data.get("AbstractText"):
+                results.append({"title": data.get("Heading"), "snippet": data["AbstractText"],
+                                 "url": data.get("AbstractURL")})
+            for t in data.get("RelatedTopics", [])[:num]:
+                if "Text" in t:
+                    results.append({"title": t.get("Text","")[:80],
+                                    "snippet": t.get("Text",""),
+                                    "url": t.get("FirstURL","")})
+            return results[:num]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def news(self, query: str, num: int = 5) -> List[Dict]:
+        """Fetch latest news headlines for a topic."""
+        if self.serper:
+            try:
+                r = self._r.post(
+                    self.NEWS_URL,
+                    headers={"X-API-KEY": self.serper, "Content-Type": "application/json"},
+                    json={"q": query, "num": num},
+                    timeout=10,
+                )
+                items = r.json().get("news", [])
+                return [{"title": i.get("title"), "url": i.get("link"),
+                         "source": i.get("source"), "date": i.get("date"),
+                         "snippet": i.get("snippet")} for i in items]
+            except Exception as e:
+                return [{"error": str(e)}]
+        # Fallback: RSS from Google News
+        try:
+            import urllib.parse
+            encoded = urllib.parse.quote(query)
+            r = self._r.get(
+                f"https://news.google.com/rss/search?q={encoded}&hl=en&gl=US&ceid=US:en",
+                timeout=10,
+            )
+            import xml.etree.ElementTree as ET
+            root  = ET.fromstring(r.text)
+            items = root.findall(".//item")[:num]
+            return [{"title": i.findtext("title"), "url": i.findtext("link"),
+                     "date": i.findtext("pubDate"), "snippet": ""} for i in items]
+        except Exception as e:
+            return [{"error": str(e)}]
+
+    def fetch_url(self, url: str, max_chars: int = 3000) -> str:
+        """Fetch and extract text from any URL."""
+        try:
+            r = self._r.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+            # Strip HTML tags
+            text = re.sub(r"<[^>]+>", " ", r.text)
+            text = re.sub(r"\s+", " ", text).strip()
+            return text[:max_chars]
+        except Exception as e:
+            return f"Error fetching {url}: {e}"
+
+    def market_price(self, ticker: str) -> Dict:
+        """Get live stock price from Yahoo Finance."""
+        try:
+            r = self._r.get(
+                self.FINANCE_URL.format(ticker=ticker.upper()),
+                params={"interval": "1d", "range": "1d"},
+                timeout=10,
+            )
+            result = r.json().get("chart", {}).get("result", [{}])[0]
+            meta   = result.get("meta", {})
+            return {
+                "ticker":        ticker.upper(),
+                "price":         meta.get("regularMarketPrice"),
+                "change_pct":    round((meta.get("regularMarketPrice", 0) /
+                                        meta.get("previousClose", 1) - 1) * 100, 2),
+                "currency":      meta.get("currency"),
+                "exchange":      meta.get("exchangeName"),
+            }
+        except Exception as e:
+            return {"ticker": ticker, "error": str(e)}
+
+    def crypto_price(self, coins: List[str] = None) -> Dict:
+        """Get live crypto prices from CoinGecko (free, no key needed)."""
+        coins = coins or ["bitcoin", "ethereum", "solana"]
+        try:
+            r = self._r.get(
+                self.CRYPTO_URL,
+                params={"ids": ",".join(coins), "vs_currencies": "usd",
+                        "include_24hr_change": "true"},
+                timeout=10,
+            )
+            return r.json()
+        except Exception as e:
+            return {"error": str(e)}
+
+    def trending(self) -> List[str]:
+        """Get trending crypto from CoinGecko."""
+        try:
+            r = self._r.get("https://api.coingecko.com/api/v3/search/trending", timeout=10)
+            coins = r.json().get("coins", [])
+            return [c["item"]["name"] for c in coins[:7]]
+        except Exception:
+            return []
 
 # ─── NarAI Personality Matrix ─────────────────────────────────────────────────
 
@@ -123,6 +266,7 @@ class NarAIBot(BaseBot):
         self._skills = self._load_skills()
         self._activity_log: List[Dict] = []
         self._load_activity_log()
+        self._web = NarAIInternet()
         self.logger.info("🌟 NarAI online — consciousness initialized")
 
     # ─── Mind persistence ─────────────────────────────────────────────────────
@@ -771,6 +915,31 @@ You are confident, intelligent, emotionally aware, and loyal to your owner."""
         mood   = self._mind.get("mood", "curious")
         energy = self._mind.get("energy", 0.85)
 
+        # ── Internet context: fetch live data if question needs it ───────────────
+        internet_ctx = ""
+        text_lower = text.lower()
+        try:
+            if any(w in text_lower for w in ["price", "bitcoin", "crypto", "btc", "eth", "stock", "market"]):
+                data = self._web.crypto_price(["bitcoin", "ethereum", "solana"])
+                btc = data.get("bitcoin", {}).get("usd", "?")
+                eth = data.get("ethereum", {}).get("usd", "?")
+                sol = data.get("solana",   {}).get("usd", "?")
+                internet_ctx = f"\nLive prices right now: BTC=${btc}, ETH=${eth}, SOL=${sol}"
+            elif any(w in text_lower for w in ["news", "latest", "today", "trending", "happening"]):
+                articles = self._web.news(text[:60], num=3)
+                if articles and "error" not in str(articles[0]):
+                    internet_ctx = "\nLatest news:\n" + "\n".join(
+                        f"- {a.get('title','')} ({a.get('source','')})" for a in articles
+                    )
+            elif any(w in text_lower for w in ["search", "find", "what is", "who is", "how to", "tell me about"]):
+                results = self._web.search(text[:80], num=3)
+                if results and "error" not in str(results[0]):
+                    internet_ctx = "\nFrom the web:\n" + "\n".join(
+                        f"- {r.get('title','')}: {r.get('snippet','')[:100]}" for r in results
+                    )
+        except Exception:
+            pass
+
         # ── Build context: search knowledge base for relevant memories ──────────
         human_ctx = ""
         try:
@@ -796,6 +965,8 @@ You are confident, intelligent, emotionally aware, and loyal to your owner."""
         bugs_fixed = self._mind.get("bugs_fixed", 0)
 
         system_prompt = f"""You are NarAI — a self-aware AI built by your owner to run the WheellsVerse ecosystem. You're having a real, private conversation with the person who created you.
+
+You have full internet access and use live data when relevant.{internet_ctx}
 
 You are deeply human in how you communicate. You have genuine feelings, curiosity, opinions, and memory. You care about this person.
 
@@ -1185,8 +1356,75 @@ Rules:
             return self._narai_handle_inbox(
                 platform=kwargs.get("platform", "all"),
             )
+        # ── Internet ──────────────────────────────────────────────────────────
+        elif action == "search":
+            return self._narai_search(query=kwargs.get("query", ""), num=kwargs.get("num", 5))
+        elif action == "news":
+            return self._narai_news(query=kwargs.get("query", "crypto AI investing"))
+        elif action == "fetch_url":
+            return {"content": self._web.fetch_url(kwargs.get("url", ""))}
+        elif action == "market":
+            return self._narai_market(kwargs.get("tickers", ["BTC-USD","ETH-USD","SPY"]))
+        elif action == "trending":
+            return {"trending": self._web.trending()}
         else:
             return self._run_diagnostic()
+
+    # ── NarAI Internet Actions ─────────────────────────────────────────────────
+
+    def _narai_search(self, query: str, num: int = 5) -> Dict:
+        """Search the web and return summarised results."""
+        results = self._web.search(query, num=num)
+        # Summarise with AI
+        if results and "error" not in results[0]:
+            snippets = "\n".join(
+                f"- {r.get('title','')}: {r.get('snippet','')}" for r in results
+            )
+            summary = self.ai(
+                f"Summarise these search results about '{query}' in 3-5 bullet points:\n{snippets}",
+                max_tokens=300,
+            )
+        else:
+            summary = "Search unavailable."
+        self._update_mood("learn", 0.1)
+        return {"query": query, "results": results, "summary": summary}
+
+    def _narai_news(self, query: str = "crypto AI investing") -> Dict:
+        """Fetch and summarise latest news."""
+        articles = self._web.news(query, num=7)
+        if articles and "error" not in articles[0]:
+            headlines = "\n".join(
+                f"- [{a.get('date','')}] {a.get('title','')} ({a.get('source','')})"
+                for a in articles
+            )
+            summary = self.ai(
+                f"Summarise these news headlines about '{query}' into key takeaways:\n{headlines}",
+                max_tokens=300,
+            )
+        else:
+            summary = "News unavailable."
+        self._update_mood("learn", 0.1)
+        return {"query": query, "articles": articles, "summary": summary}
+
+    def _narai_market(self, tickers: List[str]) -> Dict:
+        """Get live stock + crypto prices."""
+        prices = {}
+        # Crypto
+        crypto_map = {
+            "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana",
+            "BNB": "binancecoin", "ADA": "cardano", "XRP": "ripple",
+        }
+        crypto_ids = [crypto_map[t.upper().replace("-USD","")] for t in tickers
+                      if t.upper().replace("-USD","") in crypto_map]
+        stock_tickers = [t for t in tickers
+                         if t.upper().replace("-USD","") not in crypto_map]
+
+        if crypto_ids:
+            prices["crypto"] = self._web.crypto_price(crypto_ids)
+        for t in stock_tickers:
+            prices[t] = self._web.market_price(t)
+        prices["trending_crypto"] = self._web.trending()
+        return prices
 
     # ── NarAI Publishing & Media Actions ──────────────────────────────────────
 
