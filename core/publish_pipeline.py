@@ -206,19 +206,65 @@ class PublishPipeline:
     # ── Facebook & Instagram publishers ───────────────────────────────────────
 
     def _publish_facebook(self, title: str, content: str,
-                          hashtags: List[str]) -> Dict:
-        page_token = os.getenv("FACEBOOK_PAGE_TOKEN", "")
-        page_id    = os.getenv("FACEBOOK_PAGE_ID", "")
+                          hashtags: List[str], image_url: Optional[str] = None,
+                          video_url: Optional[str] = None) -> Dict:
+        page_token  = os.getenv("FACEBOOK_PAGE_TOKEN", "")
+        page_id     = os.getenv("FACEBOOK_PAGE_ID", "")
+        openai_key  = os.getenv("OPENAI_API_KEY", "")
         if not page_token or not page_id:
             return {"platform": "facebook", "status": "skipped",
                     "reason": "FACEBOOK_PAGE_TOKEN or FACEBOOK_PAGE_ID not set"}
         try:
             import requests as _req
-            # Build a short punchy post from the title + first 300 chars of content
-            clean = re.sub(r'[#*`>]', '', content).strip()
+            clean   = re.sub(r'[#*`>]', '', content).strip()
             snippet = clean[:300].rsplit(' ', 1)[0] + '...' if len(clean) > 300 else clean
-            tags = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
+            tags    = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
             message = f"{title}\n\n{snippet}\n\n{tags}"
+
+            # ── Video post ────────────────────────────────────────────────────
+            if video_url:
+                resp = _req.post(
+                    f"https://graph.facebook.com/v19.0/{page_id}/videos",
+                    data={"file_url": video_url, "description": message,
+                          "access_token": page_token},
+                    timeout=30,
+                )
+                data = resp.json()
+                if "id" in data:
+                    return {"platform": "facebook", "status": "posted",
+                            "post_id": data["id"], "type": "video"}
+                return {"platform": "facebook", "status": "error",
+                        "error": data.get("error", {}).get("message", str(data))}
+
+            # ── Image post — generate with DALL-E if not provided ─────────────
+            if not image_url and openai_key:
+                from openai import OpenAI as _OAI
+                _img = _OAI(api_key=openai_key).images.generate(
+                    model="dall-e-3",
+                    prompt=(
+                        f"Professional social media post image for: {title}. "
+                        "Dark futuristic tech aesthetic, cyan and gold accents, "
+                        "WheellsVerse AI brand. No text overlays."
+                    ),
+                    size="1024x1024", quality="standard", n=1,
+                )
+                image_url = _img.data[0].url
+
+            if image_url:
+                resp = _req.post(
+                    f"https://graph.facebook.com/v19.0/{page_id}/photos",
+                    data={"url": image_url, "caption": message,
+                          "access_token": page_token},
+                    timeout=30,
+                )
+                data = resp.json()
+                if "id" in data:
+                    return {"platform": "facebook", "status": "posted",
+                            "post_id": data["id"], "type": "image"}
+                return {"platform": "facebook", "status": "error",
+                        "error": data.get("error", {}).get("message", str(data))}
+
+            # ── Text-only fallback ────────────────────────────────────────────
             resp = _req.post(
                 f"https://graph.facebook.com/v19.0/{page_id}/feed",
                 json={"message": message, "access_token": page_token},
@@ -226,7 +272,8 @@ class PublishPipeline:
             )
             data = resp.json()
             if "id" in data:
-                return {"platform": "facebook", "status": "posted", "post_id": data["id"]}
+                return {"platform": "facebook", "status": "posted",
+                        "post_id": data["id"], "type": "text"}
             return {"platform": "facebook", "status": "error",
                     "error": data.get("error", {}).get("message", str(data))}
         except Exception as e:
@@ -499,7 +546,7 @@ class PublishPipeline:
         if "blog" in target_platforms:
             tasks["blog"] = lambda: self._publish_blog(title, content, slug)
         if "facebook" in target_platforms:
-            tasks["facebook"] = lambda: self._publish_facebook(title, content, hashtags)
+            tasks["facebook"] = lambda: self._publish_facebook(title, content, hashtags, image_url, video_url)
         if "instagram" in target_platforms:
             tasks["instagram"] = lambda: self._publish_instagram(title, content, hashtags, image_url)
 

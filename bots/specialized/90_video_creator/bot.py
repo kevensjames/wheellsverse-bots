@@ -134,7 +134,7 @@ class VideoCreatorBot(BaseBot):
 
         cfg          = self.config
         topic        = topic       or cfg.get("topic", "AI tools for passive income")
-        publish_to   = publish_to  or cfg.get("publish_to", "youtube,instagram")
+        publish_to   = publish_to  or cfg.get("publish_to", "youtube,instagram,facebook")
 
         # Step 1: Generate script with GPT if not provided
         if not script:
@@ -220,6 +220,27 @@ Output ONLY the spoken script, no stage directions.""",
                     publish_results["instagram"] = f"container_error: {container}"
             except Exception as e:
                 publish_results["instagram"] = f"error: {e}"
+
+        if "facebook" in platforms and os.getenv("FACEBOOK_PAGE_TOKEN"):
+            try:
+                import requests as _req
+                token   = os.getenv("FACEBOOK_PAGE_TOKEN")
+                page_id = os.getenv("FACEBOOK_PAGE_ID")
+                caption = (
+                    f"{topic}\n\n"
+                    "💡 Follow WheellsVerse for daily AI + crypto + passive income tips!\n\n"
+                    "#AI #PassiveIncome #Crypto #Investing #WheellsVerse"
+                )
+                resp = _req.post(
+                    f"https://graph.facebook.com/v19.0/{page_id}/videos",
+                    data={"file_url": video_url, "description": caption,
+                          "access_token": token},
+                    timeout=30,
+                )
+                data = resp.json()
+                publish_results["facebook"] = data.get("id", f"error: {data}")
+            except Exception as e:
+                publish_results["facebook"] = f"error: {e}"
 
         if "youtube" in platforms:
             try:
