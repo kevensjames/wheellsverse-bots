@@ -1,0 +1,8 @@
+{
+  "description": "Generates AI avatar videos using HeyGen from GPT scripts, then publishes to YouTube and Instagram Reels automatically.",
+  "goal": "Auto-create daily short-form video content (60s) for Instagram Reels and YouTube Shorts",
+  "topic": "AI tools that help you make passive income in 2026",
+  "publish_to": "youtube,instagram",
+  "schedule": "@daily 11:00",
+  "enabled": true
+}

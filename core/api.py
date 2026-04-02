@@ -224,6 +224,96 @@ async def _lifespan(application: FastAPI):
         _add_log("NarAI: hourly diagnostic scheduled", "INFO")
     except Exception as _eN:
         _add_log(f"NarAI schedule setup failed: {_eN}", "WARNING")
+    # ── Video Creator: daily at 11:00 ────────────────────────────────────────
+    try:
+        import schedule as _schedV
+        import threading as _threadV
+        def _run_video_creator():
+            try:
+                orch = _get_orch()
+                result = orch.run_bot("specialized/90_video_creator")
+                _add_log(f"Video creator complete: {result.get('status', 'done')}", "INFO")
+            except Exception as _eV:
+                _add_log(f"Video creator failed: {_eV}", "ERROR")
+        _schedV.every().day.at("11:00").do(lambda: _threadV.Thread(target=_run_video_creator, daemon=True).start())
+        _add_log("Video creator scheduled: daily 11:00", "INFO")
+    except Exception as _e:
+        _add_log(f"Video creator schedule failed: {_e}", "WARNING")
+
+    # ── Revenue Pipeline: full_revenue_blast daily at 08:30 ──────────────────
+    try:
+        import schedule as _schedR
+        import threading as _threadR
+        def _run_revenue_pipeline():
+            try:
+                pe = _get_pipeline_engine()
+                result = pe.run_pipeline("full_revenue_blast")
+                published = result.get("completed", 0)
+                _add_log(f"Revenue pipeline complete — {published} bots ran", "INFO")
+                try:
+                    from core.telegram import notify
+                    notify(f"💰 <b>Revenue Pipeline Complete</b>\n📊 Bots ran: {published}\n⏰ {__import__('datetime').datetime.now().strftime('%H:%M')}")
+                except Exception:
+                    pass
+            except Exception as _eR:
+                _add_log(f"Revenue pipeline failed: {_eR}", "ERROR")
+        _schedR.every().day.at("08:30").do(lambda: _threadR.Thread(target=_run_revenue_pipeline, daemon=True).start())
+        _add_log("Revenue pipeline scheduled: daily 08:30", "INFO")
+    except Exception as _e:
+        _add_log(f"Revenue pipeline schedule failed: {_e}", "WARNING")
+
+    # ── SEO Daily Pipeline: 06:30 every day ──────────────────────────────────
+    try:
+        import schedule as _schedS
+        import threading as _threadS
+        def _run_seo_pipeline():
+            try:
+                pe = _get_pipeline_engine()
+                pe.run_pipeline("seo_daily")
+                _add_log("SEO daily pipeline complete", "INFO")
+            except Exception as _eS:
+                _add_log(f"SEO pipeline failed: {_eS}", "ERROR")
+        _schedS.every().day.at("06:30").do(lambda: _threadS.Thread(target=_run_seo_pipeline, daemon=True).start())
+        _add_log("SEO daily pipeline scheduled: 06:30", "INFO")
+    except Exception as _e:
+        _add_log(f"SEO pipeline schedule failed: {_e}", "WARNING")
+
+    # ── Social Domination Pipeline: 3× per day ───────────────────────────────
+    try:
+        import schedule as _schedSD
+        import threading as _threadSD
+        def _run_social_pipeline():
+            try:
+                pe = _get_pipeline_engine()
+                pe.run_pipeline("social_domination")
+                _add_log("Social domination pipeline complete", "INFO")
+            except Exception as _eSD:
+                _add_log(f"Social pipeline failed: {_eSD}", "ERROR")
+        _schedSD.every().day.at("09:00").do(lambda: _threadSD.Thread(target=_run_social_pipeline, daemon=True).start())
+        _schedSD.every().day.at("14:00").do(lambda: _threadSD.Thread(target=_run_social_pipeline, daemon=True).start())
+        _schedSD.every().day.at("19:00").do(lambda: _threadSD.Thread(target=_run_social_pipeline, daemon=True).start())
+        _add_log("Social domination pipeline scheduled: 09:00, 14:00, 19:00", "INFO")
+    except Exception as _e:
+        _add_log(f"Social pipeline schedule failed: {_e}", "WARNING")
+
+    # ── Affiliate Revenue Pipeline: 3× per day ───────────────────────────────
+    try:
+        import schedule as _schedAR
+        import threading as _threadAR
+        def _run_affiliate_pipeline():
+            try:
+                pe = _get_pipeline_engine()
+                pe.run_pipeline("affiliate_revenue")
+                _add_log("Affiliate revenue pipeline complete", "INFO")
+            except Exception as _eAR:
+                _add_log(f"Affiliate pipeline failed: {_eAR}", "ERROR")
+        _schedAR.every().day.at("10:00").do(lambda: _threadAR.Thread(target=_run_affiliate_pipeline, daemon=True).start())
+        _schedAR.every().day.at("15:00").do(lambda: _threadAR.Thread(target=_run_affiliate_pipeline, daemon=True).start())
+        _schedAR.every().day.at("20:00").do(lambda: _threadAR.Thread(target=_run_affiliate_pipeline, daemon=True).start())
+        _add_log("Affiliate revenue pipeline scheduled: 10:00, 15:00, 20:00", "INFO")
+    except Exception as _e:
+        _add_log(f"Affiliate pipeline schedule failed: {_e}", "WARNING")
+
     # Telegram daily summary: 07:00 every day
     try:
         import schedule as _sched4
