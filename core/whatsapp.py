@@ -141,7 +141,20 @@ class WhatsAppClient:
         except Exception:
             pass
 
-        # Auto-reply if configured
+        # NarAI conversational reply (overrides static auto_reply)
+        try:
+            from bots.narai.bot import get_narai
+            narai = get_narai()
+            reply = narai.voice_chat(
+                f"[WhatsApp from {name}]: {body}"
+            )
+            if reply:
+                self.send_message(sender, reply)
+                return
+        except Exception:
+            pass
+
+        # Fallback: static auto-reply if configured
         if self.auto_reply:
             self.send_message(sender, self.auto_reply)
 
