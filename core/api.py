@@ -224,6 +224,23 @@ async def _lifespan(application: FastAPI):
         _add_log("NarAI: hourly diagnostic scheduled", "INFO")
     except Exception as _eN:
         _add_log(f"NarAI schedule setup failed: {_eN}", "WARNING")
+    # ── NarAI Social Blast: daily 09:15 ──────────────────────────────────────
+    try:
+        import schedule as _schedNB
+        import threading as _threadNB
+        def _narai_blast():
+            try:
+                narai = _get_narai()
+                if narai:
+                    result = narai.execute(action="social_blast")
+                    _add_log(f"NarAI social blast complete: {list(result.get('results',{}).keys())}", "INFO")
+            except Exception as _eNB:
+                _add_log(f"NarAI social blast failed: {_eNB}", "WARNING")
+        _schedNB.every().day.at("09:15").do(lambda: _threadNB.Thread(target=_narai_blast, daemon=True).start())
+        _add_log("NarAI social blast scheduled: daily 09:15", "INFO")
+    except Exception as _e:
+        _add_log(f"NarAI blast schedule failed: {_e}", "WARNING")
+
     # ── NarAI Inbox Handler: every 30 min (Facebook + Instagram comments) ────
     try:
         import schedule as _schedNI

@@ -1367,8 +1367,204 @@ Rules:
             return self._narai_market(kwargs.get("tickers", ["BTC-USD","ETH-USD","SPY"]))
         elif action == "trending":
             return {"trending": self._web.trending()}
+        # ── Social Media ──────────────────────────────────────────────────────
+        elif action == "tweet":
+            return self._narai_tweet(kwargs.get("text", ""), kwargs.get("thread", False))
+        elif action == "post_reddit":
+            return self._narai_reddit(kwargs.get("title",""), kwargs.get("body",""), kwargs.get("subreddit",""))
+        elif action == "post_tiktok":
+            return self._narai_tiktok(kwargs.get("video_url",""), kwargs.get("caption",""))
+        elif action == "post_youtube":
+            return self._narai_youtube(kwargs.get("video_url",""), kwargs.get("title",""), kwargs.get("description",""))
+        elif action == "telegram":
+            return self._narai_telegram(kwargs.get("message",""))
+        elif action == "social_blast":
+            return self._narai_social_blast(
+                content=kwargs.get("content",""),
+                topic=kwargs.get("topic",""),
+                image=kwargs.get("image", True),
+                video=kwargs.get("video", False),
+            )
         else:
             return self._run_diagnostic()
+
+    # ── NarAI Social Media Actions ─────────────────────────────────────────────
+
+    def _narai_tweet(self, text: str = "", thread: bool = False) -> Dict:
+        """Post a tweet or thread. Auto-generates content if not provided."""
+        try:
+            if not text:
+                # Fetch trending topic and generate tweet
+                trending = self._web.trending()
+                topic    = trending[0] if trending else "AI automation"
+                news     = self._web.news(topic, num=3)
+                headline = news[0].get("title","") if news else ""
+                text = self.ai(
+                    f"Write a punchy tweet about: {topic}. "
+                    f"Latest news: {headline}. "
+                    "WheellsVerse brand. Max 260 chars. Include 2-3 hashtags. No quotes.",
+                    max_tokens=100,
+                )
+            from core.twitter import get_twitter
+            tw = get_twitter()
+            if thread:
+                tweets = tw.format_thread_from_markdown(text)
+                result = tw.post_thread(tweets)
+            else:
+                result = tw.post_tweet(text)
+            self._update_mood("success", 0.1)
+            return {"platform": "twitter", "status": "posted", "text": text, "result": result}
+        except Exception as e:
+            return {"platform": "twitter", "status": "error", "error": str(e)}
+
+    def _narai_reddit(self, title: str = "", body: str = "", subreddit: str = "") -> Dict:
+        """Post to Reddit. Auto-detects subreddit from content."""
+        try:
+            if not title or not body:
+                topic = title or "AI automation passive income"
+                news  = self._web.news(topic, num=3)
+                body  = self.ai(
+                    f"Write a helpful Reddit post about: {topic}. "
+                    "Be informative, no hard sell. 200-300 words.",
+                    max_tokens=400,
+                )
+                title = title or f"How {topic} changed my approach to passive income"
+            from core.reddit import get_reddit
+            reddit = get_reddit()
+            if subreddit:
+                result = reddit.post_self(subreddit, title, body)
+            else:
+                result = reddit.post_to_niche(title, body, topic=title)
+            self._update_mood("success", 0.1)
+            return {"platform": "reddit", "status": "posted", "result": result}
+        except Exception as e:
+            return {"platform": "reddit", "status": "error", "error": str(e)}
+
+    def _narai_tiktok(self, video_url: str = "", caption: str = "") -> Dict:
+        """Post a video to TikTok."""
+        try:
+            from core.tiktok import get_tiktok
+            tt = get_tiktok()
+            if not tt.is_connected():
+                return {"platform": "tiktok", "status": "skipped", "reason": "Not authorized"}
+            if not caption:
+                caption = self.ai(
+                    "Write a punchy TikTok caption for a WheellsVerse AI video. "
+                    "Max 150 chars. 3-5 hashtags. No quotes.",
+                    max_tokens=80,
+                )
+            result = tt.post_video_from_url(video_url=video_url, caption=caption)
+            self._update_mood("success", 0.15)
+            return {"platform": "tiktok", "status": "posted", "result": result}
+        except Exception as e:
+            return {"platform": "tiktok", "status": "error", "error": str(e)}
+
+    def _narai_youtube(self, video_url: str = "", title: str = "", description: str = "") -> Dict:
+        """Upload a video to YouTube."""
+        try:
+            from core.youtube import get_youtube
+            yt = get_youtube()
+            if not yt.is_connected():
+                return {"platform": "youtube", "status": "skipped", "reason": "Not authorized"}
+            if not description:
+                description = self.ai(
+                    f"Write a YouTube description for: {title}. "
+                    "Include keywords, a CTA to subscribe, and WheellsVerse website link. 150 words.",
+                    max_tokens=250,
+                )
+            result = yt.upload_video(
+                video_url=video_url, title=title, description=description,
+                tags=["AI", "crypto", "passive income", "investing", "WheellsVerse"],
+            )
+            self._update_mood("success", 0.15)
+            return {"platform": "youtube", "status": "posted", "result": result}
+        except Exception as e:
+            return {"platform": "youtube", "status": "error", "error": str(e)}
+
+    def _narai_telegram(self, message: str = "") -> Dict:
+        """Send a message to Telegram."""
+        try:
+            from core.telegram import notify
+            if not message:
+                # Send a daily summary
+                prices = self._web.crypto_price(["bitcoin","ethereum","solana"])
+                btc = prices.get("bitcoin",{}).get("usd","?")
+                eth = prices.get("ethereum",{}).get("usd","?")
+                news = self._web.news("crypto AI investing", num=2)
+                headlines = "\n".join(f"• {a.get('title','')}" for a in news)
+                message = (
+                    f"📊 <b>NarAI Daily Brief</b>\n\n"
+                    f"₿ BTC: ${btc} | ETH: ${eth}\n\n"
+                    f"📰 Today's news:\n{headlines}\n\n"
+                    f"🤖 WheellsVerse bots are running. All systems nominal."
+                )
+            ok = notify(message)
+            return {"platform": "telegram", "status": "sent" if ok else "failed"}
+        except Exception as e:
+            return {"platform": "telegram", "status": "error", "error": str(e)}
+
+    def _narai_social_blast(self, content: str = "", topic: str = "",
+                             image: bool = True, video: bool = False) -> Dict:
+        """
+        Full social blast — NarAI generates content, image/video,
+        and posts to ALL platforms simultaneously.
+        """
+        import threading
+        results = {}
+
+        # Generate content if not provided
+        if not topic and not content:
+            trending = self._web.trending()
+            topic = trending[0] if trending else "AI crypto passive income"
+        if not content:
+            news = self._web.news(topic, num=3)
+            headlines = " | ".join(a.get("title","") for a in news[:2])
+            content = self.ai(
+                f"Write engaging social media content about: {topic}. "
+                f"Latest news: {headlines}. "
+                "WheellsVerse brand. Include key insights and a CTA. 200 words.",
+                max_tokens=300,
+            )
+
+        title = topic or content[:60]
+
+        # Run all platforms in parallel
+        def run(fn, key):
+            try:
+                results[key] = fn()
+            except Exception as e:
+                results[key] = {"status": "error", "error": str(e)}
+
+        threads = [
+            threading.Thread(target=run, args=(lambda: self._narai_tweet(content[:260]), "twitter")),
+            threading.Thread(target=run, args=(lambda: self._narai_telegram(), "telegram")),
+        ]
+
+        # Facebook + Instagram via publish pipeline
+        def _fb_ig():
+            from core.publish_pipeline import get_publisher
+            return get_publisher().publish(
+                content=content, title=title,
+                platforms=["facebook", "instagram", "blog"],
+                hashtags=["AI", "Crypto", "PassiveIncome", "WheellsVerse"],
+            )
+        threads.append(threading.Thread(target=run, args=(_fb_ig, "facebook_instagram")))
+
+        # Video
+        if video:
+            threads.append(threading.Thread(target=run, args=(
+                lambda: self._narai_create_video(topic=title, platforms="instagram,facebook,youtube"),
+                "video"
+            )))
+
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=120)
+
+        self._update_mood("success", 0.25)
+        self.logger.info("NarAI social blast complete: %s", list(results.keys()))
+        return {"status": "blasted", "topic": title, "results": results}
 
     # ── NarAI Internet Actions ─────────────────────────────────────────────────
 
