@@ -11,7 +11,8 @@ platform simultaneously:
   ✅ TikTok        — caption + script (posts when video_url provided)
   ✅ ConvertKit    — broadcast email to subscriber list
   ✅ Blog          — saves formatted HTML to outputs/published/blog/
-  🔜 Instagram     — when token connected
+  ✅ Facebook      — posts to Wheellsverse Page
+  ✅ Instagram     — generates image with DALL-E + publishes post
   🔜 LinkedIn      — when token connected
 
 Usage:
@@ -177,7 +178,7 @@ def _md_to_html(md: str) -> str:
 class PublishPipeline:
     """Publish content to all connected platforms in parallel."""
 
-    ALL_PLATFORMS = ["twitter", "tiktok", "email", "blog"]
+    ALL_PLATFORMS = ["twitter", "tiktok", "email", "blog", "facebook", "instagram"]
 
     def __init__(self):
         self._twitter    = None
@@ -201,6 +202,98 @@ class PublishPipeline:
             from core.convertkit import get_convertkit
             self._convertkit = get_convertkit()
         return self._convertkit
+
+    # ── Facebook & Instagram publishers ───────────────────────────────────────
+
+    def _publish_facebook(self, title: str, content: str,
+                          hashtags: List[str]) -> Dict:
+        page_token = os.getenv("FACEBOOK_PAGE_TOKEN", "")
+        page_id    = os.getenv("FACEBOOK_PAGE_ID", "")
+        if not page_token or not page_id:
+            return {"platform": "facebook", "status": "skipped",
+                    "reason": "FACEBOOK_PAGE_TOKEN or FACEBOOK_PAGE_ID not set"}
+        try:
+            import requests as _req
+            # Build a short punchy post from the title + first 300 chars of content
+            clean = re.sub(r'[#*`>]', '', content).strip()
+            snippet = clean[:300].rsplit(' ', 1)[0] + '...' if len(clean) > 300 else clean
+            tags = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
+            message = f"{title}\n\n{snippet}\n\n{tags}"
+            resp = _req.post(
+                f"https://graph.facebook.com/v19.0/{page_id}/feed",
+                json={"message": message, "access_token": page_token},
+                timeout=15,
+            )
+            data = resp.json()
+            if "id" in data:
+                return {"platform": "facebook", "status": "posted", "post_id": data["id"]}
+            return {"platform": "facebook", "status": "error",
+                    "error": data.get("error", {}).get("message", str(data))}
+        except Exception as e:
+            return {"platform": "facebook", "status": "error", "error": str(e)}
+
+    def _publish_instagram(self, title: str, content: str,
+                           hashtags: List[str], image_url: Optional[str] = None) -> Dict:
+        page_token  = os.getenv("INSTAGRAM_PAGE_TOKEN", "")
+        ig_account  = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
+        openai_key  = os.getenv("OPENAI_API_KEY", "")
+        if not page_token or not ig_account:
+            return {"platform": "instagram", "status": "skipped",
+                    "reason": "INSTAGRAM_PAGE_TOKEN or INSTAGRAM_ACCOUNT_ID not set"}
+        try:
+            import requests as _req
+
+            # Generate image with DALL-E if no image_url provided
+            if not image_url and openai_key:
+                from openai import OpenAI
+                client = OpenAI(api_key=openai_key)
+                img_resp = client.images.generate(
+                    model="dall-e-3",
+                    prompt=(
+                        f"Professional social media post image for: {title}. "
+                        "Dark futuristic tech aesthetic, cyan and gold accents, "
+                        "WheellsVerse AI brand style. No text overlays."
+                    ),
+                    size="1024x1024",
+                    quality="standard",
+                    n=1,
+                )
+                image_url = img_resp.data[0].url
+
+            if not image_url:
+                return {"platform": "instagram", "status": "skipped",
+                        "reason": "No image_url and OPENAI_API_KEY not set"}
+
+            # Build caption
+            clean = re.sub(r'[#*`>]', '', content).strip()
+            snippet = clean[:200].rsplit(' ', 1)[0] + '...' if len(clean) > 200 else clean
+            tags = ' '.join(f'#{h}' for h in (hashtags or [])[:20])
+            caption = f"{title}\n\n{snippet}\n\n{tags}"
+
+            # Step 1: create media container
+            container = _req.post(
+                f"https://graph.facebook.com/v19.0/{ig_account}/media",
+                data={"image_url": image_url, "caption": caption,
+                      "access_token": page_token},
+                timeout=30,
+            ).json()
+            if "id" not in container:
+                return {"platform": "instagram", "status": "error",
+                        "error": container.get("error", {}).get("message", str(container))}
+
+            # Step 2: publish
+            publish = _req.post(
+                f"https://graph.facebook.com/v19.0/{ig_account}/media_publish",
+                data={"creation_id": container["id"], "access_token": page_token},
+                timeout=30,
+            ).json()
+            if "id" in publish:
+                return {"platform": "instagram", "status": "posted",
+                        "post_id": publish["id"], "image_url": image_url}
+            return {"platform": "instagram", "status": "error",
+                    "error": publish.get("error", {}).get("message", str(publish))}
+        except Exception as e:
+            return {"platform": "instagram", "status": "error", "error": str(e)}
 
     # ── Platform publishers ────────────────────────────────────────────────────
 
@@ -370,6 +463,7 @@ class PublishPipeline:
         title: str = "",
         platforms: Optional[List[str]] = None,
         video_url: Optional[str] = None,
+        image_url: Optional[str] = None,
         hashtags: Optional[List[str]] = None,
         slug: str = "",
     ) -> Dict:
@@ -404,6 +498,10 @@ class PublishPipeline:
             tasks["email"] = lambda: self._publish_email(title, content)
         if "blog" in target_platforms:
             tasks["blog"] = lambda: self._publish_blog(title, content, slug)
+        if "facebook" in target_platforms:
+            tasks["facebook"] = lambda: self._publish_facebook(title, content, hashtags)
+        if "instagram" in target_platforms:
+            tasks["instagram"] = lambda: self._publish_instagram(title, content, hashtags, image_url)
 
         results = []
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as ex:
@@ -478,6 +576,10 @@ class PublishPipeline:
             "tiktok":     tt.get_status(),
             "convertkit": ck.get_status(),
             "blog":       {"connected": True, "path": str(BLOG_DIR.relative_to(ROOT))},
+            "facebook":   {"connected": bool(os.getenv("FACEBOOK_PAGE_TOKEN")),
+                           "page_id": os.getenv("FACEBOOK_PAGE_ID", "not set")},
+            "instagram":  {"connected": bool(os.getenv("INSTAGRAM_PAGE_TOKEN")),
+                           "account_id": os.getenv("INSTAGRAM_ACCOUNT_ID", "not set")},
         }
 
 
