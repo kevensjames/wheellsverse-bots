@@ -1,0 +1,10 @@
+{
+  "description": "Focuses on high-value affiliate niches like AI tools, crypto, and stock investing to drive targeted traffic.",
+  "goal": "$100 daily through high-value affiliate programs",
+  "default_topic": "high-value affiliate niches",
+  "affiliate_focus": "all",
+  "created_by": "SuperAgent",
+  "created_at": "2026-03-27T02:39:13.002329",
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

@@ -385,49 +385,79 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 <body>
 <div class="layout">
 <!-- SIDEBAR -->
-<nav class="sidebar">
-  <div class="brand"><div class="brand-name">WHEELLSVERSE</div><div class="brand-sub">AI Command Center v2.0</div></div>
-  <div class="nav">
-    <div class="nav-sec">Control</div>
-    <div class="nav-item" onclick="nav('superagent')" id="nav-superagent"><span class="ic">🧬</span><span>SuperAgent</span></div>
-    <div class="nav-item" onclick="nav('whatsapp')" id="nav-whatsapp" style="background:linear-gradient(90deg,rgba(37,211,102,.12),rgba(18,140,126,.08));border-left:2px solid #25d366"><span class="ic">📱</span><span style="color:#25d366;font-weight:700">WhatsApp</span></div>
-    <div class="nav-item active" onclick="nav('overview')" id="nav-overview"><span class="ic">⬡</span><span>Overview</span></div>
-    <div class="nav-item" onclick="nav('bots')" id="nav-bots"><span class="ic">🤖</span><span>Bots (70)</span></div>
-    <div class="nav-item" onclick="nav('pipelines')" id="nav-pipelines"><span class="ic">🔗</span><span>Pipelines</span></div>
-    <div class="nav-item" onclick="nav('scheduler')" id="nav-scheduler"><span class="ic">📅</span><span>Scheduler</span></div>
-    <div class="nav-sec">Intelligence</div>
-    <div class="nav-item" onclick="nav('decisions')" id="nav-decisions"><span class="ic">🧠</span><span>Decision Engine</span></div>
-    <div class="nav-item" onclick="nav('health')" id="nav-health"><span class="ic">❤️</span><span>Bot Health</span></div>
-    <div class="nav-item" onclick="nav('memory')" id="nav-memory"><span class="ic">💾</span><span>Memory</span></div>
-    <div class="nav-sec">Revenue</div>
-    <div class="nav-item" onclick="nav('revenue')" id="nav-revenue"><span class="ic">💰</span><span>Money Board</span></div>
-    <div class="nav-item" onclick="nav('publish')" id="nav-publish"><span class="ic">🚀</span><span>Publish</span></div>
-    <div class="nav-item" onclick="nav('content')" id="nav-content"><span class="ic">✍️</span><span>Content Engine</span></div>
-    <div class="nav-item" onclick="nav('blog')" id="nav-blog"><span class="ic">📰</span><span>Blog Board</span></div>
-    <div class="nav-item" onclick="nav('twitter')" id="nav-twitter"><span class="ic">🐦</span><span>Twitter Blitz</span></div>
-    <div class="nav-item" onclick="nav('reddit')" id="nav-reddit"><span class="ic">🔴</span><span>Reddit Blitz</span></div>
-    <div class="nav-item" onclick="nav('gsc')" id="nav-gsc"><span class="ic">🔍</span><span>Search Console</span></div>
-    <div class="nav-item" onclick="nav('telegramalerts')" id="nav-telegramalerts"><span class="ic">📲</span><span>Alerts</span></div>
-    <div class="nav-item" onclick="nav('tiktokblitz')" id="nav-tiktokblitz"><span class="ic">🎵</span><span>TikTok Blitz</span></div>
-    <div class="nav-item" onclick="nav('autopublish')" id="nav-autopublish"><span class="ic">📡</span><span>Auto-Publish</span></div>
-    <div class="nav-item" onclick="nav('newsletter')" id="nav-newsletter"><span class="ic">✉️</span><span>Newsletter Bot</span></div>
-    <div class="nav-item" onclick="nav('revenue2')" id="nav-revenue2"><span class="ic">📊</span><span>Revenue V2</span></div>
-    <div class="nav-item" onclick="nav('intelligence')" id="nav-intelligence"><span class="ic">🔬</span><span>Intelligence</span></div>
-    <div class="nav-item" onclick="nav('adsboard')" id="nav-adsboard"><span class="ic">📢</span><span>Ads Board</span></div>
-    <div class="nav-item" onclick="nav('pixelagents')" id="nav-pixelagents"><span class="ic">🕹️</span><span>Pixel Agents</span></div>
-    <div class="nav-item" onclick="nav('narai')" id="nav-narai" style="background:linear-gradient(90deg,rgba(180,0,255,.12),rgba(0,200,255,.08));border-left:2px solid #bb44ff"><span class="ic">🌟</span><span style="color:#cc88ff;font-weight:700">NarAI</span></div>
-    <div class="nav-sec">Live Data</div>
-    <div class="nav-item" onclick="nav('integrations')" id="nav-integrations"><span class="ic">📡</span><span>Market Data</span></div>
-    <div class="nav-item" onclick="nav('automation')" id="nav-automation"><span class="ic">📤</span><span>Automation</span></div>
-    <div class="nav-sec">Data</div>
-    <div class="nav-item" onclick="nav('outputs')" id="nav-outputs"><span class="ic">📁</span><span>Outputs</span></div>
-    <div class="nav-item" onclick="nav('logs')" id="nav-logs"><span class="ic">📜</span><span>Live Logs</span></div>
-    <div class="nav-sec">Config</div>
-    <div class="nav-item" onclick="nav('projects')" id="nav-projects"><span class="ic">🗂</span><span>Projects</span></div>
-    <div class="nav-item" onclick="nav('settings')" id="nav-settings"><span class="ic">⚙️</span><span>Settings</span></div>
-    <div class="nav-item" onclick="nav('command')" id="nav-command"><span class="ic">⌨️</span><span>Command</span></div>
+<nav class="sidebar" style="background:linear-gradient(180deg,#0d0f14,#0a0c12);border-right:1px solid rgba(255,255,255,.06)">
+  <!-- Brand -->
+  <div class="brand" style="background:linear-gradient(135deg,rgba(136,68,255,.15),rgba(0,204,255,.08));border-bottom:1px solid rgba(136,68,255,.2);padding:16px 14px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="width:28px;height:28px;border-radius:8px;background:linear-gradient(135deg,#6600cc,#00aaff);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;box-shadow:0 4px 12px rgba(102,0,204,.4)">⬡</div>
+      <div class="brand-name" style="background:linear-gradient(90deg,#cc88ff,#00ccff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;font-size:11px;letter-spacing:2.5px">WHEELLSVERSE</div>
+    </div>
+    <div class="brand-sub" style="font-size:8px;color:rgba(136,68,255,.7);letter-spacing:2px;text-transform:uppercase">AI COMMAND CENTER</div>
+    <!-- NarAI live status in sidebar -->
+    <div style="display:flex;align-items:center;gap:6px;margin-top:8px;padding:5px 8px;background:rgba(136,68,255,.08);border:1px solid rgba(136,68,255,.2);border-radius:7px">
+      <span style="width:6px;height:6px;border-radius:50%;background:#cc88ff;box-shadow:0 0 6px #cc88ff;flex-shrink:0;animation:pl 2s infinite"></span>
+      <span style="font-size:9px;color:#cc88ff;letter-spacing:.5px" id="sidebar-narai-status">NarAI • online</span>
+    </div>
   </div>
-  <div class="sidebar-foot" id="uptime-lbl">Loading...</div>
+
+  <div class="nav" style="padding:6px 0">
+    <!-- Core -->
+    <div class="nav-sec" style="color:rgba(136,68,255,.6);font-size:8px;letter-spacing:2.5px">CORE</div>
+    <div class="nav-item" onclick="nav('narai')" id="nav-narai" style="background:linear-gradient(90deg,rgba(136,68,255,.18),rgba(0,204,255,.06));border-left:2px solid #cc88ff;margin:2px 6px;border-radius:0 8px 8px 0">
+      <span class="ic">🌟</span><span style="color:#cc88ff;font-weight:800;letter-spacing:.5px">NarAI</span>
+      <span style="margin-left:auto;width:6px;height:6px;border-radius:50%;background:#cc88ff;box-shadow:0 0 6px #cc88ff;animation:pl 2s infinite;flex-shrink:0"></span>
+    </div>
+    <div class="nav-item" onclick="nav('overview')" id="nav-overview" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⬡</span><span>Overview</span></div>
+    <div class="nav-item" onclick="nav('whatsapp')" id="nav-whatsapp" style="background:linear-gradient(90deg,rgba(37,211,102,.1),transparent);border-left:2px solid #25d366;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📱</span><span style="color:#25d366;font-weight:700">WhatsApp</span></div>
+    <div class="nav-item" onclick="nav('superagent')" id="nav-superagent" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🧬</span><span>SuperAgent</span></div>
+
+    <!-- Bots -->
+    <div class="nav-sec" style="color:rgba(0,204,255,.6);font-size:8px;letter-spacing:2.5px">BOTS</div>
+    <div class="nav-item" onclick="nav('bots')" id="nav-bots" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span>Bots</span><span id="sb-bot-count" style="margin-left:auto;font-size:8px;color:var(--text3);background:rgba(0,204,255,.1);border-radius:10px;padding:1px 6px">—</span></div>
+    <div class="nav-item" onclick="nav('pixelagents')" id="nav-pixelagents" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🕹️</span><span>Pixel Agents</span></div>
+    <div class="nav-item" onclick="nav('pipelines')" id="nav-pipelines" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔗</span><span>Pipelines</span></div>
+    <div class="nav-item" onclick="nav('scheduler')" id="nav-scheduler" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📅</span><span>Scheduler</span></div>
+
+    <!-- Intelligence -->
+    <div class="nav-sec" style="color:rgba(255,204,68,.6);font-size:8px;letter-spacing:2.5px">INTELLIGENCE</div>
+    <div class="nav-item" onclick="nav('decisions')" id="nav-decisions" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🧠</span><span>Decision Engine</span></div>
+    <div class="nav-item" onclick="nav('health')" id="nav-health" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">❤️</span><span>Bot Health</span></div>
+    <div class="nav-item" onclick="nav('memory')" id="nav-memory" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💾</span><span>Memory</span></div>
+    <div class="nav-item" onclick="nav('intelligence')" id="nav-intelligence" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔬</span><span>Intelligence</span></div>
+
+    <!-- Revenue -->
+    <div class="nav-sec" style="color:rgba(68,255,136,.6);font-size:8px;letter-spacing:2.5px">REVENUE</div>
+    <div class="nav-item" onclick="nav('revenue')" id="nav-revenue" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span>Money Board</span></div>
+    <div class="nav-item" onclick="nav('revenue2')" id="nav-revenue2" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📊</span><span>Revenue V2</span></div>
+    <div class="nav-item" onclick="nav('adsboard')" id="nav-adsboard" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📢</span><span>Ads Board</span></div>
+
+    <!-- Content -->
+    <div class="nav-sec" style="color:rgba(255,85,136,.6);font-size:8px;letter-spacing:2.5px">CONTENT</div>
+    <div class="nav-item" onclick="nav('publish')" id="nav-publish" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🚀</span><span>Publish</span></div>
+    <div class="nav-item" onclick="nav('content')" id="nav-content" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">✍️</span><span>Content Engine</span></div>
+    <div class="nav-item" onclick="nav('blog')" id="nav-blog" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📰</span><span>Blog Board</span></div>
+    <div class="nav-item" onclick="nav('autopublish')" id="nav-autopublish" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📡</span><span>Auto-Publish</span></div>
+    <div class="nav-item" onclick="nav('twitter')" id="nav-twitter" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🐦</span><span>Twitter Blitz</span></div>
+    <div class="nav-item" onclick="nav('reddit')" id="nav-reddit" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔴</span><span>Reddit Blitz</span></div>
+    <div class="nav-item" onclick="nav('tiktokblitz')" id="nav-tiktokblitz" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎵</span><span>TikTok Blitz</span></div>
+    <div class="nav-item" onclick="nav('newsletter')" id="nav-newsletter" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">✉️</span><span>Newsletter Bot</span></div>
+    <div class="nav-item" onclick="nav('gsc')" id="nav-gsc" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔍</span><span>Search Console</span></div>
+    <div class="nav-item" onclick="nav('telegramalerts')" id="nav-telegramalerts" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📲</span><span>Alerts</span></div>
+
+    <!-- Data -->
+    <div class="nav-sec" style="color:rgba(170,136,255,.6);font-size:8px;letter-spacing:2.5px">DATA</div>
+    <div class="nav-item" onclick="nav('integrations')" id="nav-integrations" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📡</span><span>Market Data</span></div>
+    <div class="nav-item" onclick="nav('automation')" id="nav-automation" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📤</span><span>Automation</span></div>
+    <div class="nav-item" onclick="nav('outputs')" id="nav-outputs" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📁</span><span>Outputs</span></div>
+    <div class="nav-item" onclick="nav('logs')" id="nav-logs" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📜</span><span>Live Logs</span></div>
+
+    <!-- Config -->
+    <div class="nav-sec" style="color:rgba(100,120,150,.6);font-size:8px;letter-spacing:2.5px">CONFIG</div>
+    <div class="nav-item" onclick="nav('projects')" id="nav-projects" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🗂</span><span>Projects</span></div>
+    <div class="nav-item" onclick="nav('settings')" id="nav-settings" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⚙️</span><span>Settings</span></div>
+    <div class="nav-item" onclick="nav('command')" id="nav-command" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⌨️</span><span>Command</span></div>
+  </div>
+  <div class="sidebar-foot" id="uptime-lbl" style="font-size:9px;color:rgba(136,68,255,.6);letter-spacing:1px;border-top:1px solid rgba(255,255,255,.04)">Loading...</div>
 </nav>
 
 <!-- MAIN -->
@@ -1104,29 +1134,232 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 <!-- ══ OVERVIEW ══════════════════════════════════════════════════════════ -->
 <div class="page active" id="page-overview">
-  <div class="g4">
-    <div class="card"><div class="ct">Total Bots</div><div class="cv cy" id="ov-total">—</div><div class="csb">Loaded</div></div>
-    <div class="card"><div class="ct">Running</div><div class="cv yl" id="ov-run">—</div><div class="csb">Active now</div></div>
-    <div class="card"><div class="ct">Completed</div><div class="cv gr" id="ov-done">—</div><div class="csb">Since start</div></div>
-    <div class="card"><div class="ct">Failed</div><div class="cv rd" id="ov-fail">—</div><div class="csb">Error state</div></div>
+
+<style>
+/* ── Overview Command Center ── */
+@keyframes ovScan{0%{transform:translateY(-100%)}100%{transform:translateY(100vh)}}
+@keyframes ovPulse{0%,100%{opacity:.5;transform:scale(1)}50%{opacity:1;transform:scale(1.05)}}
+@keyframes ovBlink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes ovBarFill{from{width:0}to{width:var(--w)}}
+@keyframes ovFadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ovGlow{0%,100%{box-shadow:0 0 8px rgba(136,68,255,.3)}50%{box-shadow:0 0 22px rgba(136,68,255,.7),0 0 40px rgba(0,204,255,.3)}}
+@keyframes ovOrbit{from{transform:rotate(0deg) translateX(22px)}to{transform:rotate(360deg) translateX(22px)}}
+@keyframes ovSlide{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+.ov-glass{background:rgba(16,18,28,.75);backdrop-filter:blur(14px);border:1px solid rgba(136,68,255,.18);border-radius:12px}
+.ov-holo-banner{
+  position:relative;overflow:hidden;
+  background:linear-gradient(135deg,rgba(136,68,255,.12) 0%,rgba(0,204,255,.08) 50%,rgba(68,255,136,.06) 100%);
+  border:1px solid rgba(136,68,255,.25);border-radius:14px;padding:20px 24px;margin-bottom:18px;
+  animation:ovGlow 4s ease-in-out infinite;
+}
+.ov-holo-banner::before{
+  content:'';position:absolute;top:0;left:-60%;width:40%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.03),transparent);
+  animation:ovSlide 3s linear infinite;
+}
+.ov-scan-line{
+  position:absolute;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(0,204,255,.4),transparent);
+  animation:ovScan 4s linear infinite;pointer-events:none;
+}
+.ov-metric{
+  background:rgba(10,12,20,.6);border:1px solid rgba(136,68,255,.15);border-radius:10px;
+  padding:14px 16px;position:relative;overflow:hidden;animation:ovFadeUp .5s ease both;
+  transition:border-color .2s,transform .2s;
+}
+.ov-metric:hover{border-color:rgba(136,68,255,.45);transform:translateY(-2px)}
+.ov-metric::after{
+  content:'';position:absolute;inset:0;border-radius:10px;
+  background:linear-gradient(135deg,rgba(136,68,255,.04),transparent);pointer-events:none;
+}
+.ov-metric-label{font-size:9px;text-transform:uppercase;letter-spacing:1.8px;color:rgba(148,163,184,.6);margin-bottom:4px}
+.ov-metric-val{font-size:28px;font-weight:800;line-height:1;letter-spacing:-1px}
+.ov-metric-sub{font-size:9px;color:rgba(148,163,184,.5);margin-top:3px}
+.ov-metric-accent{position:absolute;top:0;left:0;width:3px;height:100%;border-radius:10px 0 0 10px}
+
+.ov-sys-card{
+  background:rgba(10,12,20,.6);border:1px solid rgba(136,68,255,.15);border-radius:10px;
+  padding:12px 14px;display:flex;align-items:center;gap:10px;
+  transition:border-color .2s;animation:ovFadeUp .6s ease both;
+}
+.ov-sys-card:hover{border-color:rgba(136,68,255,.4)}
+.ov-sys-icon{width:34px;height:34px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.ov-sys-name{font-size:10px;color:rgba(148,163,184,.7);text-transform:uppercase;letter-spacing:1px}
+.ov-sys-val{font-size:13px;font-weight:700;color:var(--text)}
+.ov-sys-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-left:auto}
+.ov-sys-dot.on{background:#44ff88;box-shadow:0 0 8px #44ff88;animation:ovPulse 2s ease-in-out infinite}
+.ov-sys-dot.off{background:#ff4455;box-shadow:0 0 6px #ff4455}
+
+.ov-action-btn{
+  display:flex;align-items:center;gap:7px;padding:10px 16px;border-radius:9px;border:none;cursor:pointer;
+  font-size:11px;font-weight:600;font-family:inherit;transition:all .2s;letter-spacing:.3px;
+  position:relative;overflow:hidden;
+}
+.ov-action-btn::before{content:'';position:absolute;inset:0;background:rgba(255,255,255,.05);opacity:0;transition:opacity .2s}
+.ov-action-btn:hover::before{opacity:1}
+.ov-action-btn:hover{transform:translateY(-1px)}
+.ov-action-btn:active{transform:translateY(0)}
+.ov-action-primary{background:linear-gradient(135deg,#8844ff,#6622dd);color:#fff;box-shadow:0 4px 15px rgba(136,68,255,.35)}
+.ov-action-cyan{background:linear-gradient(135deg,#0088cc,#0044aa);color:#fff;box-shadow:0 4px 15px rgba(0,136,204,.35)}
+.ov-action-green{background:linear-gradient(135deg,#22aa66,#118844);color:#fff;box-shadow:0 4px 15px rgba(34,170,102,.35)}
+.ov-action-red{background:linear-gradient(135deg,#cc3344,#aa1122);color:#fff;box-shadow:0 4px 15px rgba(204,51,68,.3)}
+.ov-action-ghost{background:rgba(136,68,255,.12);color:rgba(200,180,255,.9);border:1px solid rgba(136,68,255,.25)}
+.ov-action-ghost:hover{background:rgba(136,68,255,.2)}
+
+.ov-health-bar-wrap{background:rgba(0,0,0,.4);border-radius:4px;height:5px;overflow:hidden;flex:1}
+.ov-health-bar{height:100%;border-radius:4px;transition:width 1.2s cubic-bezier(.4,0,.2,1)}
+
+.ov-live-dot{width:6px;height:6px;border-radius:50%;background:#44ff88;box-shadow:0 0 8px #44ff88;animation:ovBlink 1.4s ease-in-out infinite;display:inline-block;margin-right:5px}
+
+.ov-cat-chip{
+  background:rgba(10,12,20,.7);border:1px solid rgba(136,68,255,.15);border-radius:10px;
+  padding:12px 14px;transition:all .2s;cursor:pointer;animation:ovFadeUp .7s ease both;
+}
+.ov-cat-chip:hover{border-color:rgba(0,204,255,.4);background:rgba(0,204,255,.05);transform:translateY(-2px)}
+.ov-cat-chip-icon{font-size:22px;margin-bottom:6px}
+.ov-cat-chip-name{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--text)}
+.ov-cat-chip-count{font-size:20px;font-weight:800;color:var(--cyan);line-height:1}
+.ov-cat-chip-sub{font-size:9px;color:rgba(148,163,184,.5)}
+
+.ov-activity-row{
+  display:flex;align-items:center;gap:10px;padding:7px 0;
+  border-bottom:1px solid rgba(136,68,255,.07);font-size:10px;animation:ovFadeUp .4s ease both;
+}
+.ov-activity-row:last-child{border-bottom:none}
+.ov-activity-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.ov-tick{font-size:9px;color:rgba(148,163,184,.4);min-width:60px;text-align:right}
+
+.ov-section-hdr{
+  display:flex;align-items:center;gap:8px;margin:22px 0 12px;
+  font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:2px;
+  color:rgba(148,163,184,.6);
+}
+.ov-section-hdr::before{content:'';flex:none;width:3px;height:14px;border-radius:2px;background:linear-gradient(to bottom,#8844ff,#00ccff)}
+.ov-section-hdr::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,rgba(136,68,255,.2),transparent)}
+</style>
+
+<!-- Holographic NarAI Status Banner -->
+<div class="ov-holo-banner" style="cursor:pointer" onclick="nav('narai')">
+  <div class="ov-scan-line"></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="position:relative;width:48px;height:48px;flex-shrink:0">
+        <div style="width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#8844ff,#00ccff);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 20px rgba(136,68,255,.5)">🤖</div>
+        <div style="position:absolute;top:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:#44ff88;box-shadow:0 0 10px #44ff88;animation:ovBlink 1.5s ease-in-out infinite"></div>
+      </div>
+      <div>
+        <div style="font-size:16px;font-weight:800;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.3px">NarAI Singularity — ONLINE</div>
+        <div style="font-size:10px;color:rgba(148,163,184,.7);margin-top:2px"><span class="ov-live-dot"></span>Autonomous intelligence active · Self-evolving · Full ecosystem control</div>
+      </div>
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <div style="text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#44ff88" id="ov-health-big">—%</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);text-transform:uppercase;letter-spacing:1px">Health</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#cc88ff" id="ov-skills-big">—</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);text-transform:uppercase;letter-spacing:1px">Skills</div>
+      </div>
+      <div style="text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#00ccff" id="ov-up">—</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);text-transform:uppercase;letter-spacing:1px">Uptime</div>
+      </div>
+      <div style="text-align:center;cursor:pointer;padding:6px 12px;background:rgba(136,68,255,.2);border:1px solid rgba(136,68,255,.4);border-radius:8px;font-size:11px;font-weight:700;color:#cc88ff" onclick="event.stopPropagation();nav('narai')">
+        Open NarAI →
+      </div>
+    </div>
   </div>
-  <div class="g4">
-    <div class="card"><div class="ct">Scheduler</div><div class="cv" id="ov-sched" style="font-size:18px">—</div></div>
-    <div class="card"><div class="ct">Decision Engine</div><div class="cv" id="ov-de" style="font-size:18px">—</div></div>
-    <div class="card"><div class="ct">Avg Health</div><div class="cv pu" id="ov-health">—</div><div class="csb">All bots</div></div>
-    <div class="card"><div class="ct">Uptime</div><div class="cv" id="ov-up" style="font-size:18px;color:var(--cyan)">—</div></div>
+</div>
+
+<!-- Core Metrics Grid -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+  <div class="ov-metric" style="animation-delay:.05s">
+    <div class="ov-metric-accent" style="background:linear-gradient(to bottom,#00ccff,#0066aa)"></div>
+    <div class="ov-metric-label">Total Bots</div>
+    <div class="ov-metric-val" style="color:#00ccff" id="ov-total">—</div>
+    <div class="ov-metric-sub">Loaded in ecosystem</div>
   </div>
-  <div class="sh"><div><div class="st">Quick Actions</div></div></div>
-  <div style="display:flex;gap:9px;flex-wrap:wrap;margin-bottom:24px">
-    <button class="btn bc2" onclick="runAll()">🚀 Run All 70</button>
-    <button class="btn bg2" onclick="startSched()">▶ Scheduler</button>
-    <button class="btn bc2" onclick="startDE()">🧠 Decision Engine</button>
-    <button class="btn br2" onclick="stopSched()">⏹ Stop Scheduler</button>
-    <button class="btn bgh" onclick="nav('pipelines')">🔗 Pipelines</button>
-    <button class="btn bgh" onclick="deCycle()">⚡ Run Decision Cycle</button>
+  <div class="ov-metric" style="animation-delay:.1s">
+    <div class="ov-metric-accent" style="background:linear-gradient(to bottom,#ffcc44,#cc8800)"></div>
+    <div class="ov-metric-label">Running Now</div>
+    <div class="ov-metric-val" style="color:#ffcc44" id="ov-run">—</div>
+    <div class="ov-metric-sub">Active processes</div>
   </div>
-  <div class="sh"><div class="st">Categories</div></div>
-  <div class="g3" id="cat-grid"></div>
+  <div class="ov-metric" style="animation-delay:.15s">
+    <div class="ov-metric-accent" style="background:linear-gradient(to bottom,#44ff88,#22aa55)"></div>
+    <div class="ov-metric-label">Completed</div>
+    <div class="ov-metric-val" style="color:#44ff88" id="ov-done">—</div>
+    <div class="ov-metric-sub">Successful runs</div>
+  </div>
+  <div class="ov-metric" style="animation-delay:.2s">
+    <div class="ov-metric-accent" style="background:linear-gradient(to bottom,#ff4455,#cc1122)"></div>
+    <div class="ov-metric-label">Errors</div>
+    <div class="ov-metric-val" style="color:#ff4455" id="ov-fail">—</div>
+    <div class="ov-metric-sub">Need attention</div>
+  </div>
+</div>
+
+<!-- System Status Row -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+  <div class="ov-sys-card" style="animation-delay:.25s">
+    <div class="ov-sys-icon" style="background:rgba(136,68,255,.15)">⚙️</div>
+    <div>
+      <div class="ov-sys-name">Scheduler</div>
+      <div class="ov-sys-val" id="ov-sched">—</div>
+    </div>
+    <div class="ov-sys-dot" id="ov-sched-dot"></div>
+  </div>
+  <div class="ov-sys-card" style="animation-delay:.3s">
+    <div class="ov-sys-icon" style="background:rgba(0,204,255,.12)">🧠</div>
+    <div>
+      <div class="ov-sys-name">Decision Engine</div>
+      <div class="ov-sys-val" id="ov-de">—</div>
+    </div>
+    <div class="ov-sys-dot" id="ov-de-dot"></div>
+  </div>
+  <div class="ov-sys-card" style="animation-delay:.35s">
+    <div class="ov-sys-icon" style="background:rgba(68,255,136,.1)">💚</div>
+    <div>
+      <div class="ov-sys-name">Avg Health</div>
+      <div class="ov-sys-val"><span id="ov-health" style="color:#44ff88">—</span></div>
+    </div>
+    <div style="margin-left:auto;display:flex;flex-direction:column;gap:4px;width:60px">
+      <div class="ov-health-bar-wrap"><div class="ov-health-bar" id="ov-health-bar" style="background:linear-gradient(90deg,#44ff88,#00ccff);width:0%"></div></div>
+    </div>
+  </div>
+  <div class="ov-sys-card" style="animation-delay:.4s">
+    <div class="ov-sys-icon" style="background:rgba(255,204,68,.1)">⏱</div>
+    <div>
+      <div class="ov-sys-name">System Uptime</div>
+      <div class="ov-sys-val" style="color:#ffcc44" id="ov-uptime2">—</div>
+    </div>
+    <div class="ov-sys-dot on"></div>
+  </div>
+</div>
+
+<!-- Quantum Actions -->
+<div class="ov-section-hdr">Quantum Actions</div>
+<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px">
+  <button class="ov-action-btn ov-action-primary" onclick="runAll()">🚀 Launch All Bots</button>
+  <button class="ov-action-btn ov-action-cyan" onclick="startDE()">🧠 Decision Engine</button>
+  <button class="ov-action-btn ov-action-green" onclick="startSched()">▶ Start Scheduler</button>
+  <button class="ov-action-btn ov-action-ghost" onclick="deCycle()">⚡ Run Decision Cycle</button>
+  <button class="ov-action-btn ov-action-ghost" onclick="nav('pipelines')">🔗 Open Pipelines</button>
+  <button class="ov-action-btn ov-action-red" onclick="stopSched()">⏹ Kill Scheduler</button>
+</div>
+
+<!-- Category Matrix -->
+<div class="ov-section-hdr">Bot Category Matrix</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:10px;margin-bottom:20px" id="cat-grid"></div>
+
+<!-- Live Activity Feed -->
+<div class="ov-section-hdr">Live Activity Feed</div>
+<div class="ov-glass" style="padding:14px 16px;max-height:200px;overflow-y:auto" id="ov-activity-feed">
+  <div style="text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:16px 0">Waiting for bot activity…</div>
+</div>
+
 </div>
 
 <!-- ══ BOTS ════════════════════════════════════════════════════════════════ -->
@@ -1548,122 +1781,212 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 </div>
 
 <div class="page" id="page-revenue">
-  <!-- Top stats row -->
-  <div class="g4" style="margin-bottom:16px">
-    <div class="card">
-      <div class="ct">Earned (30 days)</div>
-      <div class="cv gr" id="rv-total30">—</div>
-      <div class="csb">Impact.com programs</div>
-    </div>
-    <div class="card">
-      <div class="ct">Earned (7 days)</div>
-      <div class="cv cy" id="rv-total7">—</div>
-      <div class="csb">Last week</div>
-    </div>
-    <div class="card">
-      <div class="ct">Pending Payout</div>
-      <div class="cv yl" id="rv-pending">—</div>
-      <div class="csb">Awaiting approval</div>
-    </div>
-    <div class="card">
-      <div class="ct">Locked</div>
-      <div class="cv pu" id="rv-locked">—</div>
-      <div class="csb">Processing</div>
-    </div>
-  </div>
+<style>
+@keyframes rvPulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+@keyframes rvCountUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes rvBarGrow{from{width:0}to{width:var(--tw)}}
+@keyframes rvGlow{0%,100%{box-shadow:0 0 10px rgba(68,255,136,.2)}50%{box-shadow:0 0 25px rgba(68,255,136,.5),0 0 45px rgba(0,204,255,.2)}}
+@keyframes rvScan{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
 
-  <!-- Status strip: Amazon tag + Impact -->
-  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px">
-    <div class="csm" style="flex:1;min-width:220px">
-      <div class="ct">Amazon Associates</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-        <span class="ss2 sd">Connected</span>
-        <span style="font-size:12px;color:var(--text);font-weight:600">Tag: wheellsverse-20</span>
-      </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:5px">Links injected by monetization bots into all content</div>
-    </div>
-    <div class="csm" style="flex:1;min-width:220px">
-      <div class="ct">Impact.com API</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-        <span class="ss2" id="rv-impact-dot">—</span>
-        <span style="font-size:11px;color:var(--text2)" id="rv-impact-lbl">Checking...</span>
-      </div>
-      <div style="font-size:10px;color:var(--text3);margin-top:5px">Robinhood · Coinbase · All affiliate programs</div>
-    </div>
-    <div class="csm" style="flex:1;min-width:220px">
-      <div class="ct">Conversions (7d)</div>
-      <div class="cv cy" id="rv-actions" style="font-size:22px;margin-top:4px">—</div>
-      <div style="font-size:10px;color:var(--text3);margin-top:2px">Tracked actions / clicks</div>
-    </div>
-    <div class="csm" style="flex:1;min-width:220px">
-      <div class="ct">Clicks (7d)</div>
-      <div class="cv" id="rv-clicks" style="font-size:22px;margin-top:4px;color:var(--purple)">—</div>
-      <div style="font-size:10px;color:var(--text3);margin-top:2px">Affiliate link clicks tracked</div>
-    </div>
-  </div>
+.rv-holo{
+  background:linear-gradient(135deg,rgba(68,255,136,.1),rgba(0,204,255,.07),rgba(68,255,136,.04));
+  border:1px solid rgba(68,255,136,.25);border-radius:14px;padding:20px 22px;
+  position:relative;overflow:hidden;animation:rvGlow 4s ease-in-out infinite;margin-bottom:18px;
+}
+.rv-holo::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(68,255,136,.5),transparent);animation:rvPulse 3s ease-in-out infinite}
+.rv-metric-card{
+  background:rgba(8,10,18,.8);border:1px solid rgba(68,255,136,.12);border-radius:11px;
+  padding:16px 18px;position:relative;overflow:hidden;transition:all .2s;animation:rvCountUp .5s ease both;
+}
+.rv-metric-card:hover{border-color:rgba(68,255,136,.35);transform:translateY(-2px);box-shadow:0 8px 25px rgba(68,255,136,.1)}
+.rv-metric-card .rv-accent{position:absolute;top:0;left:0;width:3px;height:100%;border-radius:11px 0 0 11px}
+.rv-metric-label{font-size:9px;text-transform:uppercase;letter-spacing:1.8px;color:rgba(148,163,184,.55);margin-bottom:5px}
+.rv-metric-value{font-size:26px;font-weight:900;letter-spacing:-1px;line-height:1}
+.rv-metric-sub{font-size:9px;color:rgba(148,163,184,.45);margin-top:4px}
 
-  <!-- Forecast + Report row -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
-    <div class="csm">
-      <div class="ct">30-Day Revenue Forecast</div>
-      <div class="cv gr" id="rv-forecast">—</div>
-      <div class="csb" id="rv-forecast-sub">based on 7-day velocity</div>
-      <div class="forecast-bar"><div class="forecast-fill" id="rv-forecast-bar" style="width:0%"></div></div>
-    </div>
-    <div class="csm" style="display:flex;flex-direction:column;justify-content:space-between">
+.rv-program-row{
+  display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:center;
+  padding:9px 12px;border-radius:8px;border:1px solid rgba(68,255,136,.08);
+  background:rgba(8,10,18,.6);transition:all .2s;margin-bottom:6px;
+}
+.rv-program-row:hover{border-color:rgba(68,255,136,.25);background:rgba(68,255,136,.04)}
+.rv-program-name{font-size:11px;font-weight:600;color:var(--text)}
+.rv-program-earned{font-size:13px;font-weight:800;color:#44ff88}
+.rv-program-bar-wrap{height:3px;background:rgba(0,0,0,.4);border-radius:3px;overflow:hidden;margin-top:3px}
+.rv-program-bar{height:100%;border-radius:3px;transition:width 1s cubic-bezier(.4,0,.2,1);background:linear-gradient(90deg,#44ff88,#00ccff)}
+
+.rv-forecast-ring{
+  width:90px;height:90px;border-radius:50%;flex-shrink:0;
+  background:conic-gradient(#44ff88 0deg, rgba(68,255,136,.15) 0deg);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 20px rgba(68,255,136,.25);transition:all 1s cubic-bezier(.4,0,.2,1);
+  position:relative;
+}
+.rv-forecast-ring::before{content:'';position:absolute;inset:6px;border-radius:50%;background:rgba(8,10,18,.95)}
+.rv-forecast-ring-val{position:relative;z-index:1;font-size:11px;font-weight:800;color:#44ff88;text-align:center}
+
+.rv-affiliate-chip{
+  display:flex;align-items:center;gap:8px;padding:10px 12px;
+  background:rgba(8,10,18,.7);border:1px solid rgba(136,68,255,.15);border-radius:9px;
+  transition:all .2s;
+}
+.rv-affiliate-chip:hover{border-color:rgba(136,68,255,.4);background:rgba(136,68,255,.06)}
+.rv-affiliate-chip-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0}
+.rv-affiliate-name{font-size:10px;font-weight:700;color:var(--text)}
+.rv-affiliate-type{font-size:8px;color:rgba(148,163,184,.5);text-transform:uppercase;letter-spacing:.8px}
+.rv-affiliate-status{margin-left:auto;width:7px;height:7px;border-radius:50%}
+
+.rv-bot-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;border:1px solid rgba(136,68,255,.08);background:rgba(8,10,18,.5);margin-bottom:5px;transition:all .2s}
+.rv-bot-row:hover{border-color:rgba(136,68,255,.25)}
+.rv-bot-icon{font-size:14px;width:24px;text-align:center}
+.rv-bot-name{font-size:10px;font-weight:600;color:var(--text);flex:1}
+.rv-bot-runs{font-size:9px;color:rgba(148,163,184,.5)}
+</style>
+
+<!-- Revenue Intelligence Header -->
+<div class="rv-holo">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#22aa66,#00ccff);display:flex;align-items:center;justify-content:center;font-size:22px;box-shadow:0 0 18px rgba(68,255,136,.4)">💰</div>
       <div>
-        <div class="ct">Weekly Report</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:4px">AI-generated performance summary with all live metrics</div>
-      </div>
-      <button class="btn bc2 bsm" style="margin-top:10px;width:100%" onclick="generateReport()" id="report-btn">📊 Generate Report</button>
-    </div>
-  </div>
-
-  <!-- Controls -->
-  <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
-    <button class="btn bc2 bsm" onclick="refreshRevenue()">↺ Refresh</button>
-    <select class="si2" id="rv-days" style="max-width:140px" onchange="refreshRevenue()">
-      <option value="7">Last 7 days</option>
-      <option value="30" selected>Last 30 days</option>
-      <option value="44">Last 44 days</option>
-    </select>
-    <span style="font-size:10px;color:var(--text3)" id="rv-fetched-at"></span>
-  </div>
-
-  <div class="g2" style="margin-bottom:18px">
-    <!-- Earnings by program -->
-    <div>
-      <div class="sh"><div class="st">Earnings by Program</div></div>
-      <div class="tw">
-        <table class="tbl">
-          <thead><tr><th>Program</th><th style="text-align:right">Earned</th><th style="text-align:right">Share</th></tr></thead>
-          <tbody id="rv-prog-tb"><tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text3)">Loading...</td></tr></tbody>
-        </table>
+        <div style="font-size:17px;font-weight:900;background:linear-gradient(90deg,#44ff88,#00ccff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-.3px">Revenue Intelligence</div>
+        <div style="font-size:10px;color:rgba(148,163,184,.6);margin-top:2px">Autonomous affiliate tracking · Impact.com live data · AI-powered forecasting</div>
       </div>
     </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <select class="si2" id="rv-days" style="max-width:130px;font-size:10px" onchange="refreshRevenue()">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="44">Last 44 days</option>
+      </select>
+      <button class="ov-action-btn ov-action-green" onclick="refreshRevenue()" style="padding:8px 14px;font-size:10px">↺ Refresh</button>
+      <button class="ov-action-btn ov-action-cyan" onclick="generateReport()" id="report-btn" style="padding:8px 14px;font-size:10px">📊 AI Report</button>
+      <span style="font-size:9px;color:rgba(148,163,184,.4)" id="rv-fetched-at"></span>
+    </div>
+  </div>
+</div>
 
-    <!-- Revenue bots -->
-    <div>
-      <div class="sh"><div class="st">Revenue Bots Status</div><div class="ss">Bots that generate affiliate traffic & content</div></div>
-      <div class="tw">
-        <table class="tbl">
-          <thead><tr><th>Bot</th><th>Category</th><th>Status</th><th>Runs</th></tr></thead>
-          <tbody id="rv-bots-tb"><tr><td colspan="4" style="text-align:center;padding:24px;color:var(--text3)">Loading...</td></tr></tbody>
-        </table>
+<!-- Core Revenue Metrics -->
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px">
+  <div class="rv-metric-card" style="animation-delay:.05s">
+    <div class="rv-accent" style="background:linear-gradient(to bottom,#44ff88,#22aa55)"></div>
+    <div class="rv-metric-label">Earned (30 days)</div>
+    <div class="rv-metric-value" style="color:#44ff88" id="rv-total30">—</div>
+    <div class="rv-metric-sub">Impact.com programs</div>
+  </div>
+  <div class="rv-metric-card" style="animation-delay:.1s">
+    <div class="rv-accent" style="background:linear-gradient(to bottom,#00ccff,#0066aa)"></div>
+    <div class="rv-metric-label">Earned (7 days)</div>
+    <div class="rv-metric-value" style="color:#00ccff" id="rv-total7">—</div>
+    <div class="rv-metric-sub">Last week velocity</div>
+  </div>
+  <div class="rv-metric-card" style="animation-delay:.15s">
+    <div class="rv-accent" style="background:linear-gradient(to bottom,#ffcc44,#cc8800)"></div>
+    <div class="rv-metric-label">Pending Payout</div>
+    <div class="rv-metric-value" style="color:#ffcc44" id="rv-pending">—</div>
+    <div class="rv-metric-sub">Awaiting approval</div>
+  </div>
+  <div class="rv-metric-card" style="animation-delay:.2s">
+    <div class="rv-accent" style="background:linear-gradient(to bottom,#cc88ff,#8844ff)"></div>
+    <div class="rv-metric-label">Processing</div>
+    <div class="rv-metric-value" style="color:#cc88ff" id="rv-locked">—</div>
+    <div class="rv-metric-sub">Locked / in review</div>
+  </div>
+</div>
+
+<!-- Conversion + Forecast Row -->
+<div style="display:grid;grid-template-columns:auto 1fr 1fr;gap:14px;margin-bottom:18px;align-items:start">
+
+  <!-- Forecast Ring -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(68,255,136,.15);border-radius:12px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:10px;min-width:140px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5)">30-Day Forecast</div>
+    <div class="rv-forecast-ring" id="rv-forecast-ring">
+      <div class="rv-forecast-ring-val" id="rv-forecast-ring-val">—</div>
+    </div>
+    <div style="font-size:10px;font-weight:700;color:#44ff88" id="rv-forecast">—</div>
+    <div style="font-size:8px;color:rgba(148,163,184,.4);text-align:center" id="rv-forecast-sub">based on 7d velocity</div>
+  </div>
+
+  <!-- Conversions -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(0,204,255,.12);border-radius:12px;padding:16px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:10px">Conversion Intelligence</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);text-transform:uppercase;letter-spacing:1px">Conversions (7d)</div>
+        <div style="font-size:22px;font-weight:900;color:#00ccff;margin-top:2px" id="rv-actions">—</div>
+      </div>
+      <div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);text-transform:uppercase;letter-spacing:1px">Clicks (7d)</div>
+        <div style="font-size:22px;font-weight:900;color:#cc88ff;margin-top:2px" id="rv-clicks">—</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px">
+      <div style="flex:1;background:rgba(0,0,0,.4);border-radius:4px;height:4px;overflow:hidden"><div id="rv-conv-bar" style="height:100%;background:linear-gradient(90deg,#00ccff,#8844ff);width:0%;transition:width 1.2s cubic-bezier(.4,0,.2,1)"></div></div>
+    </div>
+    <div style="font-size:9px;color:rgba(148,163,184,.4);margin-top:6px" id="rv-conv-rate">Conversion rate: —</div>
+  </div>
+
+  <!-- Impact.com + Amazon -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(136,68,255,.12);border-radius:12px;padding:16px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:10px">Platform Connections</div>
+    <div style="display:flex;flex-direction:column;gap:7px">
+      <div class="rv-affiliate-chip">
+        <div class="rv-affiliate-chip-icon" style="background:rgba(255,147,0,.15)">🔶</div>
+        <div><div class="rv-affiliate-name">Amazon Associates</div><div class="rv-affiliate-type">wheellsverse-20 · naraiinsights-20</div></div>
+        <div class="rv-affiliate-status" style="background:#44ff88;box-shadow:0 0 7px #44ff88"></div>
+      </div>
+      <div class="rv-affiliate-chip">
+        <div class="rv-affiliate-chip-icon" style="background:rgba(0,204,255,.12)">📡</div>
+        <div>
+          <div class="rv-affiliate-name">Impact.com API</div>
+          <div class="rv-affiliate-type" id="rv-impact-lbl">Checking…</div>
+        </div>
+        <span class="ss2" id="rv-impact-dot" style="margin-left:auto;font-size:9px">—</span>
+      </div>
+      <div class="rv-affiliate-chip">
+        <div class="rv-affiliate-chip-icon" style="background:rgba(0,100,255,.15)">₿</div>
+        <div><div class="rv-affiliate-name">Coinbase</div><div class="rv-affiliate-type">$10 per signup</div></div>
+        <div class="rv-affiliate-status" style="background:#44ff88;box-shadow:0 0 7px #44ff88"></div>
+      </div>
+      <div class="rv-affiliate-chip">
+        <div class="rv-affiliate-chip-icon" style="background:rgba(0,180,0,.12)">🟢</div>
+        <div><div class="rv-affiliate-name">Robinhood</div><div class="rv-affiliate-type">Free stock referral</div></div>
+        <div class="rv-affiliate-status" style="background:#44ff88;box-shadow:0 0 7px #44ff88"></div>
       </div>
     </div>
   </div>
+</div>
 
-  <!-- Daily breakdown -->
-  <div>
-    <div class="sh"><div class="st">Daily Earnings</div></div>
-    <div class="tw">
-      <table class="tbl" style="font-size:11px">
-        <thead><tr><th>Date</th><th style="text-align:right">Earned</th><th>Bar</th></tr></thead>
-        <tbody id="rv-daily-tb"><tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text3)">Loading...</td></tr></tbody>
-      </table>
+<!-- Earnings by Program + Revenue Bots -->
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+
+  <!-- Earnings by Program -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(68,255,136,.12);border-radius:12px;padding:16px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:12px">💰 Earnings by Program</div>
+    <div id="rv-prog-list">
+      <div style="text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:20px">Loading programs…</div>
     </div>
+    <!-- keep legacy table for JS compat -->
+    <div style="display:none"><table><tbody id="rv-prog-tb"></tbody></table></div>
   </div>
+
+  <!-- Revenue Bots -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(136,68,255,.12);border-radius:12px;padding:16px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:12px">⚡ Revenue Bots</div>
+    <div id="rv-bots-list">
+      <div style="text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:20px">Loading bots…</div>
+    </div>
+    <div style="display:none"><table><tbody id="rv-bots-tb"></tbody></table></div>
+  </div>
+</div>
+
+<!-- Daily Earnings Timeline -->
+<div style="background:rgba(8,10,18,.8);border:1px solid rgba(68,255,136,.12);border-radius:12px;padding:16px;margin-bottom:18px">
+  <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:14px">📈 Daily Earnings Timeline</div>
+  <div id="rv-daily-chart" style="display:flex;align-items:flex-end;gap:4px;height:80px"></div>
+  <div style="display:none"><table><tbody id="rv-daily-tb"></tbody></table></div>
+</div>
+
 </div>
 
 <!-- ══ BLOG COMMAND BOARD ════════════════════════════════════════════ -->
@@ -2172,41 +2495,117 @@ function stBadge(s){const m={idle:'si',running:'sr',done:'sd',ok:'sok',error:'se
 function hColor(s){if(s>=80)return'var(--green)';if(s>=50)return'var(--yellow)';return'var(--red)';}
 
 // ── Overview ─────────────────────────────────────────────────────────────────
+const _ovActivityLog = [];
+function _ovPushActivity(icon, text, col){
+  const now = new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  _ovActivityLog.unshift({icon, text, col: col||'#8844ff', time: now});
+  if(_ovActivityLog.length > 30) _ovActivityLog.pop();
+  _ovRenderActivity();
+}
+function _ovRenderActivity(){
+  const el = document.getElementById('ov-activity-feed');
+  if(!el) return;
+  if(!_ovActivityLog.length){
+    el.innerHTML='<div style="text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:16px 0">Waiting for bot activity…</div>';
+    return;
+  }
+  el.innerHTML = _ovActivityLog.slice(0,15).map((a,i)=>
+    `<div class="ov-activity-row" style="animation-delay:${i*30}ms">
+      <div class="ov-activity-dot" style="background:${a.col};box-shadow:0 0 6px ${a.col}"></div>
+      <span style="color:${a.col};font-size:12px">${a.icon}</span>
+      <span style="color:var(--text);flex:1">${a.text}</span>
+      <span class="ov-tick">${a.time}</span>
+    </div>`
+  ).join('');
+}
+
 async function refreshOV(){
   try{
     const[d,hs]=await Promise.all([api('/api/overview'),api('/api/health/summary').catch(()=>({avg_health_score:100}))]);
+    // Core metrics
     document.getElementById('ov-total').textContent=d.total_bots;
     document.getElementById('ov-run').textContent=d.running;
     document.getElementById('ov-done').textContent=d.done;
     document.getElementById('ov-fail').textContent=d.failed;
-    const sc=d.scheduler_running;
-    document.getElementById('ov-sched').innerHTML=sc?'<span style="color:var(--green)">🟢 ON</span>':'<span style="color:var(--text3)">⚫ OFF</span>';
+    // Uptime
     const up=d.uptime_seconds,h=Math.floor(up/3600),m=Math.floor((up%3600)/60),s2=up%60;
-    document.getElementById('ov-up').textContent=`${h}h ${m}m ${s2}s`;
-    document.getElementById('ov-health').textContent=`${Math.round(hs.avg_health_score||100)}%`;
+    const uptStr=`${h}h ${m}m ${s2}s`;
+    const upEl=document.getElementById('ov-up'); if(upEl) upEl.textContent=uptStr;
+    const up2=document.getElementById('ov-uptime2'); if(up2) up2.textContent=uptStr;
+    // Health
+    const hScore=Math.round(hs.avg_health_score||100);
+    const hEl=document.getElementById('ov-health'); if(hEl) hEl.textContent=`${hScore}%`;
+    const hBig=document.getElementById('ov-health-big'); if(hBig){hBig.textContent=`${hScore}%`;hBig.style.color=hScore>=80?'#44ff88':hScore>=50?'#ffcc44':'#ff4455';}
+    const hBar=document.getElementById('ov-health-bar'); if(hBar) hBar.style.width=`${hScore}%`;
+    // Scheduler
+    const sc=d.scheduler_running;
+    document.getElementById('ov-sched').innerHTML=sc?'<span style="color:#44ff88">🟢 Running</span>':'<span style="color:rgba(148,163,184,.5)">⚫ Stopped</span>';
+    const scDot=document.getElementById('ov-sched-dot'); if(scDot){scDot.className='ov-sys-dot '+(sc?'on':'off');}
+    // Sidebar / topbar sync
     document.getElementById('tb-total').textContent=d.total_bots;
     document.getElementById('tb-run').textContent=d.running;
     document.getElementById('tb-fail').textContent=d.failed;
-    const dot=document.getElementById('sdot');dot.className='sdot'+(d.running>0?'':d.failed>0?' error':' idle');
+    const dot=document.getElementById('sdot'); if(dot) dot.className='sdot'+(d.running>0?'':d.failed>0?' error':' idle');
     document.getElementById('uptime-lbl').textContent=`${h}h ${m}m uptime`;
+    // Activity log entries
+    if(d.running>0) _ovPushActivity('🚀',`${d.running} bot(s) running in parallel`,'#ffcc44');
+    if(d.done>0) _ovPushActivity('✅',`${d.done} tasks completed successfully`,'#44ff88');
+    if(d.failed>0) _ovPushActivity('⚠️',`${d.failed} error(s) detected — check bots`,'#ff4455');
     // DE status
-    try{const de=await api('/api/decisions');document.getElementById('ov-de').innerHTML=de.status.running?'<span style="color:var(--cyan)">🧠 ON</span>':'<span style="color:var(--text3)">⚫ OFF</span>';}catch(_){}
+    try{
+      const de=await api('/api/decisions');
+      const deOn=de.status.running;
+      document.getElementById('ov-de').innerHTML=deOn?'<span style="color:#00ccff">🧠 Active</span>':'<span style="color:rgba(148,163,184,.5)">⚫ Idle</span>';
+      const deDot=document.getElementById('ov-de-dot'); if(deDot){deDot.className='ov-sys-dot '+(deOn?'on':'off');}
+    }catch(_){}
+    // NarAI skills count banner
+    try{
+      const ns=await api('/api/narai/status').catch(()=>null);
+      if(ns){
+        const sk=document.getElementById('ov-skills-big'); if(sk) sk.textContent=(ns.skills||[]).length||ns.skill_count||'—';
+        const hb=document.getElementById('ov-health-big'); if(hb&&ns.health){hb.textContent=`${Math.round(ns.health)}%`;}
+      }
+    }catch(_){}
   }catch(e){console.error(e);}
 }
+
+const _catIcons={'marketing':'📣','specialized':'⚡','ecommerce':'🛒','narai':'🤖','seo':'🔍','content':'✍️','social':'📡','data':'📊','crypto':'₿','finance':'💰','email':'📧','default':'🔮'};
+function _catIcon(cat){ return _catIcons[cat]||_catIcons[Object.keys(_catIcons).find(k=>cat.includes(k))||'default']; }
+function _catCol(cat){ const cols={'marketing':'#ff5588','specialized':'#cc88ff','ecommerce':'#44ff88','narai':'#8844ff','seo':'#00ccff','content':'#ffcc44','crypto':'#ffaa00','finance':'#44ff88','social':'#00ccff'}; return cols[cat]||cols[Object.keys(cols).find(k=>cat.includes(k))||'x']||'#8844ff'; }
 
 async function refreshCatGrid(){
   try{
     const[cats,bots]=await Promise.all([api('/api/categories'),api('/api/bots')]);
-    const g=document.getElementById('cat-grid');g.innerHTML='';
-    const f=document.getElementById('bcat');f.innerHTML='<option value="">All Categories</option>';
-    cats.forEach(cat=>{
-      const cb=bots.filter(b=>b.category===cat);
-      const done=cb.filter(b=>b.status==='done').length;
-      const run=cb.filter(b=>b.status==='running').length;
-      const fail=cb.filter(b=>b.status==='error').length;
-      g.innerHTML+=`<div class="csm"><div class="ct">${cat.replace(/_/g,' ')}</div><div style="display:flex;align-items:baseline;gap:7px;margin-bottom:8px"><div class="cv cy" style="font-size:20px">${cb.length}</div><div style="font-size:10px;color:var(--text3)">bots</div></div><div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:10px">${done>0?`<span class="bdg bg">${done} done</span>`:''}${run>0?`<span class="bdg by">${run} running</span>`:''}${fail>0?`<span class="bdg br">${fail} failed</span>`:''}</div><button class="btn bgh bsm" onclick="runCat('${cat}')">▶ Run</button></div>`;
-      f.innerHTML+=`<option value="${cat}">${cat.replace(/_/g,' ')}</option>`;
-    });
+    const g=document.getElementById('cat-grid');
+    if(g){
+      g.innerHTML='';
+      cats.forEach((cat,idx)=>{
+        const cb=bots.filter(b=>b.category===cat);
+        const done=cb.filter(b=>b.status==='done').length;
+        const run=cb.filter(b=>b.status==='running').length;
+        const fail=cb.filter(b=>b.status==='error').length;
+        const col=_catCol(cat);
+        const icon=_catIcon(cat);
+        const chip=document.createElement('div');
+        chip.className='ov-cat-chip';
+        chip.style.cssText=`animation-delay:${idx*40}ms;border-color:${col}22`;
+        chip.innerHTML=`
+          <div class="ov-cat-chip-icon">${icon}</div>
+          <div class="ov-cat-chip-name" style="color:${col}">${cat.replace(/_/g,' ')}</div>
+          <div class="ov-cat-chip-count">${cb.length}</div>
+          <div class="ov-cat-chip-sub">${run>0?`<span style="color:#ffcc44">${run} running</span>`:done>0?`<span style="color:#44ff88">${done} done</span>`:fail>0?`<span style="color:#ff4455">${fail} failed</span>`:'idle'}</div>
+        `;
+        chip.onclick=()=>runCat(cat);
+        g.appendChild(chip);
+        if(run>0) _ovPushActivity(icon,`${cat}: ${run} running`,col);
+      });
+    }
+    // Populate bots filter dropdown
+    const f=document.getElementById('bcat');
+    if(f){
+      f.innerHTML='<option value="">All Categories</option>';
+      cats.forEach(cat=>{ f.innerHTML+=`<option value="${cat}">${cat.replace(/_/g,' ')}</option>`; });
+    }
   }catch(e){}
 }
 
@@ -3238,9 +3637,8 @@ async function _safeFetch(path){
 
 async function refreshRevenue(){
   const days=document.getElementById('rv-days')?.value||'30';
-  document.getElementById('rv-fetched-at').textContent='Loading...';
+  const fa=document.getElementById('rv-fetched-at'); if(fa) fa.textContent='Loading…';
 
-  // Single combined call — all data in one request, resilient to partial failures
   const rv = await _safeFetch(`/api/revenue?days=${days}`);
 
   const sMain  = rv?.earnings     || null;
@@ -3248,69 +3646,109 @@ async function refreshRevenue(){
   const clicks = rv?.clicks       || null;
   const revBots= rv?.revenue_bots || [];
 
-  // ── Top stat cards ──────────────────────────────────────────────────────────
+  // ── Core metrics ────────────────────────────────────────────────────────────
   document.getElementById('rv-total30').textContent=fmt$(sMain?.total_earned);
   document.getElementById('rv-total7').textContent=fmt$(s7?.total_earned);
   document.getElementById('rv-pending').textContent=fmt$(sMain?.pending);
   document.getElementById('rv-locked').textContent=fmt$(sMain?.locked);
   document.getElementById('rv-actions').textContent=sMain?.action_count??'—';
   document.getElementById('rv-clicks').textContent=clicks?.total_clicks??'—';
-  document.getElementById('rv-fetched-at').textContent='Updated '+new Date().toLocaleTimeString();
+  if(fa) fa.textContent='Updated '+new Date().toLocaleTimeString();
   updateForecast(s7?.total_earned??null);
 
-  // ── Impact.com connection badge ─────────────────────────────────────────────
+  // Conversion rate
+  const acts=sMain?.action_count||0, clks=clicks?.total_clicks||0;
+  const convRate=clks>0?((acts/clks)*100).toFixed(1)+'%':'—';
+  const crEl=document.getElementById('rv-conv-rate'); if(crEl) crEl.textContent=`Conversion rate: ${convRate}`;
+  const convBar=document.getElementById('rv-conv-bar');
+  if(convBar) convBar.style.width=Math.min(clks/1000*100,100)+'%';
+
+  // ── Impact.com badge ────────────────────────────────────────────────────────
   const dot=document.getElementById('rv-impact-dot');
   const lbl=document.getElementById('rv-impact-lbl');
   const impactOk=rv?.impact_configured && sMain && !sMain.error;
-  dot.className='ss2 '+(impactOk?'sd':(rv?'se':'si'));
-  dot.textContent=rv?(impactOk?'Connected':'Error'):'Offline';
-  lbl.textContent=rv?(impactOk?'API responding — earnings tracked':(sMain?.error||'Check credentials')):'Start server: python main.py --dashboard';
+  if(dot){ dot.className='ss2 '+(impactOk?'sd':(rv?'se':'si')); dot.textContent=rv?(impactOk?'● Connected':'● Error'):'● Offline'; }
+  if(lbl) lbl.textContent=rv?(impactOk?'Live API · earnings tracked':(sMain?.error||'Check credentials')):'Server offline';
 
   if(!rv){
-    document.getElementById('rv-fetched-at').textContent='⚠ Start server: python main.py --dashboard';
+    if(fa) fa.textContent='⚠ Server offline';
     return;
   }
 
-  // ── Earnings by program ─────────────────────────────────────────────────────
-  const progTb=document.getElementById('rv-prog-tb');
+  // ── Forecast ring ───────────────────────────────────────────────────────────
+  const ring=document.getElementById('rv-forecast-ring');
+  const ringVal=document.getElementById('rv-forecast-ring-val');
+  const w7=s7?.total_earned||0;
+  if(ring&&ringVal){
+    const proj=w7*(30/7);
+    const pct=Math.min(proj/1000*100,100);
+    ring.style.background=`conic-gradient(#44ff88 ${pct*3.6}deg, rgba(68,255,136,.1) ${pct*3.6}deg)`;
+    ringVal.innerHTML=`<div style="font-size:10px;font-weight:800;color:#44ff88">${fmt$(proj)}</div><div style="font-size:7px;color:rgba(148,163,184,.5)">proj</div>`;
+  }
+
+  // ── Earnings by program (card list) ─────────────────────────────────────────
+  const progList=document.getElementById('rv-prog-list');
   const byProg=sMain?.by_program||{};
   const total30=sMain?.total_earned||0;
-  const entries=Object.entries(byProg).sort((a,b)=>b[1]-a[1]);
-  if(!entries.length){
-    progTb.innerHTML='<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text3)">$0 so far — run the bots to start earning!</td></tr>';
-  }else{
-    progTb.innerHTML=entries.map(([prog,amt])=>{
-      const pct=total30>0?Math.round(amt/total30*100):0;
-      const bar=`<div style="height:6px;background:rgba(0,212,255,.15);border-radius:3px;width:120px;display:inline-block;vertical-align:middle"><div style="height:100%;width:${pct}%;background:var(--cyan);border-radius:3px"></div></div>`;
-      return`<tr><td class="nc">${esc(prog)}</td><td style="text-align:right;color:var(--green);font-weight:700">${fmt$(amt)}</td><td style="text-align:right">${bar} <span style="color:var(--text3);font-size:10px">${pct}%</span></td></tr>`;
-    }).join('');
+  const progEntries=Object.entries(byProg).sort((a,b)=>b[1]-a[1]);
+  const progIcons={'Amazon':'🔶','Coinbase':'₿','Robinhood':'🟢','ClickBank':'🛒','ConvertKit':'✉️','Jasper':'✍️','Bluehost':'🌐','Fiverr':'🎨','AppSumo':'💼','default':'💰'};
+  if(progList){
+    if(!progEntries.length){
+      progList.innerHTML='<div style="text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:20px">$0 earned so far — run bots to start!</div>';
+    }else{
+      const maxP=progEntries[0][1]||1;
+      progList.innerHTML=progEntries.map(([prog,amt])=>{
+        const pct=Math.round(amt/total30*100)||0;
+        const barW=Math.round(amt/maxP*100);
+        const icon=progIcons[Object.keys(progIcons).find(k=>prog.includes(k))||'default'];
+        return`<div class="rv-program-row">
+          <div>
+            <div class="rv-program-name">${icon} ${esc(prog)}</div>
+            <div class="rv-program-bar-wrap"><div class="rv-program-bar" style="width:${barW}%"></div></div>
+          </div>
+          <div class="rv-program-earned">${fmt$(amt)}</div>
+          <div style="font-size:9px;color:rgba(148,163,184,.4);min-width:30px;text-align:right">${pct}%</div>
+        </div>`;
+      }).join('');
+    }
   }
 
-  // ── Revenue bots table ──────────────────────────────────────────────────────
-  const botsTb=document.getElementById('rv-bots-tb');
-  const STATUS_CL={idle:'si',running:'sr',done:'sd',error:'se'};
-  if(!revBots.length){
-    botsTb.innerHTML='<tr><td colspan="4" style="text-align:center;padding:16px;color:var(--text3)">Loading bots...</td></tr>';
-  }else{
-    botsTb.innerHTML=revBots.map(b=>{
-      const cl=STATUS_CL[b.status]||'si';
-      return`<tr><td class="nc" style="font-size:10px">${esc(b.name)}</td><td style="color:var(--text3)">${esc(b.category)}</td><td><span class="ss2 ${cl}">${esc(b.status)}</span></td><td>${b.run_count||0}</td></tr>`;
-    }).join('');
+  // ── Revenue bots (card list) ─────────────────────────────────────────────────
+  const botsList=document.getElementById('rv-bots-list');
+  const statusCols={idle:'rgba(148,163,184,.4)',running:'#ffcc44',done:'#44ff88',error:'#ff4455'};
+  if(botsList){
+    if(!revBots.length){
+      botsList.innerHTML='<div style="text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:20px">No revenue bots active</div>';
+    }else{
+      botsList.innerHTML=revBots.slice(0,12).map(b=>{
+        const col=statusCols[b.status]||statusCols.idle;
+        return`<div class="rv-bot-row">
+          <div class="rv-bot-icon">⚡</div>
+          <div class="rv-bot-name">${esc(b.name)}</div>
+          <div class="rv-bot-runs" style="color:rgba(148,163,184,.5)">${b.run_count||0} runs</div>
+          <div style="width:7px;height:7px;border-radius:50%;background:${col};box-shadow:0 0 6px ${col};flex-shrink:0"></div>
+        </div>`;
+      }).join('');
+    }
   }
 
-  // ── Daily breakdown ─────────────────────────────────────────────────────────
-  const dailyTb=document.getElementById('rv-daily-tb');
+  // ── Daily chart (bar chart) ──────────────────────────────────────────────────
+  const dailyChart=document.getElementById('rv-daily-chart');
   const byDay=sMain?.by_day||{};
-  const dayEntries=Object.entries(byDay).sort((a,b)=>a[0]<b[0]?1:-1);
+  const dayEntries=Object.entries(byDay).sort((a,b)=>a[0]<b[0]?1:-1).slice(0,30).reverse();
   const maxDay=Math.max(...dayEntries.map(d=>d[1]),0.01);
-  if(!dayEntries.length){
-    dailyTb.innerHTML='<tr><td colspan="3" style="text-align:center;padding:16px;color:var(--text3)">No daily data yet</td></tr>';
-  }else{
-    dailyTb.innerHTML=dayEntries.map(([date,amt])=>{
-      const pct=Math.round(amt/maxDay*100);
-      const bar=`<div style="height:8px;background:rgba(0,255,136,.1);border-radius:4px;width:160px;display:inline-block;vertical-align:middle"><div style="height:100%;width:${pct}%;background:var(--green);border-radius:4px"></div></div>`;
-      return`<tr><td style="color:var(--text2)">${esc(date)}</td><td style="text-align:right;color:var(--green);font-weight:700">${fmt$(amt)}</td><td>${bar}</td></tr>`;
-    }).join('');
+  if(dailyChart){
+    if(!dayEntries.length){
+      dailyChart.innerHTML='<div style="flex:1;text-align:center;color:rgba(148,163,184,.4);font-size:10px;padding:20px">No daily data yet</div>';
+    }else{
+      dailyChart.innerHTML=dayEntries.map(([date,amt])=>{
+        const h=Math.max(Math.round(amt/maxDay*70),2);
+        const col=amt>0?'#44ff88':'rgba(68,255,136,.2)';
+        return`<div style="flex:1;min-width:6px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:default" title="${date}: ${fmt$(amt)}">
+          <div style="width:100%;height:${h}px;background:${col};border-radius:2px 2px 0 0;box-shadow:0 0 6px ${amt>0?col:'none'};transition:height .8s cubic-bezier(.4,0,.2,1)"></div>
+        </div>`;
+      }).join('');
+    }
   }
 }
 

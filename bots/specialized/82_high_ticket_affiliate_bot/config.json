@@ -1,0 +1,10 @@
+{
+  "description": "Targets high-ticket affiliate programs to maximize commissions",
+  "goal": "Increase affiliate sales significantly",
+  "default_topic": "High-ticket affiliate programs",
+  "affiliate_focus": "all",
+  "created_by": "SuperAgent",
+  "created_at": "2026-03-26T09:21:49.889666",
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

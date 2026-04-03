@@ -1,0 +1,17 @@
+{
+  "description": "Develops passive income strategy content with affiliate marketing integration.",
+  "goal": "Drive recurring Coinbase + Robinhood + Amazon affiliate revenue via trust-building passive income content",
+  "default_topic": "How to build 3 passive income streams in 90 days starting with $0",
+  "income_target": "$1000/month",
+  "affiliate_focus": "all",
+  "content_angle": "strategy_and_roadmap",
+  "target_cpc_keywords": [
+    "passive income strategies 2025",
+    "how to create passive income from scratch",
+    "passive income ideas no money needed",
+    "best passive income for beginners",
+    "how long does passive income take to build"
+  ],
+  "schedule": "@daily 11:00",
+  "enabled": true
+}

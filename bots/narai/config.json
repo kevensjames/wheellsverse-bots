@@ -1,0 +1,12 @@
+{
+  "name": "narai",
+  "category": "narai",
+  "display_name": "NarAI",
+  "description": "Self-evolving General Overseer AI — diagnostics, analysis, auto-fix, skill creation, full ecosystem control",
+  "enabled": true,
+  "schedule": "@every_hour",
+  "priority": 0,
+  "tags": ["overseer", "autonomous", "self-learning", "diagnostic"],
+  "version": "1.0.0",
+  "author": "WheellsVerse"
+}

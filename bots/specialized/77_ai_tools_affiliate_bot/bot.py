@@ -1,0 +1,135 @@
+#!/usr/bin/env python3
+"""
+bots/specialized/77_ai_tools_affiliate_bot/bot.py
+Creates AI tools content — reviews, comparisons, tutorials — with affiliate integration.
+Revenue goal: Drive AI tool purchases and financial platform signups through content.
+"""
+import os
+import sys
+import random
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from core.base_bot import BaseBot
+
+COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
+AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+
+AI_TOOL_TOPICS = [
+    "Top 10 AI tools that replace an entire marketing team in 2025",
+    "Best AI writing tools for content creators: compared and ranked",
+    "How to automate your business with free AI tools",
+    "AI tools for entrepreneurs: the ultimate 2025 toolkit",
+    "ChatGPT vs Claude vs Gemini: which AI should you use?",
+    "How AI tools are helping solopreneurs earn more with less effort",
+    "The best AI automation tools for small business owners",
+    "How to use AI tools to create a passive income content business",
+    "AI tools that save you 20+ hours per week — ranked by value",
+    "From zero to income: how I used AI tools to build a business in 90 days",
+    "Free AI tools that are actually useful (not just hype)",
+    "AI tools for side hustles: automate the boring parts, keep the profit",
+]
+
+TOOL_CATEGORIES = {
+    "writing":      "AI writing and content creation tools",
+    "automation":   "AI workflow automation tools",
+    "finance":      "AI tools for personal finance and investing",
+    "productivity": "AI productivity and business tools",
+    "marketing":    "AI marketing and SEO tools",
+    "side_hustle":  "AI tools for side hustles and solopreneurs",
+}
+
+
+class AiToolsAffiliateBotBot(BaseBot):
+    """Generates AI tools content that builds authority and drives affiliate conversions."""
+
+    def __init__(self):
+        super().__init__("77_ai_tools_affiliate_bot", "specialized")
+
+    def run(self, topic: str = None, category: str = "automation", **kwargs):
+        cfg = self.config
+        topic = topic or cfg.get("default_topic") or random.choice(AI_TOOL_TOPICS)
+        category = category or cfg.get("category", "automation")
+        category_label = TOOL_CATEGORIES.get(category, category)
+        self.logger.info(f"Running {self.name}: {topic}")
+
+        system_str = (
+            "You are a tech entrepreneur and AI tools expert. You test and review AI tools "
+            "extensively and share honest, detailed breakdowns. Your readers are busy "
+            "entrepreneurs and creators who need to know exactly what each tool does, "
+            "what it costs, and whether it's worth it. You cut through the hype and give "
+            "practical, specific recommendations based on real use cases."
+        )
+
+        prompt = f"""Create a comprehensive AI tools content piece on: "{topic}"
+Category focus: {category_label}
+
+## Affiliate Integration
+- **Amazon AI/tech books**: https://www.amazon.com/s?k=AI+tools+entrepreneurs+2025&tag={AMAZON_TAG}
+- **Coinbase** ({COINBASE_URL}): Mention when discussing AI+crypto or AI investment opportunities
+- **Robinhood** ({ROBINHOOD_URL}): Mention when discussing AI stock picking or automated investing
+
+## Content Structure (900-1200 words)
+
+**1. Headline** (specific, value-packed — include numbers or comparisons where possible)
+
+**2. Why This Matters Now** (1-2 sentences: what's changed about AI tools in 2025)
+
+**3. Tool Roundup / Main Content**:
+   For each tool covered, include:
+   - What it does (1 sentence)
+   - Best use case (specific scenario)
+   - Pricing (free tier? paid plans?)
+   - Standout feature vs alternatives
+   - Who should use it (and who shouldn't)
+
+**4. How to Use These Tools for Income** (practical earning strategies):
+   - Content creation monetization
+   - Service business automation
+   - Affiliate income opportunities (including financial tools above if relevant)
+
+**5. Quick Comparison Table**:
+   | Tool | Best For | Free Plan | Paid Starting At |
+
+**6. Bottom Line** — which tool to start with and why
+
+**7. CTA** — link to the most relevant Amazon resource for learning more
+
+Be specific with tool names, features, and prices. Vague lists don't convert."""
+
+        result = self.ai(
+            prompt, system=system_str,
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            max_tokens=2500
+        )
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        safe_topic = "".join(c if c.isalnum() else "_" for c in topic[:40])
+
+        output = f"""# {topic}
+*Category: {category_label} | Generated: {_dt.now().strftime('%Y-%m-%d %H:%M')}*
+
+---
+
+{result}
+
+---
+*Generated by WheellsVerse AI Tools Affiliate Bot — {self.name}*
+"""
+        path = self.save_output(output, f"ai_tools_{safe_topic}_{ts}.md", ext="md")
+        self.logger.info(f"Saved: {path}")
+        return {"file": str(path), "category": category, "bot": self.name}
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="AI Tools Affiliate Bot")
+    parser.add_argument("--topic",    type=str, default=None, help="AI tools topic to cover")
+    parser.add_argument("--category", type=str, default="automation",
+                        choices=["writing", "automation", "finance", "productivity", "marketing", "side_hustle"])
+    args = parser.parse_args()
+    bot = AiToolsAffiliateBotBot()
+    result = bot.execute(topic=args.topic, category=args.category)
+    print(f"\n✅ Output: {result['file']}")

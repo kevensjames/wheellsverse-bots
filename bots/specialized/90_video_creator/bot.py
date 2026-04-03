@@ -190,56 +190,41 @@ Output ONLY the spoken script, no stage directions.""",
         publish_results = {}
         platforms = [p.strip() for p in publish_to.split(",")]
 
-        if "instagram" in platforms and os.getenv("INSTAGRAM_PAGE_TOKEN"):
+        caption_base = (
+            f"{topic}\n\n"
+            "💡 Follow WheellsVerse for daily AI + crypto + passive income tips!\n\n"
+            "#AI #PassiveIncome #Crypto #Investing #WheellsVerse"
+        )
+
+        if "instagram" in platforms:
             try:
-                import requests as _req
-                token      = os.getenv("INSTAGRAM_PAGE_TOKEN")
-                ig_account = os.getenv("INSTAGRAM_ACCOUNT_ID")
-                caption    = (
-                    f"{topic}\n\n"
-                    "💡 Follow WheellsVerse for daily AI + crypto + passive income tips!\n\n"
-                    "#AI #PassiveIncome #Crypto #Investing #WheellsVerse #Reels"
-                )
-                # Create reel container
-                container = _req.post(
-                    f"https://graph.facebook.com/v19.0/{ig_account}/media",
-                    data={"video_url": video_url, "caption": caption,
-                          "media_type": "REELS", "access_token": token},
-                    timeout=30,
-                ).json()
-                if "id" in container:
-                    # Wait for processing
-                    time.sleep(30)
-                    publish = _req.post(
-                        f"https://graph.facebook.com/v19.0/{ig_account}/media_publish",
-                        data={"creation_id": container["id"], "access_token": token},
-                        timeout=30,
-                    ).json()
-                    publish_results["instagram"] = publish.get("id", "error")
+                from core.instagram import get_instagram
+                ig = get_instagram()
+                if ig.is_configured():
+                    ig_caption = caption_base + " #Reels"
+                    result = ig.post(ig_caption, video_url=video_url)
+                    publish_results["instagram"] = result.get("post_id") or result.get("status")
+                    self.logger.info("Instagram result: %s", result)
                 else:
-                    publish_results["instagram"] = f"container_error: {container}"
+                    publish_results["instagram"] = "skipped: add INSTAGRAM_PAGE_TOKEN+INSTAGRAM_ACCOUNT_ID or INSTAGRAM_USERNAME+INSTAGRAM_PASSWORD to .env"
+                    self.logger.warning("Instagram skipped: no credentials configured")
             except Exception as e:
+                self.logger.error("Instagram exception: %s", e)
                 publish_results["instagram"] = f"error: {e}"
 
-        if "facebook" in platforms and os.getenv("FACEBOOK_PAGE_TOKEN"):
+        if "facebook" in platforms:
             try:
-                import requests as _req
-                token   = os.getenv("FACEBOOK_PAGE_TOKEN")
-                page_id = os.getenv("FACEBOOK_PAGE_ID")
-                caption = (
-                    f"{topic}\n\n"
-                    "💡 Follow WheellsVerse for daily AI + crypto + passive income tips!\n\n"
-                    "#AI #PassiveIncome #Crypto #Investing #WheellsVerse"
-                )
-                resp = _req.post(
-                    f"https://graph.facebook.com/v19.0/{page_id}/videos",
-                    data={"file_url": video_url, "description": caption,
-                          "access_token": token},
-                    timeout=30,
-                )
-                data = resp.json()
-                publish_results["facebook"] = data.get("id", f"error: {data}")
+                from core.facebook import get_facebook
+                fb = get_facebook()
+                if fb.is_configured():
+                    result = fb.post(caption_base, video_url=video_url)
+                    publish_results["facebook"] = result.get("post_id") or result.get("status")
+                    self.logger.info("Facebook result: %s", result)
+                else:
+                    publish_results["facebook"] = "skipped: add FACEBOOK_PAGE_TOKEN+FACEBOOK_PAGE_ID or FACEBOOK_EMAIL+FACEBOOK_PASSWORD to .env"
+                    self.logger.warning("Facebook skipped: no credentials configured")
             except Exception as e:
+                self.logger.error("Facebook exception: %s", e)
                 publish_results["facebook"] = f"error: {e}"
 
         if "youtube" in platforms:
@@ -257,10 +242,13 @@ Output ONLY the spoken script, no stage directions.""",
                         ),
                         tags=["AI", "PassiveIncome", "Crypto", "Investing", "WheellsVerse"],
                     )
+                    self.logger.info("YouTube upload result: %s", yt_result)
                     publish_results["youtube"] = yt_result
                 else:
                     publish_results["youtube"] = "skipped: YouTube not connected"
+                    self.logger.warning("YouTube upload skipped: not connected")
             except Exception as e:
+                self.logger.error("YouTube upload exception: %s", e)
                 publish_results["youtube"] = f"error: {e}"
 
         # Notify Telegram

@@ -1,0 +1,10 @@
+{
+  "description": "Focuses on high-value affiliate niches such as AI tools, crypto, and stock investing to maximize revenue.",
+  "goal": "Increase affiliate conversions in high-value niches",
+  "default_topic": "High-value niches",
+  "affiliate_focus": "all",
+  "created_by": "SuperAgent",
+  "created_at": "2026-03-31T10:25:21.804245",
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

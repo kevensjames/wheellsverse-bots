@@ -1,0 +1,67 @@
+#!/usr/bin/env python3
+"""
+bots/marketing/75_affiliate_sales_booster/bot.py
+SuperAgent-created bot — Optimizes and targets affiliate marketing campaigns to increase conversion rates.
+Revenue goal: Generate $10/day in affiliate commissions
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from core.base_bot import BaseBot
+
+
+class AffiliateSalesBoosterBot(BaseBot):
+    """Optimizes and targets affiliate marketing campaigns to increase conversion rates."""
+
+    def __init__(self):
+        super().__init__("75_affiliate_sales_booster", "marketing")
+
+    def run(self, topic: str = None, **kwargs):
+        cfg = self.config
+        topic = topic or cfg.get("default_topic", "Affiliate marketing optimization")
+        self.logger.info(f"Running {self.name}: {topic}")
+
+        system_str = (
+            "You are a revenue-focused content writer specializing in affiliate marketing. "
+            "Your goal is to create engaging, SEO-optimized content that naturally incorporates "
+            "affiliate links to drive conversions. The content should be valuable, informative, "
+            "and encourage readers to click on the affiliate links."
+        )
+
+        topic = "Affiliate marketing optimization"
+
+        prompt = (
+            f"Generate a detailed and engaging article on {topic}. The content should focus "
+            "on strategies to optimize affiliate marketing campaigns to increase conversion rates. "
+            "Include practical tips and insights that are valuable to marketers looking to improve "
+            "their affiliate revenue. Naturally embed the following affiliate links where appropriate: "
+            "- Amazon Associates: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20 "
+            "- Coinbase: https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1 "
+            "- Robinhood: https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1 "
+            "Ensure the content is SEO-optimized and encourages readers to click on the links."
+        )
+
+        result = self.ai(prompt, system=system_str, max_tokens=2000)
+
+        header = "# Boost Your Affiliate Marketing Success\n\n"
+        footer = (
+            "By leveraging these strategies, you can significantly enhance your affiliate marketing "
+            "efforts and increase your revenue. Don't miss out on the opportunity to optimize your "
+            "campaigns and achieve your financial goals. Explore the resources and tools available to "
+            "maximize your success in affiliate marketing."
+        )
+
+        output = header + "\n\n" + result + "\n\n" + footer
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        path = self.save_output(output, f"{self.name}_{ts}.md", ext="md")
+        self.logger.info(f"Saved: {path}")
+        return {"file": str(path), "topic": topic, "bot": self.name}
+
+
+if __name__ == "__main__":
+    bot = AffiliateSalesBoosterBot()
+    result = bot.execute()
+    print(f"Output: {result['file']}")

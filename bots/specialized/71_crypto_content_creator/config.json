@@ -1,0 +1,16 @@
+{
+  "description": "Generates SEO-optimized crypto content that drives Coinbase signups and crypto Amazon purchases.",
+  "goal": "Drive Coinbase referral signups via high-intent transactional and informational crypto content",
+  "default_topic": "Best crypto exchange for beginners in 2025: Coinbase vs Binance vs Kraken compared",
+  "content_type": "blog_post",
+  "affiliate_focus": "coinbase",
+  "target_cpc_keywords": [
+    "best crypto exchange for beginners",
+    "how to buy bitcoin for the first time",
+    "coinbase review 2025",
+    "how to earn free crypto",
+    "crypto staking passive income 2025"
+  ],
+  "schedule": "@daily 08:00",
+  "enabled": true
+}

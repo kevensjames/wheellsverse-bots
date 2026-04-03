@@ -1,0 +1,71 @@
+#!/usr/bin/env python3
+"""
+bots/specialized/tiktok_affiliate_bot/bot.py
+SuperAgent-created bot — A bot designed to automate TikTok content creation and engagement for affiliate marketing purposes.
+Revenue goal: Increase affiliate revenue through TikTok platform
+"""
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from core.base_bot import BaseBot
+
+
+class TiktokAffiliateBotBot(BaseBot):
+    """A bot designed to automate TikTok content creation and engagement for affiliate marketing purposes."""
+
+    def __init__(self):
+        super().__init__("tiktok_affiliate_bot", "specialized")
+
+    def run(self, topic: str = None, **kwargs):
+        cfg = self.config
+        topic = topic or cfg.get("default_topic", "TikTok content strategy")
+        self.logger.info(f"Running {self.name}: {topic}")
+
+        system_str = (
+            "You are a revenue-focused content writer specializing in creating engaging "
+            "and SEO-optimized TikTok content strategies that drive affiliate revenue. "
+            "Your goal is to craft content that provides value to readers while naturally "
+            "incorporating affiliate links to maximize click-through rates and conversions."
+        )
+
+        topic = "TikTok content strategy"
+        prompt = (
+            f"Create an in-depth article on '{topic}'. The content should be informative "
+            "and actionable, offering readers tips and strategies on how to effectively "
+            "use TikTok for affiliate marketing. Naturally incorporate the following affiliate "
+            "links where relevant: \n\n"
+            "- Amazon Associates: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20 \n"
+            "- Coinbase: https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1 \n"
+            "- Robinhood: https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1 \n\n"
+            "Ensure the content is SEO-optimized and designed to engage readers, encouraging "
+            "them to click on the affiliate links."
+        )
+
+        result = self.ai(prompt, system=system_str, max_tokens=2000)
+
+        header = "# Mastering TikTok Content Strategy for Affiliate Marketing"
+        footer = (
+            "Explore the power of TikTok for affiliate marketing and start optimizing your "
+            "strategy today. Check out some useful resources and tools: \n\n"
+            "- Discover amazing products on Amazon: "
+            "[Shop Now](https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20) \n"
+            "- Dive into cryptocurrency with Coinbase: "
+            "[Join Now](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) \n"
+            "- Start investing with Robinhood: "
+            "[Get Started](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1)"
+        )
+
+        output = header + "\n\n" + result + "\n\n" + footer
+
+        from datetime import datetime as _dt
+        ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+        path = self.save_output(output, f"{self.name}_{ts}.md", ext="md")
+        self.logger.info(f"Saved: {path}")
+        return {"file": str(path), "topic": topic, "bot": self.name}
+
+
+if __name__ == "__main__":
+    bot = TiktokAffiliateBotBot()
+    result = bot.execute()
+    print(f"Output: {result['file']}")

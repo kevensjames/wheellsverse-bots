@@ -1,0 +1,10 @@
+{
+  "description": "Leverages crypto investment strategies to promote affiliate links.",
+  "goal": "Generate $50 daily from crypto-focused affiliates.",
+  "default_topic": "Crypto investment tips",
+  "affiliate_focus": "coinbase|robinhood",
+  "created_by": "SuperAgent",
+  "created_at": "2026-03-26T20:39:35.930214",
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

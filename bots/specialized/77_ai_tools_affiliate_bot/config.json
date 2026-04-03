@@ -1,0 +1,16 @@
+{
+  "description": "Creates AI tools comparison content driving Amazon book purchases, Coinbase, and Robinhood conversions.",
+  "goal": "Build authority in AI tools niche and drive affiliate clicks via ROI-focused tool comparisons",
+  "default_topic": "10 AI tools that replace $500/month in software subscriptions — ranked by ROI for entrepreneurs",
+  "category": "automation",
+  "affiliate_focus": "all",
+  "target_cpc_keywords": [
+    "best AI tools for entrepreneurs 2025",
+    "AI tools to automate your business",
+    "free AI tools that are actually useful",
+    "ChatGPT vs Claude which is better",
+    "AI tools for passive income content creation"
+  ],
+  "schedule": "@daily 15:00",
+  "enabled": true
+}

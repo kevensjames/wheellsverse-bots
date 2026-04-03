@@ -1,0 +1,16 @@
+{
+  "description": "Creates side hustle content that drives affiliate signups across financial platforms and Amazon.",
+  "goal": "Convert side hustle readers into Robinhood + Coinbase + Amazon customers via aspirational income content",
+  "default_topic": "Side hustles that made real people $1,000+/month in 2025 — no experience required",
+  "affiliate_focus": "all",
+  "income_angle": "realistic_achievable",
+  "target_cpc_keywords": [
+    "best side hustles 2025",
+    "side hustle ideas from home",
+    "how to make extra $1000 a month",
+    "side hustles that actually work reddit",
+    "passive side hustle with no upfront cost"
+  ],
+  "schedule": "@daily 16:00",
+  "enabled": true
+}

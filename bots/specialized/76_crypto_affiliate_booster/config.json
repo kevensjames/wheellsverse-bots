@@ -1,0 +1,16 @@
+{
+  "description": "Generates comparison and referral-bonus content to drive crypto platform signups via affiliate links.",
+  "goal": "Drive Coinbase signups via platform comparison and referral bonus content — highest conversion intent",
+  "default_topic": "5 crypto platforms that pay you just to sign up in 2025 — referral bonuses compared",
+  "affiliate_focus": "coinbase",
+  "content_angle": "comparison_and_referral_bonuses",
+  "target_cpc_keywords": [
+    "coinbase referral bonus 2025",
+    "best crypto signup bonus",
+    "crypto exchange comparison 2025",
+    "how to get free crypto for signing up",
+    "coinbase vs kraken which is better"
+  ],
+  "schedule": "@daily 14:00",
+  "enabled": true
+}

@@ -365,6 +365,70 @@ async def _lifespan(application: FastAPI):
         _add_log("Telegram daily summary scheduled: 07:00 daily", "INFO")
     except Exception as _e:
         _add_log(f"Telegram schedule setup failed: {_e}", "WARNING")
+
+    # WhatsApp scheduled messages — check every minute
+    try:
+        import schedule as _schedWA
+        import threading as _threadWA
+        def _wa_scheduler_tick():
+            try:
+                from core.whatsapp import get_client
+                wa = get_client()
+                if not wa.is_configured():
+                    return
+                now = datetime.now()
+                items = _load_wa_schedule()
+                changed = False
+                for item in items:
+                    if item.get("status") != "pending":
+                        continue
+                    try:
+                        send_at = datetime.fromisoformat(item["send_at"])
+                    except Exception:
+                        continue
+                    if now >= send_at:
+                        # Time to send
+                        message = item["message"]
+                        if item.get("ai_compose"):
+                            try:
+                                narai = _get_narai()
+                                if narai:
+                                    label = item.get("label", "a friendly message")
+                                    result = narai.ai(
+                                        f"Write {label} (2-3 sentences, natural, no quotes).",
+                                        max_tokens=100
+                                    )
+                                    if result:
+                                        message = result
+                            except Exception:
+                                pass
+                        ok = wa.send_message(to=item["to"], text=message)
+                        if ok:
+                            _add_log(f"WhatsApp scheduled sent to {item['to']}: {message[:60]}", "INFO")
+                            item["last_sent"] = now.isoformat()
+                            # Handle repeat
+                            if item["repeat"] == "daily":
+                                from datetime import timedelta
+                                next_dt = send_at + timedelta(days=1)
+                                item["send_at"] = next_dt.isoformat()
+                            elif item["repeat"] == "weekly":
+                                from datetime import timedelta
+                                next_dt = send_at + timedelta(weeks=1)
+                                item["send_at"] = next_dt.isoformat()
+                            else:
+                                item["status"] = "sent"
+                            changed = True
+                        else:
+                            _add_log(f"WhatsApp scheduled FAILED to {item['to']}", "WARNING")
+                if changed:
+                    _save_wa_schedule(items)
+            except Exception as e:
+                logger.warning("WA scheduler tick error: %s", e)
+        _schedWA.every(1).minutes.do(lambda: _threadWA.Thread(target=_wa_scheduler_tick, daemon=True).start())
+        _add_log("WhatsApp message scheduler started: checks every minute", "INFO")
+    except Exception as _e:
+        _add_log(f"WhatsApp scheduler setup failed: {_e}", "WARNING")
+
     yield
     # Shutdown
     from core.job_queue import get_queue
@@ -391,6 +455,46 @@ app.add_middleware(
     expose_headers=["X-NarAI-Text", "X-NarAI-Mood", "X-NarAI-Emoji", "X-NarAI-Energy",
                     "Content-Length", "Content-Type"],
 )
+
+
+# ─── Rate Limiting ─────────────────────────────────────────────────────────
+from collections import defaultdict
+import time as _time
+
+_rate_limit_store: dict = defaultdict(list)
+_RATE_LIMIT_REQUESTS = 100   # max requests
+_RATE_LIMIT_WINDOW   = 60    # per 60 seconds
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    """Simple in-memory rate limiter per IP."""
+    # Skip rate limiting for static files and health
+    if request.url.path in ("/api/health", "/") or not request.url.path.startswith("/api/"):
+        return await call_next(request)
+
+    client_ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "unknown").split(",")[0].strip()
+    now = _time.time()
+    window_start = now - _RATE_LIMIT_WINDOW
+
+    # Clean old entries
+    _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if t > window_start]
+
+    if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_REQUESTS:
+        return JSONResponse({"error": "Rate limit exceeded. Try again later."}, status_code=429)
+
+    _rate_limit_store[client_ip].append(now)
+    return await call_next(request)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next):
+    """Add security headers to all responses."""
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
 
 
 @app.middleware("http")
@@ -624,6 +728,12 @@ async def scheduler_status():
     }
 
 
+@app.get("/api/scheduler/jobs")
+async def scheduler_jobs():
+    """Alias for /api/scheduler — returns job list."""
+    return await scheduler_status()
+
+
 @app.post("/api/scheduler/start")
 async def start_scheduler(background_tasks: BackgroundTasks):
     sched = _get_scheduler()
@@ -827,6 +937,20 @@ async def health():
         "status":   "ok",
         "uptime":   int(time.time() - _server_start),
         "browser":  browser_ok,
+    }
+
+
+@app.get("/api/security/status")
+async def security_status():
+    """Security overview."""
+    api_key_set = bool(os.getenv("API_KEY", ""))
+    return {
+        "api_key_auth": "enabled" if api_key_set else "disabled — set API_KEY env var to enable",
+        "rate_limiting": f"{_RATE_LIMIT_REQUESTS} req/{_RATE_LIMIT_WINDOW}s per IP",
+        "security_headers": "enabled",
+        "audit_logging": "enabled",
+        "https": "enforced by Railway",
+        "recommendations": [] if api_key_set else ["Set API_KEY environment variable to require authentication"],
     }
 
 
@@ -2012,6 +2136,13 @@ async def affiliate_summary():
     return get_summary()
 
 
+@app.get("/api/impact/summary")
+async def impact_summary():
+    """Alias for /api/affiliate/summary — Impact.com dashboard."""
+    from core.impact import get_summary
+    return get_summary()
+
+
 # ─── SuperAgent ───────────────────────────────────────────────────────────────
 
 def _get_superagent():
@@ -2958,6 +3089,257 @@ async def whatsapp_webhook_receive(request: Request, background_tasks: Backgroun
     from core.whatsapp import get_client
     background_tasks.add_task(get_client().handle_payload, data)
     return {"status": "ok"}
+
+
+# ─── WhatsApp Dashboard API ────────────────────────────────────────────────
+
+class WhatsAppSendRequest(BaseModel):
+    to: str
+    message: str = ""
+    media_url: str = ""
+    media_type: str = "image"  # image | audio | video
+
+class WhatsAppContactRequest(BaseModel):
+    name: str
+    phone: str
+
+@app.get("/api/whatsapp/info")
+async def whatsapp_info():
+    """Get WhatsApp business number info and status."""
+    import requests as _req
+    token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+    phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
+    if not token or not phone_id:
+        return {"configured": False, "error": "Missing credentials"}
+    try:
+        r = _req.get(
+            f"https://graph.facebook.com/v19.0/{phone_id}",
+            params={"fields": "display_phone_number,verified_name,code_verification_status,quality_rating", "access_token": token},
+            timeout=10
+        )
+        data = r.json()
+        if "error" in data:
+            return {"configured": True, "error": data["error"].get("message", "API error")}
+        return {
+            "configured": True,
+            "phone": data.get("display_phone_number", ""),
+            "name": data.get("verified_name", ""),
+            "status": data.get("code_verification_status", ""),
+            "quality": data.get("quality_rating", ""),
+            "phone_id": phone_id,
+        }
+    except Exception as e:
+        return {"configured": True, "error": str(e)}
+
+@app.post("/api/whatsapp/send")
+async def whatsapp_send(req: WhatsAppSendRequest, request: Request):
+    """Send a WhatsApp text or media message from the dashboard."""
+    from core.whatsapp import get_client
+    client = get_client()
+    phone = req.to.strip().replace("+", "").replace(" ", "").replace("-", "")
+    logger.info("AUDIT: WhatsApp send to %s from IP %s", phone, request.headers.get("x-forwarded-for", "unknown"))
+
+    if req.media_url:
+        mt = req.media_type.lower()
+        if mt == "audio":
+            ok = client.send_audio(phone, req.media_url)
+        elif mt == "video":
+            ok = client.send_video(phone, req.media_url, req.message)
+        else:
+            ok = client.send_image(phone, req.media_url, req.message)
+    else:
+        if not req.message:
+            raise HTTPException(400, "message is required for text messages")
+        ok = client.send_message(to=phone, text=req.message)
+
+    if ok:
+        _add_log(f"WhatsApp {req.media_type if req.media_url else 'text'} sent to {phone}", "INFO")
+        return {"status": "sent", "to": phone}
+    raise HTTPException(400, "Failed to send — check WhatsApp credentials")
+
+@app.get("/api/whatsapp/contacts")
+async def whatsapp_contacts():
+    """Get saved contacts from NarAI memory."""
+    try:
+        narai = _get_narai()
+        if narai:
+            contacts = narai._mind.get("contacts", {})
+            return {"contacts": [{"name": k, "phone": v} for k, v in contacts.items()]}
+    except Exception:
+        pass
+    return {"contacts": []}
+
+@app.post("/api/whatsapp/contacts")
+async def whatsapp_save_contact(req: WhatsAppContactRequest):
+    """Save a contact to NarAI memory."""
+    try:
+        narai = _get_narai()
+        if narai:
+            narai._save_contact(req.name.lower().strip(), req.phone.strip().replace("+","").replace(" ",""))
+            return {"status": "saved", "name": req.name, "phone": req.phone}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    raise HTTPException(503, "NarAI offline")
+
+@app.delete("/api/whatsapp/contacts/{name}")
+async def whatsapp_delete_contact(name: str):
+    """Delete a contact from NarAI memory."""
+    try:
+        narai = _get_narai()
+        if narai:
+            contacts = narai._mind.get("contacts", {})
+            contacts.pop(name.lower(), None)
+            narai._mind["contacts"] = contacts
+            narai._save_mind()
+            return {"status": "deleted"}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    raise HTTPException(503, "NarAI offline")
+
+@app.get("/api/whatsapp/history")
+async def whatsapp_history(limit: int = 50):
+    """Get recent WhatsApp message history from activity log."""
+    try:
+        narai = _get_narai()
+        if narai:
+            log = narai.get_activity_log(limit=200)
+            wa_msgs = [e for e in log if "whatsapp" in e.get("message","").lower() or "send_whatsapp" in e.get("message","").lower()]
+            return {"messages": wa_msgs[-limit:]}
+    except Exception:
+        pass
+    return {"messages": []}
+
+
+# ─── WhatsApp Scheduled Messages ──────────────────────────────────────────
+
+_WA_SCHEDULE_FILE = ROOT / "data" / "wa_schedule.json"
+
+def _load_wa_schedule() -> list:
+    try:
+        if _WA_SCHEDULE_FILE.exists():
+            return json.loads(_WA_SCHEDULE_FILE.read_text())
+    except Exception:
+        pass
+    return []
+
+def _save_wa_schedule(items: list):
+    _WA_SCHEDULE_FILE.parent.mkdir(exist_ok=True)
+    _WA_SCHEDULE_FILE.write_text(json.dumps(items, indent=2))
+
+class WAScheduleRequest(BaseModel):
+    to: str
+    message: str
+    send_at: str      # ISO datetime string e.g. "2026-04-03T09:00:00"
+    repeat: str = "once"  # once | daily | weekly
+    label: str = ""   # optional label like "good morning to girlfriend"
+    ai_compose: bool = False  # if True, NarAI writes the message at send time
+
+@app.get("/api/whatsapp/schedule")
+async def wa_schedule_list():
+    """List all scheduled WhatsApp messages."""
+    return {"scheduled": _load_wa_schedule()}
+
+@app.post("/api/whatsapp/schedule")
+async def wa_schedule_add(req: WAScheduleRequest):
+    """Add a new scheduled WhatsApp message."""
+    import uuid
+    items = _load_wa_schedule()
+    item = {
+        "id": str(uuid.uuid4())[:8],
+        "to": req.to.strip().replace("+","").replace(" ","").replace("-",""),
+        "message": req.message,
+        "send_at": req.send_at,
+        "repeat": req.repeat,
+        "label": req.label,
+        "ai_compose": req.ai_compose,
+        "status": "pending",
+        "created_at": datetime.now().isoformat(),
+        "last_sent": None,
+    }
+    items.append(item)
+    _save_wa_schedule(items)
+    _add_log(f"WhatsApp scheduled: {req.label or req.to} at {req.send_at}", "INFO")
+    return {"status": "scheduled", "item": item}
+
+@app.delete("/api/whatsapp/schedule/{item_id}")
+async def wa_schedule_delete(item_id: str):
+    """Delete a scheduled message."""
+    items = _load_wa_schedule()
+    items = [i for i in items if i.get("id") != item_id]
+    _save_wa_schedule(items)
+    return {"status": "deleted"}
+
+@app.patch("/api/whatsapp/schedule/{item_id}/pause")
+async def wa_schedule_pause(item_id: str):
+    """Pause/resume a scheduled message."""
+    items = _load_wa_schedule()
+    for item in items:
+        if item.get("id") == item_id:
+            item["status"] = "paused" if item.get("status") == "pending" else "pending"
+            break
+    _save_wa_schedule(items)
+    return {"status": "updated"}
+
+
+# ─── WhatsApp Inbox API ────────────────────────────────────────────────────
+
+def _load_wa_inbox() -> list:
+    try:
+        p = ROOT / "data" / "wa_inbox.json"
+        if p.exists():
+            return json.loads(p.read_text())
+    except Exception:
+        pass
+    return []
+
+@app.get("/api/whatsapp/inbox")
+async def wa_inbox(limit: int = 50, unread: bool = False):
+    """Get WhatsApp inbox messages."""
+    msgs = _load_wa_inbox()
+    if unread:
+        msgs = [m for m in msgs if not m.get("read")]
+    # Return newest first
+    return {"messages": list(reversed(msgs[-limit:]))}
+
+@app.post("/api/whatsapp/inbox/{msg_id}/reply")
+async def wa_inbox_reply(msg_id: str, req: WhatsAppSendRequest):
+    """Reply to a specific WhatsApp message."""
+    from core.whatsapp import get_client
+    wa = get_client()
+    inbox = _load_wa_inbox()
+    msg = next((m for m in inbox if m.get("id") == msg_id), None)
+    if not msg:
+        raise HTTPException(404, "Message not found")
+    phone = msg["from"]
+    ok = wa.send_message(to=phone, text=req.message)
+    if ok:
+        # Mark as replied
+        for m in inbox:
+            if m.get("id") == msg_id:
+                m["replied"] = True
+                m["reply"] = req.message
+                m["read"] = True
+                break
+        (ROOT / "data" / "wa_inbox.json").write_text(json.dumps(inbox, indent=2))
+        return {"status": "sent"}
+    raise HTTPException(400, "Send failed")
+
+@app.patch("/api/whatsapp/inbox/{msg_id}/read")
+async def wa_inbox_mark_read(msg_id: str):
+    """Mark a message as read."""
+    inbox = _load_wa_inbox()
+    for m in inbox:
+        if m.get("id") == msg_id:
+            m["read"] = True
+            break
+    (ROOT / "data" / "wa_inbox.json").write_text(json.dumps(inbox, indent=2))
+    return {"status": "ok"}
+
+@app.get("/api/whatsapp/inbox/unread_count")
+async def wa_unread_count():
+    """Get count of unread messages."""
+    inbox = _load_wa_inbox()
+    return {"count": sum(1 for m in inbox if not m.get("read"))}
 
 
 # ─── Reddit Automation ───────────────────────────────────────────────────────
@@ -4364,8 +4746,9 @@ async def narai_run_bot(req: NarAIRunBotRequest, background_tasks: BackgroundTas
 
 
 @app.post("/api/narai/voice_chat")
-async def narai_voice_chat(req: NarAIVoiceChatRequest):
+async def narai_voice_chat(req: NarAIVoiceChatRequest, request: Request):
     """Live voice conversation — synchronous, short spoken reply."""
+    logger.info("AUDIT: NarAI voice_chat from IP %s: %s", request.headers.get("x-forwarded-for", "unknown"), req.text[:80])
     narai = _get_narai()
     if not narai:
         raise HTTPException(status_code=503, detail="NarAI offline")

@@ -1,0 +1,10 @@
+{
+  "description": "Generates and disseminates crypto news with affiliate links to drive signups.",
+  "goal": "$50.00",
+  "default_topic": "Crypto News",
+  "affiliate_focus": "coinbase",
+  "created_by": "SuperAgent",
+  "created_at": "2026-03-26T03:35:13.085381",
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

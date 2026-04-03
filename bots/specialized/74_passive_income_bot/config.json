@@ -1,0 +1,16 @@
+{
+  "description": "Generates passive income strategy content driving conversions across all affiliate programs.",
+  "goal": "Convert readers into Coinbase + Robinhood + Amazon affiliate customers via passive income education",
+  "default_topic": "7 passive income streams that made real people $500/month in 2025 — with proof",
+  "income_target": "$500/month",
+  "affiliate_focus": "all",
+  "target_cpc_keywords": [
+    "passive income ideas 2025",
+    "how to make money while you sleep",
+    "passive income with $1000",
+    "best passive income apps that actually pay",
+    "automated income streams for beginners"
+  ],
+  "schedule": "@daily 10:00",
+  "enabled": true
+}

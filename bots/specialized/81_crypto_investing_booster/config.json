@@ -1,0 +1,10 @@
+{
+  "description": "Generates high-engagement crypto investing content to attract potential affiliate signups.",
+  "goal": "Boost affiliate signups and revenue in the crypto niche.",
+  "default_topic": "Crypto Investing",
+  "affiliate_focus": "coinbase",
+  "created_by": "SuperAgent",
+  "created_at": "2026-03-26T06:59:19.214924",
+  "schedule": "@daily 09:00",
+  "enabled": true
+}

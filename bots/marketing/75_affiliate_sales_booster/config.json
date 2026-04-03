@@ -1,0 +1,17 @@
+{
+  "description": "Creates high-conversion affiliate content targeting buyers at the bottom of the funnel.",
+  "goal": "Maximize affiliate commission rate via transactional content targeting buyer-intent keywords",
+  "default_topic": "Best investing apps with signup bonuses in 2025: Robinhood, Coinbase, Webull compared",
+  "affiliate_focus": "all",
+  "content_angle": "buyer_intent_comparison",
+  "funnel_stage": "bottom",
+  "target_cpc_keywords": [
+    "best investing app for beginners 2025",
+    "robinhood vs coinbase vs webull",
+    "investing app with free stock bonus",
+    "best crypto app for US users",
+    "easiest way to start investing money"
+  ],
+  "schedule": "@daily 13:00",
+  "enabled": true
+}
