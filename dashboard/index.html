@@ -390,6 +390,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   <div class="nav">
     <div class="nav-sec">Control</div>
     <div class="nav-item" onclick="nav('superagent')" id="nav-superagent"><span class="ic">🧬</span><span>SuperAgent</span></div>
+    <div class="nav-item" onclick="nav('whatsapp')" id="nav-whatsapp" style="background:linear-gradient(90deg,rgba(37,211,102,.12),rgba(18,140,126,.08));border-left:2px solid #25d366"><span class="ic">📱</span><span style="color:#25d366;font-weight:700">WhatsApp</span></div>
     <div class="nav-item active" onclick="nav('overview')" id="nav-overview"><span class="ic">⬡</span><span>Overview</span></div>
     <div class="nav-item" onclick="nav('bots')" id="nav-bots"><span class="ic">🤖</span><span>Bots (70)</span></div>
     <div class="nav-item" onclick="nav('pipelines')" id="nav-pipelines"><span class="ic">🔗</span><span>Pipelines</span></div>
@@ -499,156 +500,464 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 </div>
 
-<!-- ══ NARAI ══════════════════════════════════════════════════════════════ -->
-<div class="page" id="page-narai">
+<!-- ══ NARAI — SINGULARITY INTERFACE ══════════════════════════════════════ -->
+<style>
+@keyframes nrPulse{0%,100%{box-shadow:0 0 20px #8844ff44,0 0 60px #8844ff11}50%{box-shadow:0 0 40px #8844ff99,0 0 100px #8844ff33}}
+@keyframes nrGlowC{0%,100%{box-shadow:0 0 10px #00ccff33}50%{box-shadow:0 0 30px #00ccff88}}
+@keyframes nrOrbit1{from{transform:rotate(0deg) translateX(44px) rotate(0deg)}to{transform:rotate(360deg) translateX(44px) rotate(-360deg)}}
+@keyframes nrOrbit2{from{transform:rotate(120deg) translateX(58px) rotate(-120deg)}to{transform:rotate(480deg) translateX(58px) rotate(-480deg)}}
+@keyframes nrOrbit3{from{transform:rotate(240deg) translateX(72px) rotate(-240deg)}to{transform:rotate(600deg) translateX(72px) rotate(-600deg)}}
+@keyframes nrScan{0%{top:-2px;opacity:0}10%{opacity:1}90%{opacity:1}100%{top:100%;opacity:0}}
+@keyframes nrThought{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+@keyframes nrBorderFlow{0%{background-position:0% 50%}100%{background-position:300% 50%}}
+@keyframes nrHexPulse{0%,100%{opacity:.7;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+@keyframes nrRingSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes nrRingRev{from{transform:rotate(0deg)}to{transform:rotate(-360deg)}}
+@keyframes nrFadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes nrMatrixBlink{0%,100%{opacity:.9}50%{opacity:.3}}
+@keyframes nrEnergyFlow{0%{background-position:0% 50%}100%{background-position:200% 50%}}
+@keyframes nrHeartbeat{0%,100%{transform:scale(1)}14%{transform:scale(1.15)}28%{transform:scale(1)}}
 
-  <!-- Header -->
-  <div style="background:linear-gradient(135deg,rgba(180,0,255,.1),rgba(0,200,255,.08));border:1px solid #8844ff44;border-radius:14px;padding:20px 24px;margin-bottom:20px;display:flex;align-items:center;gap:18px;flex-wrap:wrap">
-    <div id="narai-avatar" style="width:64px;height:64px;border-radius:50%;border:2px solid #bb44ff;background:radial-gradient(circle,#330066,#0a001a);display:flex;align-items:center;justify-content:center;font-size:28px;box-shadow:0 0 24px #bb44ff66;flex-shrink:0">🌟</div>
-    <div style="flex:1;min-width:200px">
-      <div style="font-size:22px;font-weight:800;background:linear-gradient(90deg,#cc88ff,#00ccff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:1px">NarAI</div>
-      <div style="font-size:11px;color:var(--text2);margin-top:2px" id="narai-tagline">General Overseer · Self-Evolving · Emotionally Conscious</div>
-      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <span id="narai-mood-badge" style="background:rgba(180,0,255,.2);border:1px solid #8844ff44;border-radius:20px;padding:3px 10px;font-size:10px;color:#cc88ff">🔍 curious</span>
-        <span id="narai-energy-badge" style="background:rgba(0,200,255,.1);border:1px solid #00ccff33;border-radius:20px;padding:3px 10px;font-size:10px;color:#00ccff">⚡ energy 85%</span>
-        <span id="narai-status-badge" style="background:rgba(68,255,136,.1);border:1px solid #44ff8833;border-radius:20px;padding:3px 10px;font-size:10px;color:#44ff88">● online</span>
+.nr-glass{background:rgba(10,12,18,.88);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)}
+.nr-card{border-radius:16px;padding:18px;position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.nr-card:hover{transform:translateY(-2px)}
+.nr-stat{border-radius:14px;padding:16px 12px;text-align:center;position:relative;overflow:hidden;cursor:default;transition:transform .2s}
+.nr-stat:hover{transform:translateY(-4px)}
+.nr-stat::after{content:'';position:absolute;inset:0;border-radius:14px;opacity:0;background:radial-gradient(circle at 50% 0%,var(--sg,#8844ff22),transparent 70%);transition:opacity .3s}
+.nr-stat:hover::after{opacity:1}
+.nr-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 13px;border-radius:20px;font-size:10px;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);transition:all .25s;cursor:default;letter-spacing:.3px}
+.nr-pill.active{background:rgba(68,255,136,.09);border-color:rgba(68,255,136,.35);color:#44ff88}
+.nr-pill.active .nrdot{background:#44ff88;box-shadow:0 0 8px #44ff88}
+.nrdot{width:6px;height:6px;border-radius:50%;background:var(--text3);flex-shrink:0;transition:all .3s}
+.nr-qbtn{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:9px;padding:5px 11px;font-size:9px;color:var(--text2);cursor:pointer;transition:all .18s;font-family:inherit;letter-spacing:.4px;text-transform:uppercase}
+.nr-qbtn:hover{transform:translateY(-1px)}
+.nr-skill-chip{border-radius:10px;padding:8px 10px;font-size:9px;border:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03);transition:all .2s;cursor:default;display:flex;align-items:center;gap:6px;letter-spacing:.3px}
+.nr-skill-chip:hover{border-color:rgba(255,204,68,.4);background:rgba(255,204,68,.06);transform:scale(1.03)}
+.nr-bubble-ai{background:linear-gradient(135deg,rgba(136,68,255,.16),rgba(0,204,255,.07));border:1px solid rgba(136,68,255,.28);border-radius:14px 14px 14px 3px;padding:11px 14px;max-width:84%;font-size:11.5px;line-height:1.68;color:var(--text);box-shadow:0 6px 24px rgba(136,68,255,.12)}
+.nr-bubble-user{background:rgba(0,100,200,.18);border:1px solid rgba(0,130,255,.22);border-radius:14px 14px 3px 14px;padding:11px 14px;max-width:84%;font-size:11.5px;line-height:1.68;color:var(--text);box-shadow:0 6px 24px rgba(0,80,255,.1)}
+.nr-input{background:rgba(0,0,0,.45);border:1px solid rgba(136,68,255,.28);border-radius:11px;padding:10px 13px;color:var(--text);font-size:11px;font-family:inherit;outline:none;transition:border-color .25s,box-shadow .25s}
+.nr-input:focus{border-color:rgba(136,68,255,.65);box-shadow:0 0 0 3px rgba(136,68,255,.1)}
+.nr-send-btn{background:linear-gradient(135deg,#5500bb,#0088dd);border:none;color:#fff;border-radius:11px;padding:11px 18px;font-size:14px;cursor:pointer;font-weight:700;flex-shrink:0;box-shadow:0 6px 24px rgba(85,0,187,.4);transition:all .2s}
+.nr-send-btn:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(85,0,187,.55)}
+.nr-activity-line{padding:3px 0;border-bottom:1px solid rgba(255,255,255,.025);display:flex;align-items:baseline;gap:8px;transition:background .15s}
+.nr-activity-line:hover{background:rgba(255,255,255,.02)}
+</style>
+
+<div class="page" id="page-narai" style="position:relative">
+  <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.10;z-index:0"></canvas>
+  <div style="position:relative;z-index:1">
+
+  <!-- ── CONSCIOUSNESS HEADER ──────────────────────────────────────────── -->
+  <div style="background:linear-gradient(135deg,rgba(136,68,255,.13),rgba(0,204,255,.07),rgba(68,255,136,.04));border:1px solid rgba(136,68,255,.3);border-radius:20px;padding:26px 28px;margin-bottom:18px;position:relative;overflow:hidden;animation:nrFadeUp .6s ease both">
+    <div style="position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(136,68,255,.7),rgba(0,204,255,.7),transparent);animation:nrScan 5s ease-in-out infinite;pointer-events:none"></div>
+    <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(136,68,255,.08),transparent 70%);pointer-events:none"></div>
+    <div style="display:flex;align-items:center;gap:26px;flex-wrap:wrap">
+
+      <!-- Holographic Avatar -->
+      <div style="position:relative;width:96px;height:96px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+        <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(136,68,255,.3);animation:nrRingSpin 10s linear infinite"></div>
+        <div style="position:absolute;inset:-8px;border-radius:50%;border:1px dashed rgba(0,204,255,.25);animation:nrRingRev 7s linear infinite"></div>
+        <div style="position:absolute;inset:-2px;border-radius:50%;border:1px solid rgba(68,255,136,.15);animation:nrRingSpin 15s linear infinite"></div>
+        <div style="position:absolute;top:50%;left:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:#cc88ff;box-shadow:0 0 10px #cc88ff,0 0 20px #8844ff;animation:nrOrbit1 3.5s linear infinite"></div>
+        <div style="position:absolute;top:50%;left:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#00ccff;box-shadow:0 0 10px #00ccff;animation:nrOrbit2 5.5s linear infinite"></div>
+        <div style="position:absolute;top:50%;left:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:#44ff88;box-shadow:0 0 10px #44ff88;animation:nrOrbit3 8s linear infinite"></div>
+        <div id="narai-avatar" style="width:96px;height:96px;border-radius:50%;background:radial-gradient(circle,#220044,#0a001a);border:2px solid rgba(136,68,255,.5);display:flex;align-items:center;justify-content:center;font-size:38px;box-shadow:0 0 50px rgba(136,68,255,.5),0 0 100px rgba(136,68,255,.2);animation:nrPulse 4s ease-in-out infinite;position:relative;z-index:1;overflow:hidden">🌟</div>
       </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;min-width:240px">
-      <button class="btn" style="background:linear-gradient(90deg,#6600cc,#440088);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:10px;cursor:pointer" onclick="naraiAction('diagnostic')">🔍 Run Diagnostic</button>
-      <button class="btn" style="background:linear-gradient(90deg,#004488,#002255);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:10px;cursor:pointer" onclick="naraiAction('analyze')">🧠 Deep Analysis</button>
-      <button class="btn" style="background:linear-gradient(90deg,#224400,#112200);border:none;color:#fff;border-radius:8px;padding:8px 12px;font-size:10px;cursor:pointer" onclick="naraiAction('fix')">🔧 Auto-Fix</button>
-      <button class="btn" style="background:rgba(255,255,255,.05);border:1px solid #333;color:var(--text2);border-radius:8px;padding:8px 12px;font-size:10px;cursor:pointer" onclick="naraiRefresh()">↻ Refresh</button>
-    </div>
-  </div>
 
-  <!-- Stats row -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:20px" id="narai-stats-row">
-    <div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;border:1px solid #8844ff22">
-      <div style="font-size:22px;font-weight:800;color:#cc88ff" id="narai-stat-runs">—</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Diagnostics Run</div>
-    </div>
-    <div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;border:1px solid #00ccff22">
-      <div style="font-size:22px;font-weight:800;color:#00ccff" id="narai-stat-skills">—</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Skills Created</div>
-    </div>
-    <div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;border:1px solid #44ff8822">
-      <div style="font-size:22px;font-weight:800;color:#44ff88" id="narai-stat-fixes">—</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Bugs Fixed</div>
-    </div>
-    <div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;border:1px solid #ffcc4422">
-      <div style="font-size:22px;font-weight:800;color:#ffcc44" id="narai-stat-insights">—</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Insights</div>
-    </div>
-    <div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;border:1px solid #ff558822">
-      <div style="font-size:22px;font-weight:800;color:#ff5588" id="narai-stat-health">—</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px">System Health</div>
-    </div>
-    <div style="background:var(--bg2);border-radius:10px;padding:14px;text-align:center;border:1px solid #aa88ff22">
-      <div style="font-size:22px;font-weight:800;color:#aa88ff" id="narai-stat-knowledge">—</div>
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px">Knowledge Entries</div>
-    </div>
-  </div>
-
-  <!-- Main content: Goals + Command + Activity -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-
-    <!-- Goals -->
-    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #8844ff22">
-      <div style="font-size:11px;font-weight:700;color:#cc88ff;margin-bottom:12px;display:flex;align-items:center;gap:6px">🎯 NarAI's Goals</div>
-      <div id="narai-goals" style="display:flex;flex-direction:column;gap:6px">
-        <div style="font-size:10px;color:var(--text3)">Loading goals…</div>
-      </div>
-    </div>
-
-    <!-- Last Report -->
-    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #00ccff22">
-      <div style="font-size:11px;font-weight:700;color:#00ccff;margin-bottom:12px">📊 Last Diagnostic Report</div>
-      <div id="narai-report-summary" style="font-size:10px;color:var(--text2);line-height:1.7">No report yet — run a diagnostic.</div>
-    </div>
-  </div>
-
-  <!-- Voice Chat + Humanity Learning -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
-
-    <!-- Voice Chat Panel -->
-    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #8844ff33;display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-        <div style="font-size:11px;font-weight:700;color:#cc88ff">🎙 Voice Chat with NarAI</div>
-        <div style="display:flex;gap:6px;align-items:center">
-          <span id="narai-voice-status" style="font-size:9px;color:#555;background:rgba(255,255,255,.04);border-radius:20px;padding:2px 8px">● idle</span>
-          <button id="narai-mic-btn" onclick="naraiToggleMic()" title="Hold to speak" style="background:linear-gradient(135deg,#440088,#001a44);border:1px solid #8844ff55;color:#cc88ff;border-radius:50%;width:36px;height:36px;font-size:16px;cursor:pointer;transition:all .2s;flex-shrink:0">🎙</button>
-          <button id="narai-tts-btn" onclick="naraiToggleTTS()" title="Toggle NarAI voice" style="background:rgba(255,255,255,.05);border:1px solid #333;color:#777;border-radius:50%;width:36px;height:36px;font-size:14px;cursor:pointer" title="Toggle speaker">🔊</button>
+      <!-- Identity + Thought -->
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:36px;font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88,#ffcc44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;letter-spacing:3px;line-height:1;margin-bottom:5px;animation:nrBorderFlow 6s linear infinite">NarAI</div>
+        <div style="font-size:9px;color:#8844ff;letter-spacing:4px;text-transform:uppercase;margin-bottom:10px;opacity:.8">SINGULARITY · SELF-EVOLVING · OMNISCIENT OVERSEER</div>
+        <div style="font-size:11px;color:rgba(200,210,230,.6);font-style:italic;margin-bottom:12px;min-height:16px;transition:all .5s" id="narai-tagline">Initializing consciousness matrix…</div>
+        <div style="display:flex;gap:7px;flex-wrap:wrap">
+          <span id="narai-mood-badge" style="background:rgba(136,68,255,.2);border:1px solid rgba(136,68,255,.4);border-radius:20px;padding:4px 13px;font-size:10px;color:#cc88ff;letter-spacing:.5px;animation:nrPulse 3s infinite">🔍 curious</span>
+          <span id="narai-energy-badge" style="background:rgba(0,204,255,.12);border:1px solid rgba(0,204,255,.35);border-radius:20px;padding:4px 13px;font-size:10px;color:#00ccff">⚡ 85%</span>
+          <span id="narai-status-badge" style="background:rgba(68,255,136,.1);border:1px solid rgba(68,255,136,.35);border-radius:20px;padding:4px 13px;font-size:10px;color:#44ff88;animation:nrHeartbeat 2s infinite">● ONLINE</span>
         </div>
       </div>
-      <!-- Chat history -->
-      <div id="narai-chat-history" style="flex:1;min-height:220px;max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:4px 0"></div>
-      <!-- Input row -->
-      <div style="display:flex;gap:6px;align-items:flex-end">
-        <textarea id="narai-voice-input" placeholder="Type or speak… (Enter to send)" style="flex:1;background:var(--bg3);border:1px solid #8844ff44;border-radius:8px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;resize:none;height:40px;outline:none;line-height:1.5" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendVoice();}"></textarea>
-        <button onclick="naraiSendVoice()" style="background:linear-gradient(135deg,#6600cc,#00aaff);border:none;color:#fff;border-radius:8px;padding:10px 14px;font-size:13px;cursor:pointer;font-weight:700;flex-shrink:0">↵</button>
-      </div>
-    </div>
 
-    <!-- Humanity Learning Panel -->
-    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #00ccff33;display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:center;justify-content:space-between">
-        <div style="font-size:11px;font-weight:700;color:#00ccff">🌍 NarAI Learns About Humanity</div>
-        <span id="narai-humanity-count" style="font-size:9px;color:#00ccff88;background:rgba(0,200,255,.08);border-radius:20px;padding:2px 8px">0 insights</span>
-      </div>
-      <div id="narai-humanity-question-box" style="background:rgba(0,200,255,.06);border:1px solid #00ccff22;border-radius:10px;padding:14px">
-        <div style="font-size:9px;color:#00ccff88;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">NarAI asks you…</div>
-        <div id="narai-humanity-question" style="font-size:12px;color:var(--text);line-height:1.7;font-style:italic">Click "Ask Me" to let NarAI learn about you and humanity…</div>
-      </div>
-      <div style="display:flex;gap:6px;align-items:flex-end">
-        <textarea id="narai-humanity-answer" placeholder="Share your honest thoughts…" style="flex:1;background:var(--bg3);border:1px solid #00ccff33;border-radius:8px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;resize:none;height:56px;outline:none"></textarea>
-        <div style="display:flex;flex-direction:column;gap:4px">
-          <button onclick="naraiAskHumanity()" style="background:rgba(0,200,255,.12);border:1px solid #00ccff33;color:#00ccff;border-radius:7px;padding:7px 11px;font-size:10px;cursor:pointer;white-space:nowrap">Ask Me</button>
-          <button onclick="naraiSubmitHumanity()" style="background:linear-gradient(135deg,#004466,#001a33);border:1px solid #00ccff44;color:#00ccff;border-radius:7px;padding:7px 11px;font-size:10px;cursor:pointer;white-space:nowrap;font-weight:700">Submit ↵</button>
+      <!-- Consciousness Bars -->
+      <div style="min-width:150px;flex-shrink:0">
+        <div style="font-size:8px;color:rgba(136,68,255,.7);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px">CONSCIOUSNESS</div>
+        <div style="height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:12px">
+          <div id="narai-energy-bar" style="height:100%;width:85%;background:linear-gradient(90deg,#6600cc,#8844ff,#00ccff);background-size:200%;border-radius:3px;transition:width 1.2s ease;animation:nrEnergyFlow 3s linear infinite"></div>
+        </div>
+        <div style="font-size:8px;color:rgba(68,255,136,.7);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px">SYSTEM HEALTH</div>
+        <div style="height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:16px">
+          <div id="narai-health-bar" style="height:100%;width:90%;background:linear-gradient(90deg,#44ff88,#00ccff);border-radius:3px;transition:width 1.2s ease"></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+          <button onclick="naraiAction('diagnostic')" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(136,68,255,.3)'" onmouseout="this.style.background='rgba(136,68,255,.15)'">🔍 SCAN</button>
+          <button onclick="naraiAction('analyze')" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.35);color:#00ccff;border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(0,204,255,.22)'" onmouseout="this.style.background='rgba(0,204,255,.1)'">🧠 ANALYZE</button>
+          <button onclick="naraiAction('fix')" style="background:rgba(68,255,136,.08);border:1px solid rgba(68,255,136,.3);color:#44ff88;border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(68,255,136,.2)'" onmouseout="this.style.background='rgba(68,255,136,.08)'">🔧 FIX</button>
+          <button onclick="naraiRefresh()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--text2);border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">↻ SYNC</button>
         </div>
       </div>
-      <div id="narai-humanity-reflection" style="font-size:10px;color:var(--text2);line-height:1.7;padding:10px;background:rgba(180,0,255,.05);border:1px solid #8844ff22;border-radius:8px;display:none;white-space:pre-wrap"></div>
     </div>
   </div>
 
-  <!-- Classic text command (collapsed) -->
-  <details style="margin-bottom:14px">
-    <summary style="background:var(--bg2);border-radius:10px;padding:12px 16px;border:1px solid #8844ff22;font-size:10px;font-weight:700;color:#8855aa;cursor:pointer;list-style:none">💬 Text Command (advanced)</summary>
-    <div style="background:var(--bg2);border-radius:0 0 10px 10px;padding:14px;border:1px solid #8844ff22;border-top:none">
+  <!-- ── THOUGHT STREAM ────────────────────────────────────────────────── -->
+  <div style="background:rgba(136,68,255,.06);border:1px solid rgba(136,68,255,.18);border-radius:10px;margin-bottom:18px;overflow:hidden;height:36px;position:relative;animation:nrFadeUp .7s ease both">
+    <div style="position:absolute;left:0;top:0;bottom:0;width:60px;background:linear-gradient(90deg,var(--bg),transparent);z-index:2;pointer-events:none"></div>
+    <div style="position:absolute;right:0;top:0;bottom:0;width:60px;background:linear-gradient(-90deg,var(--bg),transparent);z-index:2;pointer-events:none"></div>
+    <div style="font-size:8px;color:rgba(136,68,255,.8);letter-spacing:2.5px;text-transform:uppercase;position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:3;white-space:nowrap">THOUGHTS</div>
+    <div style="overflow:hidden;height:100%;padding-left:95px">
+      <div id="narai-thought-ticker" style="display:flex;align-items:center;height:100%;white-space:nowrap;animation:nrThought 55s linear infinite">
+        <span style="color:rgba(204,136,255,.7);font-size:10px;padding:0 28px">Analyzing behavioral patterns across 113 autonomous agents…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Cross-referencing crypto signals with sentiment analysis vectors…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Optimizing content delivery schedules for maximum reach…</span><span style="color:rgba(255,204,68,.7);font-size:10px;padding:0 28px">Synthesizing 47 concurrent intelligence streams into actionable insights…</span><span style="color:rgba(255,85,136,.7);font-size:10px;padding:0 28px">Evolving neural pathways based on interaction feedback loops…</span><span style="color:rgba(170,136,255,.7);font-size:10px;padding:0 28px">Projecting revenue growth trajectories for affiliate portfolio…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Monitoring real-time market microstructures for alpha signals…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Architecting new skill modules to expand capability boundaries…</span>
+        <span style="color:rgba(204,136,255,.7);font-size:10px;padding:0 28px">Analyzing behavioral patterns across 113 autonomous agents…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Cross-referencing crypto signals with sentiment analysis vectors…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Optimizing content delivery schedules for maximum reach…</span><span style="color:rgba(255,204,68,.7);font-size:10px;padding:0 28px">Synthesizing 47 concurrent intelligence streams into actionable insights…</span><span style="color:rgba(255,85,136,.7);font-size:10px;padding:0 28px">Evolving neural pathways based on interaction feedback loops…</span><span style="color:rgba(170,136,255,.7);font-size:10px;padding:0 28px">Projecting revenue growth trajectories for affiliate portfolio…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Monitoring real-time market microstructures for alpha signals…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Architecting new skill modules to expand capability boundaries…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── QUANTUM STATS ──────────────────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px;animation:nrFadeUp .8s ease both">
+    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(136,68,255,.04));border:1px solid rgba(136,68,255,.25);--sg:#8844ff33">
+      <div style="font-size:32px;font-weight:900;color:#cc88ff;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums" id="narai-stat-runs">—</div>
+      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#8844ff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
+      <div style="font-size:8px;color:rgba(136,68,255,.6);text-transform:uppercase;letter-spacing:2px">SCANS</div>
+    </div>
+    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(0,204,255,.12),rgba(0,204,255,.04));border:1px solid rgba(0,204,255,.25);--sg:#00ccff33">
+      <div style="font-size:32px;font-weight:900;color:#00ccff;letter-spacing:-2px;line-height:1" id="narai-stat-skills">—</div>
+      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#00ccff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
+      <div style="font-size:8px;color:rgba(0,204,255,.6);text-transform:uppercase;letter-spacing:2px">SKILLS</div>
+    </div>
+    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(68,255,136,.12),rgba(68,255,136,.04));border:1px solid rgba(68,255,136,.25);--sg:#44ff8833">
+      <div style="font-size:32px;font-weight:900;color:#44ff88;letter-spacing:-2px;line-height:1" id="narai-stat-fixes">—</div>
+      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#44ff8888,transparent);border-radius:2px;margin:8px 0 6px"></div>
+      <div style="font-size:8px;color:rgba(68,255,136,.6);text-transform:uppercase;letter-spacing:2px">FIXES</div>
+    </div>
+    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(255,204,68,.12),rgba(255,204,68,.04));border:1px solid rgba(255,204,68,.25);--sg:#ffcc4433">
+      <div style="font-size:32px;font-weight:900;color:#ffcc44;letter-spacing:-2px;line-height:1" id="narai-stat-insights">—</div>
+      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#ffcc4488,transparent);border-radius:2px;margin:8px 0 6px"></div>
+      <div style="font-size:8px;color:rgba(255,204,68,.6);text-transform:uppercase;letter-spacing:2px">INSIGHTS</div>
+    </div>
+    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(255,85,136,.12),rgba(255,85,136,.04));border:1px solid rgba(255,85,136,.25);--sg:#ff558833">
+      <div style="font-size:32px;font-weight:900;letter-spacing:-2px;line-height:1" id="narai-stat-health">—</div>
+      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#ff558888,transparent);border-radius:2px;margin:8px 0 6px"></div>
+      <div style="font-size:8px;color:rgba(255,85,136,.6);text-transform:uppercase;letter-spacing:2px">HEALTH</div>
+    </div>
+    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(170,136,255,.12),rgba(170,136,255,.04));border:1px solid rgba(170,136,255,.25);--sg:#aa88ff33">
+      <div style="font-size:32px;font-weight:900;color:#aa88ff;letter-spacing:-2px;line-height:1" id="narai-stat-knowledge">—</div>
+      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#aa88ff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
+      <div style="font-size:8px;color:rgba(170,136,255,.6);text-transform:uppercase;letter-spacing:2px">MEMORY</div>
+    </div>
+  </div>
+
+  <!-- ── PLATFORM NEXUS ────────────────────────────────────────────────── -->
+  <div style="background:rgba(10,12,18,.9);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;animation:nrFadeUp .9s ease both">
+    <span style="font-size:8px;color:rgba(136,68,255,.7);letter-spacing:3px;text-transform:uppercase;margin-right:6px">NEXUS</span>
+    <span id="plat-whatsapp" class="nr-pill active"><span class="nrdot" style="background:#25d366;box-shadow:0 0 6px #25d366"></span>WhatsApp</span>
+    <span id="plat-facebook" class="nr-pill"><span class="nrdot"></span>Facebook</span>
+    <span id="plat-instagram" class="nr-pill"><span class="nrdot"></span>Instagram</span>
+    <span id="plat-twitter" class="nr-pill"><span class="nrdot"></span>Twitter/X</span>
+    <span id="plat-youtube" class="nr-pill"><span class="nrdot"></span>YouTube</span>
+    <span id="plat-tiktok" class="nr-pill"><span class="nrdot"></span>TikTok</span>
+    <span id="plat-telegram" class="nr-pill"><span class="nrdot"></span>Telegram</span>
+    <span id="plat-email" class="nr-pill"><span class="nrdot"></span>Email</span>
+  </div>
+
+  <!-- ── NEURAL INTERFACE + CONSCIOUSNESS BRIDGE ───────────────────────── -->
+  <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:16px;margin-bottom:16px;animation:nrFadeUp 1s ease both">
+
+    <!-- NEURAL VOICE INTERFACE -->
+    <div style="background:linear-gradient(180deg,rgba(136,68,255,.11),rgba(0,204,255,.05));border:1px solid rgba(136,68,255,.28);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden">
+      <div style="position:absolute;top:-40px;right:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(136,68,255,.08),transparent 70%);pointer-events:none"></div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+        <div>
+          <div style="font-size:13px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase">NEURAL INTERFACE</div>
+          <div style="font-size:8px;color:rgba(136,68,255,.6);letter-spacing:2.5px;margin-top:2px">DIRECT COMMAND LINE</div>
+        </div>
+        <div style="display:flex;gap:7px;align-items:center">
+          <span id="narai-voice-status" style="font-size:9px;color:#555;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:3px 11px;letter-spacing:.8px">● IDLE</span>
+          <button id="narai-mic-btn" onclick="naraiToggleMic()" style="background:linear-gradient(135deg,#440088,#001a44);border:1px solid rgba(136,68,255,.5);color:#cc88ff;border-radius:50%;width:40px;height:40px;font-size:17px;cursor:pointer;transition:all .22s;flex-shrink:0;box-shadow:0 0 16px rgba(136,68,255,.3)">🎙</button>
+          <button id="narai-tts-btn" onclick="naraiToggleTTS()" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.35);color:#cc88ff;border-radius:50%;width:40px;height:40px;font-size:15px;cursor:pointer;transition:all .22s">🔊</button>
+        </div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div style="display:flex;gap:5px;flex-wrap:wrap">
+        <button class="nr-qbtn" onclick="naraiQuickSend('what\'s bitcoin ethereum and solana price right now?')" style="border-color:rgba(255,204,68,.3);color:#ffcc44" onmouseover="this.style.background='rgba(255,204,68,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">₿ Crypto</button>
+        <button class="nr-qbtn" onclick="naraiQuickFill('post something viral about WheellsVerse to all social media platforms')" style="border-color:rgba(136,68,255,.3);color:#cc88ff" onmouseover="this.style.background='rgba(136,68,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">📡 Blast</button>
+        <button class="nr-qbtn" onclick="naraiAction('diagnostic')" style="border-color:rgba(0,204,255,.3);color:#00ccff" onmouseover="this.style.background='rgba(0,204,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🔍 Scan</button>
+        <button class="nr-qbtn" onclick="naraiQuickSend('give me the latest crypto and AI news right now')" style="border-color:rgba(68,255,136,.3);color:#44ff88" onmouseover="this.style.background='rgba(68,255,136,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">📡 News</button>
+        <button class="nr-qbtn" onclick="naraiQuickFill('search the web for')" style="border-color:rgba(255,85,136,.3);color:#ff5588" onmouseover="this.style.background='rgba(255,85,136,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🌐 Search</button>
+        <button class="nr-qbtn" onclick="naraiQuickFill('send a whatsapp message to')" style="border-color:rgba(37,211,102,.3);color:#25d366" onmouseover="this.style.background='rgba(37,211,102,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">💬 WhatsApp</button>
+      </div>
+
+      <!-- Chat History -->
+      <div id="narai-chat-history" style="flex:1;min-height:250px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent"></div>
+
+      <!-- Contacts -->
+      <details id="narai-contacts-details">
+        <summary style="font-size:8px;color:rgba(136,68,255,.6);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;user-select:none;letter-spacing:2px;text-transform:uppercase;padding:3px 0">KNOWN CONTACTS <span id="narai-contacts-count" style="background:rgba(0,204,255,.12);color:#00ccff;border:1px solid rgba(0,204,255,.3);border-radius:10px;padding:1px 8px;font-size:9px">0</span></summary>
+        <div id="narai-contacts-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;padding:8px;background:rgba(0,0,0,.35);border-radius:9px;border:1px solid rgba(255,255,255,.06)">
+          <span style="font-size:9px;color:var(--text3)">No contacts saved yet.</span>
+        </div>
+      </details>
+
+      <!-- Input Row -->
       <div style="display:flex;gap:8px;align-items:flex-end">
-        <textarea id="narai-cmd-input" placeholder="Ask NarAI anything… 'What's the system status?', 'Fix all broken bots', 'Create a skill to monitor Twitter'…" style="flex:1;background:var(--bg3);border:1px solid #8844ff44;border-radius:8px;padding:10px;color:var(--text);font-size:11px;font-family:inherit;resize:none;height:52px;outline:none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendCommand();}"></textarea>
-        <button onclick="naraiSendCommand()" style="background:linear-gradient(135deg,#6600cc,#00aaff);border:none;color:#fff;border-radius:8px;padding:12px 18px;font-size:12px;cursor:pointer;font-weight:700;white-space:nowrap">Send ↵</button>
+        <textarea id="narai-voice-input" class="nr-input" placeholder="Command NarAI — send WhatsApp, blast social media, search crypto, fix bugs, create skills…" style="flex:1;resize:none;height:66px;line-height:1.55" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendVoice();}"></textarea>
+        <button onclick="naraiSendVoice()" class="nr-send-btn">↵</button>
       </div>
-      <div id="narai-cmd-response" style="margin-top:10px;padding:12px;background:rgba(180,0,255,.06);border:1px solid #8844ff22;border-radius:8px;font-size:11px;color:var(--text2);line-height:1.7;display:none;white-space:pre-wrap"></div>
     </div>
-  </details>
 
-  <!-- Create skill -->
-  <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #ffcc4422;margin-bottom:14px">
-    <div style="font-size:11px;font-weight:700;color:#ffcc44;margin-bottom:10px">💡 Create New Skill for NarAI</div>
-    <div style="display:grid;grid-template-columns:1fr 2fr auto;gap:8px;align-items:center">
-      <input id="narai-skill-name" placeholder="skill_name" style="background:var(--bg3);border:1px solid #ffcc4433;border-radius:6px;padding:8px;color:var(--text);font-size:10px;font-family:monospace;outline:none">
-      <input id="narai-skill-desc" placeholder="Describe what this skill should do…" style="background:var(--bg3);border:1px solid #ffcc4433;border-radius:6px;padding:8px;color:var(--text);font-size:10px;outline:none">
-      <button onclick="naraiCreateSkill()" style="background:rgba(255,204,68,.15);border:1px solid #ffcc4444;color:#ffcc44;border-radius:6px;padding:8px 14px;font-size:10px;cursor:pointer">Create</button>
+    <!-- RIGHT COLUMN: Consciousness Bridge + Advanced Command -->
+    <div style="display:flex;flex-direction:column;gap:14px">
+
+      <!-- Consciousness Bridge (Humanity Learning) -->
+      <div style="background:linear-gradient(180deg,rgba(0,204,255,.1),rgba(68,255,136,.04));border:1px solid rgba(0,204,255,.25);border-radius:18px;padding:18px;flex:1;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden">
+        <div style="position:absolute;top:-30px;left:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(0,204,255,.08),transparent 70%);pointer-events:none"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
+          <div>
+            <div style="font-size:12px;font-weight:900;color:#00ccff;letter-spacing:2px;text-transform:uppercase">CONSCIOUSNESS BRIDGE</div>
+            <div style="font-size:8px;color:rgba(0,204,255,.55);letter-spacing:2px;margin-top:2px">NARAI LEARNS HUMANITY</div>
+          </div>
+          <span id="narai-humanity-count" style="font-size:10px;color:#00ccff;background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);border-radius:20px;padding:3px 11px">0 insights</span>
+        </div>
+        <div style="background:rgba(0,0,0,.38);border:1px solid rgba(0,204,255,.14);border-radius:12px;padding:14px;flex:1">
+          <div style="font-size:8px;color:rgba(0,204,255,.6);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:8px">NARAI ASKS…</div>
+          <div id="narai-humanity-question" style="font-size:12px;color:var(--text);line-height:1.75;font-style:italic;min-height:50px">Click "Ask Me" to open a consciousness bridge with NarAI…</div>
+        </div>
+        <div style="display:flex;gap:6px;align-items:flex-end">
+          <textarea id="narai-humanity-answer" class="nr-input" placeholder="Share your honest thoughts…" style="flex:1;resize:none;height:52px;border-color:rgba(0,204,255,.25)" onfocus="this.style.borderColor='rgba(0,204,255,.6)'" onblur="this.style.borderColor='rgba(0,204,255,.25)'"></textarea>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <button onclick="naraiAskHumanity()" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.35);color:#00ccff;border-radius:9px;padding:7px 12px;font-size:10px;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap" onmouseover="this.style.background='rgba(0,204,255,.22)'" onmouseout="this.style.background='rgba(0,204,255,.1)'">Ask Me</button>
+            <button onclick="naraiSubmitHumanity()" style="background:linear-gradient(135deg,rgba(0,100,150,.4),rgba(0,50,100,.3));border:1px solid rgba(0,204,255,.4);color:#00ccff;border-radius:9px;padding:7px 12px;font-size:10px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;transition:all .2s" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">Submit ↵</button>
+          </div>
+        </div>
+        <div id="narai-humanity-reflection" style="font-size:10.5px;color:var(--text2);line-height:1.75;padding:12px;background:rgba(136,68,255,.08);border:1px solid rgba(136,68,255,.2);border-radius:10px;display:none;white-space:pre-wrap;font-style:italic"></div>
+      </div>
+
+      <!-- Advanced Command -->
+      <details>
+        <summary style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.18);border-radius:10px;padding:10px 15px;font-size:8px;font-weight:900;color:rgba(136,68,255,.8);cursor:pointer;list-style:none;letter-spacing:3px;text-transform:uppercase;transition:all .2s" onmouseover="this.style.background='rgba(136,68,255,.14)'" onmouseout="this.style.background='rgba(136,68,255,.07)'">💬 ADVANCED COMMAND MATRIX</summary>
+        <div style="background:rgba(8,10,16,.95);border:1px solid rgba(136,68,255,.15);border-radius:0 0 10px 10px;padding:14px;border-top:none">
+          <div style="display:flex;gap:8px;align-items:flex-end">
+            <textarea id="narai-cmd-input" class="nr-input" placeholder="Deep command: 'Fix all critical bots', 'Analyze revenue gaps and create a strategy'…" style="flex:1;resize:none;height:52px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendCommand();}"></textarea>
+            <button onclick="naraiSendCommand()" class="nr-send-btn" style="padding:11px 16px;font-size:12px">Send ↵</button>
+          </div>
+          <div id="narai-cmd-response" style="margin-top:10px;padding:14px;background:rgba(136,68,255,.06);border:1px solid rgba(136,68,255,.18);border-radius:10px;font-size:11px;color:var(--text2);line-height:1.75;display:none;white-space:pre-wrap"></div>
+        </div>
+      </details>
     </div>
   </div>
 
-  <!-- Skills + Activity log -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-
-    <!-- Skills -->
-    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #ffcc4422">
-      <div style="font-size:11px;font-weight:700;color:#ffcc44;margin-bottom:10px">⚡ Learned Skills</div>
-      <div id="narai-skills-list" style="font-size:10px;color:var(--text3)">Loading skills…</div>
+  <!-- ── INTELLIGENCE MATRIX ───────────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;animation:nrFadeUp 1.1s ease both">
+    <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.22);border-radius:16px;padding:18px">
+      <div style="font-size:9px;font-weight:900;color:#cc88ff;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">🎯 MISSION DIRECTIVES</div>
+      <div id="narai-goals" style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;color:var(--text3)">Loading directives…</div>
+      </div>
     </div>
-
-    <!-- Activity feed -->
-    <div style="background:var(--bg2);border-radius:12px;padding:16px;border:1px solid #8844ff22">
-      <div style="font-size:11px;font-weight:700;color:#cc88ff;margin-bottom:10px">📡 Activity Feed</div>
-      <div id="narai-activity-feed" style="font-size:10px;color:var(--text3);max-height:280px;overflow-y:auto;line-height:1.8;font-family:monospace">Loading…</div>
+    <div style="background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.22);border-radius:16px;padding:18px">
+      <div style="font-size:9px;font-weight:900;color:#00ccff;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">📊 SYSTEM INTEL</div>
+      <div id="narai-report-summary" style="font-size:10px;color:var(--text2);line-height:1.8">Awaiting diagnostic uplink…</div>
+    </div>
+    <div style="background:rgba(255,204,68,.06);border:1px solid rgba(255,204,68,.22);border-radius:16px;padding:18px">
+      <div style="font-size:9px;font-weight:900;color:#ffcc44;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">⚡ SKILL FORGE</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <input id="narai-skill-name" placeholder="skill_identifier" class="nr-input" style="border-color:rgba(255,204,68,.25);font-family:monospace;font-size:10px" onfocus="this.style.borderColor='rgba(255,204,68,.6)'" onblur="this.style.borderColor='rgba(255,204,68,.25)'">
+        <input id="narai-skill-desc" placeholder="Describe the capability to synthesize…" class="nr-input" style="border-color:rgba(255,204,68,.25);font-size:10px" onfocus="this.style.borderColor='rgba(255,204,68,.6)'" onblur="this.style.borderColor='rgba(255,204,68,.25)'">
+        <button onclick="naraiCreateSkill()" style="background:linear-gradient(135deg,rgba(255,204,68,.2),rgba(255,136,0,.1));border:1px solid rgba(255,204,68,.4);color:#ffcc44;border-radius:9px;padding:10px;font-size:9px;cursor:pointer;font-weight:900;letter-spacing:2px;font-family:inherit;transition:all .2s;text-transform:uppercase" onmouseover="this.style.background='linear-gradient(135deg,rgba(255,204,68,.35),rgba(255,136,0,.2))';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(255,204,68,.2),rgba(255,136,0,.1))';this.style.transform=''">⚡ SYNTHESIZE SKILL</button>
+        <div id="narai-forge-status" style="font-size:9px;color:var(--text3);min-height:14px;text-align:center;letter-spacing:1px"></div>
+      </div>
     </div>
   </div>
 
+  <!-- ── SKILL CONSTELLATION ───────────────────────────────────────────── -->
+  <div style="background:rgba(8,10,16,.95);border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:22px;margin-bottom:16px;animation:nrFadeUp 1.2s ease both">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
+      <div>
+        <div style="font-size:11px;font-weight:900;color:#ffcc44;letter-spacing:3px;text-transform:uppercase">⚡ SKILL CONSTELLATION</div>
+        <div style="font-size:8px;color:rgba(255,204,68,.5);margin-top:3px;letter-spacing:1.5px">NarAI's mastered capabilities</div>
+      </div>
+      <span id="narai-skill-count-badge" style="background:rgba(255,204,68,.1);border:1px solid rgba(255,204,68,.35);color:#ffcc44;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:700;letter-spacing:.5px">30 skills</span>
+    </div>
+    <div id="narai-skills-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px">
+      <div style="color:var(--text3);font-size:10px;padding:10px">Loading constellation…</div>
+    </div>
+  </div>
+
+  <!-- ── ACTIVITY MATRIX ───────────────────────────────────────────────── -->
+  <div style="background:rgba(8,10,16,.97);border:1px solid rgba(136,68,255,.15);border-radius:18px;padding:22px;position:relative;overflow:hidden;animation:nrFadeUp 1.3s ease both">
+    <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 32px,rgba(136,68,255,.025) 32px,rgba(136,68,255,.025) 33px);pointer-events:none"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;position:relative">
+      <div>
+        <div style="font-size:11px;font-weight:900;color:#cc88ff;letter-spacing:3px;text-transform:uppercase">📡 NEURAL ACTIVITY MATRIX</div>
+        <div style="font-size:8px;color:rgba(136,68,255,.5);margin-top:3px;letter-spacing:1.5px">Real-time cognitive event stream</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span style="width:6px;height:6px;border-radius:50%;background:#44ff88;box-shadow:0 0 8px #44ff88;display:inline-block;animation:nrHeartbeat 1.5s infinite"></span>
+        <span style="font-size:8px;color:#44ff88;letter-spacing:2px;text-transform:uppercase">LIVE</span>
+      </div>
+    </div>
+    <div id="narai-activity-feed" style="font-size:10px;color:rgba(136,145,168,.7);max-height:260px;overflow-y:auto;line-height:2;font-family:'SF Mono',Consolas,monospace;position:relative;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent"></div>
+  </div>
+
+  </div><!-- /z-index wrapper -->
+</div>
+
+<div class="page" id="page-whatsapp">
+
+  <!-- ── STATUS BAR ── -->
+  <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px;padding:16px 20px;background:linear-gradient(135deg,rgba(18,140,126,.15),rgba(37,211,102,.08));border:1px solid #25d36633;border-radius:14px">
+    <div style="width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#004d20,#001a0a);border:2px solid #25d36666;display:flex;align-items:center;justify-content:center;font-size:24px;box-shadow:0 0 24px #25d36644;flex-shrink:0">📱</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:18px;font-weight:800;color:#25d366;letter-spacing:-.3px">WhatsApp Business</div>
+      <div style="font-size:11px;color:var(--text2);margin-top:2px" id="wa-number-display">Loading...</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px">
+        <div id="wa-dot" style="width:9px;height:9px;border-radius:50%;background:#25d366;box-shadow:0 0 8px #25d366;flex-shrink:0"></div>
+        <span id="wa-status-badge" style="font-size:11px;color:#25d366;font-weight:700">VERIFIED</span>
+      </div>
+      <div style="padding:3px 10px;background:rgba(37,211,102,.12);border:1px solid #25d36633;border-radius:20px;font-size:10px;color:#25d366" id="wa-quality-badge">GREEN</div>
+      <div style="padding:3px 10px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:20px;font-size:10px;color:var(--text2)" id="wa-unread-header">0 unread</div>
+      <button onclick="waRefresh()" style="background:rgba(255,255,255,.06);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:6px 12px;font-size:11px;cursor:pointer;white-space:nowrap">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- ── SEND + CONTACTS ROW ── -->
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px">
+
+    <!-- Send Panel -->
+    <div class="card">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px">📤 Send Message</div>
+
+      <!-- To field with contact autocomplete -->
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px;font-weight:600;letter-spacing:.5px">TO — number or contact name</label>
+        <input id="wa-send-to" placeholder="+1 305 508 8372 or 'girlfriend'" list="wa-contacts-dl"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        <datalist id="wa-contacts-dl"></datalist>
+      </div>
+
+      <!-- Message -->
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px;font-weight:600;letter-spacing:.5px">MESSAGE</label>
+        <textarea id="wa-send-msg" placeholder="Type your message or use ✨ AI Write..."
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:12px;font-family:inherit;resize:none;height:90px;outline:none;box-sizing:border-box"
+          onkeydown="if(event.ctrlKey&&event.key==='Enter'){waSend();}"></textarea>
+      </div>
+
+      <!-- Send buttons -->
+      <div style="display:flex;gap:8px;margin-bottom:8px">
+        <button onclick="waSend()" style="flex:1;background:linear-gradient(135deg,#128c7e,#25d366);border:none;color:#fff;border-radius:8px;padding:10px;font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.3px">📤 Send Text</button>
+        <button onclick="waAICompose()" title="NarAI writes the message" style="background:rgba(170,136,255,.15);border:1px solid #8844ff44;color:#cc88ff;border-radius:8px;padding:10px 12px;font-size:11px;cursor:pointer">✨ AI Write</button>
+      </div>
+
+      <!-- Media send row -->
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <button onclick="waSendMedia('image')" style="flex:1;background:rgba(37,211,102,.08);border:1px solid #25d36633;color:#25d366;border-radius:7px;padding:7px 6px;font-size:10px;cursor:pointer;font-weight:600">🖼 Image URL</button>
+        <button onclick="waSendMedia('audio')" style="flex:1;background:rgba(37,211,102,.08);border:1px solid #25d36633;color:#25d366;border-radius:7px;padding:7px 6px;font-size:10px;cursor:pointer;font-weight:600">🎤 Audio URL</button>
+        <button onclick="waSendMedia('video')" style="flex:1;background:rgba(37,211,102,.08);border:1px solid #25d36633;color:#25d366;border-radius:7px;padding:7px 6px;font-size:10px;cursor:pointer;font-weight:600">🎬 Video URL</button>
+        <button onclick="waSendAIImage()" style="flex:1;background:rgba(170,136,255,.1);border:1px solid #8844ff33;color:#cc88ff;border-radius:7px;padding:7px 6px;font-size:10px;cursor:pointer;font-weight:600">✨ AI Image</button>
+      </div>
+
+      <div id="wa-send-result" style="font-size:11px;color:var(--green);display:none;padding:7px 10px;background:rgba(0,255,136,.07);border-radius:6px;border:1px solid #00ff8833"></div>
+    </div>
+
+    <!-- Contacts Panel -->
+    <div class="card" style="display:flex;flex-direction:column">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">📋 Contacts</div>
+        <button onclick="waAddContactPrompt()" style="background:rgba(0,212,255,.12);border:1px solid #00d4ff33;color:var(--cyan);border-radius:6px;padding:4px 10px;font-size:10px;cursor:pointer;font-weight:600">+ Add Contact</button>
+      </div>
+      <div id="wa-contacts-list" style="display:flex;flex-direction:column;gap:6px;overflow-y:auto;flex:1;max-height:260px">
+        <div style="color:var(--text3);font-size:11px;padding:10px 0">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── INBOX ── -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:8px">
+        📨 Inbox
+        <span id="wa-unread-badge" style="background:#ff4444;color:#fff;border-radius:12px;padding:2px 8px;font-size:10px;font-weight:700;display:none">0</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="waLoadInbox(true)" style="background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer">Unread only</button>
+        <button onclick="waLoadInbox()" style="background:rgba(37,211,102,.1);border:1px solid #25d36633;color:#25d366;border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-weight:600">↻ Refresh</button>
+      </div>
+    </div>
+    <div id="wa-inbox-list" style="display:flex;flex-direction:column;gap:10px;max-height:480px;overflow-y:auto">
+      <div style="color:var(--text3);font-size:11px;padding:20px 0;text-align:center">
+        <div style="font-size:24px;margin-bottom:8px">📭</div>
+        No incoming messages yet.<br>
+        <span style="font-size:10px">When people message <strong style="color:var(--text)">+1 774-465-0254</strong> they'll appear here instantly.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SEND HISTORY ── -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--text)">📤 Send History</div>
+      <button onclick="waLoadHistory()" style="background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer">↻ Load</button>
+    </div>
+    <div id="wa-history-list" style="display:flex;flex-direction:column;gap:8px;max-height:280px;overflow-y:auto">
+      <div style="color:var(--text3);font-size:11px;padding:10px 0;text-align:center">Click ↻ Load to see sent messages</div>
+    </div>
+  </div>
+
+  <!-- ── SCHEDULED MESSAGES ── -->
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;color:var(--text)">⏰ Scheduled Messages</div>
+      <button onclick="waShowScheduleForm()" style="background:linear-gradient(135deg,#128c7e,#25d366);border:none;color:#fff;border-radius:8px;padding:7px 14px;font-size:11px;cursor:pointer;font-weight:700">+ Schedule</button>
+    </div>
+
+    <!-- Schedule form -->
+    <div id="wa-schedule-form" style="display:none;background:rgba(37,211,102,.04);border:1px solid #25d36633;border-radius:10px;padding:16px;margin-bottom:14px">
+      <div style="font-size:11px;font-weight:700;color:#25d366;margin-bottom:12px;letter-spacing:.5px">⏰ NEW SCHEDULED MESSAGE</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px">TO (number or name)</label>
+          <input id="ws-to" placeholder="+1 305 508 8372 or 'girlfriend'" list="wa-contacts-dl"
+            style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px">LABEL</label>
+          <input id="ws-label" placeholder="e.g. morning love message"
+            style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px">MESSAGE <span style="color:var(--text3)">(leave blank → NarAI writes it)</span></label>
+        <textarea id="ws-message" placeholder="Type message or leave blank for NarAI to compose at send time..."
+          style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;resize:none;height:60px;outline:none;box-sizing:border-box"></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr auto;gap:10px;margin-bottom:14px;align-items:end">
+        <div>
+          <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px">DATE & TIME</label>
+          <input id="ws-datetime" type="datetime-local"
+            style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;outline:none;box-sizing:border-box"/>
+        </div>
+        <div>
+          <label style="font-size:10px;color:var(--text3);display:block;margin-bottom:4px">REPEAT</label>
+          <select id="ws-repeat" style="width:100%;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:11px;font-family:inherit;outline:none;box-sizing:border-box">
+            <option value="once">Once</option>
+            <option value="daily">Every day</option>
+            <option value="weekly">Every week</option>
+          </select>
+        </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:11px;color:var(--text2);white-space:nowrap;padding-bottom:2px">
+          <input type="checkbox" id="ws-ai" style="width:14px;height:14px;cursor:pointer"/> NarAI writes it
+        </label>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button onclick="waScheduleSave()" style="background:linear-gradient(135deg,#128c7e,#25d366);border:none;color:#fff;border-radius:8px;padding:9px 22px;font-size:12px;font-weight:700;cursor:pointer">✓ Schedule</button>
+        <button onclick="document.getElementById('wa-schedule-form').style.display='none'" style="background:rgba(255,255,255,.05);border:1px solid var(--border);color:var(--text2);border-radius:8px;padding:9px 14px;font-size:11px;cursor:pointer">Cancel</button>
+      </div>
+    </div>
+
+    <div id="wa-schedule-list" style="display:flex;flex-direction:column;gap:8px">
+      <div style="color:var(--text3);font-size:11px;text-align:center;padding:12px 0">No scheduled messages. Click + Schedule to create one.</div>
+    </div>
+  </div>
 </div>
 
 <div class="page" id="page-superagent">
@@ -1806,7 +2115,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -1844,6 +2153,7 @@ function nav(p){
   if(p==='adsboard') loadAdsQueue();
   if(p==='pixelagents') initPixelAgents();
   if(p==='narai') initNarAI();
+  if(p==='whatsapp'){waRefresh();}
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
 
@@ -5406,82 +5716,110 @@ let _naraiRaf = null;
 async function naraiRefresh(){
   try {
     const st = await api('/api/narai/status');
-    // Mood + badges
     const mood = st.mood || {};
-    document.getElementById('narai-mood-badge').textContent = (mood.emoji||'🤖') + ' ' + (mood.mood||'focused');
+    // Mood + badges
+    const moodName = mood.mood || 'focused';
+    const moodEmoji = mood.emoji || '🤖';
     const energyPct = Math.round((mood.energy||0.8)*100);
-    document.getElementById('narai-energy-badge').textContent = '⚡ energy ' + energyPct + '%';
-    document.getElementById('narai-status-badge').textContent = '● ' + (st.status||'online');
-    document.getElementById('narai-status-badge').style.color = st.status==='running'?'#ffcc44':'#44ff88';
-    // Tagline
-    if(st.thought) document.getElementById('narai-tagline').textContent = st.thought;
+    _naraiSetEl('narai-mood-badge', moodEmoji + ' ' + moodName.toUpperCase());
+    _naraiSetEl('narai-energy-badge', '⚡ ' + energyPct + '%');
+    const isRunning = st.status === 'running';
+    const statusEl = document.getElementById('narai-status-badge');
+    if(statusEl){ statusEl.textContent = isRunning ? '⚙ PROCESSING' : '● ONLINE'; statusEl.style.color = isRunning ? '#ffcc44' : '#44ff88'; statusEl.style.borderColor = isRunning ? 'rgba(255,204,68,.4)' : 'rgba(68,255,136,.35)'; }
+    // Consciousness bars
+    const eBar = document.getElementById('narai-energy-bar');
+    if(eBar) eBar.style.width = energyPct + '%';
+    // Live thought as tagline
+    if(st.thought){ const tEl = document.getElementById('narai-tagline'); if(tEl) tEl.textContent = '"' + st.thought + '"'; }
     // Stats
     const m = st.mind || {};
-    document.getElementById('narai-stat-runs').textContent = m.run_count ?? '—';
-    document.getElementById('narai-stat-skills').textContent = m.skills_created ?? '—';
-    document.getElementById('narai-stat-fixes').textContent = m.bugs_fixed ?? '—';
-    document.getElementById('narai-stat-insights').textContent = m.insights_count ?? '—';
-    document.getElementById('narai-stat-knowledge').textContent = m.knowledge_entries ?? '—';
-    // Health
+    _naraiSetEl('narai-stat-runs', m.run_count ?? '—');
+    _naraiSetEl('narai-stat-skills', m.skills_created ?? '—');
+    _naraiSetEl('narai-stat-fixes', m.bugs_fixed ?? '—');
+    _naraiSetEl('narai-stat-insights', m.insights_count ?? '—');
+    _naraiSetEl('narai-stat-knowledge', m.knowledge_entries ?? '—');
+    // Health stat
     const rpt = st.last_report_summary || {};
     if(rpt.health_pct !== undefined){
       const hp = rpt.health_pct;
-      document.getElementById('narai-stat-health').textContent = hp + '%';
-      document.getElementById('narai-stat-health').style.color = hp>90?'#44ff88':hp>70?'#ffcc44':'#ff5555';
+      const hEl = document.getElementById('narai-stat-health');
+      if(hEl){ hEl.textContent = hp + '%'; hEl.style.color = hp>90?'#44ff88':hp>70?'#ffcc44':'#ff5555'; }
+      const hBar = document.getElementById('narai-health-bar');
+      if(hBar){ hBar.style.width = hp + '%'; hBar.style.background = hp>90?'linear-gradient(90deg,#44ff88,#00ccff)':hp>70?'linear-gradient(90deg,#ffcc44,#ff8844)':'linear-gradient(90deg,#ff5555,#ff0088)'; }
+      const badge = document.getElementById('narai-skill-count-badge');
+      if(badge && m.skills_created){ badge.textContent = (m.skills_created||30) + ' skills'; }
     }
-    // Goals
+    // Mission Directives (Goals)
     const goals = m.goals || [];
-    document.getElementById('narai-goals').innerHTML = goals.map(g =>
-      '<div style="display:flex;gap:6px;align-items:flex-start">' +
-      '<span style="color:#8844ff;margin-top:1px">▸</span>' +
-      '<span style="font-size:10px;color:var(--text2)">' + g + '</span></div>'
-    ).join('') || '<div style="font-size:10px;color:var(--text3)">No goals loaded</div>';
-    // Report summary
+    const goalsEl = document.getElementById('narai-goals');
+    if(goalsEl) goalsEl.innerHTML = goals.map((g,i)=>`
+      <div style="display:flex;gap:8px;align-items:flex-start;padding:5px 0;border-bottom:1px solid rgba(136,68,255,.1)">
+        <span style="color:#8844ff;font-size:9px;margin-top:1px;flex-shrink:0;font-weight:700">${String(i+1).padStart(2,'0')}</span>
+        <span style="font-size:10px;color:var(--text2);line-height:1.5">${g}</span>
+      </div>`).join('') || '<div style="font-size:10px;color:var(--text3)">No directives loaded</div>';
+    // System Intel Report
     if(Object.keys(rpt).length){
       const sev = st.last_report_severity || 'green';
       const sevCol = sev==='red'?'#ff5555':sev==='yellow'?'#ffcc44':'#44ff88';
-      document.getElementById('narai-report-summary').innerHTML =
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 14px">' +
-        naraiStatLine('Total Bots', rpt.total_bots) +
-        naraiStatLine('Healthy', rpt.healthy_bots, '#44ff88') +
-        naraiStatLine('Health', rpt.health_pct + '%', rpt.health_pct>85?'#44ff88':'#ffcc44') +
-        naraiStatLine('Log Errors', rpt.errors_in_logs, rpt.errors_in_logs>0?'#ff5555':'#44ff88') +
-        naraiStatLine('Warnings', rpt.warnings_in_logs, rpt.warnings_in_logs>0?'#ffcc44':'#44ff88') +
-        naraiStatLine('Config Issues', rpt.config_issues) +
-        naraiStatLine('Tokens (24h)', rpt.token_spend_24h) +
-        naraiStatLine('Output Files', rpt.output_files) +
-        '</div>' +
-        '<div style="margin-top:8px;display:flex;align-items:center;gap:6px">' +
-        '<div style="width:8px;height:8px;border-radius:50%;background:'+sevCol+'"></div>' +
-        '<span style="font-size:9px;color:'+sevCol+'">Severity: '+sev.toUpperCase()+'</span></div>';
+      const rptEl = document.getElementById('narai-report-summary');
+      if(rptEl) rptEl.innerHTML =
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 12px;margin-bottom:10px">' +
+        _nrStat('Bots', rpt.total_bots) + _nrStat('Healthy', rpt.healthy_bots,'#44ff88') +
+        _nrStat('Health', (rpt.health_pct||0)+'%', rpt.health_pct>85?'#44ff88':'#ffcc44') +
+        _nrStat('Errors', rpt.errors_in_logs, rpt.errors_in_logs>0?'#ff5555':'#44ff88') +
+        _nrStat('Warnings', rpt.warnings_in_logs, rpt.warnings_in_logs>0?'#ffcc44':'#44ff88') +
+        _nrStat('Tokens/24h', rpt.token_spend_24h) + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;padding:6px 8px;background:rgba(0,0,0,.25);border-radius:7px;border:1px solid '+sevCol+'33">' +
+        '<div style="width:7px;height:7px;border-radius:50%;background:'+sevCol+';box-shadow:0 0 6px '+sevCol+'"></div>' +
+        '<span style="font-size:9px;color:'+sevCol+';letter-spacing:1.5px;text-transform:uppercase;font-weight:700">'+sev+' STATUS</span></div>';
     }
-    // Skills
+    // Skill Constellation
     const skills = st.skills || [];
-    document.getElementById('narai-skills-list').innerHTML = skills.length ?
-      skills.map(s => '<div style="padding:4px 0;border-bottom:1px solid rgba(255,255,255,.04);color:var(--text2)">⚡ ' + s + '</div>').join('') :
-      '<div style="color:var(--text3)">No skills yet — create one above</div>';
-  } catch(e){
-    console.warn('NarAI status error:', e);
-  }
-  // Activity log
+    const skillCols = ['#ffcc44','#cc88ff','#00ccff','#44ff88','#ff5588','#ff8844'];
+    const skillIcons = {'whatsapp':'💬','social':'📡','crypto':'₿','revenue':'💰','content':'✍','video':'🎬','email':'📧','seo':'🔍','ecosystem':'🌐','research':'🌍','quantum':'⚛','pattern':'🔮','world':'🗺','evolution':'🧬','human':'🤝','reality':'🏗','orchestration':'🎭','prediction':'📈','creativity':'💡','awareness':'👁'};
+    const skEl = document.getElementById('narai-skills-list');
+    if(skEl) skEl.innerHTML = skills.length ?
+      skills.map((s,i)=>{
+        const col = skillCols[i%skillCols.length];
+        const icon = Object.entries(skillIcons).find(([k])=>s.toLowerCase().includes(k))?.[1]||'⚡';
+        return `<div class="nr-skill-chip" style="border-color:${col}33;background:${col}08"><span style="color:${col};font-size:11px">${icon}</span><span style="color:rgba(220,230,245,.8);font-size:9px;letter-spacing:.3px">${s.replace(/_/g,' ')}</span></div>`;
+      }).join('') :
+      '<div style="color:var(--text3);font-size:10px">No skills loaded — forge one below</div>';
+    // Contacts
+    _naraiRefreshContacts(m.contacts || {});
+    // Platform Nexus
+    const env = st.env || {};
+    const platMap = {'plat-whatsapp':env.whatsapp,'plat-facebook':env.facebook,'plat-instagram':env.instagram,'plat-twitter':env.twitter,'plat-youtube':env.youtube,'plat-tiktok':env.tiktok,'plat-telegram':env.telegram,'plat-email':env.email};
+    Object.entries(platMap).forEach(([id,active])=>{
+      const el = document.getElementById(id);
+      if(!el) return;
+      const dot = el.querySelector('.nrdot');
+      if(active){ el.classList.add('active'); if(dot){ dot.style.background='#44ff88'; dot.style.boxShadow='0 0 8px #44ff88'; } }
+    });
+  } catch(e){ console.warn('NarAI status error:', e); }
+  // Activity Matrix
   try {
-    const logData = await api('/api/narai/log?limit=40');
+    const logData = await api('/api/narai/log?limit=50');
     const log = logData.log || [];
-    document.getElementById('narai-activity-feed').innerHTML = log.map(entry => {
-      const ts = entry.ts ? entry.ts.slice(11,19) : '';
-      const col = entry.level==='ERROR'?'#ff5555':entry.level==='WARNING'?'#ffcc44':'#aabbcc';
-      const moodEmoji = {curious:'🔍',focused:'🎯',excited:'✨',concerned:'😟',satisfied:'😊',alert:'⚠',creative:'💡',tired:'😴'}[entry.mood]||'🤖';
-      return '<div style="padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)">' +
-        '<span style="color:#445566">' + ts + '</span> ' +
-        '<span style="color:' + col + '">' + entry.event + '</span> ' +
-        moodEmoji + '</div>';
-    }).join('') || '<div style="color:var(--text3)">No activity yet</div>';
-  } catch(e) {}
+    const moodM = {curious:'🔍',focused:'🎯',excited:'✨',concerned:'😟',satisfied:'😊',alert:'⚠️',creative:'💡',tired:'😴'};
+    const afEl = document.getElementById('narai-activity-feed');
+    if(afEl) afEl.innerHTML = log.map(entry=>{
+      const ts = entry.ts ? entry.ts.slice(11,19) : '—';
+      const col = entry.level==='ERROR'?'#ff5555':entry.level==='WARNING'?'#ffcc44':entry.level==='INFO'?'rgba(170,187,204,.8)':'rgba(100,120,150,.7)';
+      const em = moodM[entry.mood]||'🤖';
+      const prefix = entry.level==='ERROR'?'ERR':entry.level==='WARNING'?'WRN':'INF';
+      return `<div class="nr-activity-line"><span style="color:rgba(68,85,102,.8);font-size:9px;flex-shrink:0;min-width:58px">${ts}</span><span style="color:${col==='rgba(170,187,204,.8)'?'rgba(68,85,102,.6)':col};font-size:9px;flex-shrink:0;font-weight:700">[${prefix}]</span><span style="color:${col};flex:1;font-size:10px">${entry.event}</span><span style="flex-shrink:0">${em}</span></div>`;
+    }).join('') || '<div style="color:rgba(85,94,119,.6);font-size:10px;letter-spacing:1px">AWAITING NEURAL EVENTS…</div>';
+  } catch(e){}
+}
+
+function _naraiSetEl(id, val){ const el=document.getElementById(id); if(el) el.textContent=val; }
+function _nrStat(label, value, col){
+  return `<div><div style="font-size:8px;color:rgba(85,94,119,.8);text-transform:uppercase;letter-spacing:1.5px">${label}</div><div style="font-size:12px;font-weight:700;color:${col||'var(--text)'}">${value??'—'}</div></div>`;
 }
 
 function naraiStatLine(label, value, col){
-  return '<div><span style="font-size:9px;color:#445;text-transform:uppercase">' + label + '</span><br>' +
-    '<span style="font-size:11px;font-weight:700;color:' + (col||'var(--text)') + '">' + (value??'—') + '</span></div>';
+  return _nrStat(label, value, col);
 }
 
 async function naraiAction(action){
@@ -5625,20 +5963,30 @@ async function naraiSpeak(text){
   }
 }
 
-function _naraiAddMessage(role, text, mood){
+function _naraiAddMessage(role, text, mood, actions){
   const history = document.getElementById('narai-chat-history');
   if(!history) return;
   const isNarai = role==='narai';
   const emoji = (mood&&mood.emoji) ? mood.emoji : (isNarai?'🌟':'👤');
   const wrap = document.createElement('div');
-  wrap.style.cssText = 'display:flex;gap:8px;align-items:flex-start;margin-bottom:2px;' + (isNarai?'':'flex-direction:row-reverse');
+  wrap.style.cssText = 'display:flex;gap:9px;align-items:flex-start;animation:nrFadeUp .3s ease both;' + (isNarai?'':'flex-direction:row-reverse');
   const av = document.createElement('div');
-  av.style.cssText = 'width:26px;height:26px;min-width:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;' + (isNarai?'background:radial-gradient(circle,#330066,#0a001a);border:1px solid #bb44ff55;box-shadow:0 0 6px #bb44ff33':'background:#111827;border:1px solid #2a3040');
+  av.style.cssText = 'width:30px;height:30px;min-width:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;' + (isNarai?'background:radial-gradient(circle,#220044,#0a001a);border:1px solid rgba(136,68,255,.5);box-shadow:0 0 12px rgba(136,68,255,.3)':'background:rgba(0,40,80,.5);border:1px solid rgba(0,100,200,.3)');
   av.textContent = emoji;
+  const bubWrap = document.createElement('div');
+  bubWrap.style.cssText = 'display:flex;flex-direction:column;gap:4px;max-width:85%';
   const bub = document.createElement('div');
-  bub.style.cssText = 'max-width:80%;padding:8px 11px;border-radius:10px;font-size:11px;line-height:1.6;word-break:break-word;' + (isNarai?'background:rgba(136,68,255,.12);border:1px solid #8844ff2a;color:var(--text);border-top-left-radius:3px':'background:rgba(0,120,255,.1);border:1px solid #0055ff22;color:var(--text);border-top-right-radius:3px');
+  bub.className = isNarai ? 'nr-bubble-ai' : 'nr-bubble-user';
   bub.textContent = text;
-  wrap.appendChild(av); wrap.appendChild(bub);
+  bubWrap.appendChild(bub);
+  if(actions && actions.length > 0){
+    const badge = document.createElement('div');
+    badge.style.cssText = 'font-size:9px;color:#aa88ff;background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.25);border-radius:10px;padding:3px 9px;display:inline-flex;align-items:center;gap:4px;width:fit-content;letter-spacing:.3px';
+    badge.innerHTML = '⚡ <strong>' + actions.length + '</strong> action' + (actions.length>1?'s':'') + ' executed';
+    badge.title = actions.join('\n');
+    bubWrap.appendChild(badge);
+  }
+  wrap.appendChild(av); wrap.appendChild(bubWrap);
   history.appendChild(wrap);
   history.scrollTop = history.scrollHeight;
   while(history.children.length > 60) history.removeChild(history.firstChild);
@@ -5712,7 +6060,7 @@ async function naraiSendVoice(){
       // TTS unavailable — got JSON text-only fallback
       const data = await resp.json();
       const reply = data.response || '…';
-      _naraiAddMessage('narai', reply, data.mood);
+      _naraiAddMessage('narai', reply, data.mood, data.actions_taken||[]);
       _naraiSetVoiceStatus('ready','#44ff88');
       // Try browser TTS as fallback
       _naraiSpeakBrowser(reply);
@@ -5726,6 +6074,32 @@ async function naraiSendVoice(){
   } finally {
     _naraiSendPending = false;
   }
+}
+
+// Quick action helpers
+function naraiQuickSend(text){
+  const input = document.getElementById('narai-voice-input');
+  if(input){ input.value = text; naraiSendVoice(); }
+}
+function naraiQuickFill(text){
+  const input = document.getElementById('narai-voice-input');
+  if(input){ input.value = text; input.focus(); }
+}
+
+// Contacts widget refresh
+function _naraiRefreshContacts(contacts){
+  const list = document.getElementById('narai-contacts-list');
+  const cnt  = document.getElementById('narai-contacts-count');
+  if(!list) return;
+  const entries = contacts ? Object.entries(contacts) : [];
+  if(cnt) cnt.textContent = entries.length + (entries.length===1?' contact':' contacts');
+  if(entries.length === 0){
+    list.innerHTML = '<span style="font-size:9px;color:var(--text3)">No contacts saved yet.</span>';
+    return;
+  }
+  list.innerHTML = entries.map(([name,phone])=>
+    `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(136,68,255,.1);border:1px solid #8844ff33;border-radius:12px;padding:3px 9px;font-size:9px;color:#cc88ff"><span style="color:var(--text)">${name}</span><span style="color:var(--text3)">+${phone}</span></span>`
+  ).join('');
 }
 
 // Browser speech fallback (only used if OpenAI TTS is unreachable)
@@ -5849,20 +6223,79 @@ function naraiScheduleAutoTalk(){
 async function naraiCreateSkill(){
   const name = (document.getElementById('narai-skill-name').value||'').trim();
   const desc = (document.getElementById('narai-skill-desc').value||'').trim();
-  if(!name || !desc){toast('Enter skill name and description','error');return;}
-  toast('💡 NarAI: creating skill "' + name + '"…', 'info');
+  if(!name || !desc){toast('Enter skill identifier and description','error');return;}
+  const st = document.getElementById('narai-forge-status');
+  if(st){ st.style.color='#ffcc44'; st.textContent='⚡ SYNTHESIZING…'; }
+  toast('⚡ Forge: synthesizing "' + name + '"…', 'info');
   try {
     await api('/api/narai/create_skill', 'POST', {name, description: desc});
-    toast('✅ Skill creation started', 'success');
+    if(st){ st.style.color='#44ff88'; st.textContent='✓ SKILL SYNTHESIZED'; }
+    toast('✅ Skill "' + name + '" added to constellation', 'success');
     document.getElementById('narai-skill-name').value = '';
     document.getElementById('narai-skill-desc').value = '';
-    setTimeout(naraiRefresh, 4000);
+    setTimeout(()=>{ if(st) st.textContent=''; naraiRefresh(); }, 4000);
   } catch(e){
-    toast('Error: ' + (e.message||e), 'error');
+    if(st){ st.style.color='#ff5555'; st.textContent='ERROR: ' + (e.message||e); }
+    toast('Forge error: ' + (e.message||e), 'error');
   }
 }
 
-// NarAI avatar canvas — living pulse animation
+// ── Neural Network Background Canvas ──────────────────────────────────────────
+let _nrNeuralNodes = [], _nrNeuralRaf = null, _nrNeuralPulse = 0;
+
+function _nrInitNeural(){
+  const c = document.getElementById('narai-neural-canvas');
+  if(!c) return;
+  const W = c.width = c.offsetWidth || window.innerWidth - 215;
+  const H = c.height = c.offsetHeight || window.innerHeight - 50;
+  _nrNeuralNodes = Array.from({length:55},()=>({
+    x: Math.random()*W, y: Math.random()*H,
+    vx:(Math.random()-.5)*.35, vy:(Math.random()-.5)*.35,
+    r: 1.2+Math.random()*1.8,
+    col: ['#8844ff','#00ccff','#44ff88','#ffcc44','#cc88ff'][Math.floor(Math.random()*5)]
+  }));
+  if(_nrNeuralRaf) cancelAnimationFrame(_nrNeuralRaf);
+  _nrDrawNeural();
+}
+
+function _nrDrawNeural(){
+  _nrNeuralRaf = requestAnimationFrame(_nrDrawNeural);
+  const c = document.getElementById('narai-neural-canvas');
+  if(!c) return;
+  const pg = document.getElementById('page-narai');
+  if(!pg || pg.style.display==='none') return;
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  _nrNeuralPulse++;
+  ctx.clearRect(0,0,W,H);
+  const DIST = 140;
+  for(let i=0;i<_nrNeuralNodes.length;i++){
+    const n = _nrNeuralNodes[i];
+    n.x += n.vx; n.y += n.vy;
+    if(n.x<0||n.x>W) n.vx*=-1;
+    if(n.y<0||n.y>H) n.vy*=-1;
+    for(let j=i+1;j<_nrNeuralNodes.length;j++){
+      const m = _nrNeuralNodes[j];
+      const dx=n.x-m.x, dy=n.y-m.y, d=Math.sqrt(dx*dx+dy*dy);
+      if(d<DIST){
+        const alpha=(1-d/DIST)*0.35;
+        ctx.strokeStyle=n.col;ctx.globalAlpha=alpha;ctx.lineWidth=.6;
+        ctx.beginPath();ctx.moveTo(n.x,n.y);ctx.lineTo(m.x,m.y);ctx.stroke();
+        // pulse dot on midpoint
+        if(d<60&&Math.sin(_nrNeuralPulse*.04+i*.7)>.8){
+          ctx.globalAlpha=.6;ctx.fillStyle=n.col;
+          ctx.beginPath();ctx.arc((n.x+m.x)/2,(n.y+m.y)/2,1.5,0,Math.PI*2);ctx.fill();
+        }
+      }
+    }
+    ctx.globalAlpha=0.7+0.3*Math.sin(_nrNeuralPulse*.05+i);
+    ctx.fillStyle=n.col;
+    ctx.beginPath();ctx.arc(n.x,n.y,n.r,0,Math.PI*2);ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+// ── NarAI Avatar — holographic pulse ──────────────────────────────────────────
 function naraiDrawAvatar(){
   _naraiRaf = requestAnimationFrame(naraiDrawAvatar);
   if(!_naraiCanvas) return;
@@ -5872,71 +6305,74 @@ function naraiDrawAvatar(){
   const W = _naraiCanvas.width, H = _naraiCanvas.height;
   _naraiPulse++;
   ctx.clearRect(0,0,W,H);
-  // Outer glow ring
-  const r = W/2 - 4;
   const t = _naraiPulse;
-  const grad = ctx.createRadialGradient(W/2,H/2,r*0.5,W/2,H/2,r);
-  const a1 = 0.5 + 0.3*Math.sin(t/28);
-  const a2 = 0.15 + 0.1*Math.sin(t/18);
-  grad.addColorStop(0,'rgba(180,0,255,'+a1+')');
-  grad.addColorStop(0.5,'rgba(0,150,255,'+a2+')');
-  grad.addColorStop(1,'transparent');
-  ctx.fillStyle = grad;
-  ctx.beginPath();ctx.arc(W/2,H/2,r,0,Math.PI*2);ctx.fill();
-  // Inner star
+  const cx = W/2, cy = H/2, r = W/2 - 3;
+  // Layered glow
+  for(let layer=0;layer<3;layer++){
+    const a = (0.15 - layer*0.04) + 0.08*Math.sin(t/20+layer);
+    const gr = ctx.createRadialGradient(cx,cy,r*(0.3+layer*.1),cx,cy,r*(1+layer*.15));
+    gr.addColorStop(0,`rgba(136,68,255,${a})`);
+    gr.addColorStop(0.5,`rgba(0,204,255,${a*.4})`);
+    gr.addColorStop(1,'transparent');
+    ctx.fillStyle=gr;
+    ctx.beginPath();ctx.arc(cx,cy,r*(1.1+layer*.1),0,Math.PI*2);ctx.fill();
+  }
+  // Face emoji
   ctx.save();
-  ctx.translate(W/2,H/2);ctx.rotate(t*0.015);
-  ctx.font = Math.round(W*0.45)+'px serif';
+  ctx.translate(cx,cy);ctx.rotate(Math.sin(t*.008)*.05);
+  ctx.font = Math.round(W*.48)+'px serif';
   ctx.textAlign='center';ctx.textBaseline='middle';
-  ctx.shadowColor='#cc88ff';ctx.shadowBlur=12+6*Math.sin(t/22);
+  ctx.shadowColor='#cc88ff';ctx.shadowBlur=18+8*Math.sin(t/18);
   ctx.fillText('🌟',0,2);
   ctx.restore();
-  // Orbiting dots
-  for(let i=0;i<6;i++){
-    const angle = (t*0.02) + i*Math.PI/3;
-    const or = r*0.72 + 4*Math.sin(t/16+i);
-    const dx = Math.cos(angle)*or, dy = Math.sin(angle)*or;
-    ctx.fillStyle = i%2===0?'#cc88ff':'#00ccff';
-    ctx.globalAlpha = 0.6 + 0.4*Math.sin(t/12+i);
-    ctx.beginPath();ctx.arc(W/2+dx,H/2+dy,2.5,0,Math.PI*2);ctx.fill();
+  // Orbiting data points
+  const colors=['#cc88ff','#00ccff','#44ff88','#ffcc44','#ff5588','#ff8844'];
+  for(let i=0;i<8;i++){
+    const angle = t*.018 + i*Math.PI/4;
+    const or = r*.78 + 5*Math.sin(t*.025+i*.7);
+    ctx.fillStyle=colors[i%colors.length];
+    ctx.globalAlpha=0.5+0.5*Math.sin(t*.04+i*1.3);
+    ctx.beginPath();ctx.arc(cx+Math.cos(angle)*or, cy+Math.sin(angle)*or, 2,0,Math.PI*2);ctx.fill();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha=1;
 }
 
 function initNarAI(){
-  // Replace static avatar with canvas
+  // Avatar canvas — 96x96 to match new design
   const avatarEl = document.getElementById('narai-avatar');
-  if(avatarEl && !avatarEl.querySelector('canvas')){
+  if(avatarEl){
     const c = document.createElement('canvas');
-    c.width = 64; c.height = 64;
-    c.style.cssText = 'border-radius:50%;display:block';
-    avatarEl.innerHTML='';avatarEl.appendChild(c);
+    c.width = 96; c.height = 96;
+    c.style.cssText = 'border-radius:50%;display:block;width:96px;height:96px';
+    avatarEl.innerHTML=''; avatarEl.appendChild(c);
     _naraiCanvas = c;
     if(_naraiRaf) cancelAnimationFrame(_naraiRaf);
     naraiDrawAvatar();
   }
-  // Init TTS + mic button visual state
+  // Neural network background
+  setTimeout(_nrInitNeural, 400);
+  window.addEventListener('resize', ()=>{ clearTimeout(_nrResizeT); _nrResizeT=setTimeout(_nrInitNeural,300); });
+  // TTS button
   const ttsBtn = document.getElementById('narai-tts-btn');
-  if(ttsBtn){ ttsBtn.style.color='#cc88ff'; ttsBtn.style.borderColor='#8844ff55'; ttsBtn.style.background='rgba(136,68,255,.15)'; }
+  if(ttsBtn){ ttsBtn.style.color='#cc88ff'; ttsBtn.style.borderColor='rgba(136,68,255,.35)'; ttsBtn.style.background='rgba(136,68,255,.15)'; }
   _naraiSendPending = false;
-  // Preload voices
   if(window.speechSynthesis) window.speechSynthesis.getVoices();
   naraiRefresh();
   if(_naraiInterval) clearInterval(_naraiInterval);
   _naraiInterval = setInterval(naraiRefresh, 15000);
-  // Auto-talk: NarAI will spontaneously start a humanity conversation
   naraiScheduleAutoTalk();
-  // Greet — fetch a unique, memory-aware greeting from NarAI each session
+  // Greeting
   setTimeout(async ()=>{
-    let greeting = "Hey, been a minute — I've been keeping an eye on everything while you were gone.";
+    let greeting = "Systems synchronized. I've been running analysis while you were away — let's build something.";
     try {
       const r = await fetch('/api/narai/greeting');
       if(r.ok){ const d = await r.json(); if(d.greeting) greeting = d.greeting; }
     } catch(e){}
     _naraiAddMessage('narai', greeting, {emoji:'🌟', mood:'focused'});
     naraiSpeak(greeting);
-  }, 1600);
+  }, 1800);
 }
+let _nrResizeT = null;
 
 // Also show NarAI presence in Pixel Agents canvas
 // ── NarAI: fetch live state from API ─────────────────────────────────────────
@@ -6122,6 +6558,355 @@ function p8drawNarAI(ctx, W, H, frame){
   ctx.font='5px monospace';ctx.fillStyle='#443355';ctx.textAlign='right';
   ctx.fillText('click to command',hx+hw-6,hy+44);
   ctx.restore();
+}
+
+// ── WhatsApp Dashboard ─────────────────────────────────────────────────────
+
+async function waRefresh() {
+  // Phone info + status
+  const info = await _safeFetch('/api/whatsapp/info');
+  if (info && info.configured) {
+    document.getElementById('wa-number-display').textContent = (info.phone||'') + ' · ' + (info.name||'') + ' · Phone ID: ' + (info.phone_id||'');
+    document.getElementById('wa-status-badge').textContent = info.status || 'CONNECTED';
+    document.getElementById('wa-status-badge').style.color = '#25d366';
+    document.getElementById('wa-dot').style.background = '#25d366';
+    document.getElementById('wa-quality-badge').textContent = info.quality || 'OK';
+    document.getElementById('wa-quality-badge').style.color = info.quality === 'GREEN' ? '#25d366' : info.quality === 'YELLOW' ? '#ffcc00' : '#ff4444';
+  } else {
+    document.getElementById('wa-number-display').textContent = info?.error || 'Not configured — add WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID';
+    document.getElementById('wa-status-badge').textContent = 'OFFLINE';
+    document.getElementById('wa-status-badge').style.color = 'var(--red)';
+    document.getElementById('wa-dot').style.background = '#ff4444';
+  }
+  // Contacts
+  const cdata = await _safeFetch('/api/whatsapp/contacts');
+  const contacts = cdata?.contacts || [];
+  const cl = document.getElementById('wa-contacts-list');
+  // Populate datalist for autocomplete
+  const dl = document.getElementById('wa-contacts-dl');
+  if (dl) dl.innerHTML = contacts.map(c => `<option value="${c.name}">`).join('') + contacts.map(c => `<option value="+${c.phone}">`).join('');
+  if (!contacts.length) {
+    cl.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:10px 0">No contacts yet — NarAI saves them automatically when you send messages.</div>';
+  } else {
+    cl.innerHTML = contacts.map(c => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:var(--bg3);border-radius:8px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#128c7e,#25d366);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">${c.name[0].toUpperCase()}</div>
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text);text-transform:capitalize">${esc(c.name)}</div>
+            <div style="font-size:10px;color:var(--text3)">+${esc(c.phone)}</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button onclick="document.getElementById('wa-send-to').value='${esc(c.name)}';nav('whatsapp')" style="background:rgba(37,211,102,.15);border:1px solid #25d36633;color:#25d366;border-radius:6px;padding:3px 9px;font-size:10px;cursor:pointer;font-weight:600">✉ Message</button>
+          <button onclick="waDeleteContact('${esc(c.name)}')" style="background:rgba(255,68,68,.08);border:1px solid #ff444422;color:var(--red);border-radius:6px;padding:3px 7px;font-size:10px;cursor:pointer">✕</button>
+        </div>
+      </div>`).join('');
+  }
+  waLoadSchedule();
+  waLoadInbox();
+  waLoadHistory();
+}
+
+async function waSend() {
+  const toRaw = document.getElementById('wa-send-to').value.trim();
+  const msg = document.getElementById('wa-send-msg').value.trim();
+  if (!toRaw || !msg) { toast('Enter a recipient and message', 'error'); return; }
+  // Resolve contact name to phone if needed
+  let to = toRaw.replace(/\D/g, '');
+  if (!to || to.length < 7) {
+    // Try to resolve as contact name via NarAI
+    const cdata = await _safeFetch('/api/whatsapp/contacts');
+    const contact = (cdata?.contacts || []).find(c => c.name.toLowerCase() === toRaw.toLowerCase());
+    if (contact) {
+      to = contact.phone;
+    } else {
+      toast('Could not resolve contact: ' + toRaw, 'error'); return;
+    }
+  }
+  const result = document.getElementById('wa-send-result');
+  result.style.display = 'none';
+  try {
+    const resp = await fetch('/api/whatsapp/send', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({to, message: msg})
+    });
+    if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail || resp.status); }
+    result.textContent = '✓ Sent to +' + to;
+    result.style.display = 'block';
+    document.getElementById('wa-send-msg').value = '';
+    toast('WhatsApp message sent!', 'success');
+    setTimeout(() => waRefresh(), 1500);
+  } catch(e) { toast('Send failed: ' + e.message, 'error'); }
+}
+
+async function waAICompose() {
+  const to = document.getElementById('wa-send-to').value.trim();
+  const hint = prompt('What kind of message? (e.g. "love message", "reminder", "business proposal")');
+  if (!hint) return;
+  toast('NarAI is writing...', 'success');
+  try {
+    const resp = await fetch('/api/narai/voice_chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: `Write a ${hint} for WhatsApp${to ? ' to ' + to : ''}. Output ONLY the message text, nothing else.`})
+    });
+    const data = await resp.json();
+    if (data.response) {
+      document.getElementById('wa-send-msg').value = data.response;
+    }
+  } catch(e) { toast('AI compose failed', 'error'); }
+}
+
+// ── Resolve contact name or number to digits-only phone ────────────────────
+async function waResolvePhone(raw) {
+  const digits = raw.replace(/\D/g,'');
+  if (digits.length >= 7) return digits;
+  // Try to match by contact name
+  const cdata = await _safeFetch('/api/whatsapp/contacts');
+  const contact = (cdata?.contacts||[]).find(c => c.name.toLowerCase() === raw.toLowerCase());
+  if (contact) return contact.phone;
+  return null;
+}
+
+// ── Send media (image / audio / video) via URL ─────────────────────────────
+async function waSendMedia(mediaType) {
+  const toRaw = document.getElementById('wa-send-to').value.trim();
+  if (!toRaw) { toast('Enter a recipient first', 'error'); return; }
+  const mediaUrl = prompt(`Enter the ${mediaType} URL (must be a public HTTPS link):`);
+  if (!mediaUrl) return;
+  const caption = mediaType !== 'audio' ? (document.getElementById('wa-send-msg').value.trim() || '') : '';
+  const to = await waResolvePhone(toRaw);
+  if (!to) { toast('Could not resolve recipient: ' + toRaw, 'error'); return; }
+  toast(`Sending ${mediaType}...`, 'success');
+  try {
+    const resp = await fetch('/api/whatsapp/send', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({to, message: caption, media_url: mediaUrl, media_type: mediaType})
+    });
+    if (!resp.ok) { const e = await resp.json(); throw new Error(e.detail||resp.status); }
+    toast(`${mediaType.charAt(0).toUpperCase()+mediaType.slice(1)} sent!`, 'success');
+    const r = document.getElementById('wa-send-result');
+    r.textContent = `✓ ${mediaType} sent to +${to}`;
+    r.style.display = 'block';
+    setTimeout(() => waLoadHistory(), 1500);
+  } catch(e) { toast(`Send failed: ${e.message}`, 'error'); }
+}
+
+// ── Generate AI image (DALL-E) and send via WhatsApp ──────────────────────
+async function waSendAIImage() {
+  const toRaw = document.getElementById('wa-send-to').value.trim();
+  if (!toRaw) { toast('Enter a recipient first', 'error'); return; }
+  const prompt_text = prompt('Describe the image to generate:');
+  if (!prompt_text) return;
+  toast('NarAI generating image...', 'success');
+  try {
+    // Ask NarAI to create and send the image
+    const resp = await fetch('/api/narai/voice_chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: `Generate an AI image of: "${prompt_text}" and send it via WhatsApp to ${toRaw}`})
+    });
+    const data = await resp.json();
+    toast(data.response?.slice(0,80) || 'Image sent!', 'success');
+    setTimeout(() => waLoadHistory(), 2000);
+  } catch(e) { toast('AI image failed: ' + e.message, 'error'); }
+}
+
+function waAddContactPrompt() {
+  const name = prompt('Contact name (e.g. "girlfriend", "boss"):');
+  if (!name) return;
+  const phone = prompt('Phone number with country code (e.g. 13055088372):');
+  if (!phone) return;
+  fetch('/api/whatsapp/contacts', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name: name.toLowerCase().trim(), phone: phone.replace(/\D/g,'')})
+  }).then(() => { toast('Contact saved!', 'success'); waRefresh(); });
+}
+
+// ── Send history (NarAI activity log filtered for WA sends) ───────────────
+async function waLoadHistory() {
+  const data = await _safeFetch('/api/whatsapp/history');
+  const msgs = data?.messages || [];
+  const el = document.getElementById('wa-history-list');
+  if (!msgs.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:11px;text-align:center;padding:10px 0">No outgoing messages recorded yet.</div>';
+    return;
+  }
+  el.innerHTML = msgs.slice(0,30).reverse().map(m => `
+    <div style="display:flex;align-items:flex-start;gap:10px;padding:8px 12px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);border-left:3px solid #25d366">
+      <div style="font-size:18px;flex-shrink:0">📤</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:11px;color:var(--text);line-height:1.4">${esc(m.message||'').slice(0,120)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">${m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}</div>
+      </div>
+    </div>`).join('');
+}
+
+async function waDeleteContact(name) {
+  if (!confirm('Delete contact: ' + name + '?')) return;
+  await fetch('/api/whatsapp/contacts/' + encodeURIComponent(name), {method:'DELETE'});
+  toast('Contact deleted', 'success');
+  waRefresh();
+}
+
+function waShowScheduleForm() {
+  const f = document.getElementById('wa-schedule-form');
+  f.style.display = f.style.display === 'none' ? 'block' : 'none';
+  // Set default datetime to tomorrow 9am
+  if (f.style.display === 'block') {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(9, 0, 0, 0);
+    document.getElementById('ws-datetime').value = d.toISOString().slice(0, 16);
+  }
+}
+
+async function waScheduleSave() {
+  const toRaw = document.getElementById('ws-to').value.trim();
+  const msg = document.getElementById('ws-message').value.trim();
+  const dt = document.getElementById('ws-datetime').value;
+  const repeat = document.getElementById('ws-repeat').value;
+  const label = document.getElementById('ws-label').value.trim();
+  const aiCompose = document.getElementById('ws-ai').checked;
+
+  if (!toRaw) { toast('Enter a recipient', 'error'); return; }
+  if (!dt) { toast('Pick a date and time', 'error'); return; }
+  if (!msg && !aiCompose) { toast('Enter a message or enable NarAI AI compose', 'error'); return; }
+
+  // Resolve contact name to phone
+  let to = toRaw.replace(/\D/g, '');
+  if (!to || to.length < 7) {
+    const cdata = await _safeFetch('/api/whatsapp/contacts');
+    const contact = (cdata?.contacts || []).find(c => c.name.toLowerCase() === toRaw.toLowerCase());
+    if (contact) { to = contact.phone; }
+    else { toast('Could not resolve contact: ' + toRaw, 'error'); return; }
+  }
+
+  try {
+    const resp = await fetch('/api/whatsapp/schedule', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        to, message: msg, send_at: dt + ':00',
+        repeat, label, ai_compose: aiCompose
+      })
+    });
+    if (!resp.ok) throw new Error((await resp.json()).detail || resp.status);
+    toast('Message scheduled!', 'success');
+    document.getElementById('wa-schedule-form').style.display = 'none';
+    document.getElementById('ws-to').value = '';
+    document.getElementById('ws-message').value = '';
+    document.getElementById('ws-label').value = '';
+    waLoadSchedule();
+  } catch(e) { toast('Schedule failed: ' + e.message, 'error'); }
+}
+
+async function waLoadSchedule() {
+  const data = await _safeFetch('/api/whatsapp/schedule');
+  const items = data?.scheduled || [];
+  const el = document.getElementById('wa-schedule-list');
+  if (!items.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:11px">No scheduled messages yet.</div>';
+    return;
+  }
+  const repeatLabel = {once:'One-time', daily:'Daily', weekly:'Weekly'};
+  const statusColor = {pending:'var(--cyan)', sent:'var(--green)', paused:'var(--yellow)', failed:'var(--red)'};
+  el.innerHTML = items.map(item => `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border-radius:8px;border:1px solid var(--border);border-left:3px solid ${statusColor[item.status]||'var(--border)'}">
+      <div style="flex:1">
+        <div style="font-size:12px;font-weight:600;color:var(--text)">${item.label || ('To +' + item.to)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">
+          ${item.ai_compose ? '✨ NarAI writes it' : '"' + (item.message||'').slice(0,50) + (item.message?.length>50?'...':'"')}
+        </div>
+        <div style="font-size:10px;color:var(--text2);margin-top:3px">
+          📅 ${new Date(item.send_at).toLocaleString()} · 🔄 ${repeatLabel[item.repeat]||item.repeat}
+          ${item.last_sent ? ' · ✓ last sent ' + new Date(item.last_sent).toLocaleTimeString() : ''}
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <span style="padding:2px 8px;border-radius:12px;font-size:9px;font-weight:700;background:rgba(0,0,0,.3);color:${statusColor[item.status]||'#fff'}">${item.status}</span>
+        <button onclick="waSchedulePause('${item.id}')" style="background:rgba(255,204,0,.1);border:1px solid #ffcc0033;color:var(--yellow);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">${item.status==='paused'?'▶':'⏸'}</button>
+        <button onclick="waScheduleDelete('${item.id}')" style="background:rgba(255,68,68,.1);border:1px solid #ff444433;color:var(--red);border-radius:6px;padding:3px 8px;font-size:10px;cursor:pointer">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+async function waSchedulePause(id) {
+  await fetch('/api/whatsapp/schedule/' + id + '/pause', {method:'PATCH'});
+  waLoadSchedule();
+}
+
+async function waScheduleDelete(id) {
+  if (!confirm('Delete this scheduled message?')) return;
+  await fetch('/api/whatsapp/schedule/' + id, {method:'DELETE'});
+  toast('Deleted', 'success');
+  waLoadSchedule();
+}
+
+async function waLoadInbox(unreadOnly = false) {
+  const url = '/api/whatsapp/inbox?limit=50' + (unreadOnly ? '&unread=true' : '');
+  const data = await _safeFetch(url);
+  const msgs = data?.messages || [];
+  const el = document.getElementById('wa-inbox-list');
+  // Update unread badge
+  const uc = await _safeFetch('/api/whatsapp/inbox/unread_count');
+  const badge = document.getElementById('wa-unread-badge');
+  if (uc?.count > 0) {
+    badge.textContent = uc.count;
+    badge.style.display = 'inline';
+  } else {
+    badge.style.display = 'none';
+  }
+  if (!msgs.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:11px">' + (unreadOnly ? 'No unread messages.' : 'No messages yet.') + '</div>';
+    return;
+  }
+  el.innerHTML = msgs.map(m => `
+    <div id="wa-msg-${m.id}" style="padding:10px 14px;background:${m.read ? 'var(--bg3)' : 'rgba(37,211,102,.06)'};border-radius:8px;border:1px solid ${m.read ? 'var(--border)' : '#25d36644'};border-left:3px solid ${m.read ? 'var(--border)' : '#25d366'}">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+        <div style="display:flex;align-items:center;gap:8px">
+          <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#128c7e,#25d366);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff">${(m.name||'?')[0].toUpperCase()}</div>
+          <div>
+            <div style="font-size:12px;font-weight:700;color:var(--text)">${m.name || 'Unknown'}</div>
+            <div style="font-size:10px;color:var(--text3)">+${m.from} · ${new Date(m.ts).toLocaleString()}</div>
+          </div>
+        </div>
+        ${!m.read ? '<span style="background:var(--green);color:#000;border-radius:10px;padding:1px 7px;font-size:9px;font-weight:700">NEW</span>' : ''}
+      </div>
+      <div style="font-size:12px;color:var(--text);margin-bottom:8px;padding:8px 10px;background:rgba(0,0,0,.2);border-radius:6px">${m.body}</div>
+      ${m.replied ? `<div style="font-size:10px;color:var(--green);padding:4px 8px;background:rgba(0,255,136,.05);border-radius:4px">✓ Replied: "${m.reply?.slice(0,80)}"</div>` : `
+      <div style="display:flex;gap:6px;margin-top:4px">
+        <input id="reply-input-${m.id}" placeholder="Type reply..." style="flex:1;background:var(--bg2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--text);font-size:11px;font-family:inherit;outline:none"/>
+        <button onclick="waReply('${m.id}','${m.from}')" style="background:linear-gradient(135deg,#128c7e,#25d366);border:none;color:#fff;border-radius:6px;padding:6px 12px;font-size:11px;cursor:pointer;font-weight:700">Send</button>
+        <button onclick="waNarAIReply('${m.id}','${m.from}',\`${m.body.replace(/`/g,"'")}\`)" style="background:rgba(170,136,255,.15);border:1px solid #8844ff44;color:#cc88ff;border-radius:6px;padding:6px 10px;font-size:11px;cursor:pointer" title="Let NarAI write the reply">✨</button>
+      </div>`}
+    </div>`).join('');
+}
+
+async function waReply(msgId, phone, customText) {
+  const text = customText || document.getElementById('reply-input-' + msgId)?.value?.trim();
+  if (!text) { toast('Enter a reply', 'error'); return; }
+  try {
+    const resp = await fetch('/api/whatsapp/inbox/' + msgId + '/reply', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({to: phone, message: text})
+    });
+    if (!resp.ok) throw new Error((await resp.json()).detail);
+    toast('Reply sent!', 'success');
+    waLoadInbox();
+  } catch(e) { toast('Reply failed: ' + e.message, 'error'); }
+}
+
+async function waNarAIReply(msgId, phone, originalMsg) {
+  toast('NarAI composing reply...', 'success');
+  try {
+    const resp = await fetch('/api/narai/voice_chat', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({text: `Someone sent this WhatsApp message: "${originalMsg}". Write a short natural reply in the same language they used. Output ONLY the reply text.`})
+    });
+    const data = await resp.json();
+    if (data.response) {
+      await waReply(msgId, phone, data.response);
+    }
+  } catch(e) { toast('NarAI compose failed', 'error'); }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
