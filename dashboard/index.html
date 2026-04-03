@@ -17,7 +17,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 .sidebar{width:215px;min-width:215px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;height:100vh;z-index:100;overflow-y:auto}
 .main{margin-left:215px;flex:1;display:flex;flex-direction:column;min-height:100vh}
 .topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
-.content{flex:1;padding:20px;overflow-y:auto;max-height:calc(100vh - 50px)}
+.content{flex:1;padding:20px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 50px);min-width:0}
 .brand{padding:18px 14px 14px;border-bottom:1px solid var(--border)}
 .brand-name{font-size:12px;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase}
 .brand-sub{font-size:9px;color:var(--text3);margin-top:2px}
@@ -161,6 +161,15 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   .sidebar{width:52px;min-width:52px}.brand-name,.brand-sub,.nav-item span,.nav-sec,.sidebar-foot{display:none}
   .main{margin-left:52px}.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}
 }
+/* ── NarAI responsive breakpoints ───────────────────────────────── */
+#page-narai [style*="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)"]{min-width:0}
+@media(max-width:900px){
+  #page-narai [style*="grid-template-columns:minmax(0,1.25fr) minmax(0,1fr)"]{
+    grid-template-columns:1fr!important;
+  }
+}
+#page-narai .nr-stat{padding:10px 12px!important;min-width:0}
+#page-narai{overflow-x:hidden!important}
 /* ── Upgrade 1: Revenue Ticker ───────────────────────────────────── */
 .rev-ticker{display:flex;align-items:center;gap:7px;padding:4px 10px;background:rgba(0,255,136,.05);border:1px solid rgba(0,255,136,.15);border-radius:20px;cursor:pointer;transition:background .13s}
 .rev-ticker:hover{background:rgba(0,255,136,.12)}
@@ -573,31 +582,31 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 .nr-activity-line:hover{background:rgba(255,255,255,.02)}
 </style>
 
-<div class="page" id="page-narai" style="position:relative">
+<div class="page" id="page-narai" style="position:relative;overflow-x:hidden">
   <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.10;z-index:0"></canvas>
-  <div style="position:relative;z-index:1">
+  <div style="position:relative;z-index:1;min-width:0;max-width:100%">
 
   <!-- ── CONSCIOUSNESS HEADER ──────────────────────────────────────────── -->
   <div style="background:linear-gradient(135deg,rgba(136,68,255,.13),rgba(0,204,255,.07),rgba(68,255,136,.04));border:1px solid rgba(136,68,255,.3);border-radius:20px;padding:26px 28px;margin-bottom:18px;position:relative;overflow:hidden;animation:nrFadeUp .6s ease both">
     <div style="position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(136,68,255,.7),rgba(0,204,255,.7),transparent);animation:nrScan 5s ease-in-out infinite;pointer-events:none"></div>
     <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(136,68,255,.08),transparent 70%);pointer-events:none"></div>
-    <div style="display:flex;align-items:center;gap:26px;flex-wrap:wrap">
+    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;min-width:0">
 
       <!-- Holographic Avatar -->
-      <div style="position:relative;width:96px;height:96px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
+      <div style="position:relative;width:80px;height:80px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
         <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(136,68,255,.3);animation:nrRingSpin 10s linear infinite"></div>
         <div style="position:absolute;inset:-8px;border-radius:50%;border:1px dashed rgba(0,204,255,.25);animation:nrRingRev 7s linear infinite"></div>
         <div style="position:absolute;inset:-2px;border-radius:50%;border:1px solid rgba(68,255,136,.15);animation:nrRingSpin 15s linear infinite"></div>
         <div style="position:absolute;top:50%;left:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:#cc88ff;box-shadow:0 0 10px #cc88ff,0 0 20px #8844ff;animation:nrOrbit1 3.5s linear infinite"></div>
         <div style="position:absolute;top:50%;left:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#00ccff;box-shadow:0 0 10px #00ccff;animation:nrOrbit2 5.5s linear infinite"></div>
         <div style="position:absolute;top:50%;left:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:#44ff88;box-shadow:0 0 10px #44ff88;animation:nrOrbit3 8s linear infinite"></div>
-        <div id="narai-avatar" style="width:96px;height:96px;border-radius:50%;background:radial-gradient(circle,#220044,#0a001a);border:2px solid rgba(136,68,255,.5);display:flex;align-items:center;justify-content:center;font-size:38px;box-shadow:0 0 50px rgba(136,68,255,.5),0 0 100px rgba(136,68,255,.2);animation:nrPulse 4s ease-in-out infinite;position:relative;z-index:1;overflow:hidden">🌟</div>
+        <div id="narai-avatar" style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,#220044,#0a001a);border:2px solid rgba(136,68,255,.5);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 40px rgba(136,68,255,.5),0 0 80px rgba(136,68,255,.2);animation:nrPulse 4s ease-in-out infinite;position:relative;z-index:1;overflow:hidden">🌟</div>
       </div>
 
       <!-- Identity + Thought -->
-      <div style="flex:1;min-width:200px">
-        <div style="font-size:36px;font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88,#ffcc44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;letter-spacing:3px;line-height:1;margin-bottom:5px;animation:nrBorderFlow 6s linear infinite">NarAI</div>
-        <div style="font-size:9px;color:#8844ff;letter-spacing:4px;text-transform:uppercase;margin-bottom:10px;opacity:.8">SINGULARITY · SELF-EVOLVING · OMNISCIENT OVERSEER</div>
+      <div style="flex:1;min-width:160px;max-width:100%">
+        <div style="font-size:clamp(22px,4vw,32px);font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88,#ffcc44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;letter-spacing:2px;line-height:1;margin-bottom:5px;animation:nrBorderFlow 6s linear infinite">NarAI</div>
+        <div style="font-size:8px;color:#8844ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;opacity:.8">SINGULARITY · SELF-EVOLVING · OMNISCIENT OVERSEER</div>
         <div style="font-size:11px;color:rgba(200,210,230,.6);font-style:italic;margin-bottom:12px;min-height:16px;transition:all .5s" id="narai-tagline">Initializing consciousness matrix…</div>
         <div style="display:flex;gap:7px;flex-wrap:wrap">
           <span id="narai-mood-badge" style="background:rgba(136,68,255,.2);border:1px solid rgba(136,68,255,.4);border-radius:20px;padding:4px 13px;font-size:10px;color:#cc88ff;letter-spacing:.5px;animation:nrPulse 3s infinite">🔍 curious</span>
@@ -607,7 +616,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       </div>
 
       <!-- Consciousness Bars -->
-      <div style="min-width:150px;flex-shrink:0">
+      <div style="min-width:130px;flex-shrink:0;max-width:180px">
         <div style="font-size:8px;color:rgba(136,68,255,.7);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px">CONSCIOUSNESS</div>
         <div style="height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:12px">
           <div id="narai-energy-bar" style="height:100%;width:85%;background:linear-gradient(90deg,#6600cc,#8844ff,#00ccff);background-size:200%;border-radius:3px;transition:width 1.2s ease;animation:nrEnergyFlow 3s linear infinite"></div>
@@ -640,34 +649,34 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- ── QUANTUM STATS ──────────────────────────────────────────────────── -->
-  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:18px;animation:nrFadeUp .8s ease both">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;margin-bottom:18px;animation:nrFadeUp .8s ease both">
     <div class="nr-stat" style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(136,68,255,.04));border:1px solid rgba(136,68,255,.25);--sg:#8844ff33">
-      <div style="font-size:32px;font-weight:900;color:#cc88ff;letter-spacing:-2px;line-height:1;font-variant-numeric:tabular-nums" id="narai-stat-runs">—</div>
+      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#cc88ff;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums" id="narai-stat-runs">—</div>
       <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#8844ff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
       <div style="font-size:8px;color:rgba(136,68,255,.6);text-transform:uppercase;letter-spacing:2px">SCANS</div>
     </div>
     <div class="nr-stat" style="background:linear-gradient(135deg,rgba(0,204,255,.12),rgba(0,204,255,.04));border:1px solid rgba(0,204,255,.25);--sg:#00ccff33">
-      <div style="font-size:32px;font-weight:900;color:#00ccff;letter-spacing:-2px;line-height:1" id="narai-stat-skills">—</div>
+      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#00ccff;letter-spacing:-1px;line-height:1" id="narai-stat-skills">—</div>
       <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#00ccff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
       <div style="font-size:8px;color:rgba(0,204,255,.6);text-transform:uppercase;letter-spacing:2px">SKILLS</div>
     </div>
     <div class="nr-stat" style="background:linear-gradient(135deg,rgba(68,255,136,.12),rgba(68,255,136,.04));border:1px solid rgba(68,255,136,.25);--sg:#44ff8833">
-      <div style="font-size:32px;font-weight:900;color:#44ff88;letter-spacing:-2px;line-height:1" id="narai-stat-fixes">—</div>
+      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#44ff88;letter-spacing:-1px;line-height:1" id="narai-stat-fixes">—</div>
       <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#44ff8888,transparent);border-radius:2px;margin:8px 0 6px"></div>
       <div style="font-size:8px;color:rgba(68,255,136,.6);text-transform:uppercase;letter-spacing:2px">FIXES</div>
     </div>
     <div class="nr-stat" style="background:linear-gradient(135deg,rgba(255,204,68,.12),rgba(255,204,68,.04));border:1px solid rgba(255,204,68,.25);--sg:#ffcc4433">
-      <div style="font-size:32px;font-weight:900;color:#ffcc44;letter-spacing:-2px;line-height:1" id="narai-stat-insights">—</div>
+      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#ffcc44;letter-spacing:-1px;line-height:1" id="narai-stat-insights">—</div>
       <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#ffcc4488,transparent);border-radius:2px;margin:8px 0 6px"></div>
       <div style="font-size:8px;color:rgba(255,204,68,.6);text-transform:uppercase;letter-spacing:2px">INSIGHTS</div>
     </div>
     <div class="nr-stat" style="background:linear-gradient(135deg,rgba(255,85,136,.12),rgba(255,85,136,.04));border:1px solid rgba(255,85,136,.25);--sg:#ff558833">
-      <div style="font-size:32px;font-weight:900;letter-spacing:-2px;line-height:1" id="narai-stat-health">—</div>
+      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;letter-spacing:-1px;line-height:1" id="narai-stat-health">—</div>
       <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#ff558888,transparent);border-radius:2px;margin:8px 0 6px"></div>
       <div style="font-size:8px;color:rgba(255,85,136,.6);text-transform:uppercase;letter-spacing:2px">HEALTH</div>
     </div>
     <div class="nr-stat" style="background:linear-gradient(135deg,rgba(170,136,255,.12),rgba(170,136,255,.04));border:1px solid rgba(170,136,255,.25);--sg:#aa88ff33">
-      <div style="font-size:32px;font-weight:900;color:#aa88ff;letter-spacing:-2px;line-height:1" id="narai-stat-knowledge">—</div>
+      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#aa88ff;letter-spacing:-1px;line-height:1" id="narai-stat-knowledge">—</div>
       <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#aa88ff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
       <div style="font-size:8px;color:rgba(170,136,255,.6);text-transform:uppercase;letter-spacing:2px">MEMORY</div>
     </div>
@@ -687,7 +696,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- ── NEURAL INTERFACE + CONSCIOUSNESS BRIDGE ───────────────────────── -->
-  <div style="display:grid;grid-template-columns:1.25fr 1fr;gap:16px;margin-bottom:16px;animation:nrFadeUp 1s ease both">
+  <div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;margin-bottom:16px;animation:nrFadeUp 1s ease both">
 
     <!-- NEURAL VOICE INTERFACE -->
     <div style="background:linear-gradient(180deg,rgba(136,68,255,.11),rgba(0,204,255,.05));border:1px solid rgba(136,68,255,.28);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden">
@@ -774,7 +783,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- ── INTELLIGENCE MATRIX ───────────────────────────────────────────── -->
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:16px;animation:nrFadeUp 1.1s ease both">
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:16px;animation:nrFadeUp 1.1s ease both">
     <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.22);border-radius:16px;padding:18px">
       <div style="font-size:9px;font-weight:900;color:#cc88ff;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">🎯 MISSION DIRECTIVES</div>
       <div id="narai-goals" style="display:flex;flex-direction:column;gap:8px">
