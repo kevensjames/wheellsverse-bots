@@ -5479,6 +5479,243 @@ async def whatsapp_incoming(req: WhatsAppWebhookPayload):
     return {"replied": bool(reply), "reply_preview": (reply or "")[:100]}
 
 
+# ─── Week 5: Personality Engine API ──────────────────────────────────────────
+
+@app.get("/api/personality/summary")
+async def personality_summary():
+    from core.personality import PersonalityEngine
+    return PersonalityEngine.get().summary()
+
+@app.get("/api/personality/prompt")
+async def personality_prompt(platform: str = "twitter", topic: str = ""):
+    from core.personality import PersonalityEngine
+    return {
+        "platform": platform,
+        "topic": topic,
+        "prompt": PersonalityEngine.get().get_full_prompt(platform, topic),
+    }
+
+@app.get("/api/personality/platforms")
+async def personality_platforms():
+    from core.personality import PLATFORM_TONES
+    return {"platforms": list(PLATFORM_TONES.keys()),
+            "tones": {k: {"style": v["style"], "format": v["format"]}
+                      for k, v in PLATFORM_TONES.items()}}
+
+class PersonalityStateRequest(BaseModel):
+    state: str
+
+@app.post("/api/personality/state")
+async def personality_set_state(req: PersonalityStateRequest):
+    from core.personality import PersonalityEngine, EMOTIONAL_STATES
+    if req.state not in EMOTIONAL_STATES:
+        raise HTTPException(status_code=400,
+            detail=f"Invalid state. Choose: {', '.join(EMOTIONAL_STATES.keys())}")
+    PersonalityEngine.get().set_emotional_state(req.state)
+    return {"status": "updated", "state": req.state}
+
+class StyleOverrideRequest(BaseModel):
+    platform: str
+    instruction: str
+
+@app.post("/api/personality/override")
+async def personality_override(req: StyleOverrideRequest):
+    from core.personality import PersonalityEngine
+    PersonalityEngine.get().set_style_override(req.platform, req.instruction)
+    return {"status": "saved", "platform": req.platform}
+
+@app.post("/api/personality/performance")
+async def personality_perf(platform: str, score: float):
+    from core.personality import PersonalityEngine
+    PersonalityEngine.get().update_platform_performance(platform, score)
+    return {"status": "recorded", "platform": platform, "score": score}
+
+
+# ─── Week 5: People Memory API ───────────────────────────────────────────────
+
+@app.get("/api/people/summary")
+async def people_summary():
+    from core.people_memory import PeopleMemory
+    return PeopleMemory.get().summary()
+
+@app.get("/api/people/all")
+async def people_all(platform: str = "", limit: int = 50):
+    from core.people_memory import PeopleMemory
+    people = PeopleMemory.get().get_all(platform)
+    return {"total": len(people), "people": people[:limit]}
+
+@app.get("/api/people/vip")
+async def people_vip():
+    from core.people_memory import PeopleMemory
+    vips = PeopleMemory.get().get_vip_list()
+    return {"total": len(vips), "vips": vips}
+
+@app.get("/api/people/hot-leads")
+async def people_hot():
+    from core.people_memory import PeopleMemory
+    leads = PeopleMemory.get().get_hot_leads()
+    return {"total": len(leads), "leads": leads}
+
+@app.get("/api/people/cold-leads")
+async def people_cold():
+    from core.people_memory import PeopleMemory
+    leads = PeopleMemory.get().get_cold_leads()
+    return {"total": len(leads), "leads": leads}
+
+@app.get("/api/people/customers")
+async def people_customers():
+    from core.people_memory import PeopleMemory
+    customers = PeopleMemory.get().get_customers()
+    return {"total": len(customers), "customers": customers}
+
+@app.get("/api/people/search")
+async def people_search(q: str):
+    from core.people_memory import PeopleMemory
+    results = PeopleMemory.get().search(q)
+    return {"query": q, "results": results}
+
+@app.get("/api/people/person")
+async def people_person(platform: str, user_id: str):
+    from core.people_memory import PeopleMemory
+    person = PeopleMemory.get().get_person(platform, user_id)
+    if not person:
+        raise HTTPException(status_code=404, detail="Person not found")
+    return person
+
+@app.get("/api/people/context")
+async def people_context(platform: str, user_id: str):
+    from core.people_memory import PeopleMemory
+    return {
+        "platform": platform,
+        "user_id": user_id,
+        "context": PeopleMemory.get().get_relationship_prompt(platform, user_id),
+    }
+
+class RememberRequest(BaseModel):
+    platform: str
+    user_id: str
+    message: str
+    direction: str = "inbound"
+    intent: str = ""
+    topic: str = ""
+    handle: str = ""
+    sentiment_delta: float = 0.0
+
+@app.post("/api/people/remember")
+async def people_remember(req: RememberRequest):
+    from core.people_memory import PeopleMemory
+    p = PeopleMemory.get().remember(
+        req.platform, req.user_id, req.message,
+        direction=req.direction, intent=req.intent,
+        topic=req.topic, handle=req.handle,
+        sentiment_delta=req.sentiment_delta,
+    )
+    return {"status": "remembered", "uid": p.uid, "stage": p.purchase_stage,
+            "interactions": p.interaction_count}
+
+class TagRequest(BaseModel):
+    platform: str
+    user_id: str
+    tag: str
+
+@app.post("/api/people/tag")
+async def people_tag(req: TagRequest):
+    from core.people_memory import PeopleMemory
+    PeopleMemory.get().add_tag(req.platform, req.user_id, req.tag)
+    return {"status": "tagged", "tag": req.tag}
+
+class ConvertRequest(BaseModel):
+    platform: str
+    user_id: str
+
+@app.post("/api/people/convert")
+async def people_convert(req: ConvertRequest):
+    from core.people_memory import PeopleMemory
+    PeopleMemory.get().mark_converted(req.platform, req.user_id)
+    return {"status": "marked_converted"}
+
+
+# ─── Week 5: Goal Tracker API ─────────────────────────────────────────────────
+
+@app.get("/api/goals/summary")
+async def goals_summary():
+    from core.goal_tracker import GoalTracker
+    return GoalTracker.get().summary()
+
+@app.get("/api/goals/report")
+async def goals_report():
+    from core.goal_tracker import GoalTracker
+    return {"report": GoalTracker.get().daily_report()}
+
+@app.get("/api/goals/priority")
+async def goals_priority():
+    from core.goal_tracker import GoalTracker
+    g = GoalTracker.get().get_priority_goal()
+    return g.to_dict() if g else {"message": "All goals achieved!"}
+
+@app.get("/api/goals/lagging")
+async def goals_lagging(threshold: float = 50.0):
+    from core.goal_tracker import GoalTracker
+    lagging = GoalTracker.get().get_lagging_goals(threshold)
+    return {"threshold_pct": threshold, "lagging": [g.to_dict() for g in lagging]}
+
+@app.get("/api/goals/prompt")
+async def goals_prompt(platform: str = "", topic: str = ""):
+    from core.goal_tracker import GoalTracker
+    gt = GoalTracker.get()
+    return {
+        "goal_prompt": gt.get_goal_prompt(),
+        "content_directive": gt.get_content_directive(platform, topic),
+    }
+
+class GoalUpdateRequest(BaseModel):
+    goal_key: str
+    value: float
+
+@app.post("/api/goals/update")
+async def goals_update(req: GoalUpdateRequest):
+    from core.goal_tracker import GoalTracker
+    GoalTracker.get().update(req.goal_key, req.value)
+    g = GoalTracker.get()._goals.get(req.goal_key)
+    return {"status": "updated", "goal": req.goal_key,
+            "progress_pct": g.progress_pct if g else None}
+
+class GoalIncrementRequest(BaseModel):
+    goal_key: str
+    amount: int = 1
+
+@app.post("/api/goals/increment")
+async def goals_increment(req: GoalIncrementRequest):
+    from core.goal_tracker import GoalTracker
+    GoalTracker.get().increment(req.goal_key, req.amount)
+    g = GoalTracker.get()._goals.get(req.goal_key)
+    return {"status": "incremented", "goal": req.goal_key,
+            "new_value": g.current if g else None,
+            "progress_pct": g.progress_pct if g else None}
+
+class GoalTargetRequest(BaseModel):
+    goal_key: str
+    target: float
+
+@app.post("/api/goals/set-target")
+async def goals_set_target(req: GoalTargetRequest):
+    from core.goal_tracker import GoalTracker
+    GoalTracker.get().set_target(req.goal_key, req.target)
+    return {"status": "updated", "goal": req.goal_key, "new_target": req.target}
+
+@app.post("/api/goals/send-report")
+async def goals_send_report():
+    from core.goal_tracker import GoalTracker
+    GoalTracker.get().send_daily_report()
+    return {"status": "sent"}
+
+@app.post("/api/goals/reset-monthly")
+async def goals_reset_monthly():
+    from core.goal_tracker import GoalTracker
+    GoalTracker.get().reset_monthly_goals()
+    return {"status": "monthly_goals_reset"}
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
@@ -5627,6 +5864,36 @@ def launch(port: int = 5050, preload: bool = True):
             _add_log("Weekly newsletter scheduled every Monday 08:00", "INFO")
         except Exception as e:
             _add_log(f"Newsletter scheduler failed: {e}", "WARNING")
+
+    # ── Week 5 daily goal report scheduler ─────────────────────────────────
+    try:
+        import schedule as _sched5
+        import threading as _th5
+        from core.goal_tracker import GoalTracker
+
+        def _daily_goal_report():
+            GoalTracker.get().send_daily_report()
+            _add_log("Daily goal report sent", "INFO")
+
+        _sched5.every().day.at("07:00").do(_daily_goal_report)
+
+        def _sched5_loop():
+            while True:
+                _sched5.run_pending()
+                import time as _t; _t.sleep(60)
+
+        _th5.Thread(target=_sched5_loop, daemon=True, name="goal-report-scheduler").start()
+        _add_log("Daily goal report scheduled at 07:00", "INFO")
+    except Exception as e:
+        _add_log(f"Goal report scheduler failed: {e}", "WARNING")
+
+    # ── Auto-start Week 5 engines ───────────────────────────────────────────
+    try:
+        from core.goal_tracker import GoalTracker
+        GoalTracker.get().start()
+        _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
+    except Exception as e:
+        _add_log(f"GoalTracker start failed: {e}", "WARNING")
 
     uvicorn.run(
         "core.api:app",
