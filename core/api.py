@@ -4877,6 +4877,149 @@ async def narai_learn_human(req: NarAILearnHumanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── ElevenLabs API ──────────────────────────────────────────────────────────
+
+@app.get("/api/elevenlabs/status")
+async def elevenlabs_status():
+    from core import elevenlabs as el
+    return {
+        "configured": el.is_configured(),
+        "voice_id":   os.getenv("ELEVENLABS_VOICE_ID",""),
+        "model":      os.getenv("ELEVENLABS_MODEL","eleven_turbo_v2_5"),
+        "usage":      el.get_usage(),
+    }
+
+@app.get("/api/elevenlabs/voices")
+async def elevenlabs_voices():
+    from core import elevenlabs as el
+    return {"voices": el.list_voices()}
+
+class TTSRequest(BaseModel):
+    text: str
+    filename: str = ""
+    voice_id: str = ""
+
+@app.post("/api/elevenlabs/speak")
+async def elevenlabs_speak(req: TTSRequest, background_tasks: BackgroundTasks):
+    from core import elevenlabs as el
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="text required")
+    def _speak():
+        path = el.speak(req.text, voice_id=req.voice_id or None,
+                        filename=req.filename or None)
+        _add_log(f"ElevenLabs TTS: {len(req.text)} chars → {path}", "INFO")
+    background_tasks.add_task(_speak)
+    return {"status": "generating", "chars": len(req.text)}
+
+
+# ─── HeyGen API ───────────────────────────────────────────────────────────────
+
+@app.get("/api/heygen/status")
+async def heygen_status():
+    from core import heygen
+    return {
+        "configured": heygen.is_configured(),
+        "avatar_id":  os.getenv("HEYGEN_AVATAR_ID",""),
+        "voice_id":   os.getenv("HEYGEN_VOICE_ID",""),
+        "credits":    heygen.get_remaining_credits(),
+    }
+
+@app.get("/api/heygen/avatars")
+async def heygen_avatars():
+    from core import heygen
+    return {"avatars": heygen.list_avatars()}
+
+@app.get("/api/heygen/voices")
+async def heygen_voices():
+    from core import heygen
+    return {"voices": heygen.list_voices()}
+
+@app.get("/api/heygen/videos")
+async def heygen_videos(limit: int = 20):
+    from core import heygen
+    return {"videos": heygen.get_video_list(limit=limit)}
+
+class HeyGenVideoRequest(BaseModel):
+    script: str
+    title: str = ""
+    format: str = "shorts"
+    use_elevenlabs: bool = True
+
+@app.post("/api/heygen/generate")
+async def heygen_generate(req: HeyGenVideoRequest, background_tasks: BackgroundTasks):
+    from core import heygen
+    if not heygen.is_configured():
+        raise HTTPException(status_code=503, detail="HeyGen not configured — add HEYGEN_API_KEY and HEYGEN_AVATAR_ID to .env")
+    def _gen():
+        result = heygen.create_video_and_wait(
+            req.script, title=req.title,
+            format=req.format, use_elevenlabs=req.use_elevenlabs
+        )
+        _add_log(f"HeyGen video: {result.get('status')} — {req.title}", "INFO")
+    background_tasks.add_task(_gen)
+    return {"status": "generating", "title": req.title, "format": req.format}
+
+
+# ─── Shorts Pipeline API ──────────────────────────────────────────────────────
+
+@app.get("/api/shorts/status")
+async def shorts_status():
+    from core import heygen, elevenlabs as el
+    results = list((RESULTS_DIR := ROOT / "outputs" / "shorts_results").glob("*.json"))
+    results = sorted(results, key=lambda f: f.stat().st_mtime, reverse=True)
+    recent  = []
+    for r in results[:10]:
+        try:
+            recent.append(json.loads(r.read_text()))
+        except Exception:
+            pass
+    return {
+        "heygen_configured":      heygen.is_configured(),
+        "elevenlabs_configured":  el.is_configured(),
+        "total_shorts_created":   len(results),
+        "recent":                 recent,
+    }
+
+class ShortsRequest(BaseModel):
+    topic: str = ""
+    niche: str = ""
+    platforms: str = ""
+    format: str = "shorts"
+    skip_video: bool = False
+    dry_run: bool = False
+
+@app.post("/api/shorts/run")
+async def shorts_run(req: ShortsRequest, background_tasks: BackgroundTasks):
+    from core.shorts_pipeline import get_shorts_pipeline
+    platforms = [p.strip() for p in req.platforms.split(",")] if req.platforms else None
+    def _run():
+        result = get_shorts_pipeline().run(
+            topic=req.topic or None,
+            niche=req.niche or None,
+            publish_to=platforms,
+            format=req.format,
+            skip_video=req.skip_video,
+            dry_run=req.dry_run,
+        )
+        _add_log(f"Shorts pipeline: {result.get('status')} — {result.get('topic','')[:50]}", "INFO")
+    background_tasks.add_task(_run)
+    return {"status": "started", "topic": req.topic or "auto-pick",
+            "platforms": platforms or os.getenv("SHORTS_DEFAULT_PLATFORMS","youtube,tiktok,instagram,facebook").split(",")}
+
+@app.get("/api/shorts/results")
+async def shorts_results(limit: int = 20):
+    from pathlib import Path as _P
+    results_dir = ROOT / "outputs" / "shorts_results"
+    files = sorted(results_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
+    out = []
+    for f in files[:limit]:
+        try:
+            out.append(json.loads(f.read_text()))
+        except Exception:
+            pass
+    return {"results": out, "total": len(files)}
+
+
 # ─── Feedback Loop API ───────────────────────────────────────────────────────
 
 @app.get("/api/feedback/summary")
@@ -5043,6 +5186,43 @@ def launch(port: int = 5050, preload: bool = True):
             _add_log("DM Reply Engine started — replying to all platforms", "INFO")
         except Exception as e:
             _add_log(f"DM Reply Engine failed to start: {e}", "WARNING")
+
+        # Schedule daily Shorts pipeline
+        try:
+            import schedule as _sched2
+            import threading as _th2
+            from core.shorts_pipeline import get_shorts_pipeline
+
+            shorts_time  = os.getenv("SHORTS_DAILY_TIME", "09:00")
+            shorts_count = int(os.getenv("SHORTS_DAILY_COUNT", "2"))
+            platforms    = os.getenv("SHORTS_DEFAULT_PLATFORMS",
+                                     "youtube,tiktok,instagram,facebook").split(",")
+
+            def _run_daily_shorts():
+                _add_log(f"Daily Shorts pipeline starting ({shorts_count} videos)", "INFO")
+                pipe = get_shorts_pipeline()
+                for i in range(shorts_count):
+                    try:
+                        result = pipe.run(publish_to=platforms)
+                        _add_log(
+                            f"Short {i+1}/{shorts_count}: {result.get('status')} — "
+                            f"{result.get('topic','')[:50]}", "INFO"
+                        )
+                    except Exception as e:
+                        _add_log(f"Short {i+1} failed: {e}", "ERROR")
+
+            _sched2.every().day.at(shorts_time).do(_run_daily_shorts)
+
+            def _sched2_loop():
+                while True:
+                    _sched2.run_pending()
+                    import time as _t; _t.sleep(30)
+
+            _th2.Thread(target=_sched2_loop, daemon=True,
+                        name="shorts-scheduler").start()
+            _add_log(f"Shorts pipeline scheduled: {shorts_count} videos/day at {shorts_time}", "INFO")
+        except Exception as e:
+            _add_log(f"Shorts scheduler failed to start: {e}", "WARNING")
 
         # Schedule daily auto-publish
         try:
