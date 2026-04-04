@@ -5512,38 +5512,38 @@ async def trending_refresh(background_tasks: BackgroundTasks):
 
 # ─── Week 8: Conversion Analytics API ────────────────────────────────────────
 
-@app.get("/api/analytics/summary")
-async def analytics_summary():
+@app.get("/api/conversion/summary")
+async def conversion_summary():
     from core.conversion_analytics import ConversionAnalytics
     return ConversionAnalytics.get().summary()
 
-@app.get("/api/analytics/dashboard")
-async def analytics_dashboard(days: int = 30):
+@app.get("/api/conversion/dashboard")
+async def conversion_dashboard(days: int = 30):
     from core.conversion_analytics import get_dashboard
     return get_dashboard(days)
 
-@app.get("/api/analytics/funnel")
-async def analytics_funnel(days: int = 30, platform: str = "", niche: str = ""):
+@app.get("/api/conversion/funnel")
+async def conversion_funnel(days: int = 30, platform: str = "", niche: str = ""):
     from core.conversion_analytics import ConversionAnalytics
     return ConversionAnalytics.get().funnel(days, platform, niche)
 
-@app.get("/api/analytics/attribution")
-async def analytics_attribution(days: int = 30):
+@app.get("/api/conversion/attribution")
+async def conversion_attribution(days: int = 30):
     from core.conversion_analytics import ConversionAnalytics
     return ConversionAnalytics.get().attribution(days)
 
-@app.get("/api/analytics/cohorts")
-async def analytics_cohorts(weeks: int = 8):
+@app.get("/api/conversion/cohorts")
+async def conversion_cohorts(weeks: int = 8):
     from core.conversion_analytics import ConversionAnalytics
     return ConversionAnalytics.get().cohorts(weeks)
 
-@app.get("/api/analytics/ltv")
-async def analytics_ltv(days: int = 90):
+@app.get("/api/conversion/ltv")
+async def conversion_ltv(days: int = 90):
     from core.conversion_analytics import ConversionAnalytics
     return ConversionAnalytics.get().ltv_by_source(days)
 
-@app.get("/api/analytics/content-roi")
-async def analytics_content_roi(days: int = 30):
+@app.get("/api/conversion/content-roi")
+async def conversion_content_roi(days: int = 30):
     from core.conversion_analytics import ConversionAnalytics
     return ConversionAnalytics.get().content_roi(days)
 
@@ -5555,8 +5555,8 @@ class TrackEventRequest(BaseModel):
     content_id: str = ""
     value: float = 0.0
 
-@app.post("/api/analytics/track")
-async def analytics_track(req: TrackEventRequest):
+@app.post("/api/conversion/track")
+async def conversion_track(req: TrackEventRequest):
     from core.conversion_analytics import track
     return track(req.event_type, req.platform, req.niche,
                  req.user_id, req.content_id, req.value)
@@ -5566,8 +5566,8 @@ class ABTestCreateRequest(BaseModel):
     name: str
     variants: List[str]
 
-@app.post("/api/analytics/ab/create")
-async def ab_create(req: ABTestCreateRequest):
+@app.post("/api/conversion/ab/create")
+async def conversion_ab_create(req: ABTestCreateRequest):
     from core.conversion_analytics import ConversionAnalytics
     test = ConversionAnalytics.get().create_ab_test(req.test_id, req.name, req.variants)
     return test.to_dict()
@@ -5575,26 +5575,26 @@ async def ab_create(req: ABTestCreateRequest):
 class ABRecordRequest(BaseModel):
     test_id: str
     variant: str
-    event: str   # impression / click / conversion
+    event: str
     value: float = 0.0
 
-@app.post("/api/analytics/ab/record")
-async def ab_record(req: ABRecordRequest):
+@app.post("/api/conversion/ab/record")
+async def conversion_ab_record(req: ABRecordRequest):
     from core.conversion_analytics import ConversionAnalytics
     ConversionAnalytics.get().record_ab(req.test_id, req.variant, req.event, req.value)
     test = ConversionAnalytics.get().get_ab_test(req.test_id)
     return test or {"error": "test not found"}
 
-@app.get("/api/analytics/ab/{test_id}")
-async def ab_get(test_id: str):
+@app.get("/api/conversion/ab/{test_id}")
+async def conversion_ab_get(test_id: str):
     from core.conversion_analytics import ConversionAnalytics
     test = ConversionAnalytics.get().get_ab_test(test_id)
     if not test:
         raise HTTPException(status_code=404, detail="A/B test not found")
     return test
 
-@app.get("/api/analytics/ab")
-async def ab_list():
+@app.get("/api/conversion/ab")
+async def conversion_ab_list():
     from core.conversion_analytics import ConversionAnalytics
     return {"tests": ConversionAnalytics.get().get_all_ab_tests()}
 
