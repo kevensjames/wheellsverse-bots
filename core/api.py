@@ -4877,6 +4877,126 @@ async def narai_learn_human(req: NarAILearnHumanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── Feedback Loop API ───────────────────────────────────────────────────────
+
+@app.get("/api/feedback/summary")
+async def feedback_summary(days: int = 7):
+    from core.feedback_loop import FeedbackLoop
+    return FeedbackLoop.get().summary(days=days)
+
+@app.get("/api/feedback/best-topics")
+async def feedback_best_topics(niche: str = None, platform: str = None, limit: int = 5):
+    from core.feedback_loop import FeedbackLoop
+    return {"topics": FeedbackLoop.get().get_best_topics(niche=niche, platform=platform, limit=limit)}
+
+@app.get("/api/feedback/viral")
+async def feedback_viral(hours: int = 24):
+    from core.feedback_loop import FeedbackLoop
+    posts = FeedbackLoop.get().get_viral_posts(hours=hours)
+    return {"viral_posts": [p.to_dict() for p in posts]}
+
+class EngagementUpdate(BaseModel):
+    post_id: str
+    views: int = 0
+    likes: int = 0
+    shares: int = 0
+    comments: int = 0
+    clicks: int = 0
+    affiliate_clicks: int = 0
+    leads: int = 0
+    revenue: float = 0.0
+
+@app.post("/api/feedback/update")
+async def feedback_update(req: EngagementUpdate):
+    from core.feedback_loop import FeedbackLoop
+    record = FeedbackLoop.get().update_engagement(req.post_id, **req.dict(exclude={"post_id"}))
+    if not record:
+        raise HTTPException(status_code=404, detail="post_id not found")
+    return {"score": record.score, "viral": record.viral}
+
+class RegisterPost(BaseModel):
+    post_id: str
+    topic: str
+    niche: str = "general"
+    bot_name: str = "unknown"
+    platform: str
+    content_type: str = "post"
+
+@app.post("/api/feedback/register")
+async def feedback_register(req: RegisterPost):
+    from core.feedback_loop import FeedbackLoop
+    r = FeedbackLoop.get().register_post(
+        req.post_id, req.topic, req.niche, req.bot_name, req.platform, req.content_type
+    )
+    return {"post_id": r.post_id, "created_at": r.created_at}
+
+
+# ─── Viral Detector API ───────────────────────────────────────────────────────
+
+@app.get("/api/viral/summary")
+async def viral_summary():
+    from core.viral_detector import ViralDetector
+    return ViralDetector.get().summary()
+
+@app.get("/api/viral/events")
+async def viral_events(hours: int = 24):
+    from core.viral_detector import ViralDetector
+    events = ViralDetector.get().get_events(hours=hours)
+    return {"events": [e.to_dict() for e in events]}
+
+@app.post("/api/viral/check")
+async def viral_check(background_tasks: BackgroundTasks):
+    from core.viral_detector import ViralDetector
+    background_tasks.add_task(ViralDetector.get().check_now)
+    return {"status": "viral_check_triggered"}
+
+
+# ─── DM Reply API ─────────────────────────────────────────────────────────────
+
+@app.get("/api/dm/summary")
+async def dm_summary():
+    from core.dm_reply import DMReplyEngine
+    return DMReplyEngine.get().summary()
+
+@app.get("/api/dm/people")
+async def dm_people(limit: int = 50):
+    from core.dm_reply import DMReplyEngine
+    people = DMReplyEngine.get().get_all_people()
+    people.sort(key=lambda p: p.last_seen, reverse=True)
+    return {"people": [p.to_dict() for p in people[:limit]]}
+
+@app.post("/api/dm/start")
+async def dm_start():
+    from core.dm_reply import DMReplyEngine
+    DMReplyEngine.get().start()
+    return {"status": "dm_reply_engine_started"}
+
+@app.post("/api/dm/stop")
+async def dm_stop():
+    from core.dm_reply import DMReplyEngine
+    DMReplyEngine.get().stop()
+    return {"status": "dm_reply_engine_stopped"}
+
+class WhatsAppWebhookPayload(BaseModel):
+    sender_id: str
+    name: str = ""
+    text: str
+
+@app.post("/api/whatsapp/incoming")
+async def whatsapp_incoming(req: WhatsAppWebhookPayload):
+    """Endpoint for incoming WhatsApp messages — routes through DM reply engine."""
+    from core.dm_reply import DMReplyEngine
+    reply = DMReplyEngine.get().handle_whatsapp_message(req.sender_id, req.name, req.text)
+    if reply:
+        try:
+            from core.whatsapp import WhatsAppClient
+            wa = WhatsAppClient()
+            wa.send_message(req.sender_id, reply)
+        except Exception as e:
+            logger.warning(f"WhatsApp auto-reply send failed: {e}")
+    return {"replied": bool(reply), "reply_preview": (reply or "")[:100]}
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
@@ -4898,6 +5018,31 @@ def launch(port: int = 5050, preload: bool = True):
             _add_log(f"Decision engine scheduled every {de_interval}min", "INFO")
         except Exception as e:
             _add_log(f"Decision engine scheduler registration failed: {e}", "WARNING")
+
+        # Start Feedback Loop engagement poller
+        try:
+            from core.feedback_loop import EngagementPoller
+            ep = EngagementPoller()
+            ep.start()
+            _add_log("Feedback Loop engagement poller started", "INFO")
+        except Exception as e:
+            _add_log(f"Feedback Loop poller failed to start: {e}", "WARNING")
+
+        # Start Viral Detector
+        try:
+            from core.viral_detector import ViralDetector
+            ViralDetector.get().start()
+            _add_log("Viral Detector started — monitoring every 10min", "INFO")
+        except Exception as e:
+            _add_log(f"Viral Detector failed to start: {e}", "WARNING")
+
+        # Start DM Reply Engine
+        try:
+            from core.dm_reply import DMReplyEngine
+            DMReplyEngine.get().start()
+            _add_log("DM Reply Engine started — replying to all platforms", "INFO")
+        except Exception as e:
+            _add_log(f"DM Reply Engine failed to start: {e}", "WARNING")
 
         # Schedule daily auto-publish
         try:
