@@ -5489,7 +5489,7 @@ class RepurposeRequest(BaseModel):
     formats: List[str] = []
 
 @app.post("/api/repurpose/content")
-async def repurpose_content(req: RepurposeRequest, background_tasks: BackgroundTasks):
+async def repurpose_content_v2(req: RepurposeRequest, background_tasks: BackgroundTasks):
     from core.repurpose import repurpose, repurpose_topic
     if not req.content and not req.topic:
         raise HTTPException(status_code=400, detail="Provide 'content' or 'topic'")
@@ -5594,23 +5594,26 @@ async def seo_rank(keyword: str, position: float, impressions: int = 0, clicks: 
 # ─── Week 6: Performance Dashboard API ───────────────────────────────────────
 
 @app.get("/api/performance/summary")
-async def performance_summary():
+async def performance_summary_v2():
     from core.performance import get_summary
     return get_summary()
 
 @app.get("/api/performance/dashboard")
-async def performance_dashboard():
+async def performance_dashboard_v2():
     from core.performance import get_dashboard
     return get_dashboard()
 
-@app.post("/api/performance/refresh")
-async def performance_refresh(background_tasks: BackgroundTasks):
-    from core.performance import refresh_performance
-    background_tasks.add_task(refresh_performance)
+@app.post("/api/performance/refresh-full")
+async def performance_refresh_full(background_tasks: BackgroundTasks):
+    from core.performance import refresh_performance, get_dashboard
+    def _run():
+        refresh_performance()
+        get_dashboard()
+    background_tasks.add_task(_run)
     return {"status": "refreshing"}
 
 @app.get("/api/performance/topics")
-async def performance_topics():
+async def performance_topics_v2():
     from core.performance import _load_json, PERF_FILE
     perf = _load_json(PERF_FILE, {})
     topics = sorted(perf.get("topics", {}).items(), key=lambda x: x[1], reverse=True)
