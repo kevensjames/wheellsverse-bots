@@ -5479,6 +5479,172 @@ async def whatsapp_incoming(req: WhatsAppWebhookPayload):
     return {"replied": bool(reply), "reply_preview": (reply or "")[:100]}
 
 
+# ─── Week 7: Revenue Dashboard API ───────────────────────────────────────────
+
+@app.get("/api/revenue/summary")
+async def revenue_summary():
+    from core.revenue import get_summary
+    return get_summary()
+
+@app.get("/api/revenue/dashboard")
+async def revenue_dashboard():
+    from core.revenue import get_dashboard
+    return get_dashboard(refresh_live=True)
+
+@app.post("/api/revenue/record")
+async def revenue_record(source: str, label: str, amount: float):
+    from core.revenue import record_revenue
+    record_revenue(amount, source, label)
+    return {"status": "recorded", "source": source, "label": label, "amount": amount}
+
+@app.get("/api/revenue/report")
+async def revenue_report():
+    from core.revenue import RevenueEngine
+    return {"report": RevenueEngine.get().daily_report()}
+
+@app.post("/api/revenue/send-report")
+async def revenue_send_report():
+    from core.revenue import RevenueEngine
+    RevenueEngine.get().send_daily_report()
+    return {"status": "sent"}
+
+
+# ─── Week 7: Content Calendar API ─────────────────────────────────────────────
+
+@app.get("/api/calendar/summary")
+async def calendar_summary():
+    from core.content_calendar import ContentCalendar
+    return ContentCalendar.get().summary()
+
+@app.get("/api/calendar/queue")
+async def calendar_queue(platform: str = "", limit: int = 20):
+    from core.content_calendar import ContentCalendar
+    items = ContentCalendar.get().get_pending(platform)
+    return {"total": len(items), "items": [i.to_dict() for i in items[:limit]]}
+
+@app.get("/api/calendar/view")
+async def calendar_view():
+    from core.content_calendar import ContentCalendar
+    cal = ContentCalendar.get()
+    return {"calendar": cal._calendar}
+
+class GenerateWeekRequest(BaseModel):
+    platforms: List[str] = []
+    start_date: str = ""
+
+@app.post("/api/calendar/generate-week")
+async def calendar_generate_week(req: GenerateWeekRequest, background_tasks: BackgroundTasks):
+    from core.content_calendar import ContentCalendar
+    def _run():
+        result = ContentCalendar.get().generate_week(
+            platforms=req.platforms or None,
+            start_date=req.start_date,
+        )
+        _add_log(f"Calendar generated: {result['days']} days, {result['items_queued']} items", "INFO")
+    background_tasks.add_task(_run)
+    return {"status": "generating", "platforms": req.platforms or "default"}
+
+class QueuePostRequest(BaseModel):
+    platform: str
+    topic: str
+    content: str = ""
+    scheduled_time: str = ""
+    content_type: str = "post"
+
+@app.post("/api/calendar/queue")
+async def calendar_queue_post(req: QueuePostRequest):
+    from core.content_calendar import ContentCalendar
+    item = ContentCalendar.get().add(
+        req.platform, req.topic, req.content,
+        req.scheduled_time, req.content_type,
+    )
+    _add_log(f"Queued: {req.platform} — {req.topic[:40]}", "INFO")
+    return item.to_dict()
+
+@app.delete("/api/calendar/queue/{item_id}")
+async def calendar_remove(item_id: str):
+    from core.content_calendar import ContentCalendar
+    removed = ContentCalendar.get().remove(item_id)
+    return {"removed": removed, "id": item_id}
+
+@app.post("/api/calendar/process-due")
+async def calendar_process_due(background_tasks: BackgroundTasks):
+    from core.content_calendar import ContentCalendar
+    def _run():
+        results = ContentCalendar.get().process_due()
+        _add_log(f"Processed {len(results)} due queue items", "INFO")
+    background_tasks.add_task(_run)
+    return {"status": "processing"}
+
+
+# ─── Week 7: Lead Capture API ─────────────────────────────────────────────────
+
+@app.get("/api/leads/summary")
+async def leads_summary():
+    from core.lead_capture import LeadCaptureEngine
+    return LeadCaptureEngine.get().summary()
+
+@app.get("/api/leads/all")
+async def leads_all(limit: int = 50):
+    from core.lead_capture import LeadCaptureEngine
+    leads = LeadCaptureEngine.get().get_all(limit)
+    return {"total": len(leads), "leads": leads}
+
+class LeadCaptureRequest(BaseModel):
+    contact: str       # email or phone
+    name: str = ""
+    source: str = "landing_page"
+    platform: str = ""
+    user_id: str = ""
+    niche: str = "general"
+
+@app.post("/api/leads/capture")
+async def leads_capture(req: LeadCaptureRequest, background_tasks: BackgroundTasks):
+    from core.lead_capture import LeadCaptureEngine
+    def _run():
+        result = LeadCaptureEngine.get().capture(
+            req.contact, req.name, req.source,
+            req.platform, req.user_id, niche=req.niche,
+        )
+        _add_log(f"Lead captured: {req.contact} via {req.source}", "INFO")
+    background_tasks.add_task(_run)
+    return {"status": "capturing", "contact": req.contact}
+
+@app.post("/api/leads/capture-sync")
+async def leads_capture_sync(req: LeadCaptureRequest):
+    from core.lead_capture import LeadCaptureEngine
+    result = LeadCaptureEngine.get().capture(
+        req.contact, req.name, req.source,
+        req.platform, req.user_id, niche=req.niche,
+    )
+    _add_log(f"Lead captured: {req.contact} via {req.source}", "INFO")
+    return result
+
+class OptinCheckRequest(BaseModel):
+    message: str
+    platform: str = ""
+    user_id: str = ""
+    handle: str = ""
+
+@app.post("/api/leads/check-optin")
+async def leads_check_optin(req: OptinCheckRequest):
+    from core.lead_capture import LeadCaptureEngine
+    engine = LeadCaptureEngine.get()
+    triggered = engine.detect_optin(req.message)
+    result = {"triggered": triggered}
+    if triggered and req.platform and req.user_id:
+        result = engine.handle_optin_message(
+            req.platform, req.user_id, req.message, req.handle
+        )
+    return result
+
+@app.post("/api/leads/re-engage")
+async def leads_re_engage(background_tasks: BackgroundTasks):
+    from core.lead_capture import LeadCaptureEngine
+    background_tasks.add_task(LeadCaptureEngine.get().re_engage_cold_leads)
+    return {"status": "re-engaging"}
+
+
 # ─── Week 6: Content Repurposer API ──────────────────────────────────────────
 
 class RepurposeRequest(BaseModel):
@@ -6035,6 +6201,37 @@ def launch(port: int = 5050, preload: bool = True):
         _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
     except Exception as e:
         _add_log(f"GoalTracker start failed: {e}", "WARNING")
+
+    # ── Week 7: Content Calendar auto-start ────────────────────────────────
+    try:
+        from core.content_calendar import ContentCalendar
+        cal = ContentCalendar.get()
+        cal.start()
+        # Auto-generate this week if calendar is empty
+        if not cal._calendar:
+            import threading as _calth
+            _calth.Thread(target=cal.generate_week, daemon=True).start()
+        _add_log("ContentCalendar started", "INFO")
+    except Exception as e:
+        _add_log(f"ContentCalendar start failed: {e}", "WARNING")
+
+    # ── Week 7: Revenue daily report at 08:00 ───────────────────────────────
+    try:
+        import schedule as _sched7
+        import threading as _th7
+        from core.revenue import RevenueEngine
+
+        _sched7.every().day.at("08:00").do(RevenueEngine.get().send_daily_report)
+
+        def _sched7_loop():
+            while True:
+                _sched7.run_pending()
+                import time as _t; _t.sleep(60)
+
+        _th7.Thread(target=_sched7_loop, daemon=True, name="revenue-reporter").start()
+        _add_log("Revenue daily report scheduled at 08:00", "INFO")
+    except Exception as e:
+        _add_log(f"Revenue reporter failed: {e}", "WARNING")
 
     # ── Week 6: Performance dashboard refresh every 4 hours ─────────────────
     try:
