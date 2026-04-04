@@ -5479,6 +5479,144 @@ async def whatsapp_incoming(req: WhatsAppWebhookPayload):
     return {"replied": bool(reply), "reply_preview": (reply or "")[:100]}
 
 
+# ─── Week 6: Content Repurposer API ──────────────────────────────────────────
+
+class RepurposeRequest(BaseModel):
+    content: str = ""
+    title: str = ""
+    topic: str = ""
+    niche: str = "general"
+    formats: List[str] = []
+
+@app.post("/api/repurpose/content")
+async def repurpose_content(req: RepurposeRequest, background_tasks: BackgroundTasks):
+    from core.repurpose import repurpose, repurpose_topic
+    if not req.content and not req.topic:
+        raise HTTPException(status_code=400, detail="Provide 'content' or 'topic'")
+    def _run():
+        if req.content:
+            result = repurpose(req.content, title=req.title,
+                               formats=req.formats or None)
+        else:
+            result = repurpose_topic(req.topic, niche=req.niche,
+                                     formats=req.formats or None)
+        _add_log(f"Repurposed: {result.get('title','')[:50]} → {len(result.get('formats',{}))} formats", "INFO")
+    background_tasks.add_task(_run)
+    return {"status": "repurposing", "topic": req.topic or req.title,
+            "formats_requested": req.formats or "all"}
+
+@app.post("/api/repurpose/topic")
+async def repurpose_from_topic(req: RepurposeRequest):
+    """Synchronous version — returns all formats in one response."""
+    from core.repurpose import repurpose_topic, repurpose
+    if not req.topic and not req.content:
+        raise HTTPException(status_code=400, detail="Provide 'topic' or 'content'")
+    if req.content:
+        result = repurpose(req.content, title=req.title, formats=req.formats or None)
+    else:
+        result = repurpose_topic(req.topic, niche=req.niche, formats=req.formats or None)
+    _add_log(f"Repurposed sync: {result.get('title','')[:50]}", "INFO")
+    return result
+
+@app.get("/api/repurpose/formats")
+async def repurpose_formats():
+    from core.repurpose import FORMATS
+    return {"formats": list(FORMATS.keys()), "count": len(FORMATS)}
+
+
+# ─── Week 6: SEO Autopilot API ────────────────────────────────────────────────
+
+@app.get("/api/seo/summary")
+async def seo_summary():
+    from core.seo import summary
+    return summary()
+
+class SEOScoreRequest(BaseModel):
+    content: str
+    keyword: str = ""
+
+@app.post("/api/seo/score")
+async def seo_score(req: SEOScoreRequest):
+    from core.seo import score_content
+    return score_content(req.content, req.keyword)
+
+class SEOOptimizeRequest(BaseModel):
+    content: str
+    keyword: str
+    title: str = ""
+
+@app.post("/api/seo/optimize")
+async def seo_optimize(req: SEOOptimizeRequest):
+    from core.seo import optimize_content
+    return optimize_content(req.content, req.keyword, req.title)
+
+class SEOResearchRequest(BaseModel):
+    topic: str
+    niche: str = "general"
+    count: int = 10
+
+@app.post("/api/seo/research")
+async def seo_research(req: SEOResearchRequest):
+    from core.seo import research_keywords
+    return research_keywords(req.topic, req.niche, req.count)
+
+@app.get("/api/seo/quick-wins")
+async def seo_quick_wins(niche: str = "general"):
+    from core.seo import get_quick_wins
+    wins = get_quick_wins(niche)
+    return {"niche": niche, "quick_wins": wins, "count": len(wins)}
+
+@app.get("/api/seo/gsc")
+async def seo_gsc(days: int = 28):
+    from core.seo import get_gsc_insights
+    return get_gsc_insights(days)
+
+class SEOGenerateRequest(BaseModel):
+    keyword: str
+    niche: str = "general"
+
+@app.post("/api/seo/generate")
+async def seo_generate(req: SEOGenerateRequest, background_tasks: BackgroundTasks):
+    from core.seo import generate_seo_content
+    def _run():
+        result = generate_seo_content(req.keyword, req.niche)
+        _add_log(f"SEO content generated: '{req.keyword}' — score {result.get('seo_score')}", "INFO")
+    background_tasks.add_task(_run)
+    return {"status": "generating", "keyword": req.keyword}
+
+@app.post("/api/seo/rank")
+async def seo_rank(keyword: str, position: float, impressions: int = 0, clicks: int = 0):
+    from core.seo import update_ranking
+    update_ranking(keyword, position, impressions, clicks)
+    return {"status": "recorded", "keyword": keyword, "position": position}
+
+
+# ─── Week 6: Performance Dashboard API ───────────────────────────────────────
+
+@app.get("/api/performance/summary")
+async def performance_summary():
+    from core.performance import get_summary
+    return get_summary()
+
+@app.get("/api/performance/dashboard")
+async def performance_dashboard():
+    from core.performance import get_dashboard
+    return get_dashboard()
+
+@app.post("/api/performance/refresh")
+async def performance_refresh(background_tasks: BackgroundTasks):
+    from core.performance import refresh_performance
+    background_tasks.add_task(refresh_performance)
+    return {"status": "refreshing"}
+
+@app.get("/api/performance/topics")
+async def performance_topics():
+    from core.performance import _load_json, PERF_FILE
+    perf = _load_json(PERF_FILE, {})
+    topics = sorted(perf.get("topics", {}).items(), key=lambda x: x[1], reverse=True)
+    return {"topics": [{"topic": t, "score": round(s, 1)} for t, s in topics[:20]]}
+
+
 # ─── Week 5: Personality Engine API ──────────────────────────────────────────
 
 @app.get("/api/personality/summary")
@@ -5894,6 +6032,28 @@ def launch(port: int = 5050, preload: bool = True):
         _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
     except Exception as e:
         _add_log(f"GoalTracker start failed: {e}", "WARNING")
+
+    # ── Week 6: Performance dashboard refresh every 4 hours ─────────────────
+    try:
+        import schedule as _sched6
+        import threading as _th6
+        from core.performance import get_dashboard
+
+        def _perf_refresh():
+            get_dashboard()
+            _add_log("Performance dashboard refreshed", "INFO")
+
+        _sched6.every(4).hours.do(_perf_refresh)
+
+        def _sched6_loop():
+            while True:
+                _sched6.run_pending()
+                import time as _t; _t.sleep(60)
+
+        _th6.Thread(target=_sched6_loop, daemon=True, name="perf-refresh").start()
+        _add_log("Performance dashboard refresh scheduled every 4 hours", "INFO")
+    except Exception as e:
+        _add_log(f"Performance refresh scheduler failed: {e}", "WARNING")
 
     uvicorn.run(
         "core.api:app",
