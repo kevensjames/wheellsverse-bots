@@ -581,7 +581,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 <div class="page" id="page-narai">
   <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.08;z-index:0"></canvas>
-  <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;height:calc(100vh - 90px);overflow:hidden;min-width:0">
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px">
 
   <!-- ══ TOP BAR: avatar + identity + stats + actions in one compact strip ══ -->
   <div style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(0,204,255,.06));border:1px solid rgba(136,68,255,.28);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;overflow:hidden;position:relative">
@@ -675,10 +675,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- ══ MAIN CONTENT: 2 columns (chat left, panels right) ══ -->
-  <div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:8px;min-height:0;overflow:hidden">
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:8px;height:calc(100vh - 220px)">
 
     <!-- LEFT: Neural Interface (chat) -->
-    <div style="background:linear-gradient(180deg,rgba(136,68,255,.09),rgba(0,204,255,.04));border:1px solid rgba(136,68,255,.25);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden">
+    <div style="background:linear-gradient(180deg,rgba(136,68,255,.09),rgba(0,204,255,.04));border:1px solid rgba(136,68,255,.25);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden;height:100%">
       <!-- Quick actions -->
       <div style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0">
         <span style="font-size:8px;color:rgba(136,68,255,.6);letter-spacing:1.5px;text-transform:uppercase;align-self:center;margin-right:3px">CMD</span>
@@ -694,7 +694,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <span id="narai-voice-status" style="font-size:8px;color:#555;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:2px 8px;align-self:center">● IDLE</span>
       </div>
       <!-- Chat history -->
-      <div id="narai-chat-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent;min-height:0"></div>
+      <div id="narai-chat-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent;min-height:0;max-height:calc(100vh - 340px)"></div>
       <!-- Contacts (collapsed) -->
       <details id="narai-contacts-details" style="flex-shrink:0">
         <summary style="font-size:8px;color:rgba(136,68,255,.5);cursor:pointer;list-style:none;display:flex;align-items:center;gap:5px;letter-spacing:1.5px;text-transform:uppercase">CONTACTS <span id="narai-contacts-count" style="background:rgba(0,204,255,.1);color:#00ccff;border:1px solid rgba(0,204,255,.25);border-radius:10px;padding:1px 7px;font-size:8px">0</span></summary>
@@ -707,46 +707,46 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       </div>
     </div>
 
-    <!-- RIGHT: Goals + Skill Forge + Activity + Skills -->
-    <div style="display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden">
+    <!-- RIGHT: Goals + Skill Forge + Skills + Activity (fixed height, internal scroll) -->
+    <div style="display:flex;flex-direction:column;gap:6px;height:100%;overflow:hidden">
 
-      <!-- Mission Goals -->
-      <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.2);border-radius:10px;padding:10px 12px;flex-shrink:0">
-        <div style="font-size:8px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🎯 MISSION DIRECTIVES</div>
-        <div id="narai-goals" style="display:flex;flex-direction:column;gap:5px;max-height:130px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.2) transparent">
+      <!-- Mission Goals (compact, max 5 shown) -->
+      <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.2);border-radius:10px;padding:8px 10px;flex-shrink:0">
+        <div style="font-size:7px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">🎯 DIRECTIVES</div>
+        <div id="narai-goals" style="display:flex;flex-direction:column;gap:3px;max-height:100px;overflow-y:auto;scrollbar-width:none">
           <div style="font-size:9px;color:var(--text3)">Loading…</div>
         </div>
       </div>
 
-      <!-- Skill Forge -->
-      <div style="background:rgba(255,204,68,.05);border:1px solid rgba(255,204,68,.2);border-radius:10px;padding:10px 12px;flex-shrink:0">
-        <div style="font-size:8px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">⚡ SKILL FORGE</div>
-        <div style="display:flex;flex-direction:column;gap:6px">
-          <input id="narai-skill-name" placeholder="skill_identifier" class="nr-input" style="border-color:rgba(255,204,68,.2);font-family:monospace;font-size:9px;padding:6px 10px">
-          <input id="narai-skill-desc" placeholder="Describe the capability…" class="nr-input" style="border-color:rgba(255,204,68,.2);font-size:9px;padding:6px 10px">
-          <button onclick="naraiCreateSkill()" style="background:linear-gradient(135deg,rgba(255,204,68,.18),rgba(255,136,0,.08));border:1px solid rgba(255,204,68,.35);color:#ffcc44;border-radius:8px;padding:7px;font-size:8px;cursor:pointer;font-weight:900;letter-spacing:1.5px;font-family:inherit;text-transform:uppercase">⚡ SYNTHESIZE</button>
-          <div id="narai-forge-status" style="font-size:8px;color:var(--text3);text-align:center;min-height:12px"></div>
+      <!-- Skill Forge (compact) -->
+      <div style="background:rgba(255,204,68,.05);border:1px solid rgba(255,204,68,.2);border-radius:10px;padding:8px 10px;flex-shrink:0">
+        <div style="font-size:7px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">⚡ SKILL FORGE</div>
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <input id="narai-skill-name" placeholder="skill_name" class="nr-input" style="border-color:rgba(255,204,68,.2);font-family:monospace;font-size:9px;padding:5px 8px">
+          <input id="narai-skill-desc" placeholder="Describe capability…" class="nr-input" style="border-color:rgba(255,204,68,.2);font-size:9px;padding:5px 8px">
+          <button onclick="naraiCreateSkill()" style="background:linear-gradient(135deg,rgba(255,204,68,.18),rgba(255,136,0,.08));border:1px solid rgba(255,204,68,.35);color:#ffcc44;border-radius:7px;padding:5px;font-size:8px;cursor:pointer;font-weight:900;letter-spacing:1.5px;font-family:inherit;text-transform:uppercase">⚡ SYNTHESIZE</button>
+          <div id="narai-forge-status" style="font-size:8px;color:var(--text3);text-align:center;display:none"></div>
         </div>
       </div>
 
-      <!-- Skills list (scrollable) -->
-      <div style="background:rgba(8,10,16,.9);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;flex:1;min-height:0;display:flex;flex-direction:column">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0">
-          <div style="font-size:8px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase">⚡ SKILLS</div>
-          <span id="narai-skill-count-badge" style="background:rgba(255,204,68,.1);border:1px solid rgba(255,204,68,.3);color:#ffcc44;border-radius:20px;padding:2px 10px;font-size:8px;font-weight:700">—</span>
+      <!-- Skills (fills remaining, scrollable) -->
+      <div style="background:rgba(8,10,16,.9);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:8px 10px;flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;flex-shrink:0">
+          <div style="font-size:7px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase">⚡ SKILLS</div>
+          <span id="narai-skill-count-badge" style="background:rgba(255,204,68,.1);border:1px solid rgba(255,204,68,.25);color:#ffcc44;border-radius:20px;padding:1px 8px;font-size:8px;font-weight:700">—</span>
         </div>
-        <div id="narai-skills-list" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:4px;scrollbar-width:thin;scrollbar-color:rgba(255,204,68,.2) transparent;align-content:start">
+        <div id="narai-skills-list" style="overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:3px;scrollbar-width:thin;scrollbar-color:rgba(255,204,68,.2) transparent;align-content:start;flex:1;min-height:0">
           <div style="color:var(--text3);font-size:9px">Loading…</div>
         </div>
       </div>
 
-      <!-- Activity feed -->
-      <div style="background:rgba(8,10,16,.9);border:1px solid rgba(136,68,255,.12);border-radius:10px;padding:10px 12px;flex-shrink:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-          <div style="font-size:8px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase">📡 ACTIVITY</div>
+      <!-- Activity feed (compact fixed) -->
+      <div style="background:rgba(8,10,16,.9);border:1px solid rgba(136,68,255,.12);border-radius:10px;padding:8px 10px;flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+          <div style="font-size:7px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase">📡 ACTIVITY</div>
           <span style="width:5px;height:5px;border-radius:50%;background:#44ff88;box-shadow:0 0 6px #44ff88;display:inline-block;animation:nrHeartbeat 1.5s infinite"></span>
         </div>
-        <div id="narai-activity-feed" style="font-size:9px;color:rgba(136,145,168,.7);max-height:80px;overflow-y:auto;line-height:1.8;font-family:'SF Mono',Consolas,monospace;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.2) transparent"></div>
+        <div id="narai-activity-feed" style="font-size:9px;color:rgba(136,145,168,.7);height:60px;overflow-y:auto;line-height:1.7;font-family:'SF Mono',Consolas,monospace;scrollbar-width:none"></div>
       </div>
 
     </div><!-- /right col -->
