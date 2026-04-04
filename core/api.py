@@ -5479,6 +5479,181 @@ async def whatsapp_incoming(req: WhatsAppWebhookPayload):
     return {"replied": bool(reply), "reply_preview": (reply or "")[:100]}
 
 
+# ─── Week 8: Trending Intelligence API ───────────────────────────────────────
+
+@app.get("/api/trending/summary")
+async def trending_summary():
+    from core.trending import TrendingEngine
+    return TrendingEngine.get().summary()
+
+@app.get("/api/trending/top")
+async def trending_top(niche: str = "", limit: int = 10):
+    from core.trending import get_top
+    return {"trends": get_top(niche, limit), "niche": niche or "all"}
+
+@app.get("/api/trending/best")
+async def trending_best(platform: str = "", niche: str = ""):
+    from core.trending import get_best_topic
+    topic = get_best_topic(platform, niche)
+    return topic or {"message": "No trending topics yet — run /api/trending/refresh first"}
+
+@app.get("/api/trending/viral")
+async def trending_viral():
+    from core.trending import TrendingEngine
+    opps = TrendingEngine.get().get_viral_opportunities()
+    return {"count": len(opps), "opportunities": opps}
+
+@app.post("/api/trending/refresh")
+async def trending_refresh(background_tasks: BackgroundTasks):
+    from core.trending import TrendingEngine
+    background_tasks.add_task(TrendingEngine.get().refresh)
+    return {"status": "refreshing"}
+
+
+# ─── Week 8: Conversion Analytics API ────────────────────────────────────────
+
+@app.get("/api/analytics/summary")
+async def analytics_summary():
+    from core.conversion_analytics import ConversionAnalytics
+    return ConversionAnalytics.get().summary()
+
+@app.get("/api/analytics/dashboard")
+async def analytics_dashboard(days: int = 30):
+    from core.conversion_analytics import get_dashboard
+    return get_dashboard(days)
+
+@app.get("/api/analytics/funnel")
+async def analytics_funnel(days: int = 30, platform: str = "", niche: str = ""):
+    from core.conversion_analytics import ConversionAnalytics
+    return ConversionAnalytics.get().funnel(days, platform, niche)
+
+@app.get("/api/analytics/attribution")
+async def analytics_attribution(days: int = 30):
+    from core.conversion_analytics import ConversionAnalytics
+    return ConversionAnalytics.get().attribution(days)
+
+@app.get("/api/analytics/cohorts")
+async def analytics_cohorts(weeks: int = 8):
+    from core.conversion_analytics import ConversionAnalytics
+    return ConversionAnalytics.get().cohorts(weeks)
+
+@app.get("/api/analytics/ltv")
+async def analytics_ltv(days: int = 90):
+    from core.conversion_analytics import ConversionAnalytics
+    return ConversionAnalytics.get().ltv_by_source(days)
+
+@app.get("/api/analytics/content-roi")
+async def analytics_content_roi(days: int = 30):
+    from core.conversion_analytics import ConversionAnalytics
+    return ConversionAnalytics.get().content_roi(days)
+
+class TrackEventRequest(BaseModel):
+    event_type: str
+    platform: str = ""
+    niche: str = ""
+    user_id: str = ""
+    content_id: str = ""
+    value: float = 0.0
+
+@app.post("/api/analytics/track")
+async def analytics_track(req: TrackEventRequest):
+    from core.conversion_analytics import track
+    return track(req.event_type, req.platform, req.niche,
+                 req.user_id, req.content_id, req.value)
+
+class ABTestCreateRequest(BaseModel):
+    test_id: str
+    name: str
+    variants: List[str]
+
+@app.post("/api/analytics/ab/create")
+async def ab_create(req: ABTestCreateRequest):
+    from core.conversion_analytics import ConversionAnalytics
+    test = ConversionAnalytics.get().create_ab_test(req.test_id, req.name, req.variants)
+    return test.to_dict()
+
+class ABRecordRequest(BaseModel):
+    test_id: str
+    variant: str
+    event: str   # impression / click / conversion
+    value: float = 0.0
+
+@app.post("/api/analytics/ab/record")
+async def ab_record(req: ABRecordRequest):
+    from core.conversion_analytics import ConversionAnalytics
+    ConversionAnalytics.get().record_ab(req.test_id, req.variant, req.event, req.value)
+    test = ConversionAnalytics.get().get_ab_test(req.test_id)
+    return test or {"error": "test not found"}
+
+@app.get("/api/analytics/ab/{test_id}")
+async def ab_get(test_id: str):
+    from core.conversion_analytics import ConversionAnalytics
+    test = ConversionAnalytics.get().get_ab_test(test_id)
+    if not test:
+        raise HTTPException(status_code=404, detail="A/B test not found")
+    return test
+
+@app.get("/api/analytics/ab")
+async def ab_list():
+    from core.conversion_analytics import ConversionAnalytics
+    return {"tests": ConversionAnalytics.get().get_all_ab_tests()}
+
+
+# ─── Week 8: Autopilot API ────────────────────────────────────────────────────
+
+@app.get("/api/autopilot/status")
+async def autopilot_status():
+    from core.autopilot import AutopilotEngine
+    return AutopilotEngine.get().status()
+
+@app.get("/api/autopilot/summary")
+async def autopilot_summary():
+    from core.autopilot import AutopilotEngine
+    return AutopilotEngine.get().summary()
+
+@app.get("/api/autopilot/log")
+async def autopilot_log(limit: int = 50):
+    from core.autopilot import AutopilotEngine
+    return {"log": AutopilotEngine.get().get_log(limit)}
+
+@app.post("/api/autopilot/enable")
+async def autopilot_enable(mode: str = "full"):
+    from core.autopilot import AutopilotEngine
+    AutopilotEngine.get().enable(mode)
+    _add_log(f"Autopilot ENABLED — mode: {mode}", "INFO")
+    return {"status": "enabled", "mode": mode}
+
+@app.post("/api/autopilot/disable")
+async def autopilot_disable():
+    from core.autopilot import AutopilotEngine
+    AutopilotEngine.get().disable()
+    _add_log("Autopilot DISABLED", "INFO")
+    return {"status": "disabled"}
+
+@app.post("/api/autopilot/run-now")
+async def autopilot_run_now(background_tasks: BackgroundTasks):
+    from core.autopilot import AutopilotEngine
+    background_tasks.add_task(AutopilotEngine.get().run_hourly)
+    _add_log("Autopilot manual hourly cycle triggered", "INFO")
+    return {"status": "running"}
+
+@app.post("/api/autopilot/run-daily")
+async def autopilot_run_daily(background_tasks: BackgroundTasks):
+    from core.autopilot import AutopilotEngine
+    background_tasks.add_task(AutopilotEngine.get().run_daily)
+    _add_log("Autopilot manual daily cycle triggered", "INFO")
+    return {"status": "running"}
+
+@app.post("/api/autopilot/mode")
+async def autopilot_set_mode(mode: str):
+    from core.autopilot import AutopilotEngine
+    valid = ["full", "content_only", "monitor_only"]
+    if mode not in valid:
+        raise HTTPException(status_code=400, detail=f"Mode must be one of: {valid}")
+    AutopilotEngine.get().set_mode(mode)
+    return {"status": "updated", "mode": mode}
+
+
 # ─── Week 7: Revenue Dashboard API ───────────────────────────────────────────
 
 @app.get("/api/revenue/summary")
@@ -6201,6 +6376,21 @@ def launch(port: int = 5050, preload: bool = True):
         _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
     except Exception as e:
         _add_log(f"GoalTracker start failed: {e}", "WARNING")
+
+    # ── Week 8: Auto-start engines ──────────────────────────────────────
+    try:
+        from core.trending import TrendingEngine
+        TrendingEngine.get().start()
+        _add_log("TrendingEngine started — refreshing every 2 hours", "INFO")
+    except Exception as e:
+        _add_log(f"TrendingEngine start failed: {e}", "WARNING")
+
+    try:
+        from core.autopilot import AutopilotEngine
+        AutopilotEngine.get().start()
+        _add_log("AutopilotEngine loop started (enable via /api/autopilot/enable)", "INFO")
+    except Exception as e:
+        _add_log(f"AutopilotEngine start failed: {e}", "WARNING")
 
     # ── Week 7: Content Calendar auto-start ────────────────────────────────
     try:
