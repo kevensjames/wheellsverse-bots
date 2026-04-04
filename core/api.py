@@ -4928,8 +4928,8 @@ async def budget_start():
 
 # ─── Affiliate Optimizer API ──────────────────────────────────────────────────
 
-@app.get("/api/affiliate/summary")
-async def affiliate_summary():
+@app.get("/api/affiliate/optimizer/summary")
+async def affiliate_optimizer_summary():
     from core.affiliate_optimizer import AffiliateOptimizer
     return AffiliateOptimizer.get().summary()
 
