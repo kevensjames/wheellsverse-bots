@@ -231,7 +231,7 @@ def get_usage() -> dict:
         return {}
     try:
         resp = requests.get(f"{BASE_URL}/user/subscription",
-                            headers=_headers(), timeout=10)
+                            headers=_headers(), timeout=6)
         if resp.status_code == 200:
             data = resp.json()
             used  = data.get("character_count", 0)
