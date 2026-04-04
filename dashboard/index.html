@@ -11,13 +11,14 @@
   --red:#ff4444;--yellow:#ffcc00;--purple:#aa88ff;--orange:#ff8844;
   --text:#e0e6f0;--text2:#8891a8;--text3:#555e77;--r:8px;--r2:12px;
 }
-body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box}
+body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--text);overflow:hidden;height:100vh}
 ::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:var(--bg2)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
-.layout{display:flex;height:100vh}
-.sidebar{width:215px;min-width:215px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;height:100vh;z-index:100;overflow-y:auto}
-.main{margin-left:215px;flex:1;display:flex;flex-direction:column;min-height:100vh}
-.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
-.content{flex:1;padding:20px;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 50px);min-width:0}
+.layout{display:flex;flex-direction:row;width:100vw;height:100vh;overflow:hidden;box-sizing:border-box}
+.sidebar{width:220px;min-width:220px;flex-shrink:0;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;height:100vh;overflow-y:auto;position:relative;z-index:100}
+.main{flex:1;min-width:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--bg2);border-bottom:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:50;overflow:hidden}
+.content{flex:1;padding:20px;overflow-y:auto;overflow-x:hidden;min-width:0;min-height:0}
 .brand{padding:18px 14px 14px;border-bottom:1px solid var(--border)}
 .brand-name{font-size:12px;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase}
 .brand-sub{font-size:9px;color:var(--text3);margin-top:2px}
@@ -580,11 +581,11 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 </style>
 
 <div class="page" id="page-narai" style="height:calc(100vh - 90px);overflow:hidden;position:relative">
-  <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.08;z-index:0"></canvas>
+  <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:220px;width:calc(100vw - 220px);height:calc(100vh - 50px);pointer-events:none;opacity:.08;z-index:0"></canvas>
   <div style="position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;gap:6px;padding:0">
 
   <!-- ══ TOP BAR: avatar + identity + stats + actions in one compact strip ══ -->
-  <div style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(0,204,255,.06));border:1px solid rgba(136,68,255,.28);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;overflow:hidden;position:relative">
+  <div style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(0,204,255,.06));border:1px solid rgba(136,68,255,.28);border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:8px;flex-shrink:0;overflow:hidden;position:relative;flex-wrap:wrap">
     <div style="position:absolute;left:0;right:0;height:1px;top:0;background:linear-gradient(90deg,transparent,rgba(136,68,255,.6),rgba(0,204,255,.6),transparent);animation:nrScan 5s ease-in-out infinite;pointer-events:none"></div>
     <!-- Avatar -->
     <div style="position:relative;width:46px;height:46px;flex-shrink:0">
@@ -593,7 +594,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
     <!-- Name + tagline -->
     <div style="min-width:0;flex-shrink:0">
-      <div style="font-size:20px;font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;line-height:1;animation:nrBorderFlow 6s linear infinite">NarAI</div>
+      <div style="font-size:16px;font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;line-height:1;animation:nrBorderFlow 6s linear infinite">NarAI</div>
       <div style="font-size:8px;color:rgba(148,163,184,.5);letter-spacing:1.5px;margin-top:2px">SINGULARITY OVERSEER</div>
     </div>
     <!-- Badges -->
@@ -614,34 +615,34 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       </div>
     </div>
     <!-- 6 compact stats -->
-    <div style="display:flex;gap:5px;flex-shrink:0">
-      <div style="text-align:center;padding:4px 8px;background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.2);border-radius:8px;min-width:42px">
+    <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap">
+      <div style="text-align:center;padding:3px 6px;background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.2);border-radius:8px;min-width:36px">
         <div style="font-size:14px;font-weight:900;color:#cc88ff;line-height:1" id="narai-stat-runs">—</div>
         <div style="font-size:7px;color:rgba(136,68,255,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">SCANS</div>
       </div>
-      <div style="text-align:center;padding:4px 8px;background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.2);border-radius:8px;min-width:42px">
+      <div style="text-align:center;padding:3px 6px;background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.2);border-radius:8px;min-width:36px">
         <div style="font-size:14px;font-weight:900;color:#00ccff;line-height:1" id="narai-stat-skills">—</div>
         <div style="font-size:7px;color:rgba(0,204,255,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">SKILLS</div>
       </div>
-      <div style="text-align:center;padding:4px 8px;background:rgba(68,255,136,.07);border:1px solid rgba(68,255,136,.2);border-radius:8px;min-width:42px">
+      <div style="text-align:center;padding:3px 6px;background:rgba(68,255,136,.07);border:1px solid rgba(68,255,136,.2);border-radius:8px;min-width:36px">
         <div style="font-size:14px;font-weight:900;color:#44ff88;line-height:1" id="narai-stat-fixes">—</div>
         <div style="font-size:7px;color:rgba(68,255,136,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">FIXES</div>
       </div>
-      <div style="text-align:center;padding:4px 8px;background:rgba(255,204,68,.07);border:1px solid rgba(255,204,68,.2);border-radius:8px;min-width:42px">
+      <div style="text-align:center;padding:3px 6px;background:rgba(255,204,68,.07);border:1px solid rgba(255,204,68,.2);border-radius:8px;min-width:36px">
         <div style="font-size:14px;font-weight:900;color:#ffcc44;line-height:1" id="narai-stat-insights">—</div>
         <div style="font-size:7px;color:rgba(255,204,68,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">INFO</div>
       </div>
-      <div style="text-align:center;padding:4px 8px;background:rgba(255,85,136,.07);border:1px solid rgba(255,85,136,.2);border-radius:8px;min-width:42px">
+      <div style="text-align:center;padding:3px 6px;background:rgba(255,85,136,.07);border:1px solid rgba(255,85,136,.2);border-radius:8px;min-width:36px">
         <div style="font-size:14px;font-weight:900;color:#ff5588;line-height:1" id="narai-stat-health">—</div>
         <div style="font-size:7px;color:rgba(255,85,136,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">HEALTH</div>
       </div>
-      <div style="text-align:center;padding:4px 8px;background:rgba(170,136,255,.07);border:1px solid rgba(170,136,255,.2);border-radius:8px;min-width:42px">
+      <div style="text-align:center;padding:3px 6px;background:rgba(170,136,255,.07);border:1px solid rgba(170,136,255,.2);border-radius:8px;min-width:36px">
         <div style="font-size:14px;font-weight:900;color:#aa88ff;line-height:1" id="narai-stat-knowledge">—</div>
         <div style="font-size:7px;color:rgba(170,136,255,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">MEM</div>
       </div>
     </div>
     <!-- Action buttons -->
-    <div style="display:flex;gap:5px;flex-shrink:0">
+    <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;overflow:hidden">
       <button onclick="naraiAction('diagnostic')" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🔍 Scan</button>
       <button onclick="naraiAction('fix')" style="background:rgba(68,255,136,.08);border:1px solid rgba(68,255,136,.3);color:#44ff88;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🔧 Fix</button>
       <button onclick="naraiRefresh()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">↻</button>
