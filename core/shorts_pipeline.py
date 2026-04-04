@@ -54,6 +54,9 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ─── Topic pool (fallback when FeedbackLoop has no data yet) ─────────────────
 
+EXTENDED_PLATFORMS = ["youtube", "tiktok", "instagram", "facebook",
+                       "linkedin", "threads", "pinterest"]
+
 DEFAULT_TOPICS = [
     # Crypto
     ("Bitcoin is about to change — here's what you need to know right now",    "crypto"),
@@ -334,6 +337,12 @@ Rules:
                 return self._pub_instagram(video_path or video_url, caption)
             elif platform == "facebook":
                 return self._pub_facebook(video_path or video_url, caption)
+            elif platform == "linkedin":
+                return self._pub_linkedin(title, caption, script if 'script' in dir() else caption)
+            elif platform == "threads":
+                return self._pub_threads(caption)
+            elif platform == "pinterest":
+                return self._pub_pinterest(title, caption, niche if 'niche' in dir() else "general")
             else:
                 return f"unknown platform: {platform}"
         except Exception as e:
@@ -394,6 +403,44 @@ Rules:
             video_url = str(video_source) if isinstance(video_source, Path) else video_source
             result = fb.post(caption[:63206], video_url=video_url)
             return result.get("post_id") or result.get("status") or "published"
+        except Exception as e:
+            return f"error: {e}"
+
+    def _pub_linkedin(self, title: str, caption: str, script: str = "") -> str:
+        try:
+            from core.linkedin import get_linkedin
+            li = get_linkedin()
+            if not li.is_configured():
+                return "skipped: LinkedIn not configured — visit /api/linkedin/auth"
+            from core.linkedin import generate_post
+            text   = generate_post(title, niche="general")
+            result = li.post(text or caption[:1300])
+            return result.get("post_id") or result.get("status") or "published"
+        except Exception as e:
+            return f"error: {e}"
+
+    def _pub_threads(self, caption: str) -> str:
+        try:
+            from core.threads import get_threads
+            th = get_threads()
+            if not th.is_configured():
+                return "skipped: Threads not configured — set THREADS_ACCESS_TOKEN or INSTAGRAM_PAGE_TOKEN"
+            from core.threads import generate_post as th_gen
+            # Threads has 500 char limit — use a fresh short post
+            text   = th_gen(caption[:200], niche="general") or caption[:480]
+            result = th.post(text)
+            return result.get("post_id") or result.get("status") or "published"
+        except Exception as e:
+            return f"error: {e}"
+
+    def _pub_pinterest(self, title: str, caption: str, niche: str = "general") -> str:
+        try:
+            from core.pinterest import get_pinterest
+            pt = get_pinterest()
+            if not pt.is_configured():
+                return "skipped: Pinterest not configured — visit /api/pinterest/auth"
+            result = pt.pin(title, niche=niche)
+            return result.get("pin_id") or result.get("status") or "published"
         except Exception as e:
             return f"error: {e}"
 

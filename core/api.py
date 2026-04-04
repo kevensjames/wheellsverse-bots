@@ -4877,6 +4877,198 @@ async def narai_learn_human(req: NarAILearnHumanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── LinkedIn API ────────────────────────────────────────────────────────────
+
+@app.get("/api/linkedin/status")
+async def linkedin_status():
+    from core.linkedin import is_configured, get_person_urn
+    return {
+        "configured": is_configured(),
+        "person_urn": get_person_urn() if is_configured() else None,
+        "client_id_set": bool(os.getenv("LINKEDIN_CLIENT_ID")),
+    }
+
+@app.get("/api/linkedin/auth")
+async def linkedin_auth():
+    from core.linkedin import get_auth_url, CLIENT_ID
+    if not CLIENT_ID:
+        raise HTTPException(status_code=503,
+            detail="LINKEDIN_CLIENT_ID not set. Add it to .env first.")
+    url = get_auth_url()
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url)
+
+@app.get("/api/linkedin/callback")
+async def linkedin_callback(code: str = None, error: str = None, state: str = None):
+    if error:
+        raise HTTPException(status_code=400, detail=f"LinkedIn OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="No code provided")
+    from core.linkedin import exchange_code
+    result = exchange_code(code)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    _add_log("LinkedIn OAuth completed — access token saved", "INFO")
+    return {"status": "connected", "expires_in": result.get("expires_in"),
+            "message": "LinkedIn connected! You can now post to LinkedIn."}
+
+class LinkedInPostRequest(BaseModel):
+    topic: str = ""
+    text: str = ""
+    niche: str = "general"
+    image_url: str = ""
+    generate: bool = True
+
+@app.post("/api/linkedin/post")
+async def linkedin_post(req: LinkedInPostRequest, background_tasks: BackgroundTasks):
+    from core.linkedin import get_linkedin
+    li = get_linkedin()
+    if not li.is_configured():
+        raise HTTPException(status_code=503,
+            detail="LinkedIn not connected — visit /api/linkedin/auth")
+    def _post():
+        r = li.post(text=req.text, topic=req.topic, niche=req.niche,
+                    image_url=req.image_url or None, generate=req.generate)
+        _add_log(f"LinkedIn post: {r.get('status','error')} — {req.topic[:40]}", "INFO")
+    background_tasks.add_task(_post)
+    return {"status": "posting", "topic": req.topic}
+
+@app.post("/api/linkedin/generate-post")
+async def linkedin_generate(req: LinkedInPostRequest):
+    from core.linkedin import generate_post
+    text = generate_post(req.topic, niche=req.niche)
+    return {"text": text, "chars": len(text)}
+
+
+# ─── Pinterest API ────────────────────────────────────────────────────────────
+
+@app.get("/api/pinterest/status")
+async def pinterest_status():
+    from core.pinterest import is_configured, list_boards
+    boards = list_boards() if is_configured() else []
+    return {
+        "configured": is_configured(),
+        "boards":     len(boards),
+        "app_id_set": bool(os.getenv("PINTEREST_APP_ID")),
+    }
+
+@app.get("/api/pinterest/auth")
+async def pinterest_auth():
+    from core.pinterest import get_auth_url, APP_ID
+    if not APP_ID:
+        raise HTTPException(status_code=503,
+            detail="PINTEREST_APP_ID not set. Add it to .env first.")
+    url = get_auth_url()
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url)
+
+@app.get("/api/pinterest/callback")
+async def pinterest_callback(code: str = None, error: str = None):
+    if error:
+        raise HTTPException(status_code=400, detail=f"Pinterest OAuth error: {error}")
+    if not code:
+        raise HTTPException(status_code=400, detail="No code provided")
+    from core.pinterest import exchange_code
+    result = exchange_code(code)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    _add_log("Pinterest OAuth completed — token saved", "INFO")
+    return {"status": "connected", "message": "Pinterest connected!"}
+
+@app.get("/api/pinterest/boards")
+async def pinterest_boards():
+    from core.pinterest import list_boards
+    return {"boards": list_boards()}
+
+class PinRequest(BaseModel):
+    topic: str
+    niche: str = "general"
+    link: str = ""
+    image_url: str = ""
+    board_id: str = ""
+
+@app.post("/api/pinterest/pin")
+async def pinterest_pin(req: PinRequest, background_tasks: BackgroundTasks):
+    from core.pinterest import get_pinterest
+    pt = get_pinterest()
+    if not pt.is_configured():
+        raise HTTPException(status_code=503,
+            detail="Pinterest not connected — visit /api/pinterest/auth")
+    def _pin():
+        r = pt.pin(req.topic, niche=req.niche,
+                   link=req.link or None)
+        _add_log(f"Pinterest pin: {r.get('status','error')} — {req.topic[:40]}", "INFO")
+    background_tasks.add_task(_pin)
+    return {"status": "pinning", "topic": req.topic}
+
+class BatchPinRequest(BaseModel):
+    topics: List[str]
+    niche: str = "general"
+
+@app.post("/api/pinterest/batch-pin")
+async def pinterest_batch(req: BatchPinRequest, background_tasks: BackgroundTasks):
+    from core.pinterest import get_pinterest
+    pt = get_pinterest()
+    if not pt.is_configured():
+        raise HTTPException(status_code=503, detail="Pinterest not connected")
+    background_tasks.add_task(pt.batch, req.topics, req.niche)
+    return {"status": "batch_started", "count": len(req.topics), "niche": req.niche}
+
+
+# ─── Threads API ──────────────────────────────────────────────────────────────
+
+@app.get("/api/threads/status")
+async def threads_status():
+    from core.threads import is_configured, _get_user_id
+    return {
+        "configured":      is_configured(),
+        "user_id":         _get_user_id() if is_configured() else None,
+        "token_source":    ("dedicated" if os.getenv("THREADS_ACCESS_TOKEN")
+                           else "instagram" if os.getenv("INSTAGRAM_PAGE_TOKEN")
+                           else "none"),
+    }
+
+class ThreadsPostRequest(BaseModel):
+    text: str = ""
+    topic: str = ""
+    niche: str = "general"
+    image_url: str = ""
+    generate: bool = False
+
+@app.post("/api/threads/post")
+async def threads_post(req: ThreadsPostRequest, background_tasks: BackgroundTasks):
+    from core.threads import get_threads
+    th = get_threads()
+    if not th.is_configured():
+        raise HTTPException(status_code=503,
+            detail="Threads not configured — set THREADS_ACCESS_TOKEN or INSTAGRAM_PAGE_TOKEN")
+    def _post():
+        r = th.post(text=req.text, topic=req.topic, niche=req.niche,
+                    image_url=req.image_url or None, generate=req.generate)
+        _add_log(f"Threads post: {r.get('status','error')} — {(req.topic or req.text)[:40]}", "INFO")
+    background_tasks.add_task(_post)
+    return {"status": "posting", "topic": req.topic or req.text[:50]}
+
+@app.post("/api/threads/generate-post")
+async def threads_generate(req: ThreadsPostRequest):
+    from core.threads import generate_post
+    text = generate_post(req.topic, niche=req.niche)
+    return {"text": text, "chars": len(text)}
+
+class ThreadsSeriesRequest(BaseModel):
+    topics: List[str]
+    niche: str = "general"
+
+@app.post("/api/threads/series")
+async def threads_series(req: ThreadsSeriesRequest, background_tasks: BackgroundTasks):
+    from core.threads import get_threads, post_series
+    th = get_threads()
+    if not th.is_configured():
+        raise HTTPException(status_code=503, detail="Threads not configured")
+    background_tasks.add_task(post_series, req.topics, req.niche)
+    return {"status": "series_started", "count": len(req.topics)}
+
+
 # ─── ElevenLabs API ──────────────────────────────────────────────────────────
 
 @app.get("/api/elevenlabs/status")
