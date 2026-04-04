@@ -579,9 +579,9 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 .nr-activity-line:hover{background:rgba(255,255,255,.02)}
 </style>
 
-<div class="page" id="page-narai">
+<div class="page" id="page-narai" style="height:calc(100vh - 90px);overflow:hidden;position:relative">
   <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.08;z-index:0"></canvas>
-  <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px">
+  <div style="position:absolute;inset:0;z-index:1;display:flex;flex-direction:column;gap:6px;padding:0">
 
   <!-- ══ TOP BAR: avatar + identity + stats + actions in one compact strip ══ -->
   <div style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(0,204,255,.06));border:1px solid rgba(136,68,255,.28);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;overflow:hidden;position:relative">
@@ -675,10 +675,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- ══ MAIN CONTENT: 2 columns (chat left, panels right) ══ -->
-  <div style="display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:8px;height:calc(100vh - 220px)">
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:6px;flex:1;min-height:0;overflow:hidden">
 
     <!-- LEFT: Neural Interface (chat) -->
-    <div style="background:linear-gradient(180deg,rgba(136,68,255,.09),rgba(0,204,255,.04));border:1px solid rgba(136,68,255,.25);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;overflow:hidden;height:100%">
+    <div style="background:linear-gradient(180deg,rgba(136,68,255,.09),rgba(0,204,255,.04));border:1px solid rgba(136,68,255,.25);border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:6px;overflow:hidden;min-height:0">
       <!-- Quick actions -->
       <div style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0">
         <span style="font-size:8px;color:rgba(136,68,255,.6);letter-spacing:1.5px;text-transform:uppercase;align-self:center;margin-right:3px">CMD</span>
@@ -694,7 +694,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <span id="narai-voice-status" style="font-size:8px;color:#555;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:2px 8px;align-self:center">● IDLE</span>
       </div>
       <!-- Chat history -->
-      <div id="narai-chat-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent;min-height:0;max-height:calc(100vh - 340px)"></div>
+      <div id="narai-chat-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent;min-height:0"></div>
       <!-- Contacts (collapsed) -->
       <details id="narai-contacts-details" style="flex-shrink:0">
         <summary style="font-size:8px;color:rgba(136,68,255,.5);cursor:pointer;list-style:none;display:flex;align-items:center;gap:5px;letter-spacing:1.5px;text-transform:uppercase">CONTACTS <span id="narai-contacts-count" style="background:rgba(0,204,255,.1);color:#00ccff;border:1px solid rgba(0,204,255,.25);border-radius:10px;padding:1px 7px;font-size:8px">0</span></summary>
@@ -707,8 +707,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       </div>
     </div>
 
-    <!-- RIGHT: Goals + Skill Forge + Skills + Activity (fixed height, internal scroll) -->
-    <div style="display:flex;flex-direction:column;gap:6px;height:100%;overflow:hidden">
+    <!-- RIGHT: Goals + Skill Forge + Skills + Activity -->
+    <div style="display:flex;flex-direction:column;gap:6px;overflow:hidden;min-height:0">
 
       <!-- Mission Goals (compact, max 5 shown) -->
       <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.2);border-radius:10px;padding:8px 10px;flex-shrink:0">
