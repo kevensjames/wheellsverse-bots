@@ -4877,6 +4877,153 @@ async def narai_learn_human(req: NarAILearnHumanRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# ─── Budget Manager API ──────────────────────────────────────────────────────
+
+@app.get("/api/budget/summary")
+async def budget_summary():
+    from core.budget_manager import BudgetManager
+    return BudgetManager.get().summary()
+
+@app.get("/api/budget/report")
+async def budget_report():
+    from core.budget_manager import BudgetManager
+    return BudgetManager.get().daily_report()
+
+class BoostRequest(BaseModel):
+    post_id: str
+    platform: str = "facebook"
+    topic: str = ""
+    amount: float = 5.0
+
+@app.post("/api/budget/boost")
+async def budget_boost(req: BoostRequest, background_tasks: BackgroundTasks):
+    from core.budget_manager import BudgetManager
+    bm = BudgetManager.get()
+    remaining = bm.today_remaining()
+    if req.amount > remaining:
+        raise HTTPException(status_code=400,
+            detail=f"Insufficient budget — ${remaining:.2f} remaining today")
+    def _boost():
+        r = bm.boost_post(req.post_id, req.platform, req.topic, req.amount)
+        _add_log(f"Budget boost: ${req.amount} on {req.platform} — {r.get('status')}", "INFO")
+    background_tasks.add_task(_boost)
+    return {"status": "boosting", "amount": req.amount, "platform": req.platform}
+
+class RevenueRecord(BaseModel):
+    post_id: str
+    revenue: float
+
+@app.post("/api/budget/revenue")
+async def budget_revenue(req: RevenueRecord):
+    from core.budget_manager import BudgetManager
+    BudgetManager.get().record_revenue(req.post_id, req.revenue)
+    return {"status": "recorded", "post_id": req.post_id, "revenue": req.revenue}
+
+@app.post("/api/budget/start")
+async def budget_start():
+    from core.budget_manager import BudgetManager
+    BudgetManager.get().start()
+    return {"status": "budget_manager_started"}
+
+
+# ─── Affiliate Optimizer API ──────────────────────────────────────────────────
+
+@app.get("/api/affiliate/summary")
+async def affiliate_summary():
+    from core.affiliate_optimizer import AffiliateOptimizer
+    return AffiliateOptimizer.get().summary()
+
+@app.get("/api/affiliate/winners")
+async def affiliate_winners():
+    from core.affiliate_optimizer import AffiliateOptimizer
+    return {"winners": AffiliateOptimizer.get().get_all_winners()}
+
+@app.get("/api/affiliate/best-link")
+async def affiliate_best_link(niche: str = "general"):
+    from core.affiliate_optimizer import get_best_link
+    return get_best_link(niche)
+
+class AffConversionRequest(BaseModel):
+    niche: str = "general"
+    program: str
+    revenue: float = 0.0
+
+@app.post("/api/affiliate/conversion")
+async def affiliate_conversion(req: AffConversionRequest):
+    from core.affiliate_optimizer import AffiliateOptimizer
+    AffiliateOptimizer.get().record_conversion(req.niche, req.program, req.revenue)
+    return {"status": "recorded", "niche": req.niche, "program": req.program}
+
+@app.post("/api/affiliate/start")
+async def affiliate_start():
+    from core.affiliate_optimizer import AffiliateOptimizer
+    AffiliateOptimizer.get().start()
+    return {"status": "affiliate_optimizer_started"}
+
+
+# ─── Email Funnel API ─────────────────────────────────────────────────────────
+
+@app.get("/api/email/summary")
+async def email_summary():
+    from core.email_funnel import summary
+    return summary()
+
+@app.get("/api/email/stats")
+async def email_stats():
+    from core.email_funnel import get_stats
+    return get_stats()
+
+class SubscribeRequest(BaseModel):
+    email: str
+    first_name: str = ""
+    tags: List[str] = []
+    niche: str = "general"
+
+@app.post("/api/email/subscribe")
+async def email_subscribe(req: SubscribeRequest):
+    from core.email_funnel import add_subscriber
+    result = add_subscriber(req.email, req.first_name, req.tags)
+    _add_log(f"Email subscribe: {req.email} — {result.get('status','error')}", "INFO")
+    return result
+
+class BuildSequenceRequest(BaseModel):
+    niche: str = "general"
+    sequence_type: str = "nurture"
+    name: str = ""
+
+@app.post("/api/email/build-sequence")
+async def email_build_sequence(req: BuildSequenceRequest,
+                                background_tasks: BackgroundTasks):
+    from core.email_funnel import build_sequence, create_sequence_in_convertkit
+    def _build():
+        emails = build_sequence(req.niche, req.sequence_type)
+        name   = req.name or f"{req.niche}_{req.sequence_type}"
+        result = create_sequence_in_convertkit(name, emails)
+        _add_log(f"Email sequence built: {name} ({len(emails)} emails)", "INFO")
+    background_tasks.add_task(_build)
+    return {"status": "building", "niche": req.niche, "type": req.sequence_type}
+
+class BroadcastRequest(BaseModel):
+    topic: str
+    niche: str = "general"
+
+@app.post("/api/email/broadcast")
+async def email_broadcast(req: BroadcastRequest, background_tasks: BackgroundTasks):
+    from core.email_funnel import generate_broadcast
+    def _send():
+        result = generate_broadcast(req.topic, req.niche)
+        _add_log(f"Email broadcast: {result.get('subject','')[:50]}", "INFO")
+    background_tasks.add_task(_send)
+    return {"status": "sending", "topic": req.topic}
+
+@app.post("/api/email/weekly-newsletter")
+async def email_weekly(background_tasks: BackgroundTasks):
+    from core.email_funnel import send_weekly_newsletter
+    background_tasks.add_task(send_weekly_newsletter)
+    _add_log("Weekly newsletter generation started", "INFO")
+    return {"status": "started"}
+
+
 # ─── LinkedIn API ────────────────────────────────────────────────────────────
 
 @app.get("/api/linkedin/status")
@@ -5354,6 +5501,23 @@ def launch(port: int = 5050, preload: bool = True):
         except Exception as e:
             _add_log(f"Decision engine scheduler registration failed: {e}", "WARNING")
 
+        # Start Budget Manager
+        try:
+            from core.budget_manager import BudgetManager
+            BudgetManager.get().start()
+            daily = os.getenv("DAILY_AD_BUDGET","10")
+            _add_log(f"Budget Manager started — ${daily}/day ad budget", "INFO")
+        except Exception as e:
+            _add_log(f"Budget Manager failed to start: {e}", "WARNING")
+
+        # Start Affiliate Optimizer
+        try:
+            from core.affiliate_optimizer import AffiliateOptimizer
+            AffiliateOptimizer.get().start()
+            _add_log("Affiliate Optimizer started — A/B testing all niches", "INFO")
+        except Exception as e:
+            _add_log(f"Affiliate Optimizer failed to start: {e}", "WARNING")
+
         # Start Feedback Loop engagement poller
         try:
             from core.feedback_loop import EngagementPoller
@@ -5439,6 +5603,30 @@ def launch(port: int = 5050, preload: bool = True):
             _add_log(f"Daily publish scheduled at {publish_time} every day", "INFO")
         except Exception as e:
             _add_log(f"Daily publish scheduler failed: {e}", "WARNING")
+
+        # Schedule weekly newsletter (every Monday at 08:00)
+        try:
+            import schedule as _sched3
+            import threading as _th3
+            from core.email_funnel import send_weekly_newsletter
+
+            def _weekly_newsletter():
+                _add_log("Weekly newsletter starting", "INFO")
+                r = send_weekly_newsletter()
+                _add_log(f"Weekly newsletter: {r.get('status','?')} — {r.get('subject','')[:50]}", "INFO")
+
+            _sched3.every().monday.at("08:00").do(_weekly_newsletter)
+
+            def _sched3_loop():
+                while True:
+                    _sched3.run_pending()
+                    import time as _t; _t.sleep(60)
+
+            _th3.Thread(target=_sched3_loop, daemon=True,
+                        name="newsletter-scheduler").start()
+            _add_log("Weekly newsletter scheduled every Monday 08:00", "INFO")
+        except Exception as e:
+            _add_log(f"Newsletter scheduler failed: {e}", "WARNING")
 
     uvicorn.run(
         "core.api:app",
