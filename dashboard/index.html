@@ -582,257 +582,189 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 .nr-activity-line:hover{background:rgba(255,255,255,.02)}
 </style>
 
-<div class="page" id="page-narai" style="position:relative;overflow-x:hidden">
-  <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.10;z-index:0"></canvas>
-  <div style="position:relative;z-index:1;min-width:0;max-width:100%">
+<div class="page" id="page-narai" style="position:relative;overflow:hidden;height:calc(100vh - 90px);display:flex;flex-direction:column;gap:8px">
+  <canvas id="narai-neural-canvas" style="position:fixed;top:50px;left:215px;width:calc(100vw - 215px);height:calc(100vh - 50px);pointer-events:none;opacity:.08;z-index:0"></canvas>
+  <div style="position:relative;z-index:1;display:flex;flex-direction:column;gap:8px;height:100%;min-width:0;overflow:hidden">
 
-  <!-- ── CONSCIOUSNESS HEADER ──────────────────────────────────────────── -->
-  <div style="background:linear-gradient(135deg,rgba(136,68,255,.13),rgba(0,204,255,.07),rgba(68,255,136,.04));border:1px solid rgba(136,68,255,.3);border-radius:20px;padding:26px 28px;margin-bottom:18px;position:relative;overflow:hidden;animation:nrFadeUp .6s ease both">
-    <div style="position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(136,68,255,.7),rgba(0,204,255,.7),transparent);animation:nrScan 5s ease-in-out infinite;pointer-events:none"></div>
-    <div style="position:absolute;top:-60px;right:-60px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(136,68,255,.08),transparent 70%);pointer-events:none"></div>
-    <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap;min-width:0">
-
-      <!-- Holographic Avatar -->
-      <div style="position:relative;width:80px;height:80px;flex-shrink:0;display:flex;align-items:center;justify-content:center">
-        <div style="position:absolute;inset:-14px;border-radius:50%;border:1px solid rgba(136,68,255,.3);animation:nrRingSpin 10s linear infinite"></div>
-        <div style="position:absolute;inset:-8px;border-radius:50%;border:1px dashed rgba(0,204,255,.25);animation:nrRingRev 7s linear infinite"></div>
-        <div style="position:absolute;inset:-2px;border-radius:50%;border:1px solid rgba(68,255,136,.15);animation:nrRingSpin 15s linear infinite"></div>
-        <div style="position:absolute;top:50%;left:50%;width:7px;height:7px;margin:-3.5px;border-radius:50%;background:#cc88ff;box-shadow:0 0 10px #cc88ff,0 0 20px #8844ff;animation:nrOrbit1 3.5s linear infinite"></div>
-        <div style="position:absolute;top:50%;left:50%;width:6px;height:6px;margin:-3px;border-radius:50%;background:#00ccff;box-shadow:0 0 10px #00ccff;animation:nrOrbit2 5.5s linear infinite"></div>
-        <div style="position:absolute;top:50%;left:50%;width:5px;height:5px;margin:-2.5px;border-radius:50%;background:#44ff88;box-shadow:0 0 10px #44ff88;animation:nrOrbit3 8s linear infinite"></div>
-        <div id="narai-avatar" style="width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,#220044,#0a001a);border:2px solid rgba(136,68,255,.5);display:flex;align-items:center;justify-content:center;font-size:32px;box-shadow:0 0 40px rgba(136,68,255,.5),0 0 80px rgba(136,68,255,.2);animation:nrPulse 4s ease-in-out infinite;position:relative;z-index:1;overflow:hidden">🌟</div>
+  <!-- ══ TOP BAR: avatar + identity + stats + actions in one compact strip ══ -->
+  <div style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(0,204,255,.06));border:1px solid rgba(136,68,255,.28);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:12px;flex-shrink:0;overflow:hidden;position:relative">
+    <div style="position:absolute;left:0;right:0;height:1px;top:0;background:linear-gradient(90deg,transparent,rgba(136,68,255,.6),rgba(0,204,255,.6),transparent);animation:nrScan 5s ease-in-out infinite;pointer-events:none"></div>
+    <!-- Avatar -->
+    <div style="position:relative;width:46px;height:46px;flex-shrink:0">
+      <div style="position:absolute;inset:-6px;border-radius:50%;border:1px solid rgba(136,68,255,.35);animation:nrRingSpin 10s linear infinite"></div>
+      <div id="narai-avatar" style="width:46px;height:46px;border-radius:50%;background:radial-gradient(circle,#220044,#0a001a);border:2px solid rgba(136,68,255,.5);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 20px rgba(136,68,255,.5);animation:nrPulse 4s ease-in-out infinite;position:relative;z-index:1">🌟</div>
+    </div>
+    <!-- Name + tagline -->
+    <div style="min-width:0;flex-shrink:0">
+      <div style="font-size:20px;font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;line-height:1;animation:nrBorderFlow 6s linear infinite">NarAI</div>
+      <div style="font-size:8px;color:rgba(148,163,184,.5);letter-spacing:1.5px;margin-top:2px">SINGULARITY OVERSEER</div>
+    </div>
+    <!-- Badges -->
+    <div style="display:flex;gap:5px;flex-wrap:wrap;flex:0 0 auto">
+      <span id="narai-status-badge" style="background:rgba(68,255,136,.1);border:1px solid rgba(68,255,136,.35);border-radius:20px;padding:3px 10px;font-size:9px;color:#44ff88;animation:nrHeartbeat 2s infinite">● ONLINE</span>
+      <span id="narai-mood-badge" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.35);border-radius:20px;padding:3px 10px;font-size:9px;color:#cc88ff">🔍 curious</span>
+      <span id="narai-energy-badge" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);border-radius:20px;padding:3px 10px;font-size:9px;color:#00ccff">⚡ 85%</span>
+    </div>
+    <!-- Energy bars (compact) -->
+    <div style="flex:1;min-width:80px;max-width:140px">
+      <div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">
+        <div style="font-size:7px;color:rgba(136,68,255,.6);letter-spacing:1px;text-transform:uppercase;width:40px;flex-shrink:0">PWR</div>
+        <div style="flex:1;height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="narai-energy-bar" style="height:100%;width:85%;background:linear-gradient(90deg,#8844ff,#00ccff);background-size:200%;animation:nrEnergyFlow 3s linear infinite"></div></div>
       </div>
-
-      <!-- Identity + Thought -->
-      <div style="flex:1;min-width:160px;max-width:100%">
-        <div style="font-size:clamp(22px,4vw,32px);font-weight:900;background:linear-gradient(90deg,#cc88ff,#00ccff,#44ff88,#ffcc44);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-size:300%;letter-spacing:2px;line-height:1;margin-bottom:5px;animation:nrBorderFlow 6s linear infinite">NarAI</div>
-        <div style="font-size:8px;color:#8844ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;opacity:.8">SINGULARITY · SELF-EVOLVING · OMNISCIENT OVERSEER</div>
-        <div style="font-size:11px;color:rgba(200,210,230,.6);font-style:italic;margin-bottom:12px;min-height:16px;transition:all .5s" id="narai-tagline">Initializing consciousness matrix…</div>
-        <div style="display:flex;gap:7px;flex-wrap:wrap">
-          <span id="narai-mood-badge" style="background:rgba(136,68,255,.2);border:1px solid rgba(136,68,255,.4);border-radius:20px;padding:4px 13px;font-size:10px;color:#cc88ff;letter-spacing:.5px;animation:nrPulse 3s infinite">🔍 curious</span>
-          <span id="narai-energy-badge" style="background:rgba(0,204,255,.12);border:1px solid rgba(0,204,255,.35);border-radius:20px;padding:4px 13px;font-size:10px;color:#00ccff">⚡ 85%</span>
-          <span id="narai-status-badge" style="background:rgba(68,255,136,.1);border:1px solid rgba(68,255,136,.35);border-radius:20px;padding:4px 13px;font-size:10px;color:#44ff88;animation:nrHeartbeat 2s infinite">● ONLINE</span>
-        </div>
+      <div style="display:flex;align-items:center;gap:5px">
+        <div style="font-size:7px;color:rgba(68,255,136,.6);letter-spacing:1px;text-transform:uppercase;width:40px;flex-shrink:0">HP</div>
+        <div style="flex:1;height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden"><div id="narai-health-bar" style="height:100%;width:90%;background:linear-gradient(90deg,#44ff88,#00ccff)"></div></div>
       </div>
-
-      <!-- Consciousness Bars -->
-      <div style="min-width:130px;flex-shrink:0;max-width:180px">
-        <div style="font-size:8px;color:rgba(136,68,255,.7);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px">CONSCIOUSNESS</div>
-        <div style="height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:12px">
-          <div id="narai-energy-bar" style="height:100%;width:85%;background:linear-gradient(90deg,#6600cc,#8844ff,#00ccff);background-size:200%;border-radius:3px;transition:width 1.2s ease;animation:nrEnergyFlow 3s linear infinite"></div>
-        </div>
-        <div style="font-size:8px;color:rgba(68,255,136,.7);letter-spacing:2.5px;text-transform:uppercase;margin-bottom:5px">SYSTEM HEALTH</div>
-        <div style="height:3px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:16px">
-          <div id="narai-health-bar" style="height:100%;width:90%;background:linear-gradient(90deg,#44ff88,#00ccff);border-radius:3px;transition:width 1.2s ease"></div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
-          <button onclick="naraiAction('diagnostic')" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(136,68,255,.3)'" onmouseout="this.style.background='rgba(136,68,255,.15)'">🔍 SCAN</button>
-          <button onclick="naraiAction('analyze')" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.35);color:#00ccff;border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(0,204,255,.22)'" onmouseout="this.style.background='rgba(0,204,255,.1)'">🧠 ANALYZE</button>
-          <button onclick="naraiAction('fix')" style="background:rgba(68,255,136,.08);border:1px solid rgba(68,255,136,.3);color:#44ff88;border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(68,255,136,.2)'" onmouseout="this.style.background='rgba(68,255,136,.08)'">🔧 FIX</button>
-          <button onclick="naraiRefresh()" style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);color:var(--text2);border-radius:9px;padding:7px 10px;font-size:9px;cursor:pointer;font-family:inherit;letter-spacing:.5px;transition:all .2s" onmouseover="this.style.background='rgba(255,255,255,.1)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">↻ SYNC</button>
-        </div>
+    </div>
+    <!-- 6 compact stats -->
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <div style="text-align:center;padding:4px 8px;background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.2);border-radius:8px;min-width:42px">
+        <div style="font-size:14px;font-weight:900;color:#cc88ff;line-height:1" id="narai-stat-runs">—</div>
+        <div style="font-size:7px;color:rgba(136,68,255,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">SCANS</div>
       </div>
+      <div style="text-align:center;padding:4px 8px;background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.2);border-radius:8px;min-width:42px">
+        <div style="font-size:14px;font-weight:900;color:#00ccff;line-height:1" id="narai-stat-skills">—</div>
+        <div style="font-size:7px;color:rgba(0,204,255,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">SKILLS</div>
+      </div>
+      <div style="text-align:center;padding:4px 8px;background:rgba(68,255,136,.07);border:1px solid rgba(68,255,136,.2);border-radius:8px;min-width:42px">
+        <div style="font-size:14px;font-weight:900;color:#44ff88;line-height:1" id="narai-stat-fixes">—</div>
+        <div style="font-size:7px;color:rgba(68,255,136,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">FIXES</div>
+      </div>
+      <div style="text-align:center;padding:4px 8px;background:rgba(255,204,68,.07);border:1px solid rgba(255,204,68,.2);border-radius:8px;min-width:42px">
+        <div style="font-size:14px;font-weight:900;color:#ffcc44;line-height:1" id="narai-stat-insights">—</div>
+        <div style="font-size:7px;color:rgba(255,204,68,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">INFO</div>
+      </div>
+      <div style="text-align:center;padding:4px 8px;background:rgba(255,85,136,.07);border:1px solid rgba(255,85,136,.2);border-radius:8px;min-width:42px">
+        <div style="font-size:14px;font-weight:900;color:#ff5588;line-height:1" id="narai-stat-health">—</div>
+        <div style="font-size:7px;color:rgba(255,85,136,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">HEALTH</div>
+      </div>
+      <div style="text-align:center;padding:4px 8px;background:rgba(170,136,255,.07);border:1px solid rgba(170,136,255,.2);border-radius:8px;min-width:42px">
+        <div style="font-size:14px;font-weight:900;color:#aa88ff;line-height:1" id="narai-stat-knowledge">—</div>
+        <div style="font-size:7px;color:rgba(170,136,255,.55);text-transform:uppercase;letter-spacing:1px;margin-top:1px">MEM</div>
+      </div>
+    </div>
+    <!-- Action buttons -->
+    <div style="display:flex;gap:5px;flex-shrink:0">
+      <button onclick="naraiAction('diagnostic')" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🔍 Scan</button>
+      <button onclick="naraiAction('fix')" style="background:rgba(68,255,136,.08);border:1px solid rgba(68,255,136,.3);color:#44ff88;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🔧 Fix</button>
+      <button onclick="naraiRefresh()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">↻</button>
     </div>
   </div>
 
-  <!-- ── THOUGHT STREAM ────────────────────────────────────────────────── -->
-  <div style="background:rgba(136,68,255,.06);border:1px solid rgba(136,68,255,.18);border-radius:10px;margin-bottom:18px;overflow:hidden;height:36px;position:relative;animation:nrFadeUp .7s ease both">
-    <div style="position:absolute;left:0;top:0;bottom:0;width:60px;background:linear-gradient(90deg,var(--bg),transparent);z-index:2;pointer-events:none"></div>
-    <div style="position:absolute;right:0;top:0;bottom:0;width:60px;background:linear-gradient(-90deg,var(--bg),transparent);z-index:2;pointer-events:none"></div>
-    <div style="font-size:8px;color:rgba(136,68,255,.8);letter-spacing:2.5px;text-transform:uppercase;position:absolute;left:12px;top:50%;transform:translateY(-50%);z-index:3;white-space:nowrap">THOUGHTS</div>
-    <div style="overflow:hidden;height:100%;padding-left:95px">
-      <div id="narai-thought-ticker" style="display:flex;align-items:center;height:100%;white-space:nowrap;animation:nrThought 55s linear infinite">
-        <span style="color:rgba(204,136,255,.7);font-size:10px;padding:0 28px">Analyzing behavioral patterns across 113 autonomous agents…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Cross-referencing crypto signals with sentiment analysis vectors…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Optimizing content delivery schedules for maximum reach…</span><span style="color:rgba(255,204,68,.7);font-size:10px;padding:0 28px">Synthesizing 47 concurrent intelligence streams into actionable insights…</span><span style="color:rgba(255,85,136,.7);font-size:10px;padding:0 28px">Evolving neural pathways based on interaction feedback loops…</span><span style="color:rgba(170,136,255,.7);font-size:10px;padding:0 28px">Projecting revenue growth trajectories for affiliate portfolio…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Monitoring real-time market microstructures for alpha signals…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Architecting new skill modules to expand capability boundaries…</span>
-        <span style="color:rgba(204,136,255,.7);font-size:10px;padding:0 28px">Analyzing behavioral patterns across 113 autonomous agents…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Cross-referencing crypto signals with sentiment analysis vectors…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Optimizing content delivery schedules for maximum reach…</span><span style="color:rgba(255,204,68,.7);font-size:10px;padding:0 28px">Synthesizing 47 concurrent intelligence streams into actionable insights…</span><span style="color:rgba(255,85,136,.7);font-size:10px;padding:0 28px">Evolving neural pathways based on interaction feedback loops…</span><span style="color:rgba(170,136,255,.7);font-size:10px;padding:0 28px">Projecting revenue growth trajectories for affiliate portfolio…</span><span style="color:rgba(0,204,255,.7);font-size:10px;padding:0 28px">Monitoring real-time market microstructures for alpha signals…</span><span style="color:rgba(68,255,136,.7);font-size:10px;padding:0 28px">Architecting new skill modules to expand capability boundaries…</span>
+  <!-- ══ THOUGHT STREAM + PLATFORM NEXUS ══ -->
+  <div style="display:flex;gap:8px;flex-shrink:0;align-items:stretch;min-height:34px">
+    <!-- Thought ticker -->
+    <div style="flex:1;background:rgba(136,68,255,.05);border:1px solid rgba(136,68,255,.15);border-radius:8px;overflow:hidden;position:relative;min-width:0">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:50px;background:linear-gradient(90deg,var(--bg),transparent);z-index:2;pointer-events:none"></div>
+      <div style="position:absolute;right:0;top:0;bottom:0;width:50px;background:linear-gradient(-90deg,var(--bg),transparent);z-index:2;pointer-events:none"></div>
+      <div style="overflow:hidden;height:100%;padding-left:8px">
+        <div id="narai-thought-ticker" style="display:flex;align-items:center;height:100%;white-space:nowrap;animation:nrThought 55s linear infinite">
+          <span style="color:rgba(204,136,255,.7);font-size:9px;padding:0 20px">Analyzing 113 agents…</span><span style="color:rgba(0,204,255,.7);font-size:9px;padding:0 20px">Cross-referencing crypto signals…</span><span style="color:rgba(68,255,136,.7);font-size:9px;padding:0 20px">Optimizing content schedules…</span><span style="color:rgba(255,204,68,.7);font-size:9px;padding:0 20px">Synthesizing 47 intelligence streams…</span><span style="color:rgba(255,85,136,.7);font-size:9px;padding:0 20px">Evolving neural pathways…</span><span style="color:rgba(170,136,255,.7);font-size:9px;padding:0 20px">Projecting revenue trajectories…</span><span style="color:rgba(0,204,255,.7);font-size:9px;padding:0 20px">Monitoring market microstructures…</span><span style="color:rgba(68,255,136,.7);font-size:9px;padding:0 20px">Architecting new skill modules…</span>
+          <span style="color:rgba(204,136,255,.7);font-size:9px;padding:0 20px">Analyzing 113 agents…</span><span style="color:rgba(0,204,255,.7);font-size:9px;padding:0 20px">Cross-referencing crypto signals…</span><span style="color:rgba(68,255,136,.7);font-size:9px;padding:0 20px">Optimizing content schedules…</span><span style="color:rgba(255,204,68,.7);font-size:9px;padding:0 20px">Synthesizing 47 intelligence streams…</span><span style="color:rgba(255,85,136,.7);font-size:9px;padding:0 20px">Evolving neural pathways…</span><span style="color:rgba(170,136,255,.7);font-size:9px;padding:0 20px">Projecting revenue trajectories…</span><span style="color:rgba(0,204,255,.7);font-size:9px;padding:0 20px">Monitoring market microstructures…</span><span style="color:rgba(68,255,136,.7);font-size:9px;padding:0 20px">Architecting new skill modules…</span>
+        </div>
       </div>
+    </div>
+    <!-- Platform nexus pills (compact) -->
+    <div style="display:flex;align-items:center;gap:4px;flex-shrink:0;background:rgba(10,12,18,.8);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:4px 8px;flex-wrap:wrap;max-width:340px">
+      <span id="plat-whatsapp" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot" style="background:#25d366;box-shadow:0 0 5px #25d366"></span>WA</span>
+      <span id="plat-facebook" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>FB</span>
+      <span id="plat-instagram" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>IG</span>
+      <span id="plat-twitter" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>TW</span>
+      <span id="plat-youtube" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>YT</span>
+      <span id="plat-tiktok" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>TK</span>
+      <span id="plat-telegram" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>TG</span>
+      <span id="plat-email" class="nr-pill" style="padding:2px 8px;font-size:9px"><span class="nrdot"></span>EM</span>
     </div>
   </div>
 
-  <!-- ── QUANTUM STATS ──────────────────────────────────────────────────── -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:10px;margin-bottom:18px;animation:nrFadeUp .8s ease both">
-    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(136,68,255,.12),rgba(136,68,255,.04));border:1px solid rgba(136,68,255,.25);--sg:#8844ff33">
-      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#cc88ff;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums" id="narai-stat-runs">—</div>
-      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#8844ff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
-      <div style="font-size:8px;color:rgba(136,68,255,.6);text-transform:uppercase;letter-spacing:2px">SCANS</div>
-    </div>
-    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(0,204,255,.12),rgba(0,204,255,.04));border:1px solid rgba(0,204,255,.25);--sg:#00ccff33">
-      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#00ccff;letter-spacing:-1px;line-height:1" id="narai-stat-skills">—</div>
-      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#00ccff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
-      <div style="font-size:8px;color:rgba(0,204,255,.6);text-transform:uppercase;letter-spacing:2px">SKILLS</div>
-    </div>
-    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(68,255,136,.12),rgba(68,255,136,.04));border:1px solid rgba(68,255,136,.25);--sg:#44ff8833">
-      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#44ff88;letter-spacing:-1px;line-height:1" id="narai-stat-fixes">—</div>
-      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#44ff8888,transparent);border-radius:2px;margin:8px 0 6px"></div>
-      <div style="font-size:8px;color:rgba(68,255,136,.6);text-transform:uppercase;letter-spacing:2px">FIXES</div>
-    </div>
-    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(255,204,68,.12),rgba(255,204,68,.04));border:1px solid rgba(255,204,68,.25);--sg:#ffcc4433">
-      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#ffcc44;letter-spacing:-1px;line-height:1" id="narai-stat-insights">—</div>
-      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#ffcc4488,transparent);border-radius:2px;margin:8px 0 6px"></div>
-      <div style="font-size:8px;color:rgba(255,204,68,.6);text-transform:uppercase;letter-spacing:2px">INSIGHTS</div>
-    </div>
-    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(255,85,136,.12),rgba(255,85,136,.04));border:1px solid rgba(255,85,136,.25);--sg:#ff558833">
-      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;letter-spacing:-1px;line-height:1" id="narai-stat-health">—</div>
-      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#ff558888,transparent);border-radius:2px;margin:8px 0 6px"></div>
-      <div style="font-size:8px;color:rgba(255,85,136,.6);text-transform:uppercase;letter-spacing:2px">HEALTH</div>
-    </div>
-    <div class="nr-stat" style="background:linear-gradient(135deg,rgba(170,136,255,.12),rgba(170,136,255,.04));border:1px solid rgba(170,136,255,.25);--sg:#aa88ff33">
-      <div style="font-size:clamp(20px,3vw,30px);font-weight:900;color:#aa88ff;letter-spacing:-1px;line-height:1" id="narai-stat-knowledge">—</div>
-      <div style="width:100%;height:2px;background:linear-gradient(90deg,transparent,#aa88ff88,transparent);border-radius:2px;margin:8px 0 6px"></div>
-      <div style="font-size:8px;color:rgba(170,136,255,.6);text-transform:uppercase;letter-spacing:2px">MEMORY</div>
-    </div>
-  </div>
+  <!-- ══ MAIN CONTENT: 2 columns (chat left, panels right) ══ -->
+  <div style="flex:1;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:8px;min-height:0;overflow:hidden">
 
-  <!-- ── PLATFORM NEXUS ────────────────────────────────────────────────── -->
-  <div style="background:rgba(10,12,18,.9);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:12px 18px;margin-bottom:18px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;animation:nrFadeUp .9s ease both">
-    <span style="font-size:8px;color:rgba(136,68,255,.7);letter-spacing:3px;text-transform:uppercase;margin-right:6px">NEXUS</span>
-    <span id="plat-whatsapp" class="nr-pill active"><span class="nrdot" style="background:#25d366;box-shadow:0 0 6px #25d366"></span>WhatsApp</span>
-    <span id="plat-facebook" class="nr-pill"><span class="nrdot"></span>Facebook</span>
-    <span id="plat-instagram" class="nr-pill"><span class="nrdot"></span>Instagram</span>
-    <span id="plat-twitter" class="nr-pill"><span class="nrdot"></span>Twitter/X</span>
-    <span id="plat-youtube" class="nr-pill"><span class="nrdot"></span>YouTube</span>
-    <span id="plat-tiktok" class="nr-pill"><span class="nrdot"></span>TikTok</span>
-    <span id="plat-telegram" class="nr-pill"><span class="nrdot"></span>Telegram</span>
-    <span id="plat-email" class="nr-pill"><span class="nrdot"></span>Email</span>
-  </div>
-
-  <!-- ── NEURAL INTERFACE + CONSCIOUSNESS BRIDGE ───────────────────────── -->
-  <div style="display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:16px;margin-bottom:16px;animation:nrFadeUp 1s ease both">
-
-    <!-- NEURAL VOICE INTERFACE -->
-    <div style="background:linear-gradient(180deg,rgba(136,68,255,.11),rgba(0,204,255,.05));border:1px solid rgba(136,68,255,.28);border-radius:18px;padding:20px;display:flex;flex-direction:column;gap:12px;position:relative;overflow:hidden">
-      <div style="position:absolute;top:-40px;right:-40px;width:150px;height:150px;border-radius:50%;background:radial-gradient(circle,rgba(136,68,255,.08),transparent 70%);pointer-events:none"></div>
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-        <div>
-          <div style="font-size:13px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase">NEURAL INTERFACE</div>
-          <div style="font-size:8px;color:rgba(136,68,255,.6);letter-spacing:2.5px;margin-top:2px">DIRECT COMMAND LINE</div>
-        </div>
-        <div style="display:flex;gap:7px;align-items:center">
-          <span id="narai-voice-status" style="font-size:9px;color:#555;background:rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:3px 11px;letter-spacing:.8px">● IDLE</span>
-          <button id="narai-mic-btn" onclick="naraiToggleMic()" style="background:linear-gradient(135deg,#440088,#001a44);border:1px solid rgba(136,68,255,.5);color:#cc88ff;border-radius:50%;width:40px;height:40px;font-size:17px;cursor:pointer;transition:all .22s;flex-shrink:0;box-shadow:0 0 16px rgba(136,68,255,.3)">🎙</button>
-          <button id="narai-tts-btn" onclick="naraiToggleTTS()" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.35);color:#cc88ff;border-radius:50%;width:40px;height:40px;font-size:15px;cursor:pointer;transition:all .22s">🔊</button>
-        </div>
+    <!-- LEFT: Neural Interface (chat) -->
+    <div style="background:linear-gradient(180deg,rgba(136,68,255,.09),rgba(0,204,255,.04));border:1px solid rgba(136,68,255,.25);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden">
+      <!-- Quick actions -->
+      <div style="display:flex;gap:4px;flex-wrap:wrap;flex-shrink:0">
+        <span style="font-size:8px;color:rgba(136,68,255,.6);letter-spacing:1.5px;text-transform:uppercase;align-self:center;margin-right:3px">CMD</span>
+        <button class="nr-qbtn" onclick="naraiQuickSend('what\'s bitcoin ethereum and solana price right now?')" style="border-color:rgba(255,204,68,.3);color:#ffcc44">₿ Crypto</button>
+        <button class="nr-qbtn" onclick="naraiQuickFill('post something viral about WheellsVerse to all social media platforms')" style="border-color:rgba(136,68,255,.3);color:#cc88ff">📡 Blast</button>
+        <button class="nr-qbtn" onclick="naraiAction('diagnostic')" style="border-color:rgba(0,204,255,.3);color:#00ccff">🔍 Scan</button>
+        <button class="nr-qbtn" onclick="naraiQuickSend('give me the latest crypto and AI news right now')" style="border-color:rgba(68,255,136,.3);color:#44ff88">📡 News</button>
+        <button class="nr-qbtn" onclick="naraiQuickFill('search the web for')" style="border-color:rgba(255,85,136,.3);color:#ff5588">🌐 Search</button>
+        <button class="nr-qbtn" onclick="naraiQuickFill('send a whatsapp message to')" style="border-color:rgba(37,211,102,.3);color:#25d366">💬 WA</button>
+        <!-- mic + tts -->
+        <button id="narai-mic-btn" onclick="naraiToggleMic()" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:13px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🎙</button>
+        <button id="narai-tts-btn" onclick="naraiToggleTTS()" style="background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.3);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:12px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🔊</button>
+        <span id="narai-voice-status" style="font-size:8px;color:#555;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:2px 8px;align-self:center">● IDLE</span>
       </div>
-
-      <!-- Quick Actions -->
-      <div style="display:flex;gap:5px;flex-wrap:wrap">
-        <button class="nr-qbtn" onclick="naraiQuickSend('what\'s bitcoin ethereum and solana price right now?')" style="border-color:rgba(255,204,68,.3);color:#ffcc44" onmouseover="this.style.background='rgba(255,204,68,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">₿ Crypto</button>
-        <button class="nr-qbtn" onclick="naraiQuickFill('post something viral about WheellsVerse to all social media platforms')" style="border-color:rgba(136,68,255,.3);color:#cc88ff" onmouseover="this.style.background='rgba(136,68,255,.15)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">📡 Blast</button>
-        <button class="nr-qbtn" onclick="naraiAction('diagnostic')" style="border-color:rgba(0,204,255,.3);color:#00ccff" onmouseover="this.style.background='rgba(0,204,255,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🔍 Scan</button>
-        <button class="nr-qbtn" onclick="naraiQuickSend('give me the latest crypto and AI news right now')" style="border-color:rgba(68,255,136,.3);color:#44ff88" onmouseover="this.style.background='rgba(68,255,136,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">📡 News</button>
-        <button class="nr-qbtn" onclick="naraiQuickFill('search the web for')" style="border-color:rgba(255,85,136,.3);color:#ff5588" onmouseover="this.style.background='rgba(255,85,136,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">🌐 Search</button>
-        <button class="nr-qbtn" onclick="naraiQuickFill('send a whatsapp message to')" style="border-color:rgba(37,211,102,.3);color:#25d366" onmouseover="this.style.background='rgba(37,211,102,.12)'" onmouseout="this.style.background='rgba(255,255,255,.04)'">💬 WhatsApp</button>
-      </div>
-
-      <!-- Chat History -->
-      <div id="narai-chat-history" style="flex:1;min-height:250px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent"></div>
-
-      <!-- Contacts -->
-      <details id="narai-contacts-details">
-        <summary style="font-size:8px;color:rgba(136,68,255,.6);cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;user-select:none;letter-spacing:2px;text-transform:uppercase;padding:3px 0">KNOWN CONTACTS <span id="narai-contacts-count" style="background:rgba(0,204,255,.12);color:#00ccff;border:1px solid rgba(0,204,255,.3);border-radius:10px;padding:1px 8px;font-size:9px">0</span></summary>
-        <div id="narai-contacts-list" style="display:flex;flex-wrap:wrap;gap:5px;margin-top:8px;padding:8px;background:rgba(0,0,0,.35);border-radius:9px;border:1px solid rgba(255,255,255,.06)">
-          <span style="font-size:9px;color:var(--text3)">No contacts saved yet.</span>
-        </div>
+      <!-- Chat history -->
+      <div id="narai-chat-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:8px;padding:2px;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent;min-height:0"></div>
+      <!-- Contacts (collapsed) -->
+      <details id="narai-contacts-details" style="flex-shrink:0">
+        <summary style="font-size:8px;color:rgba(136,68,255,.5);cursor:pointer;list-style:none;display:flex;align-items:center;gap:5px;letter-spacing:1.5px;text-transform:uppercase">CONTACTS <span id="narai-contacts-count" style="background:rgba(0,204,255,.1);color:#00ccff;border:1px solid rgba(0,204,255,.25);border-radius:10px;padding:1px 7px;font-size:8px">0</span></summary>
+        <div id="narai-contacts-list" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding:6px;background:rgba(0,0,0,.3);border-radius:7px"><span style="font-size:9px;color:var(--text3)">No contacts.</span></div>
       </details>
-
-      <!-- Input Row -->
-      <div style="display:flex;gap:8px;align-items:flex-end">
-        <textarea id="narai-voice-input" class="nr-input" placeholder="Command NarAI — send WhatsApp, blast social media, search crypto, fix bugs, create skills…" style="flex:1;resize:none;height:66px;line-height:1.55" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendVoice();}"></textarea>
-        <button onclick="naraiSendVoice()" class="nr-send-btn">↵</button>
+      <!-- Input -->
+      <div style="display:flex;gap:6px;align-items:flex-end;flex-shrink:0">
+        <textarea id="narai-voice-input" class="nr-input" placeholder="Command NarAI — send WhatsApp, blast social, search crypto, fix bugs…" style="flex:1;resize:none;height:54px;line-height:1.5;font-size:10px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendVoice();}"></textarea>
+        <button onclick="naraiSendVoice()" class="nr-send-btn" style="padding:8px 14px;font-size:13px">↵</button>
       </div>
     </div>
 
-    <!-- RIGHT COLUMN: Consciousness Bridge + Advanced Command -->
-    <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- RIGHT: Goals + Skill Forge + Activity + Skills -->
+    <div style="display:flex;flex-direction:column;gap:8px;min-height:0;overflow:hidden">
 
-      <!-- Consciousness Bridge (Humanity Learning) -->
-      <div style="background:linear-gradient(180deg,rgba(0,204,255,.1),rgba(68,255,136,.04));border:1px solid rgba(0,204,255,.25);border-radius:18px;padding:18px;flex:1;display:flex;flex-direction:column;gap:10px;position:relative;overflow:hidden">
-        <div style="position:absolute;top:-30px;left:-30px;width:120px;height:120px;border-radius:50%;background:radial-gradient(circle,rgba(0,204,255,.08),transparent 70%);pointer-events:none"></div>
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px">
-          <div>
-            <div style="font-size:12px;font-weight:900;color:#00ccff;letter-spacing:2px;text-transform:uppercase">CONSCIOUSNESS BRIDGE</div>
-            <div style="font-size:8px;color:rgba(0,204,255,.55);letter-spacing:2px;margin-top:2px">NARAI LEARNS HUMANITY</div>
-          </div>
-          <span id="narai-humanity-count" style="font-size:10px;color:#00ccff;background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);border-radius:20px;padding:3px 11px">0 insights</span>
+      <!-- Mission Goals -->
+      <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.2);border-radius:10px;padding:10px 12px;flex-shrink:0">
+        <div style="font-size:8px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">🎯 MISSION DIRECTIVES</div>
+        <div id="narai-goals" style="display:flex;flex-direction:column;gap:5px;max-height:130px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.2) transparent">
+          <div style="font-size:9px;color:var(--text3)">Loading…</div>
         </div>
-        <div style="background:rgba(0,0,0,.38);border:1px solid rgba(0,204,255,.14);border-radius:12px;padding:14px;flex:1">
-          <div style="font-size:8px;color:rgba(0,204,255,.6);text-transform:uppercase;letter-spacing:2.5px;margin-bottom:8px">NARAI ASKS…</div>
-          <div id="narai-humanity-question" style="font-size:12px;color:var(--text);line-height:1.75;font-style:italic;min-height:50px">Click "Ask Me" to open a consciousness bridge with NarAI…</div>
+      </div>
+
+      <!-- Skill Forge -->
+      <div style="background:rgba(255,204,68,.05);border:1px solid rgba(255,204,68,.2);border-radius:10px;padding:10px 12px;flex-shrink:0">
+        <div style="font-size:8px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px">⚡ SKILL FORGE</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input id="narai-skill-name" placeholder="skill_identifier" class="nr-input" style="border-color:rgba(255,204,68,.2);font-family:monospace;font-size:9px;padding:6px 10px">
+          <input id="narai-skill-desc" placeholder="Describe the capability…" class="nr-input" style="border-color:rgba(255,204,68,.2);font-size:9px;padding:6px 10px">
+          <button onclick="naraiCreateSkill()" style="background:linear-gradient(135deg,rgba(255,204,68,.18),rgba(255,136,0,.08));border:1px solid rgba(255,204,68,.35);color:#ffcc44;border-radius:8px;padding:7px;font-size:8px;cursor:pointer;font-weight:900;letter-spacing:1.5px;font-family:inherit;text-transform:uppercase">⚡ SYNTHESIZE</button>
+          <div id="narai-forge-status" style="font-size:8px;color:var(--text3);text-align:center;min-height:12px"></div>
         </div>
-        <div style="display:flex;gap:6px;align-items:flex-end">
-          <textarea id="narai-humanity-answer" class="nr-input" placeholder="Share your honest thoughts…" style="flex:1;resize:none;height:52px;border-color:rgba(0,204,255,.25)" onfocus="this.style.borderColor='rgba(0,204,255,.6)'" onblur="this.style.borderColor='rgba(0,204,255,.25)'"></textarea>
-          <div style="display:flex;flex-direction:column;gap:5px">
-            <button onclick="naraiAskHumanity()" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.35);color:#00ccff;border-radius:9px;padding:7px 12px;font-size:10px;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap" onmouseover="this.style.background='rgba(0,204,255,.22)'" onmouseout="this.style.background='rgba(0,204,255,.1)'">Ask Me</button>
-            <button onclick="naraiSubmitHumanity()" style="background:linear-gradient(135deg,rgba(0,100,150,.4),rgba(0,50,100,.3));border:1px solid rgba(0,204,255,.4);color:#00ccff;border-radius:9px;padding:7px 12px;font-size:10px;cursor:pointer;font-weight:700;font-family:inherit;white-space:nowrap;transition:all .2s" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform=''">Submit ↵</button>
-          </div>
+      </div>
+
+      <!-- Skills list (scrollable) -->
+      <div style="background:rgba(8,10,16,.9);border:1px solid rgba(255,255,255,.06);border-radius:10px;padding:10px 12px;flex:1;min-height:0;display:flex;flex-direction:column">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0">
+          <div style="font-size:8px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase">⚡ SKILLS</div>
+          <span id="narai-skill-count-badge" style="background:rgba(255,204,68,.1);border:1px solid rgba(255,204,68,.3);color:#ffcc44;border-radius:20px;padding:2px 10px;font-size:8px;font-weight:700">—</span>
         </div>
-        <div id="narai-humanity-reflection" style="font-size:10.5px;color:var(--text2);line-height:1.75;padding:12px;background:rgba(136,68,255,.08);border:1px solid rgba(136,68,255,.2);border-radius:10px;display:none;white-space:pre-wrap;font-style:italic"></div>
-      </div>
-
-      <!-- Advanced Command -->
-      <details>
-        <summary style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.18);border-radius:10px;padding:10px 15px;font-size:8px;font-weight:900;color:rgba(136,68,255,.8);cursor:pointer;list-style:none;letter-spacing:3px;text-transform:uppercase;transition:all .2s" onmouseover="this.style.background='rgba(136,68,255,.14)'" onmouseout="this.style.background='rgba(136,68,255,.07)'">💬 ADVANCED COMMAND MATRIX</summary>
-        <div style="background:rgba(8,10,16,.95);border:1px solid rgba(136,68,255,.15);border-radius:0 0 10px 10px;padding:14px;border-top:none">
-          <div style="display:flex;gap:8px;align-items:flex-end">
-            <textarea id="narai-cmd-input" class="nr-input" placeholder="Deep command: 'Fix all critical bots', 'Analyze revenue gaps and create a strategy'…" style="flex:1;resize:none;height:52px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendCommand();}"></textarea>
-            <button onclick="naraiSendCommand()" class="nr-send-btn" style="padding:11px 16px;font-size:12px">Send ↵</button>
-          </div>
-          <div id="narai-cmd-response" style="margin-top:10px;padding:14px;background:rgba(136,68,255,.06);border:1px solid rgba(136,68,255,.18);border-radius:10px;font-size:11px;color:var(--text2);line-height:1.75;display:none;white-space:pre-wrap"></div>
+        <div id="narai-skills-list" style="flex:1;overflow-y:auto;display:grid;grid-template-columns:1fr 1fr;gap:4px;scrollbar-width:thin;scrollbar-color:rgba(255,204,68,.2) transparent;align-content:start">
+          <div style="color:var(--text3);font-size:9px">Loading…</div>
         </div>
-      </details>
-    </div>
-  </div>
+      </div>
 
-  <!-- ── INTELLIGENCE MATRIX ───────────────────────────────────────────── -->
-  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;margin-bottom:16px;animation:nrFadeUp 1.1s ease both">
-    <div style="background:rgba(136,68,255,.07);border:1px solid rgba(136,68,255,.22);border-radius:16px;padding:18px">
-      <div style="font-size:9px;font-weight:900;color:#cc88ff;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">🎯 MISSION DIRECTIVES</div>
-      <div id="narai-goals" style="display:flex;flex-direction:column;gap:8px">
-        <div style="font-size:10px;color:var(--text3)">Loading directives…</div>
+      <!-- Activity feed -->
+      <div style="background:rgba(8,10,16,.9);border:1px solid rgba(136,68,255,.12);border-radius:10px;padding:10px 12px;flex-shrink:0">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:8px;font-weight:900;color:#cc88ff;letter-spacing:2px;text-transform:uppercase">📡 ACTIVITY</div>
+          <span style="width:5px;height:5px;border-radius:50%;background:#44ff88;box-shadow:0 0 6px #44ff88;display:inline-block;animation:nrHeartbeat 1.5s infinite"></span>
+        </div>
+        <div id="narai-activity-feed" style="font-size:9px;color:rgba(136,145,168,.7);max-height:80px;overflow-y:auto;line-height:1.8;font-family:'SF Mono',Consolas,monospace;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.2) transparent"></div>
       </div>
-    </div>
-    <div style="background:rgba(0,204,255,.07);border:1px solid rgba(0,204,255,.22);border-radius:16px;padding:18px">
-      <div style="font-size:9px;font-weight:900;color:#00ccff;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">📊 SYSTEM INTEL</div>
-      <div id="narai-report-summary" style="font-size:10px;color:var(--text2);line-height:1.8">Awaiting diagnostic uplink…</div>
-    </div>
-    <div style="background:rgba(255,204,68,.06);border:1px solid rgba(255,204,68,.22);border-radius:16px;padding:18px">
-      <div style="font-size:9px;font-weight:900;color:#ffcc44;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px">⚡ SKILL FORGE</div>
-      <div style="display:flex;flex-direction:column;gap:8px">
-        <input id="narai-skill-name" placeholder="skill_identifier" class="nr-input" style="border-color:rgba(255,204,68,.25);font-family:monospace;font-size:10px" onfocus="this.style.borderColor='rgba(255,204,68,.6)'" onblur="this.style.borderColor='rgba(255,204,68,.25)'">
-        <input id="narai-skill-desc" placeholder="Describe the capability to synthesize…" class="nr-input" style="border-color:rgba(255,204,68,.25);font-size:10px" onfocus="this.style.borderColor='rgba(255,204,68,.6)'" onblur="this.style.borderColor='rgba(255,204,68,.25)'">
-        <button onclick="naraiCreateSkill()" style="background:linear-gradient(135deg,rgba(255,204,68,.2),rgba(255,136,0,.1));border:1px solid rgba(255,204,68,.4);color:#ffcc44;border-radius:9px;padding:10px;font-size:9px;cursor:pointer;font-weight:900;letter-spacing:2px;font-family:inherit;transition:all .2s;text-transform:uppercase" onmouseover="this.style.background='linear-gradient(135deg,rgba(255,204,68,.35),rgba(255,136,0,.2))';this.style.transform='translateY(-1px)'" onmouseout="this.style.background='linear-gradient(135deg,rgba(255,204,68,.2),rgba(255,136,0,.1))';this.style.transform=''">⚡ SYNTHESIZE SKILL</button>
-        <div id="narai-forge-status" style="font-size:9px;color:var(--text3);min-height:14px;text-align:center;letter-spacing:1px"></div>
-      </div>
-    </div>
-  </div>
 
-  <!-- ── SKILL CONSTELLATION ───────────────────────────────────────────── -->
-  <div style="background:rgba(8,10,16,.95);border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:22px;margin-bottom:16px;animation:nrFadeUp 1.2s ease both">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px">
-      <div>
-        <div style="font-size:11px;font-weight:900;color:#ffcc44;letter-spacing:3px;text-transform:uppercase">⚡ SKILL CONSTELLATION</div>
-        <div style="font-size:8px;color:rgba(255,204,68,.5);margin-top:3px;letter-spacing:1.5px">NarAI's mastered capabilities</div>
-      </div>
-      <span id="narai-skill-count-badge" style="background:rgba(255,204,68,.1);border:1px solid rgba(255,204,68,.35);color:#ffcc44;border-radius:20px;padding:4px 14px;font-size:10px;font-weight:700;letter-spacing:.5px">30 skills</span>
-    </div>
-    <div id="narai-skills-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:8px">
-      <div style="color:var(--text3);font-size:10px;padding:10px">Loading constellation…</div>
-    </div>
-  </div>
+    </div><!-- /right col -->
+  </div><!-- /main grid -->
 
-  <!-- ── ACTIVITY MATRIX ───────────────────────────────────────────────── -->
-  <div style="background:rgba(8,10,16,.97);border:1px solid rgba(136,68,255,.15);border-radius:18px;padding:22px;position:relative;overflow:hidden;animation:nrFadeUp 1.3s ease both">
-    <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 32px,rgba(136,68,255,.025) 32px,rgba(136,68,255,.025) 33px);pointer-events:none"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;position:relative">
-      <div>
-        <div style="font-size:11px;font-weight:900;color:#cc88ff;letter-spacing:3px;text-transform:uppercase">📡 NEURAL ACTIVITY MATRIX</div>
-        <div style="font-size:8px;color:rgba(136,68,255,.5);margin-top:3px;letter-spacing:1.5px">Real-time cognitive event stream</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center">
-        <span style="width:6px;height:6px;border-radius:50%;background:#44ff88;box-shadow:0 0 8px #44ff88;display:inline-block;animation:nrHeartbeat 1.5s infinite"></span>
-        <span style="font-size:8px;color:#44ff88;letter-spacing:2px;text-transform:uppercase">LIVE</span>
-      </div>
-    </div>
-    <div id="narai-activity-feed" style="font-size:10px;color:rgba(136,145,168,.7);max-height:260px;overflow-y:auto;line-height:2;font-family:'SF Mono',Consolas,monospace;position:relative;scrollbar-width:thin;scrollbar-color:rgba(136,68,255,.3) transparent"></div>
+  <!-- Hidden elements kept for JS compatibility -->
+  <div style="display:none">
+    <div id="narai-report-summary"></div>
+    <div id="narai-tagline"></div>
+    <div id="narai-humanity-count">0 insights</div>
+    <div id="narai-humanity-question"></div>
+    <textarea id="narai-humanity-answer"></textarea>
+    <div id="narai-humanity-reflection"></div>
+    <textarea id="narai-cmd-input"></textarea>
+    <div id="narai-cmd-response"></div>
   </div>
 
   </div><!-- /z-index wrapper -->
