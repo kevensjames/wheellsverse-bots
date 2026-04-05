@@ -3420,6 +3420,92 @@ async def telegram_test():
     raise HTTPException(400, "Telegram not configured — add TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID to .env")
 
 
+# ─── Telegram Incoming Webhook (instant two-way NarAI chat) ──────────────────
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """
+    Telegram pushes every incoming message here instantly.
+    Routes all text messages → NarAI voice_chat, replies back.
+    """
+    import threading as _tgthread
+    import requests as _tgreq
+
+    try:
+        data = await request.json()
+    except Exception:
+        return {"ok": True}
+
+    # Support message, channel_post, edited_message
+    msg = (data.get("message")
+           or data.get("channel_post")
+           or data.get("edited_message")
+           or {})
+    text = (msg.get("text") or "").strip()
+
+    if not text or text.startswith("/"):
+        return {"ok": True}
+
+    chat    = msg.get("chat", {})
+    chat_id = str(chat.get("id", ""))
+    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+
+    print(f"[TG-WEBHOOK] Message from chat_id={chat_id}: {text[:80]}", flush=True)
+
+    def _reply_thread():
+        try:
+            from bots.narai.narai.bot import get_narai
+            narai = get_narai()
+            result = narai.voice_chat(text)
+            reply = result.get("response", "") if isinstance(result, dict) else str(result)
+            # Strip markdown
+            import re as _re
+            reply = _re.sub(r'[*_`#>]{1,3}', '', reply)
+            reply = _re.sub(r'\[(.+?)\]\(.+?\)', r'\1', reply)
+            reply = reply.strip() or "I'm here."
+
+            print(f"[TG-WEBHOOK] NarAI reply ({len(reply)} chars): {reply[:80]}", flush=True)
+
+            if not tg_token:
+                print("[TG-WEBHOOK] ERROR: TELEGRAM_BOT_TOKEN not set!", flush=True)
+                return
+
+            r = _tgreq.post(
+                f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                json={"chat_id": chat_id, "text": reply},
+                timeout=20,
+            )
+            print(f"[TG-WEBHOOK] sendMessage status={r.status_code} body={r.text[:200]}", flush=True)
+        except Exception as _e:
+            import traceback
+            print(f"[TG-WEBHOOK] ERROR: {_e}\n{traceback.format_exc()}", flush=True)
+
+    _tgthread.Thread(target=_reply_thread, daemon=True).start()
+    return {"ok": True}
+
+
+@app.post("/api/telegram/register_webhook")
+async def telegram_register_webhook():
+    """Register the Railway URL as Telegram webhook for instant message delivery."""
+    token    = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    base_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+    if not token or not base_url:
+        raise HTTPException(400, "TELEGRAM_BOT_TOKEN and RAILWAY_PUBLIC_URL required")
+    import requests as _req
+    # Delete any existing webhook / pending getUpdates first
+    _req.post(f"https://api.telegram.org/bot{token}/deleteWebhook",
+              json={"drop_pending_updates": True}, timeout=10)
+    webhook_url = f"{base_url}/api/telegram/webhook"
+    resp = _req.post(
+        f"https://api.telegram.org/bot{token}/setWebhook",
+        json={"url": webhook_url, "allowed_updates": ["message", "channel_post"]},
+        timeout=10,
+    )
+    result = resp.json()
+    logger.info("Telegram webhook registration: %s", result)
+    return {"webhook_url": webhook_url, "telegram_response": result}
+
+
 # ─── Auto-Repurposing Pipeline ───────────────────────────────────────────────
 
 @app.post("/api/repurpose")
@@ -4613,6 +4699,156 @@ async def ads_clear_queue():
     return {"status": "cleared"}
 
 
+# ─── Amazon KDP ───────────────────────────────────────────────────────────────
+
+KDP_GENRES_LIST = ["childrens","mystery","adventure","historical","self_help",
+                   "romance","sci_fi","fantasy","horror","true_crime"]
+KDP_LOG_PATH    = ROOT / "outputs" / "books" / "daily_publish.log"
+KDP_BOOKS_ROOT  = ROOT / "outputs" / "books"
+
+class KDPRunRequest(BaseModel):
+    mode:  str = "today"   # "today" | "genre" | "publish_only"
+    genre: Optional[str] = None
+    file:  Optional[str] = None
+
+def _kdp_load_results() -> Dict[str, Any]:
+    """Load latest KDP result per genre from kdp_result_*.json files."""
+    import glob as _glob
+    results = {}
+    for f in sorted(_glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json")), reverse=True):
+        try:
+            d = json.loads(Path(f).read_text(errors="replace"))
+            g = d.get("genre", "")
+            if g and g not in results:
+                results[g] = d
+        except Exception:
+            continue
+    return results
+
+@app.get("/api/kdp/stats")
+async def kdp_stats():
+    """Return quick stats for the KDP dashboard."""
+    import datetime as _dt
+    total = 0
+    for g in KDP_GENRES_LIST:
+        gdir = KDP_BOOKS_ROOT / g
+        if gdir.exists():
+            total += len(list(gdir.glob("book_*.md")))
+
+    # Deduplicate latest result per genre from today's files
+    import glob as _glob, time as _t
+    cutoff = _t.time() - 86400
+    genre_status: Dict[str, str] = {}
+    for f in sorted(_glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json")), reverse=True):
+        try:
+            if Path(f).stat().st_mtime < cutoff:
+                continue
+            d = json.loads(Path(f).read_text(errors="replace"))
+            g = d.get("genre", "")
+            if g and g not in genre_status:
+                genre_status[g] = d.get("status", "error")
+        except Exception:
+            continue
+    published_today = sum(1 for s in genre_status.values() if s in ("published", "review_required"))
+    errors_today    = sum(1 for s in genre_status.values() if s == "error")
+    kdp_results = _kdp_load_results()
+
+    # Check if a publish run is currently active (log has STEP but not COMPLETE)
+    running = False
+    if KDP_LOG_PATH.exists():
+        tail = KDP_LOG_PATH.read_text(errors="replace")[-3000:]
+        running = ("STEP 1" in tail or "STEP 2" in tail or "STEP 3" in tail) and "DAILY PUBLISH COMPLETE" not in tail
+
+    live_asins = sum(1 for d in kdp_results.values() if d.get("asin"))
+
+    return {
+        "published_today": published_today,
+        "errors_today":    errors_today,
+        "total_books":     total,
+        "status":          "running" if running else ("done" if published_today > 0 else "idle"),
+        "live_asins":      live_asins,
+        "genre_status":    genre_status,
+    }
+
+@app.get("/api/kdp/log")
+async def kdp_log(lines: int = 80):
+    """Return tail of the daily_publish.log."""
+    if not KDP_LOG_PATH.exists():
+        return {"lines": ["No publish log yet — run a KDP publish session to see output here."]}
+    text = KDP_LOG_PATH.read_text(errors="replace")
+    all_lines = [l for l in text.splitlines() if l.strip()]
+    return {"lines": all_lines[-lines:]}
+
+@app.get("/api/kdp/books")
+async def kdp_books(genre: str = ""):
+    """Return list of written books with real KDP publish status."""
+    import datetime as _dt
+    kdp_results = _kdp_load_results()
+    books = []
+    genres = [genre] if genre and genre in KDP_GENRES_LIST else KDP_GENRES_LIST
+    for g in genres:
+        gdir = KDP_BOOKS_ROOT / g
+        if not gdir.exists():
+            continue
+        # Get latest KDP result for this genre
+        gr = kdp_results.get(g, {})
+        gr_status = gr.get("status", "")
+        gr_title  = gr.get("title", "")
+        gr_asin   = gr.get("asin", "")
+        for f in sorted(gdir.glob("book_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[:2]:
+            mtime = _dt.datetime.fromtimestamp(f.stat().st_mtime)
+            raw_title = f.stem.replace("book_","").replace("_"," ").title()
+            # Match this file to the KDP result by title similarity
+            file_matches_result = gr_title and (raw_title[:20].lower() in gr_title.lower() or gr_title[:20].lower() in raw_title.lower())
+            if file_matches_result and gr_status:
+                status = gr_status
+                asin   = gr_asin
+            elif gr_status and f == sorted(gdir.glob("book_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)[0]:
+                # Latest file for this genre — use the genre result
+                status = gr_status
+                asin   = gr_asin
+            else:
+                status = "written"
+                asin   = ""
+            words = len(f.read_text(errors="replace").split())
+            books.append({
+                "title":  raw_title,
+                "genre":  g,
+                "file":   str(f.relative_to(ROOT)),
+                "status": status,
+                "asin":   asin,
+                "words":  words,
+                "price":  "2.99",
+                "date":   mtime.strftime("%Y-%m-%d %H:%M"),
+            })
+    return {"books": books}
+
+@app.post("/api/kdp/run")
+async def kdp_run(req: KDPRunRequest, background_tasks: BackgroundTasks):
+    """Launch the KDP daily publish pipeline as a background subprocess."""
+    import subprocess
+    script = ROOT / "bots" / "books" / "daily_publish.py"
+    venv_py = ROOT / "venv" / "bin" / "python3"
+    python  = str(venv_py) if venv_py.exists() else "python3"
+
+    cmd = [python, str(script)]
+    if req.mode == "genre" and req.genre:
+        cmd += ["--genres", req.genre]
+    elif req.mode == "publish_only" and req.genre:
+        cmd += ["--genres", req.genre, "--skip-write", "--skip-packages"]
+
+    def _launch():
+        try:
+            with open(str(KDP_LOG_PATH), "a") as lf:
+                subprocess.Popen(cmd, stdout=lf, stderr=lf, cwd=str(ROOT))
+            _add_log(f"KDP publish started: mode={req.mode} genre={req.genre}", "INFO")
+        except Exception as e:
+            _add_log(f"KDP launch failed: {e}", "ERROR")
+
+    background_tasks.add_task(_launch)
+    return {"status": "launched", "mode": req.mode, "genre": req.genre}
+
+
 # ─── NarAI — General Overseer AI ─────────────────────────────────────────────
 
 _narai = None
@@ -4661,6 +4897,53 @@ async def narai_log(limit: int = 50):
     if not narai:
         raise HTTPException(status_code=503, detail="NarAI offline")
     return {"log": narai.get_activity_log(limit=limit)}
+
+
+@app.get("/api/narai/feed")
+async def narai_feed(limit: int = 100):
+    """Categorized activity feed — posts, videos, images, actions, current task."""
+    narai = _get_narai()
+    log = narai.get_activity_log(limit=limit) if narai else []
+
+    posts, videos, images, actions = [], [], [], []
+    current = None
+
+    KEYWORDS = {
+        "post":   ["📢","posted","publish","tweet","thread","facebook post","instagram post","linkedin","telegram","caption"],
+        "video":  ["🎬","video","heygen","short","reel","youtube","tiktok video"],
+        "image":  ["🖼","dall-e","image","dalle","photo","thumbnail","visual","generated image"],
+    }
+
+    for entry in reversed(log):
+        evt = entry.get("event","").lower()
+        ts  = entry.get("ts","")
+        raw = entry.get("event","")
+        data = entry.get("data", {})
+
+        item = {"event": raw, "ts": ts, "data": data}
+
+        if any(k in evt for k in KEYWORDS["video"]):
+            if len(videos) < 30: videos.append(item)
+        elif any(k in evt for k in KEYWORDS["image"]):
+            if len(images) < 30: images.append(item)
+        elif any(k in evt for k in KEYWORDS["post"]):
+            if len(posts) < 50: posts.append(item)
+        else:
+            if len(actions) < 50: actions.append(item)
+
+    # Current task = most recent log entry
+    if log:
+        latest = log[-1]
+        current = {"event": latest.get("event",""), "ts": latest.get("ts",""), "mood": latest.get("mood","")}
+
+    return {
+        "current": current,
+        "posts":   posts,
+        "videos":  videos,
+        "images":  images,
+        "actions": actions,
+        "total":   len(log),
+    }
 
 
 @app.get("/api/narai/report")
@@ -5479,6 +5762,183 @@ async def whatsapp_incoming(req: WhatsAppWebhookPayload):
     return {"replied": bool(reply), "reply_preview": (reply or "")[:100]}
 
 
+# ─── Week 9: Money Command Center API ────────────────────────────────────────
+
+_stripe_payments_file = ROOT / "data" / "stripe_payments.json"
+
+def _load_stripe_payments() -> list:
+    if _stripe_payments_file.exists():
+        try:
+            return json.loads(_stripe_payments_file.read_text())
+        except Exception:
+            return []
+    return []
+
+def _save_stripe_payment(event: dict):
+    payments = _load_stripe_payments()
+    payments.insert(0, event)
+    payments = payments[:500]  # keep last 500
+    _stripe_payments_file.parent.mkdir(parents=True, exist_ok=True)
+    _stripe_payments_file.write_text(json.dumps(payments, indent=2))
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request):
+    """Stripe webhook — records payment events (checkout.session.completed, invoice.paid, etc.)"""
+    import hmac, hashlib
+    payload = await request.body()
+    sig     = request.headers.get("stripe-signature", "")
+    secret  = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    # Verify signature if secret is set
+    if secret:
+        try:
+            import stripe as _stripe_lib
+            _stripe_lib.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+            event = _stripe_lib.Webhook.construct_event(payload, sig, secret)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Webhook signature invalid: {e}")
+    else:
+        try:
+            event = json.loads(payload)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    etype  = event.get("type", "")
+    data   = event.get("data", {}).get("object", {})
+    amount = data.get("amount_total") or data.get("amount_paid") or data.get("amount", 0)
+    amount_usd = round(amount / 100, 2) if amount else 0.0
+
+    record = {
+        "ts":       datetime.now().isoformat(),
+        "type":     etype,
+        "amount":   amount_usd,
+        "currency": data.get("currency", "usd"),
+        "email":    data.get("customer_email") or data.get("customer_details", {}).get("email", ""),
+        "product":  data.get("description") or data.get("lines", {}).get("data", [{}])[0].get("description", "") if etype == "invoice.paid" else "",
+        "event_id": event.get("id", ""),
+    }
+    _save_stripe_payment(record)
+    _add_log(f"Stripe {etype}: ${amount_usd} from {record['email'][:30]}", "INFO")
+
+    # Auto-enroll buyer into ConvertKit drip if email present
+    if record["email"] and etype in ("checkout.session.completed", "invoice.paid"):
+        try:
+            from core.drip import enroll_in_drip
+            enroll_in_drip(email=record["email"], first_name="", source=f"stripe_{etype}")
+        except Exception:
+            pass
+
+    return {"received": True}
+
+
+@app.get("/api/money/summary")
+async def money_summary():
+    """Money Command Center — combined real-time snapshot of all revenue streams."""
+    from datetime import date, timedelta
+    today_str = date.today().isoformat()
+    week_ago  = (date.today() - timedelta(days=7)).isoformat()
+
+    # ── Stripe ────────────────────────────────────────────────────────────────
+    payments  = _load_stripe_payments()
+    stripe_today  = sum(p["amount"] for p in payments if p["ts"][:10] == today_str)
+    stripe_week   = sum(p["amount"] for p in payments if p["ts"][:10] >= week_ago)
+    stripe_total  = sum(p["amount"] for p in payments)
+    stripe_recent = payments[:5]
+
+    # ── KDP ───────────────────────────────────────────────────────────────────
+    kdp_stats = _kdp_load_results()
+    kdp_published = sum(1 for g in kdp_stats.values() if g.get("status") == "published")
+    kdp_errors    = sum(1 for g in kdp_stats.values() if g.get("status") == "error")
+    # Estimated KDP revenue: published × $2.99 × 70% royalty / 30 days
+    kdp_est_daily = round(kdp_published * 2.99 * 0.70 / 30, 2)
+
+    # ── Leads ─────────────────────────────────────────────────────────────────
+    try:
+        from core.email_capture import get_email_capture
+        lead_stats = get_email_capture().get_stats()
+        leads_total = lead_stats.get("total", 0)
+        leads_today = lead_stats.get("today", 0)
+    except Exception:
+        leads_total, leads_today = 0, 0
+
+    # ── ConvertKit list size ───────────────────────────────────────────────────
+    try:
+        from core.convertkit import ConvertKitClient
+        ck = ConvertKitClient()
+        ck_data = ck._get("/subscribers", {"sort_field": "created_at", "sort_order": "desc"})
+        list_size = ck_data.get("total_subscribers", 0)
+    except Exception:
+        list_size = 0
+
+    # ── Monetization injection stats ──────────────────────────────────────────
+    try:
+        from core.monetization import get_monetization_engine
+        mono_stats = get_monetization_engine().get_injection_stats()
+    except Exception:
+        mono_stats = {"total_injections": 0, "total_links": 0}
+
+    # ── Affiliate clicks ──────────────────────────────────────────────────────
+    try:
+        from core.click_tracker import get_click_tracker
+        click_data = get_click_tracker().get_summary(days=7)
+        aff_clicks_week = click_data.get("total_clicks", 0)
+    except Exception:
+        aff_clicks_week = 0
+
+    return {
+        "stripe": {
+            "today":   stripe_today,
+            "week":    stripe_week,
+            "total":   stripe_total,
+            "recent":  stripe_recent,
+        },
+        "kdp": {
+            "published":   kdp_published,
+            "errors":      kdp_errors,
+            "est_daily":   kdp_est_daily,
+            "genres":      kdp_stats,
+        },
+        "leads": {
+            "total":  leads_total,
+            "today":  leads_today,
+            "list_size": list_size,
+        },
+        "monetization": mono_stats,
+        "affiliate_clicks_7d": aff_clicks_week,
+        "total_revenue_today": round(stripe_today + kdp_est_daily, 2),
+    }
+
+
+@app.get("/api/money/stripe")
+async def money_stripe(days: int = 30):
+    from datetime import date, timedelta
+    cutoff = (date.today() - timedelta(days=days)).isoformat()
+    payments = [p for p in _load_stripe_payments() if p["ts"][:10] >= cutoff]
+    total = sum(p["amount"] for p in payments)
+    by_type = {}
+    for p in payments:
+        by_type[p["type"]] = by_type.get(p["type"], 0) + p["amount"]
+    return {"total": round(total, 2), "count": len(payments), "by_type": by_type, "payments": payments[:50]}
+
+
+@app.post("/api/money/record")
+async def money_record_manual(source: str, amount: float, note: str = ""):
+    """Manually record a revenue event (KDP royalty, affiliate payout, etc.)."""
+    record = {
+        "ts":     datetime.now().isoformat(),
+        "type":   f"manual_{source}",
+        "amount": amount,
+        "currency": "usd",
+        "email":  "",
+        "product": note,
+        "event_id": f"manual_{int(datetime.now().timestamp())}",
+    }
+    _save_stripe_payment(record)
+    _add_log(f"Manual revenue recorded: ${amount} from {source}", "INFO")
+    return {"status": "recorded", "amount": amount}
+
+
 # ─── Week 8: Trending Intelligence API ───────────────────────────────────────
 
 @app.get("/api/trending/summary")
@@ -6262,6 +6722,29 @@ def launch(port: int = 5050, preload: bool = True):
         except Exception as e:
             _add_log(f"DM Reply Engine failed to start: {e}", "WARNING")
 
+        # Register Telegram webhook for instant two-way NarAI chat
+        try:
+            import requests as _tgreq, threading as _tgth
+            def _register_tg_webhook():
+                import time as _tgt; _tgt.sleep(5)  # wait for server to be up
+                _tg_token    = os.getenv("TELEGRAM_BOT_TOKEN", "")
+                _tg_base_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+                if not (_tg_token and _tg_base_url):
+                    return
+                # Delete any old webhook / polling conflict
+                _tgreq.post(f"https://api.telegram.org/bot{_tg_token}/deleteWebhook",
+                            json={"drop_pending_updates": True}, timeout=10)
+                webhook_url = f"{_tg_base_url}/api/telegram/webhook"
+                r = _tgreq.post(
+                    f"https://api.telegram.org/bot{_tg_token}/setWebhook",
+                    json={"url": webhook_url, "allowed_updates": ["message", "channel_post", "edited_message"]},
+                    timeout=10,
+                )
+                _add_log(f"Telegram webhook registered: {webhook_url} — {r.json().get('description','')}", "INFO")
+            _tgth.Thread(target=_register_tg_webhook, daemon=True, name="TelegramWebhookReg").start()
+        except Exception as e:
+            _add_log(f"Telegram webhook registration failed: {e}", "WARNING")
+
         # Schedule daily Shorts pipeline
         try:
             import schedule as _sched2
@@ -6376,6 +6859,14 @@ def launch(port: int = 5050, preload: bool = True):
         _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
     except Exception as e:
         _add_log(f"GoalTracker start failed: {e}", "WARNING")
+
+    # ── Week 9: Money Command Center ────────────────────────────────────
+    try:
+        from pathlib import Path as _P9
+        (_P9(__file__).parent.parent / "data").mkdir(exist_ok=True)
+        _add_log("Week 9: Money Command Center ready — /api/money/summary + /api/stripe/webhook", "INFO")
+    except Exception as e:
+        _add_log(f"Week 9 init failed: {e}", "WARNING")
 
     # ── Week 8: Auto-start engines ──────────────────────────────────────
     try:

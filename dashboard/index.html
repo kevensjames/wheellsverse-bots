@@ -437,6 +437,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('revenue')" id="nav-revenue" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span>Money Board</span></div>
     <div class="nav-item" onclick="nav('revenue2')" id="nav-revenue2" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📊</span><span>Revenue V2</span></div>
     <div class="nav-item" onclick="nav('adsboard')" id="nav-adsboard" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📢</span><span>Ads Board</span></div>
+    <div class="nav-item" onclick="nav('kdpbooks')" id="nav-kdpbooks" style="background:linear-gradient(90deg,rgba(255,136,0,.12),transparent);border-left:2px solid #ff8800;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📚</span><span style="color:#ff9933;font-weight:700">Amazon KDP</span></div>
+    <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
 
     <!-- Content -->
     <div class="nav-sec" style="color:rgba(255,85,136,.6);font-size:8px;letter-spacing:2.5px">CONTENT</div>
@@ -645,6 +647,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div style="display:flex;gap:4px;flex-shrink:0;flex-wrap:wrap;overflow:hidden">
       <button onclick="naraiAction('diagnostic')" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🔍 Scan</button>
       <button onclick="naraiAction('fix')" style="background:rgba(68,255,136,.08);border:1px solid rgba(68,255,136,.3);color:#44ff88;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🔧 Fix</button>
+      <button id="autopilot-btn" onclick="toggleAutopilot()" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">🤖 Autopilot OFF</button>
       <button onclick="naraiRefresh()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:8px;padding:6px 10px;font-size:9px;cursor:pointer;font-family:inherit;transition:all .2s">↻</button>
     </div>
   </div>
@@ -689,6 +692,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <button class="nr-qbtn" onclick="naraiQuickSend('give me the latest crypto and AI news right now')" style="border-color:rgba(68,255,136,.3);color:#44ff88">📡 News</button>
         <button class="nr-qbtn" onclick="naraiQuickFill('search the web for')" style="border-color:rgba(255,85,136,.3);color:#ff5588">🌐 Search</button>
         <button class="nr-qbtn" onclick="naraiQuickFill('send a whatsapp message to')" style="border-color:rgba(37,211,102,.3);color:#25d366">💬 WA</button>
+        <button class="nr-qbtn" id="kdp-toggle-btn" onclick="kdpTogglePublish()" style="border-color:rgba(255,136,0,.4);color:#ff9933;font-weight:700;position:relative" title="Activate all KDP publications for today">📚 KDP <span id="kdp-toggle-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#555;margin-left:3px;vertical-align:middle"></span></button>
         <!-- mic + tts -->
         <button id="narai-mic-btn" onclick="naraiToggleMic()" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:13px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🎙</button>
         <button id="narai-tts-btn" onclick="naraiToggleTTS()" style="background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.3);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:12px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🔊</button>
@@ -752,6 +756,34 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
     </div><!-- /right col -->
   </div><!-- /main grid -->
+
+  <!-- ══ NARAI ACTIVITY BOARD ══ -->
+  <div style="margin-top:12px">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:6px;height:6px;border-radius:50%;background:#aa88ff;box-shadow:0 0 8px #aa88ff;animation:nrPulse 2s infinite"></div>
+        <span style="font-size:12px;font-weight:800;color:#aa88ff;letter-spacing:.5px;text-transform:uppercase">NarAI Activity Board</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span id="narai-board-current" style="font-size:10px;color:rgba(170,136,255,.6);font-style:italic">Loading current task…</span>
+        <button onclick="naraiLoadBoard()" style="background:rgba(170,136,255,.1);border:1px solid rgba(170,136,255,.3);color:#aa88ff;border-radius:6px;padding:4px 10px;font-size:9px;cursor:pointer;font-family:inherit">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:10px" id="narai-board-tabs">
+      <button onclick="naraiBoardTab('posts')" id="nbtab-posts" class="nbtab nbtab-active" style="background:rgba(68,255,136,.15);border:1px solid rgba(68,255,136,.4);color:#44ff88;border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700">📢 Posts</button>
+      <button onclick="naraiBoardTab('videos')" id="nbtab-videos" class="nbtab" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700">🎬 Videos</button>
+      <button onclick="naraiBoardTab('images')" id="nbtab-images" class="nbtab" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700">🖼 Images</button>
+      <button onclick="naraiBoardTab('actions')" id="nbtab-actions" class="nbtab" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2);border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700">⚙️ Actions</button>
+    </div>
+
+    <!-- Board grid -->
+    <div id="narai-board-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;max-height:340px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(170,136,255,.3) transparent">
+      <div style="grid-column:1/-1;text-align:center;padding:30px;color:var(--text3);font-size:11px">Loading activity…</div>
+    </div>
+  </div>
 
   <!-- Hidden elements kept for JS compatibility -->
   <div style="display:none">
@@ -2336,6 +2368,246 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
 </div>
+
+<!-- ════════════════════════════════════════════════════════════════
+     📚 AMAZON KDP — BOOK PUBLISHING COMMAND CENTER
+     ════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-kdpbooks">
+
+  <!-- Top stats row -->
+  <div class="g4" style="margin-bottom:16px">
+    <div class="card">
+      <div class="ct">Published Today</div>
+      <div class="cv gr" id="kdp-stat-today">—</div>
+      <div class="csb">out of 10 genres</div>
+    </div>
+    <div class="card">
+      <div class="ct">Total in Catalog</div>
+      <div class="cv cy" id="kdp-stat-total">—</div>
+      <div class="csb">all-time KDP books</div>
+    </div>
+    <div class="card">
+      <div class="ct">Daily Run Status</div>
+      <div class="cv" id="kdp-stat-status" style="font-size:14px">Checking…</div>
+      <div class="csb" id="kdp-stat-sub">—</div>
+    </div>
+    <div class="card">
+      <div class="ct">Est. First Sale</div>
+      <div class="cv yl" style="font-size:14px">24–72 hrs</div>
+      <div class="csb">after publish · Amazon review window</div>
+    </div>
+  </div>
+
+  <!-- Toggle + controls -->
+  <div class="card" style="margin-bottom:16px">
+    <div class="sh">
+      <div>
+        <div class="st">📚 Daily Publication Engine</div>
+        <div class="ss">Write + publish 10 books per day to Amazon KDP automatically</div>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="btn" id="kdp-master-toggle" onclick="kdpMasterToggle()"
+          style="background:rgba(255,136,0,.12);border-color:rgba(255,136,0,.4);color:#ff9933;font-size:12px;padding:7px 18px;font-weight:700">
+          ▶ RUN TODAY'S PUBLICATIONS
+        </button>
+        <button class="btn bgh bsm" onclick="kdpRunGenre()">+ Single Genre</button>
+        <button class="btn bgh bsm" onclick="refreshKDP()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- Genre toggle grid -->
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:8px" id="kdp-genre-grid">
+      <!-- filled by JS -->
+    </div>
+  </div>
+
+  <!-- Today's run log -->
+  <div class="g2" style="margin-bottom:16px">
+    <div class="card">
+      <div class="sh" style="margin-bottom:10px">
+        <div class="st">Today's Publish Log</div>
+        <button class="btn bgh bsm" onclick="kdpRefreshLog()">↻</button>
+      </div>
+      <div id="kdp-log" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;max-height:220px;overflow-y:auto;padding:10px;font-size:10px;line-height:1.9;color:var(--text3);font-family:monospace">
+        Loading…
+      </div>
+    </div>
+    <div class="card">
+      <div class="sh" style="margin-bottom:10px">
+        <div class="st">Latest KDP Results</div>
+        <span id="kdp-result-ts" class="ss"></span>
+      </div>
+      <div id="kdp-results-list" style="max-height:220px;overflow-y:auto">
+        <div style="color:var(--text3);font-size:11px">No results yet — run a publish session.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Book catalog -->
+  <div class="card">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st">📖 Book Catalog</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="si2" id="kdp-filter-genre" onchange="kdpFilterBooks()" style="width:130px">
+          <option value="">All Genres</option>
+          <option>childrens</option><option>mystery</option><option>adventure</option>
+          <option>historical</option><option>self_help</option><option>romance</option>
+          <option>sci_fi</option><option>fantasy</option><option>horror</option><option>true_crime</option>
+        </select>
+        <span id="kdp-catalog-count" class="ss"></span>
+      </div>
+    </div>
+    <div class="tw">
+      <table class="tbl">
+        <thead><tr>
+          <th>Title</th><th>Genre</th><th>Status</th><th>Words</th><th>ASIN</th><th>Date</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="kdp-catalog-body">
+          <tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Loading catalog…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- How long until first sale info box -->
+  <div class="card" style="margin-top:16px;border-color:rgba(255,136,0,.25);background:rgba(255,136,0,.04)">
+    <div class="st" style="color:#ff9933;margin-bottom:10px">⏱ How Long Until Your First Sale?</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;font-size:11px">
+      <div>
+        <div style="color:var(--cyan);font-weight:700;margin-bottom:4px">📋 Amazon Review</div>
+        <div style="color:var(--text2)">24–72 hours after publish. Amazon reviews every new title before it goes live on the store.</div>
+      </div>
+      <div>
+        <div style="color:var(--green);font-weight:700;margin-bottom:4px">🔍 Indexing & Discovery</div>
+        <div style="color:var(--text2)">Day 3–7. Amazon's algorithm starts indexing your book for keyword searches. Kindle Unlimited exposure begins.</div>
+      </div>
+      <div>
+        <div style="color:var(--yellow);font-weight:700;margin-bottom:4px">💰 First Sale</div>
+        <div style="color:var(--text2)">Typically day 1–14. With 10 books published daily, you have 10× more chances. More books = faster first sale.</div>
+      </div>
+    </div>
+    <div style="margin-top:12px;padding:10px;background:rgba(0,255,136,.06);border-radius:8px;border:1px solid rgba(0,255,136,.15);font-size:10px;color:var(--text2)">
+      📊 <b style="color:var(--green)">Revenue math:</b> 10 books/day × $2.99 × 70% royalty = <b style="color:var(--green)">$2.09/sale per book</b>.
+      Month 1: 300 books live. If 1% sell 1 copy/month = <b style="color:var(--green)">$6.27/month passive</b>.
+      Month 3: 900 books. At 2% sell rate = <b style="color:var(--green)">$376/month growing</b>.
+      Scales automatically — no extra work.
+    </div>
+  </div>
+
+</div>
+<!-- ════════════════════════════════════════════════════════════════ -->
+
+<!-- ══════════════════════════════════════════════════════════════════════════
+     💰 MONEY COMMAND CENTER — Week 9
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-money">
+
+  <!-- Header -->
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">💰 Money Command Center</div>
+      <div class="ss">Stripe payments · KDP royalties · Email list · Affiliate clicks — all in one place</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bc2 bsm" onclick="refreshMoney()">↺ Refresh</button>
+      <button class="btn bg2 bsm" onclick="moneyRecordManual()">+ Record Revenue</button>
+    </div>
+  </div>
+
+  <!-- Top stats row -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Today's Revenue</div>
+      <div class="cv gr" id="money-today">—</div>
+      <div class="csb">Stripe + KDP est.</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Stripe This Week</div>
+      <div class="cv cy" id="money-stripe-week">—</div>
+      <div class="csb">7-day payments</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Stripe All Time</div>
+      <div class="cv yl" id="money-stripe-total">—</div>
+      <div class="csb">total recorded</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Email List</div>
+      <div class="cv pu" id="money-list-size">—</div>
+      <div class="csb">ConvertKit subscribers</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Leads Today</div>
+      <div class="cv" id="money-leads-today" style="color:var(--orange)">—</div>
+      <div class="csb">captured this session</div>
+    </div>
+  </div>
+
+  <!-- KDP + Affiliate row -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+
+    <!-- KDP Revenue Panel -->
+    <div class="card">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:12px">📚 Amazon KDP</div>
+        <div class="ss" id="kdp-money-sub">Loading…</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+        <div class="csm"><div class="ct">Published</div><div class="cv gr" id="money-kdp-pub">—</div><div class="csb">genres live</div></div>
+        <div class="csm"><div class="ct">Est. Daily</div><div class="cv cy" id="money-kdp-daily">—</div><div class="csb">royalty est.</div></div>
+        <div class="csm"><div class="ct">Est. Monthly</div><div class="cv yl" id="money-kdp-monthly">—</div><div class="csb">at current rate</div></div>
+      </div>
+      <div id="money-kdp-genres" style="display:flex;flex-wrap:wrap;gap:6px"></div>
+    </div>
+
+    <!-- Monetization Stats Panel -->
+    <div class="card">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:12px">🔗 Monetization Engine</div>
+        <div class="ss">Auto-injected affiliate links across all blog posts</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">
+        <div class="csm"><div class="ct">Blog Posts</div><div class="cv gr" id="money-mono-posts">—</div><div class="csb">monetized</div></div>
+        <div class="csm"><div class="ct">Aff. Links</div><div class="cv cy" id="money-mono-links">—</div><div class="csb">injected total</div></div>
+        <div class="csm"><div class="ct">Clicks (7d)</div><div class="cv yl" id="money-aff-clicks">—</div><div class="csb">affiliate clicks</div></div>
+      </div>
+      <div style="padding:10px;background:rgba(0,255,136,.06);border-radius:8px;border:1px solid rgba(0,255,136,.15);font-size:10px;color:var(--text2)">
+        Every blog post auto-gets <b style="color:var(--green)">contextual affiliate links</b> + a CTA block.
+        Amazon, ConvertKit, Jasper, Binance — matched to topic automatically.
+      </div>
+    </div>
+  </div>
+
+  <!-- Stripe Recent Payments -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:12px">💳 Recent Stripe Payments</div>
+      <div class="ss">Webhook auto-records every checkout.session + invoice</div>
+    </div>
+    <div id="money-stripe-payments">
+      <div style="text-align:center;padding:24px;color:var(--text3);font-size:11px">
+        No payments yet — add your Stripe webhook URL to your Stripe Dashboard:<br>
+        <code style="color:var(--cyan2);margin-top:6px;display:block">https://your-server:5050/api/stripe/webhook</code>
+      </div>
+    </div>
+  </div>
+
+  <!-- Revenue goal progress -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;font-weight:700;color:var(--text)">Monthly Revenue Goal</div>
+      <div style="font-size:10px;color:var(--text3)" id="money-goal-lbl">$0 / $1,000</div>
+    </div>
+    <div style="height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden">
+      <div id="money-goal-bar" style="height:100%;background:linear-gradient(90deg,#00ff88,#00d4ff);border-radius:4px;width:0%;transition:width .6s"></div>
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-top:6px">
+      Stripe all-time total · Set goal via <code>MONTHLY_REVENUE_GOAL</code> env var (default $1,000)
+    </div>
+  </div>
+
+</div>
+
 </div></div></div>
 <!-- ══ ⌘K COMMAND BAR ═════════════════════════════════════════════════════ -->
 <div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)closeCmdBar()">
@@ -2371,13 +2643,14 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+
 <div id="toast-container"></div>
 
 <script>
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -2413,6 +2686,8 @@ function nav(p){
   if(p==='gsc') refreshGSC();
   if(p==='telegramalerts') refreshTelegram();
   if(p==='adsboard') loadAdsQueue();
+  if(p==='kdpbooks') refreshKDP();
+  if(p==='money') refreshMoney();
   if(p==='pixelagents') initPixelAgents();
   if(p==='narai') initNarAI();
   if(p==='whatsapp'){waRefresh();}
@@ -4652,11 +4927,310 @@ async function loadAdsQueue(){
   }catch(e){return {queue:[]};}
 }
 
+// ── Amazon KDP ────────────────────────────────────────────────────────────────
+
+const KDP_GENRES = ['childrens','mystery','adventure','historical','self_help','romance','sci_fi','fantasy','horror','true_crime'];
+let _kdpPublishing = false;
+let _kdpPollTimer = null;
+
+async function refreshKDP(){
+  await Promise.all([kdpRefreshStats(), kdpRefreshGenreGrid(), kdpRefreshLog(), kdpRefreshCatalog()]);
+}
+
+async function kdpRefreshStats(){
+  try{
+    const d = await api('/api/kdp/stats');
+    document.getElementById('kdp-stat-today').textContent  = d.published_today ?? '—';
+    document.getElementById('kdp-stat-total').textContent  = d.total_books      ?? '—';
+    const statEl = document.getElementById('kdp-stat-status');
+    if(statEl){
+      const s = d.status ?? 'idle';
+      statEl.textContent = s;
+      statEl.style.color = s==='running' ? 'var(--yellow)' : s==='done' ? 'var(--green)' : 'var(--text2)';
+    }
+    const subEl = document.getElementById('kdp-stat-sub');
+    if(subEl){
+      const errs = d.errors_today || 0;
+      const asins = d.live_asins || 0;
+      subEl.textContent = errs ? `${errs} errors today` : asins ? `${asins} ASINs live` : 'Ready to publish';
+    }
+    // Update genre grid statuses if we have them
+    if(d.genre_status){
+      Object.entries(d.genre_status).forEach(([g, s])=>{
+        const el = document.getElementById('kdp-genre-status-'+g);
+        if(el){
+          el.textContent = s;
+          el.style.color = s==='published'||s==='review_required' ? 'var(--green)' : s==='error' ? 'var(--red)' : 'var(--text3)';
+        }
+      });
+    }
+  }catch(e){
+    console.error('KDP stats error:', e);
+  }
+}
+
+function kdpRefreshGenreGrid(){
+  const grid = document.getElementById('kdp-genre-grid');
+  if(!grid) return;
+  grid.innerHTML = KDP_GENRES.map(g=>{
+    const label = g.replace('_',' ').replace(/\b\w/g,c=>c.toUpperCase());
+    return `<div id="kdp-genre-${g}" onclick="kdpRunSingleGenre('${g}')"
+      style="background:rgba(255,136,0,.07);border:1px solid rgba(255,136,0,.2);border-radius:8px;padding:10px 8px;text-align:center;cursor:pointer;transition:all .2s"
+      onmouseover="this.style.background='rgba(255,136,0,.15)'" onmouseout="this.style.background='rgba(255,136,0,.07)'">
+      <div style="font-size:14px;margin-bottom:4px">${kdpGenreIcon(g)}</div>
+      <div style="font-size:10px;font-weight:700;color:#ff9933">${label}</div>
+      <div id="kdp-genre-status-${g}" style="font-size:9px;color:var(--text3);margin-top:3px">idle</div>
+    </div>`;
+  }).join('');
+}
+
+function kdpGenreIcon(g){
+  const m={childrens:'🧸',mystery:'🔍',adventure:'🗺️',historical:'🏛️',self_help:'🧠',romance:'💕',sci_fi:'🚀',fantasy:'🐉',horror:'👻',true_crime:'🔪'};
+  return m[g]||'📖';
+}
+
+async function kdpRefreshLog(){
+  const el = document.getElementById('kdp-log');
+  if(!el) return;
+  try{
+    const d = await api('/api/kdp/log?lines=80');
+    if(d && d.lines && d.lines.length){
+      el.innerHTML = d.lines.map(l=>{
+        let col='var(--text3)';
+        if(l.includes('✅')||l.includes('published')) col='var(--green)';
+        else if(l.includes('❌')||l.includes('ERROR')) col='var(--red)';
+        else if(l.includes('⚠️')||l.includes('WARNING')) col='var(--yellow)';
+        else if(l.includes('📝')||l.includes('📦')||l.includes('🚀')) col='var(--cyan)';
+        return `<div style="color:${col}">${esc(l)}</div>`;
+      }).join('');
+      el.scrollTop = el.scrollHeight;
+    } else {
+      el.innerHTML='<div style="color:var(--text3)">No log entries yet.</div>';
+    }
+  }catch(e){
+    // fallback: try to read log file via outputs endpoint
+    el.innerHTML='<div style="color:var(--text3)">Log unavailable — run a publish session to see output.</div>';
+  }
+}
+
+async function kdpRefreshCatalog(){
+  const tbody = document.getElementById('kdp-catalog-body');
+  if(!tbody) return;
+  try{
+    const filterGenre = document.getElementById('kdp-filter-genre')?.value || '';
+    const d = await api('/api/kdp/books' + (filterGenre ? `?genre=${filterGenre}` : ''));
+    const books = d.books || [];
+    document.getElementById('kdp-catalog-count').textContent = books.length + ' books';
+    if(!books.length){
+      tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">No books found yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = books.map(b=>{
+      const statusIcon = b.status==='published'||b.status==='review_required' ? '✅' : b.status==='error' ? '❌' : '📝';
+      const asinLink = b.asin ? `<a href="https://www.amazon.com/dp/${b.asin}" target="_blank" style="color:var(--cyan);font-size:10px">${b.asin}</a>` : '<span style="color:var(--text3);font-size:10px">—</span>';
+      const words = b.words ? `<span style="font-size:10px">${(b.words/1000).toFixed(1)}k</span>` : '—';
+      return `<tr>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(b.title)}">${esc(b.title)}</td>
+        <td style="font-size:10px">${esc(b.genre)}</td>
+        <td>${statusIcon} <span style="font-size:10px;color:${b.status==='published'?'var(--green)':b.status==='error'?'var(--red)':'var(--text3)'}">${b.status||'written'}</span></td>
+        <td>${words}</td>
+        <td>${asinLink}</td>
+        <td style="font-size:10px;color:var(--text3)">${b.date||''}</td>
+        <td><button class="btn bgh bsm" onclick="kdpPublishSingle('${esc(b.genre)}','${esc(b.file||'')}')">↑ KDP</button></td>
+      </tr>`;
+    }).join('');
+  }catch(e){
+    // API may not be wired yet — show file-based fallback
+    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Catalog API not available — books are in outputs/books/</td></tr>';
+  }
+}
+
+function kdpFilterBooks(){ kdpRefreshCatalog(); }
+
+async function kdpMasterToggle(){
+  if(_kdpPublishing){
+    toast('Publish already running…','info');
+    return;
+  }
+  if(!confirm('Run today\'s full KDP publish?\n\nThis will write 10 books + upload them to Amazon KDP.\nMay take 1–2 hours.')){return;}
+  _kdpPublishing = true;
+  const btn = document.getElementById('kdp-master-toggle');
+  if(btn){btn.textContent='⏳ Running…';btn.disabled=true;}
+  const dot = document.getElementById('kdp-toggle-dot');
+  if(dot){dot.style.background='#ff9933';}
+  toast('KDP daily publish started!','info');
+  try{
+    await api('/api/kdp/run', 'POST', {mode:'today'});
+    toast('Publish job launched — check log for progress','info');
+    _startKdpPoll();
+  }catch(e){
+    // fallback: call NarAI publish_books tool
+    try{
+      await api('/api/narai/tool', 'POST', {tool:'publish_books', params:{mode:'today'}});
+      toast('KDP publish triggered via NarAI','info');
+      _startKdpPoll();
+    }catch(e2){
+      toast('Could not start publish — check server','error');
+      _kdpPublishing=false;
+      if(btn){btn.textContent='▶ RUN TODAY\'S PUBLICATIONS';btn.disabled=false;}
+      if(dot){dot.style.background='#555';}
+    }
+  }
+}
+
+function kdpTogglePublish(){
+  if(_kdpPublishing){
+    toast('KDP publish is already running…','info');
+    return;
+  }
+  kdpMasterToggle();
+}
+
+function kdpRunGenre(){
+  const g = prompt('Enter genre to publish:\n\n'+KDP_GENRES.join(', '));
+  if(g && KDP_GENRES.includes(g.trim())){
+    kdpRunSingleGenre(g.trim());
+  } else if(g) {
+    toast('Unknown genre: '+g,'error');
+  }
+}
+
+async function kdpRunSingleGenre(genre){
+  const statusEl = document.getElementById('kdp-genre-status-'+genre);
+  if(statusEl) statusEl.textContent='running…';
+  try{
+    await api('/api/kdp/run', 'POST', {mode:'genre', genre});
+    toast(`${genre} publish started`,'info');
+    if(statusEl) statusEl.textContent='queued';
+    _startKdpPoll();
+  }catch(e){
+    try{
+      await api('/api/narai/tool','POST',{tool:'publish_books',params:{mode:'genre',genre}});
+      toast(`${genre} queued via NarAI`,'info');
+      if(statusEl) statusEl.textContent='queued';
+    }catch(e2){
+      toast('Failed to start '+genre,'error');
+      if(statusEl) statusEl.textContent='error';
+    }
+  }
+}
+
+async function kdpPublishSingle(genre, file){
+  toast(`Publishing ${genre}…`,'info');
+  try{
+    await api('/api/kdp/run','POST',{mode:'publish_only',genre,file});
+    toast(`${genre} upload started`,'info');
+    _startKdpPoll();
+  }catch(e){
+    toast('Upload failed: '+e.message,'error');
+  }
+}
+
+function _startKdpPoll(){
+  if(_kdpPollTimer) return;
+  _kdpPollTimer = setInterval(async()=>{
+    await kdpRefreshLog();
+    // detect completion
+    const log = document.getElementById('kdp-log')?.innerText||'';
+    if(log.includes('DAILY PUBLISH COMPLETE')||log.includes('Done:')){
+      _kdpPublishing=false;
+      const btn=document.getElementById('kdp-master-toggle');
+      if(btn){btn.textContent='▶ RUN TODAY\'S PUBLICATIONS';btn.disabled=false;}
+      const dot=document.getElementById('kdp-toggle-dot');
+      if(dot){dot.style.background='#00ff88';}
+      clearInterval(_kdpPollTimer);
+      _kdpPollTimer=null;
+      await kdpRefreshStats();
+      await kdpRefreshCatalog();
+      toast('KDP daily publish complete!','success');
+    }
+  }, 8000);
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 
+// ──────────────────────────────────────────────────────────────────────────────
+// 💰 MONEY COMMAND CENTER — Week 9
+// ──────────────────────────────────────────────────────────────────────────────
 
-// ══════════════════════════════════════════════════════════════════════════════
+async function refreshMoney(){
+  try {
+    const d = await fetch('/api/money/summary').then(r=>r.json());
+    const fmt = v => v===undefined||v===null ? '—' : (typeof v==='number' ? '$'+v.toFixed(2) : v);
 
+    // Top stats
+    document.getElementById('money-today').textContent       = fmt(d.total_revenue_today);
+    document.getElementById('money-stripe-week').textContent = fmt(d.stripe?.week);
+    document.getElementById('money-stripe-total').textContent= fmt(d.stripe?.total);
+    document.getElementById('money-list-size').textContent   = (d.leads?.list_size||0).toLocaleString();
+    document.getElementById('money-leads-today').textContent = d.leads?.today ?? '—';
+
+    // KDP panel
+    const kdp = d.kdp || {};
+    document.getElementById('money-kdp-pub').textContent     = kdp.published ?? '—';
+    document.getElementById('money-kdp-daily').textContent   = fmt(kdp.est_daily);
+    document.getElementById('money-kdp-monthly').textContent = fmt((kdp.est_daily||0)*30);
+    document.getElementById('kdp-money-sub').textContent     = `${kdp.published||0} published · ${kdp.errors||0} errors · est. $${((kdp.est_daily||0)*30).toFixed(0)}/mo`;
+    const genreEl = document.getElementById('money-kdp-genres');
+    if(genreEl && kdp.genres){
+      genreEl.innerHTML = Object.entries(kdp.genres).map(([g,v])=>{
+        const status = typeof v==='object' ? v.status : v;
+        const col = status==='published' ? '#00ff88' : status==='error' ? '#ff5050' : '#888';
+        return `<span style="font-size:10px;padding:3px 8px;border-radius:12px;background:${col}22;border:1px solid ${col}44;color:${col}">${g}</span>`;
+      }).join('');
+    }
+
+    // Monetization panel
+    const mono = d.monetization || {};
+    document.getElementById('money-mono-posts').textContent  = mono.total_injections ?? '—';
+    document.getElementById('money-mono-links').textContent  = mono.total_links ?? '—';
+    document.getElementById('money-aff-clicks').textContent  = d.affiliate_clicks_7d ?? '—';
+
+    // Stripe payments table
+    const pmtEl = document.getElementById('money-stripe-payments');
+    const pmts  = d.stripe?.recent || [];
+    if(pmts.length){
+      pmtEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="color:var(--text3);border-bottom:1px solid rgba(255,255,255,.08)">
+          <th style="text-align:left;padding:6px 8px">Time</th>
+          <th style="text-align:left;padding:6px 8px">Type</th>
+          <th style="text-align:left;padding:6px 8px">Email</th>
+          <th style="text-align:right;padding:6px 8px">Amount</th>
+        </tr></thead>
+        <tbody>${pmts.map(p=>`<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+          <td style="padding:6px 8px;color:var(--text3)">${p.ts?.slice(0,16)||'—'}</td>
+          <td style="padding:6px 8px;color:var(--cyan2)">${p.type||'—'}</td>
+          <td style="padding:6px 8px;color:var(--text2)">${p.email||'—'}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--green);font-weight:700">$${(p.amount||0).toFixed(2)}</td>
+        </tr>`).join('')}</tbody>
+      </table>`;
+    } else {
+      pmtEl.innerHTML = `<div style="text-align:center;padding:24px;color:var(--text3);font-size:11px">
+        No Stripe payments recorded yet.<br>
+        <code style="color:var(--cyan2);margin-top:6px;display:block">Webhook → https://your-server:5050/api/stripe/webhook</code>
+        <button class="btn bgh bsm" style="margin-top:10px" onclick="moneyRecordManual()">+ Record Manual Payment</button>
+      </div>`;
+    }
+
+    // Goal bar
+    const goal = 1000;
+    const pct  = Math.min(100, ((d.stripe?.total||0)/goal)*100);
+    document.getElementById('money-goal-bar').style.width = pct+'%';
+    document.getElementById('money-goal-lbl').textContent = `$${(d.stripe?.total||0).toFixed(2)} / $${goal.toLocaleString()}`;
+
+  } catch(e){ console.error('Money refresh failed',e); }
+}
+
+async function moneyRecordManual(){
+  const source = prompt('Revenue source (e.g. kdp_royalty, gumroad, paypal):','kdp_royalty');
+  if(!source) return;
+  const amt = parseFloat(prompt('Amount in USD:','0.00'));
+  if(isNaN(amt)||amt<=0){ toast('Invalid amount','error'); return; }
+  const note = prompt('Note (optional):','');
+  const r = await fetch(`/api/money/record?source=${encodeURIComponent(source)}&amount=${amt}&note=${encodeURIComponent(note||'')}`,{method:'POST'}).then(r=>r.json());
+  if(r.status==='recorded'){ toast(`Recorded $${amt} from ${source}`,'success'); refreshMoney(); }
+  else toast('Record failed','error');
+}
 
 // ══════════════════════════════════════════════════════════════════════════════
 // PIXEL AGENTS v9 — Isometric 5D · Shooting Stars · Dust Puffs · Bestie Arcs · Code Rain · FPS · Touch
@@ -6090,6 +6664,129 @@ let _naraiPulse = 0;
 let _naraiCanvas = null;
 let _naraiRaf = null;
 
+// ── NarAI Activity Board ──────────────────────────────────────────────────────
+let _naraiBoardData = {posts:[], videos:[], images:[], actions:[], current:null};
+let _naraiBoardTab  = 'posts';
+
+const _NB_TAB_COLORS = {
+  posts:   {bg:'rgba(68,255,136,.15)',  border:'rgba(68,255,136,.4)',  color:'#44ff88'},
+  videos:  {bg:'rgba(0,204,255,.15)',   border:'rgba(0,204,255,.4)',   color:'#00ccff'},
+  images:  {bg:'rgba(255,204,68,.15)',  border:'rgba(255,204,68,.4)',  color:'#ffcc44'},
+  actions: {bg:'rgba(170,136,255,.15)', border:'rgba(170,136,255,.4)', color:'#aa88ff'},
+};
+
+function _nbTimeAgo(ts){
+  if(!ts) return '';
+  const d = new Date(ts), now = Date.now(), diff = now - d.getTime();
+  if(isNaN(diff)) return ts.slice(0,16).replace('T',' ');
+  const m = Math.floor(diff/60000);
+  if(m < 1) return 'just now';
+  if(m < 60) return m + 'm ago';
+  const h = Math.floor(m/60);
+  if(h < 24) return h + 'h ago';
+  return Math.floor(h/24) + 'd ago';
+}
+
+function naraiBoardTab(tab){
+  _naraiBoardTab = tab;
+  // Update tab styles
+  ['posts','videos','images','actions'].forEach(t=>{
+    const btn = document.getElementById('nbtab-'+t);
+    if(!btn) return;
+    const c = _NB_TAB_COLORS[t];
+    if(t === tab){
+      btn.style.background = c.bg; btn.style.borderColor = c.border; btn.style.color = c.color;
+    } else {
+      btn.style.background = 'rgba(255,255,255,.05)'; btn.style.borderColor = 'rgba(255,255,255,.12)'; btn.style.color = 'var(--text2)';
+    }
+  });
+  _naraiRenderBoard();
+}
+
+function _naraiRenderBoard(){
+  const grid = document.getElementById('narai-board-grid');
+  if(!grid) return;
+  const items = _naraiBoardData[_naraiBoardTab] || [];
+  const c = _NB_TAB_COLORS[_naraiBoardTab];
+
+  if(!items.length){
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:40px;color:var(--text3);font-size:11px">No ${_naraiBoardTab} yet — NarAI is working on it</div>`;
+    return;
+  }
+
+  grid.innerHTML = items.map(item=>{
+    const evt  = item.event || '';
+    const ts   = _nbTimeAgo(item.ts);
+    const data = item.data || {};
+    // Pull any URL from data
+    const url  = data.url || data.video_url || data.image_url || data.post_url || data.link || '';
+    const platform = data.platform || data.platforms || '';
+    const emoji = evt.match(/[\u{1F300}-\u{1FFFF}]/gu)?.[0] || (
+      _naraiBoardTab==='posts'?'📢':_naraiBoardTab==='videos'?'🎬':_naraiBoardTab==='images'?'🖼':'⚙️'
+    );
+    // Strip leading emoji from event text for cleaner display
+    const label = evt.replace(/^[\u{1F300}-\u{1FFFF}\s]+/gu,'').trim() || evt;
+
+    return `<div style="background:rgba(10,12,18,.8);border:1px solid ${c.border.replace('.4','.2')};border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:6px;cursor:default;transition:border-color .2s"
+      onmouseover="this.style.borderColor='${c.border}'" onmouseout="this.style.borderColor='${c.border.replace('.4','.2')}'">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="width:28px;height:28px;border-radius:8px;background:${c.bg};display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0">${emoji}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;color:${c.color};font-weight:700;line-height:1.4;word-break:break-word">${esc(label)}</div>
+          ${platform?`<div style="font-size:9px;color:var(--text3);margin-top:2px">${esc(String(platform))}</div>`:''}
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px">
+        <span style="font-size:8px;color:rgba(255,255,255,.3)">${ts}</span>
+        ${url?`<a href="${esc(url)}" target="_blank" style="font-size:8px;color:${c.color};text-decoration:none;opacity:.7;hover:opacity:1">↗ View</a>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function naraiLoadBoard(){
+  try {
+    const data = await api('/api/narai/feed?limit=200', 'GET');
+    _naraiBoardData = data;
+    // Current task
+    const cur = document.getElementById('narai-board-current');
+    if(cur && data.current){
+      const evt = (data.current.event||'').replace(/^[\u{1F300}-\u{1FFFF}\s]+/gu,'').trim();
+      cur.textContent = '⚡ ' + (evt.length > 60 ? evt.slice(0,60)+'…' : evt);
+    }
+    _naraiRenderBoard();
+  } catch(e){ console.warn('Board load failed', e); }
+}
+
+let _autopilotEnabled = false;
+async function toggleAutopilot(){
+  const btn = document.getElementById('autopilot-btn');
+  if(btn) btn.disabled = true;
+  try {
+    if(_autopilotEnabled){
+      await api('/api/autopilot/disable', 'POST');
+      _autopilotEnabled = false;
+      if(btn){ btn.textContent='🤖 Autopilot OFF'; btn.style.background='rgba(136,68,255,.15)'; btn.style.borderColor='rgba(136,68,255,.4)'; btn.style.color='#cc88ff'; }
+    } else {
+      await api('/api/autopilot/enable?mode=full', 'POST');
+      _autopilotEnabled = true;
+      if(btn){ btn.textContent='🤖 Autopilot ON'; btn.style.background='rgba(68,255,136,.15)'; btn.style.borderColor='rgba(68,255,136,.4)'; btn.style.color='#44ff88'; }
+    }
+  } catch(e){ console.error('Autopilot toggle failed', e); }
+  if(btn) btn.disabled = false;
+}
+async function _initAutopilotState(){
+  try {
+    const st = await api('/api/autopilot/status', 'GET');
+    _autopilotEnabled = st.enabled === true;
+    const btn = document.getElementById('autopilot-btn');
+    if(btn){
+      if(_autopilotEnabled){ btn.textContent='🤖 Autopilot ON'; btn.style.background='rgba(68,255,136,.15)'; btn.style.borderColor='rgba(68,255,136,.4)'; btn.style.color='#44ff88'; }
+      else { btn.textContent='🤖 Autopilot OFF'; btn.style.background='rgba(136,68,255,.15)'; btn.style.borderColor='rgba(136,68,255,.4)'; btn.style.color='#cc88ff'; }
+    }
+  } catch(e){}
+}
+
 async function naraiRefresh(){
   try {
     const st = await api('/api/narai/status');
@@ -6579,22 +7276,7 @@ async function naraiSubmitHumanity(){
 // ── NarAI auto-initiates conversation when idle ────────────────────────────────
 let _naraiAutoTalkTimer = null;
 function naraiScheduleAutoTalk(){
-  if(_naraiAutoTalkTimer) clearTimeout(_naraiAutoTalkTimer);
-  // 3–6 minutes: NarAI spontaneously asks humanity question or sends a thought
-  const delay = (180 + Math.random()*180) * 1000;
-  _naraiAutoTalkTimer = setTimeout(async ()=>{
-    const pg = document.getElementById('page-narai');
-    if(!pg || pg.style.display==='none') { naraiScheduleAutoTalk(); return; }
-    try {
-      const result = await api('/api/narai/ask_human');
-      _naraiCurrentQ = result.question || '';
-      const qEl = document.getElementById('narai-humanity-question');
-      if(qEl) qEl.textContent = _naraiCurrentQ;
-      _naraiAddMessage('narai', '🌍 ' + _naraiCurrentQ, null);
-      naraiSpeak(_naraiCurrentQ);
-    } catch(e){}
-    naraiScheduleAutoTalk();
-  }, delay);
+  // Auto-questioning disabled — NarAI no longer sends unsolicited questions
 }
 
 async function naraiCreateSkill(){
@@ -6735,8 +7417,11 @@ function initNarAI(){
   _naraiSendPending = false;
   if(window.speechSynthesis) window.speechSynthesis.getVoices();
   naraiRefresh();
+  _initAutopilotState();
+  naraiLoadBoard();
   if(_naraiInterval) clearInterval(_naraiInterval);
   _naraiInterval = setInterval(naraiRefresh, 15000);
+  setInterval(naraiLoadBoard, 30000);
   naraiScheduleAutoTalk();
   // Greeting
   setTimeout(async ()=>{

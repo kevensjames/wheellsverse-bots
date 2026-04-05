@@ -97,6 +97,16 @@ TONE: {tone}
                          model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
                          max_tokens=3500)
 
+        # ── Monetization: inject affiliate links + CTA ─────────────────────
+        try:
+            from core.monetization import get_monetization_engine
+            engine = get_monetization_engine()
+            result = engine.inject_affiliate_links(result, topic=topic)
+            result += engine.generate_cta(topic=topic, cta_type="auto")
+            self.logger.info("Monetization injected: affiliate links + CTA added")
+        except Exception as _me:
+            self.logger.warning(f"Monetization injection skipped: {_me}")
+
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
         safe_keyword = target_keyword.replace(" ", "_")[:30]
