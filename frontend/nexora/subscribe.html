@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Subscribe — NEXORA Creator Page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060810;--surface:#0c1018;--surface2:#111827;--cyan:#00d4ff;--gold:#ffd700;--green:#00ff88;--text:#e8edf5;--text2:#8899aa;--text3:#4a5568;--border:rgba(0,212,255,0.1);--border2:rgba(0,212,255,0.25)}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0 5%;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.logo{font-size:1.1rem;font-weight:800;color:var(--cyan);letter-spacing:-0.5px}
+.logo span{color:var(--gold)}
+.nav-cta{background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;padding:.5rem 1.2rem;border-radius:8px;font-weight:700;font-size:.85rem;text-decoration:none}
+
+/* PROFILE HEADER */
+.profile-banner{height:200px;background:linear-gradient(135deg,#0d1829,#1a2235,#0d1829);position:relative;overflow:hidden}
+.profile-banner::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 100%,rgba(0,212,255,0.12),transparent)}
+.profile-wrap{max-width:860px;margin:0 auto;padding:0 20px;position:relative}
+.profile-avatar{width:90px;height:90px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),#a855f7);border:4px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:2.2rem;font-weight:800;position:relative;margin-top:-45px}
+.profile-info{padding:16px 0 24px}
+.profile-name{font-size:1.4rem;font-weight:800;letter-spacing:-0.5px}
+.profile-handle{font-size:.875rem;color:var(--text2);margin-bottom:10px}
+.profile-bio{font-size:.9rem;color:var(--text2);max-width:500px;line-height:1.6;margin-bottom:16px}
+.profile-stats{display:flex;gap:28px}
+.prof-stat .num{font-size:1.1rem;font-weight:800}
+.prof-stat .lbl{font-size:.75rem;color:var(--text2)}
+
+/* LAYOUT */
+.layout{max-width:860px;margin:32px auto;padding:0 20px;display:grid;grid-template-columns:1fr 320px;gap:24px}
+@media(max-width:700px){.layout{grid-template-columns:1fr}}
+
+/* CONTENT PREVIEW */
+.preview-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:24px}
+.preview-thumb{aspect-ratio:1;border-radius:6px;overflow:hidden;position:relative;cursor:pointer}
+.preview-thumb img{width:100%;height:100%;object-fit:cover;filter:blur(8px);transform:scale(1.1)}
+.thumb-placeholder{width:100%;height:100%;background:linear-gradient(135deg,var(--surface2),var(--surface));display:flex;align-items:center;justify-content:center;font-size:1.8rem}
+.lock-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.4);font-size:1.5rem}
+.preview-label{text-align:center;font-size:.85rem;color:var(--text2);margin-bottom:24px}
+
+/* SUBSCRIBE CARD */
+.sub-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;position:sticky;top:80px}
+.sub-card-header{background:linear-gradient(135deg,rgba(0,212,255,.08),rgba(168,85,247,.06));padding:24px;border-bottom:1px solid var(--border)}
+.sub-price{font-size:2.2rem;font-weight:800;letter-spacing:-1px;color:var(--gold)}
+.sub-price span{font-size:.9rem;font-weight:500;color:var(--text2)}
+.sub-desc{font-size:.8rem;color:var(--text2);margin-top:4px}
+.sub-perks{padding:20px 24px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--border)}
+.perk{display:flex;align-items:center;gap:10px;font-size:.875rem}
+.perk::before{content:'✓';color:var(--green);font-weight:800;font-size:.9rem;flex-shrink:0}
+.sub-actions{padding:20px 24px;display:flex;flex-direction:column;gap:10px}
+.btn-sub{width:100%;padding:15px;border-radius:10px;font-weight:700;font-size:1rem;cursor:pointer;border:none;transition:all .25s}
+.btn-sub.primary{background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000}
+.btn-sub.primary:hover{opacity:.85;transform:translateY(-1px)}
+.btn-sub.ghost{background:transparent;color:var(--cyan);border:1px solid var(--border2)}
+.btn-sub.ghost:hover{background:rgba(0,212,255,.08)}
+.sub-note{font-size:.72rem;color:var(--text3);text-align:center}
+
+/* POSTS FEED */
+.feed-post{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;margin-bottom:16px}
+.post-header{padding:16px 20px;display:flex;align-items:center;gap:12px}
+.post-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+.post-meta{flex:1}
+.post-name{font-size:.875rem;font-weight:700}
+.post-time{font-size:.75rem;color:var(--text2)}
+.post-body{padding:0 20px 20px;font-size:.9rem;color:var(--text2);line-height:1.65}
+.post-locked{margin:0 20px 20px;padding:32px;border:2px dashed var(--border2);border-radius:10px;text-align:center;background:rgba(0,212,255,.02)}
+.post-locked h4{font-size:.9rem;font-weight:700;margin-bottom:6px}
+.post-locked p{font-size:.8rem;color:var(--text2);margin-bottom:16px}
+.unlock-btn{background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;border:none;padding:10px 24px;border-radius:8px;font-weight:700;font-size:.85rem;cursor:pointer;transition:opacity .2s}
+.unlock-btn:hover{opacity:.85}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="logo">NEX<span>ORA</span></div>
+  <a href="index.html#pricing" class="nav-cta">Become a Creator →</a>
+</nav>
+
+<!-- PROFILE BANNER -->
+<div class="profile-banner"></div>
+<div class="profile-wrap">
+  <div class="profile-avatar">J</div>
+  <div class="profile-info">
+    <div class="profile-name">Creator Name</div>
+    <div class="profile-handle">@yourhandle · NEXORA Founding Creator</div>
+    <div class="profile-bio">Exclusive content, behind the scenes, live streams, and more. Subscribe to unlock everything I create.</div>
+    <div class="profile-stats">
+      <div class="prof-stat"><div class="num">0</div><div class="lbl">Subscribers</div></div>
+      <div class="prof-stat"><div class="num">0</div><div class="lbl">Posts</div></div>
+      <div class="prof-stat"><div class="num">0</div><div class="lbl">Live streams</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="layout">
+  <div>
+    <!-- Preview grid -->
+    <div class="preview-grid">
+      <div class="preview-thumb"><div class="thumb-placeholder">🖼️</div><div class="lock-overlay">🔒</div></div>
+      <div class="preview-thumb"><div class="thumb-placeholder">🎥</div><div class="lock-overlay">🔒</div></div>
+      <div class="preview-thumb"><div class="thumb-placeholder">📸</div><div class="lock-overlay">🔒</div></div>
+      <div class="preview-thumb"><div class="thumb-placeholder">🎵</div><div class="lock-overlay">🔒</div></div>
+      <div class="preview-thumb"><div class="thumb-placeholder">🎬</div><div class="lock-overlay">🔒</div></div>
+      <div class="preview-thumb"><div class="thumb-placeholder">✨</div><div class="lock-overlay">🔒</div></div>
+    </div>
+    <div class="preview-label">Subscribe to unlock all content</div>
+
+    <!-- Free post -->
+    <div class="feed-post">
+      <div class="post-header">
+        <div class="post-avatar">J</div>
+        <div class="post-meta">
+          <div class="post-name">Creator Name</div>
+          <div class="post-time">Welcome post · Free</div>
+        </div>
+      </div>
+      <div class="post-body">Hey! Welcome to my NEXORA page. Subscribe to get access to all my exclusive content — photos, videos, behind the scenes, and live streams. Can't wait to connect with you here! 🙏</div>
+    </div>
+
+    <!-- Locked post -->
+    <div class="feed-post">
+      <div class="post-header">
+        <div class="post-avatar">J</div>
+        <div class="post-meta">
+          <div class="post-name">Creator Name</div>
+          <div class="post-time">Exclusive content 🔒</div>
+        </div>
+      </div>
+      <div class="post-locked">
+        <h4>🔒 Subscriber-only content</h4>
+        <p>Subscribe to unlock this post and all future exclusive content.</p>
+        <button class="unlock-btn" onclick="scrollToSub()">Unlock for $9.99/mo</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBSCRIBE CARD -->
+  <div>
+    <div class="sub-card" id="sub-card">
+      <div class="sub-card-header">
+        <div class="sub-price">$9.99<span>/month</span></div>
+        <div class="sub-desc">Cancel anytime · Instant access</div>
+      </div>
+      <div class="sub-perks">
+        <div class="perk">All exclusive photos & videos</div>
+        <div class="perk">Full-length live streams</div>
+        <div class="perk">Direct messages</div>
+        <div class="perk">Early access to new content</div>
+        <div class="perk">Cancel anytime, no contracts</div>
+      </div>
+      <div class="sub-actions">
+        <button class="btn-sub primary" onclick="subscribe()">Subscribe — $9.99/mo</button>
+        <button class="btn-sub ghost" onclick="subscribe()">Send a Tip ❤️</button>
+        <div class="sub-note">Powered by NEXORA · 90% goes to creator · Secure checkout</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function subscribe(){
+  alert('Checkout coming soon! Set your Stripe payment link in NEXORA dashboard → Settings.');
+}
+function scrollToSub(){
+  document.getElementById('sub-card').scrollIntoView({behavior:'smooth',block:'center'});
+}
+</script>
+</body>
+</html>

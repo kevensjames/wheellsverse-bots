@@ -439,7 +439,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('adsboard')" id="nav-adsboard" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📢</span><span>Ads Board</span></div>
     <div class="nav-item" onclick="nav('kdpbooks')" id="nav-kdpbooks" style="background:linear-gradient(90deg,rgba(255,136,0,.12),transparent);border-left:2px solid #ff8800;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📚</span><span style="color:#ff9933;font-weight:700">Amazon KDP</span></div>
     <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
-
+    <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
     <!-- Content -->
     <div class="nav-sec" style="color:rgba(255,85,136,.6);font-size:8px;letter-spacing:2.5px">CONTENT</div>
     <div class="nav-item" onclick="nav('publish')" id="nav-publish" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🚀</span><span>Publish</span></div>
@@ -462,6 +462,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
     <!-- Config -->
     <div class="nav-sec" style="color:rgba(100,120,150,.6);font-size:8px;letter-spacing:2.5px">CONFIG</div>
+    <div class="nav-item" onclick="nav('connections')" id="nav-connections" style="background:linear-gradient(90deg,rgba(0,212,255,.12),transparent);border-left:2px solid #00d4ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔌</span><span style="color:#00d4ff;font-weight:700">Connections</span></div>
     <div class="nav-item" onclick="nav('projects')" id="nav-projects" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🗂</span><span>Projects</span></div>
     <div class="nav-item" onclick="nav('settings')" id="nav-settings" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⚙️</span><span>Settings</span></div>
     <div class="nav-item" onclick="nav('command')" id="nav-command" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⌨️</span><span>Command</span></div>
@@ -1501,6 +1502,18 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 <div class="page" id="page-settings">
   <div class="sh" style="margin-bottom:14px"><div><div class="st">Environment Settings</div><div class="ss">API keys and system configuration</div></div><button class="btn bc2 bsm" onclick="refreshSettings()">↺ Refresh</button></div>
   <div class="sg" id="settings-g"></div>
+</div>
+
+<!-- ══ CONNECTIONS ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-connections">
+  <div class="sh" style="margin-bottom:6px">
+    <div><div class="st">🔌 Connections Control Panel</div><div class="ss">Manage credentials, test and activate every service</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bc2 bsm" onclick="connLoadAll()">↺ Refresh All</button>
+    </div>
+  </div>
+  <div id="conn-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:11px"></div>
+  <div id="conn-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px"></div>
 </div>
 
 <!-- ══ CONTENT ENGINE ════════════════════════════════════════════════════════ -->
@@ -2611,6 +2624,137 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════════
+     🌐 NEXORA — Creator Platform Control Panel
+     ══════════════════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-nexora">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🌐 NEXORA Control Panel</div>
+      <div class="ss">Creator platform status · Subscribers · Revenue · Recruitment</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="/frontend/nexora/index.html" target="_blank" class="btn bc2 bsm">🔗 View Site</a>
+      <a href="/frontend/nexora/creator.html" target="_blank" class="btn bgh bsm">📊 Dashboard</a>
+      <button class="btn bg2 bsm" onclick="nexoraRunRecruit()">⚡ Run Recruitment</button>
+    </div>
+  </div>
+
+  <!-- Status cards -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Platform Status</div>
+      <div class="cv gr" id="nexora-status">Live</div>
+      <div class="csb">nexora.wheellsverse.com</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Subscribers</div>
+      <div class="cv cy" id="nexora-subs">0</div>
+      <div class="csb">paying creators</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Monthly Revenue</div>
+      <div class="cv gr" id="nexora-mrr">$0</div>
+      <div class="csb">MRR from NEXORA</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Founding Spots Left</div>
+      <div class="cv yl" id="nexora-spots">33</div>
+      <div class="csb">of 50 · $29/mo</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Recruitment Posts</div>
+      <div class="cv pu" id="nexora-posts">0</div>
+      <div class="csb">generated today</div>
+    </div>
+  </div>
+
+  <!-- Two col: Pages + Recruit -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+    <!-- Platform Pages -->
+    <div class="card">
+      <div class="sh" style="margin-bottom:14px">
+        <div class="st" style="font-size:12px">📄 Platform Pages</div>
+        <div class="ss">All NEXORA frontend pages</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(0,255,136,.06);border-radius:8px;border:1px solid rgba(0,255,136,.15)">
+          <div><div style="font-size:11px;font-weight:700">🏠 Landing Page</div><div style="font-size:10px;color:var(--text2)">index.html · Hero, pricing, testimonials</div></div>
+          <a href="/frontend/nexora/index.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(0,212,255,.06);border-radius:8px;border:1px solid rgba(0,212,255,.15)">
+          <div><div style="font-size:11px;font-weight:700">📊 Creator Dashboard</div><div style="font-size:10px;color:var(--text2)">creator.html · Earnings, uploads, analytics</div></div>
+          <a href="/frontend/nexora/creator.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(168,85,247,.06);border-radius:8px;border:1px solid rgba(168,85,247,.15)">
+          <div><div style="font-size:11px;font-weight:700">👤 Fan Subscribe Page</div><div style="font-size:10px;color:var(--text2)">subscribe.html · Subscription tiers</div></div>
+          <a href="/frontend/nexora/subscribe.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,77,109,.06);border-radius:8px;border:1px solid rgba(255,77,109,.15)">
+          <div><div style="font-size:11px;font-weight:700">🔴 Live Stream Room</div><div style="font-size:10px;color:var(--text2)">live.html · Stream, tips, live chat</div></div>
+          <a href="/frontend/nexora/live.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- Revenue Model -->
+    <div class="card">
+      <div class="sh" style="margin-bottom:14px">
+        <div class="st" style="font-size:12px">💰 Revenue Model</div>
+        <div class="ss">Projections at current pricing</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="padding:12px;background:var(--surface2);border-radius:8px;font-size:11px">
+          <div style="color:var(--text2);margin-bottom:4px">10 founding creators × $29/mo</div>
+          <div style="font-size:16px;font-weight:800;color:var(--green)">$290/mo</div>
+        </div>
+        <div style="padding:12px;background:var(--surface2);border-radius:8px;font-size:11px">
+          <div style="color:var(--text2);margin-bottom:4px">25 founders × $29 + 25 regular × $49</div>
+          <div style="font-size:16px;font-weight:800;color:var(--cyan)">$1,950/mo</div>
+        </div>
+        <div style="padding:12px;background:var(--surface2);border-radius:8px;font-size:11px">
+          <div style="color:var(--text2);margin-bottom:4px">50 founding spots filled</div>
+          <div style="font-size:16px;font-weight:800;color:var(--gold)">$1,450/mo 🎯 target</div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:10px;background:rgba(168,85,247,.06);border-radius:8px;border:1px solid rgba(168,85,247,.15);font-size:10px;color:var(--text2)">
+        Set <code>NEXORA_STRIPE_URL</code> in .env to activate payments. Currently showing waitlist mode.
+      </div>
+    </div>
+  </div>
+
+  <!-- Recruitment Output -->
+  <div class="card">
+    <div class="sh" style="margin-bottom:14px">
+      <div class="st" style="font-size:12px">📣 Recruitment Engine</div>
+      <div class="ss">Auto-generates creator recruitment posts for Facebook, Instagram, Twitter</div>
+    </div>
+    <div id="nexora-recruit-output" style="background:var(--surface2);border-radius:8px;padding:16px;font-size:11px;color:var(--text2);min-height:80px;line-height:1.7">
+      Click <strong style="color:var(--purple)">⚡ Run Recruitment</strong> to generate today's creator recruitment posts across all platforms.
+    </div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn bgh bsm" onclick="nexoraRunRecruit()">⚡ Generate Posts</button>
+      <button class="btn bgh bsm" onclick="nexoraRunGrowth()">📈 Growth Strategy</button>
+      <button class="btn bgh bsm" onclick="nexoraRunStatus()">📊 Beta Status</button>
+    </div>
+  </div>
+
+  <!-- Config -->
+  <div class="card" style="margin-top:16px">
+    <div class="sh" style="margin-bottom:14px">
+      <div class="st" style="font-size:12px">⚙️ Configuration</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px">
+      <div><span style="color:var(--text2)">NEXORA_BETA_URL</span><br><code style="color:var(--cyan)">https://nexora.wheellsverse.com/beta</code></div>
+      <div><span style="color:var(--text2)">NEXORA_WAITLIST_URL</span><br><code style="color:var(--cyan)">https://wheellsverse.ck.page/nexora</code></div>
+      <div><span style="color:var(--text2)">STRIPE_NEXORA_URL</span><br><code style="color:var(--red)">Not set — add to .env</code></div>
+      <div><span style="color:var(--text2)">Founding Price</span><br><code style="color:var(--gold)">$29/month locked forever</code></div>
+    </div>
+  </div>
+</div>
+
+
 </div></div></div>
 <!-- ══ ⌘K COMMAND BAR ═════════════════════════════════════════════════════ -->
 <div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)closeCmdBar()">
@@ -2653,7 +2797,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -2667,6 +2811,7 @@ function nav(p){
   if(p==='scheduler') refreshSched();
   if(p==='outputs') refreshOutputs();
   if(p==='settings') refreshSettings();
+  if(p==='connections') connLoadAll();
   if(p==='logs'){startSSE();}
   if(p==='decisions') refreshDE();
   if(p==='health') refreshHealth();
@@ -2691,6 +2836,7 @@ function nav(p){
   if(p==='adsboard') loadAdsQueue();
   if(p==='kdpbooks') refreshKDP();
   if(p==='money') refreshMoney();
+  if(p==='nexora') refreshNexora();
   if(p==='pixelagents') initPixelAgents();
   if(p==='narai') initNarAI();
   if(p==='whatsapp'){waRefresh();}
@@ -3151,6 +3297,195 @@ async function createProj(){
   const body={slug,name:document.getElementById('np-name').value,brand:document.getElementById('np-brand').value,niche:document.getElementById('np-niche').value,goal:document.getElementById('np-goal').value};
   try{await api('/api/projects','POST',body);toast(`✅ Project '${slug}' created`,'success');document.getElementById('new-proj-form').style.display='none';setTimeout(refreshProjects,500);}
   catch(e){toast('Failed: '+e.message,'error');}
+}
+
+// ── Connections Control Panel ─────────────────────────────────────────────────
+const CONN_SERVICES = [
+  { id:'anthropic',  label:'Anthropic (Claude)', icon:'🤖', color:'#cc88ff',
+    fields:[{key:'ANTHROPIC_API_KEY',label:'API Key',type:'password'}],
+    test:'/api/narai/status' },
+  { id:'openai',     label:'OpenAI (GPT)', icon:'🟢', color:'#00a67e',
+    fields:[{key:'OPENAI_API_KEY',label:'API Key',type:'password'},{key:'OPENAI_MODEL',label:'Model',type:'text',ph:'gpt-4o'}],
+    test:null },
+  { id:'facebook',   label:'Facebook / Instagram', icon:'📘', color:'#1877f2',
+    fields:[
+      {key:'FACEBOOK_PAGE_TOKEN',label:'Page Token',type:'password'},
+      {key:'FACEBOOK_PAGE_ID',label:'Page ID',type:'text'},
+      {key:'INSTAGRAM_ACCOUNT_ID',label:'Instagram Account ID',type:'text'},
+      {key:'FACEBOOK_APP_ID',label:'App ID',type:'text'},
+      {key:'FACEBOOK_APP_SECRET',label:'App Secret',type:'password'},
+    ], test:'/api/platforms/status' },
+  { id:'twitter',    label:'Twitter / X', icon:'🐦', color:'#1da1f2',
+    fields:[
+      {key:'TWITTER_API_KEY',label:'API Key',type:'password'},
+      {key:'TWITTER_API_SECRET',label:'API Secret',type:'password'},
+      {key:'TWITTER_ACCESS_TOKEN',label:'Access Token',type:'password'},
+      {key:'TWITTER_ACCESS_SECRET',label:'Access Secret',type:'password'},
+      {key:'TWITTER_BEARER_TOKEN',label:'Bearer Token',type:'password'},
+    ], test:'/api/platforms/status' },
+  { id:'tiktok',     label:'TikTok', icon:'🎵', color:'#ff0050',
+    fields:[
+      {key:'TIKTOK_CLIENT_KEY',label:'Client Key',type:'text'},
+      {key:'TIKTOK_CLIENT_SECRET',label:'Client Secret',type:'password'},
+      {key:'TIKTOK_ACCESS_TOKEN',label:'Access Token',type:'password'},
+    ], test:null },
+  { id:'reddit',     label:'Reddit', icon:'🔴', color:'#ff4500',
+    fields:[
+      {key:'REDDIT_CLIENT_ID',label:'Client ID',type:'text'},
+      {key:'REDDIT_CLIENT_SECRET',label:'Client Secret',type:'password'},
+      {key:'REDDIT_USERNAME',label:'Username',type:'text'},
+      {key:'REDDIT_PASSWORD',label:'Password',type:'password'},
+      {key:'REDDIT_SUBREDDIT',label:'Subreddit',type:'text',ph:'wheelsverse_dev'},
+    ], test:null },
+  { id:'telegram',   label:'Telegram Bot', icon:'✈️', color:'#0088cc',
+    fields:[
+      {key:'TELEGRAM_BOT_TOKEN',label:'Bot Token',type:'password'},
+      {key:'TELEGRAM_CHAT_ID',label:'Chat ID (private channel)',type:'text'},
+    ], test:'/api/telegram/status' },
+  { id:'whatsapp',   label:'WhatsApp', icon:'📱', color:'#25d366',
+    fields:[
+      {key:'WHATSAPP_TOKEN',label:'Token',type:'password'},
+      {key:'WHATSAPP_PHONE_ID',label:'Phone ID',type:'text'},
+      {key:'WHATSAPP_TO_NUMBER',label:'Your Number',type:'text'},
+    ], test:null },
+  { id:'youtube',    label:'YouTube', icon:'▶️', color:'#ff0000',
+    fields:[
+      {key:'YOUTUBE_API_KEY',label:'API Key',type:'password'},
+      {key:'YOUTUBE_CLIENT_ID',label:'Client ID',type:'text'},
+      {key:'YOUTUBE_CLIENT_SECRET',label:'Client Secret',type:'password'},
+    ], test:null },
+  { id:'stripe',     label:'Stripe', icon:'💳', color:'#6772e5',
+    fields:[
+      {key:'STRIPE_SECRET_KEY',label:'Secret Key',type:'password'},
+      {key:'STRIPE_PUBLISHABLE_KEY',label:'Publishable Key',type:'text'},
+      {key:'STRIPE_WEBHOOK_SECRET',label:'Webhook Secret',type:'password'},
+    ], test:null },
+  { id:'convertkit', label:'ConvertKit', icon:'📬', color:'#fb6970',
+    fields:[
+      {key:'CONVERTKIT_API_KEY',label:'API Key',type:'password'},
+      {key:'CONVERTKIT_FORM_ID',label:'Form ID',type:'text'},
+    ], test:null },
+  { id:'wordpress',  label:'WordPress', icon:'🌐', color:'#21759b',
+    fields:[
+      {key:'WORDPRESS_URL',label:'Site URL',type:'text',ph:'https://yoursite.com'},
+      {key:'WORDPRESS_USERNAME',label:'Username',type:'text'},
+      {key:'WORDPRESS_PASSWORD',label:'App Password',type:'password'},
+    ], test:null },
+  { id:'heygen',     label:'HeyGen (AI Video)', icon:'🎬', color:'#ff6b35',
+    fields:[{key:'HEYGEN_API_KEY',label:'API Key',type:'password'}],
+    test:null },
+  { id:'gsc',        label:'Google Search Console', icon:'🔍', color:'#4285f4',
+    fields:[
+      {key:'GSC_PROPERTY_URL',label:'Property URL',type:'text',ph:'https://yoursite.com'},
+      {key:'GOOGLE_SERVICE_ACCOUNT_JSON',label:'Service Account JSON (path)',type:'text'},
+    ], test:null },
+];
+
+let _connEnv = {};
+
+async function connLoadAll(){
+  try{
+    _connEnv = await api('/api/settings');
+  }catch(e){ _connEnv={}; }
+  _connRenderSummary();
+  _connRenderGrid();
+}
+
+function _connHasKey(svc){
+  return svc.fields.some(f=>{
+    const v=_connEnv[f.key]||'';
+    return v && v!=='***' && !v.endsWith('***');
+  });
+}
+
+function _connRenderSummary(){
+  const el=document.getElementById('conn-summary');
+  if(!el)return;
+  let connected=0,total=CONN_SERVICES.length;
+  CONN_SERVICES.forEach(s=>{ if(_connHasKey(s)) connected++; });
+  el.innerHTML=`
+    <span style="color:var(--text2)">Services:</span>
+    <span style="color:var(--green);font-weight:700">${connected} connected</span>
+    <span style="color:var(--text3)">·</span>
+    <span style="color:var(--red)">${total-connected} missing</span>
+    <span style="color:var(--text3)">·</span>
+    <span style="color:var(--text2)">${total} total</span>
+    <span style="margin-left:auto;color:var(--text3);font-size:10px">Enter credentials below → Save → Test</span>
+  `;
+}
+
+function _connRenderGrid(){
+  const grid=document.getElementById('conn-grid');
+  if(!grid)return;
+  grid.innerHTML=CONN_SERVICES.map(svc=>{
+    const connected=_connHasKey(svc);
+    const dot=connected?`<span style="width:8px;height:8px;border-radius:50%;background:#00ff88;box-shadow:0 0 6px #00ff88;display:inline-block"></span>`:`<span style="width:8px;height:8px;border-radius:50%;background:#ff4444;display:inline-block"></span>`;
+    const status=connected?`<span style="color:#00ff88;font-size:10px">Connected</span>`:`<span style="color:#ff6666;font-size:10px">Not configured</span>`;
+    const fields=svc.fields.map(f=>{
+      const raw=_connEnv[f.key]||'';
+      const val=raw.startsWith('***')?'':raw;
+      const ph=f.ph||('Enter '+f.label.toLowerCase());
+      return `<div style="margin-bottom:7px">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:3px;letter-spacing:.5px">${f.label}</div>
+        <input id="conn-${svc.id}-${f.key}" type="${f.type}" placeholder="${ph}" value="${esc(val)}"
+          style="width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:6px 9px;color:var(--text);font-family:inherit;font-size:11px;outline:none"
+          onfocus="this.style.borderColor='${svc.color}'" onblur="this.style.borderColor='var(--border)'">
+      </div>`;
+    }).join('');
+    return `<div style="background:var(--bg2);border:1px solid ${connected?'rgba(0,255,136,.2)':'var(--border)'};border-radius:12px;padding:16px;transition:border-color .2s" id="conn-card-${svc.id}">
+      <div style="display:flex;align-items:center;gap:9px;margin-bottom:14px">
+        <span style="font-size:18px">${svc.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:12px;font-weight:700;color:var(--text)">${svc.label}</div>
+          <div style="display:flex;align-items:center;gap:5px;margin-top:2px">${dot}${status}</div>
+        </div>
+      </div>
+      ${fields}
+      <div style="display:flex;gap:7px;margin-top:10px">
+        <button onclick="connSave('${svc.id}')" style="flex:1;padding:7px;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.3);color:#00d4ff;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">💾 Save</button>
+        ${svc.test?`<button onclick="connTest('${svc.id}','${svc.test}')" style="padding:7px 12px;background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.25);color:#00ff88;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">▶ Test</button>`:''}
+      </div>
+      <div id="conn-result-${svc.id}" style="margin-top:8px;font-size:10px;min-height:14px"></div>
+    </div>`;
+  }).join('');
+}
+
+async function connSave(svcId){
+  const svc=CONN_SERVICES.find(s=>s.id===svcId);
+  if(!svc)return;
+  let saved=0;
+  for(const f of svc.fields){
+    const el=document.getElementById(`conn-${svcId}-${f.key}`);
+    if(!el)continue;
+    const val=el.value.trim();
+    if(!val)continue;
+    try{
+      await api('/api/settings','POST',{key:f.key,value:val});
+      _connEnv[f.key]=val;
+      saved++;
+    }catch(e){}
+  }
+  const res=document.getElementById(`conn-result-${svcId}`);
+  if(res) res.innerHTML=`<span style="color:#00ff88">✅ ${saved} field(s) saved</span>`;
+  toast(`✅ ${svc.label} saved`,'success');
+  _connRenderSummary();
+  // Update card border
+  const card=document.getElementById(`conn-card-${svcId}`);
+  if(card) card.style.borderColor='rgba(0,255,136,.2)';
+}
+
+async function connTest(svcId, endpoint){
+  const res=document.getElementById(`conn-result-${svcId}`);
+  if(res) res.innerHTML=`<span style="color:var(--text3)">Testing...</span>`;
+  try{
+    const r=await api(endpoint);
+    const ok=r.status==='ok'||r.connected||r.ok||r.bot_info;
+    if(res) res.innerHTML=ok
+      ?`<span style="color:#00ff88">✅ Connected — ${r.bot_info?.username||r.status||'OK'}</span>`
+      :`<span style="color:#ffcc00">⚠️ ${JSON.stringify(r).slice(0,80)}</span>`;
+  }catch(e){
+    if(res) res.innerHTML=`<span style="color:#ff6666">❌ ${e.message||'Connection failed'}</span>`;
+  }
 }
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -5161,6 +5496,63 @@ function _startKdpPoll(){
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+
+// ──────────────────────────────────────────────────────────────────────────────
+// 🌐 NEXORA Control Panel JS
+// ──────────────────────────────────────────────────────────────────────────────
+
+function refreshNexora(){
+  // Load latest recruitment outputs
+  nexoraLoadOutputs();
+}
+
+async function nexoraLoadOutputs(){
+  try {
+    const d = await fetch('/api/nexora/status').then(r=>r.json()).catch(()=>null);
+    if(!d) return;
+    if(d.posts_today !== undefined)
+      document.getElementById('nexora-posts').textContent = d.posts_today;
+    if(d.recruit_content)
+      document.getElementById('nexora-recruit-output').textContent = d.recruit_content;
+  } catch(e){}
+}
+
+async function nexoraRunRecruit(){
+  const el = document.getElementById('nexora-recruit-output');
+  el.innerHTML = '<span style="color:var(--cyan)">⏳ Generating recruitment posts...</span>';
+  try {
+    const d = await fetch('/api/nexora/recruit', {method:'POST'}).then(r=>r.json());
+    el.textContent = d.content || d.result || JSON.stringify(d, null, 2);
+    const postsEl = document.getElementById('nexora-posts');
+    postsEl.textContent = (parseInt(postsEl.textContent)||0)+1;
+    toast('Recruitment posts generated!', 'success');
+  } catch(e){
+    el.innerHTML = '<span style="color:var(--red)">Error: '+e.message+'</span>';
+  }
+}
+
+async function nexoraRunGrowth(){
+  const el = document.getElementById('nexora-recruit-output');
+  el.innerHTML = '<span style="color:var(--cyan)">⏳ Generating growth strategy...</span>';
+  try {
+    const d = await fetch('/api/nexora/growth', {method:'POST'}).then(r=>r.json());
+    el.textContent = d.content || d.result || JSON.stringify(d, null, 2);
+    toast('Growth strategy generated!', 'success');
+  } catch(e){
+    el.textContent = 'Error: '+e.message;
+  }
+}
+
+async function nexoraRunStatus(){
+  const el = document.getElementById('nexora-recruit-output');
+  el.innerHTML = '<span style="color:var(--cyan)">⏳ Loading NEXORA beta status...</span>';
+  try {
+    const d = await fetch('/api/nexora/status').then(r=>r.json());
+    el.textContent = JSON.stringify(d, null, 2);
+  } catch(e){
+    el.textContent = 'Error: '+e.message;
+  }
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // 💰 MONEY COMMAND CENTER — Week 9

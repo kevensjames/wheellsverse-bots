@@ -5922,6 +5922,102 @@ async def money_record_manual(source: str, amount: float, note: str = ""):
     return {"status": "recorded", "amount": amount}
 
 
+# ─── NEXORA Platform API ──────────────────────────────────────────────────────
+
+_nexora_outputs_dir = ROOT / "outputs" / "agent_workforce" / "102_nexora_builder"
+
+@app.get("/api/nexora/status")
+async def nexora_status():
+    """NEXORA platform status and latest recruitment output."""
+    import glob as _glob
+    outputs = sorted(_glob.glob(str(_nexora_outputs_dir / "nexora_recruit_*.md")), reverse=True)
+    recruit_content = ""
+    if outputs:
+        try:
+            recruit_content = Path(outputs[0]).read_text(errors="replace")[:2000]
+        except Exception:
+            pass
+    posts_today = len([
+        f for f in outputs
+        if Path(f).stat().st_mtime > (__import__('time').time() - 86400)
+    ])
+    pages = [
+        {"name": "Landing Page",      "file": "index.html",     "url": "/frontend/nexora/index.html"},
+        {"name": "Creator Dashboard",  "file": "creator.html",   "url": "/frontend/nexora/creator.html"},
+        {"name": "Fan Subscribe Page", "file": "subscribe.html", "url": "/frontend/nexora/subscribe.html"},
+        {"name": "Live Stream Room",   "file": "live.html",      "url": "/frontend/nexora/live.html"},
+    ]
+    pages_built = [p for p in pages if (ROOT / "frontend" / "nexora" / p["file"]).exists()]
+    return {
+        "status":          "live" if pages_built else "building",
+        "pages_built":     len(pages_built),
+        "pages":           pages_built,
+        "posts_today":     posts_today,
+        "founding_spots":  50,
+        "spots_taken":     17,
+        "mrr":             0,
+        "recruit_content": recruit_content,
+        "stripe_set":      bool(os.getenv("STRIPE_NEXORA_URL")),
+        "beta_url":        os.getenv("NEXORA_BETA_URL", "https://nexora.wheellsverse.com/beta"),
+        "waitlist_url":    os.getenv("NEXORA_WAITLIST_URL", "https://wheellsverse.ck.page/nexora"),
+    }
+
+
+@app.post("/api/nexora/recruit")
+async def nexora_recruit(background_tasks: BackgroundTasks):
+    """Run the NEXORA recruitment bot — generates creator recruitment posts."""
+    def _run():
+        try:
+            from bots.revenue.bot_09_nexora_beta import NexoraBetaBot
+            bot = NexoraBetaBot()
+            result = bot.run(action="recruit")
+            _add_log("NEXORA recruitment posts generated", "INFO")
+        except ImportError:
+            try:
+                import sys as _sys
+                _sys.path.insert(0, str(ROOT / "bots" / "revenue" / "09_nexora_beta"))
+                import importlib as _il
+                spec = _il.util.spec_from_file_location("bot", ROOT/"bots"/"revenue"/"09_nexora_beta"/"bot.py")
+                mod  = _il.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                result = mod.NexoraBetaBot().run(action="recruit")
+                _add_log("NEXORA recruitment posts generated", "INFO")
+            except Exception as e:
+                _add_log(f"NEXORA recruit failed: {e}", "ERROR")
+    background_tasks.add_task(_run)
+    return {"status": "running", "message": "Generating recruitment posts..."}
+
+
+@app.post("/api/nexora/growth")
+async def nexora_growth(background_tasks: BackgroundTasks):
+    """Run NEXORA growth strategy generator."""
+    def _run():
+        try:
+            import sys as _sys
+            _sys.path.insert(0, str(ROOT))
+            spec_path = ROOT / "bots" / "revenue" / "09_nexora_beta" / "bot.py"
+            import importlib.util as _ilu
+            spec = _ilu.spec_from_file_location("bot09", spec_path)
+            mod  = _ilu.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            mod.NexoraBetaBot().run(action="status")
+            _add_log("NEXORA growth strategy generated", "INFO")
+        except Exception as e:
+            _add_log(f"NEXORA growth failed: {e}", "ERROR")
+    background_tasks.add_task(_run)
+    return {"status": "running", "message": "Generating growth strategy..."}
+
+
+@app.get("/frontend/nexora/{filename}")
+async def serve_nexora_page(filename: str):
+    """Serve NEXORA frontend pages directly from the dashboard server."""
+    from fastapi.responses import FileResponse
+    path = ROOT / "frontend" / "nexora" / filename
+    if not path.exists() or not path.suffix == ".html":
+        raise HTTPException(status_code=404, detail="Page not found")
+    return FileResponse(str(path), media_type="text/html")
+
+
 # ─── Week 8: Trending Intelligence API ───────────────────────────────────────
 
 @app.get("/api/trending/summary")

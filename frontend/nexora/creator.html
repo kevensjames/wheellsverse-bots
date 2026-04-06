@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXORA — Creator Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#060810;--surface:#0c1018;--surface2:#111827;--surface3:#1a2235;--cyan:#00d4ff;--gold:#ffd700;--green:#00ff88;--red:#ff4d6d;--purple:#a855f7;--text:#e8edf5;--text2:#8899aa;--text3:#4a5568;--border:rgba(0,212,255,0.1);--border2:rgba(0,212,255,0.25)}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;overflow-x:hidden}
+
+/* SIDEBAR */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:50;transition:transform .3s}
+.sidebar-logo{padding:24px 20px;font-size:1.2rem;font-weight:800;letter-spacing:-0.5px;color:var(--cyan);border-bottom:1px solid var(--border)}
+.sidebar-logo span{color:var(--gold)}
+.sidebar-avatar{padding:20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
+.avatar-circle{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;flex-shrink:0}
+.avatar-name{font-size:.9rem;font-weight:700}
+.avatar-tier{font-size:.72rem;color:var(--gold);font-weight:600}
+.nav-section{padding:16px 12px 8px;font-size:.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;margin:2px 8px;cursor:pointer;font-size:.875rem;font-weight:500;color:var(--text2);transition:all .2s;text-decoration:none}
+.nav-item:hover,.nav-item.active{background:rgba(0,212,255,.08);color:var(--cyan)}
+.nav-item.active{border-left:2px solid var(--cyan);margin-left:6px}
+.nav-item .ic{width:18px;text-align:center;font-size:1rem}
+.sidebar-footer{margin-top:auto;padding:16px;border-top:1px solid var(--border)}
+.payout-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--green),#00cc66);color:#000;border:none;border-radius:10px;font-weight:700;font-size:.875rem;cursor:pointer;transition:opacity .2s}
+.payout-btn:hover{opacity:.85}
+
+/* MAIN */
+.main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh}
+.topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40}
+.page-title{font-size:1rem;font-weight:700}
+.topbar-actions{display:flex;align-items:center;gap:12px}
+.badge-live{background:rgba(255,77,109,.15);border:1px solid rgba(255,77,109,.4);color:var(--red);font-size:.72rem;font-weight:700;padding:4px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .2s}
+.badge-live:hover{background:rgba(255,77,109,.25)}
+.badge-live::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.content{padding:28px;flex:1}
+
+/* STAT CARDS */
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;transition:all .3s}
+.stat-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.stat-label{font-size:.72rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.stat-value{font-size:1.9rem;font-weight:800;letter-spacing:-1px;margin-bottom:4px}
+.stat-change{font-size:.78rem;font-weight:600}
+.stat-change.up{color:var(--green)}
+.stat-change.down{color:var(--red)}
+
+/* CHART */
+.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:28px}
+.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.card-title{font-size:.9rem;font-weight:700}
+.chart-bars{display:flex;align-items:flex-end;gap:8px;height:120px}
+.bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;gap:6px;height:100%}
+.bar{border-radius:4px 4px 0 0;width:100%;transition:all .3s;min-height:4px}
+.bar-lbl{font-size:.65rem;color:var(--text3)}
+.tab-btns{display:flex;gap:6px}
+.tab-btn{padding:5px 14px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .2s}
+.tab-btn.active,.tab-btn:hover{background:rgba(0,212,255,.08);color:var(--cyan);border-color:var(--border2)}
+
+/* TWO COL */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
+.panel-title{font-size:.88rem;font-weight:700;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
+.small-btn{padding:5px 12px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--cyan);transition:all .2s}
+.small-btn:hover{background:rgba(0,212,255,.08)}
+
+/* TOP FANS */
+.fan-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.fan-row:last-child{border-bottom:none}
+.fan-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;flex-shrink:0}
+.fan-name{font-size:.875rem;font-weight:600;flex:1}
+.fan-amount{font-size:.875rem;font-weight:700;color:var(--green)}
+
+/* POSTS TABLE */
+.posts-table{width:100%;border-collapse:collapse}
+.posts-table th{text-align:left;font-size:.7rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.posts-table td{padding:12px;border-bottom:1px solid var(--border);font-size:.85rem}
+.posts-table tr:last-child td{border-bottom:none}
+.post-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;background:var(--surface3)}
+.status-pill{display:inline-block;padding:3px 10px;border-radius:10px;font-size:.7rem;font-weight:700}
+.status-pill.live{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.status-pill.sub{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
+.status-pill.free{background:rgba(255,255,255,.06);color:var(--text2);border:1px solid var(--border)}
+
+/* UPLOAD */
+.upload-zone{border:2px dashed var(--border2);border-radius:14px;padding:48px;text-align:center;cursor:pointer;transition:all .3s;background:rgba(0,212,255,.02)}
+.upload-zone:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
+.upload-icon{font-size:2.5rem;margin-bottom:12px}
+.upload-zone h3{font-size:1rem;font-weight:700;margin-bottom:6px}
+.upload-zone p{font-size:.85rem;color:var(--text2)}
+
+/* MOBILE */
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}
+  .main{margin-left:0}
+  .stats-grid{grid-template-columns:1fr 1fr}
+  .two-col{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-logo">NEX<span>ORA</span></div>
+  <div class="sidebar-avatar">
+    <div class="avatar-circle">J</div>
+    <div>
+      <div class="avatar-name">Your Name</div>
+      <div class="avatar-tier">⭐ Founding Creator</div>
+    </div>
+  </div>
+  <div class="nav-section">Main</div>
+  <a class="nav-item active" onclick="showPage('overview')"><span class="ic">📊</span> Overview</a>
+  <a class="nav-item" onclick="showPage('upload')"><span class="ic">📤</span> Upload Content</a>
+  <a class="nav-item" href="live.html"><span class="ic">🔴</span> Go Live</a>
+  <a class="nav-item" onclick="showPage('messages')"><span class="ic">💬</span> Messages <span style="background:var(--red);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;margin-left:auto">3</span></a>
+  <div class="nav-section">Money</div>
+  <a class="nav-item" onclick="showPage('earnings')"><span class="ic">💰</span> Earnings</a>
+  <a class="nav-item" onclick="showPage('subscribers')"><span class="ic">👥</span> Subscribers</a>
+  <a class="nav-item" onclick="showPage('analytics')"><span class="ic">📈</span> Analytics</a>
+  <div class="nav-section">Account</div>
+  <a class="nav-item" onclick="showPage('settings')"><span class="ic">⚙️</span> Settings</a>
+  <a class="nav-item" href="index.html"><span class="ic">←</span> Back to Site</a>
+  <div class="sidebar-footer">
+    <button class="payout-btn" onclick="requestPayout()">💸 Request Payout</button>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="page-title">Overview</div>
+    <div class="topbar-actions">
+      <div class="badge-live" onclick="window.location='live.html'">🔴 Go Live</div>
+      <div style="font-size:.8rem;color:var(--text2)">Sun Apr 6, 2026</div>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- OVERVIEW PAGE -->
+    <div id="page-overview">
+      <!-- Stats -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-label">This Month</div>
+          <div class="stat-value" style="color:var(--green)">$0</div>
+          <div class="stat-change up">+ Get your first subscriber!</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Subscribers</div>
+          <div class="stat-value" style="color:var(--cyan)">0</div>
+          <div class="stat-change up">Share your page to grow</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Posts</div>
+          <div class="stat-value">0</div>
+          <div class="stat-change" style="color:var(--text2)">Upload your first content</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending Payout</div>
+          <div class="stat-value" style="color:var(--gold)">$0</div>
+          <div class="stat-change" style="color:var(--text2)">24hr processing</div>
+        </div>
+      </div>
+
+      <!-- Earnings Chart -->
+      <div class="chart-card">
+        <div class="card-header">
+          <div class="card-title">Earnings Overview</div>
+          <div class="tab-btns">
+            <button class="tab-btn active">7D</button>
+            <button class="tab-btn">30D</button>
+            <button class="tab-btn">90D</button>
+          </div>
+        </div>
+        <div class="chart-bars" id="chart-bars">
+          <!-- bars generated by JS -->
+        </div>
+      </div>
+
+      <!-- Two col: Top Fans + Recent Posts -->
+      <div class="two-col">
+        <div class="panel">
+          <div class="panel-title">Top Fans <button class="small-btn">View All</button></div>
+          <div style="text-align:center;padding:32px;color:var(--text3);font-size:.875rem">
+            No subscribers yet.<br>
+            <a href="subscribe.html" style="color:var(--cyan);text-decoration:none">Preview your fan page →</a>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">AI Suggestions <span style="font-size:.72rem;color:var(--cyan);background:rgba(0,212,255,.08);padding:3px 8px;border-radius:6px">✨ AI</span></div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:.85rem;border:1px solid var(--border)">
+              <div style="color:var(--cyan);font-weight:700;font-size:.75rem;margin-bottom:6px">📅 Best posting time</div>
+              Post between 8–10pm on weekdays for 3x more engagement from your audience.
+            </div>
+            <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:.85rem;border:1px solid var(--border)">
+              <div style="color:var(--gold);font-weight:700;font-size:.75rem;margin-bottom:6px">💡 Content idea</div>
+              "Behind the scenes" content gets 40% more tips than polished posts. Try a casual live stream.
+            </div>
+            <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:.85rem;border:1px solid var(--border)">
+              <div style="color:var(--green);font-weight:700;font-size:.75rem;margin-bottom:6px">🎯 Growth tip</div>
+              Add your NEXORA link to your Instagram and TikTok bios — your first subscribers usually come from there.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick upload -->
+      <div class="upload-zone" onclick="showPage('upload')">
+        <div class="upload-icon">📤</div>
+        <h3>Upload Your First Content</h3>
+        <p>Photos, videos, voice notes — drag & drop here or click to browse</p>
+      </div>
+    </div>
+
+    <!-- UPLOAD PAGE -->
+    <div id="page-upload" style="display:none">
+      <div class="upload-zone" id="drop-zone" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
+        <div class="upload-icon">📁</div>
+        <h3>Drop files here or click to upload</h3>
+        <p style="margin-bottom:20px">Supports: MP4, MOV, JPG, PNG, GIF, MP3 — up to 4GB</p>
+        <input type="file" id="file-input" style="display:none" multiple accept="video/*,image/*,audio/*" onchange="previewFiles(this.files)">
+        <button class="payout-btn" style="width:auto;padding:12px 32px" onclick="document.getElementById('file-input').click()">Choose Files</button>
+      </div>
+      <div id="file-preview" style="margin-top:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px"></div>
+      <div class="panel" style="margin-top:24px">
+        <div class="panel-title">Post Settings</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div>
+            <label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Caption</label>
+            <textarea style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem;resize:vertical;min-height:80px" placeholder="Write something for your fans..."></textarea>
+          </div>
+          <div>
+            <label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Access</label>
+            <select style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem;margin-bottom:16px">
+              <option>Free — All visitors</option>
+              <option selected>Subscribers only</option>
+              <option>VIP tier only</option>
+              <option>Pay-per-view</option>
+            </select>
+            <label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Schedule</label>
+            <input type="datetime-local" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem">
+          </div>
+        </div>
+        <button class="payout-btn" style="margin-top:20px;width:auto;padding:12px 40px">Publish Post →</button>
+      </div>
+    </div>
+
+    <!-- EARNINGS PAGE -->
+    <div id="page-earnings" style="display:none">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Earned</div><div class="stat-value" style="color:var(--green)">$0</div><div class="stat-change" style="color:var(--text2)">All time</div></div>
+        <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value" style="color:var(--cyan)">$0</div></div>
+        <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" style="color:var(--gold)">$0</div><div class="stat-change" style="color:var(--text2)">Processing 24hr</div></div>
+        <div class="stat-card"><div class="stat-label">Your Cut</div><div class="stat-value">90%</div><div class="stat-change up">Best in industry</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Payout History</div>
+        <div style="text-align:center;padding:48px;color:var(--text3)">No payouts yet — your first payout will appear here after your first sale.</div>
+      </div>
+    </div>
+
+    <!-- SUBSCRIBERS PAGE -->
+    <div id="page-subscribers" style="display:none">
+      <div class="panel">
+        <div class="panel-title">Your Subscribers</div>
+        <div style="text-align:center;padding:48px;color:var(--text3)">
+          No subscribers yet.<br><br>
+          <strong style="color:var(--text)">Share your fan page to get started:</strong><br><br>
+          <code style="color:var(--cyan);background:var(--surface2);padding:8px 16px;border-radius:8px;font-size:.875rem">nexora.wheellsverse.com/u/yourname</code><br><br>
+          <a href="subscribe.html" style="color:var(--cyan);text-decoration:none;font-size:.875rem">Preview your fan page →</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- MESSAGES PAGE -->
+    <div id="page-messages" style="display:none">
+      <div class="panel">
+        <div class="panel-title">Messages</div>
+        <div style="text-align:center;padding:48px;color:var(--text3)">No messages yet. Messages from your subscribers will appear here.</div>
+      </div>
+    </div>
+
+    <!-- ANALYTICS PAGE -->
+    <div id="page-analytics" style="display:none">
+      <div class="panel">
+        <div class="panel-title">Analytics</div>
+        <div style="text-align:center;padding:48px;color:var(--text3)">Analytics will populate once you have subscribers and content.</div>
+      </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div id="page-settings" style="display:none">
+      <div class="panel" style="max-width:600px">
+        <div class="panel-title">Profile Settings</div>
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Display Name</label><input type="text" value="Your Name" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem"></div>
+          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Bio</label><textarea style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem;resize:vertical;min-height:80px" placeholder="Tell your fans about yourself..."></textarea></div>
+          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Subscription Price ($/month)</label><input type="number" value="9.99" min="4.99" style="width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem"></div>
+          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Payout Method</label>
+            <select style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem">
+              <option>Bank Transfer (ACH)</option><option>Crypto (USDC)</option><option>PayPal</option>
+            </select>
+          </div>
+          <button class="payout-btn" style="width:auto;padding:12px 32px">Save Settings</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+function showPage(name){
+  document.querySelectorAll('[id^="page-"]').forEach(el=>el.style.display='none');
+  document.getElementById('page-'+name).style.display='block';
+  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
+  document.getElementById('page-title').textContent = name.charAt(0).toUpperCase()+name.slice(1).replace('-',' ');
+}
+
+// Generate sample chart bars
+(function(){
+  const data = [0,0,0,0,0,0,0];
+  const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const max = Math.max(...data,1);
+  const container = document.getElementById('chart-bars');
+  container.innerHTML = data.map((v,i)=>{
+    const pct = (v/max)*100||2;
+    return `<div class="bar-wrap"><div class="bar" style="height:${pct}%;background:linear-gradient(to top,var(--cyan),var(--purple));opacity:.7"></div><div class="bar-lbl">${labels[i]}</div></div>`;
+  }).join('');
+})();
+
+function requestPayout(){
+  alert('Payout requested! You need at least $20 in earnings to request a payout. Funds arrive within 24 hours.');
+}
+
+function previewFiles(files){
+  const container = document.getElementById('file-preview');
+  container.innerHTML = '';
+  Array.from(files).forEach(f=>{
+    const div = document.createElement('div');
+    div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center';
+    div.innerHTML = `<div style="font-size:2rem;margin-bottom:8px">${f.type.startsWith('video')?'🎥':f.type.startsWith('audio')?'🎵':'🖼️'}</div><div style="font-size:.75rem;color:var(--text2);word-break:break-all">${f.name.slice(0,20)}</div>`;
+    container.appendChild(div);
+  });
+}
+
+function handleDrop(e){
+  e.preventDefault();
+  previewFiles(e.dataTransfer.files);
+}
+
+document.querySelectorAll('.tab-btn').forEach(b=>{
+  b.addEventListener('click',function(){
+    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+  });
+});
+</script>
+</body>
+</html>

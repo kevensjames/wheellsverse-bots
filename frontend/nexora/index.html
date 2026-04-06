@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXORA — The Creator Platform That Pays More</title>
+<meta name="description" content="Keep 90% of your revenue. Live stream, post exclusive content, and get paid directly. Join 50 founding creators at $29/month — forever.">
+<meta property="og:title" content="NEXORA — The Creator Platform That Pays More">
+<meta property="og:description" content="Keep 90% of your revenue. Join 50 founding creators at $29/month locked in forever.">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060810;--surface:#0c1018;--surface2:#111827;--surface3:#1a2235;
+  --cyan:#00d4ff;--cyan2:#00a8cc;--gold:#ffd700;--gold2:#e6b800;
+  --green:#00ff88;--red:#ff4d6d;--purple:#a855f7;
+  --text:#e8edf5;--text2:#8899aa;--text3:#4a5568;
+  --border:rgba(0,212,255,0.12);--border2:rgba(0,212,255,0.25);
+  --glow:0 0 40px rgba(0,212,255,0.15);
+}
+html{scroll-behavior:smooth}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;line-height:1.6}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;background:rgba(6,8,16,0.92);backdrop-filter:blur(16px);border-bottom:1px solid var(--border);padding:0 6%;height:68px;display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:1.5rem;font-weight:800;letter-spacing:-1px;color:var(--cyan)}
+.logo span{color:var(--gold)}
+.nav-links{display:flex;gap:2rem;align-items:center}
+.nav-links a{color:var(--text2);font-size:.9rem;font-weight:500;text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--cyan)}
+.nav-cta{background:linear-gradient(135deg,var(--cyan),var(--cyan2));color:#000;padding:.55rem 1.4rem;border-radius:8px;font-weight:700;font-size:.875rem;text-decoration:none;transition:opacity .2s;white-space:nowrap}
+.nav-cta:hover{opacity:.85;color:#000}
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:4px}
+.hamburger span{display:block;width:22px;height:2px;background:var(--text);border-radius:2px;transition:all .3s}
+
+/* ── HERO ── */
+.hero{min-height:100vh;display:flex;align-items:center;justify-content:center;text-align:center;padding:120px 6% 80px;position:relative;overflow:hidden}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 90% 70% at 50% 0%,rgba(0,212,255,0.07) 0%,transparent 65%)}
+.hero::after{content:'';position:absolute;bottom:0;left:0;right:0;height:200px;background:linear-gradient(to top,var(--bg),transparent)}
+.hero-badge{display:inline-flex;align-items:center;gap:8px;background:rgba(0,212,255,0.08);border:1px solid var(--border2);border-radius:20px;padding:6px 18px;font-size:.8rem;font-weight:600;color:var(--cyan);margin-bottom:28px;letter-spacing:.5px}
+.hero-badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.6;transform:scale(1.3)}}
+.hero h1{font-size:clamp(2.4rem,6vw,4.2rem);font-weight:800;line-height:1.1;letter-spacing:-2px;margin-bottom:24px}
+.hero h1 span{background:linear-gradient(135deg,var(--cyan),var(--gold));-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero-sub{font-size:clamp(1rem,2.5vw,1.2rem);color:var(--text2);max-width:600px;margin:0 auto 40px;line-height:1.7}
+.hero-actions{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;margin-bottom:60px}
+.btn-primary{background:linear-gradient(135deg,var(--cyan),var(--cyan2));color:#000;padding:16px 36px;border-radius:10px;font-weight:700;font-size:1rem;text-decoration:none;transition:all .25s;border:none;cursor:pointer;display:inline-block}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(0,212,255,0.35);color:#000}
+.btn-secondary{background:transparent;color:var(--text);padding:16px 32px;border-radius:10px;font-weight:600;font-size:1rem;text-decoration:none;border:1px solid rgba(255,255,255,0.15);transition:all .25s;display:inline-block}
+.btn-secondary:hover{border-color:var(--cyan);color:var(--cyan);transform:translateY(-2px)}
+.hero-stats{display:flex;gap:48px;justify-content:center;flex-wrap:wrap}
+.hero-stat{text-align:center}
+.hero-stat .num{font-size:1.8rem;font-weight:800;color:var(--cyan);letter-spacing:-1px}
+.hero-stat .lbl{font-size:.8rem;color:var(--text2);font-weight:500;margin-top:2px}
+
+/* ── COMPARISON BAND ── */
+.comparison{background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:28px 6%;overflow:hidden}
+.comp-scroll{display:flex;gap:48px;justify-content:center;flex-wrap:wrap;align-items:center}
+.comp-item{display:flex;align-items:center;gap:10px;font-size:.9rem;font-weight:500;white-space:nowrap}
+.comp-yes{color:var(--green)}
+.comp-no{color:var(--text3);text-decoration:line-through}
+
+/* ── SECTION SHARED ── */
+section{padding:90px 6%}
+.section-label{font-size:.75rem;font-weight:700;color:var(--cyan);letter-spacing:2px;text-transform:uppercase;margin-bottom:12px}
+.section-title{font-size:clamp(1.8rem,4vw,2.8rem);font-weight:800;letter-spacing:-1.5px;line-height:1.15;margin-bottom:16px}
+.section-sub{font-size:1rem;color:var(--text2);max-width:560px;line-height:1.7}
+.text-center{text-align:center}
+.text-center .section-sub{margin:0 auto}
+
+/* ── HOW IT WORKS ── */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:32px;margin-top:60px}
+.step{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px 28px;position:relative;transition:all .3s}
+.step:hover{border-color:var(--border2);transform:translateY(-4px);box-shadow:var(--glow)}
+.step-num{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,rgba(0,212,255,.15),rgba(0,212,255,.05));border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;color:var(--cyan);margin-bottom:20px}
+.step h3{font-size:1.05rem;font-weight:700;margin-bottom:10px}
+.step p{font-size:.9rem;color:var(--text2);line-height:1.65}
+
+/* ── FEATURES ── */
+.features-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;margin-top:60px}
+.feat{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;transition:all .3s}
+.feat:hover{border-color:var(--border2);box-shadow:var(--glow);transform:translateY(-3px)}
+.feat-icon{font-size:2rem;margin-bottom:18px}
+.feat h3{font-size:1.05rem;font-weight:700;margin-bottom:10px}
+.feat p{font-size:.88rem;color:var(--text2);line-height:1.65}
+
+/* ── EARNINGS CALCULATOR ── */
+.calc-wrap{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:48px;margin-top:60px;max-width:700px;margin-left:auto;margin-right:auto}
+.calc-label{font-size:.8rem;font-weight:600;color:var(--text2);margin-bottom:10px;display:block}
+.calc-slider{width:100%;-webkit-appearance:none;height:6px;border-radius:3px;background:var(--surface3);outline:none;margin-bottom:32px}
+.calc-slider::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:var(--cyan);cursor:pointer;border:3px solid var(--bg);box-shadow:0 0 12px rgba(0,212,255,0.4)}
+.calc-result{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.calc-col{background:var(--surface2);border-radius:12px;padding:24px;text-align:center}
+.calc-col.nexora{border:1px solid rgba(0,212,255,.3);background:rgba(0,212,255,.05)}
+.calc-col.others{border:1px solid rgba(255,255,255,.06)}
+.calc-platform{font-size:.75rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.calc-col.nexora .calc-platform{color:var(--cyan)}
+.calc-amount{font-size:2rem;font-weight:800;letter-spacing:-1px}
+.calc-col.nexora .calc-amount{color:var(--green)}
+.calc-col.others .calc-amount{color:var(--text2)}
+.calc-sub{font-size:.8rem;color:var(--text3);margin-top:4px}
+.calc-diff{text-align:center;margin-top:20px;font-size:.9rem;color:var(--text2)}
+.calc-diff strong{color:var(--green)}
+
+/* ── PRICING ── */
+.pricing-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;margin-top:60px;max-width:900px;margin-left:auto;margin-right:auto}
+.price-card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:36px;position:relative;transition:all .3s}
+.price-card.featured{border-color:var(--cyan);background:rgba(0,212,255,.04);transform:scale(1.04)}
+.price-badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,var(--cyan),var(--gold));color:#000;font-size:.72rem;font-weight:800;padding:5px 16px;border-radius:20px;white-space:nowrap;letter-spacing:.5px}
+.price-name{font-size:.85rem;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px}
+.price-amount{font-size:2.8rem;font-weight:800;letter-spacing:-2px;margin-bottom:4px}
+.price-amount span{font-size:1rem;font-weight:500;color:var(--text2);letter-spacing:0}
+.price-desc{font-size:.85rem;color:var(--text2);margin-bottom:28px;padding-bottom:24px;border-bottom:1px solid var(--border)}
+.price-features{list-style:none;display:flex;flex-direction:column;gap:12px;margin-bottom:32px}
+.price-features li{font-size:.88rem;color:var(--text2);display:flex;align-items:center;gap:10px}
+.price-features li::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
+.price-cta{width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:.95rem;cursor:pointer;border:none;text-decoration:none;display:block;text-align:center;transition:all .25s}
+.price-cta.primary{background:linear-gradient(135deg,var(--cyan),var(--cyan2));color:#000}
+.price-cta.primary:hover{opacity:.85;transform:translateY(-2px)}
+.price-cta.ghost{background:transparent;color:var(--cyan);border:1px solid var(--border2)}
+.price-cta.ghost:hover{background:rgba(0,212,255,.08);transform:translateY(-2px)}
+.spots-bar{margin-top:32px;text-align:center}
+.spots-track{height:6px;background:var(--surface3);border-radius:3px;margin:10px 0}
+.spots-fill{height:100%;background:linear-gradient(90deg,var(--green),var(--cyan));border-radius:3px;width:34%;transition:width .6s}
+.spots-text{font-size:.8rem;color:var(--text2)}
+.spots-text strong{color:var(--gold)}
+
+/* ── TESTIMONIALS ── */
+.testimonials{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;margin-top:60px}
+.testi{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;transition:all .3s}
+.testi:hover{border-color:var(--border2);transform:translateY(-3px)}
+.testi-quote{font-size:.95rem;color:var(--text);line-height:1.75;margin-bottom:24px;font-style:italic}
+.testi-author{display:flex;align-items:center;gap:14px}
+.testi-avatar{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1rem;flex-shrink:0}
+.testi-name{font-weight:700;font-size:.9rem}
+.testi-handle{font-size:.8rem;color:var(--text2)}
+
+/* ── CTA BAND ── */
+.cta-band{background:linear-gradient(135deg,rgba(0,212,255,.07) 0%,rgba(255,215,0,.04) 100%);border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:90px 6%;text-align:center}
+.cta-band h2{font-size:clamp(1.8rem,4vw,3rem);font-weight:800;letter-spacing:-1.5px;margin-bottom:16px}
+.cta-band p{font-size:1rem;color:var(--text2);margin-bottom:40px;max-width:500px;margin-left:auto;margin-right:auto}
+.countdown{display:flex;gap:20px;justify-content:center;margin-bottom:40px;flex-wrap:wrap}
+.cd-block{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px 24px;text-align:center;min-width:80px}
+.cd-num{font-size:2rem;font-weight:800;color:var(--cyan);font-variant-numeric:tabular-nums}
+.cd-lbl{font-size:.7rem;color:var(--text2);text-transform:uppercase;letter-spacing:1px}
+
+/* ── FOOTER ── */
+footer{background:var(--surface);border-top:1px solid var(--border);padding:60px 6% 40px}
+.footer-grid{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:40px;margin-bottom:48px}
+.footer-brand p{font-size:.875rem;color:var(--text2);margin-top:12px;max-width:260px;line-height:1.7}
+.footer-col h4{font-size:.8rem;font-weight:700;color:var(--text);text-transform:uppercase;letter-spacing:1px;margin-bottom:16px}
+.footer-col a{display:block;font-size:.875rem;color:var(--text2);text-decoration:none;margin-bottom:10px;transition:color .2s}
+.footer-col a:hover{color:var(--cyan)}
+.footer-bottom{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding-top:24px;border-top:1px solid var(--border);font-size:.8rem;color:var(--text3)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:768px){
+  .nav-links{display:none}
+  .hamburger{display:flex}
+  .footer-grid{grid-template-columns:1fr 1fr}
+  .hero-stats{gap:28px}
+  .calc-result{grid-template-columns:1fr}
+  .price-card.featured{transform:scale(1)}
+}
+@media(max-width:480px){
+  .footer-grid{grid-template-columns:1fr}
+  .hero-actions{flex-direction:column;align-items:center}
+}
+
+/* ── FADE IN ── */
+.fade-in{opacity:0;transform:translateY(24px);transition:opacity .6s ease,transform .6s ease}
+.fade-in.visible{opacity:1;transform:translateY(0)}
+</style>
+</head>
+<body>
+
+<!-- ── NAVIGATION ── -->
+<nav>
+  <div class="logo">NEX<span>ORA</span></div>
+  <div class="nav-links">
+    <a href="#how-it-works">How It Works</a>
+    <a href="#features">Features</a>
+    <a href="#pricing">Pricing</a>
+    <a href="creator.html">Creator Login</a>
+    <a href="#pricing" class="nav-cta">Join as Creator →</a>
+  </div>
+  <div class="hamburger" onclick="toggleMenu()">
+    <span></span><span></span><span></span>
+  </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+  <div style="position:relative;z-index:1">
+    <div class="hero-badge">🔴 Live Beta — 50 Founding Spots Available</div>
+    <h1>The Creator Platform<br><span>That Pays More.</span></h1>
+    <p class="hero-sub">Keep 90% of everything you earn. Live stream, sell exclusive content, and build your income — with AI tools that grow your audience automatically.</p>
+    <div class="hero-actions">
+      <a href="#pricing" class="btn-primary">Claim Your Founding Spot →</a>
+      <a href="live.html" class="btn-secondary">▶ Watch Live Demo</a>
+    </div>
+    <div class="hero-stats">
+      <div class="hero-stat"><div class="num">90%</div><div class="lbl">Revenue to Creator</div></div>
+      <div class="hero-stat"><div class="num">50</div><div class="lbl">Founding Spots</div></div>
+      <div class="hero-stat"><div class="num">$29</div><div class="lbl">Locked Forever</div></div>
+      <div class="hero-stat"><div class="num">24hr</div><div class="lbl">Direct Payouts</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- ── COMPARISON BAND ── -->
+<div class="comparison">
+  <div class="comp-scroll">
+    <div class="comp-item"><span class="comp-yes">✓</span> NEXORA keeps 90% for creators</div>
+    <div class="comp-item" style="color:var(--text3)">·</div>
+    <div class="comp-item"><span class="comp-no">OnlyFans takes 20%</span></div>
+    <div class="comp-item" style="color:var(--text3)">·</div>
+    <div class="comp-item"><span class="comp-no">Patreon takes 8–12%</span></div>
+    <div class="comp-item" style="color:var(--text3)">·</div>
+    <div class="comp-item"><span class="comp-no">Fanvue takes 15%</span></div>
+    <div class="comp-item" style="color:var(--text3)">·</div>
+    <div class="comp-item"><span class="comp-yes">✓</span> Payout in 24 hours</div>
+  </div>
+</div>
+
+<!-- ── HOW IT WORKS ── -->
+<section id="how-it-works">
+  <div class="text-center fade-in">
+    <div class="section-label">How It Works</div>
+    <h2 class="section-title">Go live in under 10 minutes</h2>
+    <p class="section-sub">No contracts. No waiting. Set up your profile, post your content, and start earning the same day.</p>
+  </div>
+  <div class="steps">
+    <div class="step fade-in">
+      <div class="step-num">01</div>
+      <h3>Create Your Profile</h3>
+      <p>Set up your creator page in minutes. Upload a photo, write your bio, and choose your subscription tiers.</p>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">02</div>
+      <h3>Post & Go Live</h3>
+      <p>Upload exclusive photos, videos, and go live with built-in streaming. Your fans pay to access your world.</p>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">03</div>
+      <h3>AI Grows Your Audience</h3>
+      <p>NEXORA's AI tools suggest content ideas, optimal posting times, and fan re-engagement strategies automatically.</p>
+    </div>
+    <div class="step fade-in">
+      <div class="step-num">04</div>
+      <h3>Get Paid in 24 Hours</h3>
+      <p>Direct payouts to your bank or crypto wallet. No 30-day holds, no middlemen. Your money moves fast.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── FEATURES ── -->
+<section id="features" style="background:var(--surface);border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+  <div class="text-center fade-in">
+    <div class="section-label">Platform Features</div>
+    <h2 class="section-title">Everything you need to earn</h2>
+    <p class="section-sub">Built for creators who are serious about income, not just followers.</p>
+  </div>
+  <div class="features-grid">
+    <div class="feat fade-in">
+      <div class="feat-icon">📹</div>
+      <h3>Live Streaming</h3>
+      <p>Go live anytime with HD streaming, live tips, and real-time fan interaction. No third-party apps needed.</p>
+    </div>
+    <div class="feat fade-in">
+      <div class="feat-icon">🔒</div>
+      <h3>Exclusive Content</h3>
+      <p>Paywall photos, videos, and posts. Set different tiers for different content. Fans pay to unlock.</p>
+    </div>
+    <div class="feat fade-in">
+      <div class="feat-icon">🤖</div>
+      <h3>AI Growth Tools</h3>
+      <p>AI-powered content calendar, caption writer, hashtag optimizer, and fan engagement suggestions built in.</p>
+    </div>
+    <div class="feat fade-in">
+      <div class="feat-icon">💬</div>
+      <h3>Fan Messaging</h3>
+      <p>Direct messages, mass messages, and pay-per-view message unlocks. Monetize every interaction.</p>
+    </div>
+    <div class="feat fade-in">
+      <div class="feat-icon">📊</div>
+      <h3>Revenue Analytics</h3>
+      <p>Real-time dashboards showing earnings, subscriber growth, top fans, and content performance.</p>
+    </div>
+    <div class="feat fade-in">
+      <div class="feat-icon">⚡</div>
+      <h3>Instant Payouts</h3>
+      <p>Request a payout anytime. Receive funds in your bank account or crypto wallet within 24 hours.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── EARNINGS CALCULATOR ── -->
+<section>
+  <div class="text-center fade-in">
+    <div class="section-label">Earnings Calculator</div>
+    <h2 class="section-title">See what you actually keep</h2>
+    <p class="section-sub">Move your slider and watch the difference between NEXORA and every other platform.</p>
+  </div>
+  <div class="calc-wrap fade-in">
+    <label class="calc-label">Monthly Fan Revenue: <strong id="rev-display">$1,000</strong></label>
+    <input type="range" class="calc-slider" id="rev-slider" min="100" max="10000" step="100" value="1000" oninput="calcEarnings(this.value)">
+    <div class="calc-result">
+      <div class="calc-col nexora">
+        <div class="calc-platform">NEXORA</div>
+        <div class="calc-amount" id="nexora-earn">$900</div>
+        <div class="calc-sub">You keep 90%</div>
+      </div>
+      <div class="calc-col others">
+        <div class="calc-platform">OnlyFans</div>
+        <div class="calc-amount" id="of-earn">$800</div>
+        <div class="calc-sub">You keep 80%</div>
+      </div>
+    </div>
+    <div class="calc-diff">With NEXORA you earn <strong id="diff-amount">$100 more</strong> every single month</div>
+  </div>
+</section>
+
+<!-- ── PRICING ── -->
+<section id="pricing" style="background:var(--surface);border-top:1px solid var(--border)">
+  <div class="text-center fade-in">
+    <div class="section-label">Pricing</div>
+    <h2 class="section-title">Simple, creator-first pricing</h2>
+    <p class="section-sub">No revenue cuts. You pay a flat platform fee, keep everything you earn.</p>
+  </div>
+  <div class="pricing-grid">
+    <div class="price-card fade-in">
+      <div class="price-name">Creator</div>
+      <div class="price-amount">$49<span>/mo</span></div>
+      <p class="price-desc">Full access after beta. Everything you need to earn online.</p>
+      <ul class="price-features">
+        <li>Unlimited content uploads</li>
+        <li>Live streaming (HD)</li>
+        <li>Fan messaging + mass DMs</li>
+        <li>Pay-per-view content</li>
+        <li>Revenue analytics</li>
+        <li>24-hour payouts</li>
+      </ul>
+      <a href="#pricing" class="price-cta ghost">Join Waitlist</a>
+    </div>
+    <div class="price-card featured fade-in">
+      <div class="price-badge">⚡ FOUNDING CREATOR — Limited</div>
+      <div class="price-name">Founding Creator</div>
+      <div class="price-amount" style="color:var(--gold)">$29<span>/mo</span></div>
+      <p class="price-desc">Locked in forever at this price. Only 50 spots. Never goes up.</p>
+      <ul class="price-features">
+        <li>Everything in Creator</li>
+        <li>Price locked forever ($29/mo)</li>
+        <li>Early access to new features</li>
+        <li>Founding creator badge</li>
+        <li>Priority support (1-on-1)</li>
+        <li>AI growth tools (beta)</li>
+      </ul>
+      <a href="https://wheellsverse.ck.page/nexora" target="_blank" class="price-cta primary" id="founding-cta">Claim Your Spot →</a>
+      <div class="spots-bar">
+        <div class="spots-text"><strong id="spots-left">33</strong> of 50 spots remaining</div>
+        <div class="spots-track"><div class="spots-fill" id="spots-fill"></div></div>
+        <div class="spots-text" style="font-size:.75rem">Spots claimed update daily</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── TESTIMONIALS ── -->
+<section>
+  <div class="text-center fade-in">
+    <div class="section-label">Founding Creators</div>
+    <h2 class="section-title">What early members are saying</h2>
+  </div>
+  <div class="testimonials">
+    <div class="testi fade-in">
+      <div class="testi-quote">"I was making $2,000/month on OnlyFans and keeping $1,600. Same fanbase on NEXORA and I keep $1,800. The math is undeniable."</div>
+      <div class="testi-author">
+        <div class="testi-avatar">K</div>
+        <div><div class="testi-name">Kayla M.</div><div class="testi-handle">Lifestyle Creator · 4,200 fans</div></div>
+      </div>
+    </div>
+    <div class="testi fade-in">
+      <div class="testi-quote">"The live streaming feature alone is worth it. My tips during a 2-hour session are more than I made in a full week posting static content."</div>
+      <div class="testi-author">
+        <div class="testi-avatar" style="background:linear-gradient(135deg,var(--gold),#e67e22)">R</div>
+        <div><div class="testi-name">Rico T.</div><div class="testi-handle">Fitness Creator · 8,900 fans</div></div>
+      </div>
+    </div>
+    <div class="testi fade-in">
+      <div class="testi-quote">"The AI tools suggested I post at 9pm on weekdays. My engagement went up 40% in the first week. No other platform has anything like this."</div>
+      <div class="testi-author">
+        <div class="testi-avatar" style="background:linear-gradient(135deg,var(--purple),var(--cyan))">A</div>
+        <div><div class="testi-name">Alexa R.</div><div class="testi-handle">Art Creator · 2,100 fans</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA BAND ── -->
+<section class="cta-band">
+  <div class="section-label">Limited Time</div>
+  <h2>50 spots. One chance.<br>Don't miss it.</h2>
+  <p>Founding creator pricing is gone when the 50 spots fill. Lock in $29/month now before we open to the public at $49/month.</p>
+  <div class="countdown">
+    <div class="cd-block"><div class="cd-num" id="cd-d">03</div><div class="cd-lbl">Days</div></div>
+    <div class="cd-block"><div class="cd-num" id="cd-h">14</div><div class="cd-lbl">Hours</div></div>
+    <div class="cd-block"><div class="cd-num" id="cd-m">22</div><div class="cd-lbl">Mins</div></div>
+    <div class="cd-block"><div class="cd-num" id="cd-s">09</div><div class="cd-lbl">Secs</div></div>
+  </div>
+  <a href="https://wheellsverse.ck.page/nexora" target="_blank" class="btn-primary" style="font-size:1.1rem;padding:18px 48px">Claim Founding Spot — $29/mo →</a>
+  <p style="margin-top:16px;font-size:.8rem;color:var(--text3)">No credit card required to join waitlist · Cancel anytime</p>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-grid">
+    <div class="footer-brand">
+      <div class="logo" style="font-size:1.2rem">NEX<span>ORA</span></div>
+      <p>The creator platform built to put more money in your pocket. Powered by WheellsVerse AI.</p>
+    </div>
+    <div class="footer-col">
+      <h4>Platform</h4>
+      <a href="#how-it-works">How It Works</a>
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="live.html">Live Streaming</a>
+    </div>
+    <div class="footer-col">
+      <h4>Creators</h4>
+      <a href="creator.html">Dashboard</a>
+      <a href="subscribe.html">Fan Page Demo</a>
+      <a href="#pricing">Founding Program</a>
+      <a href="mailto:creators@nexora.co">Creator Support</a>
+    </div>
+    <div class="footer-col">
+      <h4>Company</h4>
+      <a href="https://wheellsverse.com" target="_blank">WheellsVerse</a>
+      <a href="mailto:hello@nexora.co">Contact</a>
+      <a href="#">Privacy Policy</a>
+      <a href="#">Terms of Service</a>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <span>© 2026 NEXORA · Powered by WheellsVerse AI</span>
+    <span>90% revenue to every creator, always.</span>
+  </div>
+</footer>
+
+<script>
+// Earnings calculator
+function calcEarnings(v){
+  v = parseInt(v);
+  document.getElementById('rev-display').textContent = '$'+v.toLocaleString();
+  const nexora = Math.round(v * 0.90);
+  const of     = Math.round(v * 0.80);
+  const diff   = nexora - of;
+  document.getElementById('nexora-earn').textContent = '$'+nexora.toLocaleString();
+  document.getElementById('of-earn').textContent     = '$'+of.toLocaleString();
+  document.getElementById('diff-amount').textContent = '$'+diff.toLocaleString()+' more';
+}
+
+// Countdown timer (3 days from page load)
+(function(){
+  const end = Date.now() + 3*24*60*60*1000;
+  function tick(){
+    const d = end - Date.now();
+    if(d <= 0) return;
+    const days  = Math.floor(d/86400000);
+    const hours = Math.floor((d%86400000)/3600000);
+    const mins  = Math.floor((d%3600000)/60000);
+    const secs  = Math.floor((d%60000)/1000);
+    document.getElementById('cd-d').textContent = String(days).padStart(2,'0');
+    document.getElementById('cd-h').textContent = String(hours).padStart(2,'0');
+    document.getElementById('cd-m').textContent = String(mins).padStart(2,'0');
+    document.getElementById('cd-s').textContent = String(secs).padStart(2,'0');
+  }
+  tick(); setInterval(tick, 1000);
+})();
+
+// Spots bar animation
+(function(){
+  const spots = 33;
+  const pct   = ((50-spots)/50)*100;
+  document.getElementById('spots-fill').style.width = pct+'%';
+  document.getElementById('spots-left').textContent = spots;
+})();
+
+// Fade-in on scroll
+const obs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) e.target.classList.add('visible'); });
+},{threshold:0.1});
+document.querySelectorAll('.fade-in').forEach(el=>obs.observe(el));
+
+// Mobile menu
+function toggleMenu(){
+  const nav = document.querySelector('.nav-links');
+  if(nav.style.display==='flex'){
+    nav.style.display='none';
+  } else {
+    nav.style.cssText='display:flex;flex-direction:column;position:fixed;top:68px;left:0;right:0;background:rgba(6,8,16,0.98);padding:24px 6%;gap:16px;border-bottom:1px solid rgba(0,212,255,0.12)';
+  }
+}
+</script>
+</body>
+</html>

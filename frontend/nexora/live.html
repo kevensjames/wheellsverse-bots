@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXORA Live — Creator Stream</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#06080e;--surface:#0c1018;--surface2:#111827;--cyan:#00d4ff;--gold:#ffd700;--green:#00ff88;--red:#ff4d6d;--text:#e8edf5;--text2:#8899aa;--text3:#4a5568;--border:rgba(0,212,255,0.1)}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+nav{background:rgba(6,8,14,0.98);border-bottom:1px solid var(--border);padding:0 20px;height:56px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;z-index:50}
+.logo{font-size:1.1rem;font-weight:800;color:var(--cyan)}
+.logo span{color:var(--gold)}
+.live-badge{background:var(--red);color:#fff;font-size:.72rem;font-weight:800;padding:4px 12px;border-radius:4px;letter-spacing:.5px;display:flex;align-items:center;gap:6px}
+.live-badge::before{content:'';width:7px;height:7px;border-radius:50%;background:#fff;animation:blink 1.2s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.viewer-count{font-size:.8rem;color:var(--text2);display:flex;align-items:center;gap:6px}
+.nav-right{display:flex;align-items:center;gap:14px}
+
+/* STREAM LAYOUT */
+.stream-layout{display:grid;grid-template-columns:1fr 340px;flex:1;overflow:hidden}
+@media(max-width:768px){.stream-layout{grid-template-columns:1fr;grid-template-rows:auto 1fr}}
+
+/* VIDEO AREA */
+.video-area{background:#000;display:flex;flex-direction:column;position:relative;overflow:hidden}
+.video-placeholder{flex:1;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px;background:linear-gradient(135deg,#0a0d14,#111827)}
+.cam-icon{font-size:4rem;opacity:.3}
+.stream-meta{position:absolute;bottom:0;left:0;right:0;padding:16px 20px;background:linear-gradient(to top,rgba(0,0,0,.85),transparent)}
+.stream-title{font-size:1rem;font-weight:700;margin-bottom:4px}
+.stream-tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:.7rem;background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.25);padding:3px 10px;border-radius:10px}
+.creator-bar{background:var(--surface);border-top:1px solid var(--border);padding:12px 20px;display:flex;align-items:center;gap:12px}
+.creator-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),#a855f7);display:flex;align-items:center;justify-content:center;font-weight:800;flex-shrink:0}
+.creator-info{flex:1}
+.creator-name{font-size:.875rem;font-weight:700}
+.creator-sub{font-size:.75rem;color:var(--text2)}
+.follow-btn{background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;border:none;padding:8px 20px;border-radius:8px;font-weight:700;font-size:.8rem;cursor:pointer;transition:opacity .2s}
+.follow-btn:hover{opacity:.85}
+
+/* TIP BAR */
+.tip-bar{background:var(--surface);border-top:1px solid var(--border);padding:10px 20px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.tip-label{font-size:.75rem;font-weight:700;color:var(--text2);margin-right:4px;white-space:nowrap}
+.tip-btn{border:1px solid var(--border);background:var(--surface2);color:var(--gold);border-radius:8px;padding:7px 14px;font-size:.8rem;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap}
+.tip-btn:hover{border-color:var(--gold);background:rgba(255,215,0,.08);transform:translateY(-1px)}
+.tip-custom{flex:1;min-width:80px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:7px 12px;color:var(--text);font-family:inherit;font-size:.8rem}
+.tip-send{background:var(--gold);color:#000;border:none;border-radius:8px;padding:7px 16px;font-weight:700;font-size:.8rem;cursor:pointer;white-space:nowrap;transition:opacity .2s}
+.tip-send:hover{opacity:.85}
+
+/* CHAT PANEL */
+.chat-panel{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.chat-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.chat-title{font-size:.875rem;font-weight:700}
+.chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.chat-msgs::-webkit-scrollbar{width:4px}
+.chat-msgs::-webkit-scrollbar-track{background:transparent}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.msg{display:flex;gap:8px;align-items:flex-start}
+.msg-avatar{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:800;flex-shrink:0}
+.msg-body{background:var(--surface2);border-radius:0 10px 10px 10px;padding:8px 12px;flex:1}
+.msg-name{font-size:.68rem;font-weight:700;margin-bottom:2px}
+.msg-text{font-size:.82rem;color:var(--text2);line-height:1.4}
+.msg.tip-msg .msg-body{background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.2)}
+.msg.tip-msg .msg-name{color:var(--gold)}
+.msg.tip-msg .msg-text{color:var(--gold)}
+.chat-input-area{padding:12px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+.chat-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:inherit;font-size:.85rem;outline:none;transition:border-color .2s}
+.chat-input:focus{border-color:rgba(0,212,255,.4)}
+.chat-send{background:var(--cyan);color:#000;border:none;border-radius:8px;padding:10px 16px;font-weight:700;font-size:.85rem;cursor:pointer;transition:opacity .2s}
+.chat-send:hover{opacity:.85}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <div class="logo">NEX<span>ORA</span></div>
+  <div class="live-badge">🔴 LIVE</div>
+  <div class="nav-right">
+    <div class="viewer-count">👁️ <span id="viewer-count">0</span> watching</div>
+    <a href="index.html" style="color:var(--text2);font-size:.8rem;text-decoration:none">← Back</a>
+  </div>
+</nav>
+
+<!-- STREAM LAYOUT -->
+<div class="stream-layout">
+
+  <!-- VIDEO AREA -->
+  <div class="video-area">
+    <div class="video-placeholder">
+      <div class="cam-icon">📹</div>
+      <div style="text-align:center">
+        <div style="font-size:1rem;font-weight:700;margin-bottom:8px">Stream not started yet</div>
+        <div style="font-size:.85rem;color:var(--text2);margin-bottom:20px">Go to your creator dashboard to start streaming</div>
+        <a href="creator.html" style="background:var(--red);color:#fff;border:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;cursor:pointer;text-decoration:none;display:inline-block">Start Streaming →</a>
+      </div>
+    </div>
+    <div class="stream-meta">
+      <div class="stream-title" id="stream-title">Creator's Live Stream</div>
+      <div class="stream-tags">
+        <div class="tag">Exclusive</div>
+        <div class="tag">Q&A</div>
+        <div class="tag">NEXORA</div>
+      </div>
+    </div>
+    <div class="creator-bar">
+      <div class="creator-avatar">J</div>
+      <div class="creator-info">
+        <div class="creator-name">Creator Name</div>
+        <div class="creator-sub">Founding Creator · NEXORA</div>
+      </div>
+      <button class="follow-btn" onclick="this.textContent='✓ Following';this.style.background='var(--surface2)';this.style.color='var(--green)';this.style.border='1px solid rgba(0,255,136,.3)'">Follow</button>
+    </div>
+    <div class="tip-bar">
+      <div class="tip-label">💰 Tip:</div>
+      <button class="tip-btn" onclick="sendTip(1)">$1</button>
+      <button class="tip-btn" onclick="sendTip(5)">$5</button>
+      <button class="tip-btn" onclick="sendTip(10)">$10</button>
+      <button class="tip-btn" onclick="sendTip(50)">$50</button>
+      <input type="number" class="tip-custom" id="custom-tip" placeholder="Custom" min="1">
+      <button class="tip-send" onclick="sendCustomTip()">Send Tip ❤️</button>
+    </div>
+  </div>
+
+  <!-- CHAT PANEL -->
+  <div class="chat-panel">
+    <div class="chat-header">
+      <div class="chat-title">💬 Live Chat</div>
+      <div style="font-size:.72rem;color:var(--text3)" id="chat-count">0 messages</div>
+    </div>
+    <div class="chat-msgs" id="chat-msgs">
+      <div style="text-align:center;padding:32px;color:var(--text3);font-size:.8rem">
+        Chat is quiet...<br>Be the first to say hi! 👋
+      </div>
+    </div>
+    <div class="chat-input-area">
+      <input type="text" class="chat-input" id="chat-input" placeholder="Say something..." maxlength="200" onkeypress="if(event.key==='Enter')sendChat()">
+      <button class="chat-send" onclick="sendChat()">→</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let msgCount = 0;
+const colors = ['#00d4ff','#a855f7','#00ff88','#ffd700','#ff6b6b','#f59e0b'];
+const names = ['Alex','Jordan','Sam','Riley','Morgan','Taylor','Casey','Jamie'];
+
+function randColor(){ return colors[Math.floor(Math.random()*colors.length)]; }
+function randName(){ return names[Math.floor(Math.random()*names.length)]; }
+function initial(n){ return n[0].toUpperCase(); }
+
+function addMsg(name, text, isTip=false, tipAmt=0){
+  const container = document.getElementById('chat-msgs');
+  const empty = container.querySelector('div[style*="text-align"]');
+  if(empty) empty.remove();
+
+  const col = randColor();
+  const div = document.createElement('div');
+  div.className = 'msg' + (isTip?' tip-msg':'');
+  div.innerHTML = `<div class="msg-avatar" style="background:${col}22;color:${col};border:1px solid ${col}44">${initial(name)}</div>
+    <div class="msg-body">
+      <div class="msg-name">${name}${isTip?` tipped $${tipAmt}! 🎉`:''}</div>
+      <div class="msg-text">${text}</div>
+    </div>`;
+  container.appendChild(div);
+  container.scrollTop = container.scrollHeight;
+  msgCount++;
+  document.getElementById('chat-count').textContent = msgCount+' messages';
+}
+
+function sendChat(){
+  const inp = document.getElementById('chat-input');
+  const text = inp.value.trim();
+  if(!text) return;
+  addMsg('You', text);
+  inp.value = '';
+}
+
+function sendTip(amt){
+  addMsg('You', `Just sent a $${amt} tip! ❤️`, true, amt);
+  alert(`Thank you! Your $${amt} tip has been sent. (Stripe checkout will open in full version)`);
+}
+
+function sendCustomTip(){
+  const amt = parseFloat(document.getElementById('custom-tip').value)||0;
+  if(amt < 1){ alert('Minimum tip is $1'); return; }
+  sendTip(amt);
+  document.getElementById('custom-tip').value = '';
+}
+
+// Simulated viewer count
+let viewers = 0;
+setInterval(()=>{
+  viewers = Math.max(0, viewers + (Math.random()>0.4?1:-1));
+  document.getElementById('viewer-count').textContent = viewers;
+}, 3000);
+</script>
+</body>
+</html>
