@@ -6052,12 +6052,39 @@ async def nexora_growth(background_tasks: BackgroundTasks):
 
 @app.get("/frontend/nexora/{filename}")
 async def serve_nexora_page(filename: str):
-    """Serve NEXORA frontend pages directly from the dashboard server."""
+    """Serve NEXORA frontend pages (long path form)."""
     from fastapi.responses import FileResponse
     path = ROOT / "frontend" / "nexora" / filename
-    if not path.exists() or not path.suffix == ".html":
+    if not path.exists() or path.suffix != ".html":
         raise HTTPException(status_code=404, detail="Page not found")
     return FileResponse(str(path), media_type="text/html")
+
+# ── Clean short URLs: /nexora, /nexora/creator, /nexora/subscribe, /nexora/live
+@app.get("/nexora")
+@app.get("/nexora/")
+async def nexora_index():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(ROOT / "frontend" / "nexora" / "index.html"), media_type="text/html")
+
+@app.get("/nexora/join")
+@app.get("/nexora/subscribe")
+@app.get("/nexora/subscribe.html")
+async def nexora_subscribe():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(ROOT / "frontend" / "nexora" / "subscribe.html"), media_type="text/html")
+
+@app.get("/nexora/dashboard")
+@app.get("/nexora/creator")
+@app.get("/nexora/creator.html")
+async def nexora_creator():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(ROOT / "frontend" / "nexora" / "creator.html"), media_type="text/html")
+
+@app.get("/nexora/live")
+@app.get("/nexora/live.html")
+async def nexora_live():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(ROOT / "frontend" / "nexora" / "live.html"), media_type="text/html")
 
 
 # ─── NEXORA Platform — Real Backend ──────────────────────────────────────────
