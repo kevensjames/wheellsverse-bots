@@ -928,6 +928,8 @@ async def health():
         "status":   "ok",
         "uptime":   int(time.time() - _server_start),
         "browser":  browser_ok,
+        "version":  "nexora-v2",
+        "nx_routes": True,
     }
 
 
