@@ -174,38 +174,8 @@ async def _lifespan(application: FastAPI):
         _add_log("Scheduler auto-started on server boot", "INFO")
     except Exception as _e:
         _add_log(f"Scheduler auto-start failed: {_e}", "WARNING")
-    # Twitter Blitz: post 1 thread 3× per day (08:00, 12:00, 18:00)
-    try:
-        import schedule as _sched
-        _sched.every().day.at("08:00").do(_blitz_scheduled_post, count=1)
-        _sched.every().day.at("12:00").do(_blitz_scheduled_post, count=1)
-        _sched.every().day.at("18:00").do(_blitz_scheduled_post, count=1)
-        _add_log("Twitter Blitz auto-post scheduled: 08:00, 12:00, 18:00", "INFO")
-    except Exception as _e:
-        _add_log(f"Twitter Blitz schedule setup failed: {_e}", "WARNING")
-    # Weekly newsletter: every Monday at 09:00
-    try:
-        import schedule as _sched2
-        def _weekly_newsletter():
-            import asyncio as _asyncio
-            try:
-                loop = _asyncio.new_event_loop()
-                loop.run_until_complete(generate_newsletter())
-                loop.close()
-                _add_log("Weekly newsletter auto-generated", "INFO")
-            except Exception as _e2:
-                _add_log(f"Weekly newsletter failed: {_e2}", "ERROR")
-        _sched2.every().monday.at("09:00").do(_weekly_newsletter)
-        _add_log("Weekly newsletter scheduled: Monday 09:00", "INFO")
-    except Exception as _e:
-        _add_log(f"Newsletter schedule setup failed: {_e}", "WARNING")
-    # Reddit Blitz: post 1 article per day at 10:00
-    try:
-        import schedule as _sched3
-        _sched3.every().day.at("10:00").do(_reddit_scheduled_post, count=1)
-        _add_log("Reddit Blitz auto-post scheduled: 10:00 daily", "INFO")
-    except Exception as _e:
-        _add_log(f"Reddit Blitz schedule setup failed: {_e}", "WARNING")
+    # Auto-posting schedules DISABLED — NarAI only posts when owner explicitly asks
+    _add_log("Auto-post schedules disabled — manual posting only", "INFO")
     # NarAI hourly diagnostic
     try:
         import schedule as _schedN
@@ -4751,6 +4721,17 @@ async def kdp_stats():
             continue
     published_today = sum(1 for s in genre_status.values() if s in ("published", "review_required"))
     errors_today    = sum(1 for s in genre_status.values() if s == "error")
+    # Enrich genre_status with error details for account_limit cases
+    for f in sorted(_glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json")), reverse=True):
+        try:
+            d = json.loads(Path(f).read_text(errors="replace"))
+            g = d.get("genre", "")
+            err = d.get("error", "")
+            if g and genre_status.get(g) == "error" and "account_limit" in err:
+                genre_status[g] = "account_limit"
+        except Exception:
+            continue
+    account_limit = sum(1 for s in genre_status.values() if s == "account_limit")
     kdp_results = _kdp_load_results()
 
     # Check if a publish run is currently active (log has STEP but not COMPLETE)
@@ -4762,12 +4743,14 @@ async def kdp_stats():
     live_asins = sum(1 for d in kdp_results.values() if d.get("asin"))
 
     return {
-        "published_today": published_today,
-        "errors_today":    errors_today,
-        "total_books":     total,
-        "status":          "running" if running else ("done" if published_today > 0 else "idle"),
-        "live_asins":      live_asins,
-        "genre_status":    genre_status,
+        "published_today":   published_today,
+        "errors_today":      errors_today,
+        "account_limit":     account_limit,
+        "total_books":       total,
+        "status":            "running" if running else ("done" if published_today > 0 else "idle"),
+        "live_asins":        live_asins,
+        "genre_status":      genre_status,
+        "limit_note":        "Amazon limits new title submissions per account. Wait for pending books to be approved, then re-run." if account_limit > 0 else "",
     }
 
 @app.get("/api/kdp/log")

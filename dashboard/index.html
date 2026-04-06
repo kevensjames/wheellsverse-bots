@@ -2398,6 +2398,9 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
+  <!-- Account limit warning banner (hidden by default) -->
+  <div id="kdp-limit-note" style="display:none;margin-bottom:14px;padding:12px 16px;background:rgba(255,170,0,.1);border:1px solid rgba(255,170,0,.4);border-radius:8px;font-size:11px;color:#ffaa00;line-height:1.6"></div>
+
   <!-- Toggle + controls -->
   <div class="card" style="margin-bottom:16px">
     <div class="sh">
@@ -4952,15 +4955,25 @@ async function kdpRefreshStats(){
     if(subEl){
       const errs = d.errors_today || 0;
       const asins = d.live_asins || 0;
-      subEl.textContent = errs ? `${errs} errors today` : asins ? `${asins} ASINs live` : 'Ready to publish';
+      const limit = d.account_limit || 0;
+      if(limit > 0) subEl.innerHTML = `<span style="color:#ffaa00">⚠️ ${limit} genres hit Amazon's title limit — wait for approval</span>`;
+      else if(errs) subEl.textContent = `${errs} errors today`;
+      else if(asins) subEl.textContent = `${asins} ASINs live`;
+      else subEl.textContent = 'Ready to publish';
     }
+    // Show limit note if present
+    const limitNote = document.getElementById('kdp-limit-note');
+    if(limitNote) limitNote.style.display = d.limit_note ? 'block' : 'none';
+    if(limitNote && d.limit_note) limitNote.textContent = '⚠️ ' + d.limit_note;
     // Update genre grid statuses if we have them
     if(d.genre_status){
       Object.entries(d.genre_status).forEach(([g, s])=>{
         const el = document.getElementById('kdp-genre-status-'+g);
         if(el){
-          el.textContent = s;
-          el.style.color = s==='published'||s==='review_required' ? 'var(--green)' : s==='error' ? 'var(--red)' : 'var(--text3)';
+          el.textContent = s === 'account_limit' ? 'limit' : s;
+          el.style.color = s==='published'||s==='review_required' ? 'var(--green)'
+                         : s==='account_limit' ? '#ffaa00'
+                         : s==='error' ? 'var(--red)' : 'var(--text3)';
         }
       });
     }
