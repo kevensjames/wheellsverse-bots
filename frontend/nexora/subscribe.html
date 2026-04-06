@@ -133,7 +133,7 @@ nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0
       <div class="post-locked">
         <h4>🔒 Subscriber-only content</h4>
         <p>Subscribe to unlock this post and all future exclusive content.</p>
-        <button class="unlock-btn" onclick="scrollToSub()">Unlock for $9.99/mo</button>
+        <button type="button" class="unlock-btn" onclick="scrollToSub()">Unlock for $9.99/mo</button>
       </div>
     </div>
   </div>
@@ -153,18 +153,65 @@ nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0
         <div class="perk">Cancel anytime, no contracts</div>
       </div>
       <div class="sub-actions">
-        <button class="btn-sub primary" onclick="subscribe()">Subscribe — $9.99/mo</button>
-        <button class="btn-sub ghost" onclick="subscribe()">Send a Tip ❤️</button>
-        <div class="sub-note">Powered by NEXORA · 90% goes to creator · Secure checkout</div>
+        <input type="email" id="sub-email" placeholder="Enter your email to subscribe" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:13px 16px;color:var(--text);font-family:inherit;font-size:.9rem;margin-bottom:4px;outline:none" onfocus="this.style.borderColor='rgba(0,212,255,.4)'" onblur="this.style.borderColor='rgba(0,212,255,0.1)'">
+        <button type="button" class="btn-sub primary" onclick="subscribe()">Subscribe — $9.99/mo</button>
+        <button type="button" class="btn-sub ghost" onclick="sendTip()">Send a Tip ❤️</button>
+        <div class="sub-note">Powered by NEXORA · 90% goes to creator · Secure checkout via Stripe</div>
       </div>
     </div>
   </div>
 </div>
 
 <script>
-function subscribe(){
-  alert('Checkout coming soon! Set your Stripe payment link in NEXORA dashboard → Settings.');
+const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+  ? 'http://localhost:5050'
+  : 'https://grateful-flexibility-production.up.railway.app';
+
+// Fetch real Stripe URL from API, fall back to known link
+let stripeUrl = 'https://buy.stripe.com/aFa28q6TX6lI72d9sva3u04';
+fetch(API + '/api/nexora/status').then(r=>r.json()).then(d=>{
+  if(d.stripe_url) stripeUrl = d.stripe_url;
+}).catch(()=>{});
+
+async function subscribe(){
+  const emailEl = document.getElementById('sub-email');
+  const email = emailEl ? emailEl.value.trim() : '';
+
+  if(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    // Enroll in ConvertKit via our API
+    try {
+      await fetch(API + '/api/lead', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({email, source:'nexora_subscribe', topic:'nexora'})
+      });
+    } catch(e){ /* non-blocking */ }
+  } else if(email) {
+    emailEl.style.borderColor = 'var(--red)';
+    emailEl.placeholder = 'Enter a valid email first';
+    return;
+  }
+
+  // Redirect to Stripe checkout
+  window.open(stripeUrl, '_blank');
 }
+
+async function sendTip(){
+  const emailEl = document.getElementById('sub-email');
+  const email = emailEl ? emailEl.value.trim() : '';
+  if(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+    try {
+      await fetch(API + '/api/lead', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({email, source:'nexora_tip', topic:'nexora'})
+      });
+    } catch(e){}
+  }
+  // Use bot pack link for tips (same Stripe account)
+  window.open('https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03', '_blank');
+}
+
 function scrollToSub(){
   document.getElementById('sub-card').scrollIntoView({behavior:'smooth',block:'center'});
 }

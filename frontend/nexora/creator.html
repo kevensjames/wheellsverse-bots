@@ -137,7 +137,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
     <div class="page-title" id="page-title">Overview</div>
     <div class="topbar-actions">
       <div class="badge-live" onclick="window.location='live.html'">🔴 Go Live</div>
-      <div style="font-size:.8rem;color:var(--text2)">Sun Apr 6, 2026</div>
+      <div style="font-size:.8rem;color:var(--text2)" id="topbar-date"></div>
     </div>
   </div>
 
@@ -149,23 +149,23 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">This Month</div>
-          <div class="stat-value" style="color:var(--green)">$0</div>
+          <div class="stat-value" style="color:var(--green)" id="stat-mrr">$0</div>
           <div class="stat-change up">+ Get your first subscriber!</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Subscribers</div>
-          <div class="stat-value" style="color:var(--cyan)">0</div>
-          <div class="stat-change up">Share your page to grow</div>
+          <div class="stat-value" style="color:var(--cyan)" id="stat-subs">—</div>
+          <div class="stat-change up" id="stat-subs-note">Loading...</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Total Posts</div>
-          <div class="stat-value">0</div>
-          <div class="stat-change" style="color:var(--text2)">Upload your first content</div>
+          <div class="stat-label">Waitlist Leads</div>
+          <div class="stat-value" id="stat-leads">—</div>
+          <div class="stat-change" style="color:var(--text2)" id="stat-leads-note">Loading...</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Pending Payout</div>
-          <div class="stat-value" style="color:var(--gold)">$0</div>
-          <div class="stat-change" style="color:var(--text2)">24hr processing</div>
+          <div class="stat-label">Founding Spots Left</div>
+          <div class="stat-value" style="color:var(--gold)" id="stat-spots">—</div>
+          <div class="stat-change" style="color:var(--text2)" id="stat-spots-note">of 50 total</div>
         </div>
       </div>
 
@@ -271,11 +271,17 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
     <div id="page-subscribers" style="display:none">
       <div class="panel">
         <div class="panel-title">Your Subscribers</div>
-        <div style="text-align:center;padding:48px;color:var(--text3)">
-          No subscribers yet.<br><br>
-          <strong style="color:var(--text)">Share your fan page to get started:</strong><br><br>
-          <code style="color:var(--cyan);background:var(--surface2);padding:8px 16px;border-radius:8px;font-size:.875rem">nexora.wheellsverse.com/u/yourname</code><br><br>
-          <a href="subscribe.html" style="color:var(--cyan);text-decoration:none;font-size:.875rem">Preview your fan page →</a>
+        <div style="text-align:center;padding:32px;color:var(--text3)">
+          <strong style="color:var(--text);font-size:1rem">Share your fan page to get subscribers:</strong><br><br>
+          <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:20px">
+            <code id="fan-link" style="color:var(--cyan);background:var(--surface2);padding:10px 18px;border-radius:8px;font-size:.875rem">grateful-flexibility-production.up.railway.app/frontend/nexora/subscribe.html</code>
+            <button type="button" onclick="copyFanLink()" style="background:rgba(0,212,255,.1);border:1px solid var(--border2);color:var(--cyan);padding:10px 16px;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700">Copy</button>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <a href="subscribe.html" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 20px;border-radius:8px;text-decoration:none;font-size:.875rem;font-weight:600">Preview Fan Page →</a>
+            <button type="button" onclick="shareToSocial()" style="background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:.875rem;font-weight:700">Share Now 🚀</button>
+          </div>
+          <div style="margin-top:32px;color:var(--text2);font-size:.85rem" id="ck-subs-info">Loading ConvertKit subscriber data...</div>
         </div>
       </div>
     </div>
@@ -318,29 +324,103 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 </div><!-- /main -->
 
 <script>
+// ── API base — same origin when served from Railway/local server ──────────────
+const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+  ? 'http://localhost:5050'
+  : 'https://grateful-flexibility-production.up.railway.app';
+
+// ── Dynamic date ──────────────────────────────────────────────────────────────
+(function(){
+  const d = new Date();
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  document.getElementById('topbar-date').textContent =
+    days[d.getDay()] + ' ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+})();
+
+// ── Page navigation ───────────────────────────────────────────────────────────
 function showPage(name){
   document.querySelectorAll('[id^="page-"]').forEach(el=>el.style.display='none');
-  document.getElementById('page-'+name).style.display='block';
+  const page = document.getElementById('page-'+name);
+  if(page) page.style.display='block';
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  document.getElementById('page-title').textContent = name.charAt(0).toUpperCase()+name.slice(1).replace('-',' ');
+  document.getElementById('page-title').textContent = name.charAt(0).toUpperCase()+name.slice(1).replace(/-/g,' ');
+  if(name==='subscribers') loadSubsPage();
 }
 
-// Generate sample chart bars
+// ── Load dashboard stats from API ─────────────────────────────────────────────
+async function loadStats(){
+  try {
+    const r = await fetch(API + '/api/nexora/status');
+    const d = await r.json();
+    document.getElementById('stat-subs').textContent = d.subscribers ?? 0;
+    document.getElementById('stat-subs-note').textContent =
+      d.subscribers > 0 ? '↑ ConvertKit total' : 'Share your page to grow';
+    document.getElementById('stat-leads').textContent = d.leads ?? 0;
+    document.getElementById('stat-leads-note').textContent =
+      d.leads > 0 ? 'Waitlist signups' : 'No signups yet';
+    const spotsLeft = Math.max(0, (d.founding_spots ?? 50) - (d.spots_taken ?? 0));
+    document.getElementById('stat-spots').textContent = spotsLeft;
+    document.getElementById('stat-spots-note').textContent =
+      'of ' + (d.founding_spots ?? 50) + ' total';
+    if(d.mrr > 0){
+      document.getElementById('stat-mrr').textContent = '$' + d.mrr.toLocaleString();
+    }
+  } catch(e){
+    document.getElementById('stat-subs').textContent = '—';
+    document.getElementById('stat-leads').textContent = '—';
+    document.getElementById('stat-spots').textContent = '50';
+  }
+}
+
+// ── Load subscribers page data ────────────────────────────────────────────────
+async function loadSubsPage(){
+  const el = document.getElementById('ck-subs-info');
+  if(!el) return;
+  try {
+    const r = await fetch(API + '/api/nexora/status');
+    const d = await r.json();
+    el.innerHTML = d.subscribers > 0
+      ? '<strong style="color:#00ff88">' + d.subscribers + ' total subscribers</strong> in ConvertKit · <a href="https://app.convertkit.com" target="_blank" style="color:var(--cyan)">View in ConvertKit →</a>'
+      : 'No subscribers yet · <a href="https://app.convertkit.com" target="_blank" style="color:var(--cyan)">Open ConvertKit →</a>';
+  } catch(e){
+    el.textContent = 'Could not load subscriber data';
+  }
+}
+
+// ── Earnings chart ────────────────────────────────────────────────────────────
 (function(){
   const data = [0,0,0,0,0,0,0];
   const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const max = Math.max(...data,1);
+  const max = Math.max(...data, 1);
   const container = document.getElementById('chart-bars');
   container.innerHTML = data.map((v,i)=>{
-    const pct = (v/max)*100||2;
+    const pct = (v/max)*100 || 2;
     return `<div class="bar-wrap"><div class="bar" style="height:${pct}%;background:linear-gradient(to top,var(--cyan),var(--purple));opacity:.7"></div><div class="bar-lbl">${labels[i]}</div></div>`;
   }).join('');
 })();
 
-function requestPayout(){
-  alert('Payout requested! You need at least $20 in earnings to request a payout. Funds arrive within 24 hours.');
+// ── Copy fan link ─────────────────────────────────────────────────────────────
+function copyFanLink(){
+  const link = document.getElementById('fan-link').textContent.trim();
+  navigator.clipboard.writeText(link).then(()=>alert('Link copied! Share it everywhere.')).catch(()=>{
+    prompt('Copy this link:', link);
+  });
 }
 
+// ── Share to social ───────────────────────────────────────────────────────────
+function shareToSocial(){
+  const link = document.getElementById('fan-link').textContent.trim();
+  const text = encodeURIComponent('Subscribe to my exclusive content on NEXORA 🔥 ' + link);
+  window.open('https://twitter.com/intent/tweet?text=' + text, '_blank');
+}
+
+// ── Request payout ────────────────────────────────────────────────────────────
+function requestPayout(){
+  alert('Payout requested! You need at least $20 in earnings. Funds arrive within 24 hours via your selected method.');
+}
+
+// ── File preview ──────────────────────────────────────────────────────────────
 function previewFiles(files){
   const container = document.getElementById('file-preview');
   container.innerHTML = '';
@@ -363,6 +443,9 @@ document.querySelectorAll('.tab-btn').forEach(b=>{
     this.classList.add('active');
   });
 });
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+loadStats();
 </script>
 </body>
 </html>

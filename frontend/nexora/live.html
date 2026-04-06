@@ -93,7 +93,7 @@ nav{background:rgba(6,8,14,0.98);border-bottom:1px solid var(--border);padding:0
       <div style="text-align:center">
         <div style="font-size:1rem;font-weight:700;margin-bottom:8px">Stream not started yet</div>
         <div style="font-size:.85rem;color:var(--text2);margin-bottom:20px">Go to your creator dashboard to start streaming</div>
-        <a href="creator.html" style="background:var(--red);color:#fff;border:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;cursor:pointer;text-decoration:none;display:inline-block">Start Streaming →</a>
+        <a href="creator.html" style="background:var(--red);color:#fff;padding:12px 28px;border-radius:8px;font-weight:700;font-size:.9rem;text-decoration:none;display:inline-block">Start Streaming →</a>
       </div>
     </div>
     <div class="stream-meta">
@@ -110,16 +110,16 @@ nav{background:rgba(6,8,14,0.98);border-bottom:1px solid var(--border);padding:0
         <div class="creator-name">Creator Name</div>
         <div class="creator-sub">Founding Creator · NEXORA</div>
       </div>
-      <button class="follow-btn" onclick="this.textContent='✓ Following';this.style.background='var(--surface2)';this.style.color='var(--green)';this.style.border='1px solid rgba(0,255,136,.3)'">Follow</button>
+      <button type="button" class="follow-btn" onclick="this.textContent='✓ Following';this.style.background='var(--surface2)';this.style.color='var(--green)';this.style.border='1px solid rgba(0,255,136,.3)'">Follow</button>
     </div>
     <div class="tip-bar">
       <div class="tip-label">💰 Tip:</div>
-      <button class="tip-btn" onclick="sendTip(1)">$1</button>
-      <button class="tip-btn" onclick="sendTip(5)">$5</button>
-      <button class="tip-btn" onclick="sendTip(10)">$10</button>
-      <button class="tip-btn" onclick="sendTip(50)">$50</button>
+      <button type="button" class="tip-btn" onclick="sendTip(1)">$1</button>
+      <button type="button" class="tip-btn" onclick="sendTip(5)">$5</button>
+      <button type="button" class="tip-btn" onclick="sendTip(10)">$10</button>
+      <button type="button" class="tip-btn" onclick="sendTip(50)">$50</button>
       <input type="number" class="tip-custom" id="custom-tip" placeholder="Custom" min="1">
-      <button class="tip-send" onclick="sendCustomTip()">Send Tip ❤️</button>
+      <button type="button" class="tip-send" onclick="sendCustomTip()">Send Tip ❤️</button>
     </div>
   </div>
 
@@ -136,19 +136,25 @@ nav{background:rgba(6,8,14,0.98);border-bottom:1px solid var(--border);padding:0
     </div>
     <div class="chat-input-area">
       <input type="text" class="chat-input" id="chat-input" placeholder="Say something..." maxlength="200" onkeypress="if(event.key==='Enter')sendChat()">
-      <button class="chat-send" onclick="sendChat()">→</button>
+      <button type="button" class="chat-send" onclick="sendChat()">→</button>
     </div>
   </div>
 
 </div>
 
 <script>
+const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+  ? 'http://localhost:5050'
+  : 'https://grateful-flexibility-production.up.railway.app';
+
+// Tip payment link (real Stripe link on same account)
+const TIP_URL = 'https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03';
+
 let msgCount = 0;
 const colors = ['#00d4ff','#a855f7','#00ff88','#ffd700','#ff6b6b','#f59e0b'];
 const names = ['Alex','Jordan','Sam','Riley','Morgan','Taylor','Casey','Jamie'];
 
 function randColor(){ return colors[Math.floor(Math.random()*colors.length)]; }
-function randName(){ return names[Math.floor(Math.random()*names.length)]; }
 function initial(n){ return n[0].toUpperCase(); }
 
 function addMsg(name, text, isTip=false, tipAmt=0){
@@ -178,9 +184,18 @@ function sendChat(){
   inp.value = '';
 }
 
-function sendTip(amt){
-  addMsg('You', `Just sent a $${amt} tip! ❤️`, true, amt);
-  alert(`Thank you! Your $${amt} tip has been sent. (Stripe checkout will open in full version)`);
+async function sendTip(amt){
+  addMsg('You', `Sending a $${amt} tip! ❤️`, true, amt);
+  // Record interest as a lead
+  try {
+    await fetch(API + '/api/lead', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({email: 'tip-' + Date.now() + '@live.nexora', source:'nexora_tip_live', topic:'nexora', metadata:{tip_amount: amt}})
+    });
+  } catch(e){}
+  // Open Stripe checkout
+  window.open(TIP_URL, '_blank');
 }
 
 function sendCustomTip(){

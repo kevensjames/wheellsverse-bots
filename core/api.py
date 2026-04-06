@@ -81,7 +81,10 @@ logger = logging.getLogger("api")
 _API_KEY = os.getenv("API_KEY", "").strip()
 
 # Public paths that never require auth
-_PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico"}
+_PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
+                 "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
+                 "/api/stripe/webhook",
+                 "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth"}
 
 async def verify_api_key(request: Request):
     """
@@ -894,6 +897,21 @@ async def handle_command(req: CommandRequest, background_tasks: BackgroundTasks)
 
 
 # ─── Health system ────────────────────────────────────────────────────────────
+
+class LoginRequest(BaseModel):
+    password: str
+
+@app.post("/api/auth/login")
+async def auth_login(req: LoginRequest):
+    """Dashboard password check."""
+    dashboard_pw = os.getenv("DASHBOARD_PASSWORD", "").strip()
+    if not dashboard_pw:
+        # No password set — allow access
+        return {"ok": True}
+    if req.password == dashboard_pw:
+        return {"ok": True}
+    return {"ok": False}
+
 
 @app.get("/api/health")
 async def health():
@@ -5948,16 +5966,35 @@ async def nexora_status():
         {"name": "Live Stream Room",   "file": "live.html",      "url": "/frontend/nexora/live.html"},
     ]
     pages_built = [p for p in pages if (ROOT / "frontend" / "nexora" / p["file"]).exists()]
+    # Pull real ConvertKit subscriber count
+    ck_subscribers = 0
+    try:
+        from core.convertkit import get_convertkit
+        ck_subscribers = get_convertkit().get_subscriber_count()
+    except Exception:
+        pass
+    # Pull local lead count tagged nexora
+    nexora_leads = 0
+    try:
+        from core.email_capture import get_email_capture
+        stats = get_email_capture().get_stats()
+        nexora_leads = stats.get("total", 0)
+    except Exception:
+        pass
+    nexora_stripe_url = os.getenv("STRIPE_NEXORA_URL", os.getenv("STRIPE_PRO_URL", ""))
     return {
         "status":          "live" if pages_built else "building",
         "pages_built":     len(pages_built),
         "pages":           pages_built,
         "posts_today":     posts_today,
         "founding_spots":  50,
-        "spots_taken":     17,
+        "spots_taken":     nexora_leads,
         "mrr":             0,
+        "subscribers":     ck_subscribers,
+        "leads":           nexora_leads,
         "recruit_content": recruit_content,
-        "stripe_set":      bool(os.getenv("STRIPE_NEXORA_URL")),
+        "stripe_set":      bool(nexora_stripe_url),
+        "stripe_url":      nexora_stripe_url,
         "beta_url":        os.getenv("NEXORA_BETA_URL", "https://nexora.wheellsverse.com/beta"),
         "waitlist_url":    os.getenv("NEXORA_WAITLIST_URL", "https://wheellsverse.ck.page/nexora"),
     }
