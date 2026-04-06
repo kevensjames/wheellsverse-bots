@@ -8,92 +8,139 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{--bg:#060810;--surface:#0c1018;--surface2:#111827;--surface3:#1a2235;--cyan:#00d4ff;--gold:#ffd700;--green:#00ff88;--red:#ff4d6d;--purple:#a855f7;--text:#e8edf5;--text2:#8899aa;--text3:#4a5568;--border:rgba(0,212,255,0.1);--border2:rgba(0,212,255,0.25)}
+:root{
+  --bg:#060810;--surface:#0c1018;--surface2:#111827;--surface3:#1a2235;
+  --cyan:#00d4ff;--gold:#ffd700;--green:#00ff88;--red:#ff4d6d;--purple:#a855f7;
+  --text:#e8edf5;--text2:#8899aa;--text3:#4a5568;
+  --border:rgba(0,212,255,0.1);--border2:rgba(0,212,255,0.25)
+}
 body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;overflow-x:hidden}
 
-/* SIDEBAR */
-.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:50;transition:transform .3s}
-.sidebar-logo{padding:24px 20px;font-size:1.2rem;font-weight:800;letter-spacing:-0.5px;color:var(--cyan);border-bottom:1px solid var(--border)}
+/* ── AUTH OVERLAY ── */
+#auth-overlay{
+  position:fixed;inset:0;background:rgba(6,8,16,.97);z-index:9999;
+  display:flex;align-items:center;justify-content:center
+}
+.auth-box{
+  background:var(--surface);border:1px solid var(--border2);border-radius:20px;
+  padding:48px 40px;width:100%;max-width:420px
+}
+.auth-logo{font-size:1.4rem;font-weight:800;color:var(--cyan);text-align:center;margin-bottom:8px}
+.auth-logo span{color:var(--gold)}
+.auth-sub{text-align:center;font-size:.875rem;color:var(--text2);margin-bottom:32px}
+.auth-tabs{display:flex;gap:0;border:1px solid var(--border);border-radius:10px;margin-bottom:28px;overflow:hidden}
+.auth-tab{flex:1;padding:10px;text-align:center;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--text2);background:transparent;border:none;font-family:inherit;transition:all .2s}
+.auth-tab.active{background:rgba(0,212,255,.1);color:var(--cyan)}
+.auth-field{margin-bottom:16px}
+.auth-field label{display:block;font-size:.78rem;color:var(--text2);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.auth-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font-family:inherit;font-size:.9rem;outline:none;transition:border-color .2s}
+.auth-input:focus{border-color:rgba(0,212,255,.5)}
+.auth-btn{width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:.95rem;cursor:pointer;border:none;background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;transition:opacity .2s;margin-top:8px;font-family:inherit}
+.auth-btn:hover{opacity:.85}
+.auth-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);color:var(--red);border-radius:8px;padding:10px 14px;font-size:.82rem;margin-bottom:16px;display:none}
+
+/* ── SIDEBAR ── */
+.sidebar{width:240px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;bottom:0;left:0;z-index:50}
+.sidebar-logo{padding:24px 20px;font-size:1.2rem;font-weight:800;color:var(--cyan);border-bottom:1px solid var(--border)}
 .sidebar-logo span{color:var(--gold)}
 .sidebar-avatar{padding:20px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--border)}
 .avatar-circle{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;flex-shrink:0}
-.avatar-name{font-size:.9rem;font-weight:700}
+.avatar-name{font-size:.9rem;font-weight:700;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .avatar-tier{font-size:.72rem;color:var(--gold);font-weight:600}
 .nav-section{padding:16px 12px 8px;font-size:.65rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px}
-.nav-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;margin:2px 8px;cursor:pointer;font-size:.875rem;font-weight:500;color:var(--text2);transition:all .2s;text-decoration:none}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:8px;margin:2px 8px;cursor:pointer;font-size:.875rem;font-weight:500;color:var(--text2);transition:all .2s;text-decoration:none;background:none;border:none;width:calc(100% - 16px);font-family:inherit;text-align:left}
 .nav-item:hover,.nav-item.active{background:rgba(0,212,255,.08);color:var(--cyan)}
-.nav-item.active{border-left:2px solid var(--cyan);margin-left:6px}
+.nav-item.active{border-left:2px solid var(--cyan)}
 .nav-item .ic{width:18px;text-align:center;font-size:1rem}
-.sidebar-footer{margin-top:auto;padding:16px;border-top:1px solid var(--border)}
-.payout-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--green),#00cc66);color:#000;border:none;border-radius:10px;font-weight:700;font-size:.875rem;cursor:pointer;transition:opacity .2s}
+.sidebar-footer{margin-top:auto;padding:16px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+.payout-btn{width:100%;padding:12px;background:linear-gradient(135deg,var(--green),#00cc66);color:#000;border:none;border-radius:10px;font-weight:700;font-size:.875rem;cursor:pointer;font-family:inherit;transition:opacity .2s}
 .payout-btn:hover{opacity:.85}
+.logout-btn{width:100%;padding:8px;background:transparent;color:var(--text3);border:1px solid var(--border);border-radius:8px;font-size:.78rem;cursor:pointer;font-family:inherit;transition:all .2s}
+.logout-btn:hover{color:var(--red);border-color:rgba(255,77,109,.3)}
 
-/* MAIN */
+/* ── MAIN ── */
 .main{margin-left:240px;flex:1;display:flex;flex-direction:column;min-height:100vh}
 .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:0 28px;height:64px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:40}
 .page-title{font-size:1rem;font-weight:700}
-.topbar-actions{display:flex;align-items:center;gap:12px}
-.badge-live{background:rgba(255,77,109,.15);border:1px solid rgba(255,77,109,.4);color:var(--red);font-size:.72rem;font-weight:700;padding:4px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;cursor:pointer;transition:all .2s}
-.badge-live:hover{background:rgba(255,77,109,.25)}
+.badge-live{background:rgba(255,77,109,.15);border:1px solid rgba(255,77,109,.4);color:var(--red);font-size:.72rem;font-weight:700;padding:4px 12px;border-radius:20px;display:flex;align-items:center;gap:6px;cursor:pointer;text-decoration:none}
 .badge-live::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--red);animation:pulse 1.5s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 .content{padding:28px;flex:1}
 
-/* STAT CARDS */
+/* ── STAT CARDS ── */
 .stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
 .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:22px;transition:all .3s}
 .stat-card:hover{border-color:var(--border2);transform:translateY(-2px)}
 .stat-label{font-size:.72rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
 .stat-value{font-size:1.9rem;font-weight:800;letter-spacing:-1px;margin-bottom:4px}
-.stat-change{font-size:.78rem;font-weight:600}
-.stat-change.up{color:var(--green)}
-.stat-change.down{color:var(--red)}
+.stat-sub{font-size:.78rem;color:var(--text2)}
 
-/* CHART */
-.chart-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:28px}
-.card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
-.card-title{font-size:.9rem;font-weight:700}
+/* ── PANEL ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:20px}
+.panel-title{font-size:.88rem;font-weight:700;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+
+/* ── CHART ── */
 .chart-bars{display:flex;align-items:flex-end;gap:8px;height:120px}
 .bar-wrap{display:flex;flex-direction:column;align-items:center;flex:1;gap:6px;height:100%}
-.bar{border-radius:4px 4px 0 0;width:100%;transition:all .3s;min-height:4px}
+.bar{border-radius:4px 4px 0 0;width:100%;min-height:4px}
 .bar-lbl{font-size:.65rem;color:var(--text3)}
 .tab-btns{display:flex;gap:6px}
-.tab-btn{padding:5px 14px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);transition:all .2s}
+.tab-btn{padding:5px 14px;border-radius:6px;font-size:.75rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:inherit;transition:all .2s}
 .tab-btn.active,.tab-btn:hover{background:rgba(0,212,255,.08);color:var(--cyan);border-color:var(--border2)}
-
-/* TWO COL */
-.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:28px}
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
-.panel-title{font-size:.88rem;font-weight:700;margin-bottom:18px;display:flex;justify-content:space-between;align-items:center}
-.small-btn{padding:5px 12px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--cyan);transition:all .2s}
+.small-btn{padding:5px 12px;border-radius:6px;font-size:.72rem;font-weight:600;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--cyan);font-family:inherit;transition:all .2s}
 .small-btn:hover{background:rgba(0,212,255,.08)}
 
-/* TOP FANS */
-.fan-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
-.fan-row:last-child{border-bottom:none}
-.fan-avatar{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:800;flex-shrink:0}
-.fan-name{font-size:.875rem;font-weight:600;flex:1}
-.fan-amount{font-size:.875rem;font-weight:700;color:var(--green)}
+/* ── FORM ELEMENTS ── */
+.form-group{margin-bottom:16px}
+.form-group label{display:block;font-size:.78rem;color:var(--text2);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:inherit;font-size:.875rem;outline:none;transition:border-color .2s}
+.form-input:focus{border-color:rgba(0,212,255,.4)}
+.form-select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:inherit;font-size:.875rem;outline:none}
+.form-textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px 14px;color:var(--text);font-family:inherit;font-size:.875rem;resize:vertical;min-height:80px;outline:none;transition:border-color .2s}
+.form-textarea:focus{border-color:rgba(0,212,255,.4)}
+.submit-btn{padding:12px 32px;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;border:none;background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;font-family:inherit;transition:opacity .2s}
+.submit-btn:hover{opacity:.85}
+.danger-btn{padding:12px 32px;border-radius:10px;font-weight:700;font-size:.9rem;cursor:pointer;border:none;background:transparent;color:var(--red);border:1px solid rgba(255,77,109,.3);font-family:inherit;transition:all .2s}
+.danger-btn:hover{background:rgba(255,77,109,.08)}
 
-/* POSTS TABLE */
+/* ── POSTS TABLE ── */
 .posts-table{width:100%;border-collapse:collapse}
 .posts-table th{text-align:left;font-size:.7rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;padding:8px 12px;border-bottom:1px solid var(--border)}
-.posts-table td{padding:12px;border-bottom:1px solid var(--border);font-size:.85rem}
+.posts-table td{padding:12px;border-bottom:1px solid var(--border);font-size:.85rem;vertical-align:middle}
 .posts-table tr:last-child td{border-bottom:none}
-.post-thumb{width:36px;height:36px;border-radius:8px;object-fit:cover;background:var(--surface3)}
 .status-pill{display:inline-block;padding:3px 10px;border-radius:10px;font-size:.7rem;font-weight:700}
-.status-pill.live{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3)}
-.status-pill.sub{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
 .status-pill.free{background:rgba(255,255,255,.06);color:var(--text2);border:1px solid var(--border)}
+.status-pill.sub{background:rgba(0,212,255,.12);color:var(--cyan);border:1px solid rgba(0,212,255,.3)}
+.status-pill.vip{background:rgba(255,215,0,.12);color:var(--gold);border:1px solid rgba(255,215,0,.3)}
 
-/* UPLOAD */
+/* ── SUBSCRIBERS TABLE ── */
+.fan-row{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border)}
+.fan-row:last-child{border-bottom:none}
+.fan-avatar{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--cyan));display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:800;flex-shrink:0}
+.fan-email{font-size:.875rem;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fan-amount{font-size:.875rem;font-weight:700;color:var(--green);flex-shrink:0}
+.fan-badge{font-size:.68rem;padding:2px 8px;border-radius:8px;font-weight:700}
+.fan-badge.active{background:rgba(0,255,136,.12);color:var(--green);border:1px solid rgba(0,255,136,.3)}
+.fan-badge.cancelled{background:rgba(255,77,109,.1);color:var(--red);border:1px solid rgba(255,77,109,.3)}
+
+/* ── MESSAGES ── */
+.msg-thread{display:flex;flex-direction:column;gap:10px;max-height:400px;overflow-y:auto;padding-bottom:12px}
+.msg-bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:.875rem;line-height:1.5}
+.msg-bubble.creator{background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.2);align-self:flex-end;color:var(--text)}
+.msg-bubble.fan{background:var(--surface2);border:1px solid var(--border);align-self:flex-start;color:var(--text2)}
+.msg-meta{font-size:.68rem;color:var(--text3);margin-top:4px}
+
+/* ── UPLOAD ── */
 .upload-zone{border:2px dashed var(--border2);border-radius:14px;padding:48px;text-align:center;cursor:pointer;transition:all .3s;background:rgba(0,212,255,.02)}
-.upload-zone:hover{border-color:var(--cyan);background:rgba(0,212,255,.05)}
-.upload-icon{font-size:2.5rem;margin-bottom:12px}
-.upload-zone h3{font-size:1rem;font-weight:700;margin-bottom:6px}
-.upload-zone p{font-size:.85rem;color:var(--text2)}
+.upload-zone:hover,.upload-zone.drag{border-color:var(--cyan);background:rgba(0,212,255,.05)}
 
-/* MOBILE */
+/* ── TOAST ── */
+#toast{position:fixed;bottom:24px;right:24px;z-index:9998;display:none;padding:14px 20px;border-radius:12px;font-size:.875rem;font-weight:600;min-width:220px;animation:slide-in .3s ease}
+#toast.success{background:rgba(0,255,136,.12);border:1px solid rgba(0,255,136,.4);color:var(--green)}
+#toast.error{background:rgba(255,77,109,.12);border:1px solid rgba(255,77,109,.4);color:var(--red)}
+@keyframes slide-in{from{transform:translateY(20px);opacity:0}to{transform:none;opacity:1}}
+
 @media(max-width:768px){
   .sidebar{transform:translateX(-100%)}
   .main{margin-left:0}
@@ -104,348 +151,803 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 </head>
 <body>
 
-<!-- SIDEBAR -->
-<aside class="sidebar">
+<!-- ── AUTH OVERLAY ─────────────────────────────────────────────────────────── -->
+<div id="auth-overlay">
+  <div class="auth-box">
+    <div class="auth-logo">NEX<span>ORA</span></div>
+    <div class="auth-sub">Creator Dashboard</div>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button type="button" class="auth-tab" onclick="switchTab('register')">Create Account</button>
+    </div>
+    <div id="auth-err" class="auth-err"></div>
+    <!-- LOGIN FORM -->
+    <form id="login-form" onsubmit="doLogin(event)">
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="l-email" class="auth-input" placeholder="you@example.com" required>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="l-pass" class="auth-input" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="auth-btn" id="login-btn">Sign In →</button>
+    </form>
+    <!-- REGISTER FORM -->
+    <form id="register-form" style="display:none" onsubmit="doRegister(event)">
+      <div class="auth-field">
+        <label>Full Name</label>
+        <input type="text" id="r-name" class="auth-input" placeholder="Your Name" required>
+      </div>
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="r-email" class="auth-input" placeholder="you@example.com" required>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="r-pass" class="auth-input" placeholder="Min 6 characters" required minlength="6">
+      </div>
+      <button type="submit" class="auth-btn" id="reg-btn">Create Account →</button>
+    </form>
+    <p style="text-align:center;font-size:.75rem;color:var(--text3);margin-top:20px">
+      <a href="index.html" style="color:var(--cyan);text-decoration:none">← Back to NEXORA</a>
+    </p>
+  </div>
+</div>
+
+<!-- ── SIDEBAR ───────────────────────────────────────────────────────────────── -->
+<aside class="sidebar" id="sidebar">
   <div class="sidebar-logo">NEX<span>ORA</span></div>
   <div class="sidebar-avatar">
-    <div class="avatar-circle">J</div>
+    <div class="avatar-circle" id="sb-avatar">?</div>
     <div>
-      <div class="avatar-name">Your Name</div>
+      <div class="avatar-name" id="sb-name">Loading…</div>
       <div class="avatar-tier">⭐ Founding Creator</div>
     </div>
   </div>
   <div class="nav-section">Main</div>
-  <a class="nav-item active" onclick="showPage('overview')"><span class="ic">📊</span> Overview</a>
-  <a class="nav-item" onclick="showPage('upload')"><span class="ic">📤</span> Upload Content</a>
+  <button type="button" class="nav-item active" onclick="showPage('overview')"><span class="ic">📊</span> Overview</button>
+  <button type="button" class="nav-item" onclick="showPage('upload')"><span class="ic">📤</span> Upload Content</button>
   <a class="nav-item" href="live.html"><span class="ic">🔴</span> Go Live</a>
-  <a class="nav-item" onclick="showPage('messages')"><span class="ic">💬</span> Messages <span style="background:var(--red);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;margin-left:auto">3</span></a>
+  <button type="button" class="nav-item" onclick="showPage('messages')">
+    <span class="ic">💬</span> Messages
+    <span id="unread-badge" style="display:none;background:var(--red);color:#fff;font-size:.65rem;padding:2px 7px;border-radius:10px;margin-left:auto"></span>
+  </button>
   <div class="nav-section">Money</div>
-  <a class="nav-item" onclick="showPage('earnings')"><span class="ic">💰</span> Earnings</a>
-  <a class="nav-item" onclick="showPage('subscribers')"><span class="ic">👥</span> Subscribers</a>
-  <a class="nav-item" onclick="showPage('analytics')"><span class="ic">📈</span> Analytics</a>
+  <button type="button" class="nav-item" onclick="showPage('earnings')"><span class="ic">💰</span> Earnings</button>
+  <button type="button" class="nav-item" onclick="showPage('subscribers')"><span class="ic">👥</span> Subscribers</button>
+  <button type="button" class="nav-item" onclick="showPage('analytics')"><span class="ic">📈</span> Analytics</button>
   <div class="nav-section">Account</div>
-  <a class="nav-item" onclick="showPage('settings')"><span class="ic">⚙️</span> Settings</a>
+  <button type="button" class="nav-item" onclick="showPage('settings')"><span class="ic">⚙️</span> Settings</button>
   <a class="nav-item" href="index.html"><span class="ic">←</span> Back to Site</a>
   <div class="sidebar-footer">
-    <button class="payout-btn" onclick="requestPayout()">💸 Request Payout</button>
+    <button type="button" class="payout-btn" onclick="showPage('payouts')">💸 Request Payout</button>
+    <button type="button" class="logout-btn" onclick="doLogout()">Sign Out</button>
   </div>
 </aside>
 
-<!-- MAIN CONTENT -->
+<!-- ── MAIN CONTENT ───────────────────────────────────────────────────────────── -->
 <div class="main">
   <div class="topbar">
     <div class="page-title" id="page-title">Overview</div>
-    <div class="topbar-actions">
-      <div class="badge-live" onclick="window.location='live.html'">🔴 Go Live</div>
-      <div style="font-size:.8rem;color:var(--text2)" id="topbar-date"></div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <a class="badge-live" href="live.html">🔴 Go Live</a>
+      <span id="topbar-date" style="font-size:.8rem;color:var(--text2)"></span>
     </div>
   </div>
-
   <div class="content">
 
-    <!-- OVERVIEW PAGE -->
+    <!-- ── OVERVIEW ── -->
     <div id="page-overview">
-      <!-- Stats -->
       <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-label">This Month</div>
-          <div class="stat-value" style="color:var(--green)" id="stat-mrr">$0</div>
-          <div class="stat-change up">+ Get your first subscriber!</div>
+          <div class="stat-value" style="color:var(--green)" id="st-month">$0</div>
+          <div class="stat-sub" id="st-month-sub">All time: $0</div>
         </div>
         <div class="stat-card">
           <div class="stat-label">Subscribers</div>
-          <div class="stat-value" style="color:var(--cyan)" id="stat-subs">—</div>
-          <div class="stat-change up" id="stat-subs-note">Loading...</div>
+          <div class="stat-value" style="color:var(--cyan)" id="st-subs">0</div>
+          <div class="stat-sub" id="st-mrr">MRR: $0</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Waitlist Leads</div>
-          <div class="stat-value" id="stat-leads">—</div>
-          <div class="stat-change" style="color:var(--text2)" id="stat-leads-note">Loading...</div>
+          <div class="stat-label">Posts</div>
+          <div class="stat-value" id="st-posts">0</div>
+          <div class="stat-sub">Published content</div>
         </div>
         <div class="stat-card">
-          <div class="stat-label">Founding Spots Left</div>
-          <div class="stat-value" style="color:var(--gold)" id="stat-spots">—</div>
-          <div class="stat-change" style="color:var(--text2)" id="stat-spots-note">of 50 total</div>
+          <div class="stat-label">Pending Payout</div>
+          <div class="stat-value" style="color:var(--gold)" id="st-payout">$0</div>
+          <div class="stat-sub">24hr processing</div>
         </div>
       </div>
 
-      <!-- Earnings Chart -->
-      <div class="chart-card">
-        <div class="card-header">
-          <div class="card-title">Earnings Overview</div>
+      <div class="panel">
+        <div class="panel-title">
+          Earnings — Last 7 Days
           <div class="tab-btns">
-            <button class="tab-btn active">7D</button>
-            <button class="tab-btn">30D</button>
-            <button class="tab-btn">90D</button>
+            <button type="button" class="tab-btn active">7D</button>
+            <button type="button" class="tab-btn">30D</button>
           </div>
         </div>
-        <div class="chart-bars" id="chart-bars">
-          <!-- bars generated by JS -->
-        </div>
+        <div class="chart-bars" id="chart-bars"></div>
       </div>
 
-      <!-- Two col: Top Fans + Recent Posts -->
       <div class="two-col">
         <div class="panel">
-          <div class="panel-title">Top Fans <button class="small-btn">View All</button></div>
-          <div style="text-align:center;padding:32px;color:var(--text3);font-size:.875rem">
-            No subscribers yet.<br>
-            <a href="subscribe.html" style="color:var(--cyan);text-decoration:none">Preview your fan page →</a>
-          </div>
+          <div class="panel-title">Top Subscribers <button type="button" class="small-btn" onclick="showPage('subscribers')">View All</button></div>
+          <div id="top-subs-list"><div style="text-align:center;padding:32px;color:var(--text3);font-size:.85rem">No subscribers yet.<br><a href="subscribe.html" style="color:var(--cyan);text-decoration:none">Preview your fan page →</a></div></div>
         </div>
         <div class="panel">
           <div class="panel-title">AI Suggestions <span style="font-size:.72rem;color:var(--cyan);background:rgba(0,212,255,.08);padding:3px 8px;border-radius:6px">✨ AI</span></div>
-          <div style="display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:10px">
             <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:.85rem;border:1px solid var(--border)">
               <div style="color:var(--cyan);font-weight:700;font-size:.75rem;margin-bottom:6px">📅 Best posting time</div>
-              Post between 8–10pm on weekdays for 3x more engagement from your audience.
+              Post between 8–10pm on weekdays for 3× more engagement.
             </div>
             <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:.85rem;border:1px solid var(--border)">
               <div style="color:var(--gold);font-weight:700;font-size:.75rem;margin-bottom:6px">💡 Content idea</div>
-              "Behind the scenes" content gets 40% more tips than polished posts. Try a casual live stream.
+              "Behind the scenes" content gets 40% more tips. Try a casual live stream.
             </div>
             <div style="background:var(--surface2);border-radius:10px;padding:14px;font-size:.85rem;border:1px solid var(--border)">
-              <div style="color:var(--green);font-weight:700;font-size:.75rem;margin-bottom:6px">🎯 Growth tip</div>
-              Add your NEXORA link to your Instagram and TikTok bios — your first subscribers usually come from there.
+              <div style="color:var(--green);font-weight:700;font-size:.75rem;margin-bottom:6px">🎯 Your fan page link</div>
+              <code id="fan-link-display" style="color:var(--cyan);font-size:.8rem;word-break:break-all"></code>
+              <button type="button" onclick="copyFanLink()" style="background:none;border:none;color:var(--cyan);cursor:pointer;font-size:.8rem;margin-left:8px;font-family:inherit">Copy</button>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Quick upload -->
       <div class="upload-zone" onclick="showPage('upload')">
-        <div class="upload-icon">📤</div>
-        <h3>Upload Your First Content</h3>
-        <p>Photos, videos, voice notes — drag & drop here or click to browse</p>
+        <div style="font-size:2.5rem;margin-bottom:12px">📤</div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:6px">Upload Your First Content</h3>
+        <p style="font-size:.85rem;color:var(--text2)">Photos, videos, voice notes — click to get started</p>
       </div>
     </div>
 
-    <!-- UPLOAD PAGE -->
+    <!-- ── UPLOAD / CREATE POST ── -->
     <div id="page-upload" style="display:none">
-      <div class="upload-zone" id="drop-zone" ondragover="event.preventDefault()" ondrop="handleDrop(event)">
-        <div class="upload-icon">📁</div>
-        <h3>Drop files here or click to upload</h3>
-        <p style="margin-bottom:20px">Supports: MP4, MOV, JPG, PNG, GIF, MP3 — up to 4GB</p>
+      <div class="upload-zone" id="drop-zone"
+           ondragover="event.preventDefault();this.classList.add('drag')"
+           ondragleave="this.classList.remove('drag')"
+           ondrop="handleDrop(event)">
+        <div style="font-size:2.5rem;margin-bottom:12px">📁</div>
+        <h3 style="font-size:1rem;font-weight:700;margin-bottom:6px">Drop files here or click to select</h3>
+        <p style="font-size:.85rem;color:var(--text2);margin-bottom:20px">MP4, MOV, JPG, PNG, GIF, MP3 — up to 4 GB</p>
         <input type="file" id="file-input" style="display:none" multiple accept="video/*,image/*,audio/*" onchange="previewFiles(this.files)">
-        <button class="payout-btn" style="width:auto;padding:12px 32px" onclick="document.getElementById('file-input').click()">Choose Files</button>
+        <button type="button" class="submit-btn" onclick="document.getElementById('file-input').click()">Choose Files</button>
       </div>
-      <div id="file-preview" style="margin-top:24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:16px"></div>
-      <div class="panel" style="margin-top:24px">
-        <div class="panel-title">Post Settings</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div id="file-preview" style="margin-top:20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px"></div>
+      <div class="panel" style="margin-top:20px">
+        <div class="panel-title">Post Details</div>
+        <div class="two-col">
           <div>
-            <label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Caption</label>
-            <textarea style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem;resize:vertical;min-height:80px" placeholder="Write something for your fans..."></textarea>
+            <div class="form-group">
+              <label>Title (optional)</label>
+              <input type="text" id="post-title" class="form-input" placeholder="Give your post a title">
+            </div>
+            <div class="form-group">
+              <label>Caption</label>
+              <textarea id="post-body" class="form-textarea" placeholder="Write something for your fans…"></textarea>
+            </div>
           </div>
           <div>
-            <label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Access</label>
-            <select style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem;margin-bottom:16px">
-              <option>Free — All visitors</option>
-              <option selected>Subscribers only</option>
-              <option>VIP tier only</option>
-              <option>Pay-per-view</option>
-            </select>
-            <label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Schedule</label>
-            <input type="datetime-local" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem">
+            <div class="form-group">
+              <label>Access Level</label>
+              <select id="post-access" class="form-select">
+                <option value="free">Free — All visitors</option>
+                <option value="subscribers" selected>Subscribers only</option>
+                <option value="vip">VIP tier only</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Schedule (leave blank for now)</label>
+              <input type="datetime-local" id="post-schedule" class="form-input">
+            </div>
           </div>
         </div>
-        <button class="payout-btn" style="margin-top:20px;width:auto;padding:12px 40px">Publish Post →</button>
+        <button type="button" class="submit-btn" onclick="publishPost()">Publish Post →</button>
       </div>
     </div>
 
-    <!-- EARNINGS PAGE -->
+    <!-- ── EARNINGS ── -->
     <div id="page-earnings" style="display:none">
       <div class="stats-grid">
-        <div class="stat-card"><div class="stat-label">Total Earned</div><div class="stat-value" style="color:var(--green)">$0</div><div class="stat-change" style="color:var(--text2)">All time</div></div>
-        <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value" style="color:var(--cyan)">$0</div></div>
-        <div class="stat-card"><div class="stat-label">Pending</div><div class="stat-value" style="color:var(--gold)">$0</div><div class="stat-change" style="color:var(--text2)">Processing 24hr</div></div>
-        <div class="stat-card"><div class="stat-label">Your Cut</div><div class="stat-value">90%</div><div class="stat-change up">Best in industry</div></div>
+        <div class="stat-card"><div class="stat-label">Total Earned</div><div class="stat-value" style="color:var(--green)" id="e-total">$0</div><div class="stat-sub">All time (your 90%)</div></div>
+        <div class="stat-card"><div class="stat-label">This Month</div><div class="stat-value" style="color:var(--cyan)" id="e-month">$0</div></div>
+        <div class="stat-card"><div class="stat-label">Subscriptions</div><div class="stat-value" id="e-subs">$0</div></div>
+        <div class="stat-card"><div class="stat-label">Tips</div><div class="stat-value" style="color:var(--gold)" id="e-tips">$0</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Transaction History</div>
+        <div id="tx-list"><div style="text-align:center;padding:48px;color:var(--text3)">No transactions yet.</div></div>
+      </div>
+    </div>
+
+    <!-- ── SUBSCRIBERS ── -->
+    <div id="page-subscribers" style="display:none">
+      <div class="panel">
+        <div class="panel-title">
+          Your Subscribers
+          <div style="display:flex;gap:10px;align-items:center">
+            <span id="sub-count-badge" style="font-size:.8rem;color:var(--text2)">0 active</span>
+            <button type="button" class="small-btn" onclick="copyFanLink()">Copy Fan Link</button>
+          </div>
+        </div>
+        <div id="subs-list"><div style="text-align:center;padding:48px;color:var(--text3)">No subscribers yet.<br><br><a href="subscribe.html" style="color:var(--cyan);text-decoration:none">Preview your fan page →</a></div></div>
+      </div>
+    </div>
+
+    <!-- ── MESSAGES ── -->
+    <div id="page-messages" style="display:none">
+      <div class="two-col">
+        <div class="panel" style="height:500px;display:flex;flex-direction:column">
+          <div class="panel-title">Messages</div>
+          <div class="msg-thread" id="msg-list" style="flex:1"><div style="text-align:center;padding:32px;color:var(--text3)">No messages yet.</div></div>
+          <div style="display:flex;gap:8px;padding-top:12px;border-top:1px solid var(--border)">
+            <input type="text" id="msg-fan" class="form-input" placeholder="Fan email" style="width:200px">
+            <input type="text" id="msg-body" class="form-input" placeholder="Your message…" style="flex:1" onkeypress="if(event.key==='Enter')sendMsg()">
+            <button type="button" class="submit-btn" style="padding:11px 20px" onclick="sendMsg()">→</button>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-title">Quick Reply Templates</div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <button type="button" onclick="setMsgBody('Thank you so much for subscribing! 🙏 I really appreciate your support.')" class="small-btn" style="text-align:left;padding:10px 14px;font-size:.82rem;border-radius:8px;width:100%">👋 Welcome message</button>
+            <button type="button" onclick="setMsgBody('New exclusive content just dropped! Check it out 🔥')" class="small-btn" style="text-align:left;padding:10px 14px;font-size:.82rem;border-radius:8px;width:100%">🔥 Content announcement</button>
+            <button type="button" onclick="setMsgBody('Going live tonight at 9pm! Join me 🎥')" class="small-btn" style="text-align:left;padding:10px 14px;font-size:.82rem;border-radius:8px;width:100%">📡 Live stream alert</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ANALYTICS ── -->
+    <div id="page-analytics" style="display:none">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Total Subscribers</div><div class="stat-value" style="color:var(--cyan)" id="an-subs">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total Posts</div><div class="stat-value" id="an-posts">0</div></div>
+        <div class="stat-card"><div class="stat-label">Total Revenue</div><div class="stat-value" style="color:var(--green)" id="an-rev">$0</div></div>
+        <div class="stat-card"><div class="stat-label">MRR</div><div class="stat-value" style="color:var(--gold)" id="an-mrr">$0</div></div>
+      </div>
+      <div class="panel">
+        <div class="panel-title">Posts Performance</div>
+        <div id="posts-table-wrap"><div style="text-align:center;padding:48px;color:var(--text3)">No posts yet.</div></div>
+      </div>
+    </div>
+
+    <!-- ── PAYOUTS ── -->
+    <div id="page-payouts" style="display:none">
+      <div class="panel" style="max-width:520px">
+        <div class="panel-title">Request Payout</div>
+        <div id="payout-balance" style="background:var(--surface2);border-radius:10px;padding:16px;margin-bottom:20px;font-size:.9rem;color:var(--text2)">
+          Available balance: <strong style="color:var(--green)" id="payout-avail">$0.00</strong>
+        </div>
+        <div class="form-group">
+          <label>Amount ($)</label>
+          <input type="number" id="payout-amt" class="form-input" placeholder="Min $20" min="20" step="0.01">
+        </div>
+        <div class="form-group">
+          <label>Payout Method</label>
+          <select id="payout-method" class="form-select">
+            <option value="bank">Bank Transfer (ACH)</option>
+            <option value="crypto">Crypto (USDC)</option>
+            <option value="paypal">PayPal</option>
+          </select>
+        </div>
+        <button type="button" class="submit-btn" onclick="submitPayout()">Request Payout 💸</button>
       </div>
       <div class="panel">
         <div class="panel-title">Payout History</div>
-        <div style="text-align:center;padding:48px;color:var(--text3)">No payouts yet — your first payout will appear here after your first sale.</div>
+        <div id="payout-list"><div style="text-align:center;padding:32px;color:var(--text3)">No payouts yet.</div></div>
       </div>
     </div>
 
-    <!-- SUBSCRIBERS PAGE -->
-    <div id="page-subscribers" style="display:none">
-      <div class="panel">
-        <div class="panel-title">Your Subscribers</div>
-        <div style="text-align:center;padding:32px;color:var(--text3)">
-          <strong style="color:var(--text);font-size:1rem">Share your fan page to get subscribers:</strong><br><br>
-          <div style="display:flex;align-items:center;gap:10px;justify-content:center;margin-bottom:20px">
-            <code id="fan-link" style="color:var(--cyan);background:var(--surface2);padding:10px 18px;border-radius:8px;font-size:.875rem">grateful-flexibility-production.up.railway.app/frontend/nexora/subscribe.html</code>
-            <button type="button" onclick="copyFanLink()" style="background:rgba(0,212,255,.1);border:1px solid var(--border2);color:var(--cyan);padding:10px 16px;border-radius:8px;cursor:pointer;font-size:.8rem;font-weight:700">Copy</button>
-          </div>
-          <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
-            <a href="subscribe.html" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:10px 20px;border-radius:8px;text-decoration:none;font-size:.875rem;font-weight:600">Preview Fan Page →</a>
-            <button type="button" onclick="shareToSocial()" style="background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;border:none;padding:10px 20px;border-radius:8px;cursor:pointer;font-size:.875rem;font-weight:700">Share Now 🚀</button>
-          </div>
-          <div style="margin-top:32px;color:var(--text2);font-size:.85rem" id="ck-subs-info">Loading ConvertKit subscriber data...</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- MESSAGES PAGE -->
-    <div id="page-messages" style="display:none">
-      <div class="panel">
-        <div class="panel-title">Messages</div>
-        <div style="text-align:center;padding:48px;color:var(--text3)">No messages yet. Messages from your subscribers will appear here.</div>
-      </div>
-    </div>
-
-    <!-- ANALYTICS PAGE -->
-    <div id="page-analytics" style="display:none">
-      <div class="panel">
-        <div class="panel-title">Analytics</div>
-        <div style="text-align:center;padding:48px;color:var(--text3)">Analytics will populate once you have subscribers and content.</div>
-      </div>
-    </div>
-
-    <!-- SETTINGS PAGE -->
+    <!-- ── SETTINGS ── -->
     <div id="page-settings" style="display:none">
       <div class="panel" style="max-width:600px">
         <div class="panel-title">Profile Settings</div>
-        <div style="display:flex;flex-direction:column;gap:20px">
-          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Display Name</label><input type="text" value="Your Name" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem"></div>
-          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Bio</label><textarea style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem;resize:vertical;min-height:80px" placeholder="Tell your fans about yourself..."></textarea></div>
-          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Subscription Price ($/month)</label><input type="number" value="9.99" min="4.99" style="width:200px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem"></div>
-          <div><label style="font-size:.8rem;color:var(--text2);display:block;margin-bottom:8px">Payout Method</label>
-            <select style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;color:var(--text);font-family:inherit;font-size:.875rem">
-              <option>Bank Transfer (ACH)</option><option>Crypto (USDC)</option><option>PayPal</option>
-            </select>
-          </div>
-          <button class="payout-btn" style="width:auto;padding:12px 32px">Save Settings</button>
+        <div class="form-group">
+          <label>Display Name</label>
+          <input type="text" id="s-name" class="form-input">
         </div>
+        <div class="form-group">
+          <label>Bio</label>
+          <textarea id="s-bio" class="form-textarea" placeholder="Tell your fans about yourself…"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Subscription Price ($/month)</label>
+          <input type="number" id="s-price" class="form-input" min="4.99" step="0.01" style="max-width:200px">
+        </div>
+        <div class="form-group">
+          <label>Custom Stripe Checkout Link (optional)</label>
+          <input type="url" id="s-stripe" class="form-input" placeholder="https://buy.stripe.com/…">
+        </div>
+        <div class="form-group">
+          <label>Payout Method</label>
+          <select id="s-payout" class="form-select" style="max-width:280px">
+            <option value="bank">Bank Transfer (ACH)</option>
+            <option value="crypto">Crypto (USDC)</option>
+            <option value="paypal">PayPal</option>
+          </select>
+        </div>
+        <button type="button" class="submit-btn" onclick="saveSettings()">Save Settings</button>
       </div>
     </div>
 
   </div><!-- /content -->
 </div><!-- /main -->
 
+<div id="toast"></div>
+
 <script>
-// ── API base — same origin when served from Railway/local server ──────────────
+// ── CONFIG ──────────────────────────────────────────────────────────────────
 const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
   ? 'http://localhost:5050'
   : 'https://grateful-flexibility-production.up.railway.app';
 
-// ── Dynamic date ──────────────────────────────────────────────────────────────
+let TOKEN    = localStorage.getItem('nx_token') || '';
+let CREATOR  = null;
+
+// ── TOAST ────────────────────────────────────────────────────────────────────
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+
+// ── DATE ─────────────────────────────────────────────────────────────────────
 (function(){
   const d = new Date();
-  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  const days   = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   document.getElementById('topbar-date').textContent =
     days[d.getDay()] + ' ' + months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
 })();
 
-// ── Page navigation ───────────────────────────────────────────────────────────
-function showPage(name){
-  document.querySelectorAll('[id^="page-"]').forEach(el=>el.style.display='none');
-  const page = document.getElementById('page-'+name);
-  if(page) page.style.display='block';
-  document.querySelectorAll('.nav-item').forEach(el=>el.classList.remove('active'));
-  document.getElementById('page-title').textContent = name.charAt(0).toUpperCase()+name.slice(1).replace(/-/g,' ');
-  if(name==='subscribers') loadSubsPage();
+// ── AUTH ─────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((t, i) => t.classList.toggle('active', (i === 0) === (tab === 'login')));
+  document.getElementById('auth-err').style.display = 'none';
 }
 
-// ── Load dashboard stats from API ─────────────────────────────────────────────
-async function loadStats(){
+function showAuthError(msg) {
+  const el = document.getElementById('auth-err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  btn.textContent = 'Signing in…';
+  btn.disabled = true;
   try {
-    const r = await fetch(API + '/api/nexora/status');
+    const r = await fetch(API + '/api/nx/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email: document.getElementById('l-email').value.trim(),
+        password: document.getElementById('l-pass').value
+      })
+    });
     const d = await r.json();
-    document.getElementById('stat-subs').textContent = d.subscribers ?? 0;
-    document.getElementById('stat-subs-note').textContent =
-      d.subscribers > 0 ? '↑ ConvertKit total' : 'Share your page to grow';
-    document.getElementById('stat-leads').textContent = d.leads ?? 0;
-    document.getElementById('stat-leads-note').textContent =
-      d.leads > 0 ? 'Waitlist signups' : 'No signups yet';
-    const spotsLeft = Math.max(0, (d.founding_spots ?? 50) - (d.spots_taken ?? 0));
-    document.getElementById('stat-spots').textContent = spotsLeft;
-    document.getElementById('stat-spots-note').textContent =
-      'of ' + (d.founding_spots ?? 50) + ' total';
-    if(d.mrr > 0){
-      document.getElementById('stat-mrr').textContent = '$' + d.mrr.toLocaleString();
+    if (!r.ok) { showAuthError(d.detail || 'Login failed'); return; }
+    TOKEN   = d.token;
+    CREATOR = d.creator;
+    localStorage.setItem('nx_token', TOKEN);
+    hiddenAuthAndBoot();
+  } catch(err) {
+    showAuthError('Could not reach server. Try again.');
+  } finally {
+    btn.textContent = 'Sign In →';
+    btn.disabled = false;
+  }
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  const btn = document.getElementById('reg-btn');
+  btn.textContent = 'Creating account…';
+  btn.disabled = true;
+  try {
+    const r = await fetch(API + '/api/nx/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name:     document.getElementById('r-name').value.trim(),
+        email:    document.getElementById('r-email').value.trim(),
+        password: document.getElementById('r-pass').value
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) { showAuthError(d.detail || 'Registration failed'); return; }
+    TOKEN   = d.token;
+    localStorage.setItem('nx_token', TOKEN);
+    // Fetch full profile
+    await loadMe();
+    hiddenAuthAndBoot();
+  } catch(err) {
+    showAuthError('Could not reach server. Try again.');
+  } finally {
+    btn.textContent = 'Create Account →';
+    btn.disabled = false;
+  }
+}
+
+async function doLogout() {
+  try { await authFetch('/api/nx/logout', { method: 'POST' }); } catch(e) {}
+  TOKEN   = '';
+  CREATOR = null;
+  localStorage.removeItem('nx_token');
+  document.getElementById('auth-overlay').style.display = 'flex';
+}
+
+// ── AUTH'D FETCH ─────────────────────────────────────────────────────────────
+async function authFetch(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + TOKEN,
+      ...(opts.headers || {})
     }
-  } catch(e){
-    document.getElementById('stat-subs').textContent = '—';
-    document.getElementById('stat-leads').textContent = '—';
-    document.getElementById('stat-spots').textContent = '50';
+  });
+  if (r.status === 401) {
+    TOKEN = '';
+    localStorage.removeItem('nx_token');
+    document.getElementById('auth-overlay').style.display = 'flex';
+    throw new Error('Session expired');
   }
+  return r;
 }
 
-// ── Load subscribers page data ────────────────────────────────────────────────
-async function loadSubsPage(){
-  const el = document.getElementById('ck-subs-info');
-  if(!el) return;
+// ── BOOT ─────────────────────────────────────────────────────────────────────
+async function loadMe() {
+  const r = await authFetch('/api/nx/me');
+  if (!r.ok) throw new Error('Could not load profile');
+  CREATOR = await r.json();
+  return CREATOR;
+}
+
+function populateSidebar() {
+  if (!CREATOR) return;
+  document.getElementById('sb-name').textContent    = CREATOR.name || 'Creator';
+  document.getElementById('sb-avatar').textContent  = (CREATOR.name || 'C')[0].toUpperCase();
+  const base = window.location.origin;
+  document.getElementById('fan-link-display').textContent =
+    base + '/frontend/nexora/subscribe.html?h=' + (CREATOR.handle || '');
+  // Unread badge
+  const unread = CREATOR.unread_messages || 0;
+  const badge  = document.getElementById('unread-badge');
+  if (unread > 0) { badge.textContent = unread; badge.style.display = 'inline'; }
+}
+
+function populateStats() {
+  if (!CREATOR) return;
+  document.getElementById('st-month').textContent    = '$' + fmt(CREATOR.earnings_month);
+  document.getElementById('st-month-sub').textContent = 'All time: $' + fmt(CREATOR.earnings_total);
+  document.getElementById('st-subs').textContent     = CREATOR.subscribers || 0;
+  document.getElementById('st-mrr').textContent      = 'MRR: $' + fmt(CREATOR.mrr);
+  document.getElementById('st-posts').textContent    = CREATOR.posts || 0;
+  document.getElementById('st-payout').textContent   = '$' + fmt(CREATOR.pending_payout);
+  document.getElementById('an-subs').textContent     = CREATOR.subscribers || 0;
+  document.getElementById('an-posts').textContent    = CREATOR.posts || 0;
+  document.getElementById('an-rev').textContent      = '$' + fmt(CREATOR.earnings_total);
+  document.getElementById('an-mrr').textContent      = '$' + fmt(CREATOR.mrr);
+  renderChart([0,0,0,0,0,0,0]);
+}
+
+async function hiddenAuthAndBoot() {
+  if (!CREATOR) { try { await loadMe(); } catch(e) { return; } }
+  document.getElementById('auth-overlay').style.display = 'none';
+  populateSidebar();
+  populateStats();
+  loadTopSubs();
+}
+
+// Try token from storage on page load
+(async function boot() {
+  if (!TOKEN) return;
   try {
-    const r = await fetch(API + '/api/nexora/status');
-    const d = await r.json();
-    el.innerHTML = d.subscribers > 0
-      ? '<strong style="color:#00ff88">' + d.subscribers + ' total subscribers</strong> in ConvertKit · <a href="https://app.convertkit.com" target="_blank" style="color:var(--cyan)">View in ConvertKit →</a>'
-      : 'No subscribers yet · <a href="https://app.convertkit.com" target="_blank" style="color:var(--cyan)">Open ConvertKit →</a>';
-  } catch(e){
-    el.textContent = 'Could not load subscriber data';
+    await loadMe();
+    hiddenAuthAndBoot();
+  } catch(e) {
+    TOKEN = '';
+    localStorage.removeItem('nx_token');
   }
-}
-
-// ── Earnings chart ────────────────────────────────────────────────────────────
-(function(){
-  const data = [0,0,0,0,0,0,0];
-  const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-  const max = Math.max(...data, 1);
-  const container = document.getElementById('chart-bars');
-  container.innerHTML = data.map((v,i)=>{
-    const pct = (v/max)*100 || 2;
-    return `<div class="bar-wrap"><div class="bar" style="height:${pct}%;background:linear-gradient(to top,var(--cyan),var(--purple));opacity:.7"></div><div class="bar-lbl">${labels[i]}</div></div>`;
-  }).join('');
 })();
 
-// ── Copy fan link ─────────────────────────────────────────────────────────────
-function copyFanLink(){
-  const link = document.getElementById('fan-link').textContent.trim();
-  navigator.clipboard.writeText(link).then(()=>alert('Link copied! Share it everywhere.')).catch(()=>{
-    prompt('Copy this link:', link);
-  });
+// ── PAGE NAVIGATION ───────────────────────────────────────────────────────────
+function showPage(name) {
+  document.querySelectorAll('[id^="page-"]').forEach(el => el.style.display = 'none');
+  const pg = document.getElementById('page-' + name);
+  if (pg) pg.style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-title').textContent =
+    name.charAt(0).toUpperCase() + name.slice(1).replace(/-/g, ' ');
+  if (name === 'earnings')    loadEarnings();
+  if (name === 'subscribers') loadSubscribers();
+  if (name === 'messages')    loadMessages();
+  if (name === 'payouts')     loadPayouts();
+  if (name === 'analytics')   loadAnalytics();
+  if (name === 'settings')    fillSettings();
 }
 
-// ── Share to social ───────────────────────────────────────────────────────────
-function shareToSocial(){
-  const link = document.getElementById('fan-link').textContent.trim();
-  const text = encodeURIComponent('Subscribe to my exclusive content on NEXORA 🔥 ' + link);
-  window.open('https://twitter.com/intent/tweet?text=' + text, '_blank');
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function fmt(n) { return (Number(n) || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function relTime(ts) {
+  const s = Math.floor(Date.now() / 1000 - ts);
+  if (s < 60)  return 'just now';
+  if (s < 3600) return Math.floor(s/60) + 'm ago';
+  if (s < 86400) return Math.floor(s/3600) + 'h ago';
+  return Math.floor(s/86400) + 'd ago';
+}
+function copyFanLink() {
+  const txt = document.getElementById('fan-link-display').textContent;
+  navigator.clipboard.writeText(txt).then(() => toast('Fan link copied!')).catch(() => prompt('Copy this link:', txt));
 }
 
-// ── Request payout ────────────────────────────────────────────────────────────
-function requestPayout(){
-  alert('Payout requested! You need at least $20 in earnings. Funds arrive within 24 hours via your selected method.');
+// ── CHART ─────────────────────────────────────────────────────────────────────
+function renderChart(data) {
+  const labels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const max = Math.max(...data, 1);
+  document.getElementById('chart-bars').innerHTML = data.map((v,i) => {
+    const pct = (v / max) * 100 || 2;
+    return `<div class="bar-wrap"><div class="bar" style="height:${pct}%;background:linear-gradient(to top,var(--cyan),var(--purple));opacity:.8"></div><div class="bar-lbl">${labels[i]}</div></div>`;
+  }).join('');
 }
 
-// ── File preview ──────────────────────────────────────────────────────────────
-function previewFiles(files){
-  const container = document.getElementById('file-preview');
-  container.innerHTML = '';
-  Array.from(files).forEach(f=>{
+// ── TOP SUBSCRIBERS (overview) ────────────────────────────────────────────────
+async function loadTopSubs() {
+  try {
+    const r = await authFetch('/api/nx/subscribers');
+    if (!r.ok) return;
+    const d = await r.json();
+    const subs = (d.subscribers || []).filter(s => s.status === 'active').slice(0, 5);
+    const el   = document.getElementById('top-subs-list');
+    if (!subs.length) return;
+    el.innerHTML = subs.map(s =>
+      `<div class="fan-row">
+        <div class="fan-avatar">${(s.fan_email||'?')[0].toUpperCase()}</div>
+        <div class="fan-email">${s.fan_email}</div>
+        <div class="fan-amount">$${fmt(s.price_paid)}</div>
+      </div>`
+    ).join('');
+  } catch(e) {}
+}
+
+// ── EARNINGS PAGE ─────────────────────────────────────────────────────────────
+async function loadEarnings() {
+  try {
+    const r = await authFetch('/api/nx/earnings');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('e-total').textContent  = '$' + fmt(d.total);
+    document.getElementById('e-month').textContent  = '$' + fmt(d.this_month);
+    document.getElementById('e-subs').textContent   = '$' + fmt((d.by_type||{}).subscription || 0);
+    document.getElementById('e-tips').textContent   = '$' + fmt((d.by_type||{}).tip || 0);
+    const txs = d.transactions || [];
+    document.getElementById('tx-list').innerHTML = txs.length
+      ? `<table class="posts-table"><thead><tr><th>Date</th><th>Fan</th><th>Type</th><th>Amount</th><th>Your Cut</th></tr></thead><tbody>${
+          txs.map(t => `<tr>
+            <td style="color:var(--text2)">${relTime(t.created_at)}</td>
+            <td>${t.fan_email || '—'}</td>
+            <td><span class="status-pill sub">${t.type}</span></td>
+            <td>$${fmt(t.amount)}</td>
+            <td style="color:var(--green)">$${fmt(t.creator_cut)}</td>
+          </tr>`).join('')
+        }</tbody></table>`
+      : '<div style="text-align:center;padding:48px;color:var(--text3)">No transactions yet.</div>';
+  } catch(e) {}
+}
+
+// ── SUBSCRIBERS PAGE ──────────────────────────────────────────────────────────
+async function loadSubscribers() {
+  try {
+    const r = await authFetch('/api/nx/subscribers');
+    if (!r.ok) return;
+    const d = await r.json();
+    document.getElementById('sub-count-badge').textContent = d.active + ' active';
+    const subs = d.subscribers || [];
+    document.getElementById('subs-list').innerHTML = subs.length
+      ? subs.map(s =>
+          `<div class="fan-row">
+            <div class="fan-avatar">${(s.fan_email||'?')[0].toUpperCase()}</div>
+            <div class="fan-email">${s.fan_email}${s.fan_name ? ' · '+s.fan_name : ''}</div>
+            <div class="fan-amount">$${fmt(s.price_paid)}/mo</div>
+            <div class="fan-badge ${s.status}">${s.status}</div>
+          </div>`
+        ).join('')
+      : '<div style="text-align:center;padding:48px;color:var(--text3)">No subscribers yet.<br><br><a href="subscribe.html" style="color:var(--cyan);text-decoration:none">Preview your fan page →</a></div>';
+  } catch(e) {}
+}
+
+// ── MESSAGES PAGE ─────────────────────────────────────────────────────────────
+async function loadMessages() {
+  try {
+    const r = await authFetch('/api/nx/messages');
+    if (!r.ok) return;
+    const d = await r.json();
+    const msgs = d.messages || [];
+    document.getElementById('msg-list').innerHTML = msgs.length
+      ? msgs.map(m =>
+          `<div>
+            <div class="msg-bubble ${m.sender === 'creator' ? 'creator' : 'fan'}">${m.body}</div>
+            <div class="msg-meta" style="text-align:${m.sender==='creator'?'right':'left'}">${m.fan_email} · ${relTime(m.created_at)}</div>
+          </div>`
+        ).join('')
+      : '<div style="text-align:center;padding:32px;color:var(--text3)">No messages yet.</div>';
+  } catch(e) {}
+}
+
+async function sendMsg() {
+  const fan  = document.getElementById('msg-fan').value.trim();
+  const body = document.getElementById('msg-body').value.trim();
+  if (!fan || !body) { toast('Enter fan email and message', 'error'); return; }
+  try {
+    const r = await authFetch('/api/nx/messages', {
+      method: 'POST',
+      body: JSON.stringify({ fan_email: fan, body, sender: 'creator' })
+    });
+    if (!r.ok) throw new Error();
+    document.getElementById('msg-body').value = '';
+    toast('Message sent!');
+    loadMessages();
+  } catch(e) { toast('Failed to send', 'error'); }
+}
+
+function setMsgBody(t) { document.getElementById('msg-body').value = t; }
+
+// ── PAYOUTS PAGE ──────────────────────────────────────────────────────────────
+async function loadPayouts() {
+  try {
+    const [er, pr] = await Promise.all([
+      authFetch('/api/nx/earnings'),
+      authFetch('/api/nx/payouts')
+    ]);
+    const earnings = await er.json();
+    const payouts  = await pr.json();
+    document.getElementById('payout-avail').textContent = '$' + fmt(earnings.total);
+    const list = payouts.payouts || [];
+    document.getElementById('payout-list').innerHTML = list.length
+      ? list.map(p =>
+          `<div class="fan-row">
+            <div style="flex:1;font-size:.875rem">${relTime(p.requested_at)} · ${p.method}</div>
+            <div class="fan-amount">$${fmt(p.amount)}</div>
+            <div class="fan-badge ${p.status === 'completed' ? 'active' : 'cancelled'}">${p.status}</div>
+          </div>`
+        ).join('')
+      : '<div style="text-align:center;padding:32px;color:var(--text3)">No payouts yet.</div>';
+  } catch(e) {}
+}
+
+async function submitPayout() {
+  const amount = parseFloat(document.getElementById('payout-amt').value) || 0;
+  const method = document.getElementById('payout-method').value;
+  if (amount < 20) { toast('Minimum payout is $20', 'error'); return; }
+  try {
+    const r = await authFetch('/api/nx/payouts', {
+      method: 'POST',
+      body: JSON.stringify({ amount, method })
+    });
+    const d = await r.json();
+    if (!r.ok) { toast(d.detail || 'Payout failed', 'error'); return; }
+    toast('Payout requested! Processing within 24 hours.');
+    loadPayouts();
+  } catch(e) { toast('Failed to request payout', 'error'); }
+}
+
+// ── ANALYTICS ────────────────────────────────────────────────────────────────
+async function loadAnalytics() {
+  try {
+    const r = await authFetch('/api/nx/posts');
+    if (!r.ok) return;
+    const d = await r.json();
+    const posts = d.posts || [];
+    document.getElementById('posts-table-wrap').innerHTML = posts.length
+      ? `<table class="posts-table"><thead><tr><th>Title</th><th>Access</th><th>Date</th><th></th></tr></thead><tbody>${
+          posts.map(p =>
+            `<tr>
+              <td>${p.title || '(untitled)'}</td>
+              <td><span class="status-pill ${p.access}">${p.access}</span></td>
+              <td style="color:var(--text2)">${relTime(p.created_at)}</td>
+              <td><button type="button" onclick="deletePost(${p.id})" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:.8rem;font-family:inherit">Delete</button></td>
+            </tr>`
+          ).join('')
+        }</tbody></table>`
+      : '<div style="text-align:center;padding:48px;color:var(--text3)">No posts yet.</div>';
+  } catch(e) {}
+}
+
+// ── SETTINGS ─────────────────────────────────────────────────────────────────
+function fillSettings() {
+  if (!CREATOR) return;
+  document.getElementById('s-name').value   = CREATOR.name || '';
+  document.getElementById('s-bio').value    = CREATOR.bio || '';
+  document.getElementById('s-price').value  = CREATOR.price || 9.99;
+  document.getElementById('s-stripe').value = CREATOR.stripe_link || '';
+  document.getElementById('s-payout').value = CREATOR.payout_method || 'bank';
+}
+
+async function saveSettings() {
+  const fields = {
+    name:          document.getElementById('s-name').value.trim(),
+    bio:           document.getElementById('s-bio').value.trim(),
+    price:         parseFloat(document.getElementById('s-price').value) || 9.99,
+    stripe_link:   document.getElementById('s-stripe').value.trim(),
+    payout_method: document.getElementById('s-payout').value
+  };
+  try {
+    const r = await authFetch('/api/nx/me', {
+      method: 'PATCH',
+      body: JSON.stringify(fields)
+    });
+    if (!r.ok) { toast('Failed to save', 'error'); return; }
+    CREATOR = { ...CREATOR, ...fields };
+    populateSidebar();
+    toast('Settings saved!');
+  } catch(e) { toast('Failed to save', 'error'); }
+}
+
+// ── PUBLISH POST ──────────────────────────────────────────────────────────────
+async function publishPost() {
+  const body = {
+    title:  document.getElementById('post-title').value.trim(),
+    body:   document.getElementById('post-body').value.trim(),
+    access: document.getElementById('post-access').value
+  };
+  if (!body.body && !body.title) { toast('Add a caption or title', 'error'); return; }
+  try {
+    const r = await authFetch('/api/nx/posts', { method: 'POST', body: JSON.stringify(body) });
+    if (!r.ok) { toast('Failed to publish', 'error'); return; }
+    document.getElementById('post-title').value = '';
+    document.getElementById('post-body').value  = '';
+    CREATOR.posts = (CREATOR.posts || 0) + 1;
+    populateStats();
+    toast('Post published!');
+    showPage('analytics');
+  } catch(e) { toast('Failed to publish', 'error'); }
+}
+
+async function deletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    await authFetch('/api/nx/posts/' + id, { method: 'DELETE' });
+    toast('Post deleted');
+    loadAnalytics();
+  } catch(e) {}
+}
+
+// ── FILE UPLOAD PREVIEW ────────────────────────────────────────────────────────
+function previewFiles(files) {
+  const c = document.getElementById('file-preview');
+  c.innerHTML = '';
+  Array.from(files).forEach(f => {
     const div = document.createElement('div');
     div.style.cssText = 'background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px;text-align:center';
-    div.innerHTML = `<div style="font-size:2rem;margin-bottom:8px">${f.type.startsWith('video')?'🎥':f.type.startsWith('audio')?'🎵':'🖼️'}</div><div style="font-size:.75rem;color:var(--text2);word-break:break-all">${f.name.slice(0,20)}</div>`;
-    container.appendChild(div);
+    div.innerHTML = `<div style="font-size:2rem;margin-bottom:8px">${f.type.startsWith('video')?'🎥':f.type.startsWith('audio')?'🎵':'🖼️'}</div><div style="font-size:.75rem;color:var(--text2);word-break:break-all">${f.name.slice(0,22)}</div>`;
+    c.appendChild(div);
   });
 }
 
-function handleDrop(e){
+function handleDrop(e) {
   e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag');
   previewFiles(e.dataTransfer.files);
 }
 
-document.querySelectorAll('.tab-btn').forEach(b=>{
-  b.addEventListener('click',function(){
-    document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
+// ── TAB BUTTONS ───────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(b => {
+  b.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(x => x.classList.remove('active'));
     this.classList.add('active');
   });
 });
-
-// ── Boot ──────────────────────────────────────────────────────────────────────
-loadStats();
 </script>
 </body>
 </html>

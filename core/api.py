@@ -84,7 +84,9 @@ _API_KEY = os.getenv("API_KEY", "").strip()
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
                  "/api/stripe/webhook",
-                 "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth"}
+                 "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 # NEXORA platform — auth + public creator endpoints are their own auth
+                 "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook"}
 
 async def verify_api_key(request: Request):
     """
@@ -96,7 +98,8 @@ async def verify_api_key(request: Request):
         return  # Auth disabled
 
     path = request.url.path
-    if path in _PUBLIC_PATHS or not path.startswith("/api/"):
+    # NEXORA platform uses its own Bearer token auth — never block these with API key
+    if path in _PUBLIC_PATHS or not path.startswith("/api/") or path.startswith("/api/nx/"):
         return  # Public route
 
     key = (
@@ -475,7 +478,7 @@ async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""
     if _API_KEY:
         path = request.url.path
-        if path.startswith("/api/") and path not in _PUBLIC_PATHS:
+        if path.startswith("/api/") and not path.startswith("/api/nx/") and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
                 or request.headers.get("x-api-key")
@@ -6055,6 +6058,336 @@ async def serve_nexora_page(filename: str):
     return FileResponse(str(path), media_type="text/html")
 
 
+# ─── NEXORA Platform — Real Backend ──────────────────────────────────────────
+#
+#  Auth:         POST /api/nx/register  POST /api/nx/login  POST /api/nx/logout
+#  Profile:      GET  /api/nx/me        PATCH /api/nx/me
+#  Posts:        GET/POST /api/nx/posts  DELETE /api/nx/posts/{id}
+#  Public:       GET /api/nx/creator/{handle}  GET /api/nx/creator/{handle}/posts
+#  Subscribers:  GET /api/nx/subscribers  POST /api/nx/subscribe
+#  Earnings:     GET /api/nx/earnings
+#  Payouts:      GET/POST /api/nx/payouts
+#  Messages:     GET/POST /api/nx/messages
+#  Stats:        GET /api/nx/stats
+#  Stripe hook:  POST /api/nx/stripe-webhook
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _nx_public():
+    """Public nexora paths — no auth required."""
+    return {
+        "/api/nx/register", "/api/nx/login",
+        "/api/nx/creator",  # prefix checked below
+    }
+
+def _nx_get_creator(request: Request) -> Optional[Dict]:
+    """Extract creator from Bearer token. Returns None if missing/invalid."""
+    from core.nexora_auth import verify_token
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+    return verify_token(token)
+
+def _nx_require_creator(request: Request) -> Dict:
+    creator = _nx_get_creator(request)
+    if not creator:
+        raise HTTPException(status_code=401, detail="Login required")
+    return creator
+
+
+# ── Auth ───────────────────────────────────────────────────────────────────────
+
+class _NxRegisterReq(BaseModel):
+    email:    str
+    password: str
+    name:     str
+
+class _NxLoginReq(BaseModel):
+    email:    str
+    password: str
+
+@app.post("/api/nx/register")
+async def nx_register(req: _NxRegisterReq):
+    from core.nexora_db   import init_db
+    from core.nexora_auth import register_creator
+    init_db()
+    result = register_creator(req.email, req.password, req.name)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.post("/api/nx/login")
+async def nx_login(req: _NxLoginReq):
+    from core.nexora_db   import init_db
+    from core.nexora_auth import login_creator
+    init_db()
+    result = login_creator(req.email, req.password)
+    if "error" in result:
+        raise HTTPException(status_code=401, detail=result["error"])
+    return result
+
+@app.post("/api/nx/logout")
+async def nx_logout(request: Request):
+    from core.nexora_auth import revoke_token
+    auth  = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if token:
+        revoke_token(token)
+    return {"status": "logged_out"}
+
+
+# ── Creator profile ────────────────────────────────────────────────────────────
+
+@app.get("/api/nx/me")
+async def nx_me(request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import get_creator_stats
+    stats = get_creator_stats(creator["id"])
+    return {**creator, **stats}
+
+class _NxProfileReq(BaseModel):
+    name:          Optional[str] = None
+    bio:           Optional[str] = None
+    avatar:        Optional[str] = None
+    price:         Optional[float] = None
+    payout_method: Optional[str] = None
+    stripe_link:   Optional[str] = None
+
+@app.patch("/api/nx/me")
+async def nx_update_profile(req: _NxProfileReq, request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import update_creator_profile, get_creator_by_id
+    fields = {k: v for k, v in req.dict().items() if v is not None}
+    update_creator_profile(creator["id"], fields)
+    return get_creator_by_id(creator["id"])
+
+
+# ── Posts ──────────────────────────────────────────────────────────────────────
+
+class _NxPostReq(BaseModel):
+    title:      str = ""
+    body:       str = ""
+    access:     str = "subscribers"
+    media_urls: List[str] = []
+
+@app.get("/api/nx/posts")
+async def nx_list_my_posts(request: Request, limit: int = 50):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import list_posts
+    return {"posts": list_posts(creator["id"], limit=limit)}
+
+@app.post("/api/nx/posts")
+async def nx_create_post(req: _NxPostReq, request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import create_post
+    post_id = create_post(creator["id"], req.title, req.body, req.access, req.media_urls)
+    return {"id": post_id, "status": "created"}
+
+@app.delete("/api/nx/posts/{post_id}")
+async def nx_delete_post(post_id: int, request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import delete_post
+    delete_post(post_id, creator["id"])
+    return {"status": "deleted"}
+
+# Public — fan view of creator + posts
+@app.get("/api/nx/creator/{handle}")
+async def nx_public_creator(handle: str):
+    from core.nexora_db import get_creator_by_handle, get_active_subscriber_count, list_posts
+    creator = get_creator_by_handle(handle)
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    subs = get_active_subscriber_count(creator["id"])
+    free_posts = [p for p in list_posts(creator["id"], limit=20) if p["access"] == "free"]
+    return {
+        "name":        creator["name"],
+        "handle":      creator["handle"],
+        "bio":         creator["bio"],
+        "avatar":      creator["avatar"],
+        "price":       creator["price"],
+        "subscribers": subs,
+        "free_posts":  free_posts,
+    }
+
+@app.get("/api/nx/creator/{handle}/posts")
+async def nx_public_posts(handle: str, request: Request):
+    """Return posts for a fan — subscribers see all, others only free."""
+    from core.nexora_db import (get_creator_by_handle, get_active_subscriber_count,
+                                 list_posts, get_conn)
+    creator = get_creator_by_handle(handle)
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    posts = list_posts(creator["id"], limit=50)
+    # Check if the requesting fan has an active subscription
+    fan_email = request.query_params.get("fan_email", "")
+    is_subscribed = False
+    if fan_email:
+        conn = get_conn()
+        row = conn.execute(
+            "SELECT 1 FROM nx_subscribers WHERE creator_id=? AND fan_email=? AND status='active'",
+            (creator["id"], fan_email)
+        ).fetchone()
+        conn.close()
+        is_subscribed = bool(row)
+    # Filter locked posts
+    visible = []
+    for p in posts:
+        if p["access"] == "free" or is_subscribed:
+            visible.append(p)
+        else:
+            visible.append({**p, "body": "", "media_urls": [], "locked": True})
+    return {"posts": visible, "is_subscribed": is_subscribed}
+
+
+# ── Subscribers ────────────────────────────────────────────────────────────────
+
+@app.get("/api/nx/subscribers")
+async def nx_list_subscribers(request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import list_subscribers, get_active_subscriber_count
+    subs = list_subscribers(creator["id"])
+    return {
+        "total":       len(subs),
+        "active":      get_active_subscriber_count(creator["id"]),
+        "subscribers": subs,
+    }
+
+class _NxSubscribeReq(BaseModel):
+    creator_handle: str
+    fan_email:      str
+    fan_name:       str = ""
+    price_paid:     float = 0
+    stripe_cust:    str = ""
+
+@app.post("/api/nx/subscribe")
+async def nx_subscribe(req: _NxSubscribeReq):
+    """Called after Stripe checkout completes to record a new fan subscriber."""
+    from core.nexora_db import get_creator_by_handle, add_subscriber, record_transaction
+    creator = get_creator_by_handle(req.creator_handle)
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+    add_subscriber(creator["id"], req.fan_email, req.fan_name, req.price_paid, req.stripe_cust)
+    if req.price_paid > 0:
+        record_transaction(creator["id"], req.price_paid, "subscription", req.fan_email)
+    # Also enroll in ConvertKit
+    try:
+        from core.convertkit import get_convertkit
+        get_convertkit().add_subscriber(req.fan_email, req.fan_name, tags=["nexora_subscriber"])
+    except Exception:
+        pass
+    return {"status": "subscribed", "creator": creator["name"]}
+
+
+# ── Earnings ───────────────────────────────────────────────────────────────────
+
+@app.get("/api/nx/earnings")
+async def nx_earnings(request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import get_earnings
+    return get_earnings(creator["id"])
+
+
+# ── Payouts ────────────────────────────────────────────────────────────────────
+
+class _NxPayoutReq(BaseModel):
+    amount: float
+    method: str = "bank"
+
+@app.post("/api/nx/payouts")
+async def nx_request_payout(req: _NxPayoutReq, request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import get_earnings, request_payout
+    earnings = get_earnings(creator["id"])
+    available = earnings["total"]
+    if req.amount < 20:
+        raise HTTPException(status_code=400, detail="Minimum payout is $20")
+    if req.amount > available:
+        raise HTTPException(status_code=400, detail=f"Only ${available:.2f} available")
+    result = request_payout(creator["id"], req.amount, req.method)
+    return result
+
+@app.get("/api/nx/payouts")
+async def nx_list_payouts(request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import list_payouts, get_pending_payout_amount
+    return {
+        "payouts":  list_payouts(creator["id"]),
+        "pending":  get_pending_payout_amount(creator["id"]),
+    }
+
+
+# ── Messages ───────────────────────────────────────────────────────────────────
+
+class _NxMessageReq(BaseModel):
+    fan_email: str
+    body:      str
+    sender:    str = "creator"
+
+@app.get("/api/nx/messages")
+async def nx_list_messages(request: Request, fan_email: str = ""):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import list_messages, mark_messages_read
+    msgs = list_messages(creator["id"], fan_email)
+    mark_messages_read(creator["id"])
+    return {"messages": msgs}
+
+@app.post("/api/nx/messages")
+async def nx_send_message(req: _NxMessageReq, request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import send_message
+    msg_id = send_message(creator["id"], req.fan_email, req.sender, req.body)
+    return {"id": msg_id, "status": "sent"}
+
+
+# ── Full stats for creator dashboard ──────────────────────────────────────────
+
+@app.get("/api/nx/stats")
+async def nx_stats(request: Request):
+    creator = _nx_require_creator(request)
+    from core.nexora_db import get_creator_stats
+    return get_creator_stats(creator["id"])
+
+
+# ── Stripe webhook — record subscriptions from real payments ──────────────────
+
+@app.post("/api/nx/stripe-webhook")
+async def nx_stripe_webhook(request: Request):
+    """
+    Handle Stripe checkout.session.completed events.
+    Expects metadata: {creator_handle, fan_email, fan_name}
+    """
+    import json as _json
+    body = await request.body()
+    try:
+        event = _json.loads(body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_type = event.get("type", "")
+    if event_type in ("checkout.session.completed", "invoice.payment_succeeded"):
+        obj      = event.get("data", {}).get("object", {})
+        meta     = obj.get("metadata", {})
+        handle   = meta.get("creator_handle", "")
+        fan_email = (
+            meta.get("fan_email")
+            or obj.get("customer_email")
+            or obj.get("customer_details", {}).get("email", "")
+        )
+        fan_name  = meta.get("fan_name", "")
+        amount    = obj.get("amount_total", 0) / 100  # cents → dollars
+        stripe_id = obj.get("id", "")
+
+        if handle and fan_email:
+            from core.nexora_db import (get_creator_by_handle, add_subscriber,
+                                         record_transaction)
+            creator = get_creator_by_handle(handle)
+            if creator:
+                add_subscriber(creator["id"], fan_email, fan_name, amount, stripe_id)
+                record_transaction(creator["id"], amount, "subscription",
+                                   fan_email, stripe_id)
+                _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
+
+    return {"received": True}
+
+
 # ─── Week 8: Trending Intelligence API ───────────────────────────────────────
 
 @app.get("/api/trending/summary")
@@ -7051,6 +7384,14 @@ def launch(port: int = 5050, preload: bool = True):
         _add_log("Performance dashboard refresh scheduled every 4 hours", "INFO")
     except Exception as e:
         _add_log(f"Performance refresh scheduler failed: {e}", "WARNING")
+
+    # ── NEXORA DB init ────────────────────────────────────────────────────────
+    try:
+        from core.nexora_db import init_db as _nx_init
+        _nx_init()
+        _add_log("NEXORA database initialised", "INFO")
+    except Exception as e:
+        _add_log(f"NEXORA DB init failed: {e}", "WARNING")
 
     uvicorn.run(
         "core.api:app",

@@ -1,0 +1,391 @@
+#!/usr/bin/env python3
+"""
+core/nexora_db.py
+─────────────────────────────────────────────────────────────────────────────
+NEXORA platform — SQLite database layer.
+Tables: creators, sessions, passwords, posts, subscribers,
+        transactions, payouts, messages
+─────────────────────────────────────────────────────────────────────────────
+"""
+
+import json
+import sqlite3
+import time
+from pathlib import Path
+from typing import Any, Dict, List, Optional
+
+ROOT    = Path(__file__).parent.parent
+DB_PATH = ROOT / "data" / "nexora.db"
+
+# ── Connection ─────────────────────────────────────────────────────────────────
+
+def get_conn() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA foreign_keys=ON")
+    return conn
+
+# ── Schema ─────────────────────────────────────────────────────────────────────
+
+_SCHEMA = """
+CREATE TABLE IF NOT EXISTS nx_creators (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    email           TEXT    UNIQUE NOT NULL,
+    name            TEXT    NOT NULL,
+    handle          TEXT    UNIQUE NOT NULL,
+    bio             TEXT    DEFAULT '',
+    avatar          TEXT    DEFAULT '',
+    price           REAL    DEFAULT 9.99,
+    payout_method   TEXT    DEFAULT 'bank',
+    stripe_link     TEXT    DEFAULT '',
+    founding        INTEGER DEFAULT 0,
+    active          INTEGER DEFAULT 1,
+    created_at      REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_passwords (
+    creator_id  INTEGER PRIMARY KEY,
+    hash        TEXT    NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS nx_sessions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id  INTEGER NOT NULL,
+    token       TEXT    UNIQUE NOT NULL,
+    expires_at  REAL    NOT NULL,
+    created_at  REAL    NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS nx_posts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id  INTEGER NOT NULL,
+    title       TEXT    DEFAULT '',
+    body        TEXT    DEFAULT '',
+    access      TEXT    DEFAULT 'subscribers',
+    media_urls  TEXT    DEFAULT '[]',
+    created_at  REAL    NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS nx_subscribers (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id      INTEGER NOT NULL,
+    fan_email       TEXT    NOT NULL,
+    fan_name        TEXT    DEFAULT '',
+    status          TEXT    DEFAULT 'active',
+    stripe_cust     TEXT    DEFAULT '',
+    price_paid      REAL    DEFAULT 0,
+    started_at      REAL    NOT NULL,
+    cancelled_at    REAL,
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE,
+    UNIQUE (creator_id, fan_email)
+);
+
+CREATE TABLE IF NOT EXISTS nx_transactions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id      INTEGER NOT NULL,
+    fan_email       TEXT    DEFAULT '',
+    amount          REAL    NOT NULL,
+    platform_cut    REAL    NOT NULL,
+    creator_cut     REAL    NOT NULL,
+    type            TEXT    DEFAULT 'subscription',
+    stripe_id       TEXT    DEFAULT '',
+    status          TEXT    DEFAULT 'succeeded',
+    created_at      REAL    NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS nx_payouts (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id      INTEGER NOT NULL,
+    amount          REAL    NOT NULL,
+    method          TEXT    DEFAULT 'bank',
+    status          TEXT    DEFAULT 'requested',
+    requested_at    REAL    NOT NULL,
+    completed_at    REAL,
+    notes           TEXT    DEFAULT '',
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS nx_messages (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_id  INTEGER NOT NULL,
+    fan_email   TEXT    NOT NULL,
+    sender      TEXT    NOT NULL,
+    body        TEXT    NOT NULL,
+    read        INTEGER DEFAULT 0,
+    created_at  REAL    NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
+);
+"""
+
+def init_db() -> None:
+    conn = get_conn()
+    conn.executescript(_SCHEMA)
+    conn.commit()
+    conn.close()
+
+# ── Creators ───────────────────────────────────────────────────────────────────
+
+def get_creator_by_id(creator_id: int) -> Optional[Dict]:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id,email,name,handle,bio,avatar,price,payout_method,stripe_link,founding,active,created_at "
+        "FROM nx_creators WHERE id=?", (creator_id,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_creator_by_handle(handle: str) -> Optional[Dict]:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id,email,name,handle,bio,avatar,price,payout_method,stripe_link,founding,active,created_at "
+        "FROM nx_creators WHERE handle=? AND active=1", (handle,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def get_creator_by_email(email: str) -> Optional[Dict]:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT id,email,name,handle,bio,avatar,price,payout_method,stripe_link,founding,active,created_at "
+        "FROM nx_creators WHERE email=?", (email,)
+    ).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+def update_creator_profile(creator_id: int, fields: Dict) -> bool:
+    allowed = {"name", "bio", "avatar", "price", "payout_method", "stripe_link"}
+    safe = {k: v for k, v in fields.items() if k in allowed}
+    if not safe:
+        return False
+    sets = ", ".join(f"{k}=?" for k in safe)
+    vals = list(safe.values()) + [creator_id]
+    conn = get_conn()
+    conn.execute(f"UPDATE nx_creators SET {sets} WHERE id=?", vals)
+    conn.commit()
+    conn.close()
+    return True
+
+# ── Posts ──────────────────────────────────────────────────────────────────────
+
+def create_post(creator_id: int, title: str, body: str,
+                access: str = "subscribers", media_urls: List[str] = None) -> int:
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO nx_posts (creator_id,title,body,access,media_urls,created_at) VALUES (?,?,?,?,?,?)",
+        (creator_id, title, body, access, json.dumps(media_urls or []), time.time())
+    )
+    post_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return post_id
+
+def list_posts(creator_id: int, limit: int = 50) -> List[Dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM nx_posts WHERE creator_id=? ORDER BY created_at DESC LIMIT ?",
+        (creator_id, limit)
+    ).fetchall()
+    conn.close()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["media_urls"] = json.loads(d.get("media_urls") or "[]")
+        except Exception:
+            d["media_urls"] = []
+        out.append(d)
+    return out
+
+def delete_post(post_id: int, creator_id: int) -> bool:
+    conn = get_conn()
+    conn.execute("DELETE FROM nx_posts WHERE id=? AND creator_id=?", (post_id, creator_id))
+    conn.commit()
+    conn.close()
+    return True
+
+# ── Subscribers ────────────────────────────────────────────────────────────────
+
+def add_subscriber(creator_id: int, fan_email: str, fan_name: str = "",
+                   price_paid: float = 0, stripe_cust: str = "") -> Dict:
+    conn = get_conn()
+    now = time.time()
+    conn.execute(
+        """INSERT INTO nx_subscribers (creator_id,fan_email,fan_name,price_paid,stripe_cust,started_at)
+           VALUES (?,?,?,?,?,?)
+           ON CONFLICT(creator_id,fan_email) DO UPDATE SET
+             status='active', price_paid=excluded.price_paid,
+             stripe_cust=excluded.stripe_cust, cancelled_at=NULL""",
+        (creator_id, fan_email, fan_name, price_paid, stripe_cust, now)
+    )
+    conn.commit()
+    conn.close()
+    return {"creator_id": creator_id, "fan_email": fan_email, "status": "active"}
+
+def list_subscribers(creator_id: int) -> List[Dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM nx_subscribers WHERE creator_id=? ORDER BY started_at DESC",
+        (creator_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_active_subscriber_count(creator_id: int) -> int:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM nx_subscribers WHERE creator_id=? AND status='active'",
+        (creator_id,)
+    ).fetchone()
+    conn.close()
+    return row["cnt"] if row else 0
+
+def cancel_subscriber(creator_id: int, fan_email: str) -> bool:
+    conn = get_conn()
+    conn.execute(
+        "UPDATE nx_subscribers SET status='cancelled', cancelled_at=? WHERE creator_id=? AND fan_email=?",
+        (time.time(), creator_id, fan_email)
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+# ── Transactions ───────────────────────────────────────────────────────────────
+
+def record_transaction(creator_id: int, amount: float, tx_type: str = "subscription",
+                       fan_email: str = "", stripe_id: str = "", status: str = "succeeded") -> int:
+    platform_cut = round(amount * 0.10, 4)
+    creator_cut  = round(amount * 0.90, 4)
+    conn = get_conn()
+    cur = conn.execute(
+        """INSERT INTO nx_transactions
+           (creator_id,fan_email,amount,platform_cut,creator_cut,type,stripe_id,status,created_at)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        (creator_id, fan_email, amount, platform_cut, creator_cut,
+         tx_type, stripe_id, status, time.time())
+    )
+    tx_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return tx_id
+
+def get_earnings(creator_id: int) -> Dict:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM nx_transactions WHERE creator_id=? AND status='succeeded' ORDER BY created_at DESC",
+        (creator_id,)
+    ).fetchall()
+    conn.close()
+    txs = [dict(r) for r in rows]
+    now = time.time()
+    month_start = now - 30 * 86400
+    total        = sum(t["creator_cut"] for t in txs)
+    this_month   = sum(t["creator_cut"] for t in txs if t["created_at"] >= month_start)
+    by_type: Dict[str, float] = {}
+    for t in txs:
+        by_type[t["type"]] = round(by_type.get(t["type"], 0) + t["creator_cut"], 2)
+    return {
+        "total":      round(total, 2),
+        "this_month": round(this_month, 2),
+        "by_type":    by_type,
+        "transactions": txs[:50],
+    }
+
+# ── Payouts ────────────────────────────────────────────────────────────────────
+
+def request_payout(creator_id: int, amount: float, method: str = "bank") -> Dict:
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO nx_payouts (creator_id,amount,method,requested_at) VALUES (?,?,?,?)",
+        (creator_id, amount, method, time.time())
+    )
+    payout_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return {"id": payout_id, "amount": amount, "method": method, "status": "requested"}
+
+def list_payouts(creator_id: int) -> List[Dict]:
+    conn = get_conn()
+    rows = conn.execute(
+        "SELECT * FROM nx_payouts WHERE creator_id=? ORDER BY requested_at DESC",
+        (creator_id,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def get_pending_payout_amount(creator_id: int) -> float:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT COALESCE(SUM(amount),0) AS total FROM nx_payouts WHERE creator_id=? AND status='requested'",
+        (creator_id,)
+    ).fetchone()
+    conn.close()
+    return round(row["total"] if row else 0, 2)
+
+# ── Messages ───────────────────────────────────────────────────────────────────
+
+def send_message(creator_id: int, fan_email: str, sender: str, body: str) -> int:
+    conn = get_conn()
+    cur = conn.execute(
+        "INSERT INTO nx_messages (creator_id,fan_email,sender,body,created_at) VALUES (?,?,?,?,?)",
+        (creator_id, fan_email, sender, body, time.time())
+    )
+    msg_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return msg_id
+
+def list_messages(creator_id: int, fan_email: str = "") -> List[Dict]:
+    conn = get_conn()
+    if fan_email:
+        rows = conn.execute(
+            "SELECT * FROM nx_messages WHERE creator_id=? AND fan_email=? ORDER BY created_at",
+            (creator_id, fan_email)
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT * FROM nx_messages WHERE creator_id=? ORDER BY created_at DESC LIMIT 100",
+            (creator_id,)
+        ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+def mark_messages_read(creator_id: int) -> None:
+    conn = get_conn()
+    conn.execute("UPDATE nx_messages SET read=1 WHERE creator_id=?", (creator_id,))
+    conn.commit()
+    conn.close()
+
+def unread_message_count(creator_id: int) -> int:
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT COUNT(*) AS cnt FROM nx_messages WHERE creator_id=? AND read=0 AND sender='fan'",
+        (creator_id,)
+    ).fetchone()
+    conn.close()
+    return row["cnt"] if row else 0
+
+# ── Stats summary ──────────────────────────────────────────────────────────────
+
+def get_creator_stats(creator_id: int) -> Dict:
+    earnings     = get_earnings(creator_id)
+    sub_count    = get_active_subscriber_count(creator_id)
+    post_count   = len(list_posts(creator_id, limit=9999))
+    pending_pay  = get_pending_payout_amount(creator_id)
+    unread_msgs  = unread_message_count(creator_id)
+    mrr          = round(sub_count * (get_creator_by_id(creator_id) or {}).get("price", 9.99), 2)
+    return {
+        "subscribers":    sub_count,
+        "posts":          post_count,
+        "earnings_total": earnings["total"],
+        "earnings_month": earnings["this_month"],
+        "earnings_type":  earnings["by_type"],
+        "pending_payout": pending_pay,
+        "mrr":            mrr,
+        "unread_messages": unread_msgs,
+    }

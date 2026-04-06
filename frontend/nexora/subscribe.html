@@ -167,54 +167,120 @@ const API = (window.location.hostname === '127.0.0.1' || window.location.hostnam
   ? 'http://localhost:5050'
   : 'https://grateful-flexibility-production.up.railway.app';
 
-// Fetch real Stripe URL from API, fall back to known link
-let stripeUrl = 'https://buy.stripe.com/aFa28q6TX6lI72d9sva3u04';
-fetch(API + '/api/nexora/status').then(r=>r.json()).then(d=>{
-  if(d.stripe_url) stripeUrl = d.stripe_url;
-}).catch(()=>{});
+// ── Creator handle from URL param ─────────────────────────────────────────────
+const params  = new URLSearchParams(window.location.search);
+const HANDLE  = params.get('h') || '';
+let   stripeUrl = 'https://buy.stripe.com/aFa28q6TX6lI72d9sva3u04';
 
-async function subscribe(){
+// Load real creator profile if handle is provided
+async function loadCreator() {
+  if (!HANDLE) return;
+  try {
+    const r = await fetch(API + '/api/nx/creator/' + HANDLE);
+    if (!r.ok) return;
+    const d = await r.json();
+    document.querySelector('.profile-name')?.insertAdjacentText && null;
+    const nameEl = document.querySelector('.profile-name');
+    const handleEl = document.querySelector('.profile-handle');
+    const bioEl = document.querySelector('.profile-bio');
+    const avatarEl = document.querySelector('.profile-avatar');
+    const subsPriceEls = document.querySelectorAll('[data-price]');
+    if (nameEl)   nameEl.textContent   = d.name || 'Creator';
+    if (handleEl) handleEl.textContent = '@' + (d.handle || HANDLE) + ' · NEXORA Creator';
+    if (bioEl)    bioEl.textContent    = d.bio || 'Exclusive content, behind the scenes, live streams and more.';
+    if (avatarEl) avatarEl.textContent = (d.name || 'C')[0].toUpperCase();
+    // Update stats
+    const statNums = document.querySelectorAll('.prof-stat .num');
+    if (statNums[0]) statNums[0].textContent = d.subscribers || 0;
+    // Update price
+    const price = d.price || 9.99;
+    document.querySelectorAll('.sub-price').forEach(el => {
+      el.innerHTML = '$' + price.toFixed(2) + '<span>/month</span>';
+    });
+    document.querySelectorAll('.unlock-btn').forEach(el => {
+      el.textContent = 'Unlock for $' + price.toFixed(2) + '/mo';
+    });
+    // Subscribe button
+    document.querySelectorAll('.btn-sub.primary').forEach(el => {
+      el.textContent = 'Subscribe — $' + price.toFixed(2) + '/mo';
+    });
+    // Use creator's custom stripe link if set
+    if (d.stripe_link) stripeUrl = d.stripe_link;
+    // Load free posts
+    loadFreePosts(HANDLE);
+  } catch(e) {}
+}
+
+async function loadFreePosts(handle) {
+  try {
+    const r = await fetch(API + '/api/nx/creator/' + handle + '/posts');
+    if (!r.ok) return;
+    const d = await r.json();
+    const free = (d.posts || []).filter(p => p.access === 'free' && !p.locked);
+    if (!free.length) return;
+    // Replace the static welcome post body with real content
+    const feedEl = document.querySelector('.feed-post .post-body');
+    if (feedEl && free[0]) feedEl.textContent = free[0].body || feedEl.textContent;
+  } catch(e) {}
+}
+
+// ── Subscribe flow ─────────────────────────────────────────────────────────────
+async function subscribe() {
   const emailEl = document.getElementById('sub-email');
-  const email = emailEl ? emailEl.value.trim() : '';
+  const email   = emailEl ? emailEl.value.trim() : '';
 
-  if(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
-    // Enroll in ConvertKit via our API
-    try {
-      await fetch(API + '/api/lead', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({email, source:'nexora_subscribe', topic:'nexora'})
-      });
-    } catch(e){ /* non-blocking */ }
-  } else if(email) {
-    emailEl.style.borderColor = 'var(--red)';
-    emailEl.placeholder = 'Enter a valid email first';
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    emailEl.style.borderColor = 'rgba(255,77,109,.6)';
+    emailEl.placeholder = 'Enter a valid email address';
     return;
   }
 
-  // Redirect to Stripe checkout
-  window.open(stripeUrl, '_blank');
-}
-
-async function sendTip(){
-  const emailEl = document.getElementById('sub-email');
-  const email = emailEl ? emailEl.value.trim() : '';
-  if(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
+  if (email) {
+    // Enroll in ConvertKit + record lead
     try {
       await fetch(API + '/api/lead', {
         method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({email, source:'nexora_tip', topic:'nexora'})
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: 'nexora_subscribe', topic: 'nexora',
+                               metadata: { creator: HANDLE } })
       });
-    } catch(e){}
+    } catch(e) {}
+    // If we have creator handle, pre-record subscriber (optimistic, confirmed on Stripe webhook)
+    if (HANDLE) {
+      try {
+        await fetch(API + '/api/nx/subscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ creator_handle: HANDLE, fan_email: email, price_paid: 0 })
+        });
+      } catch(e) {}
+    }
   }
-  // Use bot pack link for tips (same Stripe account)
+
+  window.open(stripeUrl, '_blank');
+}
+
+async function sendTip() {
+  const emailEl = document.getElementById('sub-email');
+  const email   = emailEl ? emailEl.value.trim() : '';
+  if (email) {
+    try {
+      await fetch(API + '/api/lead', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, source: 'nexora_tip', topic: 'nexora' })
+      });
+    } catch(e) {}
+  }
   window.open('https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03', '_blank');
 }
 
-function scrollToSub(){
-  document.getElementById('sub-card').scrollIntoView({behavior:'smooth',block:'center'});
+function scrollToSub() {
+  document.getElementById('sub-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
+
+// Boot
+loadCreator();
 </script>
 </body>
 </html>
