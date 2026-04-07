@@ -235,10 +235,16 @@ def main():
         return
 
     if args.dashboard:
-        console.print(f"[bold green]🌐 Starting dashboard → http://localhost:{args.port}[/bold green]")
-        console.print("[dim]Loading all bots... (first run may take 10–15 seconds)[/dim]\n")
-        from core.api import launch
-        launch(port=args.port, preload=True)
+        print(f"[STARTUP] Starting dashboard on port {args.port}", flush=True)
+        try:
+            from core.api import launch
+            print("[STARTUP] core.api imported OK", flush=True)
+            launch(port=args.port, preload=True)
+        except Exception as _startup_err:
+            import traceback
+            print(f"[STARTUP ERROR] {_startup_err}", flush=True)
+            traceback.print_exc()
+            raise
         return
 
     # All other modes need the orchestrator

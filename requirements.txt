@@ -55,8 +55,9 @@ feedparser>=6.0.11
 plyer>=2.1.0
 
 # Web server (dashboard) — FastAPI stack
-fastapi>=0.111.0,<1.0.0
-uvicorn[standard]>=0.29.0,<1.0.0
+fastapi>=0.111.0,<0.116.0
+starlette>=0.37.0,<0.42.0
+uvicorn[standard]>=0.29.0,<0.35.0
 flask>=3.0.0
 flask-cors>=4.0.0
 
@@ -106,4 +107,4 @@ pyhunter>=1.7.0
 
 # WebSocket support (Live Chat bot)
 websockets>=12.0
-# deploy-1776100000
+# deploy-1776200000
