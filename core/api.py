@@ -2909,6 +2909,59 @@ async def wordpress_posts(limit: int = 20):
         return {"posts": [], "error": str(e)}
 
 
+@app.get("/api/wordpress/oauth-callback")
+async def wordpress_oauth_callback(code: str = "", error: str = ""):
+    """Handles WordPress.com OAuth redirect — exchanges code for token and saves it."""
+    if error:
+        return JSONResponse({"error": error}, status_code=400)
+    if not code:
+        return JSONResponse({"error": "No code received"}, status_code=400)
+    import requests as _req
+    client_id     = os.getenv("WORDPRESS_CLIENT_ID", "136770")
+    client_secret = os.getenv("WORDPRESS_CLIENT_SECRET", "")
+    redirect_uri  = os.getenv("RAILWAY_PUBLIC_URL","").rstrip("/") + "/api/wordpress/oauth-callback"
+    r = _req.post("https://public-api.wordpress.com/oauth2/token", data={
+        "client_id":     client_id,
+        "client_secret": client_secret,
+        "redirect_uri":  redirect_uri,
+        "code":          code,
+        "grant_type":    "authorization_code",
+    }, timeout=15)
+    if r.status_code == 200:
+        token_data = r.json()
+        token = token_data.get("access_token","")
+        # Save to Railway env via env file
+        _add_log(f"WordPress OAuth token received — save WORDPRESS_TOKEN={token[:8]}... to Railway", "INFO")
+        return HTMLResponse(f"""
+        <html><body style="font-family:monospace;background:#0d1117;color:#00ff88;padding:40px">
+        <h2>✅ WordPress Connected!</h2>
+        <p>Your access token:</p>
+        <code style="background:#1a2030;padding:10px;display:block;word-break:break-all">{token}</code>
+        <p>Copy the token above and save it in Railway as:<br>
+        <b>WORDPRESS_TOKEN</b> = <code>{token}</code></p>
+        <p>Then paste the token to your setup assistant.</p>
+        </body></html>
+        """)
+    return JSONResponse({"error": "Token exchange failed", "detail": r.text[:300]}, status_code=400)
+
+
+@app.get("/api/wordpress/oauth-url")
+async def wordpress_oauth_url():
+    """Returns the URL to click to authorize WordPress.com access."""
+    import urllib.parse
+    client_id    = os.getenv("WORDPRESS_CLIENT_ID", "136770")
+    redirect_uri = os.getenv("RAILWAY_PUBLIC_URL","").rstrip("/") + "/api/wordpress/oauth-callback"
+    params = {
+        "client_id":    client_id,
+        "redirect_uri": redirect_uri,
+        "response_type": "code",
+        "scope":        "global",
+        "blog":         _wpcom_site_id(),
+    }
+    url = "https://public-api.wordpress.com/oauth2/authorize?" + urllib.parse.urlencode(params)
+    return {"url": url, "instructions": "Open this URL in your browser, authorize the app, then paste the token you receive back here."}
+
+
 # ─── Publish Pipeline ─────────────────────────────────────────────────────────
 
 def _get_publisher():
