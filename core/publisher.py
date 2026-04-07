@@ -56,8 +56,8 @@ class WordPressPublisher:
 
     def __init__(self):
         self.base_url = _env("WORDPRESS_URL", "").rstrip("/")
-        self.user     = _env("WORDPRESS_USER")
-        self.app_pass = _env("WORDPRESS_APP_PASS")
+        self.user     = _env("WORDPRESS_USER") or _env("WORDPRESS_USERNAME", "")
+        self.app_pass = _env("WORDPRESS_APP_PASS") or _env("WORDPRESS_PASSWORD", "")
 
     @property
     def is_configured(self) -> bool:

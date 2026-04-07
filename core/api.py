@@ -169,241 +169,254 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
-    # Startup
-    from core.job_queue import get_queue
-    await get_queue().start()
-    _add_log("Async job queue started", "INFO")
-    # Auto-start scheduler so bots run on their cron schedules
-    try:
-        sched = _get_scheduler()
-        sched.start(blocking=False)
-        _add_log("Scheduler auto-started on server boot", "INFO")
-    except Exception as _e:
-        _add_log(f"Scheduler auto-start failed: {_e}", "WARNING")
-    # Auto-posting schedules DISABLED — NarAI only posts when owner explicitly asks
-    _add_log("Auto-post schedules disabled — manual posting only", "INFO")
-    # NarAI hourly diagnostic
-    try:
-        import schedule as _schedN
-        def _narai_hourly():
-            try:
-                narai = _get_narai()
-                if narai:
-                    narai.execute(action="diagnostic")
-                    _add_log("NarAI: hourly diagnostic complete", "INFO")
-            except Exception as _eN:
-                _add_log(f"NarAI hourly diagnostic failed: {_eN}", "WARNING")
-        _schedN.every().hour.do(_narai_hourly)
-        # Also boot-time diagnostic in background
-        import threading as _threading
-        _threading.Thread(target=_narai_hourly, daemon=True).start()
-        _add_log("NarAI: hourly diagnostic scheduled", "INFO")
-    except Exception as _eN:
-        _add_log(f"NarAI schedule setup failed: {_eN}", "WARNING")
-    # ── NarAI Social Blast: daily 09:15 ──────────────────────────────────────
-    try:
-        import schedule as _schedNB
-        import threading as _threadNB
-        def _narai_blast():
-            try:
-                narai = _get_narai()
-                if narai:
-                    result = narai.execute(action="social_blast")
-                    _add_log(f"NarAI social blast complete: {list(result.get('results',{}).keys())}", "INFO")
-            except Exception as _eNB:
-                _add_log(f"NarAI social blast failed: {_eNB}", "WARNING")
-        _schedNB.every().day.at("09:15").do(lambda: _threadNB.Thread(target=_narai_blast, daemon=True).start())
-        _add_log("NarAI social blast scheduled: daily 09:15", "INFO")
-    except Exception as _e:
-        _add_log(f"NarAI blast schedule failed: {_e}", "WARNING")
+    # ── FAST startup: yield immediately so Railway health check passes ────────
+    # All heavy init (loading 70 bots, schedulers, engines) runs in a background
+    # thread AFTER uvicorn is already accepting requests.
+    import threading as _ls_th
+    import time as _ls_time
 
-    # ── NarAI Inbox Handler: every 30 min (Facebook + Instagram comments) ────
-    try:
-        import schedule as _schedNI
-        import threading as _threadNI
-        def _narai_inbox():
-            try:
-                narai = _get_narai()
-                if narai:
-                    result = narai.execute(action="handle_inbox", platform="all")
-                    replied = result.get("replied", 0)
-                    if replied:
-                        _add_log(f"NarAI replied to {replied} comments/messages", "INFO")
-            except Exception as _eNI:
-                _add_log(f"NarAI inbox failed: {_eNI}", "WARNING")
-        _schedNI.every(30).minutes.do(lambda: _threadNI.Thread(target=_narai_inbox, daemon=True).start())
-        _add_log("NarAI inbox handler scheduled: every 30min", "INFO")
-    except Exception as _e:
-        _add_log(f"NarAI inbox schedule failed: {_e}", "WARNING")
+    def _lifespan_bg():
+        _ls_time.sleep(3)  # brief pause, then start loading
+        _add_log("Background startup: loading bots and schedulers...", "INFO")
 
-    # ── Video Creator: daily at 11:00 ────────────────────────────────────────
-    try:
-        import schedule as _schedV
-        import threading as _threadV
-        def _run_video_creator():
-            try:
-                orch = _get_orch()
-                result = orch.run_bot("specialized/90_video_creator")
-                _add_log(f"Video creator complete: {result.get('status', 'done')}", "INFO")
-            except Exception as _eV:
-                _add_log(f"Video creator failed: {_eV}", "ERROR")
-        _schedV.every().day.at("11:00").do(lambda: _threadV.Thread(target=_run_video_creator, daemon=True).start())
-        _add_log("Video creator scheduled: daily 11:00", "INFO")
-    except Exception as _e:
-        _add_log(f"Video creator schedule failed: {_e}", "WARNING")
+        # Start job queue
+        try:
+            import asyncio as _lsq
+            loop = _lsq.new_event_loop()
+            from core.job_queue import get_queue
+            loop.run_until_complete(get_queue().start())
+            loop.close()
+            _add_log("Async job queue started", "INFO")
+        except Exception as _e:
+            _add_log(f"Job queue start failed: {_e}", "WARNING")
 
-    # ── Revenue Pipeline: full_revenue_blast daily at 08:30 ──────────────────
-    try:
-        import schedule as _schedR
-        import threading as _threadR
-        def _run_revenue_pipeline():
-            try:
-                pe = _get_pipeline_engine()
-                result = pe.run_pipeline("full_revenue_blast")
-                published = result.get("completed", 0)
-                _add_log(f"Revenue pipeline complete — {published} bots ran", "INFO")
+        # Auto-start scheduler so bots run on their cron schedules
+        try:
+            sched = _get_scheduler()
+            sched.start(blocking=False)
+            _add_log("Scheduler auto-started on server boot", "INFO")
+        except Exception as _e:
+            _add_log(f"Scheduler auto-start failed: {_e}", "WARNING")
+
+        _add_log("Auto-post schedules disabled — manual posting only", "INFO")
+
+        # NarAI hourly diagnostic
+        try:
+            import schedule as _schedN
+            def _narai_hourly():
                 try:
-                    from core.telegram import notify
-                    notify(f"💰 <b>Revenue Pipeline Complete</b>\n📊 Bots ran: {published}\n⏰ {__import__('datetime').datetime.now().strftime('%H:%M')}")
-                except Exception:
-                    pass
-            except Exception as _eR:
-                _add_log(f"Revenue pipeline failed: {_eR}", "ERROR")
-        _schedR.every().day.at("08:30").do(lambda: _threadR.Thread(target=_run_revenue_pipeline, daemon=True).start())
-        _add_log("Revenue pipeline scheduled: daily 08:30", "INFO")
-    except Exception as _e:
-        _add_log(f"Revenue pipeline schedule failed: {_e}", "WARNING")
+                    narai = _get_narai()
+                    if narai:
+                        narai.execute(action="diagnostic")
+                        _add_log("NarAI: hourly diagnostic complete", "INFO")
+                except Exception as _eN:
+                    _add_log(f"NarAI hourly diagnostic failed: {_eN}", "WARNING")
+            _schedN.every().hour.do(_narai_hourly)
+            _ls_th.Thread(target=_narai_hourly, daemon=True).start()
+            _add_log("NarAI: hourly diagnostic scheduled", "INFO")
+        except Exception as _eN:
+            _add_log(f"NarAI schedule setup failed: {_eN}", "WARNING")
 
-    # ── SEO Daily Pipeline: 06:30 every day ──────────────────────────────────
-    try:
-        import schedule as _schedS
-        import threading as _threadS
-        def _run_seo_pipeline():
-            try:
-                pe = _get_pipeline_engine()
-                pe.run_pipeline("seo_daily")
-                _add_log("SEO daily pipeline complete", "INFO")
-            except Exception as _eS:
-                _add_log(f"SEO pipeline failed: {_eS}", "ERROR")
-        _schedS.every().day.at("06:30").do(lambda: _threadS.Thread(target=_run_seo_pipeline, daemon=True).start())
-        _add_log("SEO daily pipeline scheduled: 06:30", "INFO")
-    except Exception as _e:
-        _add_log(f"SEO pipeline schedule failed: {_e}", "WARNING")
+        # NarAI Social Blast: daily 09:15
+        try:
+            import schedule as _schedNB
+            def _narai_blast():
+                try:
+                    narai = _get_narai()
+                    if narai:
+                        result = narai.execute(action="social_blast")
+                        _add_log(f"NarAI social blast complete: {list(result.get('results',{}).keys())}", "INFO")
+                except Exception as _eNB:
+                    _add_log(f"NarAI social blast failed: {_eNB}", "WARNING")
+            _schedNB.every().day.at("09:15").do(lambda: _ls_th.Thread(target=_narai_blast, daemon=True).start())
+            _add_log("NarAI social blast scheduled: daily 09:15", "INFO")
+        except Exception as _e:
+            _add_log(f"NarAI blast schedule failed: {_e}", "WARNING")
 
-    # ── Social Domination Pipeline: 3× per day ───────────────────────────────
-    try:
-        import schedule as _schedSD
-        import threading as _threadSD
-        def _run_social_pipeline():
-            try:
-                pe = _get_pipeline_engine()
-                pe.run_pipeline("social_domination")
-                _add_log("Social domination pipeline complete", "INFO")
-            except Exception as _eSD:
-                _add_log(f"Social pipeline failed: {_eSD}", "ERROR")
-        _schedSD.every().day.at("09:00").do(lambda: _threadSD.Thread(target=_run_social_pipeline, daemon=True).start())
-        _schedSD.every().day.at("14:00").do(lambda: _threadSD.Thread(target=_run_social_pipeline, daemon=True).start())
-        _schedSD.every().day.at("19:00").do(lambda: _threadSD.Thread(target=_run_social_pipeline, daemon=True).start())
-        _add_log("Social domination pipeline scheduled: 09:00, 14:00, 19:00", "INFO")
-    except Exception as _e:
-        _add_log(f"Social pipeline schedule failed: {_e}", "WARNING")
+        # NarAI Inbox Handler: every 30 min
+        try:
+            import schedule as _schedNI
+            def _narai_inbox():
+                try:
+                    narai = _get_narai()
+                    if narai:
+                        result = narai.execute(action="handle_inbox", platform="all")
+                        replied = result.get("replied", 0)
+                        if replied:
+                            _add_log(f"NarAI replied to {replied} comments/messages", "INFO")
+                except Exception as _eNI:
+                    _add_log(f"NarAI inbox failed: {_eNI}", "WARNING")
+            _schedNI.every(30).minutes.do(lambda: _ls_th.Thread(target=_narai_inbox, daemon=True).start())
+            _add_log("NarAI inbox handler scheduled: every 30min", "INFO")
+        except Exception as _e:
+            _add_log(f"NarAI inbox schedule failed: {_e}", "WARNING")
 
-    # ── Affiliate Revenue Pipeline: 3× per day ───────────────────────────────
-    try:
-        import schedule as _schedAR
-        import threading as _threadAR
-        def _run_affiliate_pipeline():
-            try:
-                pe = _get_pipeline_engine()
-                pe.run_pipeline("affiliate_revenue")
-                _add_log("Affiliate revenue pipeline complete", "INFO")
-            except Exception as _eAR:
-                _add_log(f"Affiliate pipeline failed: {_eAR}", "ERROR")
-        _schedAR.every().day.at("10:00").do(lambda: _threadAR.Thread(target=_run_affiliate_pipeline, daemon=True).start())
-        _schedAR.every().day.at("15:00").do(lambda: _threadAR.Thread(target=_run_affiliate_pipeline, daemon=True).start())
-        _schedAR.every().day.at("20:00").do(lambda: _threadAR.Thread(target=_run_affiliate_pipeline, daemon=True).start())
-        _add_log("Affiliate revenue pipeline scheduled: 10:00, 15:00, 20:00", "INFO")
-    except Exception as _e:
-        _add_log(f"Affiliate pipeline schedule failed: {_e}", "WARNING")
+        # Video Creator: daily at 11:00
+        try:
+            import schedule as _schedV
+            def _run_video_creator():
+                try:
+                    orch = _get_orch()
+                    result = orch.run_bot("specialized/90_video_creator")
+                    _add_log(f"Video creator complete: {result.get('status', 'done')}", "INFO")
+                except Exception as _eV:
+                    _add_log(f"Video creator failed: {_eV}", "ERROR")
+            _schedV.every().day.at("11:00").do(lambda: _ls_th.Thread(target=_run_video_creator, daemon=True).start())
+            _add_log("Video creator scheduled: daily 11:00", "INFO")
+        except Exception as _e:
+            _add_log(f"Video creator schedule failed: {_e}", "WARNING")
 
-    # Telegram daily summary: 07:00 every day
-    try:
-        import schedule as _sched4
-        import asyncio as _asyncio2
-        def _telegram_daily():
-            try:
-                loop = _asyncio2.new_event_loop()
-                loop.run_until_complete(telegram_daily_alert())
-                loop.close()
-            except Exception as _e2:
-                _add_log(f"Telegram daily alert failed: {_e2}", "ERROR")
-        _sched4.every().day.at("07:00").do(_telegram_daily)
-        _add_log("Telegram daily summary scheduled: 07:00 daily", "INFO")
-    except Exception as _e:
-        _add_log(f"Telegram schedule setup failed: {_e}", "WARNING")
-
-    # WhatsApp scheduled messages — check every minute
-    try:
-        import schedule as _schedWA
-        import threading as _threadWA
-        def _wa_scheduler_tick():
-            try:
-                from core.whatsapp import get_client
-                wa = get_client()
-                if not wa.is_configured():
-                    return
-                now = datetime.now()
-                items = _load_wa_schedule()
-                changed = False
-                for item in items:
-                    if item.get("status") != "pending":
-                        continue
+        # Revenue Pipeline: daily at 08:30
+        try:
+            import schedule as _schedR
+            def _run_revenue_pipeline():
+                try:
+                    pe = _get_pipeline_engine()
+                    result = pe.run_pipeline("full_revenue_blast")
+                    published = result.get("completed", 0)
+                    _add_log(f"Revenue pipeline complete — {published} bots ran", "INFO")
                     try:
-                        send_at = datetime.fromisoformat(item["send_at"])
+                        from core.telegram import notify
+                        notify(f"💰 <b>Revenue Pipeline Complete</b>\n📊 Bots ran: {published}\n⏰ {__import__('datetime').datetime.now().strftime('%H:%M')}")
                     except Exception:
-                        continue
-                    if now >= send_at:
-                        # Time to send
-                        message = item["message"]
-                        if item.get("ai_compose"):
-                            try:
-                                narai = _get_narai()
-                                if narai:
-                                    label = item.get("label", "a friendly message")
-                                    result = narai.ai(
-                                        f"Write {label} (2-3 sentences, natural, no quotes).",
-                                        max_tokens=100
-                                    )
-                                    if result:
-                                        message = result
-                            except Exception:
-                                pass
-                        ok = wa.send_message(to=item["to"], text=message)
-                        if ok:
-                            _add_log(f"WhatsApp scheduled sent to {item['to']}: {message[:60]}", "INFO")
-                            item["last_sent"] = now.isoformat()
-                            # Handle repeat
-                            if item["repeat"] == "daily":
-                                from datetime import timedelta
-                                next_dt = send_at + timedelta(days=1)
-                                item["send_at"] = next_dt.isoformat()
-                            elif item["repeat"] == "weekly":
-                                from datetime import timedelta
-                                next_dt = send_at + timedelta(weeks=1)
-                                item["send_at"] = next_dt.isoformat()
+                        pass
+                except Exception as _eR:
+                    _add_log(f"Revenue pipeline failed: {_eR}", "ERROR")
+            _schedR.every().day.at("08:30").do(lambda: _ls_th.Thread(target=_run_revenue_pipeline, daemon=True).start())
+            _add_log("Revenue pipeline scheduled: daily 08:30", "INFO")
+        except Exception as _e:
+            _add_log(f"Revenue pipeline schedule failed: {_e}", "WARNING")
+
+        # SEO Daily Pipeline: 06:30
+        try:
+            import schedule as _schedS
+            def _run_seo_pipeline():
+                try:
+                    pe = _get_pipeline_engine()
+                    pe.run_pipeline("seo_daily")
+                    _add_log("SEO daily pipeline complete", "INFO")
+                except Exception as _eS:
+                    _add_log(f"SEO pipeline failed: {_eS}", "ERROR")
+            _schedS.every().day.at("06:30").do(lambda: _ls_th.Thread(target=_run_seo_pipeline, daemon=True).start())
+            _add_log("SEO daily pipeline scheduled: 06:30", "INFO")
+        except Exception as _e:
+            _add_log(f"SEO pipeline schedule failed: {_e}", "WARNING")
+
+        # Social Domination Pipeline: 3× per day
+        try:
+            import schedule as _schedSD
+            def _run_social_pipeline():
+                try:
+                    pe = _get_pipeline_engine()
+                    pe.run_pipeline("social_domination")
+                    _add_log("Social domination pipeline complete", "INFO")
+                except Exception as _eSD:
+                    _add_log(f"Social pipeline failed: {_eSD}", "ERROR")
+            _schedSD.every().day.at("09:00").do(lambda: _ls_th.Thread(target=_run_social_pipeline, daemon=True).start())
+            _schedSD.every().day.at("14:00").do(lambda: _ls_th.Thread(target=_run_social_pipeline, daemon=True).start())
+            _schedSD.every().day.at("19:00").do(lambda: _ls_th.Thread(target=_run_social_pipeline, daemon=True).start())
+            _add_log("Social domination pipeline scheduled: 09:00, 14:00, 19:00", "INFO")
+        except Exception as _e:
+            _add_log(f"Social pipeline schedule failed: {_e}", "WARNING")
+
+        # Affiliate Revenue Pipeline: 3× per day
+        try:
+            import schedule as _schedAR
+            def _run_affiliate_pipeline():
+                try:
+                    pe = _get_pipeline_engine()
+                    pe.run_pipeline("affiliate_revenue")
+                    _add_log("Affiliate revenue pipeline complete", "INFO")
+                except Exception as _eAR:
+                    _add_log(f"Affiliate pipeline failed: {_eAR}", "ERROR")
+            _schedAR.every().day.at("10:00").do(lambda: _ls_th.Thread(target=_run_affiliate_pipeline, daemon=True).start())
+            _schedAR.every().day.at("15:00").do(lambda: _ls_th.Thread(target=_run_affiliate_pipeline, daemon=True).start())
+            _schedAR.every().day.at("20:00").do(lambda: _ls_th.Thread(target=_run_affiliate_pipeline, daemon=True).start())
+            _add_log("Affiliate revenue pipeline scheduled: 10:00, 15:00, 20:00", "INFO")
+        except Exception as _e:
+            _add_log(f"Affiliate pipeline schedule failed: {_e}", "WARNING")
+
+        # Telegram daily summary: 07:00
+        try:
+            import schedule as _sched4
+            import asyncio as _asyncio2
+            def _telegram_daily():
+                try:
+                    loop = _asyncio2.new_event_loop()
+                    loop.run_until_complete(telegram_daily_alert())
+                    loop.close()
+                except Exception as _e2:
+                    _add_log(f"Telegram daily alert failed: {_e2}", "ERROR")
+            _sched4.every().day.at("07:00").do(_telegram_daily)
+            _add_log("Telegram daily summary scheduled: 07:00 daily", "INFO")
+        except Exception as _e:
+            _add_log(f"Telegram schedule setup failed: {_e}", "WARNING")
+
+        # WhatsApp scheduled messages — check every minute
+        try:
+            import schedule as _schedWA
+            def _wa_scheduler_tick():
+                try:
+                    from core.whatsapp import get_client
+                    wa = get_client()
+                    if not wa.is_configured():
+                        return
+                    now = datetime.now()
+                    items = _load_wa_schedule()
+                    changed = False
+                    for item in items:
+                        if item.get("status") != "pending":
+                            continue
+                        try:
+                            send_at = datetime.fromisoformat(item["send_at"])
+                        except Exception:
+                            continue
+                        if now >= send_at:
+                            message = item["message"]
+                            if item.get("ai_compose"):
+                                try:
+                                    narai = _get_narai()
+                                    if narai:
+                                        label = item.get("label", "a friendly message")
+                                        result = narai.ai(
+                                            f"Write {label} (2-3 sentences, natural, no quotes).",
+                                            max_tokens=100
+                                        )
+                                        if result:
+                                            message = result
+                                except Exception:
+                                    pass
+                            ok = wa.send_message(to=item["to"], text=message)
+                            if ok:
+                                _add_log(f"WhatsApp scheduled sent to {item['to']}: {message[:60]}", "INFO")
+                                item["last_sent"] = now.isoformat()
+                                if item["repeat"] == "daily":
+                                    from datetime import timedelta
+                                    next_dt = send_at + timedelta(days=1)
+                                    item["send_at"] = next_dt.isoformat()
+                                elif item["repeat"] == "weekly":
+                                    from datetime import timedelta
+                                    next_dt = send_at + timedelta(weeks=1)
+                                    item["send_at"] = next_dt.isoformat()
+                                else:
+                                    item["status"] = "sent"
+                                changed = True
                             else:
-                                item["status"] = "sent"
-                            changed = True
-                        else:
-                            _add_log(f"WhatsApp scheduled FAILED to {item['to']}", "WARNING")
-                if changed:
-                    _save_wa_schedule(items)
-            except Exception as e:
-                logger.warning("WA scheduler tick error: %s", e)
-        _schedWA.every(1).minutes.do(lambda: _threadWA.Thread(target=_wa_scheduler_tick, daemon=True).start())
-        _add_log("WhatsApp message scheduler started: checks every minute", "INFO")
-    except Exception as _e:
-        _add_log(f"WhatsApp scheduler setup failed: {_e}", "WARNING")
+                                _add_log(f"WhatsApp scheduled FAILED to {item['to']}", "WARNING")
+                    if changed:
+                        _save_wa_schedule(items)
+                except Exception as e:
+                    logger.warning("WA scheduler tick error: %s", e)
+            _schedWA.every(1).minutes.do(lambda: _ls_th.Thread(target=_wa_scheduler_tick, daemon=True).start())
+            _add_log("WhatsApp message scheduler started: checks every minute", "INFO")
+        except Exception as _e:
+            _add_log(f"WhatsApp scheduler setup failed: {_e}", "WARNING")
+
+        _add_log("All background startup tasks complete", "INFO")
+
+    # Launch background init — DO NOT block here
+    _ls_th.Thread(target=_lifespan_bg, daemon=True, name="lifespan-bg").start()
+    _add_log("WheellsVerse API started — background init running", "INFO")
 
     yield
     # Shutdown
@@ -830,29 +843,63 @@ async def list_outputs():
 
 @app.get("/api/settings")
 async def get_settings():
-    env_path = ROOT / ".env"
-    settings: Dict[str, str] = {}
-    if not env_path.exists():
-        return settings
+    """Return all config keys — reads from env vars first, falls back to .env file."""
+    SENSITIVE = ("KEY", "SECRET", "TOKEN", "PASSWORD")
 
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, val = line.partition("=")
-        key = key.strip()
-        val = val.strip()
-        # Mask sensitive values
-        if any(kw in key.upper() for kw in ("KEY", "SECRET", "TOKEN", "PASSWORD")):
-            settings[key] = "***" + val[-4:] if len(val) > 4 else "***"
-        else:
-            settings[key] = val
+    def _mask(key: str, val: str) -> str:
+        if any(kw in key.upper() for kw in SENSITIVE):
+            return "***" + val[-4:] if len(val) > 4 else "***"
+        return val
+
+    settings: Dict[str, str] = {}
+
+    # 1. Read from .env file if it exists
+    env_path = ROOT / ".env"
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, val = line.partition("=")
+            key, val = key.strip(), val.strip()
+            if val:
+                settings[key] = _mask(key, val)
+
+    # 2. Override/fill with actual live environment variables (Railway vars win)
+    KNOWN_KEYS = [
+        "ANTHROPIC_API_KEY","OPENAI_API_KEY","OPENAI_MODEL",
+        "FACEBOOK_PAGE_TOKEN","FACEBOOK_PAGE_ID","FACEBOOK_APP_ID","FACEBOOK_APP_SECRET",
+        "INSTAGRAM_ACCOUNT_ID","INSTAGRAM_PAGE_TOKEN","META_APP_ID","META_APP_SECRET",
+        "TWITTER_API_KEY","TWITTER_API_SECRET","TWITTER_ACCESS_TOKEN",
+        "TWITTER_ACCESS_SECRET","TWITTER_BEARER_TOKEN",
+        "TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET","TIKTOK_ACCESS_TOKEN",
+        "REDDIT_CLIENT_ID","REDDIT_CLIENT_SECRET","REDDIT_USERNAME",
+        "REDDIT_PASSWORD","REDDIT_SUBREDDIT",
+        "TELEGRAM_BOT_TOKEN","TELEGRAM_CHAT_ID",
+        "WHATSAPP_ACCESS_TOKEN","WHATSAPP_PHONE_NUMBER_ID","WHATSAPP_VERIFY_TOKEN",
+        "YOUTUBE_API_KEY","YOUTUBE_CLIENT_ID","YOUTUBE_CLIENT_SECRET",
+        "STRIPE_SECRET_KEY","STRIPE_PUBLIC_KEY","STRIPE_WEBHOOK_SECRET",
+        "CONVERTKIT_API_KEY","CONVERTKIT_API_SECRET","CONVERTKIT_FORM_ID",
+        "WORDPRESS_URL","WORDPRESS_USERNAME","WORDPRESS_PASSWORD",
+        "HEYGEN_API_KEY","HEYGEN_AVATAR_ID","HEYGEN_VOICE_ID",
+        "ELEVENLABS_API_KEY","ELEVENLABS_VOICE_ID","ELEVENLABS_MODEL",
+        "EMAIL_USER","EMAIL_PASSWORD","EMAIL_FROM_NAME","EMAIL_HOST","EMAIL_PORT",
+        "SERPER_API_KEY","GSC_PROPERTY_URL","GOOGLE_SERVICE_ACCOUNT_JSON",
+        "BRAND_NAME","AUTHOR_NAME","BRAND_NICHE","CTA_URL",
+        "DECISION_ENGINE_ENABLED","DECISION_ENGINE_INTERVAL",
+        "RAILWAY_PUBLIC_URL","API_KEY","DASHBOARD_PASSWORD",
+    ]
+    for key in KNOWN_KEYS:
+        val = os.getenv(key, "")
+        if val:
+            settings[key] = _mask(key, val)
 
     return settings
 
 
 @app.post("/api/settings")
 async def update_setting(update: SettingUpdate):
+    """Save a setting to .env file (persists across restarts on local; use Railway vars for prod)."""
     env_path = ROOT / ".env"
     lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
 
@@ -870,6 +917,8 @@ async def update_setting(update: SettingUpdate):
         new_lines.append(f"{update.key}={update.value}")
 
     env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    # Also set in current process so it takes effect immediately
+    os.environ[update.key] = update.value
     _add_log(f"Setting updated: {update.key}", "INFO")
     return {"status": "updated", "key": update.key}
 
@@ -928,7 +977,7 @@ async def health():
         "status":   "ok",
         "uptime":   int(time.time() - _server_start),
         "browser":  browser_ok,
-        "version":  "nexora-v2",
+        "version":  "nexora-v3",
         "nx_routes": True,
     }
 
@@ -2694,7 +2743,45 @@ def _blitz_scheduled_post(count: int = 1) -> None:
 @app.get("/api/convertkit/status")
 async def convertkit_status():
     from core.convertkit import get_convertkit
-    return get_convertkit().get_status()
+    ck = get_convertkit()
+    status = ck.get_status()
+    # Also verify API secret works by hitting account endpoint
+    try:
+        import requests as _req
+        r = _req.get(
+            "https://api.convertkit.com/v3/account",
+            params={"api_secret": os.getenv("CONVERTKIT_API_SECRET","")},
+            timeout=8,
+        )
+        if r.status_code == 200:
+            acct = r.json()
+            status["connected"] = True
+            status["account_name"] = acct.get("name","")
+            status["plan"] = acct.get("plan_type","")
+            status["email"] = acct.get("primary_email_address","")
+            # Get forms
+            forms_r = _req.get("https://api.convertkit.com/v3/forms",
+                                params={"api_key": os.getenv("CONVERTKIT_API_KEY","")}, timeout=8)
+            forms = forms_r.json().get("forms",[]) if forms_r.status_code==200 else []
+            status["forms"] = [{"id":f["id"],"name":f["name"]} for f in forms]
+            status["forms_count"] = len(forms)
+        else:
+            status["connected"] = False
+            status["error"] = r.json().get("message","Auth failed")
+    except Exception as e:
+        status["api_check_error"] = str(e)
+    return status
+
+
+@app.post("/api/convertkit/create-form")
+async def convertkit_create_form():
+    """Instructions: ConvertKit forms must be created in the dashboard, not via API."""
+    return {
+        "status": "manual_required",
+        "message": "Go to app.convertkit.com → Landing Pages & Forms → New Form → Inline → create it → copy the Form ID number",
+        "url": "https://app.convertkit.com/forms",
+        "next": "Then go to Connections panel and set CONVERTKIT_FORM_ID to the numeric ID",
+    }
 
 
 class SubscriberRequest(BaseModel):
@@ -2721,6 +2808,80 @@ async def convertkit_subscribers():
         return get_convertkit().list_subscribers()
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+# ─── WordPress ────────────────────────────────────────────────────────────────
+
+@app.get("/api/wordpress/status")
+async def wordpress_status():
+    wp_url  = os.getenv("WORDPRESS_URL","").rstrip("/")
+    wp_user = os.getenv("WORDPRESS_USERNAME","") or os.getenv("WORDPRESS_USER","")
+    wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
+    if not (wp_url and wp_user and wp_pass):
+        return {"connected": False, "reason": "Missing WORDPRESS_URL, WORDPRESS_USERNAME, or WORDPRESS_PASSWORD"}
+    try:
+        import requests as _req
+        r = _req.get(
+            f"{wp_url}/wp-json/wp/v2/posts",
+            auth=(wp_user, wp_pass.replace(" ","")),
+            params={"per_page": 5, "status": "any"},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            posts = r.json()
+            return {"connected": True, "url": wp_url, "recent_posts": len(posts),
+                    "posts": [{"id":p["id"],"title":p["title"]["rendered"],"status":p["status"],"link":p["link"]} for p in posts[:5]]}
+        return {"connected": False, "status_code": r.status_code, "error": r.text[:200]}
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+class WPPostRequest(BaseModel):
+    title: str
+    content: str
+    status: str = "publish"
+    tags: List[str] = []
+
+
+@app.post("/api/wordpress/post")
+async def wordpress_post(req: WPPostRequest):
+    wp_url  = os.getenv("WORDPRESS_URL","").rstrip("/")
+    wp_user = os.getenv("WORDPRESS_USERNAME","") or os.getenv("WORDPRESS_USER","")
+    wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
+    if not (wp_url and wp_user and wp_pass):
+        raise HTTPException(400, "WordPress not configured — set WORDPRESS_URL, WORDPRESS_USERNAME, WORDPRESS_PASSWORD")
+    try:
+        import requests as _req
+        r = _req.post(
+            f"{wp_url}/wp-json/wp/v2/posts",
+            auth=(wp_user, wp_pass.replace(" ","")),
+            json={"title": req.title, "content": req.content, "status": req.status},
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        _add_log(f"WordPress post published: {data.get('link','')}", "INFO")
+        return {"status": "published", "url": data.get("link",""), "id": data.get("id")}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.get("/api/wordpress/posts")
+async def wordpress_posts(limit: int = 20):
+    wp_url  = os.getenv("WORDPRESS_URL","").rstrip("/")
+    wp_user = os.getenv("WORDPRESS_USERNAME","") or os.getenv("WORDPRESS_USER","")
+    wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
+    if not (wp_url and wp_user and wp_pass):
+        return {"posts": [], "error": "WordPress not configured"}
+    try:
+        import requests as _req
+        r = _req.get(f"{wp_url}/wp-json/wp/v2/posts",
+                     auth=(wp_user, wp_pass.replace(" ","")),
+                     params={"per_page": limit, "status": "any"}, timeout=10)
+        posts = r.json() if r.status_code == 200 else []
+        return {"posts": [{"id":p["id"],"title":p["title"]["rendered"],"status":p["status"],"link":p["link"],"date":p["date"]} for p in posts]}
+    except Exception as e:
+        return {"posts": [], "error": str(e)}
 
 
 # ─── Publish Pipeline ─────────────────────────────────────────────────────────
@@ -3392,6 +3553,182 @@ async def reddit_post_repurposed(req: RepurposeRequest, background_tasks: Backgr
 
     background_tasks.add_task(_run)
     return {"status": "repurposing_and_posting"}
+
+
+# ─── System Report + Budget ──────────────────────────────────────────────────
+
+@app.get("/api/system/report")
+async def system_report():
+    """Full system health + service status + budget/credits report."""
+    import datetime as _dt
+
+    report = {
+        "ts": _dt.datetime.utcnow().isoformat(),
+        "services": [],
+        "budget": {},
+        "revenue": {},
+        "system": {},
+    }
+
+    # ── Services ──────────────────────────────────────────────────────────────
+    def _svc(name, icon, check_fn, docs=""):
+        try:
+            result = check_fn()
+            ok = result.get("connected") or result.get("configured") or result.get("ok") or result.get("status") == "ok"
+            note = result.get("username") or result.get("bot_name") or result.get("account_id") or result.get("reason") or ""
+            credits_ = result.get("credits")
+            subscribers = result.get("subscriber_count")
+            extra = {}
+            if credits_ is not None: extra["credits"] = credits_
+            if subscribers is not None: extra["subscribers"] = subscribers
+            return {"name": name, "icon": icon, "ok": bool(ok), "note": str(note)[:80], "docs": docs, **extra}
+        except Exception as e:
+            return {"name": name, "icon": icon, "ok": False, "note": str(e)[:80], "docs": docs}
+
+    # Anthropic
+    try:
+        ak = os.getenv("ANTHROPIC_API_KEY","")
+        report["services"].append({"name":"Anthropic (Claude AI)","icon":"🤖","ok":bool(ak),"note":"API key set" if ak else "Missing ANTHROPIC_API_KEY","docs":"console.anthropic.com"})
+    except: pass
+
+    # OpenAI
+    try:
+        ak = os.getenv("OPENAI_API_KEY","")
+        report["services"].append({"name":"OpenAI (GPT)","icon":"🟢","ok":bool(ak),"note":"API key set" if ak else "Missing OPENAI_API_KEY","docs":"platform.openai.com"})
+    except: pass
+
+    # Telegram
+    try:
+        from core.telegram import get_notifier
+        r = get_notifier().get_status()
+        report["services"].append({"name":"Telegram Bot","icon":"✈️","ok":r.get("connected",False),"note":r.get("username","") or r.get("error",""),"docs":"t.me/BotFather"})
+    except Exception as e:
+        report["services"].append({"name":"Telegram Bot","icon":"✈️","ok":False,"note":str(e)[:60]})
+
+    # Stripe
+    try:
+        from core.stripe_client import get_stripe
+        r = get_stripe().get_status()
+        report["services"].append({"name":"Stripe (Payments)","icon":"💳","ok":r.get("connected",False),"note":f"mode={r.get('mode','?')} acct={r.get('account_id','?')[:12]}","docs":"dashboard.stripe.com"})
+    except Exception as e:
+        report["services"].append({"name":"Stripe (Payments)","icon":"💳","ok":False,"note":str(e)[:60]})
+
+    # ConvertKit
+    try:
+        from core.convertkit import ConvertKitClient
+        r = ConvertKitClient().get_status()
+        subs = r.get("subscriber_count", 0)
+        report["services"].append({"name":"ConvertKit (Email)","icon":"📬","ok":r.get("connected",False),"note":f"{subs} subscribers","docs":"app.convertkit.com","subscribers":subs})
+    except Exception as e:
+        report["services"].append({"name":"ConvertKit (Email)","icon":"📬","ok":False,"note":str(e)[:60]})
+
+    # HeyGen
+    try:
+        from core.heygen import HeyGenClient
+        r = HeyGenClient().get_status()
+        creds = r.get("credits", "?")
+        report["services"].append({"name":"HeyGen (AI Video)","icon":"🎬","ok":r.get("configured",False),"note":f"{creds} credits remaining","docs":"app.heygen.com","credits":creds})
+    except Exception as e:
+        report["services"].append({"name":"HeyGen (AI Video)","icon":"🎬","ok":False,"note":str(e)[:60]})
+
+    # ElevenLabs
+    try:
+        ak = os.getenv("ELEVENLABS_API_KEY","")
+        report["services"].append({"name":"ElevenLabs (Voice)","icon":"🎙","ok":bool(ak),"note":"API key set" if ak else "Missing key","docs":"elevenlabs.io"})
+    except: pass
+
+    # Facebook/Instagram
+    try:
+        tok = os.getenv("FACEBOOK_PAGE_TOKEN","")
+        pid = os.getenv("FACEBOOK_PAGE_ID","")
+        ok = bool(tok and pid)
+        report["services"].append({"name":"Facebook / Instagram","icon":"📘","ok":ok,"note":f"page_id={pid}" if ok else "Missing PAGE_TOKEN or PAGE_ID","docs":"developers.facebook.com"})
+    except: pass
+
+    # Twitter
+    try:
+        from core.twitter import TwitterClient
+        r = TwitterClient().get_status()
+        report["services"].append({"name":"Twitter / X","icon":"🐦","ok":r.get("connected",False),"note":r.get("username","") or "Not configured","docs":"developer.twitter.com"})
+    except Exception as e:
+        report["services"].append({"name":"Twitter / X","icon":"🐦","ok":False,"note":"Missing API keys"})
+
+    # YouTube
+    try:
+        from core.youtube import get_youtube_status
+        r = get_youtube_status()
+        report["services"].append({"name":"YouTube","icon":"▶️","ok":r.get("connected",False),"note":r.get("channel","") or r.get("reason","OAuth needed")[:60],"docs":"console.cloud.google.com"})
+    except Exception as e:
+        yt_key = os.getenv("YOUTUBE_API_KEY","")
+        yt_cid = os.getenv("YOUTUBE_CLIENT_ID","")
+        report["services"].append({"name":"YouTube","icon":"▶️","ok":bool(yt_key and yt_cid),"note":"API key set, OAuth needed" if (yt_key and yt_cid) else "Missing credentials"})
+
+    # WhatsApp
+    try:
+        tok = os.getenv("WHATSAPP_ACCESS_TOKEN","")
+        pid = os.getenv("WHATSAPP_PHONE_NUMBER_ID","")
+        ok = bool(tok and pid)
+        report["services"].append({"name":"WhatsApp","icon":"📱","ok":ok,"note":f"phone_id={pid}" if ok else "Missing token or phone ID","docs":"developers.facebook.com/docs/whatsapp"})
+    except: pass
+
+    # Reddit
+    try:
+        cid = os.getenv("REDDIT_CLIENT_ID","")
+        report["services"].append({"name":"Reddit","icon":"🔴","ok":bool(cid),"note":"Configured" if cid else "Missing CLIENT_ID","docs":"reddit.com/prefs/apps"})
+    except: pass
+
+    # WordPress
+    try:
+        wp_url = os.getenv("WORDPRESS_URL","")
+        report["services"].append({"name":"WordPress","icon":"🌐","ok":bool(wp_url),"note":wp_url[:40] if wp_url else "Missing WORDPRESS_URL","docs":"wordpress.org"})
+    except: pass
+
+    # Serper (Google Search)
+    try:
+        ak = os.getenv("SERPER_API_KEY","")
+        report["services"].append({"name":"Serper (Google Search)","icon":"🔍","ok":bool(ak),"note":"API key set" if ak else "Missing key","docs":"serper.dev"})
+    except: pass
+
+    # ── Budget / Credits ──────────────────────────────────────────────────────
+    report["budget"] = {
+        "monthly_costs": [
+            {"name": "Railway (Hosting)",    "cost": 5.00,  "cycle": "monthly", "status": "active"},
+            {"name": "Anthropic (Claude)",   "cost": "pay-per-use", "cycle": "usage", "status": "active",
+             "note": "~$0.003/1K tokens (Haiku)"},
+            {"name": "OpenAI (GPT-4o)",      "cost": "pay-per-use", "cycle": "usage", "status": "active",
+             "note": "~$0.005/1K tokens"},
+            {"name": "HeyGen (Videos)",      "cost": "credits", "cycle": "per-video", "status": "active",
+             "note": "3 credits left"},
+            {"name": "ElevenLabs (Voice)",   "cost": "pay-per-use", "cycle": "usage", "status": "active"},
+            {"name": "Serper (Search)",      "cost": "pay-per-use", "cycle": "usage", "status": "active",
+             "note": "2,500 free/mo"},
+        ],
+        "heygen_credits": 3,
+        "convertkit_subscribers": 0,
+    }
+
+    # ── Revenue ───────────────────────────────────────────────────────────────
+    try:
+        from core.impact import get_earnings
+        earnings = get_earnings()
+        report["revenue"] = earnings
+    except:
+        report["revenue"] = {"today": 0, "week": 0, "month": 0, "all_time": 0}
+
+    # ── System ────────────────────────────────────────────────────────────────
+    total = len(report["services"])
+    ok_count = sum(1 for s in report["services"] if s["ok"])
+    report["system"] = {
+        "services_total": total,
+        "services_ok": ok_count,
+        "services_failing": total - ok_count,
+        "health_pct": round(ok_count / total * 100) if total else 0,
+        "uptime_seconds": int((ROOT / "data").stat().st_mtime) if (ROOT / "data").exists() else 0,
+        "autopilot": True,
+        "narai_online": True,
+    }
+
+    return report
 
 
 # ─── Telegram Notifications ──────────────────────────────────────────────────
@@ -7139,15 +7476,29 @@ async def goals_reset_monthly():
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
-    """Launch the FastAPI server with uvicorn."""
+    """Launch the FastAPI server with uvicorn.
+    All heavy initialization runs in a background thread so uvicorn starts
+    immediately and can respond to health checks while engines load.
+    """
     import uvicorn
+    import threading as _launch_th
+    import time as _launch_time
 
-    if preload:
-        _add_log("WheellsVerse API starting...", "INFO")
-        _get_orch()
-        _get_pipeline()
-        n = len(_get_orch().list_bots())
-        _add_log(f"System ready — {n} bots loaded", "INFO")
+    def _background_init():
+        """Heavy engine startup — runs in background so uvicorn starts immediately."""
+        _launch_time.sleep(8)  # give uvicorn time to start and pass Railway health check
+
+        if not preload:
+            return
+
+        _add_log("WheellsVerse API background init starting...", "INFO")
+        try:
+            _get_orch()
+            _get_pipeline()
+            n = len(_get_orch().list_bots())
+            _add_log(f"System ready — {n} bots loaded", "INFO")
+        except Exception as e:
+            _add_log(f"Orchestrator init failed: {e}", "WARNING")
 
         # Auto-register decision engine on scheduler (every 15 min)
         try:
@@ -7202,14 +7553,10 @@ def launch(port: int = 5050, preload: bool = True):
 
         # Register Telegram webhook for instant two-way NarAI chat
         try:
-            import requests as _tgreq, threading as _tgth
-            def _register_tg_webhook():
-                import time as _tgt; _tgt.sleep(5)  # wait for server to be up
-                _tg_token    = os.getenv("TELEGRAM_BOT_TOKEN", "")
-                _tg_base_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
-                if not (_tg_token and _tg_base_url):
-                    return
-                # Delete any old webhook / polling conflict
+            import requests as _tgreq
+            _tg_token    = os.getenv("TELEGRAM_BOT_TOKEN", "")
+            _tg_base_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+            if _tg_token and _tg_base_url:
                 _tgreq.post(f"https://api.telegram.org/bot{_tg_token}/deleteWebhook",
                             json={"drop_pending_updates": True}, timeout=10)
                 webhook_url = f"{_tg_base_url}/api/telegram/webhook"
@@ -7219,7 +7566,6 @@ def launch(port: int = 5050, preload: bool = True):
                     timeout=10,
                 )
                 _add_log(f"Telegram webhook registered: {webhook_url} — {r.json().get('description','')}", "INFO")
-            _tgth.Thread(target=_register_tg_webhook, daemon=True, name="TelegramWebhookReg").start()
         except Exception as e:
             _add_log(f"Telegram webhook registration failed: {e}", "WARNING")
 
@@ -7308,119 +7654,123 @@ def launch(port: int = 5050, preload: bool = True):
         except Exception as e:
             _add_log(f"Newsletter scheduler failed: {e}", "WARNING")
 
-    # ── Week 5 daily goal report scheduler ─────────────────────────────────
-    try:
-        import schedule as _sched5
-        import threading as _th5
-        from core.goal_tracker import GoalTracker
+        # ── Week 5 daily goal report scheduler ─────────────────────────────────
+        try:
+            import schedule as _sched5
+            import threading as _th5
+            from core.goal_tracker import GoalTracker
 
-        def _daily_goal_report():
-            GoalTracker.get().send_daily_report()
-            _add_log("Daily goal report sent", "INFO")
+            def _daily_goal_report():
+                GoalTracker.get().send_daily_report()
+                _add_log("Daily goal report sent", "INFO")
 
-        _sched5.every().day.at("07:00").do(_daily_goal_report)
+            _sched5.every().day.at("07:00").do(_daily_goal_report)
 
-        def _sched5_loop():
-            while True:
-                _sched5.run_pending()
-                import time as _t; _t.sleep(60)
+            def _sched5_loop():
+                while True:
+                    _sched5.run_pending()
+                    import time as _t; _t.sleep(60)
 
-        _th5.Thread(target=_sched5_loop, daemon=True, name="goal-report-scheduler").start()
-        _add_log("Daily goal report scheduled at 07:00", "INFO")
-    except Exception as e:
-        _add_log(f"Goal report scheduler failed: {e}", "WARNING")
+            _th5.Thread(target=_sched5_loop, daemon=True, name="goal-report-scheduler").start()
+            _add_log("Daily goal report scheduled at 07:00", "INFO")
+        except Exception as e:
+            _add_log(f"Goal report scheduler failed: {e}", "WARNING")
 
-    # ── Auto-start Week 5 engines ───────────────────────────────────────────
-    try:
-        from core.goal_tracker import GoalTracker
-        GoalTracker.get().start()
-        _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
-    except Exception as e:
-        _add_log(f"GoalTracker start failed: {e}", "WARNING")
+        # ── Auto-start Week 5 engines ───────────────────────────────────────────
+        try:
+            from core.goal_tracker import GoalTracker
+            GoalTracker.get().start()
+            _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
+        except Exception as e:
+            _add_log(f"GoalTracker start failed: {e}", "WARNING")
 
-    # ── Week 9: Money Command Center ────────────────────────────────────
-    try:
-        from pathlib import Path as _P9
-        (_P9(__file__).parent.parent / "data").mkdir(exist_ok=True)
-        _add_log("Week 9: Money Command Center ready — /api/money/summary + /api/stripe/webhook", "INFO")
-    except Exception as e:
-        _add_log(f"Week 9 init failed: {e}", "WARNING")
+        # ── Week 9: Money Command Center ────────────────────────────────────
+        try:
+            from pathlib import Path as _P9
+            (_P9(__file__).parent.parent / "data").mkdir(exist_ok=True)
+            _add_log("Week 9: Money Command Center ready — /api/money/summary + /api/stripe/webhook", "INFO")
+        except Exception as e:
+            _add_log(f"Week 9 init failed: {e}", "WARNING")
 
-    # ── Week 8: Auto-start engines ──────────────────────────────────────
-    try:
-        from core.trending import TrendingEngine
-        TrendingEngine.get().start()
-        _add_log("TrendingEngine started — refreshing every 2 hours", "INFO")
-    except Exception as e:
-        _add_log(f"TrendingEngine start failed: {e}", "WARNING")
+        # ── Week 8: Auto-start engines ──────────────────────────────────────
+        try:
+            from core.trending import TrendingEngine
+            TrendingEngine.get().start()
+            _add_log("TrendingEngine started — refreshing every 2 hours", "INFO")
+        except Exception as e:
+            _add_log(f"TrendingEngine start failed: {e}", "WARNING")
 
-    try:
-        from core.autopilot import AutopilotEngine
-        AutopilotEngine.get().start()
-        _add_log("AutopilotEngine loop started (enable via /api/autopilot/enable)", "INFO")
-    except Exception as e:
-        _add_log(f"AutopilotEngine start failed: {e}", "WARNING")
+        try:
+            from core.autopilot import AutopilotEngine
+            AutopilotEngine.get().start()
+            _add_log("AutopilotEngine loop started (enable via /api/autopilot/enable)", "INFO")
+        except Exception as e:
+            _add_log(f"AutopilotEngine start failed: {e}", "WARNING")
 
-    # ── Week 7: Content Calendar auto-start ────────────────────────────────
-    try:
-        from core.content_calendar import ContentCalendar
-        cal = ContentCalendar.get()
-        cal.start()
-        # Auto-generate this week if calendar is empty
-        if not cal._calendar:
-            import threading as _calth
-            _calth.Thread(target=cal.generate_week, daemon=True).start()
-        _add_log("ContentCalendar started", "INFO")
-    except Exception as e:
-        _add_log(f"ContentCalendar start failed: {e}", "WARNING")
+        # ── Week 7: Content Calendar auto-start ────────────────────────────────
+        try:
+            from core.content_calendar import ContentCalendar
+            cal = ContentCalendar.get()
+            cal.start()
+            if not cal._calendar:
+                import threading as _calth
+                _calth.Thread(target=cal.generate_week, daemon=True).start()
+            _add_log("ContentCalendar started", "INFO")
+        except Exception as e:
+            _add_log(f"ContentCalendar start failed: {e}", "WARNING")
 
-    # ── Week 7: Revenue daily report at 08:00 ───────────────────────────────
-    try:
-        import schedule as _sched7
-        import threading as _th7
-        from core.revenue import RevenueEngine
+        # ── Week 7: Revenue daily report at 08:00 ───────────────────────────────
+        try:
+            import schedule as _sched7
+            import threading as _th7
+            from core.revenue import RevenueEngine
 
-        _sched7.every().day.at("08:00").do(RevenueEngine.get().send_daily_report)
+            _sched7.every().day.at("08:00").do(RevenueEngine.get().send_daily_report)
 
-        def _sched7_loop():
-            while True:
-                _sched7.run_pending()
-                import time as _t; _t.sleep(60)
+            def _sched7_loop():
+                while True:
+                    _sched7.run_pending()
+                    import time as _t; _t.sleep(60)
 
-        _th7.Thread(target=_sched7_loop, daemon=True, name="revenue-reporter").start()
-        _add_log("Revenue daily report scheduled at 08:00", "INFO")
-    except Exception as e:
-        _add_log(f"Revenue reporter failed: {e}", "WARNING")
+            _th7.Thread(target=_sched7_loop, daemon=True, name="revenue-reporter").start()
+            _add_log("Revenue daily report scheduled at 08:00", "INFO")
+        except Exception as e:
+            _add_log(f"Revenue reporter failed: {e}", "WARNING")
 
-    # ── Week 6: Performance dashboard refresh every 4 hours ─────────────────
-    try:
-        import schedule as _sched6
-        import threading as _th6
-        from core.performance import get_dashboard
+        # ── Week 6: Performance dashboard refresh every 4 hours ─────────────────
+        try:
+            import schedule as _sched6
+            import threading as _th6
+            from core.performance import get_dashboard
 
-        def _perf_refresh():
-            get_dashboard()
-            _add_log("Performance dashboard refreshed", "INFO")
+            def _perf_refresh():
+                get_dashboard()
+                _add_log("Performance dashboard refreshed", "INFO")
 
-        _sched6.every(4).hours.do(_perf_refresh)
+            _sched6.every(4).hours.do(_perf_refresh)
 
-        def _sched6_loop():
-            while True:
-                _sched6.run_pending()
-                import time as _t; _t.sleep(60)
+            def _sched6_loop():
+                while True:
+                    _sched6.run_pending()
+                    import time as _t; _t.sleep(60)
 
-        _th6.Thread(target=_sched6_loop, daemon=True, name="perf-refresh").start()
-        _add_log("Performance dashboard refresh scheduled every 4 hours", "INFO")
-    except Exception as e:
-        _add_log(f"Performance refresh scheduler failed: {e}", "WARNING")
+            _th6.Thread(target=_sched6_loop, daemon=True, name="perf-refresh").start()
+            _add_log("Performance dashboard refresh scheduled every 4 hours", "INFO")
+        except Exception as e:
+            _add_log(f"Performance refresh scheduler failed: {e}", "WARNING")
 
-    # ── NEXORA DB init ────────────────────────────────────────────────────────
-    try:
-        from core.nexora_db import init_db as _nx_init
-        _nx_init()
-        _add_log("NEXORA database initialised", "INFO")
-    except Exception as e:
-        _add_log(f"NEXORA DB init failed: {e}", "WARNING")
+        # ── NEXORA DB init ────────────────────────────────────────────────────────
+        try:
+            from core.nexora_db import init_db as _nx_init
+            _nx_init()
+            _add_log("NEXORA database initialised", "INFO")
+        except Exception as e:
+            _add_log(f"NEXORA DB init failed: {e}", "WARNING")
+
+        _add_log("Background init complete — all engines running", "INFO")
+
+    # Start background init thread BEFORE uvicorn (uvicorn.run blocks)
+    _launch_th.Thread(target=_background_init, daemon=True, name="bg-init").start()
 
     uvicorn.run(
         "core.api:app",

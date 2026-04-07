@@ -27,7 +27,7 @@ VOLUME ["/var/data"]
 EXPOSE 8080
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
     CMD curl -f http://localhost:${PORT:-8080}/api/health || exit 1
 
 # Environment defaults

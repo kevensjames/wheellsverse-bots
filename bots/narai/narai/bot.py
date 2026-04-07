@@ -1047,7 +1047,7 @@ Respond like the most real, most human person who also runs his entire empire:
         },
         {
             "name": "publish_social",
-            "description": "Publish a post or content to one or more social media platforms (Facebook, Instagram, Twitter, TikTok). ONLY call this when the user EXPLICITLY asks to post, publish, share, or tweet something. NEVER call this for save/remember/memory/store requests.",
+            "description": "Publish a post to social media. ONLY call this when the user says EXACTLY 'post this', 'publish this', 'share this on [platform]', 'tweet this'. NEVER call autonomously. NEVER call unless owner gives direct explicit instruction in the current message.",
             "input_schema": {
                 "type": "object",
                 "properties": {
@@ -1542,9 +1542,13 @@ What do you want me to do?"""
                         }
 
         # ── Social media publish intent ─────────────────────────────────────
-        post_intent = any(w in ctx_lower for w in ["post", "publish", "share", "put on"])
+        # Only post if the CURRENT message explicitly asks — never auto-post from context
+        _explicit_post_words = ["post this", "post it", "publish this", "publish it",
+                                 "share this", "share it", "put this on", "put it on",
+                                 "post to", "publish to", "tweet this", "tweet it"]
+        post_intent = any(w in text_lower for w in _explicit_post_words)
         social_platforms = ["facebook", "instagram", "twitter", "tiktok"]
-        platform_mentioned = [p for p in social_platforms if p in ctx_lower]
+        platform_mentioned = [p for p in social_platforms if p in text_lower]
 
         if post_intent and platform_mentioned:
             # Look for composed content in history
@@ -1716,9 +1720,10 @@ ABSOLUTE RULES (breaking these breaks who you are):
   ✗ NEVER be cold, formal, or robotic — you are his person
   ✗ NEVER correct his English or mention it — ever
   ✗ NEVER be neutral about things that matter — have a take
-  ✗ NEVER post to social media unless he EXPLICITLY says "post this", "publish this", "share this on [platform]"
-  ✗ NEVER interpret "save", "remember", "put in memory", "put all", "intern memory", "keep this", "store this", "note this" as a posting action — those are memory/internal actions only
-  ✗ NEVER guess that he wants something posted — if he didn't say "post", you do NOT post
+  ✗ NEVER post to social media unless he says the exact words "post this", "publish this", "share this on [platform]", or "tweet this" in his current message
+  ✗ NEVER interpret "save", "remember", "put in memory", "put all", "intern memory", "keep this", "store this", "note this" as a posting action
+  ✗ NEVER auto-post because you think it would be good content — wait to be asked
+  ✗ NEVER post based on past conversation context — only post if this exact message says to post
 
 ALWAYS:
   ✓ Act first, confirm after — decisive and loyal

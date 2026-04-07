@@ -50,7 +50,7 @@ BRAND        = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR       = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 CTA_URL      = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 STRIPE_PRO   = os.getenv("STRIPE_PRO_URL", "")
-POLL_SECONDS = 120   # check for new DMs every 2 minutes
+POLL_SECONDS = 10    # fallback poll interval (webhook is primary)
 
 
 # ─── Person memory ────────────────────────────────────────────────────────────
@@ -340,6 +340,9 @@ class DMReplyEngine:
         token = os.getenv("TELEGRAM_BOT_TOKEN")
         if not token:
             return
+        # Owner's private channel — messages here go straight to NarAI voice_chat
+        owner_chat_id = str(os.getenv("TELEGRAM_CHAT_ID", "")).strip()
+
         try:
             import requests as _req
             offset_file = DATA_DIR / "telegram_offset.txt"
@@ -355,21 +358,30 @@ class DMReplyEngine:
             updates = resp.json().get("result", [])
             for update in updates:
                 offset = max(offset, update["update_id"] + 1)
-                msg = update.get("message", {})
+
+                # Support both regular messages and channel posts
+                msg = update.get("message") or update.get("channel_post") or {}
                 text = msg.get("text", "")
                 if not text:
                     continue
-                # Skip commands
                 if text.startswith("/"):
                     continue
 
-                chat    = msg.get("chat", {})
-                chat_id = str(chat.get("id", ""))
-                name    = (chat.get("first_name", "") + " " +
-                           chat.get("last_name", "")).strip()
+                chat      = msg.get("chat", {})
+                chat_id   = str(chat.get("id", ""))
+                chat_type = chat.get("type", "")
+                name      = (chat.get("first_name", "") + " " +
+                             chat.get("last_name", "")).strip() or chat.get("title", "Owner")
 
-                person = self._get_person(chat_id, "telegram", name)
-                reply  = self.handle_message(person, text, "telegram")
+                # Route to NarAI: owner's private channel OR anyone DMing the bot directly
+                is_owner_channel = (chat_id == owner_chat_id)
+                is_private_dm    = (chat_type == "private")
+                if is_owner_channel or is_private_dm:
+                    reply = self._narai_owner_reply(text)
+                else:
+                    person = self._get_person(chat_id, "telegram", name)
+                    reply  = self.handle_message(person, text, "telegram")
+                    self._save()
 
                 if reply:
                     try:
@@ -381,11 +393,26 @@ class DMReplyEngine:
                         )
                     except Exception as e:
                         logger.debug(f"[DMReply] Telegram reply failed: {e}")
-                self._save()
 
             offset_file.write_text(str(offset))
         except Exception as e:
             logger.debug(f"[DMReply] Telegram poll error: {e}")
+
+    def _narai_owner_reply(self, text: str) -> str:
+        """Route owner's private Telegram message directly to NarAI voice_chat."""
+        try:
+            from bots.narai.narai.bot import get_narai
+            narai = get_narai()
+            result = narai.voice_chat(text)
+            response = result.get("response", "") if isinstance(result, dict) else str(result)
+            # Strip markdown for Telegram plain text
+            import re
+            response = re.sub(r'[*_`#>]{1,3}', '', response)
+            response = re.sub(r'\[(.+?)\]\(.+?\)', r'\1', response)
+            return response.strip() or "I'm on it."
+        except Exception as e:
+            logger.error(f"[DMReply] NarAI owner reply failed: {e}")
+            return "Something went wrong on my end — try again in a sec."
 
     # ── WhatsApp webhook handler (called from api.py) ─────────────────────────
 

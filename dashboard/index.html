@@ -1610,7 +1610,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   <div class="sh" style="margin-bottom:6px">
     <div><div class="st">🔌 Connections Control Panel</div><div class="ss">Manage credentials, test and activate every service</div></div>
     <div style="display:flex;gap:8px">
-      <button class="btn bc2 bsm" onclick="connLoadAll()">↺ Refresh All</button>
+      <button class="btn bg2 bsm" onclick="connTestAll()">▶ Test All</button>
+      <button class="btn bc2 bsm" onclick="connLoadAll()">↺ Refresh</button>
     </div>
   </div>
   <div id="conn-summary" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:10px;font-size:11px"></div>
@@ -3543,9 +3544,12 @@ const CONN_SERVICES = [
       {key:'FACEBOOK_PAGE_TOKEN',label:'Page Token',type:'password'},
       {key:'FACEBOOK_PAGE_ID',label:'Page ID',type:'text'},
       {key:'INSTAGRAM_ACCOUNT_ID',label:'Instagram Account ID',type:'text'},
-      {key:'FACEBOOK_APP_ID',label:'App ID',type:'text'},
+      {key:'INSTAGRAM_PAGE_TOKEN',label:'Instagram Token',type:'password'},
+      {key:'FACEBOOK_APP_ID',label:'App ID (META_APP_ID)',type:'text'},
       {key:'FACEBOOK_APP_SECRET',label:'App Secret',type:'password'},
-    ], test:'/api/platforms/status' },
+      {key:'META_APP_ID',label:'Meta App ID',type:'text'},
+      {key:'META_APP_SECRET',label:'Meta App Secret',type:'password'},
+    ], test:'/api/telegram/status' },
   { id:'twitter',    label:'Twitter / X', icon:'🐦', color:'#1da1f2',
     fields:[
       {key:'TWITTER_API_KEY',label:'API Key',type:'password'},
@@ -3553,13 +3557,13 @@ const CONN_SERVICES = [
       {key:'TWITTER_ACCESS_TOKEN',label:'Access Token',type:'password'},
       {key:'TWITTER_ACCESS_SECRET',label:'Access Secret',type:'password'},
       {key:'TWITTER_BEARER_TOKEN',label:'Bearer Token',type:'password'},
-    ], test:'/api/platforms/status' },
+    ], test:'/api/twitter/status' },
   { id:'tiktok',     label:'TikTok', icon:'🎵', color:'#ff0050',
     fields:[
       {key:'TIKTOK_CLIENT_KEY',label:'Client Key',type:'text'},
       {key:'TIKTOK_CLIENT_SECRET',label:'Client Secret',type:'password'},
       {key:'TIKTOK_ACCESS_TOKEN',label:'Access Token',type:'password'},
-    ], test:null },
+    ], test:'/api/tiktok/status' },
   { id:'reddit',     label:'Reddit', icon:'🔴', color:'#ff4500',
     fields:[
       {key:'REDDIT_CLIENT_ID',label:'Client ID',type:'text'},
@@ -3575,41 +3579,55 @@ const CONN_SERVICES = [
     ], test:'/api/telegram/status' },
   { id:'whatsapp',   label:'WhatsApp', icon:'📱', color:'#25d366',
     fields:[
-      {key:'WHATSAPP_TOKEN',label:'Token',type:'password'},
-      {key:'WHATSAPP_PHONE_ID',label:'Phone ID',type:'text'},
-      {key:'WHATSAPP_TO_NUMBER',label:'Your Number',type:'text'},
+      {key:'WHATSAPP_ACCESS_TOKEN',label:'Access Token',type:'password'},
+      {key:'WHATSAPP_PHONE_NUMBER_ID',label:'Phone Number ID',type:'text'},
+      {key:'WHATSAPP_VERIFY_TOKEN',label:'Verify Token',type:'text'},
     ], test:null },
   { id:'youtube',    label:'YouTube', icon:'▶️', color:'#ff0000',
     fields:[
       {key:'YOUTUBE_API_KEY',label:'API Key',type:'password'},
-      {key:'YOUTUBE_CLIENT_ID',label:'Client ID',type:'text'},
-      {key:'YOUTUBE_CLIENT_SECRET',label:'Client Secret',type:'password'},
-    ], test:null },
-  { id:'stripe',     label:'Stripe', icon:'💳', color:'#6772e5',
+      {key:'YOUTUBE_CLIENT_ID',label:'OAuth Client ID',type:'text'},
+      {key:'YOUTUBE_CLIENT_SECRET',label:'OAuth Client Secret',type:'password'},
+    ], test:'/api/youtube/status' },
+  { id:'stripe',     label:'Stripe (Payments)', icon:'💳', color:'#6772e5',
     fields:[
       {key:'STRIPE_SECRET_KEY',label:'Secret Key',type:'password'},
-      {key:'STRIPE_PUBLISHABLE_KEY',label:'Publishable Key',type:'text'},
+      {key:'STRIPE_PUBLIC_KEY',label:'Publishable Key',type:'text'},
       {key:'STRIPE_WEBHOOK_SECRET',label:'Webhook Secret',type:'password'},
-    ], test:null },
-  { id:'convertkit', label:'ConvertKit', icon:'📬', color:'#fb6970',
+    ], test:'/api/stripe/status' },
+  { id:'convertkit', label:'ConvertKit (Email)', icon:'📬', color:'#fb6970',
     fields:[
       {key:'CONVERTKIT_API_KEY',label:'API Key',type:'password'},
+      {key:'CONVERTKIT_API_SECRET',label:'API Secret',type:'password'},
       {key:'CONVERTKIT_FORM_ID',label:'Form ID',type:'text'},
-    ], test:null },
-  { id:'wordpress',  label:'WordPress', icon:'🌐', color:'#21759b',
+    ], test:'/api/convertkit/status' },
+  { id:'wordpress',  label:'WordPress Blog', icon:'🌐', color:'#21759b',
     fields:[
       {key:'WORDPRESS_URL',label:'Site URL',type:'text',ph:'https://yoursite.com'},
       {key:'WORDPRESS_USERNAME',label:'Username',type:'text'},
       {key:'WORDPRESS_PASSWORD',label:'App Password',type:'password'},
     ], test:null },
   { id:'heygen',     label:'HeyGen (AI Video)', icon:'🎬', color:'#ff6b35',
-    fields:[{key:'HEYGEN_API_KEY',label:'API Key',type:'password'}],
-    test:null },
-  { id:'gsc',        label:'Google Search Console', icon:'🔍', color:'#4285f4',
     fields:[
-      {key:'GSC_PROPERTY_URL',label:'Property URL',type:'text',ph:'https://yoursite.com'},
-      {key:'GOOGLE_SERVICE_ACCOUNT_JSON',label:'Service Account JSON (path)',type:'text'},
+      {key:'HEYGEN_API_KEY',label:'API Key',type:'password'},
+      {key:'HEYGEN_AVATAR_ID',label:'Avatar ID',type:'text'},
+      {key:'HEYGEN_VOICE_ID',label:'Voice ID',type:'text'},
+    ], test:'/api/heygen/status' },
+  { id:'elevenlabs', label:'ElevenLabs (Voice)', icon:'🎙', color:'#9b59b6',
+    fields:[
+      {key:'ELEVENLABS_API_KEY',label:'API Key',type:'password'},
+      {key:'ELEVENLABS_VOICE_ID',label:'Voice ID',type:'text'},
+      {key:'ELEVENLABS_MODEL',label:'Model',type:'text',ph:'eleven_turbo_v2_5'},
     ], test:null },
+  { id:'email',      label:'Email (Gmail SMTP)', icon:'✉️', color:'#ea4335',
+    fields:[
+      {key:'EMAIL_USER',label:'Gmail Address',type:'text'},
+      {key:'EMAIL_PASSWORD',label:'App Password',type:'password'},
+      {key:'EMAIL_FROM_NAME',label:'From Name',type:'text'},
+    ], test:null },
+  { id:'serper',     label:'Serper (Google Search)', icon:'🔍', color:'#4285f4',
+    fields:[{key:'SERPER_API_KEY',label:'API Key',type:'password'}],
+    test:null },
 ];
 
 let _connEnv = {};
@@ -3679,6 +3697,16 @@ function _connRenderGrid(){
       <div id="conn-result-${svc.id}" style="margin-top:8px;font-size:10px;min-height:14px"></div>
     </div>`;
   }).join('');
+}
+
+async function connTestAll(){
+  const testable = CONN_SERVICES.filter(s=>s.test);
+  toast(`Testing ${testable.length} services...`,'info');
+  for(const svc of testable){
+    await connTest(svc.id, svc.test);
+    await new Promise(r=>setTimeout(r,400));
+  }
+  toast('All tests complete','success');
 }
 
 async function connSave(svcId){

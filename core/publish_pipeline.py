@@ -208,137 +208,35 @@ class PublishPipeline:
     def _publish_facebook(self, title: str, content: str,
                           hashtags: List[str], image_url: Optional[str] = None,
                           video_url: Optional[str] = None) -> Dict:
-        page_token  = os.getenv("FACEBOOK_PAGE_TOKEN", "")
-        page_id     = os.getenv("FACEBOOK_PAGE_ID", "")
-        openai_key  = os.getenv("OPENAI_API_KEY", "")
-        if not page_token or not page_id:
-            return {"platform": "facebook", "status": "skipped",
-                    "reason": "FACEBOOK_PAGE_TOKEN or FACEBOOK_PAGE_ID not set"}
         try:
-            import requests as _req
+            from core.facebook import get_facebook
+            fb = get_facebook()
+            if not fb.is_configured():
+                return {"platform": "facebook", "status": "skipped",
+                        "reason": "No Facebook credentials. Add FACEBOOK_PAGE_TOKEN+FACEBOOK_PAGE_ID or FACEBOOK_EMAIL+FACEBOOK_PASSWORD to .env"}
             clean   = re.sub(r'[#*`>]', '', content).strip()
             snippet = clean[:300].rsplit(' ', 1)[0] + '...' if len(clean) > 300 else clean
             tags    = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
             message = f"{title}\n\n{snippet}\n\n{tags}"
-
-            # ── Video post ────────────────────────────────────────────────────
-            if video_url:
-                resp = _req.post(
-                    f"https://graph.facebook.com/v19.0/{page_id}/videos",
-                    data={"file_url": video_url, "description": message,
-                          "access_token": page_token},
-                    timeout=30,
-                )
-                data = resp.json()
-                if "id" in data:
-                    return {"platform": "facebook", "status": "posted",
-                            "post_id": data["id"], "type": "video"}
-                return {"platform": "facebook", "status": "error",
-                        "error": data.get("error", {}).get("message", str(data))}
-
-            # ── Image post — generate with DALL-E if not provided ─────────────
-            if not image_url and openai_key:
-                from openai import OpenAI as _OAI
-                _img = _OAI(api_key=openai_key).images.generate(
-                    model="dall-e-3",
-                    prompt=(
-                        f"Professional social media post image for: {title}. "
-                        "Dark futuristic tech aesthetic, cyan and gold accents, "
-                        "WheellsVerse AI brand. No text overlays."
-                    ),
-                    size="1024x1024", quality="standard", n=1,
-                )
-                image_url = _img.data[0].url
-
-            if image_url:
-                resp = _req.post(
-                    f"https://graph.facebook.com/v19.0/{page_id}/photos",
-                    data={"url": image_url, "caption": message,
-                          "access_token": page_token},
-                    timeout=30,
-                )
-                data = resp.json()
-                if "id" in data:
-                    return {"platform": "facebook", "status": "posted",
-                            "post_id": data["id"], "type": "image"}
-                return {"platform": "facebook", "status": "error",
-                        "error": data.get("error", {}).get("message", str(data))}
-
-            # ── Text-only fallback ────────────────────────────────────────────
-            resp = _req.post(
-                f"https://graph.facebook.com/v19.0/{page_id}/feed",
-                json={"message": message, "access_token": page_token},
-                timeout=15,
-            )
-            data = resp.json()
-            if "id" in data:
-                return {"platform": "facebook", "status": "posted",
-                        "post_id": data["id"], "type": "text"}
-            return {"platform": "facebook", "status": "error",
-                    "error": data.get("error", {}).get("message", str(data))}
+            result  = fb.post(message, image_url=image_url, video_url=video_url)
+            return {"platform": "facebook", **result}
         except Exception as e:
             return {"platform": "facebook", "status": "error", "error": str(e)}
 
     def _publish_instagram(self, title: str, content: str,
                            hashtags: List[str], image_url: Optional[str] = None) -> Dict:
-        page_token  = os.getenv("INSTAGRAM_PAGE_TOKEN", "")
-        ig_account  = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
-        openai_key  = os.getenv("OPENAI_API_KEY", "")
-        if not page_token or not ig_account:
-            return {"platform": "instagram", "status": "skipped",
-                    "reason": "INSTAGRAM_PAGE_TOKEN or INSTAGRAM_ACCOUNT_ID not set"}
         try:
-            import requests as _req
-
-            # Generate image with DALL-E if no image_url provided
-            if not image_url and openai_key:
-                from openai import OpenAI
-                client = OpenAI(api_key=openai_key)
-                img_resp = client.images.generate(
-                    model="dall-e-3",
-                    prompt=(
-                        f"Professional social media post image for: {title}. "
-                        "Dark futuristic tech aesthetic, cyan and gold accents, "
-                        "WheellsVerse AI brand style. No text overlays."
-                    ),
-                    size="1024x1024",
-                    quality="standard",
-                    n=1,
-                )
-                image_url = img_resp.data[0].url
-
-            if not image_url:
+            from core.instagram import get_instagram
+            ig = get_instagram()
+            if not ig.is_configured():
                 return {"platform": "instagram", "status": "skipped",
-                        "reason": "No image_url and OPENAI_API_KEY not set"}
-
-            # Build caption
-            clean = re.sub(r'[#*`>]', '', content).strip()
+                        "reason": "No Instagram credentials. Add INSTAGRAM_PAGE_TOKEN+INSTAGRAM_ACCOUNT_ID or INSTAGRAM_USERNAME+INSTAGRAM_PASSWORD to .env"}
+            clean   = re.sub(r'[#*`>]', '', content).strip()
             snippet = clean[:200].rsplit(' ', 1)[0] + '...' if len(clean) > 200 else clean
-            tags = ' '.join(f'#{h}' for h in (hashtags or [])[:20])
+            tags    = ' '.join(f'#{h}' for h in (hashtags or [])[:20])
             caption = f"{title}\n\n{snippet}\n\n{tags}"
-
-            # Step 1: create media container
-            container = _req.post(
-                f"https://graph.facebook.com/v19.0/{ig_account}/media",
-                data={"image_url": image_url, "caption": caption,
-                      "access_token": page_token},
-                timeout=30,
-            ).json()
-            if "id" not in container:
-                return {"platform": "instagram", "status": "error",
-                        "error": container.get("error", {}).get("message", str(container))}
-
-            # Step 2: publish
-            publish = _req.post(
-                f"https://graph.facebook.com/v19.0/{ig_account}/media_publish",
-                data={"creation_id": container["id"], "access_token": page_token},
-                timeout=30,
-            ).json()
-            if "id" in publish:
-                return {"platform": "instagram", "status": "posted",
-                        "post_id": publish["id"], "image_url": image_url}
-            return {"platform": "instagram", "status": "error",
-                    "error": publish.get("error", {}).get("message", str(publish))}
+            result  = ig.post(caption, image_url=image_url)
+            return {"platform": "instagram", **result}
         except Exception as e:
             return {"platform": "instagram", "status": "error", "error": str(e)}
 
