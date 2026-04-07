@@ -129,6 +129,19 @@ CREATE TABLE IF NOT EXISTS nx_messages (
     created_at  REAL    NOT NULL,
     FOREIGN KEY (creator_id) REFERENCES nx_creators(id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS nx_fan_passwords (
+    fan_email   TEXT    PRIMARY KEY,
+    hash        TEXT    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_fan_sessions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    fan_email   TEXT    NOT NULL,
+    token       TEXT    UNIQUE NOT NULL,
+    expires_at  REAL    NOT NULL,
+    created_at  REAL    NOT NULL
+);
 """
 
 def init_db() -> None:
@@ -397,3 +410,62 @@ def get_creator_stats(creator_id: int) -> Dict:
         "mrr":            mrr,
         "unread_messages": unread_msgs,
     }
+
+# ── Fan auth ───────────────────────────────────────────────────────────────────
+
+def get_fan_password_hash(fan_email: str) -> Optional[str]:
+    conn = get_conn()
+    row = conn.execute("SELECT hash FROM nx_fan_passwords WHERE fan_email=?", (fan_email,)).fetchone()
+    conn.close()
+    return row["hash"] if row else None
+
+def set_fan_password(fan_email: str, hash_: str) -> None:
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO nx_fan_passwords (fan_email,hash) VALUES (?,?) "
+        "ON CONFLICT(fan_email) DO UPDATE SET hash=excluded.hash",
+        (fan_email, hash_)
+    )
+    conn.commit()
+    conn.close()
+
+def create_fan_session(fan_email: str, token: str, expires_at: float) -> None:
+    conn = get_conn()
+    conn.execute("DELETE FROM nx_fan_sessions WHERE fan_email=? AND expires_at < ?", (fan_email, time.time()))
+    conn.execute(
+        "INSERT INTO nx_fan_sessions (fan_email,token,expires_at,created_at) VALUES (?,?,?,?)",
+        (fan_email, token, expires_at, time.time())
+    )
+    conn.commit()
+    conn.close()
+
+def verify_fan_token(token: str) -> Optional[str]:
+    """Return fan_email if token valid, else None."""
+    if not token:
+        return None
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT fan_email FROM nx_fan_sessions WHERE token=? AND expires_at > ?",
+        (token, time.time())
+    ).fetchone()
+    conn.close()
+    return row["fan_email"] if row else None
+
+def revoke_fan_token(token: str) -> None:
+    conn = get_conn()
+    conn.execute("DELETE FROM nx_fan_sessions WHERE token=?", (token,))
+    conn.commit()
+    conn.close()
+
+def get_fan_subscriptions(fan_email: str) -> List[Dict]:
+    """All active subscriptions for a fan across all creators."""
+    conn = get_conn()
+    rows = conn.execute(
+        """SELECT s.creator_id, s.price_paid, s.started_at, s.status,
+                  c.name, c.handle, c.bio, c.avatar
+           FROM nx_subscribers s JOIN nx_creators c ON s.creator_id = c.id
+           WHERE s.fan_email=? AND s.status='active'""",
+        (fan_email,)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows]

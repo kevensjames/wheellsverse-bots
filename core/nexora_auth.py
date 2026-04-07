@@ -159,3 +159,48 @@ def login_creator(email: str, password: str) -> Dict:
     token   = _create_session(row["id"])
     creator = verify_token(token)
     return {"token": token, "creator": creator}
+
+
+# ── Fan auth ───────────────────────────────────────────────────────────────────
+
+def _create_fan_session(fan_email: str) -> str:
+    from core.nexora_db import create_fan_session
+    token      = secrets.token_urlsafe(_TOKEN_BYTES)
+    expires_at = time.time() + _SESSION_DAYS * 86400
+    create_fan_session(fan_email, token, expires_at)
+    return token
+
+
+def register_fan(email: str, password: str) -> Dict:
+    """
+    Register a fan account (anyone can register; no creator sub required at signup).
+    Returns {"token": ..., "fan_email": ...} or {"error": ...}
+    """
+    from core.nexora_db import get_fan_password_hash, set_fan_password, init_db
+    init_db()
+    email = email.strip().lower()
+    if not email or "@" not in email:
+        return {"error": "Invalid email address"}
+    if len(password) < 6:
+        return {"error": "Password must be at least 6 characters"}
+    if get_fan_password_hash(email):
+        return {"error": "An account with that email already exists"}
+    set_fan_password(email, hash_password(password))
+    token = _create_fan_session(email)
+    return {"token": token, "fan_email": email}
+
+
+def login_fan(email: str, password: str) -> Dict:
+    """
+    Authenticate a fan.
+    Returns {"token": ..., "fan_email": ..., "subscriptions": [...]} or {"error": ...}
+    """
+    from core.nexora_db import get_fan_password_hash, get_fan_subscriptions, init_db
+    init_db()
+    email = email.strip().lower()
+    stored = get_fan_password_hash(email)
+    if not stored or not verify_password(password, stored):
+        return {"error": "Invalid email or password"}
+    token = _create_fan_session(email)
+    subs  = get_fan_subscriptions(email)
+    return {"token": token, "fan_email": email, "subscriptions": subs}

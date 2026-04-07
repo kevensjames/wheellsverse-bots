@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEXORA — Fan Login</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060810;--surface:#0c1018;--surface2:#111827;--surface3:#1a2235;
+  --cyan:#00d4ff;--gold:#ffd700;--green:#00ff88;--red:#ff4d6d;--purple:#a855f7;
+  --text:#e8edf5;--text2:#8899aa;--text3:#4a5568;
+  --border:rgba(0,212,255,0.1);--border2:rgba(0,212,255,0.25)
+}
+body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0 5%;height:60px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.logo{font-size:1.1rem;font-weight:800;color:var(--cyan);text-decoration:none}
+.logo span{color:var(--gold)}
+.nav-links{display:flex;gap:16px;align-items:center}
+.nav-links a{color:var(--text2);font-size:.875rem;font-weight:500;text-decoration:none;transition:color .2s}
+.nav-links a:hover{color:var(--cyan)}
+
+/* ── AUTH ── */
+#auth-screen{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px}
+.auth-box{background:var(--surface);border:1px solid var(--border2);border-radius:20px;padding:48px 40px;width:100%;max-width:420px}
+.auth-logo{font-size:1.3rem;font-weight:800;color:var(--cyan);text-align:center;margin-bottom:6px}
+.auth-logo span{color:var(--gold)}
+.auth-sub{text-align:center;font-size:.875rem;color:var(--text2);margin-bottom:28px}
+.auth-tabs{display:flex;border:1px solid var(--border);border-radius:10px;margin-bottom:24px;overflow:hidden}
+.auth-tab{flex:1;padding:10px;text-align:center;font-size:.85rem;font-weight:600;cursor:pointer;color:var(--text2);background:transparent;border:none;font-family:inherit;transition:all .2s}
+.auth-tab.active{background:rgba(0,212,255,.1);color:var(--cyan)}
+.auth-field{margin-bottom:16px}
+.auth-field label{display:block;font-size:.78rem;color:var(--text2);font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px}
+.auth-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:12px 16px;color:var(--text);font-family:inherit;font-size:.9rem;outline:none;transition:border-color .2s}
+.auth-input:focus{border-color:rgba(0,212,255,.5)}
+.auth-btn{width:100%;padding:14px;border-radius:10px;font-weight:700;font-size:.95rem;cursor:pointer;border:none;background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;margin-top:8px;font-family:inherit;transition:opacity .2s}
+.auth-btn:hover{opacity:.85}
+.auth-err{background:rgba(255,77,109,.1);border:1px solid rgba(255,77,109,.3);color:var(--red);border-radius:8px;padding:10px 14px;font-size:.82rem;margin-bottom:16px;display:none}
+.auth-note{font-size:.78rem;color:var(--text3);text-align:center;margin-top:16px;line-height:1.5}
+.auth-note a{color:var(--cyan);text-decoration:none}
+
+/* ── DASHBOARD ── */
+#dashboard{display:none;flex:1;flex-direction:column}
+.dash-header{background:var(--surface);border-bottom:1px solid var(--border);padding:24px 5%;display:flex;align-items:center;justify-content:space-between}
+.dash-title{font-size:1.1rem;font-weight:700}
+.dash-email{font-size:.8rem;color:var(--text2)}
+.logout-btn{padding:8px 16px;border-radius:8px;font-size:.78rem;font-weight:600;background:transparent;border:1px solid var(--border);color:var(--text2);cursor:pointer;font-family:inherit;transition:all .2s}
+.logout-btn:hover{color:var(--red);border-color:rgba(255,77,109,.3)}
+
+.dash-content{padding:32px 5%;max-width:900px;margin:0 auto;width:100%}
+.section-title{font-size:1rem;font-weight:700;margin-bottom:20px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+
+/* ── SUBSCRIPTION CARDS ── */
+.subs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:32px}
+.sub-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;transition:all .25s;text-decoration:none;display:block;color:var(--text)}
+.sub-card:hover{border-color:var(--border2);transform:translateY(-2px)}
+.sub-card-top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.sub-avatar{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font-size:1.3rem;font-weight:800;flex-shrink:0}
+.sub-name{font-size:1rem;font-weight:700}
+.sub-handle{font-size:.8rem;color:var(--text2)}
+.sub-bio{font-size:.85rem;color:var(--text2);line-height:1.5;margin-bottom:14px}
+.sub-cta{display:inline-block;padding:8px 18px;background:rgba(0,212,255,.1);border:1px solid var(--border2);border-radius:8px;color:var(--cyan);font-size:.82rem;font-weight:600}
+
+.empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty-state h3{font-size:1.1rem;font-weight:700;color:var(--text);margin-bottom:10px}
+.empty-state p{font-size:.9rem;line-height:1.6;margin-bottom:24px}
+.empty-cta{display:inline-block;padding:12px 28px;background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;border-radius:10px;font-weight:700;text-decoration:none;font-size:.9rem}
+
+/* ── POSTS ── */
+.posts-list{display:flex;flex-direction:column;gap:12px}
+.post-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;transition:border-color .2s}
+.post-card:hover{border-color:var(--border2)}
+.post-card.locked{opacity:.55}
+.post-title{font-size:.95rem;font-weight:700;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.lock-badge{font-size:.72rem;background:rgba(255,77,109,.12);color:var(--red);border:1px solid rgba(255,77,109,.25);border-radius:4px;padding:2px 8px}
+.post-body{font-size:.875rem;color:var(--text2);line-height:1.6}
+.post-date{font-size:.72rem;color:var(--text3);margin-top:10px}
+
+.creator-select{margin-bottom:24px;display:flex;gap:10px;flex-wrap:wrap}
+.creator-chip{padding:6px 14px;border-radius:20px;font-size:.8rem;font-weight:600;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--text2);font-family:inherit;transition:all .2s}
+.creator-chip.active{background:rgba(0,212,255,.1);color:var(--cyan);border-color:var(--border2)}
+
+.loading{text-align:center;padding:40px;color:var(--text2);font-size:.9rem}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/nexora" class="logo">NEX<span>ORA</span></a>
+  <div class="nav-links">
+    <a href="/nexora">Home</a>
+    <a href="/nexora/creator">Creator Login</a>
+  </div>
+</nav>
+
+<!-- AUTH SCREEN -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">NEX<span>ORA</span></div>
+    <div class="auth-sub">Access your subscribed content</div>
+    <div class="auth-tabs">
+      <button type="button" class="auth-tab active" onclick="switchTab('login')">Sign In</button>
+      <button type="button" class="auth-tab" onclick="switchTab('register')">Create Account</button>
+    </div>
+    <div id="auth-err" class="auth-err"></div>
+
+    <!-- LOGIN -->
+    <form id="login-form" onsubmit="doLogin(event)">
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="l-email" class="auth-input" placeholder="you@example.com" required>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="l-pass" class="auth-input" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="auth-btn" id="login-btn">Sign In →</button>
+    </form>
+
+    <!-- REGISTER -->
+    <form id="register-form" style="display:none" onsubmit="doRegister(event)">
+      <div class="auth-field">
+        <label>Email</label>
+        <input type="email" id="r-email" class="auth-input" placeholder="you@example.com" required>
+      </div>
+      <div class="auth-field">
+        <label>Password</label>
+        <input type="password" id="r-pass" class="auth-input" placeholder="Min. 6 characters" required>
+      </div>
+      <button type="submit" class="auth-btn" id="reg-btn">Create Account →</button>
+    </form>
+
+    <div class="auth-note">
+      Already subscribed to a creator? Sign in with the same email you used to subscribe.<br>
+      New here? <a href="/nexora">Browse creators →</a>
+    </div>
+  </div>
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+  <div class="dash-header">
+    <div>
+      <div class="dash-title">My Subscriptions</div>
+      <div class="dash-email" id="dash-email"></div>
+    </div>
+    <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+  </div>
+
+  <div class="dash-content">
+    <div class="section-title">Creators You Follow</div>
+    <div id="subs-container" class="loading">Loading subscriptions…</div>
+
+    <div id="content-section" style="display:none">
+      <div class="section-title" style="margin-top:32px">
+        Content from <span id="content-creator-name"></span>
+      </div>
+      <div id="creator-select" class="creator-select"></div>
+      <div id="posts-container" class="loading">Loading posts…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
+  ? 'http://localhost:5050'
+  : 'https://grateful-flexibility-production.up.railway.app';
+
+let FAN_TOKEN = localStorage.getItem('nx_fan_token') || '';
+let FAN_EMAIL = '';
+let SUBS = [];
+let ACTIVE_CREATOR = null;
+
+// ── AUTH ───────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
+  document.getElementById('register-form').style.display = tab === 'register' ? 'block' : 'none';
+  document.querySelectorAll('.auth-tab').forEach((t,i) => t.classList.toggle('active', (i===0)===(tab==='login')));
+  document.getElementById('auth-err').style.display = 'none';
+}
+
+function showErr(msg) {
+  const el = document.getElementById('auth-err');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+async function doLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('login-btn');
+  btn.textContent = 'Signing in…'; btn.disabled = true;
+  try {
+    const r = await fetch(API + '/api/nx/fan/login', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email: document.getElementById('l-email').value.trim(),
+        password: document.getElementById('l-pass').value
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) { showErr((d.detail || d.error || 'Login failed') + ' (HTTP ' + r.status + ')'); return; }
+    FAN_TOKEN = d.token;
+    FAN_EMAIL = d.fan_email;
+    SUBS = d.subscriptions || [];
+    localStorage.setItem('nx_fan_token', FAN_TOKEN);
+    showDashboard();
+  } catch(err) {
+    showErr('Could not reach server. Try again.');
+  } finally {
+    btn.textContent = 'Sign In →'; btn.disabled = false;
+  }
+}
+
+async function doRegister(e) {
+  e.preventDefault();
+  const btn = document.getElementById('reg-btn');
+  btn.textContent = 'Creating account…'; btn.disabled = true;
+  try {
+    const r = await fetch(API + '/api/nx/fan/register', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email: document.getElementById('r-email').value.trim(),
+        password: document.getElementById('r-pass').value
+      })
+    });
+    const d = await r.json();
+    if (!r.ok) { showErr(d.detail || d.error || 'Registration failed'); return; }
+    FAN_TOKEN = d.token;
+    FAN_EMAIL = d.fan_email;
+    SUBS = [];
+    localStorage.setItem('nx_fan_token', FAN_TOKEN);
+    showDashboard();
+  } catch(err) {
+    showErr('Could not reach server. Try again.');
+  } finally {
+    btn.textContent = 'Create Account →'; btn.disabled = false;
+  }
+}
+
+async function doLogout() {
+  try {
+    await fetch(API + '/api/nx/fan/logout', {
+      method: 'POST',
+      headers: {'Authorization': 'Bearer ' + FAN_TOKEN}
+    });
+  } catch(_) {}
+  FAN_TOKEN = ''; FAN_EMAIL = ''; SUBS = [];
+  localStorage.removeItem('nx_fan_token');
+  document.getElementById('dashboard').style.display = 'none';
+  document.getElementById('auth-screen').style.display = 'flex';
+  document.getElementById('dashboard').style.flexDirection = '';
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────────
+function showDashboard() {
+  document.getElementById('auth-screen').style.display = 'none';
+  const dash = document.getElementById('dashboard');
+  dash.style.display = 'flex';
+  dash.style.flexDirection = 'column';
+  document.getElementById('dash-email').textContent = FAN_EMAIL;
+  renderSubs();
+}
+
+function renderSubs() {
+  const el = document.getElementById('subs-container');
+  if (!SUBS.length) {
+    el.innerHTML = `<div class="empty-state">
+      <h3>No active subscriptions yet</h3>
+      <p>Subscribe to a creator to access their exclusive content here.</p>
+      <a href="/nexora" class="empty-cta">Browse Creators →</a>
+    </div>`;
+    return;
+  }
+  el.className = 'subs-grid';
+  el.innerHTML = SUBS.map(s => {
+    const initials = (s.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
+    return `<a class="sub-card" href="javascript:void(0)" onclick="loadCreatorContent('${s.handle}','${s.name}')">
+      <div class="sub-card-top">
+        <div class="sub-avatar">${initials}</div>
+        <div>
+          <div class="sub-name">${s.name}</div>
+          <div class="sub-handle">@${s.handle}</div>
+        </div>
+      </div>
+      ${s.bio ? `<div class="sub-bio">${s.bio}</div>` : ''}
+      <span class="sub-cta">View Content →</span>
+    </a>`;
+  }).join('');
+}
+
+async function loadCreatorContent(handle, name) {
+  ACTIVE_CREATOR = handle;
+  document.getElementById('content-section').style.display = 'block';
+  document.getElementById('content-creator-name').textContent = name;
+  document.getElementById('posts-container').className = 'loading';
+  document.getElementById('posts-container').innerHTML = 'Loading posts…';
+
+  // Creator chips
+  if (SUBS.length > 1) {
+    document.getElementById('creator-select').innerHTML = SUBS.map(s =>
+      `<button class="creator-chip${s.handle===handle?' active':''}" onclick="loadCreatorContent('${s.handle}','${s.name}')">${s.name}</button>`
+    ).join('');
+  }
+
+  try {
+    const r = await fetch(API + '/api/nx/fan/content/' + handle, {
+      headers: {'Authorization': 'Bearer ' + FAN_TOKEN}
+    });
+    const d = await r.json();
+    renderPosts(d.posts || [], d.is_subscribed);
+  } catch(e) {
+    document.getElementById('posts-container').innerHTML = '<div class="loading">Failed to load content.</div>';
+  }
+  document.getElementById('content-section').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function renderPosts(posts, isSubscribed) {
+  const el = document.getElementById('posts-container');
+  el.className = '';
+  if (!posts.length) {
+    el.innerHTML = '<div class="loading">No posts yet from this creator.</div>';
+    return;
+  }
+  el.className = 'posts-list';
+  el.innerHTML = posts.map(p => {
+    const date = new Date(p.created_at * 1000).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+    if (p.locked) {
+      return `<div class="post-card locked">
+        <div class="post-title">🔒 ${p.title || 'Exclusive Post'} <span class="lock-badge">SUBSCRIBERS ONLY</span></div>
+        <div class="post-body">Subscribe to unlock this content.</div>
+        <div class="post-date">${date}</div>
+      </div>`;
+    }
+    return `<div class="post-card">
+      <div class="post-title">${p.title || 'Post'}</div>
+      <div class="post-body">${(p.body || '').replace(/\n/g,'<br>')}</div>
+      <div class="post-date">${date}</div>
+    </div>`;
+  }).join('');
+}
+
+// ── BOOT ──────────────────────────────────────────────────────────────────────
+(async function boot() {
+  if (!FAN_TOKEN) return;
+  try {
+    const r = await fetch(API + '/api/nx/fan/me', {
+      headers: {'Authorization': 'Bearer ' + FAN_TOKEN}
+    });
+    if (!r.ok) throw new Error('invalid token');
+    const d = await r.json();
+    FAN_EMAIL = d.fan_email;
+    SUBS = d.subscriptions || [];
+    showDashboard();
+    // Auto-load content if only one subscription
+    if (SUBS.length === 1) loadCreatorContent(SUBS[0].handle, SUBS[0].name);
+  } catch(_) {
+    FAN_TOKEN = '';
+    localStorage.removeItem('nx_fan_token');
+  }
+})();
+</script>
+</body>
+</html>

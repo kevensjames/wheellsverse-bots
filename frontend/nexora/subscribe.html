@@ -14,6 +14,10 @@ nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0
 .logo{font-size:1.1rem;font-weight:800;color:var(--cyan);letter-spacing:-0.5px}
 .logo span{color:var(--gold)}
 .nav-cta{background:linear-gradient(135deg,var(--cyan),#00a8cc);color:#000;padding:.5rem 1.2rem;border-radius:8px;font-weight:700;font-size:.85rem;text-decoration:none}
+.nav-right{display:flex;gap:12px;align-items:center}
+.nav-fan-link{color:rgba(232,237,245,0.6);font-size:.85rem;font-weight:500;text-decoration:none;transition:color .2s}
+.nav-fan-link:hover{color:var(--cyan)}
+.logo{text-decoration:none}
 
 /* PROFILE HEADER */
 .profile-banner{height:200px;background:linear-gradient(135deg,#0d1829,#1a2235,#0d1829);position:relative;overflow:hidden}
@@ -75,8 +79,11 @@ nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0
 <body>
 
 <nav>
-  <div class="logo">NEX<span>ORA</span></div>
-  <a href="index.html#pricing" class="nav-cta">Become a Creator →</a>
+  <a href="/nexora" class="logo">NEX<span>ORA</span></a>
+  <div class="nav-right">
+    <a href="/nexora/fan" class="nav-fan-link">Fan Login</a>
+    <a href="/nexora#pricing" class="nav-cta">Become a Creator →</a>
+  </div>
 </nav>
 
 <!-- PROFILE BANNER -->

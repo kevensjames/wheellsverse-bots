@@ -87,7 +87,8 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
                  # NEXORA platform — auth + public creator endpoints are their own auth
-                 "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook"}
+                 "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook",
+                 "/api/nx/fan/register", "/api/nx/fan/login", "/api/nx/fan/logout"}
 
 async def verify_api_key(request: Request):
     """
@@ -2828,17 +2829,31 @@ async def wordpress_status():
     wp_token = _wpcom_token()
     site_id  = _wpcom_site_id()
     if not (wp_url and site_id):
-        return {"connected": False, "reason": "Missing WORDPRESS_URL"}
+        return {"connected": False, "error": "Missing WORDPRESS_URL"}
     try:
-        import requests as _req
-        # Use WordPress.com public API (works on all plans)
-        headers = {}
+        import requests as _req_wp
+        # Always try without token first (public posts) — token only needed for write ops
+        # Validate token if present
+        token_valid = False
         if wp_token:
+            tr = _req_wp.get(
+                "https://public-api.wordpress.com/rest/v1.1/me",
+                headers={"Authorization": f"Bearer {wp_token}"},
+                timeout=8,
+            )
+            token_valid = tr.status_code == 200
+
+        # Fetch posts — authenticated gets drafts too, public-only gets published
+        headers = {}
+        params = {"number": 50, "fields": "ID,title,status,URL,date"}
+        if token_valid:
             headers["Authorization"] = f"Bearer {wp_token}"
-        r = _req.get(
+            params["status"] = "any"
+
+        r = _req_wp.get(
             f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts",
             headers=headers,
-            params={"number": 5, "fields": "ID,title,status,URL,date"},
+            params=params,
             timeout=10,
         )
         if r.status_code == 200:
@@ -2849,8 +2864,12 @@ async def wordpress_status():
                 "url": wp_url,
                 "platform": "wordpress.com",
                 "site": site_id,
+                "found": data.get("found", 0),
                 "total_posts": data.get("found", 0),
-                "posts": [{"id": p["ID"], "title": p["title"], "status": p["status"], "link": p["URL"]} for p in posts],
+                "token_valid": token_valid,
+                "can_write": token_valid,
+                "posts": [{"ID": p["ID"], "title": p["title"], "status": p["status"],
+                           "URL": p.get("URL",""), "date": p.get("date","")} for p in posts],
             }
         return {"connected": False, "status_code": r.status_code, "error": r.text[:200]}
     except Exception as e:
@@ -2908,6 +2927,55 @@ async def wordpress_posts(limit: int = 20):
         return {"posts": [{"id": p["ID"], "title": p["title"], "status": p["status"], "link": p["URL"], "date": p["date"]} for p in posts]}
     except Exception as e:
         return {"posts": [], "error": str(e)}
+
+
+@app.delete("/api/wordpress/post/{post_id}")
+async def wordpress_delete_post(post_id: int):
+    site_id  = _wpcom_site_id()
+    wp_token = _wpcom_token()
+    if not site_id or not wp_token:
+        raise HTTPException(400, "WordPress not configured")
+    try:
+        import requests as _req
+        r = _req.post(
+            f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts/{post_id}/delete",
+            headers={"Authorization": f"Bearer {wp_token}"},
+            timeout=15,
+        )
+        r.raise_for_status()
+        _add_log(f"WordPress post {post_id} deleted", "INFO")
+        return {"status": "deleted", "id": post_id}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+class WPUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[str] = None
+    status: Optional[str] = None
+
+
+@app.post("/api/wordpress/post/{post_id}")
+async def wordpress_update_post(post_id: int, req: WPUpdateRequest):
+    site_id  = _wpcom_site_id()
+    wp_token = _wpcom_token()
+    if not site_id or not wp_token:
+        raise HTTPException(400, "WordPress not configured")
+    try:
+        import requests as _req
+        payload = {k: v for k, v in req.dict().items() if v is not None}
+        r = _req.post(
+            f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts/{post_id}",
+            headers={"Authorization": f"Bearer {wp_token}"},
+            json=payload,
+            timeout=15,
+        )
+        r.raise_for_status()
+        data = r.json()
+        _add_log(f"WordPress post {post_id} updated", "INFO")
+        return {"status": "updated", "url": data.get("URL",""), "id": post_id}
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 @app.get("/api/wordpress/oauth-callback")
@@ -6502,6 +6570,12 @@ async def nexora_live():
     from fastapi.responses import FileResponse
     return FileResponse(str(ROOT / "frontend" / "nexora" / "live.html"), media_type="text/html")
 
+@app.get("/nexora/fan")
+@app.get("/nexora/fan.html")
+async def nexora_fan():
+    from fastapi.responses import FileResponse
+    return FileResponse(str(ROOT / "frontend" / "nexora" / "fan.html"), media_type="text/html")
+
 
 # ─── NEXORA Platform — Real Backend ──────────────────────────────────────────
 #
@@ -6831,6 +6905,88 @@ async def nx_stripe_webhook(request: Request):
                 _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
 
     return {"received": True}
+
+
+# ── Fan auth endpoints ────────────────────────────────────────────────────────
+
+class _NxFanRegisterReq(BaseModel):
+    email:    str
+    password: str
+
+class _NxFanLoginReq(BaseModel):
+    email:    str
+    password: str
+
+@app.post("/api/nx/fan/register")
+async def nx_fan_register(req: _NxFanRegisterReq):
+    from core.nexora_db   import init_db
+    from core.nexora_auth import register_fan
+    init_db()
+    result = register_fan(req.email, req.password)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
+
+@app.post("/api/nx/fan/login")
+async def nx_fan_login(req: _NxFanLoginReq):
+    from core.nexora_db   import init_db
+    from core.nexora_auth import login_fan
+    init_db()
+    result = login_fan(req.email, req.password)
+    if "error" in result:
+        raise HTTPException(status_code=401, detail=result["error"])
+    return result
+
+@app.post("/api/nx/fan/logout")
+async def nx_fan_logout(request: Request):
+    from core.nexora_db import revoke_fan_token
+    auth  = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    if token:
+        revoke_fan_token(token)
+    return {"ok": True}
+
+@app.get("/api/nx/fan/me")
+async def nx_fan_me(request: Request):
+    from core.nexora_db import verify_fan_token, get_fan_subscriptions, init_db
+    init_db()
+    auth  = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    fan_email = verify_fan_token(token)
+    if not fan_email:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    subs = get_fan_subscriptions(fan_email)
+    return {"fan_email": fan_email, "subscriptions": subs}
+
+@app.get("/api/nx/fan/content/{handle}")
+async def nx_fan_content(handle: str, request: Request):
+    """Return unlocked posts for a subscribed fan."""
+    from core.nexora_db import (verify_fan_token, get_creator_by_handle,
+                                  get_fan_subscriptions, list_posts, init_db)
+    init_db()
+    auth  = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip()
+    fan_email = verify_fan_token(token) if token else None
+
+    creator = get_creator_by_handle(handle)
+    if not creator:
+        raise HTTPException(status_code=404, detail="Creator not found")
+
+    posts = list_posts(creator["id"])
+    # Check if fan is subscribed
+    is_subscribed = False
+    if fan_email:
+        subs = get_fan_subscriptions(fan_email)
+        is_subscribed = any(s["creator_id"] == creator["id"] for s in subs)
+
+    result = []
+    for p in posts:
+        if p["access"] == "free" or is_subscribed:
+            result.append({**p, "locked": False})
+        else:
+            result.append({"id": p["id"], "title": p["title"], "access": p["access"],
+                           "created_at": p["created_at"], "locked": True})
+    return {"posts": result, "is_subscribed": is_subscribed, "fan_email": fan_email}
 
 
 # ─── Week 8: Trending Intelligence API ───────────────────────────────────────
