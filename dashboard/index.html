@@ -390,6 +390,64 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 </style>
 </head>
 <body>
+
+<!-- ══ LOGIN GATE ══════════════════════════════════════════════════════════ -->
+<div id="login-gate" style="display:none;position:fixed;inset:0;background:#0d0f14;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column">
+  <div style="background:#13161d;border:1px solid rgba(136,68,255,.3);border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#6600cc,#00aaff);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px">⬡</div>
+    <div style="font-size:14px;font-weight:700;color:#cc88ff;letter-spacing:2px;margin-bottom:4px">WHEELLSVERSE</div>
+    <div style="font-size:10px;color:rgba(136,68,255,.6);letter-spacing:2px;margin-bottom:28px">AI COMMAND CENTER</div>
+    <input id="login-pw" type="password" placeholder="Enter password"
+      style="width:100%;background:#1a1e28;border:1px solid rgba(136,68,255,.3);border-radius:9px;padding:12px 14px;color:#e0e6f0;font-family:inherit;font-size:13px;outline:none;margin-bottom:12px;text-align:center"
+      onkeydown="if(event.key==='Enter')doLogin()"
+      onfocus="this.style.borderColor='#cc88ff'" onblur="this.style.borderColor='rgba(136,68,255,.3)'">
+    <button onclick="doLogin()" style="width:100%;padding:11px;background:linear-gradient(135deg,rgba(102,0,204,.4),rgba(0,170,255,.3));border:1px solid rgba(136,68,255,.4);border-radius:9px;color:#cc88ff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px">ENTER</button>
+    <div id="login-err" style="margin-top:10px;font-size:11px;color:#ff4444;min-height:16px"></div>
+  </div>
+</div>
+<script>
+(function(){
+  const SESS_KEY='wv_auth';
+  function checkAuth(){
+    const stored=sessionStorage.getItem(SESS_KEY);
+    const gate=document.getElementById('login-gate');
+    const layout=document.querySelector('.layout');
+    if(stored==='1'){
+      gate.style.display='none';
+      if(layout)layout.style.display='';
+    } else {
+      gate.style.display='flex';
+      if(layout)layout.style.display='none';
+    }
+  }
+  window.doLogin=async function(){
+    const pw=document.getElementById('login-pw').value;
+    const err=document.getElementById('login-err');
+    if(!pw){err.textContent='Enter password';return;}
+    try{
+      const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+      const d=await r.json();
+      if(d.ok){
+        sessionStorage.setItem(SESS_KEY,'1');
+        document.getElementById('login-gate').style.display='none';
+        const layout=document.querySelector('.layout');
+        if(layout)layout.style.display='';
+        if(typeof initDashboard==='function') initDashboard();
+      } else {
+        err.textContent='Wrong password';
+        document.getElementById('login-pw').value='';
+      }
+    }catch(e){err.textContent='Server error';}
+  };
+  // Hide layout until authed
+  document.addEventListener('DOMContentLoaded',function(){
+    const layout=document.querySelector('.layout');
+    if(layout)layout.style.display='none';
+    checkAuth();
+  });
+})();
+</script>
+
 <div class="layout">
 <!-- SIDEBAR -->
 <nav class="sidebar" style="background:linear-gradient(180deg,#0d0f14,#0a0c12);border-right:1px solid rgba(255,255,255,.06)">
@@ -462,6 +520,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
     <!-- Config -->
     <div class="nav-sec" style="color:rgba(100,120,150,.6);font-size:8px;letter-spacing:2.5px">CONFIG</div>
+    <div class="nav-item" onclick="nav('sysreport')" id="nav-sysreport" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📊</span><span style="color:#00ff88;font-weight:700">System Report</span></div>
     <div class="nav-item" onclick="nav('connections')" id="nav-connections" style="background:linear-gradient(90deg,rgba(0,212,255,.12),transparent);border-left:2px solid #00d4ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔌</span><span style="color:#00d4ff;font-weight:700">Connections</span></div>
     <div class="nav-item" onclick="nav('projects')" id="nav-projects" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🗂</span><span>Projects</span></div>
     <div class="nav-item" onclick="nav('settings')" id="nav-settings" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⚙️</span><span>Settings</span></div>
@@ -1505,6 +1564,48 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 </div>
 
 <!-- ══ CONNECTIONS ═══════════════════════════════════════════════════════════ -->
+<!-- ══ SYSTEM REPORT ═════════════════════════════════════════════════════════ -->
+<div class="page" id="page-sysreport">
+  <div class="sh" style="margin-bottom:6px">
+    <div><div class="st">📊 System Report</div><div class="ss">Live health check — every service, credit, and dollar</div></div>
+    <button class="btn bc2 bsm" onclick="sysReportLoad()">↺ Refresh</button>
+  </div>
+
+  <!-- Summary bar -->
+  <div id="sr-summary" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px"></div>
+
+  <!-- Services + Budget side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+
+    <!-- Services Health -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px">
+        <span>🔧 Services Health</span>
+        <span id="sr-health-badge" style="margin-left:auto;font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(0,255,136,.1);color:#00ff88;border:1px solid rgba(0,255,136,.2)">--/--</span>
+      </div>
+      <div id="sr-services" style="display:flex;flex-direction:column;gap:7px"></div>
+    </div>
+
+    <!-- Budget & Credits -->
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:14px">💰 Budget & Credits</div>
+      <div id="sr-budget" style="display:flex;flex-direction:column;gap:8px"></div>
+
+      <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+        <div style="font-size:10px;color:var(--text3);margin-bottom:10px;letter-spacing:1px;text-transform:uppercase">Revenue</div>
+        <div id="sr-revenue" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- What's needed to make money -->
+  <div style="background:var(--bg2);border:1px solid rgba(255,204,0,.2);border-radius:12px;padding:16px">
+    <div style="font-size:11px;font-weight:700;color:#ffcc00;margin-bottom:12px">⚡ Action Items — Fix These to Make Money</div>
+    <div id="sr-actions" style="display:flex;flex-direction:column;gap:8px"></div>
+  </div>
+</div>
+
 <div class="page" id="page-connections">
   <div class="sh" style="margin-bottom:6px">
     <div><div class="st">🔌 Connections Control Panel</div><div class="ss">Manage credentials, test and activate every service</div></div>
@@ -2634,8 +2735,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <div class="ss">Creator platform status · Subscribers · Revenue · Recruitment</div>
     </div>
     <div style="display:flex;gap:8px">
-      <a href="/frontend/nexora/index.html" target="_blank" class="btn bc2 bsm">🔗 View Site</a>
-      <a href="/frontend/nexora/creator.html" target="_blank" class="btn bgh bsm">📊 Dashboard</a>
+      <a href="/nexora" target="_blank" class="btn bc2 bsm">🔗 View Site</a>
+      <a href="/nexora/creator" target="_blank" class="btn bgh bsm">📊 Creator Login</a>
       <button class="btn bg2 bsm" onclick="nexoraRunRecruit()">⚡ Run Recruitment</button>
     </div>
   </div>
@@ -2645,7 +2746,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="card" style="text-align:center">
       <div class="ct">Platform Status</div>
       <div class="cv gr" id="nexora-status">Live</div>
-      <div class="csb">nexora.wheellsverse.com</div>
+      <div class="csb" id="nexora-domain">railway.app</div>
     </div>
     <div class="card" style="text-align:center">
       <div class="ct">Subscribers</div>
@@ -2680,20 +2781,20 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       </div>
       <div style="display:flex;flex-direction:column;gap:10px">
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(0,255,136,.06);border-radius:8px;border:1px solid rgba(0,255,136,.15)">
-          <div><div style="font-size:11px;font-weight:700">🏠 Landing Page</div><div style="font-size:10px;color:var(--text2)">index.html · Hero, pricing, testimonials</div></div>
-          <a href="/frontend/nexora/index.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+          <div><div style="font-size:11px;font-weight:700">🏠 Landing Page</div><div style="font-size:10px;color:var(--text2)">/nexora · Hero, pricing, testimonials</div></div>
+          <a href="/nexora" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(0,212,255,.06);border-radius:8px;border:1px solid rgba(0,212,255,.15)">
-          <div><div style="font-size:11px;font-weight:700">📊 Creator Dashboard</div><div style="font-size:10px;color:var(--text2)">creator.html · Earnings, uploads, analytics</div></div>
-          <a href="/frontend/nexora/creator.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+          <div><div style="font-size:11px;font-weight:700">📊 Creator Dashboard</div><div style="font-size:10px;color:var(--text2)">/nexora/creator · Login, earnings, uploads</div></div>
+          <a href="/nexora/creator" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(168,85,247,.06);border-radius:8px;border:1px solid rgba(168,85,247,.15)">
-          <div><div style="font-size:11px;font-weight:700">👤 Fan Subscribe Page</div><div style="font-size:10px;color:var(--text2)">subscribe.html · Subscription tiers</div></div>
-          <a href="/frontend/nexora/subscribe.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+          <div><div style="font-size:11px;font-weight:700">👤 Fan Subscribe Page</div><div style="font-size:10px;color:var(--text2)">/nexora/subscribe · Paywall, subscribe</div></div>
+          <a href="/nexora/subscribe" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:rgba(255,77,109,.06);border-radius:8px;border:1px solid rgba(255,77,109,.15)">
-          <div><div style="font-size:11px;font-weight:700">🔴 Live Stream Room</div><div style="font-size:10px;color:var(--text2)">live.html · Stream, tips, live chat</div></div>
-          <a href="/frontend/nexora/live.html" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
+          <div><div style="font-size:11px;font-weight:700">🔴 Live Stream Room</div><div style="font-size:10px;color:var(--text2)">/nexora/live · Stream, tips, live chat</div></div>
+          <a href="/nexora/live" target="_blank" class="btn bgh bsm" style="font-size:9px">Open</a>
         </div>
       </div>
     </div>
@@ -2718,8 +2819,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
           <div style="font-size:16px;font-weight:800;color:var(--gold)">$1,450/mo 🎯 target</div>
         </div>
       </div>
-      <div style="margin-top:14px;padding:10px;background:rgba(168,85,247,.06);border-radius:8px;border:1px solid rgba(168,85,247,.15);font-size:10px;color:var(--text2)">
-        Set <code>NEXORA_STRIPE_URL</code> in .env to activate payments. Currently showing waitlist mode.
+      <div style="margin-top:14px;padding:10px;background:rgba(0,212,255,.06);border-radius:8px;border:1px solid rgba(0,212,255,.15);font-size:10px;color:var(--text2)">
+        ✅ Payments active via Stripe · ConvertKit connected · Backend live on Railway
       </div>
     </div>
   </div>
@@ -2746,10 +2847,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <div class="st" style="font-size:12px">⚙️ Configuration</div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:11px">
-      <div><span style="color:var(--text2)">NEXORA_BETA_URL</span><br><code style="color:var(--cyan)">https://nexora.wheellsverse.com/beta</code></div>
-      <div><span style="color:var(--text2)">NEXORA_WAITLIST_URL</span><br><code style="color:var(--cyan)">https://wheellsverse.ck.page/nexora</code></div>
-      <div><span style="color:var(--text2)">STRIPE_NEXORA_URL</span><br><code style="color:var(--red)">Not set — add to .env</code></div>
-      <div><span style="color:var(--text2)">Founding Price</span><br><code style="color:var(--gold)">$29/month locked forever</code></div>
+      <div><span style="color:var(--text2)">Landing Page</span><br><code style="color:var(--cyan)" id="cfg-nexora-url">/nexora</code></div>
+      <div><span style="color:var(--text2)">Creator Dashboard</span><br><code style="color:var(--cyan)">/nexora/creator</code></div>
+      <div><span style="color:var(--text2)">Fan Subscribe Page</span><br><code style="color:var(--cyan)">/nexora/subscribe?h=yourhandle</code></div>
+      <div><span style="color:var(--text2)">Waitlist URL</span><br><code style="color:var(--gold)">wheellsverse.ck.page/nexora</code></div>
     </div>
   </div>
 </div>
@@ -2812,6 +2913,7 @@ function nav(p){
   if(p==='outputs') refreshOutputs();
   if(p==='settings') refreshSettings();
   if(p==='connections') connLoadAll();
+  if(p==='sysreport') sysReportLoad();
   if(p==='logs'){startSSE();}
   if(p==='decisions') refreshDE();
   if(p==='health') refreshHealth();
@@ -3297,6 +3399,135 @@ async function createProj(){
   const body={slug,name:document.getElementById('np-name').value,brand:document.getElementById('np-brand').value,niche:document.getElementById('np-niche').value,goal:document.getElementById('np-goal').value};
   try{await api('/api/projects','POST',body);toast(`✅ Project '${slug}' created`,'success');document.getElementById('new-proj-form').style.display='none';setTimeout(refreshProjects,500);}
   catch(e){toast('Failed: '+e.message,'error');}
+}
+
+// ── System Report ─────────────────────────────────────────────────────────────
+async function sysReportLoad(){
+  const ACTION_MAP = {
+    'Twitter / X':       {fix:'Add Twitter API keys in 🔌 Connections', impact:'HIGH — main traffic source'},
+    'YouTube':           {fix:'Complete OAuth: click Connections → YouTube', impact:'HIGH — video SEO traffic'},
+    'Reddit':            {fix:'Add Reddit credentials in 🔌 Connections', impact:'MED — community traffic'},
+    'TikTok':            {fix:'Add TikTok credentials in 🔌 Connections', impact:'MED — viral potential'},
+    'WordPress':         {fix:'Add WordPress URL + credentials', impact:'MED — SEO blog'},
+    'ConvertKit (Email)':{fix:'Drive traffic to capture email subscribers', impact:'HIGH — email list = money'},
+    'HeyGen (AI Video)': {fix:'Top up HeyGen credits (3 left)', impact:'MED — video content'},
+  };
+
+  try {
+    const d = await api('/api/system/report');
+
+    // Summary cards
+    const sys = d.system || {};
+    const rev = d.revenue || {};
+    document.getElementById('sr-summary').innerHTML = `
+      <div style="background:var(--bg2);border:1px solid rgba(0,255,136,${sys.health_pct>=70?'.3':'.1'});border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:26px;font-weight:800;color:${sys.health_pct>=70?'#00ff88':sys.health_pct>=40?'#ffcc00':'#ff4444'}">${sys.health_pct||0}%</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px">System Health</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:26px;font-weight:800;color:#00ff88">${sys.services_ok||0}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px">Connected</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid ${(sys.services_failing||0)>0?'rgba(255,68,68,.2)':'var(--border)'};border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:26px;font-weight:800;color:${(sys.services_failing||0)>0?'#ff4444':'#555e77'}">${sys.services_failing||0}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px">Failing</div>
+      </div>
+      <div style="background:var(--bg2);border:1px solid rgba(0,255,136,.15);border-radius:10px;padding:14px;text-align:center">
+        <div style="font-size:26px;font-weight:800;color:#00ff88">$${(rev.month||0).toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px;text-transform:uppercase;letter-spacing:1px">This Month</div>
+      </div>
+    `;
+
+    // Health badge
+    const badge = document.getElementById('sr-health-badge');
+    if(badge) badge.textContent = `${sys.services_ok||0}/${sys.services_total||0} OK`;
+
+    // Services list
+    const svcs = d.services || [];
+    document.getElementById('sr-services').innerHTML = svcs.map(s=>`
+      <div style="display:flex;align-items:center;gap:9px;padding:7px 10px;background:var(--bg3);border-radius:8px;border:1px solid ${s.ok?'rgba(0,255,136,.1)':'rgba(255,68,68,.15)'}">
+        <span style="font-size:14px">${s.icon}</span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:600;color:var(--text)">${s.name}</div>
+          <div style="font-size:9px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${s.note||''}</div>
+        </div>
+        ${s.credits!==undefined?`<span style="font-size:9px;color:#ffcc00;background:rgba(255,204,0,.1);border:1px solid rgba(255,204,0,.2);border-radius:10px;padding:1px 6px">${s.credits} cr</span>`:''}
+        ${s.subscribers!==undefined?`<span style="font-size:9px;color:#00d4ff;background:rgba(0,212,255,.1);border:1px solid rgba(0,212,255,.2);border-radius:10px;padding:1px 6px">${s.subscribers} subs</span>`:''}
+        <span style="width:8px;height:8px;border-radius:50%;background:${s.ok?'#00ff88':'#ff4444'};box-shadow:0 0 ${s.ok?'5px #00ff88':'4px #ff4444'};flex-shrink:0"></span>
+      </div>
+    `).join('');
+
+    // Budget
+    const budget = d.budget || {};
+    const costs = budget.monthly_costs || [];
+    document.getElementById('sr-budget').innerHTML = costs.map(c=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--bg3);border-radius:7px">
+        <div style="flex:1">
+          <div style="font-size:11px;color:var(--text);font-weight:500">${c.name}</div>
+          ${c.note?`<div style="font-size:9px;color:var(--text3)">${c.note}</div>`:''}
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;font-weight:700;color:${typeof c.cost==='number'?'#ff8844':'#ffcc00'}">${typeof c.cost==='number'?'$'+c.cost.toFixed(2)+'/mo':c.cost}</div>
+          <div style="font-size:8px;color:var(--text3)">${c.cycle}</div>
+        </div>
+      </div>
+    `).join('') + `
+      <div style="padding:8px 10px;background:rgba(255,136,68,.06);border:1px solid rgba(255,136,68,.2);border-radius:7px;margin-top:4px">
+        <div style="font-size:10px;color:#ff8844;font-weight:700">Min monthly cost: ~$5–15/mo</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">Railway $5 + AI API usage (~$5-10) + credits</div>
+      </div>
+    `;
+
+    // Revenue
+    document.getElementById('sr-revenue').innerHTML = `
+      <div style="background:var(--bg3);border-radius:7px;padding:10px;text-align:center">
+        <div style="font-size:16px;font-weight:800;color:#00ff88">$${(rev.today||0).toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">Today</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:7px;padding:10px;text-align:center">
+        <div style="font-size:16px;font-weight:800;color:#00ff88">$${(rev.week||0).toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">This Week</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:7px;padding:10px;text-align:center">
+        <div style="font-size:16px;font-weight:800;color:#00ff88">$${(rev.month||0).toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">This Month</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:7px;padding:10px;text-align:center">
+        <div style="font-size:16px;font-weight:800;color:#00ff88">$${(rev.all_time||0).toFixed(2)}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:2px">All Time</div>
+      </div>
+    `;
+
+    // Action items — failing services with known impact
+    const failing = svcs.filter(s=>!s.ok);
+    const actions = failing.map(s=>{
+      const a = ACTION_MAP[s.name];
+      if(!a) return null;
+      return {name:s.name, icon:s.icon, ...a};
+    }).filter(Boolean);
+
+    // Add revenue action if $0
+    if(!rev.month) {
+      actions.push({name:'No revenue yet', icon:'💸', fix:'Create a Stripe product + payment link and share it', impact:'CRITICAL — nothing is being sold'});
+    }
+    if((budget.heygen_credits||3)<=3) {
+      actions.push({name:'HeyGen credits low', icon:'🎬', fix:'Top up HeyGen credits at app.heygen.com', impact:'LOW — AI videos will stop'});
+    }
+
+    document.getElementById('sr-actions').innerHTML = actions.length ? actions.map(a=>`
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:var(--bg3);border-radius:8px;border-left:3px solid ${a.impact.startsWith('CRITICAL')?'#ff4444':a.impact.startsWith('HIGH')?'#ffcc00':'#ff8844'}">
+        <span style="font-size:16px;flex-shrink:0">${a.icon}</span>
+        <div style="flex:1">
+          <div style="font-size:11px;font-weight:600;color:var(--text)">${a.name}</div>
+          <div style="font-size:10px;color:var(--text2);margin-top:2px">${a.fix}</div>
+        </div>
+        <span style="font-size:9px;padding:2px 7px;border-radius:10px;font-weight:700;flex-shrink:0;background:${a.impact.startsWith('CRITICAL')?'rgba(255,68,68,.15)':a.impact.startsWith('HIGH')?'rgba(255,204,0,.1)':'rgba(255,136,68,.1)'};color:${a.impact.startsWith('CRITICAL')?'#ff6666':a.impact.startsWith('HIGH')?'#ffcc00':'#ff8844'};border:1px solid ${a.impact.startsWith('CRITICAL')?'rgba(255,68,68,.3)':a.impact.startsWith('HIGH')?'rgba(255,204,0,.2)':'rgba(255,136,68,.2)'}">${a.impact}</span>
+      </div>
+    `).join('') : `<div style="color:#00ff88;font-size:12px;padding:10px">✅ All critical services connected — system ready to earn!</div>`;
+
+  } catch(e) {
+    document.getElementById('sr-summary').innerHTML = `<div style="color:#ff4444;grid-column:1/-1">Failed to load: ${e.message}</div>`;
+  }
 }
 
 // ── Connections Control Panel ─────────────────────────────────────────────────
@@ -5502,18 +5733,34 @@ function _startKdpPoll(){
 // ──────────────────────────────────────────────────────────────────────────────
 
 function refreshNexora(){
-  // Load latest recruitment outputs
   nexoraLoadOutputs();
 }
 
 async function nexoraLoadOutputs(){
   try {
+    // Platform status (recruitment posts, pages built)
     const d = await fetch('/api/nexora/status').then(r=>r.json()).catch(()=>null);
-    if(!d) return;
-    if(d.posts_today !== undefined)
-      document.getElementById('nexora-posts').textContent = d.posts_today;
-    if(d.recruit_content)
-      document.getElementById('nexora-recruit-output').textContent = d.recruit_content;
+    if(d){
+      if(d.posts_today !== undefined)
+        document.getElementById('nexora-posts').textContent = d.posts_today;
+      if(d.recruit_content)
+        document.getElementById('nexora-recruit-output').textContent = d.recruit_content;
+      if(d.status) document.getElementById('nexora-status').textContent = d.status==='live'?'Live':'Building';
+    }
+  } catch(e){}
+
+  // Real subscriber + earnings from NEXORA backend DB
+  try {
+    // Use a guest/public stats endpoint — creator stats require auth
+    // Pull from public creator endpoint if handle known
+    const HANDLE = 'jhonwheeler';
+    const c = await fetch('/api/nx/creator/' + HANDLE).then(r=>r.json()).catch(()=>null);
+    if(c && c.subscribers !== undefined){
+      document.getElementById('nexora-subs').textContent = c.subscribers;
+    }
+    // Set domain label dynamically
+    const domEl = document.getElementById('nexora-domain');
+    if(domEl) domEl.textContent = window.location.hostname || 'railway.app';
   } catch(e){}
 }
 
