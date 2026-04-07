@@ -526,23 +526,28 @@ async function doLogin(e) {
   const btn = document.getElementById('login-btn');
   btn.textContent = 'Signing in…';
   btn.disabled = true;
+  const email = document.getElementById('l-email').value.trim();
+  console.log('[NEXORA] login attempt →', email, 'API:', API);
   try {
     const r = await fetch(API + '/api/nx/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email: document.getElementById('l-email').value.trim(),
-        password: document.getElementById('l-pass').value
-      })
+      body: JSON.stringify({ email, password: document.getElementById('l-pass').value })
     });
-    const d = await r.json();
-    if (!r.ok) { showAuthError(d.detail || 'Login failed'); return; }
+    let d;
+    try { d = await r.json(); } catch(_) { d = {}; }
+    console.log('[NEXORA] login response →', r.status, d);
+    if (!r.ok) {
+      showAuthError((d.detail || d.error || 'Login failed') + ' (HTTP ' + r.status + ')');
+      return;
+    }
     TOKEN   = d.token;
     CREATOR = d.creator;
     localStorage.setItem('nx_token', TOKEN);
     hiddenAuthAndBoot();
   } catch(err) {
-    showAuthError('Could not reach server. Try again.');
+    console.error('[NEXORA] login fetch error →', err);
+    showAuthError('Could not reach server (' + err.message + '). Check your connection.');
   } finally {
     btn.textContent = 'Sign In →';
     btn.disabled = false;
