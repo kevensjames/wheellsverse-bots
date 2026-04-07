@@ -13,26 +13,24 @@
   to     = "/landing_page.html"
   status = 200
 
-# NEXORA platform pages
+# NEXORA platform — proxy all traffic to Railway backend
+[[redirects]]
+  from   = "/nexora/*"
+  to     = "https://grateful-flexibility-production.up.railway.app/nexora/:splat"
+  status = 301
+  force  = true
+
 [[redirects]]
   from   = "/nexora"
-  to     = "/nexora/index.html"
-  status = 200
+  to     = "https://grateful-flexibility-production.up.railway.app/nexora"
+  status = 301
+  force  = true
 
 [[redirects]]
-  from   = "/nexora/join"
-  to     = "/nexora/subscribe.html"
+  from   = "/api/nx/*"
+  to     = "https://grateful-flexibility-production.up.railway.app/api/nx/:splat"
   status = 200
-
-[[redirects]]
-  from   = "/nexora/dashboard"
-  to     = "/nexora/creator.html"
-  status = 200
-
-[[redirects]]
-  from   = "/nexora/live"
-  to     = "/nexora/live.html"
-  status = 200
+  force  = true
 
 # TikTok domain verification — serve files under nested paths
 [[redirects]]
