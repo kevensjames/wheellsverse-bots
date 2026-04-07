@@ -2812,45 +2812,45 @@ async def convertkit_subscribers():
 
 # ─── WordPress ────────────────────────────────────────────────────────────────
 
+def _wpcom_site_id():
+    """Return the site identifier for WordPress.com API calls."""
+    url = os.getenv("WORDPRESS_URL","").rstrip("/")
+    # strip https:// and trailing slash to get bare domain
+    return url.replace("https://","").replace("http://","").rstrip("/")
+
+def _wpcom_token():
+    return os.getenv("WORDPRESS_TOKEN","") or os.getenv("WORDPRESS_PASSWORD","")
+
 @app.get("/api/wordpress/status")
 async def wordpress_status():
-    wp_url  = os.getenv("WORDPRESS_URL","").rstrip("/")
-    wp_user = os.getenv("WORDPRESS_USERNAME","") or os.getenv("WORDPRESS_USER","")
-    wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
-    if not (wp_url and wp_user and wp_pass):
-        return {"connected": False, "reason": "Missing WORDPRESS_URL, WORDPRESS_USERNAME, or WORDPRESS_PASSWORD"}
-    is_wpcom = "wordpress.com" in wp_url
+    wp_url   = os.getenv("WORDPRESS_URL","").rstrip("/")
+    wp_token = _wpcom_token()
+    site_id  = _wpcom_site_id()
+    if not (wp_url and site_id):
+        return {"connected": False, "reason": "Missing WORDPRESS_URL"}
     try:
         import requests as _req
-        # Try standard WP REST API first
+        # Use WordPress.com public API (works on all plans)
+        headers = {}
+        if wp_token:
+            headers["Authorization"] = f"Bearer {wp_token}"
         r = _req.get(
-            f"{wp_url}/wp-json/wp/v2/posts",
-            auth=(wp_user, wp_pass.replace(" ","")),
-            params={"per_page": 5, "status": "any"},
+            f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts",
+            headers=headers,
+            params={"number": 5, "fields": "ID,title,status,URL,date"},
             timeout=10,
         )
         if r.status_code == 200:
-            posts = r.json()
-            return {"connected": True, "url": wp_url, "platform": "wordpress.com" if is_wpcom else "self-hosted",
-                    "recent_posts": len(posts),
-                    "posts": [{"id":p["id"],"title":p["title"]["rendered"],"status":p["status"],"link":p["link"]} for p in posts[:5]]}
-        if r.status_code in (401, 403):
-            hint = (
-                "Application Password required. Go to: "
-                f"{wp_url}/wp-admin/profile.php → scroll to 'Application Passwords' → "
-                "type 'WheellsVerse' → click Add New → copy the password → "
-                "save it as WORDPRESS_PASSWORD in Railway."
-            ) if is_wpcom else "Check WORDPRESS_USERNAME and WORDPRESS_PASSWORD (use Application Password, not login password)"
-            return {"connected": False, "status_code": r.status_code, "hint": hint}
-        if r.status_code == 404:
-            # WordPress.com may use different slug — try wp-json root
-            r2 = _req.get(f"{wp_url}/wp-json/", timeout=8)
-            if r2.status_code == 200:
-                return {"connected": False, "status_code": 404,
-                        "hint": "REST API found but /posts endpoint returned 404. Use Application Password (not login password). "
-                                f"Create one at {wp_url}/wp-admin/profile.php"}
-            return {"connected": False, "status_code": r.status_code,
-                    "hint": f"Could not reach WordPress REST API at {wp_url}/wp-json/. Make sure the URL is correct."}
+            data = r.json()
+            posts = data.get("posts", [])
+            return {
+                "connected": True,
+                "url": wp_url,
+                "platform": "wordpress.com",
+                "site": site_id,
+                "total_posts": data.get("found", 0),
+                "posts": [{"id": p["ID"], "title": p["title"], "status": p["status"], "link": p["URL"]} for p in posts],
+            }
         return {"connected": False, "status_code": r.status_code, "error": r.text[:200]}
     except Exception as e:
         return {"connected": False, "error": str(e)}
@@ -2865,41 +2865,46 @@ class WPPostRequest(BaseModel):
 
 @app.post("/api/wordpress/post")
 async def wordpress_post(req: WPPostRequest):
-    wp_url  = os.getenv("WORDPRESS_URL","").rstrip("/")
-    wp_user = os.getenv("WORDPRESS_USERNAME","") or os.getenv("WORDPRESS_USER","")
-    wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
-    if not (wp_url and wp_user and wp_pass):
-        raise HTTPException(400, "WordPress not configured — set WORDPRESS_URL, WORDPRESS_USERNAME, WORDPRESS_PASSWORD")
+    site_id  = _wpcom_site_id()
+    wp_token = _wpcom_token()
+    if not site_id:
+        raise HTTPException(400, "WordPress not configured — set WORDPRESS_URL")
+    if not wp_token:
+        raise HTTPException(400, "WordPress token required — set WORDPRESS_TOKEN in Railway")
     try:
         import requests as _req
         r = _req.post(
-            f"{wp_url}/wp-json/wp/v2/posts",
-            auth=(wp_user, wp_pass.replace(" ","")),
-            json={"title": req.title, "content": req.content, "status": req.status},
+            f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts/new",
+            headers={"Authorization": f"Bearer {wp_token}"},
+            json={"title": req.title, "content": req.content, "status": req.status,
+                  "tags": ",".join(req.tags) if req.tags else ""},
             timeout=15,
         )
         r.raise_for_status()
         data = r.json()
-        _add_log(f"WordPress post published: {data.get('link','')}", "INFO")
-        return {"status": "published", "url": data.get("link",""), "id": data.get("id")}
+        _add_log(f"WordPress post published: {data.get('URL','')}", "INFO")
+        return {"status": "published", "url": data.get("URL",""), "id": data.get("ID")}
     except Exception as e:
         raise HTTPException(400, str(e))
 
 
 @app.get("/api/wordpress/posts")
 async def wordpress_posts(limit: int = 20):
-    wp_url  = os.getenv("WORDPRESS_URL","").rstrip("/")
-    wp_user = os.getenv("WORDPRESS_USERNAME","") or os.getenv("WORDPRESS_USER","")
-    wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
-    if not (wp_url and wp_user and wp_pass):
+    site_id = _wpcom_site_id()
+    if not site_id:
         return {"posts": [], "error": "WordPress not configured"}
     try:
         import requests as _req
-        r = _req.get(f"{wp_url}/wp-json/wp/v2/posts",
-                     auth=(wp_user, wp_pass.replace(" ","")),
-                     params={"per_page": limit, "status": "any"}, timeout=10)
-        posts = r.json() if r.status_code == 200 else []
-        return {"posts": [{"id":p["id"],"title":p["title"]["rendered"],"status":p["status"],"link":p["link"],"date":p["date"]} for p in posts]}
+        token = _wpcom_token()
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        r = _req.get(
+            f"https://public-api.wordpress.com/rest/v1.1/sites/{site_id}/posts",
+            headers=headers,
+            params={"number": limit, "fields": "ID,title,status,URL,date"},
+            timeout=10,
+        )
+        posts = r.json().get("posts", []) if r.status_code == 200 else []
+        return {"posts": [{"id": p["ID"], "title": p["title"], "status": p["status"], "link": p["URL"], "date": p["date"]} for p in posts]}
     except Exception as e:
         return {"posts": [], "error": str(e)}
 
