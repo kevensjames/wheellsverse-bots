@@ -4,7 +4,7 @@
 # ============================================================
 
 # Core AI
-openai>=1.30.0
+openai>=1.30.0,<2.0.0
 
 # Environment management
 python-dotenv>=1.0.0
@@ -55,8 +55,8 @@ feedparser>=6.0.11
 plyer>=2.1.0
 
 # Web server (dashboard) — FastAPI stack
-fastapi>=0.111.0
-uvicorn[standard]>=0.29.0
+fastapi>=0.111.0,<1.0.0
+uvicorn[standard]>=0.29.0,<1.0.0
 flask>=3.0.0
 flask-cors>=4.0.0
 
@@ -93,7 +93,7 @@ google-auth-httplib2>=0.2.0
 # ── New integrations (v2.1 — 8 new bot categories) ──────────────────────────
 
 # Claude / Anthropic API
-anthropic>=0.39.0
+anthropic>=0.39.0,<1.0.0
 
 # Twilio (Receptionist bots — voice + SMS)
 twilio>=9.0.0
@@ -106,4 +106,4 @@ pyhunter>=1.7.0
 
 # WebSocket support (Live Chat bot)
 websockets>=12.0
-# deploy-1775900000
+# deploy-1776000000
