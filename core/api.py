@@ -84,6 +84,7 @@ _API_KEY = os.getenv("API_KEY", "").strip()
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
                  "/api/stripe/webhook",
+                 "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
                  # NEXORA platform — auth + public creator endpoints are their own auth
                  "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook"}
