@@ -2819,8 +2819,10 @@ async def wordpress_status():
     wp_pass = os.getenv("WORDPRESS_PASSWORD","") or os.getenv("WORDPRESS_APP_PASS","")
     if not (wp_url and wp_user and wp_pass):
         return {"connected": False, "reason": "Missing WORDPRESS_URL, WORDPRESS_USERNAME, or WORDPRESS_PASSWORD"}
+    is_wpcom = "wordpress.com" in wp_url
     try:
         import requests as _req
+        # Try standard WP REST API first
         r = _req.get(
             f"{wp_url}/wp-json/wp/v2/posts",
             auth=(wp_user, wp_pass.replace(" ","")),
@@ -2829,8 +2831,26 @@ async def wordpress_status():
         )
         if r.status_code == 200:
             posts = r.json()
-            return {"connected": True, "url": wp_url, "recent_posts": len(posts),
+            return {"connected": True, "url": wp_url, "platform": "wordpress.com" if is_wpcom else "self-hosted",
+                    "recent_posts": len(posts),
                     "posts": [{"id":p["id"],"title":p["title"]["rendered"],"status":p["status"],"link":p["link"]} for p in posts[:5]]}
+        if r.status_code in (401, 403):
+            hint = (
+                "Application Password required. Go to: "
+                f"{wp_url}/wp-admin/profile.php → scroll to 'Application Passwords' → "
+                "type 'WheellsVerse' → click Add New → copy the password → "
+                "save it as WORDPRESS_PASSWORD in Railway."
+            ) if is_wpcom else "Check WORDPRESS_USERNAME and WORDPRESS_PASSWORD (use Application Password, not login password)"
+            return {"connected": False, "status_code": r.status_code, "hint": hint}
+        if r.status_code == 404:
+            # WordPress.com may use different slug — try wp-json root
+            r2 = _req.get(f"{wp_url}/wp-json/", timeout=8)
+            if r2.status_code == 200:
+                return {"connected": False, "status_code": 404,
+                        "hint": "REST API found but /posts endpoint returned 404. Use Application Password (not login password). "
+                                f"Create one at {wp_url}/wp-admin/profile.php"}
+            return {"connected": False, "status_code": r.status_code,
+                    "hint": f"Could not reach WordPress REST API at {wp_url}/wp-json/. Make sure the URL is correct."}
         return {"connected": False, "status_code": r.status_code, "error": r.text[:200]}
     except Exception as e:
         return {"connected": False, "error": str(e)}
