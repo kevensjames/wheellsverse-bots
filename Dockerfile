@@ -22,8 +22,8 @@ COPY . .
 RUN mkdir -p outputs/content outputs/reports outputs/published \
     data memory logs projects /var/data
 
-# /var/data is mounted as a Railway persistent volume — DB files survive redeploys
-VOLUME ["/var/data"]
+# Note: /var/data is mounted as a Railway persistent volume (configured in railway.json)
+# Do NOT use VOLUME keyword — Railway bans it
 
 # Expose default port (Railway/Render overrides with $PORT env var)
 EXPOSE 8080
