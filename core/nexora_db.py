@@ -14,8 +14,15 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-ROOT    = Path(__file__).parent.parent
-DB_PATH = ROOT / "data" / "nexora.db"
+ROOT = Path(__file__).parent.parent
+
+# Use /var/data/nexora.db when running on Railway (mounted persistent volume).
+# Fall back to local data/ directory for development.
+_RAILWAY_VOL = Path("/var/data")
+if _RAILWAY_VOL.exists() or os.environ.get("RAILWAY_ENVIRONMENT"):
+    DB_PATH = _RAILWAY_VOL / "nexora.db"
+else:
+    DB_PATH = ROOT / "data" / "nexora.db"
 
 # ── Connection ─────────────────────────────────────────────────────────────────
 

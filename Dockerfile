@@ -18,7 +18,10 @@ COPY . .
 
 # Create required directories
 RUN mkdir -p outputs/content outputs/reports outputs/published \
-    data memory logs projects
+    data memory logs projects /var/data
+
+# /var/data is mounted as a Railway persistent volume — DB files survive redeploys
+VOLUME ["/var/data"]
 
 # Expose default port (Railway/Render overrides with $PORT env var)
 EXPOSE 8080

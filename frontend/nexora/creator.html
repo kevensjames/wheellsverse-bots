@@ -155,7 +155,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 <div id="auth-overlay">
   <div class="auth-box">
     <div class="auth-logo">NEX<span>ORA</span></div>
-    <div class="auth-sub">Creator Dashboard</div>
+    <div class="auth-sub">Creator Dashboard · <a href="#" onclick="switchTab('register')" style="color:var(--cyan);text-decoration:none">New? Create account →</a></div>
     <div class="auth-tabs">
       <button type="button" class="auth-tab active" onclick="switchTab('login')">Sign In</button>
       <button type="button" class="auth-tab" onclick="switchTab('register')">Create Account</button>
@@ -657,8 +657,11 @@ async function hiddenAuthAndBoot() {
     await loadMe();
     hiddenAuthAndBoot();
   } catch(e) {
+    // Token invalid (server restarted / DB reset) — clear and show login
     TOKEN = '';
     localStorage.removeItem('nx_token');
+    // Show a helpful message
+    showAuthError('Session expired — please sign in again.');
   }
 })();
 
