@@ -8801,81 +8801,165 @@ async def gumroad_toggle_product(product_id: str, req: dict):
 # ─── PAYHIP ──────────────────────────────────────────────────────────────────
 # ══════════════════════════════════════════════════════════════════════════════
 
-_PAYHIP_BASE = "https://payhip.com/api/v1"
+_PAYHIP_BASE         = "https://payhip.com/api/v1"
+_PAYHIP_WEBHOOK_FILE = Path(os.getenv("RAILWAY_VOLUME_PATH", str(ROOT / "data"))) / "payhip_sales.json"
+_PUBLIC_PATHS.add("/api/payhip/webhook")
 
 def _payhip_token() -> str:
     return os.getenv("PAYHIP_API_KEY", "")
 
 def _payhip_headers() -> dict:
-    return {
-        "Authorization": f"Bearer {_payhip_token()}",
-        "Content-Type":  "application/json",
-    }
+    return {"Authorization": f"Bearer {_payhip_token()}", "Content-Type": "application/json"}
+
+def _payhip_load_sales() -> list:
+    try:
+        if _PAYHIP_WEBHOOK_FILE.exists():
+            return json.loads(_PAYHIP_WEBHOOK_FILE.read_text())
+    except Exception:
+        pass
+    return []
+
+def _payhip_save_sales(sales: list):
+    try:
+        _PAYHIP_WEBHOOK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PAYHIP_WEBHOOK_FILE.write_text(json.dumps(sales, indent=2))
+    except Exception:
+        pass
+
+
+@app.post("/api/payhip/webhook")
+async def payhip_webhook(request: Request):
+    """
+    Payhip webhook receiver — no API plan needed.
+    Payhip POSTs here on every sale. We store it locally and notify via Telegram.
+    Register this URL in Payhip: Settings → Webhooks → Add webhook URL
+    URL: https://grateful-flexibility-production.up.railway.app/api/payhip/webhook
+    """
+    try:
+        body = await request.body()
+        # Payhip sends form-encoded or JSON depending on version
+        try:
+            data = json.loads(body)
+        except Exception:
+            from urllib.parse import parse_qs
+            parsed = parse_qs(body.decode("utf-8", errors="replace"))
+            data = {k: v[0] if len(v) == 1 else v for k, v in parsed.items()}
+
+        # Normalise key fields
+        sale = {
+            "id":           data.get("purchase_key") or data.get("id") or "",
+            "product_name": data.get("product_title") or data.get("product_name") or data.get("title") or "Unknown Product",
+            "amount":       float(data.get("price") or data.get("amount") or 0),
+            "currency":     (data.get("currency") or "USD").upper(),
+            "email":        data.get("buyer_email") or data.get("email") or "",
+            "country":      data.get("buyer_country") or data.get("country") or "",
+            "created_at":   data.get("purchase_date") or data.get("created_at") or datetime.now().isoformat(),
+            "raw":          data,
+        }
+
+        sales = _payhip_load_sales()
+        # Deduplicate by id
+        if sale["id"] and any(s.get("id") == sale["id"] for s in sales):
+            return {"status": "duplicate"}
+        sales.insert(0, sale)
+        sales = sales[:500]  # keep last 500 sales
+        _payhip_save_sales(sales)
+
+        _add_log(f"💳 Payhip sale: {sale['product_name']} — ${sale['amount']} from {sale['email']}", "INFO")
+
+        # Telegram notification
+        try:
+            from core.telegram import notify
+            notify(
+                f"💳 New Payhip Sale!\n"
+                f"Product: {sale['product_name']}\n"
+                f"Amount: ${sale['amount']} {sale['currency']}\n"
+                f"Buyer: {sale['email']} ({sale['country']})"
+            )
+        except Exception:
+            pass
+
+        return {"status": "ok"}
+    except Exception as e:
+        _add_log(f"Payhip webhook error: {e}", "ERROR")
+        return {"status": "error", "detail": str(e)}
 
 
 @app.get("/api/payhip/status")
 async def payhip_status():
-    """Validate Payhip API key, return products + sales summary."""
+    """
+    Return Payhip status. Uses webhook-stored sales when API plan isn't active.
+    Falls back gracefully — webhook data is always available.
+    """
     tok = _payhip_token()
-    if not tok:
-        return {"connected": False, "error": "PAYHIP_API_KEY not set in .env"}
-    try:
-        import requests as _rc
+    webhook_sales = _payhip_load_sales()
+    total_revenue  = sum(float(s.get("amount", 0)) for s in webhook_sales)
+    railway_url    = os.getenv("RAILWAY_PUBLIC_URL", "http://127.0.0.1:5050").rstrip("/")
+    webhook_url    = railway_url + "/api/payhip/webhook"
 
-        # Products list
-        pr = _rc.get(f"{_PAYHIP_BASE}/product", headers=_payhip_headers(), timeout=10)
-        if pr.status_code == 401:
-            return {"connected": False, "error": "Invalid Payhip API key"}
-        if pr.status_code == 403:
-            return {"connected": False, "error": "Payhip API access denied — check key permissions"}
-        if pr.status_code != 200:
-            return {"connected": False, "error": f"Payhip error {pr.status_code}: {pr.text[:100]}"}
-
-        products_data = pr.json()
-        products = products_data.get("data", products_data if isinstance(products_data, list) else [])
-
-        # Purchases list
-        purr = _rc.get(f"{_PAYHIP_BASE}/purchase", headers=_payhip_headers(), timeout=10)
-        purchases = []
-        if purr.status_code == 200:
-            pdata = purr.json()
-            purchases = pdata.get("data", pdata if isinstance(pdata, list) else [])
-
-        total_revenue = sum(float(p.get("amount", 0)) for p in purchases)
-
-        return {
-            "connected":      True,
-            "products_count": len(products),
-            "sales_count":    len(purchases),
-            "total_revenue":  round(total_revenue, 2),
-            "products": [
-                {
-                    "id":          p.get("link", p.get("id", "")),
-                    "name":        p.get("title",   p.get("name", "Untitled")),
-                    "price":       p.get("price",   0),
-                    "currency":    p.get("currency","usd"),
-                    "sales_count": p.get("total_sales", 0),
-                    "published":   p.get("active",  True),
-                    "url":         f"https://payhip.com/b/{p.get('link','')}",
-                    "description": (p.get("description", "") or "")[:120],
-                    "cover_url":   (p.get("cover_image", "") or ""),
+    # Try the REST API — works on Plus plan
+    if tok:
+        try:
+            import requests as _rc
+            pr = _rc.get(f"{_PAYHIP_BASE}/product", headers=_payhip_headers(), timeout=8)
+            if pr.status_code == 200:
+                products_data = pr.json()
+                products = products_data.get("data", products_data if isinstance(products_data, list) else [])
+                purr = _rc.get(f"{_PAYHIP_BASE}/purchase", headers=_payhip_headers(), timeout=8)
+                purchases = []
+                if purr.status_code == 200:
+                    pdata = purr.json()
+                    purchases = pdata.get("data", pdata if isinstance(pdata, list) else [])
+                    total_revenue = sum(float(p.get("amount", 0)) for p in purchases)
+                return {
+                    "connected":        True,
+                    "api_active":       True,
+                    "products_count":   len(products),
+                    "sales_count":      len(purchases),
+                    "total_revenue":    round(total_revenue, 2),
+                    "webhook_url":      webhook_url,
+                    "products":         [
+                        {
+                            "id":          p.get("link", p.get("id", "")),
+                            "name":        p.get("title", p.get("name", "Untitled")),
+                            "price":       p.get("price", 0),
+                            "currency":    p.get("currency", "usd"),
+                            "sales_count": p.get("total_sales", 0),
+                            "published":   p.get("active", True),
+                            "url":         f"https://payhip.com/b/{p.get('link','')}",
+                            "description": (p.get("description", "") or "")[:120],
+                            "cover_url":   (p.get("cover_image", "") or ""),
+                        }
+                        for p in products
+                    ],
+                    "recent_purchases": [
+                        {
+                            "id":           p.get("purchase_key", p.get("id", "")),
+                            "product_name": p.get("product_title", p.get("product_name", "")),
+                            "amount":       float(p.get("amount", 0)),
+                            "email":        p.get("email", ""),
+                            "created_at":   p.get("created_at", ""),
+                            "country":      p.get("country", ""),
+                        }
+                        for p in purchases[:20]
+                    ],
                 }
-                for p in products
-            ],
-            "recent_purchases": [
-                {
-                    "id":           p.get("purchase_key", p.get("id", "")),
-                    "product_name": p.get("product_title", p.get("product_name", "")),
-                    "amount":       float(p.get("amount", 0)),
-                    "email":        p.get("email", ""),
-                    "created_at":   p.get("created_at", ""),
-                    "country":      p.get("country", ""),
-                }
-                for p in purchases[:20]
-            ],
-        }
-    except Exception as e:
-        return {"connected": False, "error": str(e)}
+        except Exception:
+            pass
+
+    # Webhook-only mode (free plan)
+    return {
+        "connected":        True,
+        "api_active":       False,
+        "webhook_mode":     True,
+        "webhook_url":      webhook_url,
+        "products_count":   0,
+        "sales_count":      len(webhook_sales),
+        "total_revenue":    round(total_revenue, 2),
+        "products":         [],
+        "recent_purchases": webhook_sales[:20],
+        "note":             "Payhip API requires Plus plan. Sales tracked via webhook — register the URL in Payhip settings.",
+    }
 
 
 @app.post("/api/payhip/product")

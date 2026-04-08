@@ -3287,6 +3287,15 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div style="font-size:12px;font-weight:600;color:#00c896;margin-bottom:4px">⚠ Payhip not connected</div>
     <div style="font-size:11px;color:var(--text2)">Add <code style="color:#00c896">PAYHIP_API_KEY=your_key</code> to your <code>.env</code> file. Get it at <strong>Payhip → Settings → API</strong>.</div>
   </div>
+  <div id="ph-webhook-banner" style="display:none;background:rgba(255,200,0,.07);border:1px solid rgba(255,200,0,.25);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:#ffd700;margin-bottom:6px">📡 Webhook Mode — Sales tracked automatically</div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Payhip API requires the Plus plan. Your sales are still tracked via webhook — register this URL in Payhip:</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <code id="ph-webhook-url" style="font-size:10px;color:#ffd700;background:rgba(255,200,0,.1);padding:6px 10px;border-radius:6px;flex:1;word-break:break-all"></code>
+      <button class="btn bsm" style="background:rgba(255,200,0,.15);color:#ffd700;border:1px solid rgba(255,200,0,.3);white-space:nowrap" onclick="navigator.clipboard.writeText(document.getElementById('ph-webhook-url').textContent);toast('Copied!','success')">📋 Copy</button>
+    </div>
+    <div style="font-size:10px;color:var(--text3);margin-top:8px">📌 In Payhip: <strong>Account → Settings → Webhooks → Add Webhook</strong> → paste the URL above → Save</div>
+  </div>
 
   <!-- Stats row -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
@@ -10082,12 +10091,21 @@ async function payhipLoad() {
       return;
     }
     document.getElementById('ph-no-token').style.display   = 'none';
-    document.getElementById('ph-stat-conn').textContent     = '✅';
-    document.getElementById('ph-stat-conn-lbl').textContent = 'connected';
-    document.getElementById('ph-stat-products').textContent = r.products_count;
+    document.getElementById('ph-stat-conn').textContent     = r.api_active ? '✅' : '📡';
+    document.getElementById('ph-stat-conn-lbl').textContent = r.api_active ? 'API connected' : 'webhook mode';
+    document.getElementById('ph-stat-products').textContent = r.products_count || '—';
     document.getElementById('ph-stat-sales').textContent    = r.sales_count;
-    document.getElementById('ph-stat-revenue').textContent  = '$' + r.total_revenue.toFixed(2);
-    document.getElementById('ph-user-label').textContent    = 'Payhip store · 95% royalty';
+    document.getElementById('ph-stat-revenue').textContent  = '$' + (r.total_revenue||0).toFixed(2);
+    document.getElementById('ph-user-label').textContent    = r.api_active ? 'Payhip store · 95% royalty' : 'Payhip · webhook mode · 95% royalty';
+
+    // Webhook banner
+    const wb = document.getElementById('ph-webhook-banner');
+    if (r.webhook_mode) {
+      wb.style.display = 'block';
+      document.getElementById('ph-webhook-url').textContent = r.webhook_url || '';
+    } else {
+      wb.style.display = 'none';
+    }
 
     // Products
     if (!r.products || !r.products.length) {
