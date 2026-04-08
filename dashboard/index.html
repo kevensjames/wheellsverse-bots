@@ -496,6 +496,9 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('revenue2')" id="nav-revenue2" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📊</span><span>Revenue V2</span></div>
     <div class="nav-item" onclick="nav('adsboard')" id="nav-adsboard" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📢</span><span>Ads Board</span></div>
     <div class="nav-item" onclick="nav('kdpbooks')" id="nav-kdpbooks" style="background:linear-gradient(90deg,rgba(255,136,0,.12),transparent);border-left:2px solid #ff8800;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📚</span><span style="color:#ff9933;font-weight:700">Amazon KDP</span></div>
+    <div class="nav-item" onclick="nav('etsy')" id="nav-etsy" style="background:linear-gradient(90deg,rgba(245,90,45,.12),transparent);border-left:2px solid #f55a2d;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛍️</span><span style="color:#f98a6c;font-weight:700">Etsy</span></div>
+    <div class="nav-item" onclick="nav('gumroad')" id="nav-gumroad" style="background:linear-gradient(90deg,rgba(255,144,0,.12),transparent);border-left:2px solid #ff9000;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛒</span><span style="color:#ffb347;font-weight:700">Gumroad</span></div>
+    <div class="nav-item" onclick="nav('payhip')" id="nav-payhip" style="background:linear-gradient(90deg,rgba(0,200,150,.12),transparent);border-left:2px solid #00c896;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💳</span><span style="color:#00c896;font-weight:700">Payhip</span></div>
     <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
     <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
     <!-- Content -->
@@ -3087,6 +3090,277 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ ETSY PAGE ═════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-etsy">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🛍️ Etsy — Templates & Printables</div>
+      <div class="ss" id="etsy-shop-label">Connect your Etsy shop to manage listings</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bsm" style="background:linear-gradient(135deg,#f55a2d,#f98a6c);color:#fff;font-weight:700" onclick="etsyConnect()" id="etsy-connect-btn">🔑 Connect Etsy</button>
+      <button class="btn bc2 bsm" onclick="etsyLoad()">🔄 Refresh</button>
+      <a href="https://www.etsy.com/your/shops/me/dashboard" target="_blank" class="btn bgh bsm">🔗 Open Etsy</a>
+    </div>
+  </div>
+
+  <!-- Not connected banner -->
+  <div id="etsy-no-token" style="display:none;background:rgba(245,90,45,.08);border:1px solid rgba(245,90,45,.3);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:#f98a6c;margin-bottom:4px">⚠ Etsy not connected</div>
+    <div style="font-size:11px;color:var(--text2)">Add <code style="color:#f98a6c">ETSY_KEYSTRING=your_key</code> to <code>.env</code>, then click <strong>Connect Etsy</strong> to authorize. Get your API key at <a href="https://www.etsy.com/developers/register" target="_blank" style="color:#f98a6c">etsy.com/developers</a>.</div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Listings</div>
+      <div class="cv" style="color:#f98a6c" id="etsy-stat-listings">—</div>
+      <div class="csb">active</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Revenue</div>
+      <div class="cv gr" id="etsy-stat-revenue">—</div>
+      <div class="csb">total earned</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Shop</div>
+      <div class="cv" id="etsy-stat-shop" style="font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+      <div class="csb">store name</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Status</div>
+      <div class="cv" id="etsy-stat-conn" style="font-size:14px">—</div>
+      <div class="csb" id="etsy-stat-conn-lbl">not connected</div>
+    </div>
+  </div>
+
+  <!-- Create listing form -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:12px">➕ Create New Listing (Digital Download)</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Listing Title</div>
+        <input id="etsy-new-title" class="si2" placeholder="e.g. Minimalist Resume Template — Canva"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Price (USD)</div>
+        <input id="etsy-new-price" class="si2" type="number" step="0.01" min="0.20" placeholder="4.99"/>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Tags <span style="color:var(--text3)">(comma separated, max 13)</span></div>
+      <input id="etsy-new-tags" class="si2" placeholder="canva template, resume, minimalist, digital download, printable"/>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Description</div>
+      <textarea id="etsy-new-desc" class="si2" rows="3" placeholder="Describe your digital product…" style="resize:vertical;font-size:11px"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn bsm" style="background:linear-gradient(135deg,#f55a2d,#f98a6c);color:#fff;font-weight:700" onclick="etsyCreateListing()" id="etsy-create-btn">🛍️ Create Listing</button>
+      <span id="etsy-create-status" style="font-size:10px;color:var(--text3)"></span>
+      <div style="flex:1"></div>
+      <span style="font-size:10px;color:var(--text3)">⚠ Upload your digital file in Etsy after creating</span>
+    </div>
+  </div>
+
+  <!-- Listings grid -->
+  <div class="sh" style="margin-bottom:12px">
+    <div class="st" style="font-size:12px">📦 Active Listings</div>
+  </div>
+  <div id="etsy-listings-list">
+    <div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading listings…</div>
+  </div>
+</div>
+
+<!-- ══ GUMROAD PAGE ══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-gumroad">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🛒 Gumroad — Digital Store</div>
+      <div class="ss" id="gr-user-label">Connect your Gumroad account to manage products</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="https://app.gumroad.com/settings/advanced" target="_blank" class="btn bgh bsm">🔑 Get API Token</a>
+      <button class="btn bc2 bsm" onclick="gumroadLoad()">🔄 Refresh</button>
+      <a href="https://app.gumroad.com/dashboard" target="_blank" class="btn bgh bsm">🔗 Open Gumroad</a>
+    </div>
+  </div>
+
+  <!-- Not connected banner -->
+  <div id="gr-no-token" style="display:none;background:rgba(255,144,0,.08);border:1px solid rgba(255,144,0,.3);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:#ffb347;margin-bottom:4px">⚠ Gumroad not connected</div>
+    <div style="font-size:11px;color:var(--text2)">Add <code style="color:#ffb347">GUMROAD_ACCESS_TOKEN=your_token</code> to your <code>.env</code> file. Get it at <strong>Gumroad → Settings → Advanced</strong>.</div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Products</div>
+      <div class="cv" style="color:#ffb347" id="gr-stat-products">—</div>
+      <div class="csb">in store</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Sales</div>
+      <div class="cv gr" id="gr-stat-sales">—</div>
+      <div class="csb">total orders</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Revenue</div>
+      <div class="cv" style="color:#00ff88" id="gr-stat-revenue">—</div>
+      <div class="csb">total earned</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Status</div>
+      <div class="cv" id="gr-stat-conn" style="font-size:14px">—</div>
+      <div class="csb" id="gr-stat-conn-lbl">not connected</div>
+    </div>
+  </div>
+
+  <!-- Create product form -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:12px">➕ Create New Product</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Product Name</div>
+        <input id="gr-new-name" class="si2" placeholder="e.g. Ultimate Blog Template Pack"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Price (USD)</div>
+        <input id="gr-new-price" class="si2" type="number" step="0.01" min="0" placeholder="9.99"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Publish?</div>
+        <select id="gr-new-published" class="si2" style="width:auto">
+          <option value="false">Draft</option>
+          <option value="true">Live</option>
+        </select>
+      </div>
+      <button class="btn bsm" style="background:linear-gradient(135deg,#ff9000,#ffb347);color:#000;font-weight:700" onclick="gumroadCreateProduct()" id="gr-create-btn">🛒 Create</button>
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Description</div>
+      <textarea id="gr-new-desc" class="si2" rows="2" placeholder="Describe your product…" style="resize:vertical;font-size:11px"></textarea>
+    </div>
+    <span id="gr-create-status" style="font-size:10px;color:var(--text3);display:block;margin-top:6px"></span>
+  </div>
+
+  <!-- Products list -->
+  <div class="sh" style="margin-bottom:12px">
+    <div class="st" style="font-size:12px">📦 Products</div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bgh bsm" onclick="gumroadLoad()">🔄 Refresh</button>
+    </div>
+  </div>
+  <div id="gr-products-list">
+    <div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading products…</div>
+  </div>
+
+  <!-- Recent sales -->
+  <div class="sh" style="margin:18px 0 12px">
+    <div class="st" style="font-size:12px">💸 Recent Sales</div>
+  </div>
+  <div id="gr-sales-list">
+    <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading sales…</div>
+  </div>
+</div>
+
+<!-- ══ PAYHIP PAGE ═══════════════════════════════════════════════════════════ -->
+<div class="page" id="page-payhip">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">💳 Payhip — Digital Store</div>
+      <div class="ss" id="ph-user-label">Connect your Payhip account to manage products</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="https://payhip.com/settings/api" target="_blank" class="btn bgh bsm">🔑 Get API Key</a>
+      <button class="btn bc2 bsm" onclick="payhipLoad()">🔄 Refresh</button>
+      <a href="https://payhip.com/home" target="_blank" class="btn bgh bsm">🔗 Open Payhip</a>
+    </div>
+  </div>
+
+  <!-- Not connected banner -->
+  <div id="ph-no-token" style="display:none;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.3);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:#00c896;margin-bottom:4px">⚠ Payhip not connected</div>
+    <div style="font-size:11px;color:var(--text2)">Add <code style="color:#00c896">PAYHIP_API_KEY=your_key</code> to your <code>.env</code> file. Get it at <strong>Payhip → Settings → API</strong>.</div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Products</div>
+      <div class="cv" style="color:#00c896" id="ph-stat-products">—</div>
+      <div class="csb">in store</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Sales</div>
+      <div class="cv gr" id="ph-stat-sales">—</div>
+      <div class="csb">total orders</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Revenue</div>
+      <div class="cv" style="color:#00ff88" id="ph-stat-revenue">—</div>
+      <div class="csb">total earned</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Status</div>
+      <div class="cv" id="ph-stat-conn" style="font-size:14px">—</div>
+      <div class="csb" id="ph-stat-conn-lbl">not connected</div>
+    </div>
+  </div>
+
+  <!-- Create product form -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:12px">➕ Create New Product</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Product Name</div>
+        <input id="ph-new-name" class="si2" placeholder="e.g. Canva Template Bundle"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Price (USD)</div>
+        <input id="ph-new-price" class="si2" type="number" step="0.01" min="0" placeholder="14.99"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Type</div>
+        <select id="ph-new-type" class="si2" style="width:auto">
+          <option value="ebook">eBook</option>
+          <option value="course">Course</option>
+          <option value="software">Software / Tool</option>
+          <option value="other">Template / Other</option>
+        </select>
+      </div>
+      <button class="btn bsm" style="background:linear-gradient(135deg,#00c896,#00a878);color:#000;font-weight:700" onclick="payhipCreateProduct()" id="ph-create-btn">💳 Create</button>
+    </div>
+    <div style="margin-top:10px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Description</div>
+      <textarea id="ph-new-desc" class="si2" rows="2" placeholder="Describe your product…" style="resize:vertical;font-size:11px"></textarea>
+    </div>
+    <span id="ph-create-status" style="font-size:10px;color:var(--text3);display:block;margin-top:6px"></span>
+  </div>
+
+  <!-- Products list -->
+  <div class="sh" style="margin-bottom:12px">
+    <div class="st" style="font-size:12px">📦 Products</div>
+  </div>
+  <div id="ph-products-list">
+    <div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading products…</div>
+  </div>
+
+  <!-- Recent purchases -->
+  <div class="sh" style="margin:18px 0 12px">
+    <div class="st" style="font-size:12px">💸 Recent Purchases</div>
+  </div>
+  <div id="ph-purchases-list">
+    <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading purchases…</div>
+  </div>
+</div>
+
 <!-- ══ NOTION PAGE ════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-notion">
   <div class="sh" style="margin-bottom:16px">
@@ -3230,7 +3504,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -3277,6 +3551,9 @@ function nav(p){
   if(p==='wordpress') wpLoad();
   if(p==='notion') notionLoad();
   if(p==='canva') canvaLoad();
+  if(p==='etsy') etsyLoad();
+  if(p==='gumroad') gumroadLoad();
+  if(p==='payhip') payhipLoad();
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
 
@@ -5971,13 +6248,17 @@ async function kdpRefreshCatalog(){
       const asinLink = b.asin ? `<a href="https://www.amazon.com/dp/${b.asin}" target="_blank" style="color:var(--cyan);font-size:10px">${b.asin}</a>` : '<span style="color:var(--text3);font-size:10px">—</span>';
       const words = b.words ? `<span style="font-size:10px">${(b.words/1000).toFixed(1)}k</span>` : '—';
       return `<tr>
-        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(b.title)}">${esc(b.title)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(b.title)}">${esc(b.title)}</td>
         <td style="font-size:10px">${esc(b.genre)}</td>
         <td>${statusIcon} <span style="font-size:10px;color:${b.status==='published'?'var(--green)':b.status==='error'?'var(--red)':'var(--text3)'}">${b.status||'written'}</span></td>
         <td>${words}</td>
         <td>${asinLink}</td>
         <td style="font-size:10px;color:var(--text3)">${b.date||''}</td>
-        <td><button class="btn bgh bsm" onclick="kdpPublishSingle('${esc(b.genre)}','${esc(b.file||'')}')">↑ KDP</button></td>
+        <td style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn bsm" style="background:rgba(122,90,248,.15);color:#a78bfa;border:1px solid rgba(122,90,248,.3);font-size:9px" onclick="kdpGenCover('${esc(b.genre)}','${esc(b.title)}')" title="Generate cover">🎨 Cover</button>
+          <button class="btn bc2 bsm" style="font-size:9px" onclick="kdpPackage('${esc(b.genre)}','${esc(b.title)}')" title="Package for KDP">📦 Pack</button>
+          <button class="btn bgh bsm" style="font-size:9px" onclick="kdpPublishSingle('${esc(b.genre)}','${esc(b.file||'')}')">↑ KDP</button>
+        </td>
       </tr>`;
     }).join('');
   }catch(e){
@@ -5987,6 +6268,32 @@ async function kdpRefreshCatalog(){
 }
 
 function kdpFilterBooks(){ kdpRefreshCatalog(); }
+
+async function kdpGenCover(genre, title) {
+  toast('Generating cover with DALL-E 3…', 'info');
+  try {
+    const r = await api(`/api/kdp/cover/${genre}`, 'POST', {title});
+    if (r.error) throw new Error(r.error);
+    let msg = `✅ Cover generated for "${title}"`;
+    if (r.canva_url) {
+      msg += ` · <a href="${r.canva_url}" target="_blank" style="color:#a78bfa">Edit in Canva →</a>`;
+      toast('Cover generated! Opening Canva…', 'success');
+      window.open(r.canva_url, '_blank');
+    } else {
+      toast('Cover generated!', 'success');
+    }
+  } catch(e) { toast('Cover failed: ' + e.message, 'error'); }
+}
+
+async function kdpPackage(genre, title) {
+  toast('Packaging book for KDP…', 'info');
+  try {
+    const r = await api(`/api/kdp/package/${genre}`, 'POST', {title});
+    if (r.error) throw new Error(r.error);
+    const coverNote = r.has_cover ? ' with cover' : ' (no cover yet — generate one first)';
+    toast(`📦 Packaged${coverNote}! ${r.word_count?.toLocaleString()} words`, 'success');
+  } catch(e) { toast('Package failed: ' + e.message, 'error'); }
+}
 
 async function kdpMasterToggle(){
   if(_kdpPublishing){
@@ -9531,6 +9838,330 @@ async function canvaDesignForPost(title) {
     if (r.edit_url) window.open(r.edit_url, '_blank');
     toast('Design created — opened in Canva!', 'success');
     setTimeout(canvaLoad, 1500);
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Etsy ──────────────────────────────────────────────────────────────────────
+async function etsyLoad() {
+  document.getElementById('etsy-listings-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  try {
+    const r = await api('/api/etsy/status');
+    if (!r.connected) {
+      document.getElementById('etsy-no-token').style.display   = 'block';
+      document.getElementById('etsy-stat-conn').textContent     = '❌';
+      document.getElementById('etsy-stat-conn-lbl').textContent = r.error || 'not connected';
+      document.getElementById('etsy-stat-listings').textContent = '—';
+      document.getElementById('etsy-stat-revenue').textContent  = '—';
+      document.getElementById('etsy-stat-shop').textContent     = '—';
+      document.getElementById('etsy-listings-list').innerHTML   = `<div style="padding:24px;text-align:center;color:var(--red);font-size:11px">${r.error}</div>`;
+      return;
+    }
+    document.getElementById('etsy-no-token').style.display   = 'none';
+    document.getElementById('etsy-stat-conn').textContent     = '✅';
+    document.getElementById('etsy-stat-conn-lbl').textContent = 'connected';
+    document.getElementById('etsy-stat-listings').textContent = r.listings_count;
+    document.getElementById('etsy-stat-revenue').textContent  = '$' + r.total_revenue.toFixed(2);
+    document.getElementById('etsy-stat-shop').textContent     = r.shop_name || '—';
+    document.getElementById('etsy-shop-label').textContent    = r.shop_name ? `${r.shop_name} · etsy.com/shop/${r.shop_name}` : 'Etsy connected';
+
+    if (!r.listings || !r.listings.length) {
+      document.getElementById('etsy-listings-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">No active listings — create your first one above.</div>';
+      return;
+    }
+    document.getElementById('etsy-listings-list').innerHTML = r.listings.map(l => `
+      <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(42,47,62,.4)">
+        ${l.image ? `<img src="${l.image}" style="width:56px;height:56px;object-fit:cover;border-radius:6px">` : `<div style="width:56px;height:56px;background:rgba(245,90,45,.1);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:26px">🛍️</div>`}
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(l.title)}</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px">
+            <span style="font-size:11px;color:#f98a6c;font-weight:700">$${l.price.toFixed(2)}</span>
+            <span class="bdg ${l.state==='active'?'bg':'by'}">${l.state}</span>
+            <span style="font-size:9px;color:var(--text3)">${l.views} views</span>
+            ${l.url ? `<a href="${l.url}" target="_blank" style="font-size:9px;color:var(--cyan)">🔗 View on Etsy</a>` : ''}
+          </div>
+        </div>
+        <div style="display:flex;gap:5px">
+          <button class="btn bsm" style="background:rgba(122,90,248,.15);color:#a78bfa;border:1px solid rgba(122,90,248,.3);font-size:9px" onclick="etsyDesign('${esc(l.title)}')" title="Create Canva design">🎨</button>
+          <button class="btn br2 bsm" onclick="etsyDelete('${l.id}')" title="Delete">🗑</button>
+        </div>
+      </div>`).join('');
+  } catch(e) { toast('Etsy load failed: ' + e.message, 'error'); }
+}
+
+async function etsyConnect() {
+  try {
+    const r = await api('/api/etsy/oauth-url');
+    if (r.error) { toast('Error: ' + r.error, 'error'); return; }
+    const w = window.open(r.url, 'etsy_oauth', 'width=600,height=700,left=200,top=100');
+    if (!w) { window.location.href = r.url; return; }
+    const check = setInterval(() => {
+      if (w.closed) { clearInterval(check); setTimeout(etsyLoad, 1000); }
+    }, 500);
+    window.addEventListener('message', e => {
+      if (e.data === 'etsy_connected') { clearInterval(check); w.close(); setTimeout(etsyLoad, 800); }
+    }, {once: true});
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function etsyCreateListing() {
+  const title = document.getElementById('etsy-new-title').value.trim();
+  const price = parseFloat(document.getElementById('etsy-new-price').value) || 0;
+  const desc  = document.getElementById('etsy-new-desc').value.trim();
+  const tagsRaw = document.getElementById('etsy-new-tags').value;
+  const tags  = tagsRaw.split(',').map(t => t.trim()).filter(Boolean).slice(0, 13);
+  if (!title) { toast('Enter a listing title', 'error'); return; }
+  if (price < 0.20) { toast('Minimum price is $0.20', 'error'); return; }
+  const btn = document.getElementById('etsy-create-btn');
+  const st  = document.getElementById('etsy-create-status');
+  btn.disabled = true; btn.textContent = '⏳ Creating…'; st.textContent = '';
+  try {
+    const r = await api('/api/etsy/listing', 'POST', {title, price, description: desc, tags});
+    if (r.error) throw new Error(r.error);
+    toast('Listing created on Etsy (draft)!', 'success');
+    st.textContent = `✅ Draft created — upload file in Etsy`;
+    st.style.color = 'var(--green)';
+    document.getElementById('etsy-new-title').value = '';
+    document.getElementById('etsy-new-price').value = '';
+    document.getElementById('etsy-new-tags').value  = '';
+    document.getElementById('etsy-new-desc').value  = '';
+    etsyLoad();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    st.textContent = '❌ ' + e.message; st.style.color = 'var(--red)';
+  } finally { btn.disabled = false; btn.textContent = '🛍️ Create Listing'; }
+}
+
+async function etsyDelete(id) {
+  if (!confirm('Delete this Etsy listing?')) return;
+  try {
+    const r = await api(`/api/etsy/listing/${id}`, 'DELETE');
+    if (r.error) throw new Error(r.error);
+    toast('Listing deleted', 'success');
+    etsyLoad();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function etsyDesign(title) {
+  toast('Creating Canva design for Etsy listing…', 'info');
+  try {
+    const r = await api('/api/canva/auto-design', 'POST', {title, platform: 'instagram'});
+    if (r.error) throw new Error(r.error);
+    if (r.edit_url) window.open(r.edit_url, '_blank');
+    toast('Design created — use it as your Etsy listing image!', 'success');
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Gumroad ───────────────────────────────────────────────────────────────────
+async function gumroadLoad() {
+  document.getElementById('gr-products-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  document.getElementById('gr-sales-list').innerHTML    = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  try {
+    const r = await api('/api/gumroad/status');
+    if (!r.connected) {
+      document.getElementById('gr-no-token').style.display = 'block';
+      document.getElementById('gr-stat-conn').textContent   = '❌';
+      document.getElementById('gr-stat-conn-lbl').textContent = r.error || 'not connected';
+      document.getElementById('gr-stat-products').textContent = '—';
+      document.getElementById('gr-stat-sales').textContent    = '—';
+      document.getElementById('gr-stat-revenue').textContent  = '—';
+      document.getElementById('gr-products-list').innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:11px">${r.error}</div>`;
+      document.getElementById('gr-sales-list').innerHTML = '';
+      return;
+    }
+    document.getElementById('gr-no-token').style.display   = 'none';
+    document.getElementById('gr-stat-conn').textContent     = '✅';
+    document.getElementById('gr-stat-conn-lbl').textContent = 'connected';
+    document.getElementById('gr-stat-products').textContent = r.products_count;
+    document.getElementById('gr-stat-sales').textContent    = r.sales_count;
+    document.getElementById('gr-stat-revenue').textContent  = '$' + r.total_revenue.toFixed(2);
+    document.getElementById('gr-user-label').textContent    = (r.name || r.email || 'Gumroad') + ' · 97% royalty';
+
+    // Products
+    if (!r.products || !r.products.length) {
+      document.getElementById('gr-products-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">No products yet — create your first one above.</div>';
+    } else {
+      document.getElementById('gr-products-list').innerHTML = r.products.map(p => `
+        <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(42,47,62,.4)">
+          ${p.cover_url ? `<img src="${p.cover_url}" style="width:48px;height:48px;object-fit:cover;border-radius:6px">` : `<div style="width:48px;height:48px;background:rgba(255,144,0,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px">📦</div>`}
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(p.name)}</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px">
+              <span style="font-size:11px;color:#ffb347;font-weight:700">$${(p.price/100).toFixed(2)}</span>
+              <span class="bdg ${p.published ? 'bg' : 'by'}">${p.published ? '● Live' : '● Draft'}</span>
+              <span style="font-size:9px;color:var(--text3)">${p.sales_count} sales</span>
+              ${p.url ? `<a href="${p.url}" target="_blank" style="font-size:9px;color:var(--cyan)">🔗 View</a>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button class="btn bsm ${p.published ? 'by' : 'bg'}" onclick="gumroadToggle('${p.id}',${!p.published})" title="${p.published?'Unpublish':'Publish'}">${p.published ? '⏸' : '▶'}</button>
+            <button class="btn br2 bsm" onclick="gumroadDelete('${p.id}')" title="Delete">🗑</button>
+          </div>
+        </div>`).join('');
+    }
+
+    // Sales
+    if (!r.recent_sales || !r.recent_sales.length) {
+      document.getElementById('gr-sales-list').innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No sales yet.</div>';
+    } else {
+      document.getElementById('gr-sales-list').innerHTML = `<table class="tbl"><thead><tr><th>Product</th><th>Amount</th><th>Email</th><th>Country</th><th>Date</th></tr></thead><tbody>
+        ${r.recent_sales.map(s=>`<tr>
+          <td class="nc">${esc(s.product_name)}</td>
+          <td style="color:#00ff88;font-weight:600">$${s.price.toFixed(2)}</td>
+          <td class="nc">${esc(s.email)}</td>
+          <td class="nc">${s.country||'—'}</td>
+          <td class="nc" style="font-size:10px">${s.created_at ? new Date(s.created_at).toLocaleDateString() : '—'}</td>
+        </tr>`).join('')}
+      </tbody></table>`;
+    }
+  } catch(e) {
+    toast('Gumroad load failed: ' + e.message, 'error');
+  }
+}
+
+async function gumroadCreateProduct() {
+  const name  = document.getElementById('gr-new-name').value.trim();
+  const price = parseFloat(document.getElementById('gr-new-price').value) || 0;
+  const desc  = document.getElementById('gr-new-desc').value.trim();
+  const pub   = document.getElementById('gr-new-published').value === 'true';
+  if (!name) { toast('Enter a product name', 'error'); return; }
+  const btn = document.getElementById('gr-create-btn');
+  const st  = document.getElementById('gr-create-status');
+  btn.disabled = true; btn.textContent = '⏳ Creating…'; st.textContent = '';
+  try {
+    const r = await api('/api/gumroad/product', 'POST', {
+      name, price_cents: Math.round(price * 100), description: desc, published: pub
+    });
+    if (r.error) throw new Error(r.error);
+    toast('Product created on Gumroad!', 'success');
+    st.textContent = `✅ Created — ${r.short_url || ''}`;
+    st.style.color = 'var(--green)';
+    document.getElementById('gr-new-name').value  = '';
+    document.getElementById('gr-new-price').value = '';
+    document.getElementById('gr-new-desc').value  = '';
+    gumroadLoad();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    st.textContent = '❌ ' + e.message; st.style.color = 'var(--red)';
+  } finally { btn.disabled = false; btn.textContent = '🛒 Create'; }
+}
+
+async function gumroadToggle(id, publish) {
+  try {
+    const r = await api(`/api/gumroad/product/${id}/toggle`, 'POST', {published: publish});
+    if (r.error) throw new Error(r.error);
+    toast(publish ? 'Product published!' : 'Product unpublished', 'success');
+    gumroadLoad();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function gumroadDelete(id) {
+  if (!confirm('Delete this Gumroad product permanently?')) return;
+  try {
+    const r = await api(`/api/gumroad/product/${id}`, 'DELETE');
+    if (r.error) throw new Error(r.error);
+    toast('Product deleted', 'success');
+    gumroadLoad();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Payhip ────────────────────────────────────────────────────────────────────
+async function payhipLoad() {
+  document.getElementById('ph-products-list').innerHTML  = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  document.getElementById('ph-purchases-list').innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  try {
+    const r = await api('/api/payhip/status');
+    if (!r.connected) {
+      document.getElementById('ph-no-token').style.display = 'block';
+      document.getElementById('ph-stat-conn').textContent   = '❌';
+      document.getElementById('ph-stat-conn-lbl').textContent = r.error || 'not connected';
+      document.getElementById('ph-stat-products').textContent = '—';
+      document.getElementById('ph-stat-sales').textContent    = '—';
+      document.getElementById('ph-stat-revenue').textContent  = '—';
+      document.getElementById('ph-products-list').innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:11px">${r.error}</div>`;
+      document.getElementById('ph-purchases-list').innerHTML = '';
+      return;
+    }
+    document.getElementById('ph-no-token').style.display   = 'none';
+    document.getElementById('ph-stat-conn').textContent     = '✅';
+    document.getElementById('ph-stat-conn-lbl').textContent = 'connected';
+    document.getElementById('ph-stat-products').textContent = r.products_count;
+    document.getElementById('ph-stat-sales').textContent    = r.sales_count;
+    document.getElementById('ph-stat-revenue').textContent  = '$' + r.total_revenue.toFixed(2);
+    document.getElementById('ph-user-label').textContent    = 'Payhip store · 95% royalty';
+
+    // Products
+    if (!r.products || !r.products.length) {
+      document.getElementById('ph-products-list').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">No products yet — create your first one above.</div>';
+    } else {
+      document.getElementById('ph-products-list').innerHTML = r.products.map(p => `
+        <div style="display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-bottom:1px solid rgba(42,47,62,.4)">
+          ${p.cover_url ? `<img src="${p.cover_url}" style="width:48px;height:48px;object-fit:cover;border-radius:6px">` : `<div style="width:48px;height:48px;background:rgba(0,200,150,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:22px">💳</div>`}
+          <div>
+            <div style="font-size:12px;font-weight:600;color:var(--text)">${esc(p.name)}</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:3px">
+              <span style="font-size:11px;color:#00c896;font-weight:700">$${parseFloat(p.price||0).toFixed(2)}</span>
+              <span class="bdg ${p.published ? 'bg' : 'by'}">${p.published ? '● Live' : '● Draft'}</span>
+              <span style="font-size:9px;color:var(--text3)">${p.sales_count||0} sales</span>
+              ${p.url ? `<a href="${p.url}" target="_blank" style="font-size:9px;color:var(--cyan)">🔗 View</a>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:5px">
+            <button class="btn br2 bsm" onclick="payhipDelete('${p.id}')" title="Delete">🗑</button>
+          </div>
+        </div>`).join('');
+    }
+
+    // Purchases
+    if (!r.recent_purchases || !r.recent_purchases.length) {
+      document.getElementById('ph-purchases-list').innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No purchases yet.</div>';
+    } else {
+      document.getElementById('ph-purchases-list').innerHTML = `<table class="tbl"><thead><tr><th>Product</th><th>Amount</th><th>Email</th><th>Country</th><th>Date</th></tr></thead><tbody>
+        ${r.recent_purchases.map(p=>`<tr>
+          <td class="nc">${esc(p.product_name)}</td>
+          <td style="color:#00ff88;font-weight:600">$${parseFloat(p.amount||0).toFixed(2)}</td>
+          <td class="nc">${esc(p.email)}</td>
+          <td class="nc">${p.country||'—'}</td>
+          <td class="nc" style="font-size:10px">${p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</td>
+        </tr>`).join('')}
+      </tbody></table>`;
+    }
+  } catch(e) {
+    toast('Payhip load failed: ' + e.message, 'error');
+  }
+}
+
+async function payhipCreateProduct() {
+  const name  = document.getElementById('ph-new-name').value.trim();
+  const price = parseFloat(document.getElementById('ph-new-price').value) || 0;
+  const desc  = document.getElementById('ph-new-desc').value.trim();
+  const type  = document.getElementById('ph-new-type').value;
+  if (!name) { toast('Enter a product name', 'error'); return; }
+  const btn = document.getElementById('ph-create-btn');
+  const st  = document.getElementById('ph-create-status');
+  btn.disabled = true; btn.textContent = '⏳ Creating…'; st.textContent = '';
+  try {
+    const r = await api('/api/payhip/product', 'POST', {name, price, description: desc, type});
+    if (r.error) throw new Error(r.error);
+    toast('Product created on Payhip!', 'success');
+    st.textContent = `✅ Created — ${r.url || ''}`;
+    st.style.color = 'var(--green)';
+    document.getElementById('ph-new-name').value  = '';
+    document.getElementById('ph-new-price').value = '';
+    document.getElementById('ph-new-desc').value  = '';
+    payhipLoad();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    st.textContent = '❌ ' + e.message; st.style.color = 'var(--red)';
+  } finally { btn.disabled = false; btn.textContent = '💳 Create'; }
+}
+
+async function payhipDelete(id) {
+  if (!confirm('Delete this Payhip product?')) return;
+  try {
+    const r = await api(`/api/payhip/product/${id}`, 'DELETE');
+    if (r.error) throw new Error(r.error);
+    toast('Product deleted', 'success');
+    payhipLoad();
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
 }
 

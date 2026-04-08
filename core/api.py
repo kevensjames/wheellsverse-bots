@@ -5833,6 +5833,129 @@ async def kdp_books(genre: str = ""):
             })
     return {"books": books}
 
+@app.post("/api/kdp/cover/{genre}")
+async def kdp_generate_cover(genre: str, req: dict = {}):
+    """
+    Generate a DALL-E 3 cover for the latest written book in this genre.
+    Also creates a Canva poster design for manual editing.
+    Returns cover image path + Canva edit URL.
+    """
+    gdir = KDP_BOOKS_ROOT / genre
+    if not gdir.exists():
+        return {"error": f"No books found for genre: {genre}"}
+    manuscripts = sorted(gdir.glob("book_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if not manuscripts:
+        return {"error": f"No manuscripts found for genre: {genre}"}
+    latest = manuscripts[0]
+    raw_title = req.get("title") or (latest.stem.replace("book_","").replace("_"," ").title())
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    cover_path = None
+    canva_url  = None
+    try:
+        from core.kdp_uploader import generate_cover as _gen_cover
+        cover_path = _gen_cover(raw_title, genre)
+        _add_log(f"KDP cover generated: {genre}/{raw_title}", "INFO")
+    except Exception as e:
+        return {"error": f"Cover generation failed: {e}"}
+
+    # Also create Canva design for custom editing
+    try:
+        tok = _canva_access_token()
+        if tok:
+            import requests as _rc
+            dims = _CANVA_PLATFORM_MAP.get("poster", (794, 1123, "Poster (A4)"))
+            body = {"design_type": {"type": "custom", "width": dims[0], "height": dims[1]},
+                    "title": f"{raw_title} — Book Cover"}
+            cr = _rc.post(f"{_CANVA_BASE}/rest/v1/designs", headers=_canva_headers(),
+                          json=body, timeout=15)
+            if cr.status_code in (200, 201):
+                canva_url = cr.json().get("design", {}).get("urls", {}).get("edit_url", "")
+    except Exception:
+        pass
+
+    return {
+        "genre":      genre,
+        "title":      raw_title,
+        "cover_path": str(cover_path),
+        "canva_url":  canva_url,
+    }
+
+
+@app.post("/api/kdp/package/{genre}")
+async def kdp_package_book(genre: str, req: dict = {}):
+    """
+    Package the latest written book for KDP: generate HTML with cover page.
+    Returns path to the packaged HTML file.
+    """
+    gdir = KDP_BOOKS_ROOT / genre
+    if not gdir.exists():
+        return {"error": f"No books found for genre: {genre}"}
+    manuscripts = sorted(gdir.glob("book_*.md"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if not manuscripts:
+        return {"error": f"No manuscripts found for genre: {genre}"}
+    latest    = manuscripts[0]
+    manuscript = latest.read_text(encoding="utf-8", errors="replace")
+    raw_title  = req.get("title") or (latest.stem.replace("book_","").replace("_"," ").title())
+    ts         = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    # Look for existing cover
+    covers_dir = ROOT / "outputs" / "books" / "covers" / "generated"
+    cover_path = None
+    if covers_dir.exists():
+        matching = sorted(covers_dir.glob(f"cover_{genre}_*.png"), key=lambda x: x.stat().st_mtime, reverse=True)
+        if matching:
+            cover_path = matching[0]
+
+    # Re-use the packaging logic from base_book_bot
+    import re as _re
+    lines = manuscript.split("\n")
+    body  = []
+    for line in lines:
+        if line.startswith("# "):    body.append(f'<h1 class="title">{line[2:]}</h1>')
+        elif line.startswith("## "): body.append(f'<h2 class="chapter">{line[3:]}</h2>')
+        elif line.startswith("### "):body.append(f'<h3>{line[4:]}</h3>')
+        elif line.startswith("**") and line.endswith("**"):
+            body.append(f'<p class="center"><strong>{line[2:-2]}</strong></p>')
+        elif line.startswith("*") and line.endswith("*") and not line.startswith("**"):
+            body.append(f'<p class="center"><em>{line[1:-1]}</em></p>')
+        elif line.strip() == "---": body.append('<hr>')
+        elif line.strip() == "":    body.append('<p>&nbsp;</p>')
+        else:
+            line = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
+            line = _re.sub(r'\*(.+?)\*',     r'<em>\1</em>', line)
+            body.append(f'<p>{line}</p>')
+
+    cover_html = ""
+    if cover_path and cover_path.exists():
+        import base64
+        cover_html = f'<div class="cover-page"><img src="data:image/png;base64,{base64.b64encode(cover_path.read_bytes()).decode()}" alt="Book Cover"></div>'
+
+    html = f"""<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>{raw_title}</title>
+<style>body{{font-family:Georgia,serif;max-width:680px;margin:0 auto;padding:40px 30px;line-height:1.8;color:#1a1a1a;font-size:16px}}
+h1.title{{text-align:center;font-size:2.2em;margin:60px 0 10px}}
+h2.chapter{{font-size:1.4em;margin:60px 0 20px;border-bottom:1px solid #ddd;padding-bottom:8px;page-break-before:always}}
+p{{margin:0 0 1em;text-indent:1.5em}}p.center{{text-align:center;text-indent:0}}
+hr{{border:none;border-top:1px solid #ccc;margin:40px auto;width:40%}}
+.cover-page{{text-align:center;page-break-after:always;margin-bottom:60px}}
+.cover-page img{{max-width:100%;max-height:90vh;box-shadow:0 4px 24px rgba(0,0,0,.2)}}
+@media print{{h2.chapter{{page-break-before:always}}}}</style></head>
+<body>{cover_html}{''.join(body)}</body></html>"""
+
+    out_dir = ROOT / "outputs" / "books" / "packaged"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe = raw_title.lower().replace(" ", "_")[:40]
+    html_path = out_dir / f"{safe}_{ts}.html"
+    html_path.write_text(html, encoding="utf-8")
+    _add_log(f"KDP package created: {genre}/{raw_title}", "INFO")
+    return {
+        "genre":      genre,
+        "title":      raw_title,
+        "html_path":  str(html_path.relative_to(ROOT)),
+        "word_count": len(manuscript.split()),
+        "has_cover":  cover_path is not None,
+    }
+
+
 @app.post("/api/kdp/run")
 async def kdp_run(req: KDPRunRequest, background_tasks: BackgroundTasks):
     """Launch the KDP daily publish pipeline as a background subprocess."""
@@ -8228,6 +8351,585 @@ async def goals_reset_monthly():
     return {"status": "monthly_goals_reset"}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ─── ETSY ────────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+
+_ETSY_BASE          = "https://openapi.etsy.com/v3"
+_ETSY_TOKEN_FILE    = Path(os.getenv("RAILWAY_VOLUME_PATH", "/var/data")) / "etsy_token.json"
+_etsy_pkce_store: dict = {}
+
+def _etsy_save_token(data: dict):
+    try: _ETSY_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True); _ETSY_TOKEN_FILE.write_text(json.dumps(data))
+    except Exception: pass
+
+def _etsy_load_token() -> dict:
+    try:
+        if _ETSY_TOKEN_FILE.exists(): return json.loads(_ETSY_TOKEN_FILE.read_text())
+    except Exception: pass
+    return {}
+
+def _etsy_access_token() -> str:
+    """Return valid Etsy access token, refreshing if needed."""
+    tok_data = _etsy_load_token()
+    if not tok_data: return os.getenv("ETSY_ACCESS_TOKEN", "")
+    # Check expiry
+    if tok_data.get("expires_at", 0) < time.time() + 60:
+        # Refresh
+        rt = tok_data.get("refresh_token", "") or os.getenv("ETSY_REFRESH_TOKEN", "")
+        kid = os.getenv("ETSY_KEYSTRING", "")
+        if rt and kid:
+            try:
+                import requests as _rc
+                r = _rc.post("https://api.etsy.com/v3/public/oauth/token", data={
+                    "grant_type": "refresh_token",
+                    "client_id":  kid,
+                    "refresh_token": rt,
+                }, timeout=15)
+                if r.status_code == 200:
+                    new_data = r.json()
+                    new_data["expires_at"] = time.time() + new_data.get("expires_in", 3600)
+                    new_data.setdefault("refresh_token", rt)
+                    _etsy_save_token(new_data)
+                    return new_data["access_token"]
+            except Exception: pass
+    return tok_data.get("access_token", os.getenv("ETSY_ACCESS_TOKEN", ""))
+
+def _etsy_headers() -> dict:
+    tok = _etsy_access_token()
+    kid = os.getenv("ETSY_KEYSTRING", "")
+    return {"Authorization": f"Bearer {tok}", "x-api-key": kid}
+
+_PUBLIC_PATHS.add("/api/etsy/oauth-callback")
+_PUBLIC_PATHS.add("/api/etsy/oauth-url")
+
+@app.get("/api/etsy/oauth-url")
+async def etsy_oauth_url(request: Request):
+    """Generate Etsy OAuth2 PKCE authorization URL."""
+    import urllib.parse, secrets, hashlib, base64
+    kid = os.getenv("ETSY_KEYSTRING", "")
+    if not kid:
+        return {"error": "ETSY_KEYSTRING not set in .env"}
+    host = request.headers.get("host", "")
+    if host.startswith("127.0.0.1") or host.startswith("localhost"):
+        base_url = f"http://{host}"
+    else:
+        base_url = os.getenv("RAILWAY_PUBLIC_URL", f"http://{host}").rstrip("/")
+    redirect_uri  = base_url + "/api/etsy/oauth-callback"
+    state         = secrets.token_urlsafe(16)
+    code_verifier = secrets.token_urlsafe(64)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    _etsy_pkce_store[state] = {"verifier": code_verifier, "redirect_uri": redirect_uri}
+    params = {
+        "response_type":         "code",
+        "client_id":             kid,
+        "redirect_uri":          redirect_uri,
+        "scope":                 "listings_r listings_w listings_d shops_r transactions_r",
+        "state":                 state,
+        "code_challenge":        code_challenge,
+        "code_challenge_method": "S256",
+    }
+    url = "https://www.etsy.com/oauth/connect?" + urllib.parse.urlencode(params)
+    return {"url": url}
+
+@app.get("/api/etsy/oauth-callback")
+async def etsy_oauth_callback(request: Request, code: str = "", error: str = "", state: str = ""):
+    if error:
+        return HTMLResponse(f"<h2 style='color:red'>Etsy error: {error}</h2>")
+    if not code:
+        return HTMLResponse("<h2 style='color:red'>No code received from Etsy</h2>")
+    pkce = _etsy_pkce_store.pop(state, None)
+    if not pkce:
+        return HTMLResponse("<h2 style='color:red'>Invalid or expired state — please reconnect.</h2>")
+    try:
+        import requests as _rc
+        kid = os.getenv("ETSY_KEYSTRING", "")
+        r = _rc.post("https://api.etsy.com/v3/public/oauth/token", data={
+            "grant_type":    "authorization_code",
+            "client_id":     kid,
+            "redirect_uri":  pkce["redirect_uri"],
+            "code":          code,
+            "code_verifier": pkce["verifier"],
+        }, timeout=15)
+        if r.status_code != 200:
+            return HTMLResponse(f"<h2 style='color:red'>Etsy token exchange failed: {r.text[:300]}</h2>")
+        data = r.json()
+        data["expires_at"] = time.time() + data.get("expires_in", 3600)
+        _etsy_save_token(data)
+        # Also persist in .env-like storage so it survives restarts
+        _add_log("Etsy OAuth connected successfully", "INFO")
+        return HTMLResponse("""
+        <html><body style='background:#0d0f14;color:#00ff88;font-family:monospace;
+              display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>
+        <div style='text-align:center;padding:40px;background:#13161d;border:1px solid #00ff8844;border-radius:16px'>
+          <div style='font-size:40px;margin-bottom:16px'>✅</div>
+          <div style='font-size:18px;font-weight:700;color:#f0a500;margin-bottom:8px'>Etsy Connected!</div>
+          <div style='font-size:12px;color:#8891a8;margin-bottom:20px'>You can close this tab and return to the dashboard.</div>
+          <script>if(window.opener){window.opener.postMessage('etsy_connected','*');setTimeout(()=>window.close(),1500);}</script>
+        </div></body></html>""")
+    except Exception as e:
+        return HTMLResponse(f"<h2 style='color:red'>Error: {e}</h2>")
+
+
+@app.get("/api/etsy/status")
+async def etsy_status():
+    """Validate Etsy token, return shop info + listing summary."""
+    tok = _etsy_access_token()
+    if not tok:
+        return {"connected": False, "error": "Not connected — click Connect Etsy to authorize"}
+    try:
+        import requests as _rc
+        # Get current user
+        ur = _rc.get(f"{_ETSY_BASE}/application/users/me", headers=_etsy_headers(), timeout=10)
+        if ur.status_code == 401:
+            return {"connected": False, "error": "Etsy token expired — reconnect"}
+        if ur.status_code != 200:
+            return {"connected": False, "error": f"Etsy error {ur.status_code}"}
+        user = ur.json()
+        user_id = user.get("user_id", "")
+
+        # Get shop
+        shop_id = os.getenv("ETSY_SHOP_ID", "")
+        shop = {}
+        listings = []
+        revenue  = 0.0
+        if shop_id:
+            sr = _rc.get(f"{_ETSY_BASE}/application/shops/{shop_id}", headers=_etsy_headers(), timeout=10)
+            if sr.status_code == 200: shop = sr.json()
+            # Active listings
+            lr = _rc.get(f"{_ETSY_BASE}/application/shops/{shop_id}/listings/active",
+                         headers=_etsy_headers(), params={"limit": 50}, timeout=10)
+            if lr.status_code == 200:
+                listings = lr.json().get("results", [])
+            # Receipts (sales)
+            rr = _rc.get(f"{_ETSY_BASE}/application/shops/{shop_id}/receipts",
+                         headers=_etsy_headers(), params={"limit": 25}, timeout=10)
+            if rr.status_code == 200:
+                receipts = rr.json().get("results", [])
+                revenue = sum(
+                    float(r.get("grandtotal", {}).get("amount", 0)) / 100
+                    for r in receipts
+                )
+        else:
+            # Auto-discover shop from user
+            shops_r = _rc.get(f"{_ETSY_BASE}/application/users/{user_id}/shops",
+                               headers=_etsy_headers(), timeout=10)
+            if shops_r.status_code == 200:
+                shops = shops_r.json().get("results", [])
+                if shops:
+                    shop    = shops[0]
+                    shop_id = str(shop.get("shop_id", ""))
+
+        return {
+            "connected":       True,
+            "user_id":         str(user_id),
+            "shop_id":         shop_id,
+            "shop_name":       shop.get("shop_name", ""),
+            "shop_url":        f"https://www.etsy.com/shop/{shop.get('shop_name','')}",
+            "listings_count":  len(listings),
+            "total_revenue":   round(revenue, 2),
+            "listings": [
+                {
+                    "id":          str(l.get("listing_id", "")),
+                    "title":       l.get("title", ""),
+                    "price":       float(l.get("price", {}).get("amount", 0)) / 100,
+                    "currency":    l.get("price", {}).get("currency_code", "USD"),
+                    "quantity":    l.get("quantity", 0),
+                    "state":       l.get("state", ""),
+                    "url":         l.get("url", ""),
+                    "views":       l.get("views", 0),
+                    "image":       ((l.get("images") or [{}])[0]).get("url_570xN", ""),
+                }
+                for l in listings
+            ],
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/api/etsy/listing")
+async def etsy_create_listing(req: dict):
+    """
+    Create a new Etsy digital listing.
+    Body: {title, description, price, quantity, tags (list), type ('download'|'made_to_order')}
+    Note: After creating, you must upload the digital file via Etsy dashboard.
+    """
+    tok = _etsy_access_token()
+    if not tok:
+        return {"error": "Etsy not connected — authorize first"}
+    shop_id = os.getenv("ETSY_SHOP_ID", "")
+    if not shop_id:
+        # Try to get it from status
+        st = await etsy_status()
+        shop_id = st.get("shop_id", "")
+    if not shop_id:
+        return {"error": "ETSY_SHOP_ID not set — add it to .env after connecting"}
+    try:
+        import requests as _rc
+        price_cents = int(float(req.get("price", 0)) * 100)
+        tags = req.get("tags", [])[:13]  # Etsy max 13 tags
+        payload = {
+            "title":             req.get("title", "WheellsVerse Digital Download"),
+            "description":       req.get("description", ""),
+            "price":             price_cents,
+            "quantity":          req.get("quantity", 999),
+            "who_made":          "i_did",
+            "when_made":         "made_to_order",
+            "taxonomy_id":       6206,  # Art & Collectibles > Digital Prints
+            "type":              "download",
+            "shipping_profile_id": None,
+            "state":             "draft",
+            "tags":              tags,
+            "is_digital":        True,
+            "file_data":         "",
+        }
+        r = _rc.post(
+            f"{_ETSY_BASE}/application/shops/{shop_id}/listings",
+            headers={**_etsy_headers(), "Content-Type": "application/json"},
+            json=payload, timeout=15,
+        )
+        if r.status_code not in (200, 201):
+            return {"error": f"Etsy {r.status_code}: {r.text[:300]}"}
+        data = r.json()
+        _add_log(f"Etsy listing created: {payload['title']}", "INFO")
+        return {
+            "id":    str(data.get("listing_id", "")),
+            "title": data.get("title", ""),
+            "url":   data.get("url", ""),
+            "state": data.get("state", ""),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.delete("/api/etsy/listing/{listing_id}")
+async def etsy_delete_listing(listing_id: str):
+    """Delete an Etsy listing."""
+    tok = _etsy_access_token()
+    if not tok: return {"error": "Etsy not connected"}
+    shop_id = os.getenv("ETSY_SHOP_ID", "")
+    if not shop_id: return {"error": "ETSY_SHOP_ID not set"}
+    try:
+        import requests as _rc
+        r = _rc.delete(f"{_ETSY_BASE}/application/shops/{shop_id}/listings/{listing_id}",
+                       headers=_etsy_headers(), timeout=15)
+        if r.status_code not in (200, 204):
+            return {"error": f"Etsy {r.status_code}: {r.text[:200]}"}
+        _add_log(f"Etsy listing deleted: {listing_id}", "INFO")
+        return {"deleted": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ─── GUMROAD ─────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+
+_GUMROAD_BASE = "https://api.gumroad.com/v2"
+
+def _gumroad_token() -> str:
+    return os.getenv("GUMROAD_ACCESS_TOKEN", "")
+
+def _gumroad_headers() -> dict:
+    return {"Authorization": f"Bearer {_gumroad_token()}"}
+
+
+@app.get("/api/gumroad/status")
+async def gumroad_status():
+    """Validate token, return user info + product + sales summary."""
+    tok = _gumroad_token()
+    if not tok:
+        return {"connected": False, "error": "GUMROAD_ACCESS_TOKEN not set in .env"}
+    try:
+        import requests as _rc
+        # Gumroad: GET /user returns current user
+        ur = _rc.get(f"{_GUMROAD_BASE}/user", headers=_gumroad_headers(), timeout=10)
+        if ur.status_code == 401:
+            return {"connected": False, "error": "Invalid Gumroad token — check GUMROAD_ACCESS_TOKEN"}
+        if ur.status_code != 200:
+            return {"connected": False, "error": f"Gumroad error {ur.status_code}"}
+        user = ur.json().get("user", {})
+
+        # Products
+        pr = _rc.get(f"{_GUMROAD_BASE}/products", headers=_gumroad_headers(), timeout=10)
+        products = pr.json().get("products", []) if pr.status_code == 200 else []
+
+        # Sales summary
+        sr = _rc.get(f"{_GUMROAD_BASE}/sales", headers=_gumroad_headers(), timeout=10)
+        sales_raw = sr.json().get("sales", []) if sr.status_code == 200 else []
+        total_revenue = sum(float(s.get("price", 0)) / 100 for s in sales_raw)
+
+        return {
+            "connected":     True,
+            "name":          user.get("name", ""),
+            "email":         user.get("email", ""),
+            "bio":           user.get("bio", ""),
+            "profile_url":   user.get("profile_url", ""),
+            "products_count": len(products),
+            "sales_count":   len(sales_raw),
+            "total_revenue": round(total_revenue, 2),
+            "products": [
+                {
+                    "id":           p.get("id", ""),
+                    "name":         p.get("name", ""),
+                    "price":        p.get("price", 0),
+                    "currency":     p.get("currency", "usd"),
+                    "sales_count":  p.get("sales_count", 0),
+                    "published":    p.get("published", False),
+                    "url":          p.get("short_url", ""),
+                    "description":  (p.get("description", "") or "")[:120],
+                    "product_type": p.get("product_type", "digital"),
+                    "cover_url":    (p.get("thumbnail_url") or ""),
+                }
+                for p in products
+            ],
+            "recent_sales": [
+                {
+                    "id":            s.get("id", ""),
+                    "product_name":  s.get("product_name", ""),
+                    "price":         round(float(s.get("price", 0)) / 100, 2),
+                    "email":         s.get("email", ""),
+                    "created_at":    s.get("created_at", ""),
+                    "country":       s.get("country", ""),
+                }
+                for s in sales_raw[:20]
+            ],
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/api/gumroad/product")
+async def gumroad_create_product(req: dict):
+    """
+    Create a new Gumroad product.
+    Body: {name, price_cents, description, url (optional file URL), category}
+    """
+    tok = _gumroad_token()
+    if not tok:
+        return {"error": "GUMROAD_ACCESS_TOKEN not set"}
+    try:
+        import requests as _rc
+        payload = {
+            "name":        req.get("name", "WheellsVerse Product"),
+            "price":       int(req.get("price_cents", 0)),
+            "description": req.get("description", ""),
+            "published":   req.get("published", False),
+        }
+        if req.get("url"):
+            payload["url"] = req["url"]
+        r = _rc.post(f"{_GUMROAD_BASE}/products", headers=_gumroad_headers(), data=payload, timeout=15)
+        if r.status_code not in (200, 201):
+            return {"error": f"Gumroad {r.status_code}: {r.text[:200]}"}
+        p = r.json().get("product", {})
+        _add_log(f"Gumroad product created: {payload['name']}", "INFO")
+        return {
+            "id":        p.get("id", ""),
+            "name":      p.get("name", ""),
+            "short_url": p.get("short_url", ""),
+            "price":     p.get("price", 0),
+            "published": p.get("published", False),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.put("/api/gumroad/product/{product_id}")
+async def gumroad_update_product(product_id: str, req: dict):
+    """Update name, price, description, or published state."""
+    tok = _gumroad_token()
+    if not tok:
+        return {"error": "GUMROAD_ACCESS_TOKEN not set"}
+    try:
+        import requests as _rc
+        payload = {}
+        if "name"        in req: payload["name"]        = req["name"]
+        if "price_cents" in req: payload["price"]       = int(req["price_cents"])
+        if "description" in req: payload["description"] = req["description"]
+        if "published"   in req: payload["published"]   = req["published"]
+        r = _rc.put(f"{_GUMROAD_BASE}/products/{product_id}", headers=_gumroad_headers(), data=payload, timeout=15)
+        if r.status_code != 200:
+            return {"error": f"Gumroad {r.status_code}: {r.text[:200]}"}
+        p = r.json().get("product", {})
+        _add_log(f"Gumroad product updated: {product_id}", "INFO")
+        return {"id": p.get("id"), "name": p.get("name"), "published": p.get("published")}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.delete("/api/gumroad/product/{product_id}")
+async def gumroad_delete_product(product_id: str):
+    """Permanently delete a Gumroad product."""
+    tok = _gumroad_token()
+    if not tok:
+        return {"error": "GUMROAD_ACCESS_TOKEN not set"}
+    try:
+        import requests as _rc
+        r = _rc.delete(f"{_GUMROAD_BASE}/products/{product_id}", headers=_gumroad_headers(), timeout=15)
+        if r.status_code != 200:
+            return {"error": f"Gumroad {r.status_code}: {r.text[:200]}"}
+        _add_log(f"Gumroad product deleted: {product_id}", "INFO")
+        return {"deleted": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/gumroad/product/{product_id}/toggle")
+async def gumroad_toggle_product(product_id: str, req: dict):
+    """Enable or disable (publish/unpublish) a product. Body: {published: bool}"""
+    tok = _gumroad_token()
+    if not tok:
+        return {"error": "GUMROAD_ACCESS_TOKEN not set"}
+    try:
+        import requests as _rc
+        published = req.get("published", True)
+        endpoint = "enable" if published else "disable"
+        r = _rc.put(f"{_GUMROAD_BASE}/products/{product_id}/{endpoint}",
+                    headers=_gumroad_headers(), timeout=15)
+        if r.status_code != 200:
+            return {"error": f"Gumroad {r.status_code}: {r.text[:200]}"}
+        state = "enabled" if published else "disabled"
+        _add_log(f"Gumroad product {state}: {product_id}", "INFO")
+        return {"product_id": product_id, "published": published}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# ─── PAYHIP ──────────────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+
+_PAYHIP_BASE = "https://payhip.com/api/v1"
+
+def _payhip_token() -> str:
+    return os.getenv("PAYHIP_API_KEY", "")
+
+def _payhip_headers() -> dict:
+    return {
+        "Authorization": f"Bearer {_payhip_token()}",
+        "Content-Type":  "application/json",
+    }
+
+
+@app.get("/api/payhip/status")
+async def payhip_status():
+    """Validate Payhip API key, return products + sales summary."""
+    tok = _payhip_token()
+    if not tok:
+        return {"connected": False, "error": "PAYHIP_API_KEY not set in .env"}
+    try:
+        import requests as _rc
+
+        # Products list
+        pr = _rc.get(f"{_PAYHIP_BASE}/product", headers=_payhip_headers(), timeout=10)
+        if pr.status_code == 401:
+            return {"connected": False, "error": "Invalid Payhip API key"}
+        if pr.status_code == 403:
+            return {"connected": False, "error": "Payhip API access denied — check key permissions"}
+        if pr.status_code != 200:
+            return {"connected": False, "error": f"Payhip error {pr.status_code}: {pr.text[:100]}"}
+
+        products_data = pr.json()
+        products = products_data.get("data", products_data if isinstance(products_data, list) else [])
+
+        # Purchases list
+        purr = _rc.get(f"{_PAYHIP_BASE}/purchase", headers=_payhip_headers(), timeout=10)
+        purchases = []
+        if purr.status_code == 200:
+            pdata = purr.json()
+            purchases = pdata.get("data", pdata if isinstance(pdata, list) else [])
+
+        total_revenue = sum(float(p.get("amount", 0)) for p in purchases)
+
+        return {
+            "connected":      True,
+            "products_count": len(products),
+            "sales_count":    len(purchases),
+            "total_revenue":  round(total_revenue, 2),
+            "products": [
+                {
+                    "id":          p.get("link", p.get("id", "")),
+                    "name":        p.get("title",   p.get("name", "Untitled")),
+                    "price":       p.get("price",   0),
+                    "currency":    p.get("currency","usd"),
+                    "sales_count": p.get("total_sales", 0),
+                    "published":   p.get("active",  True),
+                    "url":         f"https://payhip.com/b/{p.get('link','')}",
+                    "description": (p.get("description", "") or "")[:120],
+                    "cover_url":   (p.get("cover_image", "") or ""),
+                }
+                for p in products
+            ],
+            "recent_purchases": [
+                {
+                    "id":           p.get("purchase_key", p.get("id", "")),
+                    "product_name": p.get("product_title", p.get("product_name", "")),
+                    "amount":       float(p.get("amount", 0)),
+                    "email":        p.get("email", ""),
+                    "created_at":   p.get("created_at", ""),
+                    "country":      p.get("country", ""),
+                }
+                for p in purchases[:20]
+            ],
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/api/payhip/product")
+async def payhip_create_product(req: dict):
+    """
+    Create a new Payhip digital product.
+    Body: {name, price, description, type ('ebook'|'course'|'software'|'other')}
+    Note: Payhip API allows product creation; file upload is done via dashboard.
+    """
+    tok = _payhip_token()
+    if not tok:
+        return {"error": "PAYHIP_API_KEY not set"}
+    try:
+        import requests as _rc
+        payload = {
+            "title":       req.get("name", "WheellsVerse Product"),
+            "price":       float(req.get("price", 0)),
+            "description": req.get("description", ""),
+            "type":        req.get("type", "ebook"),
+        }
+        r = _rc.post(f"{_PAYHIP_BASE}/product", headers=_payhip_headers(),
+                     json=payload, timeout=15)
+        if r.status_code not in (200, 201):
+            return {"error": f"Payhip {r.status_code}: {r.text[:200]}"}
+        p = r.json()
+        _add_log(f"Payhip product created: {payload['title']}", "INFO")
+        return {
+            "id":    p.get("link", p.get("id", "")),
+            "name":  p.get("title", payload["title"]),
+            "url":   f"https://payhip.com/b/{p.get('link','')}",
+            "price": p.get("price", payload["price"]),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.delete("/api/payhip/product/{product_id}")
+async def payhip_delete_product(product_id: str):
+    """Archive/delete a Payhip product."""
+    tok = _payhip_token()
+    if not tok:
+        return {"error": "PAYHIP_API_KEY not set"}
+    try:
+        import requests as _rc
+        r = _rc.delete(f"{_PAYHIP_BASE}/product/{product_id}",
+                       headers=_payhip_headers(), timeout=15)
+        if r.status_code not in (200, 204):
+            return {"error": f"Payhip {r.status_code}: {r.text[:200]}"}
+        _add_log(f"Payhip product deleted: {product_id}", "INFO")
+        return {"deleted": True}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
@@ -8240,6 +8942,7 @@ def launch(port: int = 5050, preload: bool = True):
     import time as _launch_time
 
     def _background_init():
+
         """Heavy engine startup — runs in background so uvicorn starts immediately."""
         _launch_time.sleep(8)  # give uvicorn time to start and pass Railway health check
 
@@ -8515,6 +9218,7 @@ def launch(port: int = 5050, preload: bool = True):
             _add_log(f"Performance refresh scheduler failed: {e}", "WARNING")
 
         # ── NEXORA DB init ────────────────────────────────────────────────────────
+
         try:
             from core.nexora_db import init_db as _nx_init
             _nx_init()
