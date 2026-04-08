@@ -3027,6 +3027,57 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
+  <!-- Content → Design → Publish Pipeline -->
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(122,90,248,.25)">
+    <div class="sh" style="margin-bottom:14px">
+      <div>
+        <div class="st" style="font-size:12px">🚀 Content → Design → Publish Pipeline</div>
+        <div class="ss" style="font-size:10px">Write content, auto-create the right Canva design, publish to WordPress</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Title</div>
+        <input id="pipe-title" class="si2" placeholder="Your post or design title…"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Platform</div>
+        <select id="pipe-platform" class="si2">
+          <option value="blog">📝 Blog / WordPress</option>
+          <option value="instagram">📸 Instagram</option>
+          <option value="twitter">🐦 Twitter / X</option>
+          <option value="facebook">👍 Facebook</option>
+          <option value="youtube">▶️ YouTube Thumbnail</option>
+          <option value="tiktok">🎵 TikTok</option>
+          <option value="newsletter">✉️ Newsletter</option>
+          <option value="poster">🪧 Poster</option>
+          <option value="flyer">📄 Flyer</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Content / Body <span style="color:var(--text3)">(optional)</span></div>
+      <textarea id="pipe-body" class="si2" rows="4" placeholder="Paste or type your content here…" style="resize:vertical;font-size:11px"></textarea>
+    </div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="pipe-publish-wp" style="accent-color:#7a5af8">
+        Also publish to WordPress
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text2);cursor:pointer">
+        <input type="checkbox" id="pipe-draft-wp">
+        Save as draft (not live)
+      </label>
+      <div style="flex:1"></div>
+      <button class="btn bsm" style="background:linear-gradient(135deg,#7a5af8,#6366f1);color:#fff;min-width:160px" onclick="canvaPipeline()" id="pipe-btn">⚡ Create Design</button>
+    </div>
+    <!-- Result -->
+    <div id="pipe-result" style="display:none;margin-top:14px;padding:12px;background:rgba(122,90,248,.06);border:1px solid rgba(122,90,248,.2);border-radius:8px">
+      <div style="font-size:11px;font-weight:600;color:#a78bfa;margin-bottom:8px">✅ Pipeline complete</div>
+      <div id="pipe-result-body" style="font-size:11px;color:var(--text2);line-height:1.7"></div>
+    </div>
+  </div>
+
   <!-- Designs grid -->
   <div class="sh" style="margin-bottom:12px">
     <div class="st" style="font-size:12px">📁 Recent Designs</div>
@@ -8997,6 +9048,7 @@ async function wpLoad() {
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${statusBadge}<span style="font-size:9px;color:var(--text3)">${date}</span>${url ? `<a href="${url}" target="_blank" style="font-size:9px;color:var(--cyan);text-decoration:none">🔗 View</a>` : ''}</div>
         </div>
         <div style="display:flex;gap:5px;flex-shrink:0">
+          <button class="btn bsm" style="background:rgba(122,90,248,.15);color:#a78bfa;border:1px solid rgba(122,90,248,.3)" onclick="canvaDesignForPost('${(post.title||'').replace(/'/g,'\\\'')}')" title="Create Canva design for this post">🎨</button>
           <button class="btn bgh bsm" onclick="wpEditPost(${post.ID},'${(post.title||'').replace(/'/g,'\\\'')}')" title="Edit">✏️</button>
           <button class="btn br2 bsm" onclick="wpDeletePost(${post.ID})" title="Delete">🗑</button>
         </div>
@@ -9437,6 +9489,49 @@ async function canvaExport(designId) {
     if (r.error) throw new Error(r.error);
     toast('Export started — check Canva for download', 'success');
   } catch(e) { toast('Export failed: ' + e.message, 'error'); }
+}
+
+async function canvaPipeline() {
+  const title    = document.getElementById('pipe-title').value.trim();
+  const platform = document.getElementById('pipe-platform').value;
+  const body     = document.getElementById('pipe-body').value.trim();
+  const publishWP = document.getElementById('pipe-publish-wp').checked;
+  const asDraft   = document.getElementById('pipe-draft-wp').checked;
+  if (!title) { toast('Enter a title first', 'error'); return; }
+  const btn = document.getElementById('pipe-btn');
+  btn.disabled = true; btn.textContent = '⏳ Running…';
+  document.getElementById('pipe-result').style.display = 'none';
+  try {
+    const r = await api('/api/canva/pipeline', 'POST', {
+      title, body, platform,
+      publish_to_wp: publishWP,
+      wp_status: asDraft ? 'draft' : 'publish',
+    });
+    if (r.error) throw new Error(r.error);
+    let html = '';
+    if (r.edit_url) html += `<div>🎨 <strong>Design:</strong> <a href="${r.edit_url}" target="_blank" style="color:#a78bfa">Open in Canva (${r.design_type})</a></div>`;
+    if (r.wp_url)   html += `<div>📝 <strong>WordPress post:</strong> <a href="${r.wp_url}" target="_blank" style="color:#2175c4">${r.wp_url}</a></div>`;
+    if (r.wp_error) html += `<div style="color:var(--red)">⚠️ WP error: ${r.wp_error}</div>`;
+    document.getElementById('pipe-result-body').innerHTML = html;
+    document.getElementById('pipe-result').style.display = 'block';
+    toast('Pipeline complete!', 'success');
+    if (r.design_id) setTimeout(canvaLoad, 1500);
+  } catch(e) {
+    toast('Pipeline failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '⚡ Create Design';
+  }
+}
+
+async function canvaDesignForPost(title) {
+  toast('Creating Canva design…', 'info');
+  try {
+    const r = await api('/api/canva/auto-design', 'POST', {title, platform:'blog'});
+    if (r.error) throw new Error(r.error);
+    if (r.edit_url) window.open(r.edit_url, '_blank');
+    toast('Design created — opened in Canva!', 'success');
+    setTimeout(canvaLoad, 1500);
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

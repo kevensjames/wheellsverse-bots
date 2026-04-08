@@ -3382,9 +3382,8 @@ async def canva_create_design(req: dict):
         raise HTTPException(401, "Canva not connected")
     try:
         import requests as _rc
-        design_type = req.get("design_type", "PRESENTATION")
         title = req.get("title", "WheellsVerse Design")
-        body = {"design_type": {"type": design_type}, "title": title}
+        body = _canva_design_body(req.get("platform", "blog"), title)
         r = _rc.post(f"{_CANVA_BASE}/rest/v1/designs", headers=_canva_headers(), json=body, timeout=15)
         if r.status_code not in (200, 201):
             raise HTTPException(400, r.text[:300])
@@ -3420,6 +3419,136 @@ async def canva_export_design(design_id: str, req: dict = {}):
         raise
     except Exception as e:
         raise HTTPException(400, str(e))
+
+
+# ─── Canva Auto-Design Pipeline ───────────────────────────────────────────────
+
+# Platform → (width, height, label) for custom Canva designs
+_CANVA_PLATFORM_MAP = {
+    "blog":        (1200, 628,  "Blog Featured Image"),
+    "wordpress":   (1200, 628,  "Blog Featured Image"),
+    "instagram":   (1080, 1080, "Instagram Post"),
+    "twitter":     (1200, 675,  "Twitter / X Post"),
+    "facebook":    (1200, 630,  "Facebook Post"),
+    "youtube":     (1280, 720,  "YouTube Thumbnail"),
+    "tiktok":      (1080, 1920, "TikTok Video"),
+    "newsletter":  (600,  900,  "Newsletter"),
+    "email":       (600,  900,  "Email"),
+    "poster":      (794,  1123, "Poster (A4)"),
+    "flyer":       (794,  1123, "Flyer (A4)"),
+    "logo":        (500,  500,  "Logo"),
+    "social":      (1080, 1080, "Social Media Post"),
+}
+
+def _canva_design_body(platform: str, title: str) -> dict:
+    dims = _CANVA_PLATFORM_MAP.get(platform, (1200, 628, platform.title()))
+    w, h, _ = dims
+    return {
+        "design_type": {"type": "custom", "width": w, "height": h},
+        "title": title,
+    }
+
+@app.post("/api/canva/auto-design")
+async def canva_auto_design(req: dict):
+    """
+    Smart design creator: given a title + platform, picks the right Canva design
+    size and creates it. Returns edit URL so user can customise immediately.
+    Body: {title, platform, excerpt (optional)}
+    """
+    tok = _canva_access_token()
+    if not tok:
+        return {"error": "Canva not connected — please connect first"}
+    try:
+        import requests as _rc
+        title    = req.get("title", "WheellsVerse Design")
+        platform = req.get("platform", "blog").lower()
+        dims     = _CANVA_PLATFORM_MAP.get(platform, (1200, 628, platform.title()))
+        label    = dims[2]
+        body     = _canva_design_body(platform, title)
+        r = _rc.post(f"{_CANVA_BASE}/rest/v1/designs", headers=_canva_headers(), json=body, timeout=15)
+        if r.status_code not in (200, 201):
+            raise HTTPException(400, r.text[:300])
+        data  = r.json().get("design", {})
+        d_id  = data.get("id", "")
+        d_url = data.get("urls", {}).get("edit_url", "")
+        _add_log(f"Canva auto-design created [{label}]: {title}", "INFO")
+        return {
+            "id":          d_id,
+            "title":       data.get("title", title),
+            "design_type": label,
+            "platform":    platform,
+            "edit_url":    d_url,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/canva/pipeline")
+async def canva_content_pipeline(req: dict):
+    """
+    Full content → design pipeline.
+    Creates Canva design, optionally publishes a WordPress post referencing it.
+    Body: {title, body, platform, publish_to_wp (bool), wp_status ('publish'|'draft')}
+    """
+    tok = _canva_access_token()
+    if not tok:
+        return {"error": "Canva not connected"}
+    import requests as _rc
+    title    = req.get("title", "WheellsVerse Content")
+    body_txt = req.get("body", "")
+    platform = req.get("platform", "blog").lower()
+    publish  = req.get("publish_to_wp", False)
+    wp_status = req.get("wp_status", "draft")
+
+    # Step 1 — create Canva design
+    dims = _CANVA_PLATFORM_MAP.get(platform, (1200, 628, platform.title()))
+    design_type = dims[2]
+    body_payload = _canva_design_body(platform, title)
+    dr = _rc.post(f"{_CANVA_BASE}/rest/v1/designs", headers=_canva_headers(), json=body_payload, timeout=15)
+    if dr.status_code not in (200, 201):
+        return {"error": f"Canva design failed: {dr.text[:200]}"}
+    design = dr.json().get("design", {})
+    edit_url = design.get("urls", {}).get("edit_url", "")
+    design_id = design.get("id", "")
+
+    result = {
+        "design_id":   design_id,
+        "design_type": design_type,
+        "edit_url":    edit_url,
+        "wp_post_id":  None,
+        "wp_url":      None,
+    }
+
+    # Step 2 — optionally publish to WordPress
+    if publish:
+        wp_url   = os.getenv("WORDPRESS_URL","").rstrip("/")
+        wp_token = os.getenv("WORDPRESS_TOKEN","")
+        site     = wp_url.replace("https://","").replace("http://","")
+        if wp_url and wp_token:
+            canva_link = f'\n\n<p><a href="{edit_url}" target="_blank">🎨 View / edit design in Canva</a></p>'
+            post_body = {
+                "title":   title,
+                "content": body_txt + canva_link,
+                "status":  wp_status,
+            }
+            wp_r = _rc.post(
+                f"https://public-api.wordpress.com/rest/v1.1/sites/{site}/posts/new",
+                headers={"Authorization": f"Bearer {wp_token}"},
+                json=post_body,
+                timeout=20,
+            )
+            if wp_r.status_code in (200, 201):
+                wp_data = wp_r.json()
+                result["wp_post_id"] = wp_data.get("ID")
+                result["wp_url"]     = wp_data.get("URL")
+                _add_log(f"Pipeline: WP post created [{wp_status}]: {title}", "INFO")
+            else:
+                result["wp_error"] = wp_r.text[:200]
+
+    _add_log(f"Canva pipeline complete: {title} ({platform})", "INFO")
+    return result
 
 
 # ─── Publish Pipeline ─────────────────────────────────────────────────────────
