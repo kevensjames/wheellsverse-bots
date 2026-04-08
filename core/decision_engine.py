@@ -246,10 +246,10 @@ def build_system_state(orchestrator, health_registry) -> Dict[str, Any]:
         if not bot:
             continue
         status = bot.get_status()
-        bot_statuses[name] = status["status"]
-        if status["status"] == "error":
+        bot_statuses[name] = status.get("status", "idle")
+        if status.get("status") == "error":
             failed_bots.append(name)
-        if status["last_run"]:
+        if status.get("last_run"):
             try:
                 last_run_times.append(datetime.fromisoformat(status["last_run"]))
             except Exception:

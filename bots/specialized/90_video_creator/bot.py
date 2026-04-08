@@ -75,9 +75,10 @@ class VideoCreatorBot(BaseBot):
             timeout=30,
         )
         data = resp.json()
-        if resp.status_code != 200 or "error" in data:
-            err = data.get("error", {})
-            return {"error": err.get("message", str(data))}
+        if resp.status_code != 200 or (data.get("error") is not None):
+            err = data.get("error") or {}
+            msg = err.get("message", str(data)) if isinstance(err, dict) else str(err)
+            return {"error": msg}
 
         video_id = data.get("data", {}).get("video_id", "")
         self.logger.info("HeyGen video submitted: %s", video_id)

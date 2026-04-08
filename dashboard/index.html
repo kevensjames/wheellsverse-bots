@@ -510,6 +510,9 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('newsletter')" id="nav-newsletter" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">✉️</span><span>Newsletter Bot</span></div>
     <div class="nav-item" onclick="nav('gsc')" id="nav-gsc" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔍</span><span>Search Console</span></div>
     <div class="nav-item" onclick="nav('telegramalerts')" id="nav-telegramalerts" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📲</span><span>Alerts</span></div>
+    <div class="nav-item" onclick="nav('wordpress')" id="nav-wordpress" style="background:linear-gradient(90deg,rgba(33,117,196,.12),transparent);border-left:2px solid #2175c4;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📝</span><span style="color:#5ba4e0;font-weight:700">WordPress</span></div>
+    <div class="nav-item" onclick="nav('notion')" id="nav-notion" style="background:linear-gradient(90deg,rgba(255,255,255,.06),transparent);border-left:2px solid #e0e0e0;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🗒️</span><span style="color:#ccc;font-weight:700">Notion</span></div>
+    <div class="nav-item" onclick="nav('canva')" id="nav-canva" style="background:linear-gradient(90deg,rgba(122,90,248,.12),transparent);border-left:2px solid #7a5af8;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎨</span><span style="color:#a78bfa;font-weight:700">Canva</span></div>
 
     <!-- Data -->
     <div class="nav-sec" style="color:rgba(170,136,255,.6);font-size:8px;letter-spacing:2.5px">DATA</div>
@@ -2857,6 +2860,283 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 </div>
 
 
+<!-- ══ WORDPRESS PAGE ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-wordpress">
+  <!-- Header -->
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">📝 WordPress Blog Management</div>
+      <div class="ss" id="wp-site-url-label">wheellsverse.blog · connected via WordPress.com API</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="https://wheellsverse.blog" target="_blank" class="btn bgh bsm">🌐 View Site</a>
+      <a href="https://wordpress.com/posts/wheellsverse.blog" target="_blank" class="btn bgh bsm">🛠 WP Admin</a>
+      <button class="btn bc2 bsm" onclick="wpLoad()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Token warning banner -->
+  <div id="wp-token-warning" style="display:none;background:rgba(255,204,0,.08);border:1px solid rgba(255,204,0,.3);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px">
+    <div style="font-size:11px;color:var(--yellow)">⚠ WordPress token expired — read-only mode. Reconnect to publish/edit posts.</div>
+    <button class="btn by bsm" onclick="wpReconnect()">🔑 Reconnect</button>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Total Posts</div>
+      <div class="cv cy" id="wp-stat-total">—</div>
+      <div class="csb">all statuses</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Published</div>
+      <div class="cv gr" id="wp-stat-published">—</div>
+      <div class="csb">live on blog</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Drafts</div>
+      <div class="cv yl" id="wp-stat-drafts">—</div>
+      <div class="csb">unpublished</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">API</div>
+      <div class="cv gr" id="wp-stat-conn" style="font-size:14px">✓</div>
+      <div class="csb" id="wp-stat-conn-lbl">Connected</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Write Access</div>
+      <div class="cv" id="wp-stat-write" style="font-size:14px">—</div>
+      <div class="csb" id="wp-stat-write-lbl">checking…</div>
+    </div>
+  </div>
+
+  <!-- New Post Form -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:14px">
+      <div class="st" style="font-size:12px">✍️ New Post</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <input id="wp-new-title" class="si2" placeholder="Post title…" style="font-size:12px;padding:9px 12px"/>
+      <textarea id="wp-new-content" class="si2" rows="6" placeholder="Post content (HTML or plain text)…" style="font-size:11px;padding:9px 12px;resize:vertical;line-height:1.6"></textarea>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <select id="wp-new-status" class="si2" style="width:auto;min-width:120px">
+          <option value="publish">Publish Now</option>
+          <option value="draft">Save as Draft</option>
+          <option value="private">Private</option>
+        </select>
+        <button class="btn bg2" onclick="wpCreatePost()" id="wp-post-btn">
+          <span id="wp-post-btn-txt">🚀 Publish Post</span>
+        </button>
+        <span id="wp-post-status" style="font-size:10px;color:var(--text3)"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post list -->
+  <div class="tw" style="margin-bottom:18px">
+    <div class="sh" style="padding:12px 14px 0;margin-bottom:0">
+      <div class="st" style="font-size:12px">📋 Posts</div>
+      <div style="display:flex;gap:6px">
+        <select id="wp-filter-status" class="si2 bsm" style="width:auto" onchange="wpLoad()">
+          <option value="">All</option>
+          <option value="publish">Published</option>
+          <option value="draft">Drafts</option>
+          <option value="private">Private</option>
+        </select>
+      </div>
+    </div>
+    <div id="wp-posts-list" style="padding:0">
+      <div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading posts…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ CANVA PAGE ════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-canva">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🎨 Canva Design Studio</div>
+      <div class="ss" id="canva-user-label">Connect your Canva account to manage designs</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn bgh bsm" onclick="canvaConnect()" id="canva-connect-btn">🔑 Connect Canva</button>
+      <button class="btn bc2 bsm" onclick="canvaLoad()">🔄 Refresh</button>
+      <a href="https://www.canva.com" target="_blank" class="btn bgh bsm">🔗 Open Canva</a>
+    </div>
+  </div>
+
+  <!-- Auth banner -->
+  <div id="canva-auth-banner" style="display:none;background:rgba(122,90,248,.08);border:1px solid rgba(122,90,248,.3);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:#a78bfa;margin-bottom:4px">🔑 Connect Canva to get started</div>
+    <div style="font-size:11px;color:var(--text2)">Click <strong style="color:#a78bfa">Connect Canva</strong> above → authorize in the popup → return here and click Refresh.</div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Designs</div>
+      <div class="cv pu" id="canva-stat-designs">—</div>
+      <div class="csb">in workspace</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Account</div>
+      <div class="cv" id="canva-stat-user" style="font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
+      <div class="csb">connected as</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Status</div>
+      <div class="cv" id="canva-stat-conn" style="font-size:14px">—</div>
+      <div class="csb" id="canva-stat-conn-lbl">not connected</div>
+    </div>
+    <div class="card" style="text-align:center;cursor:pointer" onclick="canvaNewDesign()">
+      <div class="ct">Quick Create</div>
+      <div class="cv pu" style="font-size:22px">+</div>
+      <div class="csb">new design</div>
+    </div>
+  </div>
+
+  <!-- New design form -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:12px">✨ Create New Design</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div style="flex:1;min-width:200px">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Title</div>
+        <input id="canva-new-title" class="si2" placeholder="My awesome design…"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Type</div>
+        <select id="canva-new-type" class="si2" style="width:auto">
+          <option value="PRESENTATION">Presentation</option>
+          <option value="SOCIAL_MEDIA">Social Media Post</option>
+          <option value="VIDEO">Video</option>
+          <option value="DOCUMENT">Document</option>
+          <option value="WHITEBOARD">Whiteboard</option>
+          <option value="INSTAGRAM_POST">Instagram Post</option>
+          <option value="TWITTER_POST">Twitter Post</option>
+          <option value="FACEBOOK_POST">Facebook Post</option>
+          <option value="YOUTUBE_THUMBNAIL">YouTube Thumbnail</option>
+          <option value="FLYER">Flyer</option>
+          <option value="POSTER">Poster</option>
+          <option value="LOGO">Logo</option>
+        </select>
+      </div>
+      <button class="btn bg2 bsm" onclick="canvaCreateDesign()" id="canva-create-btn">🎨 Create</button>
+      <span id="canva-create-status" style="font-size:10px;color:var(--text3)"></span>
+    </div>
+  </div>
+
+  <!-- Designs grid -->
+  <div class="sh" style="margin-bottom:12px">
+    <div class="st" style="font-size:12px">📁 Recent Designs</div>
+  </div>
+  <div id="canva-designs-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px">
+    <div style="padding:30px;text-align:center;color:var(--text3);font-size:11px;grid-column:1/-1">Loading designs…</div>
+  </div>
+</div>
+
+<!-- ══ NOTION PAGE ════════════════════════════════════════════════════════════ -->
+<div class="page" id="page-notion">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🗒️ Notion Workspace</div>
+      <div class="ss" id="notion-workspace-label">Wheelsverse's Space</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a href="https://notion.so" target="_blank" class="btn bgh bsm">🔗 Open Notion</a>
+      <button class="btn bc2 bsm" onclick="notionLoad()">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Connect banner (shown when no pages shared) -->
+  <div id="notion-connect-banner" style="display:none;background:rgba(255,204,0,.07);border:1px solid rgba(255,204,0,.25);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="font-size:12px;font-weight:600;color:var(--yellow);margin-bottom:6px">⚡ Share pages with this integration to manage them here</div>
+    <div style="font-size:11px;color:var(--text2);line-height:1.7">
+      In Notion: open any page → click <strong style="color:var(--text)">⋯ menu</strong> → <strong style="color:var(--text)">Connections</strong> → search <strong style="color:var(--cyan)">WheellsVerse</strong> → Connect.<br>
+      Then click <strong style="color:var(--cyan)">🔄 Refresh</strong> above.
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Pages</div>
+      <div class="cv cy" id="notion-stat-pages">—</div>
+      <div class="csb">shared with bot</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Databases</div>
+      <div class="cv pu" id="notion-stat-dbs">—</div>
+      <div class="csb">connected tables</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Workspace</div>
+      <div class="cv gr" id="notion-stat-conn" style="font-size:14px">✓</div>
+      <div class="csb">API connected</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Total Items</div>
+      <div class="cv" id="notion-stat-total">—</div>
+      <div class="csb">pages + databases</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+
+    <!-- Pages list -->
+    <div>
+      <div class="sh" style="margin-bottom:10px">
+        <div class="st" style="font-size:12px">📄 Pages</div>
+      </div>
+      <div id="notion-pages-list" style="display:flex;flex-direction:column;gap:8px">
+        <div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+      </div>
+    </div>
+
+    <!-- Databases + New Page form -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+
+      <!-- Databases -->
+      <div>
+        <div class="sh" style="margin-bottom:10px">
+          <div class="st" style="font-size:12px">🗄️ Databases</div>
+        </div>
+        <div id="notion-dbs-list" style="display:flex;flex-direction:column;gap:8px">
+          <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>
+        </div>
+      </div>
+
+      <!-- New Page form -->
+      <div class="card">
+        <div class="sh" style="margin-bottom:12px">
+          <div class="st" style="font-size:12px">✨ Create New Page</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input id="notion-new-title" class="si2" placeholder="Page title…"/>
+          <textarea id="notion-new-content" class="si2" rows="4" placeholder="Content (supports # Heading1, ## Heading2, paragraphs)…" style="resize:vertical;line-height:1.6;font-size:11px"></textarea>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <select id="notion-parent-select" class="si2" style="width:auto;flex:1">
+              <option value="">— select parent page or database —</option>
+            </select>
+            <button class="btn bc2 bsm" onclick="notionCreatePage()" id="notion-create-btn">➕ Create</button>
+          </div>
+          <div id="notion-create-status" style="font-size:10px;color:var(--text3);min-height:14px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DB row viewer -->
+  <div id="notion-db-viewer" style="display:none;margin-top:18px">
+    <div class="sh" style="margin-bottom:10px">
+      <div class="st" style="font-size:12px" id="notion-db-viewer-title">📊 Database Rows</div>
+      <button class="btn bgh bsm" onclick="document.getElementById('notion-db-viewer').style.display='none'">✕ Close</button>
+    </div>
+    <div id="notion-db-table" class="tw" style="overflow-x:auto"></div>
+  </div>
+</div>
+
 </div></div></div>
 <!-- ══ ⌘K COMMAND BAR ═════════════════════════════════════════════════════ -->
 <div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)closeCmdBar()">
@@ -2899,7 +3179,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -2943,6 +3223,9 @@ function nav(p){
   if(p==='pixelagents') initPixelAgents();
   if(p==='narai') initNarAI();
   if(p==='whatsapp'){waRefresh();}
+  if(p==='wordpress') wpLoad();
+  if(p==='notion') notionLoad();
+  if(p==='canva') canvaLoad();
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
 
@@ -8649,6 +8932,511 @@ async function waNarAIReply(msgId, phone, originalMsg) {
       await waReply(msgId, phone, data.response);
     }
   } catch(e) { toast('NarAI compose failed', 'error'); }
+}
+
+// ── WordPress ────────────────────────────────────────────────────────────────
+let _wpPosts = [];
+
+async function wpLoad() {
+  const statusFilter = document.getElementById('wp-filter-status')?.value || '';
+  const listEl = document.getElementById('wp-posts-list');
+  listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+
+  try {
+    const r = await api('/api/wordpress/status');
+    if (!r.connected) {
+      document.getElementById('wp-stat-conn').textContent = '✗';
+      document.getElementById('wp-stat-conn').className = 'cv rd';
+      document.getElementById('wp-stat-conn-lbl').textContent = r.error || 'Not connected';
+      listEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red);font-size:11px">⚠ ${r.error||'Could not connect to WordPress'}</div>`;
+      return;
+    }
+
+    // Token / write access status
+    const canWrite = r.can_write || r.token_valid;
+    const warn = document.getElementById('wp-token-warning');
+    warn.style.display = canWrite ? 'none' : 'flex';
+    const writeEl = document.getElementById('wp-stat-write');
+    const writeLbl = document.getElementById('wp-stat-write-lbl');
+    writeEl.textContent = canWrite ? '✓' : '✗';
+    writeEl.className = canWrite ? 'cv gr' : 'cv rd';
+    writeLbl.textContent = canWrite ? 'Token valid' : 'Token expired';
+
+    // Disable post form if no write access
+    const postBtn = document.getElementById('wp-post-btn');
+    if (postBtn) postBtn.disabled = !canWrite;
+
+    _wpPosts = r.posts || [];
+    const filtered = statusFilter ? _wpPosts.filter(p => p.status === statusFilter) : _wpPosts;
+    const published = _wpPosts.filter(p => p.status === 'publish').length;
+    const drafts = _wpPosts.filter(p => p.status === 'draft').length;
+
+    document.getElementById('wp-stat-total').textContent = r.found || _wpPosts.length;
+    document.getElementById('wp-stat-published').textContent = published;
+    document.getElementById('wp-stat-drafts').textContent = drafts;
+    document.getElementById('wp-stat-conn').textContent = '✓';
+    document.getElementById('wp-stat-conn').className = 'cv gr';
+    document.getElementById('wp-stat-conn-lbl').textContent = 'WordPress.com';
+
+    if (!filtered.length) {
+      listEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">No posts found</div>';
+      return;
+    }
+
+    listEl.innerHTML = filtered.map(post => {
+      const statusBadge = post.status === 'publish'
+        ? '<span class="bdg bg">● Published</span>'
+        : post.status === 'draft'
+        ? '<span class="bdg by">● Draft</span>'
+        : `<span class="bdg bz">${post.status}</span>`;
+      const date = post.date ? new Date(post.date).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '';
+      const url = post.URL || post.url || '';
+      return `<div style="display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start;padding:12px 14px;border-bottom:1px solid rgba(42,47,62,.4)">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px">${post.title || '(Untitled)'}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">${statusBadge}<span style="font-size:9px;color:var(--text3)">${date}</span>${url ? `<a href="${url}" target="_blank" style="font-size:9px;color:var(--cyan);text-decoration:none">🔗 View</a>` : ''}</div>
+        </div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <button class="btn bgh bsm" onclick="wpEditPost(${post.ID},'${(post.title||'').replace(/'/g,'\\\'')}')" title="Edit">✏️</button>
+          <button class="btn br2 bsm" onclick="wpDeletePost(${post.ID})" title="Delete">🗑</button>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    listEl.innerHTML = `<div style="padding:20px;text-align:center;color:var(--red);font-size:11px">Error: ${e.message}</div>`;
+  }
+}
+
+async function wpCreatePost() {
+  const title = document.getElementById('wp-new-title').value.trim();
+  const content = document.getElementById('wp-new-content').value.trim();
+  const status = document.getElementById('wp-new-status').value;
+  if (!title) { toast('Enter a title', 'error'); return; }
+  if (!content) { toast('Enter content', 'error'); return; }
+
+  const btn = document.getElementById('wp-post-btn-txt');
+  const statusEl = document.getElementById('wp-post-status');
+  btn.textContent = '⏳ Publishing…';
+  statusEl.textContent = '';
+
+  try {
+    const r = await api('/api/wordpress/post', 'POST', {title, content, status});
+    if (r.error) throw new Error(r.error);
+    toast(status === 'publish' ? '🚀 Post published!' : '💾 Draft saved!', 'success');
+    document.getElementById('wp-new-title').value = '';
+    document.getElementById('wp-new-content').value = '';
+    statusEl.textContent = status === 'publish' ? '✓ Published' : '✓ Draft saved';
+    statusEl.style.color = 'var(--green)';
+    wpLoad();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    statusEl.textContent = '✗ ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btn.textContent = '🚀 Publish Post';
+  }
+}
+
+async function wpDeletePost(id) {
+  if (!confirm('Delete this post?')) return;
+  try {
+    const r = await api('/api/wordpress/post/' + id, 'DELETE');
+    if (r.error) throw new Error(r.error);
+    toast('Post deleted', 'success');
+    wpLoad();
+  } catch(e) {
+    toast('Delete failed: ' + e.message, 'error');
+  }
+}
+
+async function wpReconnect() {
+  try {
+    const r = await api('/api/wordpress/oauth-url');
+    if (r.url) {
+      window.open(r.url, '_blank', 'width=600,height=700');
+      toast('Complete auth in the new tab — token will auto-save', 'info');
+      setTimeout(wpLoad, 8000); // refresh after they complete OAuth
+    } else {
+      toast('Could not get OAuth URL', 'error');
+    }
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+function wpEditPost(id, currentTitle) {
+  const newTitle = prompt('Edit title:', currentTitle);
+  if (newTitle === null) return;
+  const newContent = prompt('Edit content (leave blank to keep existing):');
+  if (newContent === null) return;
+  const body = {title: newTitle};
+  if (newContent) body.content = newContent;
+  api('/api/wordpress/post/' + id, 'POST', body)
+    .then(r => {
+      if (r.error) throw new Error(r.error);
+      toast('Post updated', 'success');
+      wpLoad();
+    })
+    .catch(e => toast('Update failed: ' + e.message, 'error'));
+}
+
+// ── Canva ────────────────────────────────────────────────────────────────────
+async function canvaLoad() {
+  const grid = document.getElementById('canva-designs-grid');
+  grid.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3);font-size:11px;grid-column:1/-1">Loading…</div>';
+  try {
+    const r = await api('/api/canva/status');
+    const banner = document.getElementById('canva-auth-banner');
+    const connBtn = document.getElementById('canva-connect-btn');
+    if (!r.connected) {
+      banner.style.display = 'block';
+      connBtn.style.display = '';
+      document.getElementById('canva-stat-conn').textContent = '✗';
+      document.getElementById('canva-stat-conn').className = 'cv rd';
+      document.getElementById('canva-stat-conn-lbl').textContent = r.error || 'Not connected';
+      document.getElementById('canva-stat-user').textContent = '—';
+      document.getElementById('canva-stat-designs').textContent = '—';
+      grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--text3);font-size:11px;grid-column:1/-1">Connect Canva to see your designs</div>`;
+      return;
+    }
+    banner.style.display = 'none';
+    connBtn.textContent = '✓ Connected';
+    connBtn.className = 'btn bg2 bsm';
+    document.getElementById('canva-user-label').textContent = (r.display_name || '') + (r.email ? ' · ' + r.email : '');
+    document.getElementById('canva-stat-conn').textContent = '✓';
+    document.getElementById('canva-stat-conn').className = 'cv gr';
+    document.getElementById('canva-stat-conn-lbl').textContent = 'Connected';
+    document.getElementById('canva-stat-user').textContent = r.display_name || r.email || '—';
+    document.getElementById('canva-stat-designs').textContent = r.designs_count || 0;
+
+    if (!r.designs || !r.designs.length) {
+      grid.innerHTML = '<div style="padding:30px;text-align:center;color:var(--text3);font-size:11px;grid-column:1/-1">No designs yet — create your first one above!</div>';
+      return;
+    }
+    grid.innerHTML = r.designs.map(d => {
+      const updated = d.updated ? new Date(d.updated).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+      const thumb = d.thumbnail ? `<img src="${d.thumbnail}" style="width:100%;height:130px;object-fit:cover;border-radius:6px 6px 0 0;display:block" onerror="this.style.display='none'">` :
+        `<div style="width:100%;height:130px;background:linear-gradient(135deg,rgba(122,90,248,.2),rgba(0,212,255,.1));border-radius:6px 6px 0 0;display:flex;align-items:center;justify-content:center;font-size:32px">🎨</div>`;
+      return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);overflow:hidden;transition:border-color .15s" onmouseover="this.style.borderColor='rgba(122,90,248,.5)'" onmouseout="this.style.borderColor=''">
+        ${thumb}
+        <div style="padding:10px 12px">
+          <div style="font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px">${d.title || 'Untitled'}</div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:8px">${d.type || 'Design'} · ${updated}</div>
+          <div style="display:flex;gap:5px">
+            ${d.url ? `<a href="${d.url}" target="_blank" class="btn bc2 bsm" style="font-size:9px;flex:1;justify-content:center">✏️ Edit</a>` : ''}
+            <button class="btn bgh bsm" style="font-size:9px" onclick="canvaExport('${d.id}','${(d.title||'design').replace(/'/g,"\\'")}')">⬇️ Export</button>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);font-size:11px;grid-column:1/-1">Error: ${e.message}</div>`;
+  }
+}
+
+async function canvaConnect() {
+  try {
+    const r = await api('/api/canva/oauth-url');
+    if (r.error) { toast(r.error, 'error'); return; }
+    const popup = window.open(r.url, 'canva_auth', 'width=640,height=780,left=200,top=100');
+    toast('Complete authorization in the popup window', 'info');
+    const check = setInterval(() => {
+      if (popup && popup.closed) {
+        clearInterval(check);
+        setTimeout(canvaLoad, 1000);
+      }
+    }, 800);
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
+async function canvaCreateDesign() {
+  const title = document.getElementById('canva-new-title').value.trim() || 'WheellsVerse Design';
+  const type = document.getElementById('canva-new-type').value;
+  const btn = document.getElementById('canva-create-btn');
+  const statusEl = document.getElementById('canva-create-status');
+  btn.textContent = '⏳ Creating…';
+  btn.disabled = true;
+  statusEl.textContent = '';
+  try {
+    const r = await api('/api/canva/design', 'POST', {title, design_type: type});
+    if (r.error) throw new Error(r.error);
+    toast('Design created!', 'success');
+    statusEl.textContent = '✓ ' + title;
+    statusEl.style.color = 'var(--green)';
+    document.getElementById('canva-new-title').value = '';
+    if (r.url) window.open(r.url, '_blank');
+    canvaLoad();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    statusEl.textContent = '✗ ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btn.textContent = '🎨 Create';
+    btn.disabled = false;
+  }
+}
+
+function canvaNewDesign() {
+  document.getElementById('canva-new-title').focus();
+  document.getElementById('canva-new-title').scrollIntoView({behavior:'smooth'});
+}
+
+async function canvaExport(id, title) {
+  const fmt = prompt('Export format:', 'PNG');
+  if (!fmt) return;
+  try {
+    const r = await api('/api/canva/export/' + id, 'POST', {format: fmt.toUpperCase()});
+    if (r.error) throw new Error(r.error);
+    toast(`Export started (job: ${r.job_id}) — check Canva for download`, 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'error'); }
+}
+
+// ── Notion ───────────────────────────────────────────────────────────────────
+let _notionData = null;
+
+async function notionLoad() {
+  document.getElementById('notion-pages-list').innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  document.getElementById('notion-dbs-list').innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  try {
+    const r = await api('/api/notion/status');
+    if (!r.connected) {
+      document.getElementById('notion-stat-conn').textContent = '✗';
+      document.getElementById('notion-stat-conn').className = 'cv rd';
+      document.getElementById('notion-pages-list').innerHTML = `<div style="padding:20px;text-align:center;color:var(--red);font-size:11px">⚠ ${r.error||'Not connected'}</div>`;
+      return;
+    }
+    _notionData = r;
+    document.getElementById('notion-workspace-label').textContent = r.workspace || 'Notion';
+    document.getElementById('notion-stat-pages').textContent = r.pages_count;
+    document.getElementById('notion-stat-dbs').textContent = r.databases_count;
+    document.getElementById('notion-stat-total').textContent = r.total;
+    document.getElementById('notion-stat-conn').textContent = '✓';
+    document.getElementById('notion-stat-conn').className = 'cv gr';
+
+    const banner = document.getElementById('notion-connect-banner');
+    banner.style.display = r.total === 0 ? 'block' : 'none';
+
+    // Populate parent selector
+    const sel = document.getElementById('notion-parent-select');
+    sel.innerHTML = '<option value="">— select parent —</option>';
+    (r.pages||[]).forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.id + '|page';
+      opt.textContent = '📄 ' + (p.title || p.id.slice(0,8));
+      sel.appendChild(opt);
+    });
+    (r.databases||[]).forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.id + '|database';
+      opt.textContent = '🗄️ ' + (d.title || d.id.slice(0,8));
+      sel.appendChild(opt);
+    });
+
+    // Render pages
+    const pagesEl = document.getElementById('notion-pages-list');
+    if (!r.pages || !r.pages.length) {
+      pagesEl.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:11px;text-align:center">No pages shared yet</div>';
+    } else {
+      pagesEl.innerHTML = r.pages.map(p => {
+        const date = p.last_edited ? new Date(p.last_edited).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : '';
+        return `<div style="background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="min-width:0">
+            <div style="font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.title||'Untitled'}</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">${date}</div>
+          </div>
+          <div style="display:flex;gap:5px;flex-shrink:0">
+            ${p.url ? `<a href="${p.url}" target="_blank" class="btn bgh bsm" style="font-size:9px">🔗</a>` : ''}
+            <button class="btn br2 bsm" style="font-size:9px" onclick="notionArchive('${p.id}')">🗑</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    // Render databases
+    const dbsEl = document.getElementById('notion-dbs-list');
+    if (!r.databases || !r.databases.length) {
+      dbsEl.innerHTML = '<div style="padding:12px;color:var(--text3);font-size:11px;text-align:center">No databases shared yet</div>';
+    } else {
+      dbsEl.innerHTML = r.databases.map(d => {
+        const props = (d.properties||[]).slice(0,4).join(', ');
+        return `<div style="background:var(--bg2);border:1px solid rgba(170,136,255,.2);border-radius:var(--r);padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px">
+          <div style="min-width:0">
+            <div style="font-size:11px;font-weight:600;color:var(--purple);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${d.title||'Untitled DB'}</div>
+            <div style="font-size:9px;color:var(--text3);margin-top:2px">${props}</div>
+          </div>
+          <div style="display:flex;gap:5px;flex-shrink:0">
+            <button class="btn bc2 bsm" style="font-size:9px" onclick="notionViewDB('${d.id}','${(d.title||'DB').replace(/'/g,"\\'")}')">📊 View</button>
+            ${d.url ? `<a href="${d.url}" target="_blank" class="btn bgh bsm" style="font-size:9px">🔗</a>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+  } catch(e) {
+    document.getElementById('notion-pages-list').innerHTML = `<div style="padding:20px;text-align:center;color:var(--red);font-size:11px">Error: ${e.message}</div>`;
+  }
+}
+
+async function notionCreatePage() {
+  const title = document.getElementById('notion-new-title').value.trim();
+  const content = document.getElementById('notion-new-content').value.trim();
+  const parentVal = document.getElementById('notion-parent-select').value;
+  const statusEl = document.getElementById('notion-create-status');
+  if (!title) { toast('Enter a title', 'error'); return; }
+  if (!parentVal) { toast('Select a parent page or database', 'error'); return; }
+  const [parent_id, parent_type] = parentVal.split('|');
+  document.getElementById('notion-create-btn').textContent = '⏳';
+  statusEl.textContent = '';
+  try {
+    const r = await api('/api/notion/page', 'POST', {title, content, parent_id, parent_type});
+    if (r.error) throw new Error(r.error);
+    toast('Page created!', 'success');
+    document.getElementById('notion-new-title').value = '';
+    document.getElementById('notion-new-content').value = '';
+    statusEl.textContent = '✓ Created: ' + title;
+    statusEl.style.color = 'var(--green)';
+    notionLoad();
+  } catch(e) {
+    toast('Failed: ' + e.message, 'error');
+    statusEl.textContent = '✗ ' + e.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    document.getElementById('notion-create-btn').textContent = '➕ Create';
+  }
+}
+
+async function notionArchive(id) {
+  if (!confirm('Archive this page?')) return;
+  try {
+    const r = await api('/api/notion/page/' + id, 'DELETE');
+    if (r.error) throw new Error(r.error);
+    toast('Page archived', 'success');
+    notionLoad();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function notionViewDB(id, title) {
+  const viewer = document.getElementById('notion-db-viewer');
+  const tableEl = document.getElementById('notion-db-table');
+  document.getElementById('notion-db-viewer-title').textContent = '📊 ' + title;
+  viewer.style.display = 'block';
+  tableEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">Loading rows…</div>';
+  viewer.scrollIntoView({behavior:'smooth'});
+  try {
+    const r = await api('/api/notion/database/' + id + '/rows?limit=50');
+    if (!r.rows || !r.rows.length) {
+      tableEl.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:11px">No rows found</div>';
+      return;
+    }
+    // Get all column keys except id/url/last_edited
+    const skip = new Set(['id','url','last_edited']);
+    const cols = [...new Set(r.rows.flatMap(row => Object.keys(row).filter(k => !skip.has(k))))];
+    tableEl.innerHTML = `<table class="tbl"><thead><tr>
+      ${cols.map(c=>`<th>${c}</th>`).join('')}
+      <th>Link</th>
+    </tr></thead><tbody>
+      ${r.rows.map(row=>`<tr>
+        ${cols.map(c=>`<td class="nc">${Array.isArray(row[c]) ? row[c].join(', ') : (row[c]===null||row[c]===undefined?'':String(row[c]).slice(0,80))}</td>`).join('')}
+        <td>${row.url ? `<a href="${row.url}" target="_blank" style="color:var(--cyan);font-size:10px">🔗</a>` : ''}</td>
+      </tr>`).join('')}
+    </tbody></table>`;
+  } catch(e) {
+    tableEl.innerHTML = `<div style="padding:16px;text-align:center;color:var(--red);font-size:11px">Error: ${e.message}</div>`;
+  }
+}
+
+// ── Canva ─────────────────────────────────────────────────────────────────────
+async function canvaLoad() {
+  document.getElementById('canva-stat-designs').textContent = '…';
+  document.getElementById('canva-stat-conn').textContent = '…';
+  document.getElementById('canva-designs-grid').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
+  try {
+    const r = await api('/api/canva/status');
+    if (r.error || !r.connected) {
+      document.getElementById('canva-auth-banner').style.display = 'block';
+      document.getElementById('canva-stat-conn').textContent = '❌';
+      document.getElementById('canva-stat-conn-lbl').textContent = 'not connected';
+      document.getElementById('canva-stat-designs').textContent = '—';
+      document.getElementById('canva-stat-user').textContent = '—';
+      document.getElementById('canva-designs-grid').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Connect Canva to see designs</div>';
+      return;
+    }
+    document.getElementById('canva-auth-banner').style.display = 'none';
+    document.getElementById('canva-stat-conn').textContent = '✅';
+    document.getElementById('canva-stat-conn-lbl').textContent = 'connected';
+    document.getElementById('canva-stat-designs').textContent = r.designs ? r.designs.length : '0';
+    document.getElementById('canva-stat-user').textContent = r.user ? (r.user.display_name || r.user.email || 'Connected') : 'Connected';
+    document.getElementById('canva-user-label').textContent = 'Connected as ' + (r.user ? (r.user.display_name || r.user.email || 'Canva User') : 'Canva User');
+    if (!r.designs || !r.designs.length) {
+      document.getElementById('canva-designs-grid').innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">No designs found</div>';
+      return;
+    }
+    document.getElementById('canva-designs-grid').innerHTML = r.designs.map(d => `
+      <div class="card" style="padding:12px">
+        ${d.thumbnail ? `<img src="${d.thumbnail}" style="width:100%;height:120px;object-fit:cover;border-radius:6px;margin-bottom:8px">` : `<div style="width:100%;height:120px;background:rgba(122,90,248,.1);border-radius:6px;margin-bottom:8px;display:flex;align-items:center;justify-content:center;font-size:32px">🎨</div>`}
+        <div style="font-size:11px;font-weight:600;color:var(--text1);margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.title||'Untitled')}</div>
+        <div style="font-size:10px;color:var(--text3);margin-bottom:8px">${d.updated ? new Date(d.updated*1000).toLocaleDateString() : ''}</div>
+        <div style="display:flex;gap:6px">
+          ${d.url ? `<a href="${d.url}" target="_blank" class="btn bgh bsm" style="flex:1;font-size:10px;text-align:center">🔗 Open</a>` : ''}
+          <button class="btn bc2 bsm" style="flex:1;font-size:10px" onclick="canvaExport('${d.id}')">📥 Export</button>
+        </div>
+      </div>`).join('');
+  } catch(e) {
+    toast('Canva load failed: ' + e.message, 'error');
+    document.getElementById('canva-designs-grid').innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:11px">Error: ${e.message}</div>`;
+  }
+}
+
+async function canvaConnect() {
+  try {
+    const r = await api('/api/canva/oauth-url');
+    if (r.error) { toast('Error: ' + r.error, 'error'); return; }
+    const w = window.open(r.url, 'canva_oauth', 'width=600,height=700,left=200,top=100');
+    if (!w) {
+      // popup blocked - redirect in same tab
+      window.location.href = r.url;
+      return;
+    }
+    const check = setInterval(() => {
+      if (w.closed) {
+        clearInterval(check);
+        setTimeout(canvaLoad, 1000);
+      }
+    }, 500);
+  } catch(e) { toast('Failed to get auth URL: ' + e.message, 'error'); }
+}
+
+async function canvaCreateDesign() {
+  const title = document.getElementById('canva-new-title').value.trim() || 'New Design';
+  const type = document.getElementById('canva-new-type').value;
+  const btn = document.getElementById('canva-create-btn');
+  const status = document.getElementById('canva-create-status');
+  btn.disabled = true; btn.textContent = '⏳ Creating…';
+  status.textContent = '';
+  try {
+    const r = await api('/api/canva/design', 'POST', {title, design_type: type});
+    if (r.error) throw new Error(r.error);
+    toast('Design created!', 'success');
+    status.textContent = '✅ Created';
+    document.getElementById('canva-new-title').value = '';
+    canvaLoad();
+  } catch(e) {
+    toast('Create failed: ' + e.message, 'error');
+    status.textContent = '❌ ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '🎨 Create';
+  }
+}
+
+function canvaNewDesign() {
+  const form = document.getElementById('canva-new-design-form');
+  if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+
+async function canvaExport(designId) {
+  toast('Starting export…', 'info');
+  try {
+    const r = await api('/api/canva/export/' + designId, 'POST', {format:'pdf'});
+    if (r.error) throw new Error(r.error);
+    toast('Export started — check Canva for download', 'success');
+  } catch(e) { toast('Export failed: ' + e.message, 'error'); }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

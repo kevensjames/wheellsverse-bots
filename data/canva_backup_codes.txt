@@ -1,0 +1,20 @@
+# Canva Backup Codes
+# Account: wheelsverse@gmail.com
+# Generated: 2026-04-08
+# Each code can only be used ONCE. Store safely.
+
+7PGP-Q254
+44P2-RCH5
+WJ47-2JH4
+84JQ-M4F9
+PQG6-P8CF
+QR2X-VFMV
+RVWM-8XX2
+5VC8-4XRH
+G2F5-JRRX
+56XC-C4VW
+
+# TOTP Secret (for authenticator app):
+# VCEA3GDYZB3ZKLPLQOOZU6V5FG7XJL15
+
+# API credentials are stored in .env (not committed to git)

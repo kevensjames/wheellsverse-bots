@@ -85,6 +85,7 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
                  "/api/stripe/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
+                 "/api/canva/oauth-callback", "/api/canva/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
                  # NEXORA platform — auth + public creator endpoints are their own auth
                  "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook",
@@ -3029,6 +3030,396 @@ async def wordpress_oauth_url():
     }
     url = "https://public-api.wordpress.com/oauth2/authorize?" + urllib.parse.urlencode(params)
     return {"url": url, "instructions": "Open this URL in your browser, authorize the app, then paste the token you receive back here."}
+
+
+# ─── Notion ───────────────────────────────────────────────────────────────────
+
+def _notion_headers():
+    token = os.getenv("NOTION_TOKEN", "")
+    return {
+        "Authorization": f"Bearer {token}",
+        "Notion-Version": "2022-06-28",
+        "Content-Type": "application/json",
+    }
+
+def _notion_text(rich):
+    """Extract plain text from Notion rich_text array."""
+    return "".join(t.get("plain_text","") for t in (rich or []))
+
+
+@app.get("/api/notion/status")
+async def notion_status():
+    token = os.getenv("NOTION_TOKEN","")
+    if not token:
+        return {"connected": False, "error": "NOTION_TOKEN not set"}
+    try:
+        import requests as _rn
+        r = _rn.get("https://api.notion.com/v1/users/me", headers=_notion_headers(), timeout=8)
+        if r.status_code != 200:
+            return {"connected": False, "error": r.text[:200]}
+        user = r.json()
+        # Search all accessible pages + databases
+        s = _rn.post("https://api.notion.com/v1/search",
+                     headers=_notion_headers(),
+                     json={"page_size": 50, "sort": {"direction":"descending","timestamp":"last_edited_time"}},
+                     timeout=10)
+        results = s.json().get("results", []) if s.status_code == 200 else []
+        pages = [x for x in results if x.get("object") == "page"]
+        databases = [x for x in results if x.get("object") == "database"]
+        return {
+            "connected": True,
+            "workspace": user.get("bot",{}).get("workspace_name",""),
+            "user": user.get("name",""),
+            "pages_count": len(pages),
+            "databases_count": len(databases),
+            "total": len(results),
+            "pages": [
+                {
+                    "id": p["id"],
+                    "title": _notion_text(p.get("properties",{}).get("title",{}).get("title") or
+                                          p.get("properties",{}).get("Name",{}).get("title") or
+                                          next((v.get("title",[]) for v in p.get("properties",{}).values() if isinstance(v,dict) and v.get("type")=="title"), [])),
+                    "url": p.get("url",""),
+                    "last_edited": p.get("last_edited_time",""),
+                    "created": p.get("created_time",""),
+                    "parent_type": p.get("parent",{}).get("type",""),
+                }
+                for p in pages
+            ],
+            "databases": [
+                {
+                    "id": d["id"],
+                    "title": _notion_text(d.get("title",[])),
+                    "url": d.get("url",""),
+                    "last_edited": d.get("last_edited_time",""),
+                    "properties": list(d.get("properties",{}).keys()),
+                }
+                for d in databases
+            ],
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.get("/api/notion/database/{db_id}/rows")
+async def notion_db_rows(db_id: str, limit: int = 50):
+    try:
+        import requests as _rn
+        r = _rn.post(
+            f"https://api.notion.com/v1/databases/{db_id}/query",
+            headers=_notion_headers(),
+            json={"page_size": limit},
+            timeout=12,
+        )
+        if r.status_code != 200:
+            raise HTTPException(400, r.text[:300])
+        data = r.json()
+        rows = []
+        for item in data.get("results", []):
+            row = {"id": item["id"], "url": item.get("url",""), "last_edited": item.get("last_edited_time","")}
+            for k, v in item.get("properties", {}).items():
+                t = v.get("type","")
+                if t == "title":       row[k] = _notion_text(v.get("title",[]))
+                elif t == "rich_text": row[k] = _notion_text(v.get("rich_text",[]))
+                elif t == "number":    row[k] = v.get("number")
+                elif t == "select":    row[k] = (v.get("select") or {}).get("name","")
+                elif t == "multi_select": row[k] = [x["name"] for x in v.get("multi_select",[])]
+                elif t == "date":      row[k] = (v.get("date") or {}).get("start","")
+                elif t == "checkbox":  row[k] = v.get("checkbox", False)
+                elif t == "url":       row[k] = v.get("url","")
+                elif t == "email":     row[k] = v.get("email","")
+                elif t == "status":    row[k] = (v.get("status") or {}).get("name","")
+            rows.append(row)
+        return {"rows": rows, "has_more": data.get("has_more", False)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+class NotionPageRequest(BaseModel):
+    parent_id: str          # page or database ID
+    title: str
+    content: str = ""
+    parent_type: str = "page"  # "page" or "database"
+
+
+@app.post("/api/notion/page")
+async def notion_create_page(req: NotionPageRequest):
+    try:
+        import requests as _rn
+        if req.parent_type == "database":
+            parent = {"database_id": req.parent_id}
+            properties = {"Name": {"title": [{"text": {"content": req.title}}]}}
+        else:
+            parent = {"page_id": req.parent_id}
+            properties = {"title": {"title": [{"text": {"content": req.title}}]}}
+
+        children = []
+        if req.content:
+            # Split into paragraphs
+            for para in req.content.split("\n\n"):
+                para = para.strip()
+                if not para:
+                    continue
+                if para.startswith("# "):
+                    children.append({"object":"block","type":"heading_1","heading_1":{"rich_text":[{"type":"text","text":{"content":para[2:]}}]}})
+                elif para.startswith("## "):
+                    children.append({"object":"block","type":"heading_2","heading_2":{"rich_text":[{"type":"text","text":{"content":para[3:]}}]}})
+                else:
+                    children.append({"object":"block","type":"paragraph","paragraph":{"rich_text":[{"type":"text","text":{"content":para[:2000]}}]}})
+
+        body = {"parent": parent, "properties": properties}
+        if children:
+            body["children"] = children
+
+        r = _rn.post("https://api.notion.com/v1/pages", headers=_notion_headers(), json=body, timeout=15)
+        if r.status_code not in (200, 201):
+            raise HTTPException(400, r.json().get("message", r.text[:300]))
+        data = r.json()
+        _add_log(f"Notion page created: {req.title}", "INFO")
+        return {"id": data["id"], "url": data.get("url",""), "title": req.title}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.delete("/api/notion/page/{page_id}")
+async def notion_delete_page(page_id: str):
+    try:
+        import requests as _rn
+        r = _rn.patch(
+            f"https://api.notion.com/v1/pages/{page_id}",
+            headers=_notion_headers(),
+            json={"archived": True},
+            timeout=10,
+        )
+        if r.status_code != 200:
+            raise HTTPException(400, r.text[:300])
+        _add_log(f"Notion page {page_id} archived", "INFO")
+        return {"status": "archived", "id": page_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+# ─── Canva Connect API ────────────────────────────────────────────────────────
+_CANVA_TOKEN_FILE = Path("/var/data/canva_token.json") if Path("/var/data").exists() else Path("data/canva_token.json")
+_CANVA_BASE = "https://api.canva.com"
+
+def _canva_save_token(data: dict):
+    _CANVA_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _CANVA_TOKEN_FILE.write_text(json.dumps(data))
+
+def _canva_load_token() -> dict:
+    if _CANVA_TOKEN_FILE.exists():
+        try:
+            return json.loads(_CANVA_TOKEN_FILE.read_text())
+        except Exception:
+            pass
+    return {}
+
+def _canva_access_token() -> str:
+    """Return valid access token, refreshing if expired."""
+    t = _canva_load_token()
+    if not t:
+        return ""
+    # Check expiry
+    expires_at = t.get("expires_at", 0)
+    if expires_at and time.time() < expires_at - 60:
+        return t.get("access_token", "")
+    # Try refresh
+    refresh = t.get("refresh_token", "")
+    if not refresh:
+        return t.get("access_token", "")
+    try:
+        import requests as _rc
+        r = _rc.post("https://api.canva.com/rest/v1/oauth/token", data={
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": os.getenv("CANVA_CLIENT_ID",""),
+            "client_secret": os.getenv("CANVA_CLIENT_SECRET",""),
+        }, timeout=10)
+        if r.status_code == 200:
+            new = r.json()
+            new["expires_at"] = time.time() + new.get("expires_in", 3600)
+            if not new.get("refresh_token"):
+                new["refresh_token"] = refresh
+            _canva_save_token(new)
+            return new.get("access_token","")
+    except Exception:
+        pass
+    return t.get("access_token","")
+
+def _canva_headers():
+    tok = _canva_access_token()
+    return {"Authorization": f"Bearer {tok}", "Content-Type": "application/json"}
+
+
+# In-memory store for PKCE code_verifiers keyed by state
+_canva_pkce_store: dict = {}
+
+@app.get("/api/canva/oauth-url")
+async def canva_oauth_url(request: Request):
+    import urllib.parse, secrets, hashlib, base64
+    client_id = os.getenv("CANVA_CLIENT_ID","")
+    if not client_id:
+        return {"error": "CANVA_CLIENT_ID not set"}
+    host = request.headers.get("host","")
+    if host.startswith("127.0.0.1") or host.startswith("localhost"):
+        base_url = f"http://{host}"
+    else:
+        base_url = os.getenv("RAILWAY_PUBLIC_URL", f"http://{host}").rstrip("/")
+    redirect_uri = base_url + "/api/canva/oauth-callback"
+    state = secrets.token_urlsafe(16)
+    code_verifier = secrets.token_urlsafe(64)
+    code_challenge = base64.urlsafe_b64encode(
+        hashlib.sha256(code_verifier.encode()).digest()
+    ).rstrip(b"=").decode()
+    _canva_pkce_store[state] = code_verifier
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "scope": "design:content:read design:content:write design:meta:read asset:read asset:write profile:read",
+        "state": state,
+        "code_challenge_method": "S256",
+        "code_challenge": code_challenge,
+    }
+    url = "https://www.canva.com/api/oauth/authorize?" + urllib.parse.urlencode(params)
+    return {"url": url, "redirect_uri": redirect_uri}
+
+
+@app.get("/api/canva/oauth-callback")
+async def canva_oauth_callback(request: Request, code: str = "", error: str = "", state: str = ""):
+    if error:
+        return HTMLResponse(f"<h2 style='color:red'>Canva error: {error}</h2>")
+    if not code:
+        return HTMLResponse("<h2 style='color:red'>No code received from Canva</h2>")
+    try:
+        import requests as _rc
+        host = request.headers.get("host","")
+        if host.startswith("127.0.0.1") or host.startswith("localhost"):
+            base_url = f"http://{host}"
+        else:
+            base_url = os.getenv("RAILWAY_PUBLIC_URL", f"http://{host}").rstrip("/")
+        redirect_uri = base_url + "/api/canva/oauth-callback"
+        code_verifier = _canva_pkce_store.pop(state, None)
+        if not code_verifier:
+            return HTMLResponse("<h2 style='color:red'>Invalid or expired state — please try connecting again.</h2>")
+        r = _rc.post("https://api.canva.com/rest/v1/oauth/token", data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": redirect_uri,
+            "client_id": os.getenv("CANVA_CLIENT_ID",""),
+            "client_secret": os.getenv("CANVA_CLIENT_SECRET",""),
+            "code_verifier": code_verifier,
+        }, timeout=15)
+        if r.status_code != 200:
+            return HTMLResponse(f"<h2 style='color:red'>Token exchange failed: {r.text[:300]}</h2>")
+        data = r.json()
+        data["expires_at"] = time.time() + data.get("expires_in", 3600)
+        _canva_save_token(data)
+        _add_log("Canva OAuth connected successfully", "INFO")
+        return HTMLResponse("""
+        <html><body style='background:#0d0f14;color:#00ff88;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>
+        <div style='text-align:center;padding:40px;background:#13161d;border:1px solid #00ff8844;border-radius:16px'>
+          <div style='font-size:40px;margin-bottom:16px'>✅</div>
+          <div style='font-size:18px;font-weight:700;color:#00ff88;margin-bottom:8px'>Canva Connected!</div>
+          <div style='font-size:12px;color:#8891a8;margin-bottom:20px'>You can close this tab and return to the dashboard.</div>
+          <script>setTimeout(()=>window.close(),3000)</script>
+        </div></body></html>""")
+    except Exception as e:
+        return HTMLResponse(f"<h2 style='color:red'>Error: {e}</h2>")
+
+
+@app.get("/api/canva/status")
+async def canva_status():
+    tok = _canva_access_token()
+    if not tok:
+        client_id = os.getenv("CANVA_CLIENT_ID","")
+        return {"connected": False, "error": "Not authorized" if client_id else "CANVA_CLIENT_ID not set"}
+    try:
+        import requests as _rc
+        r = _rc.get(f"{_CANVA_BASE}/rest/v1/users/me", headers=_canva_headers(), timeout=8)
+        if r.status_code != 200:
+            return {"connected": False, "error": f"API error {r.status_code}: {r.text[:200]}"}
+        user = r.json().get("user",{})
+        # Fetch recent designs
+        dr = _rc.get(f"{_CANVA_BASE}/rest/v1/designs", headers=_canva_headers(),
+                     params={"limit": 20}, timeout=10)
+        designs = []
+        if dr.status_code == 200:
+            for d in dr.json().get("items",[]):
+                designs.append({
+                    "id": d.get("id",""),
+                    "title": d.get("title","Untitled"),
+                    "thumbnail": d.get("thumbnail",{}).get("url",""),
+                    "url": d.get("urls",{}).get("edit_url","") or d.get("urls",{}).get("view_url",""),
+                    "created": d.get("created_at",""),
+                    "updated": d.get("updated_at",""),
+                    "type": d.get("design_type",{}).get("name","Design"),
+                })
+        return {
+            "connected": True,
+            "user_id": user.get("user_id",""),
+            "display_name": user.get("display_name",""),
+            "email": user.get("email",""),
+            "designs_count": len(designs),
+            "designs": designs,
+        }
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
+@app.post("/api/canva/design")
+async def canva_create_design(req: dict):
+    """Create a new blank Canva design."""
+    tok = _canva_access_token()
+    if not tok:
+        raise HTTPException(401, "Canva not connected")
+    try:
+        import requests as _rc
+        design_type = req.get("design_type", "PRESENTATION")
+        title = req.get("title", "WheellsVerse Design")
+        body = {"design_type": {"type": design_type}, "title": title}
+        r = _rc.post(f"{_CANVA_BASE}/rest/v1/designs", headers=_canva_headers(), json=body, timeout=15)
+        if r.status_code not in (200, 201):
+            raise HTTPException(400, r.text[:300])
+        data = r.json().get("design",{})
+        _add_log(f"Canva design created: {title}", "INFO")
+        return {
+            "id": data.get("id",""),
+            "title": data.get("title",""),
+            "url": data.get("urls",{}).get("edit_url",""),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/canva/export/{design_id}")
+async def canva_export_design(design_id: str, req: dict = {}):
+    """Start an export job for a Canva design."""
+    tok = _canva_access_token()
+    if not tok:
+        raise HTTPException(401, "Canva not connected")
+    try:
+        import requests as _rc
+        fmt = req.get("format", "PNG")
+        r = _rc.post(f"{_CANVA_BASE}/rest/v1/exports", headers=_canva_headers(),
+                     json={"design_id": design_id, "format": {"type": fmt}}, timeout=15)
+        if r.status_code not in (200, 201):
+            raise HTTPException(400, r.text[:300])
+        job = r.json().get("job",{})
+        return {"job_id": job.get("id",""), "status": job.get("status",""), "format": fmt}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
 # ─── Publish Pipeline ─────────────────────────────────────────────────────────
