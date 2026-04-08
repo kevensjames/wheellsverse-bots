@@ -9423,6 +9423,7 @@ def _pf_run_session(session_id: str, target_per_platform: int, platforms: list,
         "started_at": datetime.now().isoformat(),
         "current_phase": "starting", "current_task": "Initializing NarAI product factory…",
         "products_today": {p: [] for p in platforms},
+        "target_per_platform": target_per_platform,
     })
     _pf_save_state(state)
     _pf_log(f"🚀 Product Factory session {session_id} started | platforms: {platforms} | target: {target_per_platform}/platform")
@@ -9567,17 +9568,33 @@ def _pf_run_session(session_id: str, target_per_platform: int, platforms: list,
 async def factory_status():
     """Return current Product Factory state + today's products."""
     state = _pf_load_state()
-    log   = _pf_load_log()
+    products_today = state.get("products_today", {})
+
+    # Flatten all products into a single list for the dashboard
+    products_created = []
+    for plat, items in products_today.items():
+        for item in (items if isinstance(items, list) else []):
+            products_created.append({**item, "platform": plat})
+
+    # Per-platform published counts
+    platform_counts = {p: len(products_today.get(p, [])) for p in _PF_PLATFORMS}
+
+    # Sessions list
+    sessions = state.get("sessions", [])
+
     return {
         **state,
-        "recent_log": log[:50],
+        "platform_counts":    platform_counts,
+        "products_created":   products_created,
+        "target_per_platform": state.get("target_per_platform", 4),
+        "sessions":           sessions,
         "platforms_available": {
             p: {
                 "name":      cfg["name"],
                 "icon":      cfg["icon"],
                 "color":     cfg["color"],
                 "target":    cfg["target"],
-                "published": len(state.get("products_today", {}).get(p, [])),
+                "published": platform_counts[p],
                 "connected": bool(
                     (p == "gumroad" and _gumroad_token()) or
                     (p == "payhip"  and True) or  # webhook mode always ok
@@ -9637,8 +9654,13 @@ async def factory_stop():
 
 @app.get("/api/factory/log")
 async def factory_log(limit: int = 100):
-    """Return the factory log, newest first."""
-    return {"log": _pf_load_log()[:limit]}
+    """Return the factory log as formatted string lines, newest first."""
+    raw = _pf_load_log()[:limit]
+    lines = [
+        f"[{entry.get('ts','')[:19]}] [{entry.get('level','INFO')}] {entry.get('msg','')}"
+        for entry in raw
+    ]
+    return {"lines": lines, "count": len(lines)}
 
 
 @app.delete("/api/factory/reset")
