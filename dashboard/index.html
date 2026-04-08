@@ -499,6 +499,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('etsy')" id="nav-etsy" style="background:linear-gradient(90deg,rgba(245,90,45,.12),transparent);border-left:2px solid #f55a2d;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛍️</span><span style="color:#f98a6c;font-weight:700">Etsy</span></div>
     <div class="nav-item" onclick="nav('gumroad')" id="nav-gumroad" style="background:linear-gradient(90deg,rgba(255,144,0,.12),transparent);border-left:2px solid #ff9000;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛒</span><span style="color:#ffb347;font-weight:700">Gumroad</span></div>
     <div class="nav-item" onclick="nav('payhip')" id="nav-payhip" style="background:linear-gradient(90deg,rgba(0,200,150,.12),transparent);border-left:2px solid #00c896;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💳</span><span style="color:#00c896;font-weight:700">Payhip</span></div>
+    <div class="nav-item" onclick="nav('factory')" id="nav-factory" style="background:linear-gradient(90deg,rgba(180,0,255,.15),transparent);border-left:2px solid #b400ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🏭</span><span style="color:#cc66ff;font-weight:700">Product Factory</span></div>
     <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
     <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
     <!-- Content -->
@@ -3408,6 +3409,139 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ PRODUCT FACTORY PAGE ════════════════════════════════════════════════ -->
+<div class="page" id="page-factory">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🏭 Product Factory — Daily AI Publishing Engine</div>
+      <div class="ss" id="factory-status-label">NarAI researches niches, creates masterpieces, and publishes 3-4 products per platform daily</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div id="factory-engine-badge" style="padding:4px 12px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ IDLE</div>
+      <button class="btn bsm" onclick="factoryLoad()" style="background:rgba(180,0,255,.15);border:1px solid rgba(180,0,255,.3);color:#cc66ff">🔄 Refresh</button>
+      <button id="factory-start-btn" class="btn bsm" onclick="factoryStart()" style="background:rgba(0,255,136,.15);border:1px solid rgba(0,255,136,.3);color:#00ff88">▶ START ENGINE</button>
+      <button id="factory-stop-btn" class="btn bsm" onclick="factoryStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
+    </div>
+  </div>
+
+  <!-- Engine Controls Card -->
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(180,0,255,.25)">
+    <div class="sh" style="margin-bottom:14px">
+      <div class="st" style="font-size:12px;color:#cc66ff">⚙ Engine Configuration</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Products per Platform</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <input id="factory-target" type="range" min="1" max="10" value="4" style="flex:1;accent-color:#b400ff" oninput="document.getElementById('factory-target-val').textContent=this.value"/>
+          <span id="factory-target-val" style="font-size:13px;font-weight:700;color:#cc66ff;min-width:20px">4</span>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:4px">products published per platform per run</div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Active Platforms</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px" id="factory-platform-toggles">
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(255,144,0,.12);border:1px solid rgba(255,144,0,.3);border-radius:6px"><input type="checkbox" id="fp-gumroad" checked style="accent-color:#ff9000"/>🛒 Gumroad</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(0,200,150,.12);border:1px solid rgba(0,200,150,.3);border-radius:6px"><input type="checkbox" id="fp-payhip" checked style="accent-color:#00c896"/>💳 Payhip</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(245,90,45,.12);border:1px solid rgba(245,90,45,.3);border-radius:6px"><input type="checkbox" id="fp-etsy" checked style="accent-color:#f55a2d"/>🛍️ Etsy</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(255,100,100,.12);border:1px solid rgba(255,100,100,.3);border-radius:6px"><input type="checkbox" id="fp-kdp" checked style="accent-color:#ff6464"/>📚 KDP</label>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Niche Override <span style="color:var(--text3)">(optional)</span></div>
+        <input id="factory-niche-override" class="si2" placeholder="e.g. productivity, fitness, finance (comma-separated, or blank for AI choice)"/>
+        <div style="font-size:9px;color:var(--text3);margin-top:4px">leave blank — NarAI picks the best niches automatically</div>
+      </div>
+    </div>
+
+    <!-- Current task status -->
+    <div id="factory-current-task" style="display:none;padding:10px 14px;background:rgba(180,0,255,.07);border:1px solid rgba(180,0,255,.2);border-radius:8px;margin-top:4px">
+      <div style="font-size:10px;color:#cc66ff;font-weight:600;margin-bottom:4px">🔄 Currently Running</div>
+      <div id="factory-task-phase" style="font-size:11px;color:var(--text);margin-bottom:2px">Initializing…</div>
+      <div id="factory-task-detail" style="font-size:10px;color:var(--text3)">Starting engine…</div>
+      <div style="margin-top:8px;height:4px;background:rgba(180,0,255,.15);border-radius:2px;overflow:hidden">
+        <div id="factory-progress-bar" style="height:100%;background:linear-gradient(90deg,#b400ff,#cc66ff);width:0%;transition:width 0.5s;border-radius:2px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Per-platform stats -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
+    <div class="card" style="border:1px solid rgba(255,144,0,.25);text-align:center">
+      <div class="ct" style="color:#ff9000">🛒 Gumroad</div>
+      <div style="font-size:22px;font-weight:700;color:#ffb347;margin:6px 0" id="fstat-gumroad-count">0</div>
+      <div class="csb">products published today</div>
+      <div style="height:3px;background:rgba(255,144,0,.15);border-radius:2px;margin-top:8px;overflow:hidden">
+        <div id="fbar-gumroad" style="height:100%;background:#ff9000;border-radius:2px;transition:width .4s;width:0%"></div>
+      </div>
+    </div>
+    <div class="card" style="border:1px solid rgba(0,200,150,.25);text-align:center">
+      <div class="ct" style="color:#00c896">💳 Payhip</div>
+      <div style="font-size:22px;font-weight:700;color:#00c896;margin:6px 0" id="fstat-payhip-count">0</div>
+      <div class="csb">products published today</div>
+      <div style="height:3px;background:rgba(0,200,150,.15);border-radius:2px;margin-top:8px;overflow:hidden">
+        <div id="fbar-payhip" style="height:100%;background:#00c896;border-radius:2px;transition:width .4s;width:0%"></div>
+      </div>
+    </div>
+    <div class="card" style="border:1px solid rgba(245,90,45,.25);text-align:center">
+      <div class="ct" style="color:#f55a2d">🛍️ Etsy</div>
+      <div style="font-size:22px;font-weight:700;color:#f98a6c;margin:6px 0" id="fstat-etsy-count">0</div>
+      <div class="csb">listings published today</div>
+      <div style="height:3px;background:rgba(245,90,45,.15);border-radius:2px;margin-top:8px;overflow:hidden">
+        <div id="fbar-etsy" style="height:100%;background:#f55a2d;border-radius:2px;transition:width .4s;width:0%"></div>
+      </div>
+    </div>
+    <div class="card" style="border:1px solid rgba(255,100,100,.25);text-align:center">
+      <div class="ct" style="color:#ff6464">📚 KDP</div>
+      <div style="font-size:22px;font-weight:700;color:#ff9090;margin:6px 0" id="fstat-kdp-count">0</div>
+      <div class="csb">books queued today</div>
+      <div style="height:3px;background:rgba(255,100,100,.15);border-radius:2px;margin-top:8px;overflow:hidden">
+        <div id="fbar-kdp" style="height:100%;background:#ff6464;border-radius:2px;transition:width .4s;width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Products created this session + live log side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+
+    <!-- Today's products -->
+    <div class="card" style="border:1px solid rgba(180,0,255,.15)">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:11px;color:#cc66ff">📦 Products Created This Session</div>
+        <button class="btn bsm" onclick="factoryResetProducts()" style="background:rgba(255,60,60,.1);border:1px solid rgba(255,60,60,.2);color:#ff6060;font-size:9px">🗑 Clear</button>
+      </div>
+      <div id="factory-products-list" style="max-height:320px;overflow-y:auto">
+        <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No products yet — start the engine to begin</div>
+      </div>
+    </div>
+
+    <!-- Live log -->
+    <div class="card" style="border:1px solid rgba(180,0,255,.15)">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:11px;color:#cc66ff">📡 Live Activity Log</div>
+        <div style="display:flex;gap:6px">
+          <div id="factory-log-pulse" style="width:7px;height:7px;background:#333;border-radius:50%;margin-top:4px;transition:background .3s"></div>
+          <button class="btn bsm" onclick="document.getElementById('factory-log-el').innerHTML=''" style="background:rgba(100,100,100,.1);border:1px solid rgba(100,100,100,.2);color:var(--text3);font-size:9px">Clear</button>
+        </div>
+      </div>
+      <div id="factory-log-el" style="max-height:320px;overflow-y:auto;font-family:monospace;font-size:10px;line-height:1.7;color:var(--text2)">
+        <div style="color:var(--text3)">Waiting for engine…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Session history -->
+  <div class="card" style="border:1px solid rgba(180,0,255,.1)">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:11px;color:#cc66ff">📊 Session History</div>
+      <button class="btn bsm" onclick="factoryLoad()" style="background:rgba(180,0,255,.1);border:1px solid rgba(180,0,255,.2);color:#cc66ff;font-size:9px">🔄 Refresh</button>
+    </div>
+    <div id="factory-sessions-list">
+      <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No sessions yet</div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ NOTION PAGE ════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-notion">
   <div class="sh" style="margin-bottom:16px">
@@ -3551,7 +3685,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -3601,6 +3735,7 @@ function nav(p){
   if(p==='etsy') etsyLoad();
   if(p==='gumroad') gumroadLoad();
   if(p==='payhip') payhipLoad();
+  if(p==='factory') factoryLoad();
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
 
@@ -10230,6 +10365,201 @@ async function payhipDelete(id) {
     toast('Product deleted', 'success');
     payhipLoad();
   } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+// ── Product Factory ──────────────────────────────────────────────────────────
+let _factoryPollTimer = null;
+let _factoryLastLogCount = 0;
+
+async function factoryLoad() {
+  try {
+    const s = await api('/api/factory/status');
+    _factoryRenderStatus(s);
+    // start polling if running
+    if (s.running && !_factoryPollTimer) {
+      _factoryPollTimer = setInterval(_factoryPoll, 2500);
+    } else if (!s.running && _factoryPollTimer) {
+      clearInterval(_factoryPollTimer);
+      _factoryPollTimer = null;
+    }
+    // load log
+    _factoryLoadLog();
+  } catch(e) { toast('Factory status error: ' + e.message, 'error'); }
+}
+
+function _factoryRenderStatus(s) {
+  const badge = document.getElementById('factory-engine-badge');
+  const lbl = document.getElementById('factory-status-label');
+  const startBtn = document.getElementById('factory-start-btn');
+  const stopBtn = document.getElementById('factory-stop-btn');
+  const taskDiv = document.getElementById('factory-current-task');
+
+  if (s.running) {
+    badge.style.background = 'rgba(0,255,136,.15)';
+    badge.style.color = '#00ff88';
+    badge.textContent = '🟢 RUNNING';
+    startBtn.style.display = 'none';
+    stopBtn.style.display = '';
+    taskDiv.style.display = '';
+    document.getElementById('factory-task-phase').textContent = s.current_phase || 'Processing…';
+    document.getElementById('factory-task-detail').textContent = s.current_task || '';
+    // progress bar estimate
+    const total = (s.target_per_platform || 4) * Object.keys(s.platform_counts || {}).length;
+    const done = Object.values(s.platform_counts || {}).reduce((a,b)=>a+b,0);
+    const pct = total > 0 ? Math.min(100, Math.round(done/total*100)) : 0;
+    document.getElementById('factory-progress-bar').style.width = pct + '%';
+    lbl.textContent = `Session ${s.session_id || ''} — Phase: ${s.current_phase || '…'}`;
+  } else {
+    badge.style.background = 'rgba(100,100,100,.2)';
+    badge.style.color = 'var(--text3)';
+    badge.textContent = '⚫ IDLE';
+    startBtn.style.display = '';
+    stopBtn.style.display = 'none';
+    taskDiv.style.display = 'none';
+    lbl.textContent = s.last_session ? `Last session: ${s.last_session}` : 'Ready — configure platforms and click START ENGINE';
+  }
+
+  // platform counts
+  const counts = s.platform_counts || {};
+  const target = s.target_per_platform || 4;
+  const platforms = ['gumroad','payhip','etsy','kdp'];
+  platforms.forEach(p => {
+    const c = counts[p] || 0;
+    const el = document.getElementById('fstat-'+p+'-count');
+    const bar = document.getElementById('fbar-'+p);
+    if (el) el.textContent = c;
+    if (bar) bar.style.width = Math.min(100, Math.round(c/target*100)) + '%';
+  });
+
+  // products list
+  const products = s.products_created || [];
+  const pList = document.getElementById('factory-products-list');
+  if (products.length === 0) {
+    pList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No products yet — start the engine to begin</div>';
+  } else {
+    const platformColors = {gumroad:'#ff9000',payhip:'#00c896',etsy:'#f55a2d',kdp:'#ff6464'};
+    pList.innerHTML = products.slice().reverse().map(pr => {
+      const col = platformColors[pr.platform] || '#cc66ff';
+      const statusIcon = pr.status === 'published' ? '✅' : pr.status === 'error' ? '❌' : '🔄';
+      return `<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:flex-start;gap:10px">
+        <div style="padding:3px 8px;background:rgba(${col.includes('#ff90')?'255,144,0':col.includes('#00c8')?'0,200,150':col.includes('#f55')?'245,90,45':'255,100,100'},.15);border-radius:4px;font-size:9px;font-weight:700;color:${col};white-space:nowrap;min-width:60px;text-align:center">${(pr.platform||'').toUpperCase()}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${statusIcon} ${pr.title||'Untitled'}</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">${pr.type||''} · $${pr.price||'0'} · ${pr.niche||''}</div>
+          ${pr.url ? `<a href="${pr.url}" target="_blank" style="font-size:9px;color:#cc66ff">🔗 View listing</a>` : ''}
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // sessions
+  const sessions = s.sessions || [];
+  const sList = document.getElementById('factory-sessions-list');
+  if (sessions.length === 0) {
+    sList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No sessions yet</div>';
+  } else {
+    sList.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:10px">
+      <tr style="color:var(--text3);border-bottom:1px solid rgba(255,255,255,.07)">
+        <th style="padding:6px 10px;text-align:left">Session</th>
+        <th style="padding:6px 10px;text-align:left">Started</th>
+        <th style="padding:6px 10px;text-align:center">Products</th>
+        <th style="padding:6px 10px;text-align:center">Platforms</th>
+        <th style="padding:6px 10px;text-align:center">Status</th>
+      </tr>
+      ${sessions.slice().reverse().map(ss => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+          <td style="padding:7px 10px;color:#cc66ff;font-family:monospace">${ss.id||'—'}</td>
+          <td style="padding:7px 10px;color:var(--text2)">${ss.started_at ? new Date(ss.started_at).toLocaleString() : '—'}</td>
+          <td style="padding:7px 10px;text-align:center;font-weight:700;color:#00ff88">${ss.products_count||0}</td>
+          <td style="padding:7px 10px;text-align:center;color:var(--text2)">${(ss.platforms||[]).join(', ')}</td>
+          <td style="padding:7px 10px;text-align:center"><span style="padding:2px 8px;border-radius:10px;font-size:9px;background:${ss.status==='completed'?'rgba(0,255,136,.12)':ss.status==='running'?'rgba(180,0,255,.15)':'rgba(255,60,60,.12)'};color:${ss.status==='completed'?'#00ff88':ss.status==='running'?'#cc66ff':'#ff6060'}">${ss.status||'unknown'}</span></td>
+        </tr>`).join('')}
+    </table></div>`;
+  }
+}
+
+async function _factoryLoadLog() {
+  try {
+    const r = await api('/api/factory/log');
+    const lines = r.lines || [];
+    const logEl = document.getElementById('factory-log-el');
+    const pulse = document.getElementById('factory-log-pulse');
+    if (lines.length > _factoryLastLogCount) {
+      _factoryLastLogCount = lines.length;
+      pulse.style.background = '#b400ff';
+      setTimeout(()=>{ pulse.style.background = '#00ff88'; }, 300);
+      setTimeout(()=>{ pulse.style.background = '#333'; }, 2000);
+    }
+    if (lines.length === 0) {
+      logEl.innerHTML = '<div style="color:var(--text3)">Waiting for engine…</div>';
+    } else {
+      logEl.innerHTML = lines.slice(-80).map(l => {
+        let col = 'var(--text2)';
+        if (l.includes('[ERROR]') || l.includes('error')) col = '#ff6060';
+        else if (l.includes('[OK]') || l.includes('✅') || l.includes('published')) col = '#00ff88';
+        else if (l.includes('[PHASE]') || l.includes('Researching') || l.includes('Creating')) col = '#cc66ff';
+        else if (l.includes('[START]') || l.includes('[DONE]')) col = '#ffd700';
+        return `<div style="color:${col};padding:1px 0">${l.replace(/</g,'&lt;')}</div>`;
+      }).join('');
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+  } catch(e) {}
+}
+
+async function _factoryPoll() {
+  try {
+    const s = await api('/api/factory/status');
+    _factoryRenderStatus(s);
+    _factoryLoadLog();
+    if (!s.running) {
+      clearInterval(_factoryPollTimer);
+      _factoryPollTimer = null;
+      toast('Product Factory session complete! 🎉', 'success');
+    }
+  } catch(e) {}
+}
+
+async function factoryStart() {
+  const target = parseInt(document.getElementById('factory-target').value) || 4;
+  const platforms = [];
+  if (document.getElementById('fp-gumroad').checked) platforms.push('gumroad');
+  if (document.getElementById('fp-payhip').checked) platforms.push('payhip');
+  if (document.getElementById('fp-etsy').checked) platforms.push('etsy');
+  if (document.getElementById('fp-kdp').checked) platforms.push('kdp');
+  if (platforms.length === 0) { toast('Select at least one platform', 'error'); return; }
+  const niches = document.getElementById('factory-niche-override').value.trim();
+  const body = { target_per_platform: target, platforms };
+  if (niches) body.niches = niches.split(',').map(n=>n.trim()).filter(Boolean);
+  try {
+    const r = await api('/api/factory/start', 'POST', body);
+    if (r.error) throw new Error(r.error);
+    toast('🏭 Product Factory engine started!', 'success');
+    _factoryLastLogCount = 0;
+    await factoryLoad();
+    if (!_factoryPollTimer) _factoryPollTimer = setInterval(_factoryPoll, 2500);
+  } catch(e) { toast('Failed to start: ' + e.message, 'error'); }
+}
+
+async function factoryStop() {
+  if (!confirm('Stop the Product Factory engine?')) return;
+  try {
+    const r = await api('/api/factory/stop', 'POST');
+    if (r.error) throw new Error(r.error);
+    toast('Engine stopped', 'success');
+    if (_factoryPollTimer) { clearInterval(_factoryPollTimer); _factoryPollTimer = null; }
+    await factoryLoad();
+  } catch(e) { toast('Failed to stop: ' + e.message, 'error'); }
+}
+
+async function factoryResetProducts() {
+  if (!confirm('Clear all factory session data?')) return;
+  try {
+    const r = await api('/api/factory/reset', 'DELETE');
+    if (r.error) throw new Error(r.error);
+    toast('Factory data cleared', 'success');
+    _factoryLastLogCount = 0;
+    await factoryLoad();
+  } catch(e) { toast('Failed to reset: ' + e.message, 'error'); }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

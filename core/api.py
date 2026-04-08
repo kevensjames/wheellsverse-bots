@@ -9076,6 +9076,589 @@ async def payhip_prepare_product(req: dict):
         return {"title": name, "price": price, "description": fallback}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# ─── PRODUCT FACTORY — NarAI-Orchestrated Daily Publishing Pipeline ───────────
+# ══════════════════════════════════════════════════════════════════════════════
+
+_PF_STATE_FILE = Path(os.getenv("RAILWAY_VOLUME_PATH", str(ROOT / "data"))) / "product_factory_state.json"
+_PF_LOG_FILE   = Path(os.getenv("RAILWAY_VOLUME_PATH", str(ROOT / "data"))) / "product_factory_log.json"
+_pf_running    = False   # guard flag
+_pf_thread     = None
+
+_PF_PLATFORMS = {
+    "gumroad": {"name": "Gumroad",  "icon": "🛒", "target": 4, "color": "#ffb347"},
+    "payhip":  {"name": "Payhip",   "icon": "💳", "color": "#00c896", "target": 4},
+    "etsy":    {"name": "Etsy",     "icon": "🛍️", "color": "#f98a6c", "target": 3},
+    "kdp":     {"name": "Amazon KDP","icon": "📚", "color": "#ff9933", "target": 2},
+}
+
+_PF_NICHES = [
+    # Digital templates
+    "Canva social media templates for coaches", "Instagram story templates for real estate",
+    "Notion productivity templates for students", "Resume templates for tech jobs",
+    "Business plan templates for startups", "Budget tracker spreadsheet templates",
+    # eBooks
+    "How to make money with digital products", "Passive income with Canva templates",
+    "AI tools for entrepreneurs beginner guide", "Social media marketing for small businesses",
+    "Crypto investing for beginners", "Freelancing blueprint 2025",
+    # Printables
+    "Daily planner printables", "Habit tracker printables", "Goal setting worksheets",
+    "Meal planning printables", "Wedding planning checklist printables",
+    # Courses / Guides
+    "ChatGPT prompt guide for content creators", "How to sell digital products on Etsy",
+    "Canva beginner to pro course", "Build passive income with KDP",
+    "YouTube channel growth guide", "TikTok affiliate marketing blueprint",
+]
+
+_PF_PRODUCT_TYPES = {
+    "gumroad": ["ebook", "template_pack", "prompt_pack", "guide", "course_pdf"],
+    "payhip":  ["ebook", "template", "printable", "guide", "course_pdf"],
+    "etsy":    ["template", "printable", "planner", "worksheet", "canva_template"],
+    "kdp":     ["ebook"],
+}
+
+def _pf_load_state() -> dict:
+    try:
+        if _PF_STATE_FILE.exists():
+            return json.loads(_PF_STATE_FILE.read_text())
+    except Exception:
+        pass
+    return {
+        "running": False, "session_id": None, "started_at": None,
+        "products_today": {}, "total_products": 0, "total_revenue": 0.0,
+        "current_phase": "idle", "current_task": "", "sessions": [],
+    }
+
+def _pf_save_state(state: dict):
+    try:
+        _PF_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PF_STATE_FILE.write_text(json.dumps(state, indent=2, default=str))
+    except Exception:
+        pass
+
+def _pf_load_log() -> list:
+    try:
+        if _PF_LOG_FILE.exists():
+            return json.loads(_PF_LOG_FILE.read_text())
+    except Exception:
+        pass
+    return []
+
+def _pf_log(msg: str, level: str = "INFO", extra: dict = None):
+    """Append a log entry to the factory log."""
+    entry = {
+        "ts":    datetime.now().isoformat(),
+        "level": level,
+        "msg":   msg,
+        **(extra or {}),
+    }
+    try:
+        log = _pf_load_log()
+        log.insert(0, entry)
+        log = log[:2000]
+        _PF_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PF_LOG_FILE.write_text(json.dumps(log))
+    except Exception:
+        pass
+    _add_log(f"[ProductFactory] {msg}", level)
+
+def _pf_claude(prompt: str, system: str = "", max_tokens: int = 2000) -> str:
+    """Call Claude directly for the factory pipeline."""
+    import anthropic as _ant
+    client = _ant.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+    msgs = [{"role": "user", "content": prompt}]
+    r = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=max_tokens,
+        system=system or "You are a world-class digital product creator and marketer.",
+        messages=msgs,
+    )
+    return r.content[0].text.strip()
+
+
+def _pf_research_niche(niche: str) -> dict:
+    """Use NarAI / Claude to deep-analyze a niche and generate product ideas."""
+    _pf_log(f"🔍 Researching niche: {niche}")
+    prompt = (
+        f"You are the world's best digital product researcher.\n"
+        f"Analyze this niche deeply: '{niche}'\n\n"
+        "Deliver a JSON object (no markdown, valid JSON only) with:\n"
+        "{\n"
+        '  "niche": "...",\n'
+        '  "demand_score": 1-10,\n'
+        '  "competition": "low|medium|high",\n'
+        '  "best_platform": "gumroad|payhip|etsy|kdp",\n'
+        '  "product_ideas": [\n'
+        '    {"title": "...", "type": "ebook|template|printable|guide|course_pdf", '
+        '"price": 9.99, "unique_angle": "...", "target_buyer": "...", "pain_point": "..."}\n'
+        "  ],\n"
+        '  "keywords": ["keyword1", "keyword2", "keyword3"],\n'
+        '  "hook": "one sentence that sells this product immediately"\n'
+        "}\n"
+        "Return 3-4 product ideas. Pure JSON, no explanation."
+    )
+    try:
+        raw = _pf_claude(prompt, max_tokens=1200)
+        # Strip markdown fences if present
+        import re as _re
+        raw = _re.sub(r"^```[a-z]*\n?", "", raw.strip())
+        raw = _re.sub(r"\n?```$", "", raw.strip())
+        return json.loads(raw)
+    except Exception as e:
+        _pf_log(f"Niche research parse error: {e}", "WARNING")
+        return {"niche": niche, "product_ideas": [], "demand_score": 5}
+
+
+def _pf_create_product_content(idea: dict, platform: str) -> dict:
+    """Generate full product content (description, body, title, tags) for a product idea."""
+    title   = idea.get("title", "Digital Product")
+    ptype   = idea.get("type", "ebook")
+    price   = idea.get("price", 9.99)
+    hook    = idea.get("hook", "")
+    target  = idea.get("target_buyer", "entrepreneurs")
+    pain    = idea.get("pain_point", "")
+
+    _pf_log(f"✍️ Creating product content: {title} [{ptype}] for {platform}")
+
+    # Generate full product body
+    if ptype in ("ebook", "guide", "course_pdf"):
+        body_prompt = (
+            f"Write a complete, high-quality {ptype} on: '{title}'\n"
+            f"Target buyer: {target}\n"
+            f"Pain point solved: {pain}\n\n"
+            "Structure:\n"
+            "- Introduction (hook + promise)\n"
+            "- 5-8 chapters with actionable content, each 400-600 words\n"
+            "- Each chapter: concept + 3-5 actionable steps + quick win\n"
+            "- Conclusion with next steps\n"
+            "- Bonus resource list\n\n"
+            "Write professional, valuable content. No fluff. Real insights.\n"
+            "Format with ## headers for chapters."
+        )
+        body = _pf_claude(body_prompt, max_tokens=4000)
+    else:
+        # Templates/printables: generate detailed description + structure guide
+        body_prompt = (
+            f"Create a detailed product guide for: '{title}' ({ptype})\n"
+            f"Target buyer: {target}\n\n"
+            "Deliver:\n"
+            "1. Product overview (what's included, exact files, formats)\n"
+            "2. How to use guide (step-by-step)\n"
+            "3. Customization instructions\n"
+            "4. FAQ (5 common questions)\n"
+            "5. Bonus tips for best results\n\n"
+            "Write as if this is the README/instruction document included with the product."
+        )
+        body = _pf_claude(body_prompt, max_tokens=2000)
+
+    # Generate platform-optimized listing
+    listing_prompt = (
+        f"Write a {platform} product listing for: '{title}'\n"
+        f"Type: {ptype} | Price: ${price} | Target: {target}\n"
+        f"Hook: {hook}\n\n"
+        "Return JSON only:\n"
+        "{\n"
+        '  "title": "optimized title (max 140 chars)",\n'
+        '  "description": "high-converting description (250-400 words)",\n'
+        '  "tags": ["tag1","tag2","tag3","tag4","tag5"],\n'
+        '  "price": ' + str(price) + '\n'
+        "}"
+    )
+    try:
+        listing_raw = _pf_claude(listing_prompt, max_tokens=800)
+        import re as _re
+        listing_raw = _re.sub(r"^```[a-z]*\n?", "", listing_raw.strip())
+        listing_raw = _re.sub(r"\n?```$", "", listing_raw.strip())
+        listing = json.loads(listing_raw)
+    except Exception:
+        listing = {
+            "title":       title,
+            "description": f"{title} — {ptype} for {target}. {hook}",
+            "tags":        ["digital download", ptype, target.split()[0]],
+            "price":       price,
+        }
+
+    return {
+        "title":       listing.get("title", title),
+        "description": listing.get("description", ""),
+        "tags":        listing.get("tags", []),
+        "price":       float(listing.get("price", price)),
+        "body":        body,
+        "type":        ptype,
+        "platform":    platform,
+        "niche":       idea.get("niche", ""),
+    }
+
+
+def _pf_publish_to_gumroad(product: dict) -> dict:
+    """Publish a product to Gumroad via API."""
+    tok = _gumroad_token()
+    if not tok:
+        return {"error": "Gumroad not connected"}
+    try:
+        import requests as _rc
+        payload = {
+            "name":        product["title"][:200],
+            "price":       int(product["price"] * 100),
+            "description": product["description"],
+            "published":   True,
+        }
+        r = _rc.post(f"{_GUMROAD_BASE}/products", headers=_gumroad_headers(), data=payload, timeout=20)
+        if r.status_code not in (200, 201):
+            return {"error": f"Gumroad {r.status_code}: {r.text[:150]}"}
+        p = r.json().get("product", {})
+        return {"success": True, "id": p.get("id"), "url": p.get("short_url"), "platform": "gumroad"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _pf_publish_to_payhip(product: dict) -> dict:
+    """Payhip: no free-tier API — save product file locally for manual upload."""
+    out_dir = ROOT / "outputs" / "products" / "payhip"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe = product["title"].lower().replace(" ", "_")[:40]
+    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    fpath = out_dir / f"{safe}_{ts}.md"
+    content = (
+        f"# {product['title']}\n\n"
+        f"**Price:** ${product['price']}\n"
+        f"**Type:** {product['type']}\n\n"
+        f"## Description\n{product['description']}\n\n"
+        f"## Content\n{product['body']}\n"
+    )
+    fpath.write_text(content, encoding="utf-8")
+    return {
+        "success": True, "platform": "payhip",
+        "file": str(fpath.relative_to(ROOT)),
+        "note": "Saved locally — upload at payhip.com/product/add",
+        "url":  "https://payhip.com/product/add",
+    }
+
+
+def _pf_publish_to_etsy(product: dict) -> dict:
+    """Publish a digital listing to Etsy."""
+    tok = _etsy_access_token()
+    shop_id = os.getenv("ETSY_SHOP_ID", "")
+    if not tok or not shop_id:
+        return {"error": "Etsy not connected or ETSY_SHOP_ID not set"}
+    try:
+        import requests as _rc
+        tags = product.get("tags", [])[:13]
+        payload = {
+            "title":       product["title"][:140],
+            "description": product["description"],
+            "price":       int(product["price"] * 100),
+            "quantity":    999,
+            "who_made":    "i_did",
+            "when_made":   "made_to_order",
+            "taxonomy_id": 6206,
+            "type":        "download",
+            "state":       "draft",
+            "tags":        tags,
+            "is_digital":  True,
+        }
+        r = _rc.post(
+            f"{_ETSY_BASE}/application/shops/{shop_id}/listings",
+            headers={**_etsy_headers(), "Content-Type": "application/json"},
+            json=payload, timeout=20,
+        )
+        if r.status_code not in (200, 201):
+            return {"error": f"Etsy {r.status_code}: {r.text[:150]}"}
+        data = r.json()
+        return {
+            "success": True, "platform": "etsy",
+            "id": str(data.get("listing_id", "")),
+            "url": data.get("url", ""),
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def _pf_publish_to_kdp(product: dict) -> dict:
+    """Write a KDP book using the book bot and package it."""
+    try:
+        genre_map = {
+            "make money": "self_help", "passive income": "self_help",
+            "crypto": "sci_fi", "marketing": "self_help", "productivity": "self_help",
+            "template": "self_help", "freelancing": "self_help",
+        }
+        title_lower = product["title"].lower()
+        genre = next((g for k, g in genre_map.items() if k in title_lower), "self_help")
+        out_dir = ROOT / "outputs" / "books" / genre
+        out_dir.mkdir(parents=True, exist_ok=True)
+        safe = product["title"].lower().replace(" ", "_")[:40]
+        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        fpath = out_dir / f"book_{safe}_{ts}.md"
+        fpath.write_text(product["body"], encoding="utf-8")
+        return {
+            "success": True, "platform": "kdp",
+            "file":    str(fpath.relative_to(ROOT)),
+            "genre":   genre,
+            "note":    "Book saved — run 🎨 Cover + 📦 Pack in KDP dashboard to finalize",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+_PF_PUBLISHERS = {
+    "gumroad": _pf_publish_to_gumroad,
+    "payhip":  _pf_publish_to_payhip,
+    "etsy":    _pf_publish_to_etsy,
+    "kdp":     _pf_publish_to_kdp,
+}
+
+
+def _pf_run_session(session_id: str, target_per_platform: int, platforms: list,
+                    niches_override: list = None):
+    """
+    Main factory loop — runs in a background thread.
+    For each platform: research niches → pick best ideas → create content → publish.
+    """
+    global _pf_running
+    import random, time as _time
+
+    state = _pf_load_state()
+    state.update({
+        "running": True, "session_id": session_id,
+        "started_at": datetime.now().isoformat(),
+        "current_phase": "starting", "current_task": "Initializing NarAI product factory…",
+        "products_today": {p: [] for p in platforms},
+    })
+    _pf_save_state(state)
+    _pf_log(f"🚀 Product Factory session {session_id} started | platforms: {platforms} | target: {target_per_platform}/platform")
+
+    try:
+        niches = niches_override or _PF_NICHES.copy()
+        random.shuffle(niches)
+
+        for platform in platforms:
+            if not _pf_running:
+                break
+
+            target = target_per_platform
+            published = 0
+            _pf_log(f"🎯 Platform: {platform.upper()} | target: {target} products")
+            state["current_phase"] = f"working_{platform}"
+            state["current_task"]  = f"Starting {platform} product creation…"
+            _pf_save_state(state)
+
+            niche_pool = niches[:max(8, len(niches))]
+
+            for niche in niche_pool:
+                if not _pf_running or published >= target:
+                    break
+
+                # ── Phase 1: Research ──────────────────────────────────────
+                state["current_task"] = f"🔍 [{platform}] Researching: {niche[:50]}"
+                _pf_save_state(state)
+                research = _pf_research_niche(niche)
+                ideas    = research.get("product_ideas", [])
+                if not ideas:
+                    _pf_log(f"No ideas for niche '{niche}' — skipping", "WARNING")
+                    continue
+
+                # Pick idea best suited for this platform type
+                allowed_types = _PF_PRODUCT_TYPES.get(platform, ["ebook"])
+                best_idea = next(
+                    (i for i in ideas if i.get("type") in allowed_types),
+                    ideas[0]
+                )
+                best_idea["niche"] = niche
+                if not best_idea.get("hook"):
+                    best_idea["hook"] = research.get("hook", "")
+
+                # ── Phase 2: Create ────────────────────────────────────────
+                state["current_task"] = f"✍️ [{platform}] Creating: {best_idea.get('title','')[:50]}"
+                _pf_save_state(state)
+                try:
+                    product = _pf_create_product_content(best_idea, platform)
+                except Exception as e:
+                    _pf_log(f"Content creation failed for '{best_idea.get('title')}': {e}", "ERROR")
+                    continue
+
+                # ── Phase 3: Publish ───────────────────────────────────────
+                state["current_task"] = f"📤 [{platform}] Publishing: {product['title'][:50]}"
+                _pf_save_state(state)
+                publisher = _PF_PUBLISHERS.get(platform)
+                if not publisher:
+                    _pf_log(f"No publisher for {platform}", "WARNING")
+                    continue
+
+                result = publisher(product)
+                ts_now = datetime.now().isoformat()
+
+                if result.get("success"):
+                    published += 1
+                    entry = {
+                        "title":    product["title"],
+                        "type":     product["type"],
+                        "price":    product["price"],
+                        "niche":    niche,
+                        "platform": platform,
+                        "url":      result.get("url", ""),
+                        "file":     result.get("file", ""),
+                        "note":     result.get("note", ""),
+                        "ts":       ts_now,
+                    }
+                    state["products_today"].setdefault(platform, []).append(entry)
+                    state["total_products"] = state.get("total_products", 0) + 1
+                    _pf_save_state(state)
+                    _pf_log(
+                        f"✅ [{platform}] Published #{published}: '{product['title']}' "
+                        f"${product['price']} | {result.get('url', result.get('file', ''))}",
+                        extra={"platform": platform, "product": entry}
+                    )
+                    try:
+                        from core.telegram import notify
+                        notify(
+                            f"🏭 Product Factory\n"
+                            f"✅ {platform.upper()}: {product['title']}\n"
+                            f"💰 ${product['price']} | {product['type']}\n"
+                            f"📦 {published}/{target} today"
+                        )
+                    except Exception:
+                        pass
+                else:
+                    _pf_log(
+                        f"❌ [{platform}] Publish failed: {result.get('error', 'unknown')}",
+                        "ERROR"
+                    )
+
+                # Rate limit — be respectful to APIs
+                _time.sleep(3)
+
+            _pf_log(f"🏁 [{platform}] Done: {published}/{target} published")
+
+        # ── Session complete ───────────────────────────────────────────────
+        total = sum(len(v) for v in state["products_today"].values())
+        state.update({
+            "running":       False,
+            "current_phase": "idle",
+            "current_task":  f"Session complete — {total} products published",
+        })
+        state.setdefault("sessions", []).insert(0, {
+            "id":         session_id,
+            "ts":         datetime.now().isoformat(),
+            "total":      total,
+            "platforms":  platforms,
+            "products":   state["products_today"],
+        })
+        state["sessions"] = state["sessions"][:30]
+        _pf_save_state(state)
+        _pf_log(f"🎉 Session {session_id} complete — {total} total products published today")
+        try:
+            from core.telegram import notify
+            notify(f"🏭 Product Factory complete!\n✅ {total} products published today\n"
+                   f"Platforms: {', '.join(platforms)}")
+        except Exception:
+            pass
+
+    except Exception as e:
+        _pf_log(f"💥 Factory session crashed: {e}", "ERROR")
+        state = _pf_load_state()
+        state.update({"running": False, "current_phase": "error",
+                       "current_task": f"Error: {e}"})
+        _pf_save_state(state)
+    finally:
+        _pf_running = False
+
+
+@app.get("/api/factory/status")
+async def factory_status():
+    """Return current Product Factory state + today's products."""
+    state = _pf_load_state()
+    log   = _pf_load_log()
+    return {
+        **state,
+        "recent_log": log[:50],
+        "platforms_available": {
+            p: {
+                "name":      cfg["name"],
+                "icon":      cfg["icon"],
+                "color":     cfg["color"],
+                "target":    cfg["target"],
+                "published": len(state.get("products_today", {}).get(p, [])),
+                "connected": bool(
+                    (p == "gumroad" and _gumroad_token()) or
+                    (p == "payhip"  and True) or  # webhook mode always ok
+                    (p == "etsy"    and _etsy_access_token()) or
+                    (p == "kdp"     and os.getenv("KDP_EMAIL"))
+                ),
+            }
+            for p, cfg in _PF_PLATFORMS.items()
+        }
+    }
+
+
+@app.post("/api/factory/start")
+async def factory_start(req: dict, background_tasks: BackgroundTasks):
+    """
+    Start the Product Factory pipeline.
+    Body: {platforms: ['gumroad','payhip','etsy','kdp'], target_per_platform: 4, niches: []}
+    """
+    global _pf_running, _pf_thread
+    if _pf_running:
+        return {"error": "Factory is already running — stop it first"}
+
+    platforms = req.get("platforms", list(_PF_PLATFORMS.keys()))
+    target    = max(1, min(10, int(req.get("target_per_platform", 4))))
+    niches    = req.get("niches") or None
+    session_id = f"session_{int(time.time())}"
+
+    _pf_running = True
+
+    import threading as _pf_th
+    t = _pf_th.Thread(
+        target=_pf_run_session,
+        args=(session_id, target, platforms, niches),
+        daemon=True, name="product-factory"
+    )
+    t.start()
+    _pf_thread = t
+
+    _pf_log(f"▶ Factory started — session {session_id}")
+    return {"status": "started", "session_id": session_id, "platforms": platforms, "target": target}
+
+
+@app.post("/api/factory/stop")
+async def factory_stop():
+    """Gracefully stop the running factory session."""
+    global _pf_running
+    if not _pf_running:
+        return {"status": "not_running"}
+    _pf_running = False
+    state = _pf_load_state()
+    state.update({"running": False, "current_phase": "stopped",
+                  "current_task": "Stopped by user"})
+    _pf_save_state(state)
+    _pf_log("⏹ Factory stopped by user")
+    return {"status": "stopping"}
+
+
+@app.get("/api/factory/log")
+async def factory_log(limit: int = 100):
+    """Return the factory log, newest first."""
+    return {"log": _pf_load_log()[:limit]}
+
+
+@app.delete("/api/factory/reset")
+async def factory_reset():
+    """Clear today's products and reset stats."""
+    global _pf_running
+    if _pf_running:
+        return {"error": "Stop the factory first"}
+    state = _pf_load_state()
+    state.update({
+        "products_today": {}, "current_phase": "idle", "current_task": "",
+    })
+    _pf_save_state(state)
+    try:
+        _PF_LOG_FILE.write_text("[]")
+    except Exception:
+        pass
+    return {"status": "reset"}
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
