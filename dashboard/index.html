@@ -3322,35 +3322,73 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <!-- Create product form -->
-  <div class="card" style="margin-bottom:18px">
-    <div class="sh" style="margin-bottom:12px">
-      <div class="st" style="font-size:12px">➕ Create New Product</div>
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(0,200,150,.2)">
+    <div class="sh" style="margin-bottom:14px">
+      <div>
+        <div class="st" style="font-size:12px">➕ Create New Product</div>
+        <div class="ss" style="font-size:10px">Fill in details → AI writes the description → opens Payhip for you</div>
+      </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr auto auto;gap:10px;align-items:flex-end;flex-wrap:wrap">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div>
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Product Name</div>
-        <input id="ph-new-name" class="si2" placeholder="e.g. Canva Template Bundle"/>
+        <input id="ph-new-name" class="si2" placeholder="e.g. Canva Resume Template Bundle"/>
       </div>
       <div>
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Price (USD)</div>
         <input id="ph-new-price" class="si2" type="number" step="0.01" min="0" placeholder="14.99"/>
       </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div>
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Type</div>
-        <select id="ph-new-type" class="si2" style="width:auto">
-          <option value="ebook">eBook</option>
-          <option value="course">Course</option>
-          <option value="software">Software / Tool</option>
-          <option value="other">Template / Other</option>
+        <select id="ph-new-type" class="si2">
+          <option value="ebook">📖 eBook</option>
+          <option value="template">🎨 Template / Canva</option>
+          <option value="course">🎓 Course / Tutorial</option>
+          <option value="software">🛠 Software / Tool</option>
+          <option value="printable">🖨 Printable</option>
+          <option value="other">📦 Other Digital</option>
         </select>
       </div>
-      <button class="btn bsm" style="background:linear-gradient(135deg,#00c896,#00a878);color:#000;font-weight:700" onclick="payhipCreateProduct()" id="ph-create-btn">💳 Create</button>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">What's included <span style="color:var(--text3)">(short)</span></div>
+        <input id="ph-new-includes" class="si2" placeholder="e.g. 10 resume templates, Canva editable"/>
+      </div>
     </div>
-    <div style="margin-top:10px">
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Description</div>
-      <textarea id="ph-new-desc" class="si2" rows="2" placeholder="Describe your product…" style="resize:vertical;font-size:11px"></textarea>
+    <div style="margin-bottom:12px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Description <span style="color:var(--text3)">(or leave blank to auto-generate)</span></div>
+      <textarea id="ph-new-desc" class="si2" rows="3" placeholder="Leave blank — AI will write a high-converting description for you…" style="resize:vertical;font-size:11px"></textarea>
     </div>
-    <span id="ph-create-status" style="font-size:10px;color:var(--text3);display:block;margin-top:6px"></span>
+
+    <!-- Generated preview -->
+    <div id="ph-product-preview" style="display:none;margin-bottom:14px;padding:14px;background:rgba(0,200,150,.05);border:1px solid rgba(0,200,150,.2);border-radius:8px">
+      <div style="font-size:10px;font-weight:600;color:#00c896;margin-bottom:10px">✅ Product ready — copy details below, then click Open Payhip</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+        <div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:4px">TITLE</div>
+          <div id="ph-prev-title" style="font-size:11px;font-weight:600;color:var(--text);background:rgba(0,0,0,.2);padding:6px 8px;border-radius:6px;cursor:pointer" onclick="navigator.clipboard.writeText(this.textContent);toast('Copied!','success')" title="Click to copy"></div>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:4px">PRICE</div>
+          <div id="ph-prev-price" style="font-size:11px;font-weight:600;color:#00c896;background:rgba(0,0,0,.2);padding:6px 8px;border-radius:6px;cursor:pointer" onclick="navigator.clipboard.writeText(this.textContent.replace('$',''));toast('Copied!','success')" title="Click to copy"></div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:4px">DESCRIPTION <span style="color:var(--text3)">(click to copy)</span></div>
+        <div id="ph-prev-desc" style="font-size:11px;color:var(--text2);background:rgba(0,0,0,.2);padding:8px 10px;border-radius:6px;max-height:120px;overflow-y:auto;white-space:pre-wrap;cursor:pointer;line-height:1.6" onclick="navigator.clipboard.writeText(this.textContent);toast('Description copied!','success')" title="Click to copy"></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn bsm" style="background:linear-gradient(135deg,#00c896,#00a878);color:#000;font-weight:700;flex:1" onclick="payhipOpenCreate()">🔗 Open Payhip → Add Product</button>
+        <button class="btn bgh bsm" onclick="navigator.clipboard.writeText(document.getElementById('ph-prev-desc').textContent);toast('Description copied!','success')">📋 Copy Description</button>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:8px">📌 Payhip will open → click <strong>Add New Product</strong> → paste title + description → set price → upload your file</div>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn bsm" style="background:linear-gradient(135deg,#00c896,#00a878);color:#000;font-weight:700" onclick="payhipPrepareProduct()" id="ph-create-btn">✨ Prepare Product</button>
+      <span id="ph-create-status" style="font-size:10px;color:var(--text3)"></span>
+    </div>
   </div>
 
   <!-- Products list -->
@@ -10148,29 +10186,40 @@ async function payhipLoad() {
   }
 }
 
-async function payhipCreateProduct() {
-  const name  = document.getElementById('ph-new-name').value.trim();
-  const price = parseFloat(document.getElementById('ph-new-price').value) || 0;
-  const desc  = document.getElementById('ph-new-desc').value.trim();
-  const type  = document.getElementById('ph-new-type').value;
+async function payhipPrepareProduct() {
+  const name     = document.getElementById('ph-new-name').value.trim();
+  const price    = parseFloat(document.getElementById('ph-new-price').value) || 0;
+  const desc     = document.getElementById('ph-new-desc').value.trim();
+  const type     = document.getElementById('ph-new-type').value;
+  const includes = document.getElementById('ph-new-includes').value.trim();
   if (!name) { toast('Enter a product name', 'error'); return; }
   const btn = document.getElementById('ph-create-btn');
   const st  = document.getElementById('ph-create-status');
-  btn.disabled = true; btn.textContent = '⏳ Creating…'; st.textContent = '';
+  btn.disabled = true; btn.textContent = '⏳ Generating…'; st.textContent = '';
   try {
-    const r = await api('/api/payhip/product', 'POST', {name, price, description: desc, type});
+    const r = await api('/api/payhip/prepare', 'POST', {name, price, type, includes, description: desc});
     if (r.error) throw new Error(r.error);
-    toast('Product created on Payhip!', 'success');
-    st.textContent = `✅ Created — ${r.url || ''}`;
+    // Show preview panel
+    document.getElementById('ph-prev-title').textContent = r.title;
+    document.getElementById('ph-prev-price').textContent = '$' + parseFloat(r.price||0).toFixed(2);
+    document.getElementById('ph-prev-desc').textContent  = r.description;
+    document.getElementById('ph-product-preview').style.display = 'block';
+    document.getElementById('ph-product-preview').scrollIntoView({behavior:'smooth'});
+    st.textContent = '✅ Ready — click Open Payhip below';
     st.style.color = 'var(--green)';
-    document.getElementById('ph-new-name').value  = '';
-    document.getElementById('ph-new-price').value = '';
-    document.getElementById('ph-new-desc').value  = '';
-    payhipLoad();
+    toast('Description generated! Click Open Payhip →', 'success');
   } catch(e) {
     toast('Failed: ' + e.message, 'error');
     st.textContent = '❌ ' + e.message; st.style.color = 'var(--red)';
-  } finally { btn.disabled = false; btn.textContent = '💳 Create'; }
+  } finally { btn.disabled = false; btn.textContent = '✨ Prepare Product'; }
+}
+
+function payhipOpenCreate() {
+  // Copy description to clipboard then open Payhip
+  const desc = document.getElementById('ph-prev-desc').textContent;
+  navigator.clipboard.writeText(desc).catch(()=>{});
+  window.open('https://payhip.com/product/add', '_blank');
+  toast('Description copied! Paste it in Payhip now.', 'success');
 }
 
 async function payhipDelete(id) {

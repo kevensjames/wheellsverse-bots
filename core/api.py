@@ -9014,6 +9014,68 @@ async def payhip_delete_product(product_id: str):
         return {"error": str(e)}
 
 
+@app.post("/api/payhip/prepare")
+async def payhip_prepare_product(req: dict):
+    """
+    Generate a high-converting product description using Claude.
+    Returns title, price, description ready to paste into Payhip.
+    Body: {name, price, type, includes, description (optional)}
+    """
+    name     = req.get("name", "").strip()
+    price    = req.get("price", 0)
+    ptype    = req.get("type", "ebook")
+    includes = req.get("includes", "")
+    desc     = req.get("description", "").strip()
+
+    if not name:
+        return {"error": "Product name is required"}
+
+    # If user already wrote a description, just return it
+    if desc and len(desc) > 50:
+        return {"title": name, "price": price, "description": desc}
+
+    # Generate with Claude
+    try:
+        from core.base_bot import BaseBot
+        import anthropic
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        prompt = (
+            f"Write a high-converting Payhip product description for:\n"
+            f"Product: {name}\n"
+            f"Type: {ptype}\n"
+            f"What's included: {includes or 'digital download'}\n"
+            f"Price: ${price}\n\n"
+            "Write a compelling product description (200-350 words) that:\n"
+            "- Opens with the #1 pain point this product solves\n"
+            "- Lists 5-7 specific things included (bullet points with ✓)\n"
+            "- Explains who it's perfect for\n"
+            "- Ends with a clear call to action\n"
+            "- Mentions it's an instant digital download\n"
+            "Keep it professional, warm, and benefit-focused. No hype or false claims.\n"
+            "Return ONLY the description text, no extra commentary."
+        )
+        msg = client.messages.create(
+            model="claude-haiku-4-5-20251001",
+            max_tokens=600,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        generated = msg.content[0].text.strip()
+        _add_log(f"Payhip product description generated: {name}", "INFO")
+        return {"title": name, "price": price, "description": generated}
+    except Exception as e:
+        # Fallback: return basic template
+        fallback = (
+            f"{name}\n\n"
+            f"Get instant access to this {ptype} — {includes or 'digital download'}.\n\n"
+            f"✓ Instant digital download\n"
+            f"✓ Easy to use\n"
+            f"✓ Professional quality\n\n"
+            f"Perfect for creators, entrepreneurs, and anyone who wants to save time.\n\n"
+            f"Download immediately after purchase. 100% digital."
+        )
+        return {"title": name, "price": price, "description": fallback}
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):
