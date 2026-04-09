@@ -9681,6 +9681,121 @@ async def factory_reset():
     return {"status": "reset"}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# MARKET INTELLIGENCE API
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/market/status")
+async def market_status():
+    """Current status of the Market Intelligence engine."""
+    from core.market_intelligence import get_status
+    return get_status()
+
+
+@app.post("/api/market/scan")
+async def market_scan_start(req: dict = {}):
+    """
+    Start a market intelligence scan in the background.
+    Body: {platforms: ["facebook","instagram",...]}  (empty = all platforms)
+    Bot groups: "social", "marketplace", "amazon", "all"
+    """
+    from core.market_intelligence import start_scan_background, BOT_GROUPS, ALL_BOTS, _mi_running
+    if _mi_running:
+        return {"error": "A scan is already running — stop it first"}
+
+    platforms = req.get("platforms", [])
+    group = req.get("group", "")
+    if group and group in BOT_GROUPS:
+        platforms = BOT_GROUPS[group]
+    if not platforms:
+        platforms = list(ALL_BOTS.keys())
+
+    session_id = start_scan_background(platforms)
+    return {"status": "started", "session_id": session_id, "platforms": platforms}
+
+
+@app.post("/api/market/stop")
+async def market_scan_stop():
+    """Gracefully stop the running market scan."""
+    from core.market_intelligence import stop_scan, _mi_running
+    if not _mi_running:
+        return {"status": "not_running"}
+    stop_scan()
+    return {"status": "stopping"}
+
+
+@app.get("/api/market/data")
+async def market_data_all():
+    """Return all collected market intelligence data."""
+    from core.market_intelligence import _mi_load
+    return _mi_load()
+
+
+@app.get("/api/market/data/{platform}")
+async def market_data_platform(platform: str):
+    """Return market intelligence for a specific platform."""
+    from core.market_intelligence import get_platform_data
+    data = get_platform_data(platform)
+    if not data:
+        return {"error": f"No data for platform '{platform}' — run a scan first"}
+    return data
+
+
+@app.get("/api/market/briefing")
+async def market_briefing():
+    """Return NarAI's full strategic market briefing."""
+    from core.market_intelligence import get_narai_briefing
+    return {"briefing": get_narai_briefing()}
+
+
+@app.get("/api/market/log")
+async def market_log(limit: int = 200):
+    """Return market intelligence activity log."""
+    from core.market_intelligence import get_logs
+    lines = get_logs(limit)
+    return {"lines": lines, "count": len(lines)}
+
+
+# ── Quality Control API ───────────────────────────────────────────────────────
+
+@app.post("/api/qc/review")
+async def qc_review(req: dict):
+    """
+    Submit content for quality control review.
+    Body: {content, content_type, platform, title}
+    """
+    content      = req.get("content", "")
+    content_type = req.get("content_type", "post")
+    platform     = req.get("platform", "general")
+    title        = req.get("title", "Untitled")
+    if not content:
+        return {"error": "content is required"}
+
+    from core.market_intelligence import QualityControlBot
+    bot = QualityControlBot()
+    result = bot.review(content=content, content_type=content_type,
+                        platform=platform, title=title)
+    return result
+
+
+@app.get("/api/qc/results")
+async def qc_results(limit: int = 50):
+    """Return recent QC results."""
+    from core.market_intelligence import _qc_load
+    return {"results": _qc_load()[:limit]}
+
+
+@app.get("/api/qc/results/{qc_id}")
+async def qc_result_detail(qc_id: str):
+    """Return a specific QC result by ID."""
+    from core.market_intelligence import _qc_load
+    results = _qc_load()
+    for r in results:
+        if r.get("id") == qc_id:
+            return r
+    return {"error": "QC result not found"}
+
+
 # ─── Launch helper ────────────────────────────────────────────────────────────
 
 def launch(port: int = 5050, preload: bool = True):

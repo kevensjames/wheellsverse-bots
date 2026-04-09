@@ -909,6 +909,88 @@ class DecisionEngine:
 
         return entries
 
+    # ─── Market Intelligence Integration ─────────────────────────────────────
+
+    def evaluate_market_intelligence(self) -> List[Dict]:
+        """
+        Reads the latest market intelligence briefing and injects it into
+        NarAI's active context so every creation session is informed by
+        real viral patterns.
+
+        - If market data is stale (>24h) → triggers a background rescan
+        - Injects top insights into memory for NarAI to reference
+        Cooldown: 6 hours (intel briefing doesn't change that fast).
+        """
+        if not self._cooldown_ok("_last_mi_eval", 360):
+            return []
+
+        entries = []
+        try:
+            from core.market_intelligence import (
+                get_status, get_narai_briefing, start_scan_background,
+                _mi_load, _save_to_narai_memory
+            )
+            import time as _t
+            from datetime import datetime, timezone
+
+            status = get_status()
+            last_scan = status.get("last_scan")
+
+            # Auto-trigger rescan if stale (>24 hours) or never scanned
+            needs_scan = True
+            if last_scan:
+                try:
+                    ls = datetime.fromisoformat(last_scan)
+                    if ls.tzinfo is None:
+                        ls = ls.replace(tzinfo=timezone.utc)
+                    age_hours = (datetime.now(timezone.utc) - ls).total_seconds() / 3600
+                    needs_scan = age_hours > 24
+                except Exception:
+                    needs_scan = True
+
+            if needs_scan and not status.get("running"):
+                logger.info("Market intel stale — triggering background rescan")
+                start_scan_background()
+                entries.append(self._log_intel(
+                    "market_intelligence", "auto_rescan",
+                    "Market intelligence stale — background rescan triggered",
+                    "scan_started",
+                ))
+
+            # Inject current briefing into NarAI's active context
+            briefing = get_narai_briefing()
+            if briefing:
+                if self.memory:
+                    try:
+                        self.memory.save(
+                            key=f"narai_market_briefing_{datetime.now().strftime('%Y%m%d')}",
+                            content=briefing,
+                            source="market_intelligence",
+                            tags=["market_intel", "narai_context", "viral_patterns"],
+                        )
+                    except Exception:
+                        pass
+                # Also save top insights individually
+                mi = _mi_load()
+                for insight in mi.get("top_insights", [])[:5]:
+                    _save_to_narai_memory(
+                        key=f"top_insight_{insight.get('platform','')}",
+                        content=f"TOP INSIGHT [{insight.get('platform','').upper()}]: {insight.get('insight','')}",
+                        tags=["market_intel", "top_insight", insight.get("platform", "")],
+                    )
+
+                entries.append(self._log_intel(
+                    "market_intelligence", "briefing_injected",
+                    f"Market briefing injected into NarAI memory ({len(briefing)} chars)",
+                    "memory_updated",
+                    f"Platforms scanned: {list(status.get('platforms_data', {}).keys())}",
+                ))
+
+        except Exception as e:
+            logger.error(f"evaluate_market_intelligence error: {e}")
+
+        return entries
+
     # ─── Master Run ───────────────────────────────────────────────────────────
 
     def run(self) -> Dict:
@@ -930,6 +1012,7 @@ class DecisionEngine:
         errors: List[str] = []
 
         for label, fn in [
+            ("market_intel",self.evaluate_market_intelligence),  # NarAI reads market first
             ("market",      self.evaluate_market),
             ("trends",      self.evaluate_trends),
             ("health",      self.evaluate_system_health),

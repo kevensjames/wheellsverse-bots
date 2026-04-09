@@ -502,6 +502,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('factory')" id="nav-factory" style="background:linear-gradient(90deg,rgba(180,0,255,.15),transparent);border-left:2px solid #b400ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🏭</span><span style="color:#cc66ff;font-weight:700">Product Factory</span></div>
     <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
     <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
+    <!-- Intelligence -->
+    <div class="nav-sec" style="color:rgba(0,200,255,.6);font-size:8px;letter-spacing:2.5px">INTELLIGENCE</div>
+    <div class="nav-item" onclick="nav('marketintel')" id="nav-marketintel" style="background:linear-gradient(90deg,rgba(0,200,255,.15),transparent);border-left:2px solid #00c8ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔭</span><span style="color:#66d9ff;font-weight:700">Market Intel</span></div>
+    <div class="nav-item" onclick="nav('qcreview')" id="nav-qcreview" style="background:linear-gradient(90deg,rgba(255,215,0,.12),transparent);border-left:2px solid #ffd700;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔬</span><span style="color:#ffd700;font-weight:700">QC Review</span></div>
     <!-- Content -->
     <div class="nav-sec" style="color:rgba(255,85,136,.6);font-size:8px;letter-spacing:2.5px">CONTENT</div>
     <div class="nav-item" onclick="nav('publish')" id="nav-publish" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🚀</span><span>Publish</span></div>
@@ -3542,6 +3546,186 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ MARKET INTELLIGENCE PAGE ══════════════════════════════════════════════ -->
+<div class="page" id="page-marketintel">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🔭 Market Intelligence — NarAI's Eyes on the World</div>
+      <div class="ss" id="mi-status-label">Specialized bots scan every major platform and feed viral patterns into NarAI's memory</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div id="mi-engine-badge" style="padding:4px 12px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ IDLE</div>
+      <button class="btn bsm" onclick="miLoad()" style="background:rgba(0,200,255,.1);border:1px solid rgba(0,200,255,.25);color:#66d9ff">🔄 Refresh</button>
+      <button id="mi-start-btn" class="btn bsm" onclick="miStart('all')" style="background:rgba(0,200,255,.15);border:1px solid rgba(0,200,255,.3);color:#00c8ff">🌍 SCAN ALL PLATFORMS</button>
+      <button id="mi-stop-btn" class="btn bsm" onclick="miStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
+    </div>
+  </div>
+
+  <!-- Quick scan buttons by group -->
+  <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+    <button class="btn bsm" onclick="miStart('social')" style="background:rgba(255,85,136,.1);border:1px solid rgba(255,85,136,.2);color:#ff5588">📱 Social Platforms</button>
+    <button class="btn bsm" onclick="miStart('marketplace')" style="background:rgba(255,144,0,.1);border:1px solid rgba(255,144,0,.2);color:#ff9000">🛒 Marketplaces</button>
+    <button class="btn bsm" onclick="miStart('amazon')" style="background:rgba(255,153,0,.1);border:1px solid rgba(255,153,0,.2);color:#ff9900">📦 Amazon</button>
+    <span style="font-size:10px;color:var(--text3);align-self:center">or scan individually:</span>
+    <select id="mi-platform-select" class="si2" style="max-width:180px;font-size:10px">
+      <option value="">— pick platform —</option>
+      <option value="facebook">Facebook</option>
+      <option value="instagram">Instagram</option>
+      <option value="twitter">Twitter / X</option>
+      <option value="tiktok">TikTok</option>
+      <option value="telegram">Telegram</option>
+      <option value="blog">Blogs</option>
+      <option value="amazon_kdp">Amazon KDP</option>
+      <option value="gumroad">Gumroad</option>
+      <option value="etsy">Etsy</option>
+      <option value="payhip">Payhip</option>
+      <option value="canva">Canva</option>
+      <option value="amazon_products">Amazon Products</option>
+    </select>
+    <button class="btn bsm" onclick="miStartSingle()" style="background:rgba(0,200,255,.1);border:1px solid rgba(0,200,255,.2);color:#66d9ff">▶ Scan</button>
+  </div>
+
+  <!-- Current scan progress -->
+  <div id="mi-scan-progress" style="display:none;padding:12px 16px;background:rgba(0,200,255,.06);border:1px solid rgba(0,200,255,.2);border-radius:8px;margin-bottom:18px">
+    <div style="font-size:10px;color:#66d9ff;font-weight:600;margin-bottom:4px">🔄 Scanning…</div>
+    <div id="mi-current-platform" style="font-size:13px;font-weight:600;color:var(--text)">Initializing…</div>
+    <div style="height:3px;background:rgba(0,200,255,.1);border-radius:2px;margin-top:8px;overflow:hidden">
+      <div id="mi-progress-bar" style="height:100%;background:linear-gradient(90deg,#00c8ff,#66d9ff);width:0%;transition:width 0.8s;border-radius:2px"></div>
+    </div>
+  </div>
+
+  <!-- Platform grid — 12 bots -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px" id="mi-platform-grid">
+    <!-- filled by JS -->
+    <div style="color:var(--text3);font-size:11px;padding:20px;text-align:center;grid-column:1/-1">Loading platform data…</div>
+  </div>
+
+  <!-- NarAI Master Briefing -->
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(0,200,255,.2)">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:12px;color:#66d9ff">🧠 NarAI Master Briefing — What She Knows About the Market</div>
+      <button class="btn bsm" onclick="miRefreshBriefing()" style="background:rgba(0,200,255,.1);border:1px solid rgba(0,200,255,.2);color:#66d9ff;font-size:9px">🔄 Refresh</button>
+    </div>
+    <div id="mi-briefing" style="font-size:11px;line-height:1.8;color:var(--text2);white-space:pre-wrap;max-height:300px;overflow-y:auto;background:rgba(0,0,0,.15);padding:14px;border-radius:6px">
+      No briefing yet — run a market scan to generate NarAI's intelligence briefing.
+    </div>
+  </div>
+
+  <!-- Platform detail viewer + live log side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+    <div class="card" style="border:1px solid rgba(0,200,255,.1)">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:11px;color:#66d9ff">📊 Platform Detail</div>
+        <select id="mi-detail-select" class="si2" style="max-width:160px;font-size:10px" onchange="miShowPlatformDetail()">
+          <option value="">— select platform —</option>
+          <option value="facebook">Facebook</option>
+          <option value="instagram">Instagram</option>
+          <option value="twitter">Twitter / X</option>
+          <option value="tiktok">TikTok</option>
+          <option value="telegram">Telegram</option>
+          <option value="blog">Blogs</option>
+          <option value="amazon_kdp">Amazon KDP</option>
+          <option value="gumroad">Gumroad</option>
+          <option value="etsy">Etsy</option>
+          <option value="payhip">Payhip</option>
+          <option value="canva">Canva</option>
+          <option value="amazon_products">Amazon Products</option>
+        </select>
+      </div>
+      <div id="mi-platform-detail" style="font-size:10px;line-height:1.7;color:var(--text2);white-space:pre-wrap;max-height:350px;overflow-y:auto;font-family:monospace">
+        Select a platform to view detailed intelligence…
+      </div>
+    </div>
+    <div class="card" style="border:1px solid rgba(0,200,255,.1)">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:11px;color:#66d9ff">📡 Live Intelligence Log</div>
+        <div id="mi-log-pulse" style="width:7px;height:7px;background:#333;border-radius:50%;margin-top:4px"></div>
+      </div>
+      <div id="mi-log-el" style="max-height:350px;overflow-y:auto;font-family:monospace;font-size:10px;line-height:1.7;color:var(--text2)">
+        <div style="color:var(--text3)">Waiting for scan…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ QC REVIEW PAGE ════════════════════════════════════════════════════════ -->
+<div class="page" id="page-qcreview">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🔬 Quality Control — NarAI Masterpiece Reviewer</div>
+      <div class="ss">After NarAI creates something, QC bots run 5 deep passes. If issues are found, NarAI revises until perfect.</div>
+    </div>
+    <button class="btn bsm" onclick="qcLoad()" style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.25);color:#ffd700">🔄 Refresh</button>
+  </div>
+
+  <!-- Submit for review -->
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(255,215,0,.2)">
+    <div class="sh" style="margin-bottom:14px">
+      <div>
+        <div class="st" style="font-size:12px;color:#ffd700">🔬 Submit Content for QC Review</div>
+        <div class="ss" style="font-size:10px">Paste any content NarAI created — QC bots run 5 analysis passes</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Title</div>
+        <input id="qc-title" class="si2" placeholder="e.g. 10 Canva Templates Pack"/>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Content Type</div>
+        <select id="qc-type" class="si2">
+          <option value="post">📱 Social Post</option>
+          <option value="ebook">📖 eBook</option>
+          <option value="product">🛍️ Product Listing</option>
+          <option value="template">🎨 Template Description</option>
+          <option value="video_script">🎬 Video Script</option>
+          <option value="blog_post">📰 Blog Post</option>
+          <option value="email">✉️ Email</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Platform</div>
+        <select id="qc-platform" class="si2">
+          <option value="instagram">Instagram</option>
+          <option value="facebook">Facebook</option>
+          <option value="tiktok">TikTok</option>
+          <option value="twitter">Twitter / X</option>
+          <option value="gumroad">Gumroad</option>
+          <option value="etsy">Etsy</option>
+          <option value="amazon_kdp">Amazon KDP</option>
+          <option value="payhip">Payhip</option>
+          <option value="blog">Blog</option>
+          <option value="telegram">Telegram</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Content to Review</div>
+      <textarea id="qc-content" class="si2" rows="6" placeholder="Paste the content NarAI created here…" style="resize:vertical;font-size:11px;line-height:1.6"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center">
+      <button class="btn" onclick="qcSubmit()" id="qc-submit-btn" style="background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);color:#ffd700">🔬 Run QC Review (5 Passes)</button>
+      <div id="qc-submit-status" style="font-size:10px;color:var(--text3)"></div>
+    </div>
+  </div>
+
+  <!-- QC result display -->
+  <div id="qc-result-panel" style="display:none;margin-bottom:18px">
+    <!-- Filled by JS after review -->
+  </div>
+
+  <!-- Recent QC results -->
+  <div class="card" style="border:1px solid rgba(255,215,0,.1)">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:11px;color:#ffd700">📋 Recent QC Reviews</div>
+      <button class="btn bsm" onclick="qcLoad()" style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);color:#ffd700;font-size:9px">🔄</button>
+    </div>
+    <div id="qc-results-list">
+      <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No QC reviews yet</div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ NOTION PAGE ════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-notion">
   <div class="sh" style="margin-bottom:16px">
@@ -3685,7 +3869,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -3736,6 +3920,8 @@ function nav(p){
   if(p==='gumroad') gumroadLoad();
   if(p==='payhip') payhipLoad();
   if(p==='factory') factoryLoad();
+  if(p==='marketintel') miLoad();
+  if(p==='qcreview') qcLoad();
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
 
@@ -10560,6 +10746,263 @@ async function factoryResetProducts() {
     _factoryLastLogCount = 0;
     await factoryLoad();
   } catch(e) { toast('Failed to reset: ' + e.message, 'error'); }
+}
+
+// ── Market Intelligence ───────────────────────────────────────────────────────
+let _miPollTimer = null;
+let _miLastLogCount = 0;
+
+const MI_PLATFORM_ICONS = {
+  facebook:'📘',instagram:'📸',twitter:'🐦',tiktok:'🎵',telegram:'✈️',blog:'📰',
+  amazon_kdp:'📚',gumroad:'🛒',etsy:'🛍️',payhip:'💳',canva:'🎨',amazon_products:'📦'
+};
+const MI_PLATFORM_COLORS = {
+  facebook:'#1877f2',instagram:'#e1306c',twitter:'#1da1f2',tiktok:'#ff0050',telegram:'#0088cc',blog:'#ff9900',
+  amazon_kdp:'#ff9900',gumroad:'#ff9000',etsy:'#f55a2d',payhip:'#00c896',canva:'#7d2ae8',amazon_products:'#ff9900'
+};
+
+async function miLoad() {
+  try {
+    const s = await api('/api/market/status');
+    _miRenderStatus(s);
+    _miLoadLog();
+    if (s.running && !_miPollTimer) {
+      _miPollTimer = setInterval(_miPoll, 3000);
+    } else if (!s.running && _miPollTimer) {
+      clearInterval(_miPollTimer); _miPollTimer = null;
+    }
+    // Refresh briefing
+    const br = await api('/api/market/briefing');
+    document.getElementById('mi-briefing').textContent = br.briefing || 'No briefing yet — run a market scan first.';
+  } catch(e) { toast('Market intel error: ' + e.message, 'error'); }
+}
+
+function _miRenderStatus(s) {
+  const badge = document.getElementById('mi-engine-badge');
+  const lbl = document.getElementById('mi-status-label');
+  const startBtn = document.getElementById('mi-start-btn');
+  const stopBtn = document.getElementById('mi-stop-btn');
+  const progress = document.getElementById('mi-scan-progress');
+
+  if (s.running) {
+    badge.style.background = 'rgba(0,200,255,.15)'; badge.style.color = '#00c8ff';
+    badge.textContent = '🔵 SCANNING';
+    startBtn.style.display = 'none'; stopBtn.style.display = '';
+    progress.style.display = '';
+    document.getElementById('mi-current-platform').textContent =
+      s.current_platform ? `Analyzing: ${MI_PLATFORM_ICONS[s.current_platform]||'🔭'} ${s.current_platform}` : 'Initializing…';
+    const total = (s.platforms_available || []).length;
+    const done  = Object.keys(s.platforms_data || {}).length;
+    document.getElementById('mi-progress-bar').style.width = total > 0 ? Math.round(done/total*100)+'%' : '5%';
+    lbl.textContent = `Session ${s.current_session || ''} — Scanning ${s.current_platform || '…'}`;
+  } else {
+    badge.style.background = 'rgba(100,100,100,.2)'; badge.style.color = 'var(--text3)';
+    badge.textContent = '⚫ IDLE';
+    startBtn.style.display = ''; stopBtn.style.display = 'none';
+    progress.style.display = 'none';
+    const scanned = Object.keys(s.platforms_data || {}).length;
+    lbl.textContent = scanned > 0
+      ? `${scanned} platforms scanned · Last scan: ${s.last_scan ? new Date(s.last_scan).toLocaleString() : '—'}`
+      : 'Ready — select platforms and start a scan';
+  }
+
+  // Platform grid
+  const platforms = s.platforms_available || [];
+  const platformsData = s.platforms_data || {};
+  const grid = document.getElementById('mi-platform-grid');
+  if (platforms.length === 0) return;
+  grid.innerHTML = platforms.map(p => {
+    const col = MI_PLATFORM_COLORS[p] || '#666';
+    const icon = MI_PLATFORM_ICONS[p] || '🔭';
+    const hasData = !!platformsData[p];
+    const scannedAt = platformsData[p]?.scanned_at;
+    const isActive = s.running && s.current_platform === p;
+    return `<div class="card" style="border:1px solid ${col}33;text-align:center;cursor:pointer;transition:border .2s${isActive?';border-color:'+col+';box-shadow:0 0 12px '+col+'44':''}" onclick="miViewPlatform('${p}')">
+      <div style="font-size:22px;margin-bottom:4px">${icon}${isActive?' <span style=\"font-size:12px;animation:blink 1s infinite\">⚡</span>':''}</div>
+      <div style="font-size:10px;font-weight:700;color:${col}">${p.replace('_',' ').toUpperCase()}</div>
+      <div style="font-size:9px;color:${hasData?'#00ff88':'var(--text3)'};margin-top:4px">${hasData?'✅ Data ready':'⚪ Not scanned'}</div>
+      ${scannedAt?`<div style="font-size:8px;color:var(--text3);margin-top:2px">${new Date(scannedAt).toLocaleDateString()}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+async function _miLoadLog() {
+  try {
+    const r = await api('/api/market/log?limit=150');
+    const lines = r.lines || [];
+    const logEl = document.getElementById('mi-log-el');
+    const pulse = document.getElementById('mi-log-pulse');
+    if (lines.length > _miLastLogCount) {
+      _miLastLogCount = lines.length;
+      pulse.style.background = '#00c8ff';
+      setTimeout(()=>{ pulse.style.background = '#00ff88'; }, 400);
+      setTimeout(()=>{ pulse.style.background = '#333'; }, 2500);
+    }
+    if (lines.length === 0) { logEl.innerHTML = '<div style="color:var(--text3)">Waiting for scan…</div>'; return; }
+    logEl.innerHTML = lines.slice(0,100).map(l => {
+      let col = 'var(--text2)';
+      if (l.includes('[ERROR]')) col = '#ff6060';
+      else if (l.includes('[OK]') || l.includes('✅') || l.includes('complete')) col = '#00ff88';
+      else if (l.includes('[WARNING]')) col = '#ffd700';
+      else if (l.includes('🚀') || l.includes('Scanning') || l.includes('Analyzing')) col = '#00c8ff';
+      return `<div style="color:${col};padding:1px 0">${l.replace(/</g,'&lt;')}</div>`;
+    }).join('');
+    logEl.scrollTop = logEl.scrollHeight;
+  } catch(e) {}
+}
+
+async function _miPoll() {
+  try {
+    const s = await api('/api/market/status');
+    _miRenderStatus(s);
+    _miLoadLog();
+    if (!s.running) {
+      clearInterval(_miPollTimer); _miPollTimer = null;
+      toast('🔭 Market scan complete! NarAI briefing updated.', 'success');
+      const br = await api('/api/market/briefing');
+      document.getElementById('mi-briefing').textContent = br.briefing || '';
+    }
+  } catch(e) {}
+}
+
+async function miStart(group) {
+  try {
+    const body = group ? {group} : {platforms:[]};
+    const r = await api('/api/market/scan', 'POST', body);
+    if (r.error) throw new Error(r.error);
+    toast(`🔭 Market scan started — ${r.platforms?.length || '?'} platforms`, 'success');
+    _miLastLogCount = 0;
+    await miLoad();
+    if (!_miPollTimer) _miPollTimer = setInterval(_miPoll, 3000);
+  } catch(e) { toast('Failed to start scan: ' + e.message, 'error'); }
+}
+
+async function miStartSingle() {
+  const p = document.getElementById('mi-platform-select').value;
+  if (!p) { toast('Select a platform first', 'error'); return; }
+  try {
+    const r = await api('/api/market/scan', 'POST', {platforms: [p]});
+    if (r.error) throw new Error(r.error);
+    toast(`Scanning ${p}…`, 'success');
+    _miLastLogCount = 0;
+    await miLoad();
+    if (!_miPollTimer) _miPollTimer = setInterval(_miPoll, 3000);
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function miStop() {
+  try {
+    await api('/api/market/stop', 'POST');
+    if (_miPollTimer) { clearInterval(_miPollTimer); _miPollTimer = null; }
+    toast('Scan stopped', 'success');
+    await miLoad();
+  } catch(e) { toast('Failed to stop: ' + e.message, 'error'); }
+}
+
+async function miRefreshBriefing() {
+  const br = await api('/api/market/briefing');
+  document.getElementById('mi-briefing').textContent = br.briefing || 'No briefing yet.';
+}
+
+async function miViewPlatform(platform) {
+  document.getElementById('mi-detail-select').value = platform;
+  await miShowPlatformDetail();
+}
+
+async function miShowPlatformDetail() {
+  const p = document.getElementById('mi-detail-select').value;
+  if (!p) return;
+  try {
+    const data = await api(`/api/market/data/${p}`);
+    if (data.error) { document.getElementById('mi-platform-detail').textContent = data.error; return; }
+    document.getElementById('mi-platform-detail').textContent = JSON.stringify(data, null, 2);
+  } catch(e) { document.getElementById('mi-platform-detail').textContent = 'Error: ' + e.message; }
+}
+
+// ── Quality Control ───────────────────────────────────────────────────────────
+async function qcLoad() {
+  try {
+    const r = await api('/api/qc/results?limit=30');
+    _qcRenderResults(r.results || []);
+  } catch(e) { toast('QC load error: ' + e.message, 'error'); }
+}
+
+function _qcRenderResults(results) {
+  const el = document.getElementById('qc-results-list');
+  if (!results.length) { el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No QC reviews yet</div>'; return; }
+  el.innerHTML = results.map(r => {
+    const col = r.approved ? '#00ff88' : r.score >= 60 ? '#ffd700' : '#ff6060';
+    const passes = r.passes || [];
+    return `<div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onclick="qcShowDetail(${JSON.stringify(r).replace(/</g,'&lt;')})">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <div style="font-size:11px;font-weight:600;color:var(--text)">${r.approved?'✅':'❌'} ${r.title||'Untitled'}</div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span style="font-size:11px;font-weight:700;color:${col}">${r.score}/100</span>
+          <span style="padding:2px 8px;border-radius:10px;font-size:9px;background:${r.approved?'rgba(0,255,136,.12)':'rgba(255,60,60,.12)'};color:${col}">${r.approved?'APPROVED':'NEEDS REVISION'}</span>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${passes.map(p=>`<span style="font-size:9px;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.05);color:${p.score>=75?'#00ff88':p.score>=50?'#ffd700':'#ff6060'}">${p.name}: ${p.score}</span>`).join('')}
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:4px">${r.platform} · ${r.content_type} · ${r.reviewed_at?new Date(r.reviewed_at).toLocaleString():''}</div>
+    </div>`;
+  }).join('');
+}
+
+function qcShowDetail(r) {
+  const panel = document.getElementById('qc-result-panel');
+  const col = r.approved ? '#00ff88' : r.score >= 60 ? '#ffd700' : '#ff6060';
+  panel.style.display = '';
+  panel.innerHTML = `<div class="card" style="border:1px solid ${col}44">
+    <div class="sh" style="margin-bottom:14px">
+      <div>
+        <div class="st" style="font-size:12px;color:${col}">${r.final_verdict}</div>
+        <div class="ss" style="font-size:10px">${r.title} · ${r.platform} · ${r.content_type}</div>
+      </div>
+      <div style="font-size:28px;font-weight:900;color:${col}">${r.score}<span style="font-size:14px">/100</span></div>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px">
+      ${(r.passes||[]).map(p=>`<div style="text-align:center;padding:10px;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid ${p.score>=75?'rgba(0,255,136,.2)':p.score>=50?'rgba(255,215,0,.2)':'rgba(255,60,60,.2)'}">
+        <div style="font-size:16px;font-weight:700;color:${p.score>=75?'#00ff88':p.score>=50?'#ffd700':'#ff6060'}">${p.score}</div>
+        <div style="font-size:9px;color:var(--text3)">${p.name}</div>
+      </div>`).join('')}
+    </div>
+    ${r.all_issues?.length ? `<div style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:600;color:#ff6060;margin-bottom:6px">⚠ Issues Found (${r.all_issues.length})</div>
+      ${r.all_issues.map(i=>`<div style="font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">• ${i}</div>`).join('')}
+    </div>` : ''}
+    ${r.revision_instructions ? `<div style="padding:12px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.2);border-radius:8px">
+      <div style="font-size:10px;font-weight:600;color:#ffd700;margin-bottom:6px">📝 Revision Instructions for NarAI</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.7;white-space:pre-wrap">${r.revision_instructions}</div>
+    </div>` : ''}
+  </div>`;
+  panel.scrollIntoView({behavior:'smooth'});
+}
+
+async function qcSubmit() {
+  const content  = document.getElementById('qc-content').value.trim();
+  const title    = document.getElementById('qc-title').value.trim() || 'Untitled';
+  const type     = document.getElementById('qc-type').value;
+  const platform = document.getElementById('qc-platform').value;
+  if (!content) { toast('Paste content to review first', 'error'); return; }
+
+  const btn = document.getElementById('qc-submit-btn');
+  const status = document.getElementById('qc-submit-status');
+  btn.disabled = true; btn.textContent = '🔬 Reviewing…';
+  status.textContent = 'Running 5 QC passes (30-60 seconds)…';
+
+  try {
+    const r = await api('/api/qc/review', 'POST', {content, content_type:type, platform, title});
+    if (r.error) throw new Error(r.error);
+    qcShowDetail(r);
+    toast(r.approved ? '✅ Content approved!' : '❌ Needs revision — see instructions', r.approved ? 'success' : 'error');
+    await qcLoad();
+  } catch(e) {
+    toast('QC review failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = '🔬 Run QC Review (5 Passes)';
+    status.textContent = '';
+  }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
