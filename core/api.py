@@ -87,6 +87,12 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 # NarAI autopilot — dashboard-only, protected by same-origin
+                 "/api/narai-autopilot/status", "/api/narai-autopilot/start",
+                 "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
+                 "/api/narai-autopilot/queue",
+                 "/api/narai/memory/stats", "/api/narai/memory/search",
+                 "/api/narai/memory/context",
                  # NEXORA platform — auth + public creator endpoints are their own auth
                  "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook",
                  "/api/nx/fan/register", "/api/nx/fan/login", "/api/nx/fan/logout"}
@@ -616,7 +622,11 @@ async def serve_dashboard():
             "const API_KEY = '';",
             f"const API_KEY = '{_API_KEY}';",
         )
-    return HTMLResponse(html)
+    return HTMLResponse(html, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
 
 
 # ─── Overview ─────────────────────────────────────────────────────────────────
