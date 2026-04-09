@@ -60,7 +60,7 @@ PIKA_STYLES = {
 
 def runway_generate(prompt: str, duration: int = 5, ratio: str = "1280:768") -> dict:
     """
-    Generate a video with Runway Gen-3 Alpha Turbo.
+    Generate a video with Runway Gen-3 Alpha Turbo (text-to-video).
     Returns: {success, video_url, local_path, error}
     """
     if not RUNWAY_KEY:
@@ -72,33 +72,25 @@ def runway_generate(prompt: str, duration: int = 5, ratio: str = "1280:768") -> 
         "X-Runway-Version": "2024-11-06",
     }
 
-    # Submit generation task
     payload = {
-        "model": "gen3a_turbo",
-        "promptText": prompt[:500],
-        "duration": duration,         # 5 or 10 seconds
-        "ratio": ratio,               # "1280:768" landscape, "768:1280" portrait (TikTok)
-        "watermark": False,
+        "model":       "gen4.5",
+        "promptText":  prompt[:500],
+        "duration":    duration,    # 5 or 10 seconds
+        "ratio":       ratio,       # "1280:720" landscape | "720:1280" portrait (TikTok)
+        "watermark":   False,
     }
 
     try:
         r = requests.post(
-            "https://api.dev.runwayml.com/v1/image_to_video",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-        # text_to_video endpoint
-        r2 = requests.post(
             "https://api.dev.runwayml.com/v1/text_to_video",
             headers=headers,
             json=payload,
             timeout=30,
         )
-        data = r2.json() if r2.ok else r.json()
+        data = r.json()
         task_id = data.get("id")
         if not task_id:
-            return {"success": False, "error": f"Runway submit failed: {data}"}
+            return {"success": False, "error": f"Runway submit failed ({r.status_code}): {data}"}
 
         log.info(f"Runway task submitted: {task_id}")
 
@@ -112,7 +104,7 @@ def runway_generate(prompt: str, duration: int = 5, ratio: str = "1280:768") -> 
             ).json()
             status = poll.get("status", "")
             if status == "SUCCEEDED":
-                video_url = poll.get("output", [None])[0]
+                video_url = (poll.get("output") or [None])[0]
                 local = _download_video(video_url, f"runway_{task_id}.mp4")
                 return {"success": True, "video_url": video_url, "local_path": str(local), "source": "runway"}
             elif status in ("FAILED", "CANCELLED"):
@@ -145,28 +137,42 @@ def pika_generate(prompt: str, style: str = "anime", duration: int = 5,
     }
 
     payload = {
-        "promptText": prompt[:300],
-        "style": pika_style,
-        "duration": duration,
-        "aspectRatio": aspect_ratio,   # "9:16" for TikTok/Reels, "16:9" for YouTube
-        "frameRate": 24,
-        "motion": 2,                   # 1-4, higher = more motion
-        "guidanceScale": 12,
+        "prompt": prompt[:300],
+        "options": {
+            "aspectRatio": aspect_ratio,   # "9:16" TikTok/Reels | "16:9" YouTube
+            "frameRate": 24,
+            "duration": duration,
+            "motion": 2,                   # 1-4
+            "guidanceScale": 12,
+        },
     }
+    # Add style modifier to prompt
+    if style.lower() in ("anime", "cartoon", "3d", "watercolor"):
+        payload["prompt"] = f"{style} style: {prompt[:280]}"
 
     try:
         r = requests.post(
-            "https://api.pika.art/v2/generate",
+            "https://api.pika.art/v2/videos/create",
             headers=headers,
             json=payload,
             timeout=30,
         )
 
         if not r.ok:
+            # Fallback: try legacy endpoint
+            r = requests.post(
+                "https://api.pika.art/v1/generate",
+                headers=headers,
+                json={"promptText": prompt[:300], "style": pika_style,
+                      "duration": duration, "aspectRatio": aspect_ratio},
+                timeout=30,
+            )
+
+        if not r.ok:
             return {"success": False, "error": f"Pika submit failed: {r.status_code} {r.text[:200]}"}
 
         data = r.json()
-        task_id = data.get("id") or data.get("taskId") or data.get("job_id")
+        task_id = (data.get("data") or data).get("id") or data.get("taskId") or data.get("job_id")
         if not task_id:
             return {"success": False, "error": f"Pika no task ID: {data}"}
 
@@ -176,13 +182,14 @@ def pika_generate(prompt: str, style: str = "anime", duration: int = 5,
         for _ in range(60):
             time.sleep(5)
             poll = requests.get(
-                f"https://api.pika.art/v2/tasks/{task_id}",
+                f"https://api.pika.art/v2/videos/{task_id}",
                 headers=headers,
                 timeout=10,
             ).json()
             status = poll.get("status", "").lower()
             if status in ("completed", "succeeded", "done"):
-                video_url = (poll.get("videos") or poll.get("output") or [{}])[0]
+                inner = poll.get("data") or poll
+                video_url = (inner.get("videos") or inner.get("output") or [{}])[0]
                 if isinstance(video_url, dict):
                     video_url = video_url.get("url", "")
                 local = _download_video(video_url, f"pika_{task_id}.mp4")
@@ -415,9 +422,7 @@ def _download_video(url: str, filename: str) -> Path:
 
 
 def _runway_ratio(aspect: str) -> str:
-    """Convert aspect ratio string to Runway ratio format."""
+    """Convert aspect ratio string to Runway ratio format (only 2 valid values)."""
     if aspect == "9:16":
-        return "720:1280"
-    if aspect == "1:1":
-        return "960:960"
-    return "1280:720"  # 16:9 default
+        return "720:1280"   # portrait — TikTok, Reels, Shorts
+    return "1280:720"       # landscape — YouTube, Facebook
