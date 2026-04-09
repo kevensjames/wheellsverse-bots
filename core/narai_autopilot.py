@@ -709,133 +709,169 @@ def _create_blog_posts(state: dict, briefing: str) -> List[dict]:
 # PHASE 1.5 — AI VIDEO CREATION (TikTok + YouTube Shorts + Facebook Video)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _create_videos(state: dict, briefing: str) -> List[dict]:
-    """
-    Generate 3 AI videos daily:
-      1. TikTok — anime/stylized short (9:16, 5-10s clip → full caption + script)
-      2. YouTube Short — cinematic (9:16)
-      3. Facebook Video — educational/story (16:9)
-    Uses Pika Labs for anime, Runway ML for cinematic, HeyGen for talking-head.
-    """
+_DAILY_REEL_CONFIGS = [
+    {
+        "slot":    "morning",
+        "theme":   "power_of_ai",
+        "label":   "AI Power — Morning Reel",
+        "angles": [
+            "An AI tool solves a problem in 10 seconds that took a human 3 hours",
+            "The power of AI in real life — a transformation story (before vs after AI)",
+            "AI predicts something nobody expected — and was right",
+            "How AI is changing jobs, money, and daily life in 2026",
+            "A mind-blowing AI moment that proves the future is already here",
+        ],
+        "tone":    "inspiring, emotional, slightly shocking — makes people say 'wow'",
+        "style":   "cinematic",
+        "aspect":  "9:16",
+        "post_to": ["instagram", "facebook"],
+    },
+    {
+        "slot":    "afternoon",
+        "theme":   "ai_being_human",
+        "label":   "AI Trying to Be Human — Afternoon Comic Reel",
+        "angles": [
+            "AI tries to order coffee like a human and gets confused by the menu",
+            "AI attempts to give relationship advice — hilarious results",
+            "AI tries to understand human sarcasm — complete disaster",
+            "AI tries to write a grocery list but overthinks every item",
+            "AI attempts to take a lunch break — doesn't know how to 'rest'",
+        ],
+        "tone":    "comedy, relatable, self-aware — makes people laugh and share",
+        "style":   "cartoon",
+        "aspect":  "9:16",
+        "post_to": ["instagram", "facebook"],
+    },
+    {
+        "slot":    "evening",
+        "theme":   "ai_real_life_viral",
+        "label":   "AI in Real Life — Evening Viral Reel",
+        "angles": [
+            "What happens when AI runs your entire morning routine",
+            "AI vs humans: who does it better? (side-by-side comparison)",
+            "3 things AI can do right now that feel like magic",
+            "AI explains something complex in 30 seconds — and nails it",
+            "The moment AI surprised even the people who built it",
+        ],
+        "tone":    "punchy, surprising, relatable — earns saves and shares",
+        "style":   "cinematic",
+        "aspect":  "9:16",
+        "post_to": ["instagram", "facebook"],
+    },
+]
+
+
+def _create_one_reel(cfg: dict, state: dict, briefing: str, slot_override: str = "") -> dict:
+    """Generate and publish one reel for the given slot config."""
     from core.video_engine import generate_video, publish_video_everywhere, get_available_engines
-    engines = get_available_engines()
-    if not engines["any"]:
-        _ap_log("⚠️ No video API keys configured — skipping video phase (add PIKA_API_KEY or RUNWAYML_API_KEY)", phase="video")
-        return []
 
-    _ap_log(f"🎬 Video: engines available — Pika:{engines['pika']} Runway:{engines['runway']} HeyGen:{engines['heygen']}", phase="video")
+    label   = cfg["label"]
+    theme   = cfg["theme"]
+    slot    = slot_override or cfg["slot"]
+    import random as _r
+    angle   = _r.choice(cfg["angles"])
 
-    video_configs = [
-        {
-            "platform": "tiktok",
-            "style": "anime",
-            "aspect": "9:16",
-            "label": "TikTok anime short",
-            "post_to": ["tiktok", "instagram"],
-        },
-        {
-            "platform": "youtube",
-            "style": "cinematic",
-            "aspect": "9:16",
-            "label": "YouTube Short cinematic",
-            "post_to": ["youtube"],
-        },
-        {
-            "platform": "facebook",
-            "style": "cinematic",
-            "aspect": "16:9",
-            "label": "Facebook video educational",
-            "post_to": ["facebook"],
-        },
-    ]
+    _ap_log(f"  🎬 [{slot.upper()}] {label}: '{angle[:60]}'", phase="video")
 
-    videos = []
-    for cfg in video_configs:
-        label = cfg["label"]
-        _ap_log(f"  🎞️ Creating {label}…", phase="video")
-
-        # Ask NarAI to design the video concept
-        concept = _claude_json(
-            f"Design a viral {label} video concept for the WheellsVerse / NarAI brand.\n\n"
-            f"Master briefing:\n{briefing[:1200]}\n\n"
-            "The video must showcase one of:\n"
-            "- NarAI's daily autonomous creation process\n"
-            "- WheellsVerse digital empire growth\n"
-            "- AI content automation in action\n"
-            "- Passive income strategy NarAI uses\n"
-            "- Viral content secrets NarAI discovered\n\n"
-            "Return JSON:\n"
-            '{"title": "catchy WheellsVerse video title", '
-            '"prompt": "detailed AI video generation prompt — vivid, specific, visual, futuristic AI aesthetic", '
-            f'"style": "{cfg["style"]}", '
-            '"caption": "platform caption written as NarAI speaking, hook + value + #WheellsVerse #NarAI + 5 more hashtags", '
-            '"script": "30-60 second narration written as NarAI speaking to audience", '
-            '"hook": "first 3-second visual hook description"}',
-            max_tokens=900,
-        )
-        if not isinstance(concept, dict):
-            concept = {
-                "title": label, "prompt": f"Viral {cfg['style']} video about digital success",
-                "style": cfg["style"], "caption": label, "script": label, "hook": label,
-            }
-
-        title   = concept.get("title", label)
-        prompt  = concept.get("prompt", label)
-        caption = concept.get("caption", title)
-        script  = concept.get("script", "")
-
-        # QC the script
-        final_script, qc_result = _qc_loop(script, title, "video_script", cfg["platform"], state)
-
-        published_to = []
-        video_url    = ""
-        local_path   = ""
-
-        if qc_result.get("approved"):
-            _ap_log(f"  ✅ Script approved (score {qc_result.get('score',0)}) — generating video…", phase="video")
-            vresult = generate_video(
-                prompt=prompt,
-                style=cfg["style"],
-                platform=cfg["platform"],
-                script=final_script,
-            )
-            if vresult.get("success"):
-                video_url  = vresult.get("video_url", "")
-                local_path = vresult.get("local_path", "")
-                source     = vresult.get("source", "")
-                _ap_log(f"  🎬 {source.upper()} video ready: {video_url[:60]}", phase="video")
-
-                pub_result = publish_video_everywhere(local_path, title, caption, platforms=cfg["post_to"])
-                published_to = pub_result.get("published", [])
-                failed_to    = pub_result.get("failed", [])
-                if published_to:
-                    _ap_log(f"  📤 Published to: {', '.join(published_to)}", phase="video")
-                if failed_to:
-                    _ap_log(f"  ⚠️ Failed on: {', '.join(failed_to)}", phase="video")
-                    _queue_for_manual(cfg["platform"], title, f"Video: {video_url}\n\nCaption: {caption}", "video")
-            else:
-                _ap_log(f"  ⚠️ Video gen failed: {vresult.get('error','')} — queuing", phase="video")
-                _queue_for_manual(cfg["platform"], title, f"Script:\n{final_script}\n\nCaption: {caption}", "video_script")
-        else:
-            _ap_log(f"  ❌ Script rejected (score {qc_result.get('score',0)}) — skipping", phase="video")
-
-        video_rec = {
-            "platform": cfg["platform"], "title": title, "style": cfg["style"],
-            "video_url": video_url, "local_path": local_path,
-            "caption": caption, "script": final_script,
-            "qc_score": qc_result.get("score", 0),
-            "approved": qc_result.get("approved", False),
-            "published_to": published_to, "created_at": _now(),
+    concept = _claude_json(
+        f"Create a viral short-form video concept.\n\n"
+        f"Theme: {theme}\n"
+        f"Angle: {angle}\n"
+        f"Tone: {cfg['tone']}\n"
+        f"Platforms: Instagram Reel + Facebook Reel (9:16, 30–60 seconds)\n\n"
+        "Return JSON OBJECT (not array):\n"
+        '{"title": "short viral title (max 8 words)", '
+        '"prompt": "detailed AI video generation prompt — cinematic/anime/cartoon visuals, vivid scene, specific action, mood", '
+        '"style": "cinematic|anime|cartoon", '
+        '"hook": "first 3-second scene that stops the scroll", '
+        '"script": "30-60 second script with timing cues [0s], [5s], etc.", '
+        '"instagram_caption": "Instagram caption — hook line, 2-3 value lines, 20 hashtags", '
+        '"facebook_caption": "Facebook caption — storytelling hook, 3-4 sentences, 3-5 hashtags"}',
+        max_tokens=1000,
+    )
+    if not isinstance(concept, dict):
+        concept = {
+            "title": angle[:50], "style": cfg["style"],
+            "prompt": f"Viral {cfg['style']} video about {angle}",
+            "hook": angle, "script": angle,
+            "instagram_caption": angle, "facebook_caption": angle,
         }
-        videos.append(video_rec)
-        state["today_content"].append(video_rec)
+
+    title  = concept.get("title", angle[:50])
+    prompt = concept.get("prompt", angle)
+    style  = concept.get("style", cfg["style"])
+    script = concept.get("script", "")
+    ig_cap = concept.get("instagram_caption", title)
+    fb_cap = concept.get("facebook_caption", title)
+
+    final_script, qc_result = _qc_loop(script, title, "video_script", "instagram", state)
+
+    published_to = []
+    video_url    = ""
+    local_path   = ""
+
+    engines = get_available_engines()
+    if qc_result.get("approved") and engines.get("any"):
+        _ap_log(f"  ✅ Script approved ({qc_result.get('score',0)}) — generating…", phase="video")
+        vresult = generate_video(prompt=prompt, style=style, platform="instagram", script=final_script)
+        if vresult.get("success"):
+            video_url  = vresult.get("video_url", "")
+            local_path = vresult.get("local_path", "")
+            _ap_log(f"  🎥 Video ready ({vresult.get('source','')}): {video_url[:60]}", phase="video")
+            # Post to Instagram with Instagram caption
+            pub_ig = publish_video_everywhere(local_path, title, ig_cap, platforms=["instagram"])
+            # Post to Facebook with Facebook caption
+            pub_fb = publish_video_everywhere(local_path, title, fb_cap, platforms=["facebook"])
+            published_to = pub_ig.get("published", []) + pub_fb.get("published", [])
+            failed_to = pub_ig.get("failed", []) + pub_fb.get("failed", [])
+            if published_to:
+                _ap_log(f"  📤 Published to: {', '.join(published_to)}", phase="video")
+            if failed_to:
+                _queue_for_manual("instagram", title, f"Video: {video_url}\n\nIG Caption: {ig_cap}\n\nFB Caption: {fb_cap}", "video")
+        else:
+            _ap_log(f"  ⚠️ Gen failed: {vresult.get('error','')} — queuing script", phase="video")
+            _queue_for_manual("instagram", title, f"Script:\n{final_script}\n\nIG: {ig_cap}\n\nFB: {fb_cap}", "video_script")
+    elif not engines.get("any"):
+        _ap_log("  ⚠️ No video engine — queuing script for manual post", phase="video")
+        _queue_for_manual("instagram", title, f"Script:\n{final_script}\n\nIG: {ig_cap}\n\nFB: {fb_cap}", "video_script")
+    else:
+        _ap_log(f"  ❌ Script rejected ({qc_result.get('score',0)}) — skipping", phase="video")
+
+    rec = {
+        "platform": "instagram+facebook", "title": title, "theme": theme,
+        "slot": slot, "style": style, "video_url": video_url, "local_path": local_path,
+        "instagram_caption": ig_cap, "facebook_caption": fb_cap,
+        "script": final_script, "qc_score": qc_result.get("score", 0),
+        "approved": qc_result.get("approved", False),
+        "published_to": published_to, "created_at": _now(),
+    }
+    if state:
+        state["today_content"].append(rec)
         state["stats"]["posts_created"] += 1
         if published_to:
             state["stats"]["posts_published"] += len(published_to)
         _ap_save(state)
+    return rec
+
+
+def _create_videos(state: dict, briefing: str) -> List[dict]:
+    """
+    Generate 3 daily video reels for Instagram + Facebook:
+      1. Morning  — The Power of AI (inspiring, cinematic)
+      2. Afternoon — AI Trying to Be Human (comedy, cartoon)
+      3. Evening  — AI in Real Life Viral (punchy, cinematic)
+    """
+    _ap_log("🎬 Video phase: creating 3 daily reels (IG + FB)", phase="video")
+    videos = []
+    for cfg in _DAILY_REEL_CONFIGS:
+        try:
+            rec = _create_one_reel(cfg, state, briefing)
+            videos.append(rec)
+        except Exception as ve:
+            _ap_log(f"  ⚠️ Reel [{cfg['slot']}] error: {ve}", level="WARNING", phase="video")
         time.sleep(THINK_PAUSE)
 
-    _ap_log(f"✅ Video phase: {len(videos)} videos created", phase="video")
+    _ap_log(f"✅ Video phase: {len(videos)} reels created", phase="video")
     return videos
 
 
@@ -1782,6 +1818,62 @@ def run_autopilot_session(session_id: str = None):
         state["running"]   = False
         _ap_running        = False
         _ap_save(state)
+
+
+_reels_running = False
+_reels_thread: threading.Thread = None
+
+
+def run_daily_reels_session(slot: str = "all"):
+    """
+    Standalone daily reel session — generates 3 videos for Instagram + Facebook.
+    slot: 'morning' | 'afternoon' | 'evening' | 'all'
+    Called by the 3× daily schedule (10:00, 15:00, 20:00).
+    """
+    global _reels_running
+    _reels_running = True
+
+    state = _ap_load()
+    if "stats" not in state:
+        state["stats"] = {"posts_created": 0, "posts_published": 0,
+                          "products_created": 0, "products_published": 0,
+                          "books_written": 0, "qc_passes": 0, "qc_fixes": 0}
+
+    briefing = _get_full_briefing() or "No briefing. Use best practices."
+    briefing = "MARKET INTELLIGENCE:\n" + briefing
+
+    slot_map = {c["slot"]: c for c in _DAILY_REEL_CONFIGS}
+    if slot == "all":
+        configs = _DAILY_REEL_CONFIGS
+    else:
+        configs = [slot_map[slot]] if slot in slot_map else _DAILY_REEL_CONFIGS
+
+    _ap_log(f"🎬 Daily Reels session: {slot} ({len(configs)} reel(s))", phase="video")
+    results = []
+    for cfg in configs:
+        try:
+            rec = _create_one_reel(cfg, state, briefing, slot_override=slot if slot != "all" else "")
+            results.append(rec)
+        except Exception as e:
+            _ap_log(f"  ⚠️ Reel [{cfg['slot']}] error: {e}", level="WARNING", phase="video")
+        time.sleep(2)
+
+    _ap_log(f"✅ Daily Reels done: {len(results)} reel(s)", phase="video")
+    _reels_running = False
+    return results
+
+
+def start_reels_background(slot: str = "all") -> str:
+    """Start a daily reels session in the background."""
+    global _reels_running, _reels_thread
+    if _reels_running:
+        return "already_running"
+    _reels_thread = threading.Thread(
+        target=run_daily_reels_session, args=(slot,),
+        daemon=True, name="narai-daily-reels",
+    )
+    _reels_thread.start()
+    return f"reels_{slot}_{int(time.time())}"
 
 
 def start_autopilot_background(session_id: str = None) -> str:

@@ -490,6 +490,38 @@ async def _lifespan(application: FastAPI):
         except Exception as _e:
             _add_log(f"Autopilot schedule failed: {_e}", "WARNING")
 
+        # ── NarAI Daily Reels: 3× per day (Instagram + Facebook) ─────────────
+        # Morning  10:00 — Power of AI (inspiring/cinematic)
+        # Afternoon 15:00 — AI Trying to Be Human (comedy/cartoon)
+        # Evening  20:00 — AI in Real Life Viral (punchy/cinematic)
+        try:
+            import schedule as _schedReel
+            def _make_reel_job(slot_name):
+                def _run():
+                    try:
+                        from core.narai_autopilot import start_reels_background
+                        sid = start_reels_background(slot_name)
+                        _add_log(f"🎬 Daily Reels [{slot_name}] started: {sid}", "INFO")
+                        try:
+                            from core.telegram import notify
+                            slot_labels = {
+                                "morning": "🌅 Power of AI",
+                                "afternoon": "😂 AI Trying to Be Human",
+                                "evening": "🔥 AI in Real Life Viral",
+                            }
+                            notify(f"🎬 <b>Daily Reel Starting</b>\n{slot_labels.get(slot_name, slot_name)}\nPosting to Instagram + Facebook…")
+                        except Exception:
+                            pass
+                    except Exception as _eR:
+                        _add_log(f"Daily Reels [{slot_name}] failed: {_eR}", "ERROR")
+                return _run
+            _schedReel.every().day.at("10:00").do(lambda: __import__('threading').Thread(target=_make_reel_job("morning"), daemon=True).start())
+            _schedReel.every().day.at("15:00").do(lambda: __import__('threading').Thread(target=_make_reel_job("afternoon"), daemon=True).start())
+            _schedReel.every().day.at("20:00").do(lambda: __import__('threading').Thread(target=_make_reel_job("evening"), daemon=True).start())
+            _add_log("🎬 Daily Reels scheduled: 10:00 (AI Power), 15:00 (AI Comedy), 20:00 (AI Viral) → Instagram + Facebook", "INFO")
+        except Exception as _e:
+            _add_log(f"Daily Reels schedule failed: {_e}", "WARNING")
+
         _add_log("All background startup tasks complete", "INFO")
 
     # Launch background init — DO NOT block here
@@ -9951,6 +9983,19 @@ async def narai_autopilot_start():
         return {"error": "Autopilot is already running"}
     session_id = start_autopilot_background()
     return {"status": "started", "session_id": session_id}
+
+
+@app.post("/api/narai-autopilot/reels")
+async def narai_autopilot_reels(slot: str = "all"):
+    """
+    Manually trigger the daily reels session.
+    slot: 'morning' | 'afternoon' | 'evening' | 'all'
+    """
+    from core.narai_autopilot import start_reels_background
+    sid = start_reels_background(slot)
+    if sid == "already_running":
+        return {"error": "Reels session already running"}
+    return {"status": "started", "session_id": sid, "slot": slot}
 
 
 @app.post("/api/narai-autopilot/stop")
