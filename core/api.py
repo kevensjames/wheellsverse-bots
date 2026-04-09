@@ -8557,23 +8557,35 @@ _PUBLIC_PATHS.add("/api/etsy/oauth-url")
 
 @app.get("/api/etsy/oauth-url")
 async def etsy_oauth_url(request: Request):
-    """Generate Etsy OAuth2 PKCE authorization URL."""
-    import urllib.parse, secrets, hashlib, base64
+    """
+    Generate Etsy OAuth2 PKCE authorization URL.
+    Always uses RAILWAY_PUBLIC_URL as redirect so the callback always hits
+    the production server — no in-memory state required across machines.
+    PKCE verifier is encoded inside the state parameter (stateless PKCE).
+    """
+    import urllib.parse, secrets, hashlib, base64 as _b64
     kid = os.getenv("ETSY_KEYSTRING", "")
     if not kid:
         return {"error": "ETSY_KEYSTRING not set in .env"}
-    host = request.headers.get("host", "")
-    if host.startswith("127.0.0.1") or host.startswith("localhost"):
-        base_url = f"http://{host}"
-    else:
-        base_url = os.getenv("RAILWAY_PUBLIC_URL", f"http://{host}").rstrip("/")
-    redirect_uri  = base_url + "/api/etsy/oauth-callback"
-    state         = secrets.token_urlsafe(16)
-    code_verifier = secrets.token_urlsafe(64)
-    code_challenge = base64.urlsafe_b64encode(
+
+    # Always use Railway URL so redirect works regardless of which server
+    # the browser hits when generating the URL (local dev or Railway)
+    railway_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+    if not railway_url:
+        host = request.headers.get("host", "localhost:8080")
+        scheme = "https" if not host.startswith("localhost") and not host.startswith("127") else "http"
+        railway_url = f"{scheme}://{host}"
+    redirect_uri = railway_url + "/api/etsy/oauth-callback"
+
+    # Stateless PKCE: embed verifier in state so no server-side store needed.
+    # state = "{nonce}.{base64url(verifier)}"  — callback splits on first "."
+    code_verifier  = secrets.token_urlsafe(64)
+    nonce          = secrets.token_urlsafe(8)
+    state          = nonce + "." + _b64.urlsafe_b64encode(code_verifier.encode()).rstrip(b"=").decode()
+    code_challenge = _b64.urlsafe_b64encode(
         hashlib.sha256(code_verifier.encode()).digest()
     ).rstrip(b"=").decode()
-    _etsy_pkce_store[state] = {"verifier": code_verifier, "redirect_uri": redirect_uri}
+
     params = {
         "response_type":         "code",
         "client_id":             kid,
@@ -8584,34 +8596,64 @@ async def etsy_oauth_url(request: Request):
         "code_challenge_method": "S256",
     }
     url = "https://www.etsy.com/oauth/connect?" + urllib.parse.urlencode(params)
-    return {"url": url}
+    return {"url": url, "redirect_uri": redirect_uri}
+
 
 @app.get("/api/etsy/oauth-callback")
 async def etsy_oauth_callback(request: Request, code: str = "", error: str = "", state: str = ""):
+    import base64 as _b64
     if error:
-        return HTMLResponse(f"<h2 style='color:red'>Etsy error: {error}</h2>")
+        return HTMLResponse(f"""<html><body style='background:#0d0f14;color:#ff6060;font-family:monospace;
+            display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>
+            <div style='text-align:center;padding:40px;background:#13161d;border:1px solid #ff606044;border-radius:16px'>
+            <div style='font-size:40px'>❌</div>
+            <div style='font-size:16px;margin-top:12px'>Etsy error: {error}</div>
+            <div style='font-size:11px;color:#8891a8;margin-top:8px'>Close this tab and try again from the dashboard.</div>
+            </div></body></html>""")
     if not code:
         return HTMLResponse("<h2 style='color:red'>No code received from Etsy</h2>")
-    pkce = _etsy_pkce_store.pop(state, None)
-    if not pkce:
-        return HTMLResponse("<h2 style='color:red'>Invalid or expired state — please reconnect.</h2>")
+    if not state or "." not in state:
+        return HTMLResponse("<h2 style='color:red'>Invalid state — please reconnect from the dashboard.</h2>")
+
+    # Extract verifier from stateless PKCE state
+    try:
+        verifier_b64 = state.split(".", 1)[1]
+        # Re-add padding
+        pad = 4 - len(verifier_b64) % 4
+        code_verifier = _b64.urlsafe_b64decode(verifier_b64 + "=" * (pad % 4)).decode()
+    except Exception:
+        return HTMLResponse("<h2 style='color:red'>Could not decode state — please reconnect.</h2>")
+
+    railway_url  = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+    if not railway_url:
+        host   = request.headers.get("host", "")
+        scheme = "https" if not host.startswith("localhost") and not host.startswith("127") else "http"
+        railway_url = f"{scheme}://{host}"
+    redirect_uri = railway_url + "/api/etsy/oauth-callback"
+
     try:
         import requests as _rc
         kid = os.getenv("ETSY_KEYSTRING", "")
         r = _rc.post("https://api.etsy.com/v3/public/oauth/token", data={
             "grant_type":    "authorization_code",
             "client_id":     kid,
-            "redirect_uri":  pkce["redirect_uri"],
+            "redirect_uri":  redirect_uri,
             "code":          code,
-            "code_verifier": pkce["verifier"],
+            "code_verifier": code_verifier,
         }, timeout=15)
         if r.status_code != 200:
-            return HTMLResponse(f"<h2 style='color:red'>Etsy token exchange failed: {r.text[:300]}</h2>")
+            return HTMLResponse(f"""<html><body style='background:#0d0f14;color:#ff6060;font-family:monospace;
+                display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>
+                <div style='text-align:center;padding:40px;background:#13161d;border:1px solid #ff606044;border-radius:16px'>
+                <div style='font-size:40px'>❌</div>
+                <div style='font-size:14px;margin-top:12px'>Token exchange failed ({r.status_code})</div>
+                <div style='font-size:11px;color:#8891a8;margin-top:8px;max-width:400px'>{r.text[:300]}</div>
+                <div style='font-size:11px;color:#8891a8;margin-top:8px'>Redirect URI used: {redirect_uri}</div>
+                </div></body></html>""")
         data = r.json()
         data["expires_at"] = time.time() + data.get("expires_in", 3600)
         _etsy_save_token(data)
-        # Also persist in .env-like storage so it survives restarts
-        _add_log("Etsy OAuth connected successfully", "INFO")
+        _add_log("✅ Etsy OAuth connected successfully", "INFO")
         return HTMLResponse("""
         <html><body style='background:#0d0f14;color:#00ff88;font-family:monospace;
               display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>
@@ -8619,7 +8661,7 @@ async def etsy_oauth_callback(request: Request, code: str = "", error: str = "",
           <div style='font-size:40px;margin-bottom:16px'>✅</div>
           <div style='font-size:18px;font-weight:700;color:#f0a500;margin-bottom:8px'>Etsy Connected!</div>
           <div style='font-size:12px;color:#8891a8;margin-bottom:20px'>You can close this tab and return to the dashboard.</div>
-          <script>if(window.opener){window.opener.postMessage('etsy_connected','*');setTimeout(()=>window.close(),1500);}</script>
+          <script>if(window.opener){window.opener.postMessage('etsy_connected','*');setTimeout(()=>window.close(),1500);}else{setTimeout(()=>{window.location.href='/';},2000);}</script>
         </div></body></html>""")
     except Exception as e:
         return HTMLResponse(f"<h2 style='color:red'>Error: {e}</h2>")
