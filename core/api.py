@@ -604,7 +604,8 @@ async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""
     if _API_KEY:
         path = request.url.path
-        if path.startswith("/api/") and not path.startswith("/api/nx/") and path not in _PUBLIC_PATHS:
+        _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/")
+        if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
                 or request.headers.get("x-api-key")
