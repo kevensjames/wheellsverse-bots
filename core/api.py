@@ -1049,8 +1049,9 @@ async def health():
         "status":   "ok",
         "uptime":   int(time.time() - _server_start),
         "browser":  browser_ok,
-        "version":  "nexora-v3",
+        "version":  "nexora-v4-autopilot",
         "nx_routes": True,
+        "narai_autopilot": True,
     }
 
 
