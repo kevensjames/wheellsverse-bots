@@ -504,6 +504,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
     <!-- Intelligence -->
     <div class="nav-sec" style="color:rgba(0,200,255,.6);font-size:8px;letter-spacing:2.5px">INTELLIGENCE</div>
+    <div class="nav-item" onclick="nav('autopilot')" id="nav-autopilot" style="background:linear-gradient(90deg,rgba(0,255,170,.15),transparent);border-left:2px solid #00ffaa;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#00ffaa;font-weight:700">Autopilot</span></div>
     <div class="nav-item" onclick="nav('marketintel')" id="nav-marketintel" style="background:linear-gradient(90deg,rgba(0,200,255,.15),transparent);border-left:2px solid #00c8ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔭</span><span style="color:#66d9ff;font-weight:700">Market Intel</span></div>
     <div class="nav-item" onclick="nav('qcreview')" id="nav-qcreview" style="background:linear-gradient(90deg,rgba(255,215,0,.12),transparent);border-left:2px solid #ffd700;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔬</span><span style="color:#ffd700;font-weight:700">QC Review</span></div>
     <!-- Content -->
@@ -3726,6 +3727,169 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ NARAI AUTOPILOT PAGE ══════════════════════════════════════════════════ -->
+<div class="page" id="page-autopilot">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🤖 NarAI Autopilot — Autonomous Daily Creation Engine</div>
+      <div class="ss" id="ap-status-label">Monday 01:00 Market Scan → Daily 01:30 NarAI creates masterpieces across all platforms</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div id="ap-engine-badge" style="padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ IDLE</div>
+      <button class="btn bsm" onclick="apLoad()" style="background:rgba(0,255,170,.1);border:1px solid rgba(0,255,170,.25);color:#00ffaa">🔄 Refresh</button>
+      <button id="ap-start-btn" class="btn bsm" onclick="apStart()" style="background:rgba(0,255,170,.15);border:1px solid rgba(0,255,170,.3);color:#00ffaa">▶ RUN NOW</button>
+      <button id="ap-stop-btn" class="btn bsm" onclick="apStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
+    </div>
+  </div>
+
+  <!-- Schedule info -->
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px">
+    <div class="card" style="border:1px solid rgba(0,200,255,.2);text-align:center">
+      <div style="font-size:18px;margin-bottom:4px">🔭</div>
+      <div class="ct" style="color:#66d9ff">Market Scan</div>
+      <div style="font-size:11px;font-weight:700;color:#00c8ff">Every Monday</div>
+      <div class="csb">01:00 AM</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(0,255,170,.2);text-align:center">
+      <div style="font-size:18px;margin-bottom:4px">📱</div>
+      <div class="ct" style="color:#00ffaa">Social Posts</div>
+      <div style="font-size:11px;font-weight:700;color:#00ffaa">FB×5 IG×5 TW×1 Blog×5</div>
+      <div class="csb">Daily 01:30 AM</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(255,144,0,.2);text-align:center">
+      <div style="font-size:18px;margin-bottom:4px">🛍️</div>
+      <div class="ct" style="color:#ff9000">Digital Products</div>
+      <div style="font-size:11px;font-weight:700;color:#ffb347">Gumroad×2 Etsy×2 Payhip×2</div>
+      <div class="csb">After social posts</div>
+    </div>
+    <div class="card" style="border:1px solid rgba(255,100,100,.2);text-align:center">
+      <div style="font-size:18px;margin-bottom:4px">📚</div>
+      <div class="ct" style="color:#ff6464">KDP Books</div>
+      <div style="font-size:11px;font-weight:700;color:#ff9090">2 full ebooks</div>
+      <div class="csb">After products</div>
+    </div>
+  </div>
+
+  <!-- Current session progress -->
+  <div id="ap-session-panel" style="display:none;margin-bottom:18px">
+    <div class="card" style="border:1px solid rgba(0,255,170,.2)">
+      <div class="sh" style="margin-bottom:12px">
+        <div>
+          <div class="st" style="font-size:11px;color:#00ffaa" id="ap-phase-title">Phase: —</div>
+          <div id="ap-task-detail" style="font-size:10px;color:var(--text2)">Initializing…</div>
+        </div>
+        <div style="font-size:20px;font-weight:700;color:#00ffaa" id="ap-progress-pct">0%</div>
+      </div>
+      <!-- Progress phases -->
+      <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">
+        <div id="aphase-facebook" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📘 Facebook</div>
+        <div id="aphase-instagram" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📸 Instagram</div>
+        <div id="aphase-twitter" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🐦 Twitter</div>
+        <div id="aphase-blog" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📰 Blog</div>
+        <div id="aphase-gumroad" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🛒 Gumroad</div>
+        <div id="aphase-etsy" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🛍️ Etsy</div>
+        <div id="aphase-payhip" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">💳 Payhip</div>
+        <div id="aphase-kdp" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📚 KDP</div>
+      </div>
+      <div style="height:6px;background:rgba(0,255,170,.1);border-radius:3px;overflow:hidden">
+        <div id="ap-progress-bar" style="height:100%;background:linear-gradient(90deg,#00ffaa,#00c8ff);width:0%;transition:width 0.8s;border-radius:3px"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px">
+    <div class="card" style="text-align:center">
+      <div class="ct">Posts Created</div>
+      <div class="cv gr" id="ap-stat-posts-created">0</div>
+      <div class="csb">today</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Posts Published</div>
+      <div class="cv" style="color:#00ffaa" id="ap-stat-posts-pub">0</div>
+      <div class="csb">live on platforms</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Products Created</div>
+      <div class="cv" style="color:#ffb347" id="ap-stat-products-created">0</div>
+      <div class="csb">today</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Products Published</div>
+      <div class="cv" style="color:#ff9000" id="ap-stat-products-pub">0</div>
+      <div class="csb">live in stores</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">Books Written</div>
+      <div class="cv" style="color:#ff6464" id="ap-stat-books">0</div>
+      <div class="csb">KDP ebooks</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">QC Reviews</div>
+      <div class="cv cy" id="ap-stat-qc">0</div>
+      <div class="csb" id="ap-stat-qc-lbl">passes / fixes</div>
+    </div>
+  </div>
+
+  <!-- Today's content + live log side by side -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+    <div class="card" style="border:1px solid rgba(0,255,170,.1)">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:11px;color:#00ffaa">📋 Today's Creations</div>
+        <span style="font-size:9px;color:var(--text3)" id="ap-content-count">0 items</span>
+      </div>
+      <div id="ap-content-list" style="max-height:380px;overflow-y:auto">
+        <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No creations yet — start the engine or wait for 01:30 AM</div>
+      </div>
+    </div>
+    <div class="card" style="border:1px solid rgba(0,255,170,.1)">
+      <div class="sh" style="margin-bottom:12px">
+        <div class="st" style="font-size:11px;color:#00ffaa">📡 Live Session Log</div>
+        <div id="ap-log-pulse" style="width:7px;height:7px;background:#333;border-radius:50%;margin-top:4px"></div>
+      </div>
+      <div id="ap-log-el" style="max-height:380px;overflow-y:auto;font-family:monospace;font-size:10px;line-height:1.7;color:var(--text2)">
+        <div style="color:var(--text3)">Waiting for session…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Publish Queue (manual) -->
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(255,215,0,.1)">
+    <div class="sh" style="margin-bottom:12px">
+      <div>
+        <div class="st" style="font-size:11px;color:#ffd700">📮 Manual Publish Queue</div>
+        <div class="ss" style="font-size:10px">Content waiting for platforms without API access (Etsy, Payhip, etc.)</div>
+      </div>
+      <button class="btn bsm" onclick="apLoadQueue()" style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);color:#ffd700;font-size:9px">🔄</button>
+    </div>
+    <div id="ap-queue-list">
+      <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Queue empty</div>
+    </div>
+  </div>
+
+  <!-- Session history -->
+  <div class="card" style="border:1px solid rgba(0,255,170,.08)">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:11px;color:#00ffaa">📊 Session History</div>
+      <button class="btn bsm" onclick="apLoad()" style="background:rgba(0,255,170,.08);border:1px solid rgba(0,255,170,.15);color:#00ffaa;font-size:9px">🔄</button>
+    </div>
+    <div id="ap-sessions-list">
+      <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No sessions yet</div>
+    </div>
+  </div>
+
+  <!-- NarAI Memory Stats -->
+  <div class="card" style="margin-top:16px;border:1px solid rgba(180,0,255,.15)">
+    <div class="sh" style="margin-bottom:12px">
+      <div class="st" style="font-size:11px;color:#cc66ff">🧠 NarAI Memory System</div>
+      <button class="btn bsm" onclick="apLoadMemory()" style="background:rgba(180,0,255,.1);border:1px solid rgba(180,0,255,.2);color:#cc66ff;font-size:9px">🔄 Refresh</button>
+    </div>
+    <div id="ap-memory-grid" style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px">
+      <div style="text-align:center;color:var(--text3);font-size:11px;grid-column:1/-1">Loading memory stats…</div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ NOTION PAGE ════════════════════════════════════════════════════════════ -->
 <div class="page" id="page-notion">
   <div class="sh" style="margin-bottom:16px">
@@ -3869,7 +4033,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -3920,6 +4084,7 @@ function nav(p){
   if(p==='gumroad') gumroadLoad();
   if(p==='payhip') payhipLoad();
   if(p==='factory') factoryLoad();
+  if(p==='autopilot') apLoad();
   if(p==='marketintel') miLoad();
   if(p==='qcreview') qcLoad();
 }
@@ -10746,6 +10911,300 @@ async function factoryResetProducts() {
     _factoryLastLogCount = 0;
     await factoryLoad();
   } catch(e) { toast('Failed to reset: ' + e.message, 'error'); }
+}
+
+// ── NarAI Autopilot ───────────────────────────────────────────────────────────
+let _apPollTimer = null;
+let _apLastLogCount = 0;
+
+const AP_PHASE_MAP = {
+  'social_facebook':'aphase-facebook','social_instagram':'aphase-instagram',
+  'social_twitter':'aphase-twitter','social_blog':'aphase-blog',
+  'products_gumroad':'aphase-gumroad','products_etsy':'aphase-etsy',
+  'products_payhip':'aphase-payhip','kdp_books':'aphase-kdp',
+  'briefing':'aphase-facebook','starting':'aphase-facebook','complete':'aphase-kdp',
+};
+const AP_PHASE_LABELS = {
+  'starting':'🔄 Reading market intelligence…',
+  'briefing':'🧠 NarAI reading market briefing…',
+  'social_facebook':'📘 Creating Facebook posts…',
+  'social_instagram':'📸 Creating Instagram posts…',
+  'social_twitter':'🐦 Creating Twitter thread…',
+  'social_blog':'📰 Writing blog articles…',
+  'products_gumroad':'🛒 Creating Gumroad products…',
+  'products_etsy':'🛍️ Creating Etsy listings…',
+  'products_payhip':'💳 Creating Payhip products…',
+  'kdp_books':'📚 Writing KDP ebooks…',
+  'qc':'🔬 QC reviewing content…',
+  'complete':'✅ Session complete!',
+  'error':'❌ Error occurred',
+  'stopped':'⏹ Stopped by user',
+  'idle':'⚫ Idle — next run at 01:30 AM',
+};
+
+async function apLoad() {
+  try {
+    const s = await api('/api/narai-autopilot/status');
+    _apRenderStatus(s);
+    _apLoadLog();
+    await apLoadQueue();
+    if (s.running && !_apPollTimer) {
+      _apPollTimer = setInterval(_apPoll, 3000);
+    } else if (!s.running && _apPollTimer) {
+      clearInterval(_apPollTimer); _apPollTimer = null;
+    }
+    await apLoadMemory();
+  } catch(e) { toast('Autopilot status error: ' + e.message, 'error'); }
+}
+
+function _apRenderStatus(s) {
+  const badge = document.getElementById('ap-engine-badge');
+  const lbl = document.getElementById('ap-status-label');
+  const startBtn = document.getElementById('ap-start-btn');
+  const stopBtn = document.getElementById('ap-stop-btn');
+  const sessionPanel = document.getElementById('ap-session-panel');
+  const phase = s.phase || 'idle';
+
+  if (s.running) {
+    badge.style.background='rgba(0,255,170,.15)'; badge.style.color='#00ffaa';
+    badge.textContent='🟢 RUNNING';
+    startBtn.style.display='none'; stopBtn.style.display='';
+    sessionPanel.style.display='';
+    document.getElementById('ap-phase-title').textContent = AP_PHASE_LABELS[phase] || phase;
+    document.getElementById('ap-task-detail').textContent = s.task || '…';
+    const pct = s.progress || 0;
+    document.getElementById('ap-progress-bar').style.width = pct + '%';
+    document.getElementById('ap-progress-pct').textContent = pct + '%';
+    lbl.textContent = `Session ${s.session_id || ''} — ${AP_PHASE_LABELS[phase] || phase}`;
+  } else {
+    badge.style.background='rgba(100,100,100,.2)'; badge.style.color='var(--text3)';
+    badge.textContent = phase === 'complete' ? '✅ COMPLETE' : phase === 'error' ? '❌ ERROR' : '⚫ IDLE';
+    startBtn.style.display=''; stopBtn.style.display='none';
+    sessionPanel.style.display = phase === 'idle' ? 'none' : '';
+    lbl.textContent = phase === 'complete'
+      ? `Last session complete ✅ — ${s.started_at ? new Date(s.started_at).toLocaleString() : ''}`
+      : 'Next run: Daily at 01:30 AM (Market Intel every Monday at 01:00 AM)';
+  }
+
+  // Phase indicators
+  const phaseEl = AP_PHASE_MAP[phase];
+  document.querySelectorAll('[id^="aphase-"]').forEach(el => {
+    el.style.background = 'rgba(255,255,255,.04)';
+    el.style.color = 'var(--text3)';
+  });
+  if (phaseEl) {
+    const el = document.getElementById(phaseEl);
+    if (el) { el.style.background='rgba(0,255,170,.15)'; el.style.color='#00ffaa'; }
+  }
+  // Mark completed phases
+  const phaseOrder = ['social_facebook','social_instagram','social_twitter','social_blog',
+    'products_gumroad','products_etsy','products_payhip','kdp_books'];
+  const currentIdx = phaseOrder.indexOf(phase);
+  phaseOrder.forEach((p, i) => {
+    if (i < currentIdx) {
+      const key = 'aphase-' + p.replace('social_','').replace('products_','').replace('kdp_','kdp');
+      const el = document.getElementById(key);
+      if (el) { el.style.background='rgba(0,255,170,.08)'; el.style.color='#00ff88'; }
+    }
+  });
+
+  // Stats
+  const stats = s.stats || {};
+  document.getElementById('ap-stat-posts-created').textContent = stats.posts_created || 0;
+  document.getElementById('ap-stat-posts-pub').textContent = stats.posts_published || 0;
+  document.getElementById('ap-stat-products-created').textContent = stats.products_created || 0;
+  document.getElementById('ap-stat-products-pub').textContent = stats.products_published || 0;
+  document.getElementById('ap-stat-books').textContent = stats.books_written || 0;
+  document.getElementById('ap-stat-qc').textContent = (stats.qc_passes || 0);
+  document.getElementById('ap-stat-qc-lbl').textContent = `${stats.qc_passes||0} reviews / ${stats.qc_fixes||0} fixes`;
+
+  // Today's content
+  const content = s.today_content || [];
+  const contentEl = document.getElementById('ap-content-list');
+  document.getElementById('ap-content-count').textContent = content.length + ' items';
+  if (!content.length) {
+    contentEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No creations yet</div>';
+  } else {
+    const platColors = {facebook:'#1877f2',instagram:'#e1306c',twitter:'#1da1f2',
+      blog:'#ff9900',gumroad:'#ff9000',etsy:'#f55a2d',payhip:'#00c896',amazon_kdp:'#ff6464'};
+    contentEl.innerHTML = content.slice().reverse().map(c => {
+      const col = platColors[c.platform] || '#888';
+      const statusIcon = c.published ? '✅' : c.approved ? '🟡' : '🔬';
+      return `<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.04)">
+        <div style="display:flex;gap:8px;align-items:flex-start">
+          <span style="padding:2px 7px;font-size:9px;font-weight:700;color:${col};background:${col}22;border-radius:4px;white-space:nowrap">${(c.platform||'').replace('_',' ').toUpperCase()}</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${statusIcon} ${c.title||'Untitled'}</div>
+            <div style="font-size:9px;color:var(--text3)">QC: ${c.qc_score||0}/100 · ${c.type||c.format||''}</div>
+          </div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // Sessions
+  const sessions = s.sessions || [];
+  const sessEl = document.getElementById('ap-sessions-list');
+  if (!sessions.length) {
+    sessEl.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No sessions yet</div>';
+  } else {
+    sessEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:10px">
+      <tr style="color:var(--text3);border-bottom:1px solid rgba(255,255,255,.07)">
+        <th style="padding:6px 10px;text-align:left">Session</th>
+        <th style="padding:6px 10px;text-align:center">Posts</th>
+        <th style="padding:6px 10px;text-align:center">Products</th>
+        <th style="padding:6px 10px;text-align:center">Books</th>
+        <th style="padding:6px 10px;text-align:center">QC Fixes</th>
+        <th style="padding:6px 10px;text-align:center">Status</th>
+      </tr>
+      ${sessions.map(ss => {
+        const st = ss.stats || {};
+        const col = ss.status === 'completed' ? '#00ff88' : ss.status === 'running' ? '#00ffaa' : '#ff6060';
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+          <td style="padding:6px 10px;color:#00ffaa;font-family:monospace;font-size:9px">${(ss.id||'—').slice(-14)}</td>
+          <td style="padding:6px 10px;text-align:center;color:#00ff88">${st.posts_published||0}/${st.posts_created||0}</td>
+          <td style="padding:6px 10px;text-align:center;color:#ffb347">${st.products_published||0}/${st.products_created||0}</td>
+          <td style="padding:6px 10px;text-align:center;color:#ff9090">${st.books_written||0}</td>
+          <td style="padding:6px 10px;text-align:center;color:#ffd700">${st.qc_fixes||0}</td>
+          <td style="padding:6px 10px;text-align:center"><span style="padding:2px 8px;border-radius:10px;font-size:9px;background:${col}22;color:${col}">${ss.status}</span></td>
+        </tr>`;
+      }).join('')}
+    </table>`;
+  }
+}
+
+async function _apLoadLog() {
+  try {
+    const r = await api('/api/narai-autopilot/log?limit=150');
+    const lines = r.lines || [];
+    const logEl = document.getElementById('ap-log-el');
+    const pulse = document.getElementById('ap-log-pulse');
+    if (lines.length > _apLastLogCount) {
+      _apLastLogCount = lines.length;
+      pulse.style.background = '#00ffaa';
+      setTimeout(()=>{pulse.style.background='#333';}, 2000);
+    }
+    if (!lines.length) { logEl.innerHTML='<div style="color:var(--text3)">Waiting for session…</div>'; return; }
+    logEl.innerHTML = lines.slice(0,100).map(l => {
+      let col = 'var(--text2)';
+      if (l.includes('[ERROR]')) col='#ff6060';
+      else if (l.includes('[WARNING]') || l.includes('REVISION')) col='#ffd700';
+      else if (l.includes('✅') || l.includes('APPROVED') || l.includes('Published')) col='#00ff88';
+      else if (l.includes('[qc]')) col='#ffd700';
+      else if (l.includes('[facebook]')) col='#4080ff';
+      else if (l.includes('[instagram]')) col='#e1306c';
+      else if (l.includes('[twitter]')) col='#1da1f2';
+      else if (l.includes('[blog]')) col='#ff9900';
+      else if (l.includes('[gumroad]')) col='#ff9000';
+      else if (l.includes('[etsy]')) col='#f55a2d';
+      else if (l.includes('[payhip]')) col='#00c896';
+      else if (l.includes('[kdp]')) col='#ff6464';
+      else if (l.includes('🚀') || l.includes('[start]') || l.includes('[complete]')) col='#00ffaa';
+      return `<div style="color:${col};padding:1px 0">${l.replace(/</g,'&lt;')}</div>`;
+    }).join('');
+    logEl.scrollTop = logEl.scrollHeight;
+  } catch(e) {}
+}
+
+async function _apPoll() {
+  try {
+    const s = await api('/api/narai-autopilot/status');
+    _apRenderStatus(s);
+    _apLoadLog();
+    if (!s.running) {
+      clearInterval(_apPollTimer); _apPollTimer = null;
+      const phase = s.phase || '';
+      if (phase === 'complete') {
+        toast('🤖 NarAI Autopilot session complete! 🎉', 'success');
+      } else if (phase === 'error') {
+        toast('⚠️ Autopilot error — check log', 'error');
+      }
+    }
+  } catch(e) {}
+}
+
+async function apStart() {
+  try {
+    const r = await api('/api/narai-autopilot/start', 'POST', {});
+    if (r.error) throw new Error(r.error);
+    toast('🤖 NarAI Autopilot started!', 'success');
+    _apLastLogCount = 0;
+    await apLoad();
+    if (!_apPollTimer) _apPollTimer = setInterval(_apPoll, 3000);
+  } catch(e) { toast('Failed to start: ' + e.message, 'error'); }
+}
+
+async function apStop() {
+  if (!confirm('Stop NarAI Autopilot session?')) return;
+  try {
+    await api('/api/narai-autopilot/stop', 'POST');
+    if (_apPollTimer) { clearInterval(_apPollTimer); _apPollTimer = null; }
+    toast('Autopilot stopping…', 'success');
+    await apLoad();
+  } catch(e) { toast('Failed to stop: ' + e.message, 'error'); }
+}
+
+async function apLoadQueue() {
+  try {
+    const r = await api('/api/narai-autopilot/queue');
+    const queue = r.queue || [];
+    const el = document.getElementById('ap-queue-list');
+    if (!queue.length) {
+      el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Queue empty — all content auto-published or nothing pending</div>';
+      return;
+    }
+    const platColors = {facebook:'#1877f2',instagram:'#e1306c',twitter:'#1da1f2',
+      blog:'#ff9900',gumroad:'#ff9000',etsy:'#f55a2d',payhip:'#00c896',amazon_kdp:'#ff6464'};
+    el.innerHTML = queue.map((item, idx) => {
+      const col = platColors[item.platform] || '#888';
+      const done = item.status === 'manually_published';
+      return `<div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,.05);${done?'opacity:.4':''}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;gap:8px;margin-bottom:4px">
+              <span style="font-size:9px;font-weight:700;padding:2px 7px;background:${col}22;color:${col};border-radius:4px">${(item.platform||'').toUpperCase()}</span>
+              <span style="font-size:10px;font-weight:600;color:var(--text)">${item.title||'Untitled'}</span>
+            </div>
+            <div style="font-size:9px;color:var(--text3)">${item.content_preview||''}</div>
+          </div>
+          ${!done ? `<button class="btn bsm" onclick="apMarkDone(${idx})" style="background:rgba(0,255,136,.1);border:1px solid rgba(0,255,136,.2);color:#00ff88;font-size:9px;white-space:nowrap;margin-left:10px">✅ Mark Done</button>` : '<span style="color:#00ff88;font-size:10px;margin-left:10px">✅ Done</span>'}
+        </div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
+}
+
+async function apMarkDone(idx) {
+  try {
+    const r = await api(`/api/narai-autopilot/queue/${idx}/mark_done`, 'POST');
+    if (r.error) throw new Error(r.error);
+    toast('Marked as published ✅', 'success');
+    await apLoadQueue();
+  } catch(e) { toast('Failed: ' + e.message, 'error'); }
+}
+
+async function apLoadMemory() {
+  try {
+    const r = await api('/api/narai/memory/stats');
+    const grid = document.getElementById('ap-memory-grid');
+    const tiers = ['core','market','creation','personal','autopilot'];
+    const tierColors = {core:'#cc66ff',market:'#00c8ff',creation:'#00ffaa',personal:'#ffd700',autopilot:'#ff9000'};
+    const tierLabels = {core:'Core Memory',market:'Market Intel',creation:'Creations',personal:'Personal',autopilot:'Sessions'};
+    grid.innerHTML = tiers.map(t => {
+      const d = r[t] || {};
+      const col = tierColors[t] || '#888';
+      const pct = d.usage_pct || 0;
+      return `<div class="card" style="text-align:center;border:1px solid ${col}33">
+        <div style="font-size:10px;font-weight:700;color:${col}">${tierLabels[t]}</div>
+        <div style="font-size:18px;font-weight:700;color:${col};margin:6px 0">${(d.entries||0).toLocaleString()}</div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">entries · ${d.size_mb||0} MB</div>
+        <div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px;overflow:hidden">
+          <div style="height:100%;background:${col};width:${Math.min(100,pct)}%;border-radius:2px"></div>
+        </div>
+        <div style="font-size:8px;color:var(--text3);margin-top:3px">${pct}% of ${(d.capacity_gb||0)}GB</div>
+      </div>`;
+    }).join('');
+  } catch(e) {}
 }
 
 // ── Market Intelligence ───────────────────────────────────────────────────────

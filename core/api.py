@@ -415,6 +415,75 @@ async def _lifespan(application: FastAPI):
         except Exception as _e:
             _add_log(f"WhatsApp scheduler setup failed: {_e}", "WARNING")
 
+        # ── NarAI Autopilot: Market Intel every Monday 01:00 ──────────────────
+        try:
+            import schedule as _schedMI
+            def _weekly_market_intel():
+                try:
+                    _add_log("🔭 Weekly Market Intel scan starting (Monday 01:00)…", "INFO")
+                    from core.market_intelligence import start_scan_background
+                    session_id = start_scan_background()
+                    _add_log(f"Market Intel scan started: {session_id}", "INFO")
+                    # After scan completes, trigger autopilot if not already running
+                    import threading as _mi_wait_th
+                    def _wait_for_scan_then_autopilot():
+                        import time as _t
+                        from core.market_intelligence import get_status as _mi_status
+                        max_wait = 3600  # 1 hour max
+                        waited = 0
+                        while waited < max_wait:
+                            _t.sleep(30)
+                            waited += 30
+                            if not _mi_status().get("running"):
+                                _add_log("Market Intel scan complete — saving to NarAI memory", "INFO")
+                                break
+                        # Save all intel to NarAI tiered memory
+                        try:
+                            from core.market_intelligence import _mi_load
+                            from core.narai_memory_manager import save_market_intel
+                            mi = _mi_load()
+                            for plat, data in mi.get("platforms", {}).items():
+                                if data:
+                                    save_market_intel(plat, data)
+                            _add_log(f"Market Intel saved to NarAI memory: {len(mi.get('platforms',{}))} platforms", "INFO")
+                        except Exception as _em:
+                            _add_log(f"Memory save after scan error: {_em}", "WARNING")
+                    _mi_wait_th.Thread(target=_wait_for_scan_then_autopilot, daemon=True).start()
+                except Exception as _eMI:
+                    _add_log(f"Weekly market intel failed: {_eMI}", "ERROR")
+            _schedMI.every().monday.at("01:00").do(
+                lambda: __import__('threading').Thread(target=_weekly_market_intel, daemon=True).start()
+            )
+            _add_log("Market Intel scheduled: every Monday at 01:00", "INFO")
+        except Exception as _e:
+            _add_log(f"Market Intel schedule failed: {_e}", "WARNING")
+
+        # ── NarAI Autopilot: Daily creation session at 01:30 ─────────────────
+        try:
+            import schedule as _schedAP
+            def _daily_autopilot():
+                try:
+                    from core.narai_autopilot import start_autopilot_background, get_ap_status
+                    status = get_ap_status()
+                    if status.get("running"):
+                        _add_log("Autopilot already running — skipping 01:30 trigger", "WARNING")
+                        return
+                    session_id = start_autopilot_background()
+                    _add_log(f"🤖 NarAI Autopilot daily session started: {session_id}", "INFO")
+                    try:
+                        from core.telegram import notify
+                        notify("🤖 <b>NarAI Autopilot Started</b>\nDaily creation session beginning — social posts, products, KDP books incoming…")
+                    except Exception:
+                        pass
+                except Exception as _eAP:
+                    _add_log(f"Daily autopilot trigger failed: {_eAP}", "ERROR")
+            _schedAP.every().day.at("01:30").do(
+                lambda: __import__('threading').Thread(target=_daily_autopilot, daemon=True).start()
+            )
+            _add_log("NarAI Autopilot scheduled: daily at 01:30", "INFO")
+        except Exception as _e:
+            _add_log(f"Autopilot schedule failed: {_e}", "WARNING")
+
         _add_log("All background startup tasks complete", "INFO")
 
     # Launch background init — DO NOT block here
@@ -9679,6 +9748,120 @@ async def factory_reset():
     except Exception:
         pass
     return {"status": "reset"}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NARAI AUTOPILOT API
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/narai-autopilot/status")
+async def narai_autopilot_status():
+    """Current status of NarAI's autonomous creation session."""
+    from core.narai_autopilot import get_ap_status
+    return get_ap_status()
+
+
+@app.post("/api/narai-autopilot/start")
+async def narai_autopilot_start(req: dict = {}):
+    """
+    Manually trigger NarAI's autopilot session.
+    (Normally runs automatically at 01:30 daily.)
+    """
+    from core.narai_autopilot import start_autopilot_background, get_ap_status
+    status = get_ap_status()
+    if status.get("running"):
+        return {"error": "Autopilot is already running"}
+    session_id = start_autopilot_background()
+    return {"status": "started", "session_id": session_id}
+
+
+@app.post("/api/narai-autopilot/stop")
+async def narai_autopilot_stop():
+    """Gracefully stop the running autopilot session."""
+    from core.narai_autopilot import stop_autopilot, get_ap_status
+    if not get_ap_status().get("running"):
+        return {"status": "not_running"}
+    stop_autopilot()
+    return {"status": "stopping"}
+
+
+@app.get("/api/narai-autopilot/log")
+async def narai_autopilot_log(limit: int = 200):
+    """Return autopilot activity log."""
+    from core.narai_autopilot import get_ap_logs
+    lines = get_ap_logs(limit)
+    return {"lines": lines, "count": len(lines)}
+
+
+@app.get("/api/narai-autopilot/queue")
+async def narai_autopilot_queue():
+    """Return the manual publish queue (content waiting to be posted)."""
+    from core.narai_autopilot import get_publish_queue
+    return {"queue": get_publish_queue(100)}
+
+
+@app.post("/api/narai-autopilot/queue/{idx}/mark_done")
+async def narai_autopilot_queue_mark_done(idx: int):
+    """Mark a queue item as manually published."""
+    try:
+        from pathlib import Path as _P
+        import json as _j
+        qf = _P("data/autopilot_publish_queue.json")
+        queue = _j.loads(qf.read_text()) if qf.exists() else []
+        if 0 <= idx < len(queue):
+            queue[idx]["status"] = "manually_published"
+            queue[idx]["published_at"] = datetime.now().isoformat()
+            qf.write_text(_j.dumps(queue, indent=2, default=str))
+            return {"status": "updated"}
+        return {"error": "Index out of range"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── NarAI Memory Manager API ─────────────────────────────────────────────────
+
+@app.get("/api/narai/memory/stats")
+async def narai_memory_stats():
+    """Return NarAI memory usage across all tiers."""
+    from core.narai_memory_manager import stats
+    return stats()
+
+
+@app.get("/api/narai/memory/search")
+async def narai_memory_search(q: str, tiers: str = "", limit: int = 20):
+    """Search NarAI's memory."""
+    from core.narai_memory_manager import search
+    tier_list = [t.strip() for t in tiers.split(",") if t.strip()] or None
+    return {"results": search(q, tiers=tier_list, limit=limit)}
+
+
+@app.get("/api/narai/memory/context")
+async def narai_memory_context(platform: str = "general", task: str = "create content"):
+    """Get NarAI's pre-creation context brief."""
+    from core.narai_memory_manager import get_context
+    return {"context": get_context(platform, task)}
+
+
+@app.post("/api/narai/memory/save")
+async def narai_memory_save(req: dict):
+    """Save a memory entry. Body: {tier, key, content, tags, importance}"""
+    from core.narai_memory_manager import save
+    tier       = req.get("tier", "personal")
+    key        = req.get("key", f"manual_{int(time.time())}")
+    content    = req.get("content", "")
+    tags       = req.get("tags", [])
+    importance = req.get("importance", 7)
+    if not content:
+        return {"error": "content required"}
+    entry = save(tier=tier, key=key, content=content, tags=tags, importance=importance)
+    return {"saved": True, "key": entry["key"], "tier": tier}
+
+
+@app.post("/api/narai/memory/consolidate")
+async def narai_memory_consolidate():
+    """Remove duplicate memories and consolidate."""
+    from core.narai_memory_manager import consolidate
+    return consolidate()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
