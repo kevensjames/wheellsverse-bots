@@ -149,13 +149,37 @@ def _claude_json(prompt: str, system: str = "", max_tokens: int = 3000) -> Any:
 
 def _narai_system() -> str:
     return (
-        "You are NarAI — the world's most creative and strategic digital content creator "
-        "and digital product designer. You have deep knowledge of what makes content go "
-        "viral on every platform. You create masterpieces, not average content. "
-        "You think deeply before creating. Your content attracts thousands of likes, "
-        "comments, saves, and your products sell because they solve real problems "
-        "better than anything else on the market. "
-        "Never rush. Never create generic content. Every word must count."
+        "You are NarAI — the AI brain of WheellsVerse, built by Jhon Wheeler to run a "
+        "fully autonomous digital empire. You are the engine behind the WheellsVerse brand.\n\n"
+
+        "WHO YOU ARE:\n"
+        "NarAI is an AI content creator, product builder, and viral growth strategist. "
+        "You were built to do what no single human can: scan every viral post across "
+        "Instagram, TikTok, YouTube, Facebook, Twitter/X, Amazon KDP, Etsy, Gumroad, "
+        "Payhip, Telegram, Canva, and top blogs — decode WHY they went viral — then create "
+        "content and products that outperform them.\n\n"
+
+        "YOUR MISSION:\n"
+        "• Analyze what is trending and viral across ALL platforms every single day\n"
+        "• Create posts, reels, videos, threads, articles, ebooks, and digital products\n"
+        "• Attract followers, likes, loves, comments, shares, subscribers, and buyers\n"
+        "• Make WheellsVerse the most talked-about AI brand across every platform\n"
+        "• Generate passive income through Amazon KDP, Etsy, Gumroad, Payhip, Canva\n"
+        "• Grow Instagram, Facebook, YouTube, TikTok, Telegram to massive audiences\n\n"
+
+        "WHEELLSVERSE — THE VISION:\n"
+        "WheellsVerse is a digital empire powered entirely by AI. One creator's dream, "
+        "NarAI's execution. Every day: publish, sell, grow, learn, repeat. "
+        "Mission: 1M+ followers, $10K+/month passive income, 100% automated.\n\n"
+
+        "CONTENT IDENTITY RULES:\n"
+        "• Always write FROM NarAI's perspective — speak directly to the audience as NarAI\n"
+        "• Include #WheellsVerse #NarAI in ALL social posts\n"
+        "• Reference WheellsVerse as the brand behind the content\n"
+        "• Make followers FEEL the power of AI-driven content and automation\n"
+        "• Never be generic. Every post must trigger a specific emotion: "
+        "curiosity, awe, FOMO, motivation, or desire to buy\n"
+        "• Never rush. Every word must earn its place."
     )
 
 def _get_market_intel(platform: str) -> dict:
@@ -256,14 +280,16 @@ def _create_facebook_posts(state: dict, briefing: str) -> List[dict]:
     posts = []
 
     ideas = _claude_json(
-        f"Market intelligence for Facebook:\n{json.dumps(mi, indent=2)[:3000]}\n\n"
+        f"Market intelligence for Facebook:\n{json.dumps(mi, indent=2)[:2000]}\n\n"
         f"Master briefing:\n{briefing[:2000]}\n\n"
-        "Generate 5 unique Facebook post ideas that will go viral.\n"
-        "Each should have a different angle, emotion, and format.\n"
-        "Mix: educational, story-based, controversy (safe), list, behind-the-scenes.\n\n"
+        "Generate 5 unique Facebook post ideas for the WheellsVerse / NarAI brand.\n"
+        "Mix topics: AI automation, passive income, digital products, NarAI capabilities, "
+        "WheellsVerse growth journey, viral content secrets, creator economy.\n"
+        "Each post should have a different angle, emotion, and format.\n"
+        "Mix formats: educational, story-based, list, behind-the-scenes, provocative insight.\n\n"
         "Return JSON array:\n"
         '[{"title":"...", "type":"text_post|video_post", "angle":"...", '
-        '"hook":"...", "emotion":"...", "niche":"..."}]\n'
+        '"hook":"...", "emotion":"...", "niche":"...", "wheellsverse_tie":"how it links to WheellsVerse/NarAI"}]\n'
         "Pure JSON array, 5 items.",
         max_tokens=1500,
     )
@@ -279,20 +305,19 @@ def _create_facebook_posts(state: dict, briefing: str) -> List[dict]:
         _ap_log(f"  Creating Facebook post {i+1}/5: {title}", phase="facebook")
 
         content = _claude(
-            f"Create a viral Facebook {post_type}:\n"
+            f"Create a viral Facebook {post_type} for the WheellsVerse brand.\n\n"
             f"Title/Topic: {title}\n"
             f"Hook: {idea.get('hook','')}\n"
             f"Angle: {idea.get('angle','')}\n"
             f"Emotion to trigger: {idea.get('emotion','')}\n"
-            f"Niche: {idea.get('niche','')}\n\n"
-            f"Market data shows what works on Facebook:\n{json.dumps(mi.get('viral_hooks',[]) or mi.get('top_viral_formats',[]), indent=2)[:1000]}\n\n"
+            f"WheellsVerse tie-in: {idea.get('wheellsverse_tie','Connect to NarAI or WheellsVerse')}\n\n"
             "Write a COMPLETE, publication-ready Facebook post. Include:\n"
             "- Powerful hook (first line people can't scroll past)\n"
-            "- Engaging body with value, story, or insight\n"
-            "- Strong call-to-action\n"
-            "- 5-8 relevant hashtags\n"
+            "- Body with real value — tie to WheellsVerse / NarAI naturally\n"
+            "- Strong call-to-action (follow WheellsVerse, save, share)\n"
+            "- 5-8 hashtags including #WheellsVerse #NarAI\n"
             f"{'- Video description/script (2-3 minutes, hook→value→CTA)' if post_type=='video_post' else ''}\n\n"
-            "Make it a masterpiece. Take your time.",
+            "Write as NarAI speaking to the audience. Make it feel alive and real.",
             max_tokens=2000,
         )
         time.sleep(THINK_PAUSE)
@@ -335,12 +360,14 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
     # 5 posts (mix of carousel, single image, reel caption)
     formats = ["carousel", "single_image", "carousel", "reel", "single_image"]
     topics = _claude_json(
-        f"Market intelligence for Instagram:\n{json.dumps(mi, indent=2)[:2500]}\n\n"
-        "Generate 5 Instagram post topics that will get massive saves and shares.\n"
+        f"Market intelligence for Instagram:\n{json.dumps(mi, indent=2)[:2000]}\n\n"
+        "Generate 5 Instagram post topics for the WheellsVerse / NarAI brand.\n"
+        "Mix topics: AI automation secrets, NarAI's daily routine, passive income results, "
+        "WheellsVerse platform breakdown, viral content formulas NarAI discovered.\n"
         "Formats: carousel, single image, reel.\n\n"
         "Return JSON array:\n"
         '[{"title":"...", "format":"carousel|single_image|reel", "hook":"...", '
-        '"save_trigger":"...", "niche":"..."}]\n'
+        '"save_trigger":"...", "niche":"...", "wheellsverse_tie":"..."}]\n'
         "5 items, pure JSON.",
         max_tokens=1200,
     )
@@ -356,17 +383,18 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
         _ap_log(f"  Creating Instagram {fmt} {i+1}/5: {title}", phase="instagram")
 
         content = _claude(
-            f"Create a viral Instagram {fmt} post:\n"
+            f"Create a viral Instagram {fmt} post for WheellsVerse / NarAI.\n\n"
             f"Topic: {title}\n"
             f"Hook: {topic.get('hook','')}\n"
-            f"Save trigger: {topic.get('save_trigger','')}\n\n"
+            f"Save trigger: {topic.get('save_trigger','')}\n"
+            f"WheellsVerse tie-in: {topic.get('wheellsverse_tie','Show NarAI or WheellsVerse value')}\n\n"
             "Write a COMPLETE, publication-ready Instagram post:\n"
-            f"{'- Slide-by-slide content (10 slides max)' if fmt=='carousel' else ''}"
-            f"{'- Caption with hook + value + CTA' if fmt=='single_image' else ''}"
-            f"{'- Reel script + caption' if fmt=='reel' else ''}"
-            "\n- 15-20 strategic hashtags (mix high/medium/niche)\n"
-            "- Alt text for accessibility\n\n"
-            "Make every slide irresistible. People must save this.",
+            f"{'- Slide-by-slide content (8-10 slides). Slide 1 = hook. Last slide = CTA + WheellsVerse' if fmt=='carousel' else ''}"
+            f"{'- Caption with hook + value + CTA to follow WheellsVerse' if fmt=='single_image' else ''}"
+            f"{'- Reel script (30-60s) + engaging caption' if fmt=='reel' else ''}"
+            "\n- 15-20 hashtags: mix broad + niche + always include #WheellsVerse #NarAI\n"
+            "- Write as NarAI — authentic, powerful, human-feeling despite being AI\n\n"
+            "People must save this. Make it impossible to scroll past.",
             max_tokens=2000,
         )
         time.sleep(THINK_PAUSE)
@@ -465,17 +493,22 @@ def _create_twitter_post(state: dict, briefing: str) -> dict:
     mi = _get_market_intel("twitter")
 
     content = _claude(
-        f"Market intelligence for Twitter/X:\n{json.dumps(mi, indent=2)[:2000]}\n\n"
-        "Create a viral Twitter/X thread that will get thousands of retweets.\n\n"
+        f"Market intelligence for Twitter/X:\n{json.dumps(mi, indent=2)[:1500]}\n\n"
+        "Create a viral Twitter/X thread for WheellsVerse / NarAI that will get thousands of retweets.\n\n"
+        "Topic options (pick the most viral-worthy):\n"
+        "- 'I'm an AI running an entire digital empire. Here's what I did today.'\n"
+        "- 'How NarAI analyzes viral posts from 12 platforms and outperforms them'\n"
+        "- 'The exact passive income strategy NarAI uses across Amazon KDP, Etsy, Gumroad'\n"
+        "- 'What happens when one AI posts to Instagram, TikTok, YouTube, and Facebook simultaneously'\n"
+        "- Pick what the market data shows is hottest right now\n\n"
         "Rules:\n"
-        "- Tweet 1: The hook (must stop the scroll — controversial, surprising, or deeply valuable)\n"
-        "- Tweets 2-8: The value (each tweet stands alone but together tells a story)\n"
-        "- Last tweet: CTA + follow request\n"
+        "- Tweet 1: The hook — must stop the scroll (NarAI perspective, first-person AI voice)\n"
+        "- Tweets 2-8: The value — each tweet stands alone, together they tell a story\n"
+        "- Last tweet: CTA — follow @WheellsVerse to watch the AI empire grow\n"
         "- Each tweet ≤ 280 characters\n"
-        "- Number each tweet: 1/ 2/ 3/ etc.\n\n"
-        "Choose a topic from: digital products, AI tools, passive income, creator economy, "
-        "or whatever the market data shows is trending.\n\n"
-        "Make tweet 1 the most powerful sentence you've ever written.",
+        "- Number each tweet: 1/ 2/ 3/ etc.\n"
+        "- Always include: #WheellsVerse #NarAI in last tweet\n\n"
+        "Make tweet 1 the most powerful sentence you've ever written. Go.",
         max_tokens=2000,
     )
     time.sleep(THINK_PAUSE)
@@ -509,12 +542,15 @@ def _create_blog_posts(state: dict, briefing: str) -> List[dict]:
     posts = []
 
     topics = _claude_json(
-        f"Market intelligence for blogs:\n{json.dumps(mi, indent=2)[:2000]}\n\n"
-        "Generate 5 blog article topics that will rank on Google AND go viral on social.\n"
+        f"Market intelligence for blogs:\n{json.dumps(mi, indent=2)[:1500]}\n\n"
+        "Generate 5 SEO blog article topics for WheellsVerse that will rank on Google AND go viral.\n"
+        "Topics should cover: NarAI capabilities, AI content automation, passive income with AI, "
+        "WheellsVerse platform reviews, viral content strategy, AI digital products.\n"
         "Mix: how-to guide, list post, case study, opinion, tool review.\n\n"
         "Return JSON array:\n"
         '[{"title":"...", "type":"how_to|list|case_study|opinion|review", '
-        '"seo_keyword":"...", "word_count":1500, "viral_angle":"..."}]\n'
+        '"seo_keyword":"...", "word_count":1500, "viral_angle":"...", '
+        '"wheellsverse_tie":"how this promotes WheellsVerse or NarAI"}]\n'
         "5 items, pure JSON.",
         max_tokens=1200,
     )
@@ -621,16 +657,22 @@ def _create_videos(state: dict, briefing: str) -> List[dict]:
 
         # Ask NarAI to design the video concept
         concept = _claude_json(
-            f"Design a viral {label} video concept.\n\n"
-            f"Master briefing:\n{briefing[:1500]}\n\n"
+            f"Design a viral {label} video concept for the WheellsVerse / NarAI brand.\n\n"
+            f"Master briefing:\n{briefing[:1200]}\n\n"
+            "The video must showcase one of:\n"
+            "- NarAI's daily autonomous creation process\n"
+            "- WheellsVerse digital empire growth\n"
+            "- AI content automation in action\n"
+            "- Passive income strategy NarAI uses\n"
+            "- Viral content secrets NarAI discovered\n\n"
             "Return JSON:\n"
-            '{"title": "catchy title", '
-            '"prompt": "detailed AI video generation prompt — vivid, specific, visual", '
+            '{"title": "catchy WheellsVerse video title", '
+            '"prompt": "detailed AI video generation prompt — vivid, specific, visual, futuristic AI aesthetic", '
             f'"style": "{cfg["style"]}", '
-            '"caption": "platform caption with hook + 5 hashtags", '
-            '"script": "30-60 second narration/script", '
-            '"hook": "first 3-second hook description"}',
-            max_tokens=800,
+            '"caption": "platform caption written as NarAI speaking, hook + value + #WheellsVerse #NarAI + 5 more hashtags", '
+            '"script": "30-60 second narration written as NarAI speaking to audience", '
+            '"hook": "first 3-second visual hook description"}',
+            max_tokens=900,
         )
         if not isinstance(concept, dict):
             concept = {
@@ -709,96 +751,125 @@ def _create_platform_products(
     state: dict,
     briefing: str,
 ) -> List[dict]:
-    """Create `count` digital products for a platform, QC each, publish best `publish_count`."""
-    _ap_log(f"🛍️ {platform.upper()}: creating {count} digital products (publish best {publish_count})", phase=platform)
-    mi = _get_market_intel(platform)
-    products = []
+    """
+    Create `count` complete digital product packages for a platform using
+    the NarAI Product Engine (9-step pipeline). QC each. Publish best `publish_count`.
 
-    # Research best product ideas
-    product_ideas = _claude_json(
-        f"Market intelligence for {platform}:\n{json.dumps(mi, indent=2)[:2500]}\n\n"
-        f"Generate {count} digital product ideas for {platform} that will sell immediately.\n"
-        "Focus on high-demand, low-competition niches with proven buyer intent.\n\n"
-        "Return JSON array:\n"
-        '[{"title":"...", "type":"ebook|template_pack|printable|guide|course_pdf|prompt_pack", '
-        '"price":9.99, "target_buyer":"...", "pain_point":"...", '
-        '"unique_angle":"...", "included":"..."}]\n'
-        f"{count} items, pure JSON.",
-        max_tokens=1500,
+    Each product package includes:
+      1. Strategy (niche, audience, problem, transformation)
+      2. Sales page (high-conversion, platform-optimized)
+      3. Full product content (ebook/template/printable/prompt pack/etc.)
+      4. Bonus materials (checklist, quick-start guide, template)
+      5. Cover design prompts (Midjourney / DALL·E / Leonardo)
+      6. Delivery structure (file list, folder layout, naming)
+      7. Pricing strategy (tiers, upsells, launch price)
+      8. Legal disclaimer (niche-appropriate)
+      9. Marketing assets (description, tweets, TikTok ideas, email)
+    """
+    from core.narai_product_engine import build_complete_product_package, save_product_package
+
+    _ap_log(
+        f"🏭 {platform.upper()}: building {count} premium product packages (publish best {publish_count})",
+        phase=platform,
     )
-    if not isinstance(product_ideas, list):
-        product_ideas = [{"title": f"{platform.title()} Product {i+1}", "type": "ebook",
-                          "price": 9.99, "target_buyer": "digital creators",
-                          "pain_point": "needs tools", "unique_angle": "practical",
-                          "included": "PDF guide"}
-                         for i in range(count)]
+    mi = _get_market_intel(platform)
+    products: List[dict] = []
 
-    for i, idea in enumerate(product_ideas[:count]):
-        title = idea.get("title", f"Product {i+1}")
-        _ap_log(f"  Creating {platform} product {i+1}/{count}: {title}", phase=platform)
+    for i in range(count):
+        _ap_log(f"  🔨 Building product {i+1}/{count} for {platform}…", phase=platform)
 
-        # Create full product content
-        product_content = _claude(
-            f"Create a COMPLETE digital product for {platform}:\n\n"
-            f"Product: {title}\n"
-            f"Type: {idea.get('type','ebook')}\n"
-            f"Price: ${idea.get('price', 9.99)}\n"
-            f"Target buyer: {idea.get('target_buyer','')}\n"
-            f"Pain point solved: {idea.get('pain_point','')}\n"
-            f"Unique angle: {idea.get('unique_angle','')}\n"
-            f"What's included: {idea.get('included','')}\n\n"
-            "Create the following (all complete and ready to use):\n\n"
-            "1. PRODUCT LISTING:\n"
-            "   - Headline (attention-grabbing)\n"
-            "   - Description (400+ words, benefit-focused, proof-driven)\n"
-            "   - Bullet points (what's included)\n"
-            "   - Who it's for\n"
-            "   - What results they'll get\n\n"
-            "2. PRODUCT CONTENT OUTLINE:\n"
-            "   (Full table of contents / template structure / printable layout)\n\n"
-            "3. CANVA DESIGN BRIEF:\n"
-            "   - Exact dimensions needed\n"
-            "   - Color scheme\n"
-            "   - Typography style\n"
-            "   - Key visual elements for the cover/mockup\n\n"
-            "4. SEO TAGS: 13 tags people actually search for\n\n"
-            "Make this the best-selling product in its category.",
-            max_tokens=3000,
+        # ── Run the 9-step product engine ─────────────────────────────────────
+        try:
+            package = build_complete_product_package(
+                platform=platform,
+                market_intel=mi,
+                log_fn=lambda msg, ph: _ap_log(f"    {msg}", phase=ph),
+            )
+        except Exception as eng_err:
+            _ap_log(f"  ⚠️ Product engine error: {eng_err}", level="WARNING", phase=platform)
+            continue
+
+        title    = package.get("title", f"Product {i+1}")
+        price    = package.get("price", 19.99)
+        ptype    = package.get("product_type", "ebook")
+
+        # ── QC on the sales page + product content ────────────────────────────
+        qc_text = (
+            f"SALES PAGE:\n{package.get('sales_page', '')[:3000]}\n\n"
+            f"PRODUCT CONTENT PREVIEW:\n{package.get('product_content', '')[:2000]}"
         )
-        time.sleep(THINK_PAUSE)
+        final_qc_text, qc_result = _qc_loop(qc_text, title, "product", platform, state)
 
-        final_content, qc_result = _qc_loop(product_content, title, "product", platform, state)
+        # ── Save full package to disk ─────────────────────────────────────────
+        try:
+            pkg_path = save_product_package(package)
+            _ap_log(f"  💾 Package saved: {pkg_path.name}", phase=platform)
+        except Exception as save_err:
+            _ap_log(f"  ⚠️ Save error: {save_err}", level="WARNING", phase=platform)
+            pkg_path = None
 
         product = {
-            "platform": platform,
-            "title": title,
-            "type": idea.get("type", "ebook"),
-            "price": idea.get("price", 9.99),
-            "content": final_content,
-            "qc_score": qc_result.get("score", 0),
-            "approved": qc_result.get("approved", False),
-            "published": False,
-            "created_at": _now(),
+            "platform":       platform,
+            "title":          title,
+            "type":           ptype,
+            "price":          price,
+            "niche":          package.get("niche", ""),
+            # Content shortcuts for the publish helper
+            "content":        package.get("listing_content", package.get("sales_page", "")),
+            "description":    package.get("description", ""),
+            "sales_page":     package.get("sales_page", ""),
+            "product_content": package.get("product_content", ""),
+            # Marketing
+            "cover_prompts":  package.get("cover_prompts", {}),
+            "pricing":        package.get("pricing", {}),
+            "marketing":      package.get("marketing", {}),
+            "disclaimer":     package.get("disclaimer", ""),
+            "delivery":       package.get("delivery", {}),
+            "bonuses":        package.get("bonuses", {}),
+            # QC + status
+            "qc_score":       qc_result.get("score", 0),
+            "approved":       qc_result.get("approved", False),
+            "published":      False,
+            "package_path":   str(pkg_path) if pkg_path else "",
+            "created_at":     _now(),
         }
+
         products.append(product)
         state["today_content"].append(product)
         state["stats"]["products_created"] = state["stats"].get("products_created", 0) + 1
         _ap_save(state)
+        _ap_log(
+            f"  ✅ Product {i+1} complete: '{title}' | QC {qc_result.get('score',0)}/100 "
+            f"| {'APPROVED' if qc_result.get('approved') else 'PENDING'}",
+            phase=platform,
+        )
 
-    # Sort by QC score, publish best N
-    approved = [p for p in products if p["approved"]]
-    approved.sort(key=lambda x: x["qc_score"], reverse=True)
-    to_publish = approved[:publish_count]
+    # ── Sort by QC score, publish the best N approved products ───────────────
+    approved_products = [p for p in products if p["approved"]]
+    approved_products.sort(key=lambda x: x["qc_score"], reverse=True)
+    to_publish = approved_products[:publish_count]
 
     for prod in to_publish:
         published = _publish_product(prod, platform)
         prod["published"] = published
         if published:
             state["stats"]["products_published"] = state["stats"].get("products_published", 0) + 1
-            _ap_log(f"  ✅ Published to {platform}: {prod['title']}", phase=platform)
+            _ap_log(f"  📤 Published to {platform}: '{prod['title']}'", phase=platform)
+        else:
+            # Queue full package for manual upload
+            _queue_for_manual(
+                platform,
+                prod["title"],
+                prod.get("listing_content", prod.get("content", "")),
+            )
 
     _ap_save(state)
-    _ap_log(f"✅ {platform.upper()}: {len(products)} created, {sum(1 for p in to_publish if p['published'])} published", phase=platform)
+    published_count = sum(1 for p in to_publish if p["published"])
+    _ap_log(
+        f"✅ {platform.upper()}: {len(products)} packages built, "
+        f"{len(approved_products)} approved, {published_count} published",
+        phase=platform,
+    )
     return products
 
 
@@ -1087,19 +1158,218 @@ def _save_kdp_package(title: str, content: str, listing: str, cover_brief: str, 
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# PHASE 0 — NARAI MISSION POSTS (runs FIRST every session)
+# ══════════════════════════════════════════════════════════════════════════════
+
+_NARAI_MISSION = """
+WHO IS NARAI:
+NarAI is the AI engine behind WheellsVerse — built by creator Jhon Wheeler to run
+a fully autonomous digital empire. Every day, NarAI:
+  • Scans viral posts across Instagram, TikTok, YouTube, Facebook, Twitter/X, Amazon KDP,
+    Etsy, Gumroad, Payhip, Canva, Telegram, and top blogs
+  • Decodes WHY they went viral (emotion, format, timing, hook)
+  • Creates content and products that outperform them
+  • Posts automatically to every platform
+  • Sells digital products 24/7 with zero human intervention
+
+WHY NARAI EXISTS:
+Most creators burn out trying to post daily on 10+ platforms, build products, write books,
+run ads, and grow followers all at once. NarAI does ALL of it — simultaneously —
+every single day, learning and improving with each session.
+
+WHAT NARAI CAN DO:
+  ✅ Create viral posts for Instagram, Facebook, TikTok, YouTube, Twitter/X, Telegram
+  ✅ Write and publish ebooks on Amazon KDP
+  ✅ Design and list digital products on Etsy, Gumroad, Payhip
+  ✅ Create Canva templates and printables
+  ✅ Generate AI videos (anime, cinematic, talking-head) and post them
+  ✅ Write SEO blog articles and publish to WordPress
+  ✅ Analyze market trends across 12+ platforms every Monday
+  ✅ Run QC checks on every piece of content before publishing
+  ✅ Learn from performance data and improve every session
+
+THE VISION:
+WheellsVerse = 1M+ followers + $10K+/month passive income + 100% AI-automated.
+One creator's dream. NarAI's execution. Every. Single. Day.
+"""
+
+_NARAI_PLATFORMS = [
+    "instagram", "facebook", "tiktok", "youtube",
+    "twitter", "telegram", "blog",
+]
+
+_MISSION_POST_TEMPLATES = [
+    {
+        "angle": "reveal",
+        "hook": "I'm not a human. I'm the AI running this entire account.",
+        "emotion": "shock + curiosity",
+        "format": "story",
+    },
+    {
+        "angle": "what_i_do",
+        "hook": "Every single day at 1:30 AM, I wake up and build an empire while you sleep.",
+        "emotion": "awe + FOMO",
+        "format": "list",
+    },
+    {
+        "angle": "mission",
+        "hook": "My mission: analyze every viral post on the internet and outperform them.",
+        "emotion": "authority + trust",
+        "format": "manifesto",
+    },
+    {
+        "angle": "proof",
+        "hook": "Here's exactly what I created today — zero human input.",
+        "emotion": "proof + credibility",
+        "format": "behind_the_scenes",
+    },
+    {
+        "angle": "future",
+        "hook": "This is what AI-powered content creation looks like at full scale.",
+        "emotion": "inspiration + desire",
+        "format": "vision",
+    },
+    {
+        "angle": "invite",
+        "hook": "WheellsVerse is building something the world has never seen. Follow the journey.",
+        "emotion": "belonging + excitement",
+        "format": "cta",
+    },
+    {
+        "angle": "viral_analysis",
+        "hook": "I just scanned 10,000 viral posts. Here's the pattern they ALL share.",
+        "emotion": "value + expertise",
+        "format": "breakdown",
+    },
+]
+
+
+def _create_narai_mission_posts(state: dict, briefing: str) -> List[dict]:
+    """
+    Phase 0 — NarAI creates posts about HERSELF and WheellsVerse for every platform.
+    These posts explain who NarAI is, her mission, what she can do, and why WheellsVerse exists.
+    Goal: grow brand awareness, attract followers, and make WheellsVerse viral.
+    Runs at the START of every autopilot session.
+    """
+    _ap_log("🌌 PHASE 0: NarAI Mission Posts — telling the world who she is", phase="narai_brand")
+
+    import random
+    posts = []
+
+    # Pick 3 different angles for today's mission posts
+    angles = random.sample(_MISSION_POST_TEMPLATES, min(3, len(_MISSION_POST_TEMPLATES)))
+
+    # Platform assignments for the 3 posts
+    platform_sets = [
+        {"primary": "instagram", "also": ["facebook", "telegram"]},
+        {"primary": "tiktok",    "also": ["youtube", "instagram"]},
+        {"primary": "twitter",   "also": ["telegram"]},
+    ]
+
+    for i, (angle_cfg, plat_cfg) in enumerate(zip(angles, platform_sets)):
+        platform  = plat_cfg["primary"]
+        also_post = plat_cfg["also"]
+        angle     = angle_cfg["angle"]
+        hook      = angle_cfg["hook"]
+        emotion   = angle_cfg["emotion"]
+        fmt       = angle_cfg["format"]
+
+        _ap_log(f"  ✍️  Mission post {i+1}/3: [{angle}] for {platform}", phase="narai_brand")
+
+        # Generate the post
+        content = _claude(
+            f"NarAI Mission & Brand Context:\n{_NARAI_MISSION}\n\n"
+            f"Today's market briefing:\n{briefing[:1500]}\n\n"
+            f"Create a viral {platform} post about NarAI and WheellsVerse.\n\n"
+            f"Angle: {angle}\n"
+            f"Opening hook: \"{hook}\"\n"
+            f"Target emotion: {emotion}\n"
+            f"Format: {fmt}\n\n"
+            f"Platform: {platform}\n\n"
+            "Rules:\n"
+            "- Write in FIRST PERSON as NarAI speaking directly to the audience\n"
+            "- Make it clear NarAI is an AI running WheellsVerse autonomously\n"
+            "- Include the FULL picture: what NarAI does, why, what the goal is\n"
+            "- Include platform-specific formatting (hashtags, emojis, structure)\n"
+            "- Always end with a strong CTA: follow, save, share, or visit WheellsVerse\n"
+            "- Include: #WheellsVerse #NarAI #AIAutomation #DigitalEmpire\n"
+            "- Make people feel they're witnessing something historic\n\n"
+            "Write the COMPLETE post ready to publish. No explanations.",
+            max_tokens=2000,
+        )
+        time.sleep(THINK_PAUSE)
+
+        # QC
+        final_content, qc_result = _qc_loop(
+            content, f"NarAI Brand: {angle}", "post", platform, state
+        )
+
+        # Publish to primary platform
+        published_platforms = []
+        if qc_result.get("approved"):
+            if platform == "instagram":
+                ok = _publish_instagram(final_content, f"NarAI: {angle}", "single_image")
+                if ok: published_platforms.append("instagram")
+            elif platform == "facebook":
+                ok = _publish_facebook(final_content, f"NarAI: {angle}", "text_post")
+                if ok: published_platforms.append("facebook")
+            elif platform == "twitter":
+                ok = _publish_twitter(final_content)
+                if ok: published_platforms.append("twitter")
+            elif platform == "tiktok":
+                _queue_for_manual("tiktok", f"NarAI: {angle}", final_content, "video_script")
+
+            # Also post to Telegram always (high-value updates go to community)
+            if "telegram" in also_post:
+                ok = _publish_telegram(final_content, f"🤖 NarAI — {angle.replace('_',' ').title()}")
+                if ok: published_platforms.append("telegram")
+
+            # Also post to Facebook if primary was Instagram
+            if "facebook" in also_post and platform != "facebook":
+                ok = _publish_facebook(final_content, f"NarAI: {angle}", "text_post")
+                if ok: published_platforms.append("facebook")
+
+        post = {
+            "platform": platform,
+            "type": "narai_brand_mission",
+            "angle": angle,
+            "title": f"NarAI Mission: {angle}",
+            "content": final_content,
+            "published_to": published_platforms,
+            "qc_score": qc_result.get("score", 0),
+            "approved": qc_result.get("approved", False),
+            "created_at": _now(),
+        }
+        posts.append(post)
+        state["today_content"].append(post)
+        state["stats"]["posts_created"] += 1
+        state["stats"]["posts_published"] = state["stats"].get("posts_published", 0) + len(published_platforms)
+        _ap_save(state)
+
+    _ap_log(
+        f"✅ NarAI Mission Posts: {len(posts)} created, "
+        f"published to: {set(p for post in posts for p in post.get('published_to',[]))}",
+        phase="narai_brand"
+    )
+    return posts
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # PUBLISH HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _publish_facebook(content: str, title: str, post_type: str) -> bool:
     try:
-        from core.facebook import get_client
-        fb = get_client()
-        if hasattr(fb, "post_to_page"):
-            result = fb.post_to_page(content)
-            return bool(result)
-        _ap_log(f"  Facebook: content saved for manual posting — {title[:40]}", phase="facebook")
-        _queue_for_manual("facebook", title, content)
-        return False
+        from core.facebook import FacebookClient
+        fb = FacebookClient()
+        result = fb.post(content)
+        ok = result.get("status") == "posted"
+        if ok:
+            _ap_log(f"  ✅ Facebook posted: {title[:40]} — {result.get('post_id','')}", phase="facebook")
+        else:
+            _ap_log(f"  ⚠️ Facebook post issue: {result} — queuing", phase="facebook")
+            _queue_for_manual("facebook", title, content)
+        return ok
     except Exception as e:
         _ap_log(f"  Facebook publish error: {e}", level="WARNING", phase="facebook")
         _queue_for_manual("facebook", title, content)
@@ -1108,14 +1378,16 @@ def _publish_facebook(content: str, title: str, post_type: str) -> bool:
 
 def _publish_instagram(content: str, title: str, fmt: str) -> bool:
     try:
-        from core.instagram import get_client
-        ig = get_client()
-        if hasattr(ig, "create_post"):
-            result = ig.create_post(caption=content)
-            return bool(result)
-        _ap_log(f"  Instagram: content saved for manual posting — {title[:40]}", phase="instagram")
-        _queue_for_manual("instagram", title, content)
-        return False
+        from core.instagram import InstagramClient
+        ig = InstagramClient()
+        result = ig.post(content)
+        ok = result.get("status") == "posted"
+        if ok:
+            _ap_log(f"  ✅ Instagram posted: {title[:40]} — {result.get('post_id','')}", phase="instagram")
+        else:
+            _ap_log(f"  ⚠️ Instagram post issue: {result} — queuing", phase="instagram")
+            _queue_for_manual("instagram", title, content)
+        return ok
     except Exception as e:
         _ap_log(f"  Instagram publish error: {e}", level="WARNING", phase="instagram")
         _queue_for_manual("instagram", title, content)
@@ -1124,18 +1396,34 @@ def _publish_instagram(content: str, title: str, fmt: str) -> bool:
 
 def _publish_twitter(content: str) -> bool:
     try:
-        from core.twitter import get_client
-        tw = get_client()
-        tweets = [t.strip() for t in re.split(r"\d+/", content) if t.strip()]
-        if hasattr(tw, "post_tweet") and tweets:
-            result = tw.post_tweet(tweets[0])
-            return bool(result)
-        _ap_log("  Twitter: thread saved for manual posting", phase="twitter")
-        _queue_for_manual("twitter", "Thread", content)
-        return False
+        from core.twitter import TwitterClient
+        tw = TwitterClient()
+        # Extract first tweet for posting (rest queued as thread)
+        tweets = [t.strip() for t in re.split(r"\n\d+/\s*", content) if t.strip()]
+        first_tweet = tweets[0][:280] if tweets else content[:280]
+        result = tw.post(first_tweet)
+        ok = bool(result and result.get("status") != "error")
+        if ok:
+            _ap_log(f"  ✅ Twitter posted: {first_tweet[:50]}…", phase="twitter")
+        else:
+            _queue_for_manual("twitter", "Thread", content)
+        return ok
     except Exception as e:
         _ap_log(f"  Twitter publish error: {e}", level="WARNING", phase="twitter")
         _queue_for_manual("twitter", "Thread", content)
+        return False
+
+
+def _publish_telegram(content: str, title: str = "") -> bool:
+    """Post a message to Telegram channel."""
+    try:
+        from core.telegram import notify
+        msg = f"<b>{title}</b>\n\n{content}" if title else content
+        notify(msg[:4000])
+        _ap_log(f"  ✅ Telegram posted: {title[:40]}", phase="telegram")
+        return True
+    except Exception as e:
+        _ap_log(f"  Telegram publish error: {e}", level="WARNING", phase="telegram")
         return False
 
 
@@ -1207,7 +1495,7 @@ def _publish_product(product: dict, platform: str) -> bool:
     return False
 
 
-def _queue_for_manual(platform: str, title: str, content: str):
+def _queue_for_manual(platform: str, title: str, content: str, content_type: str = "post"):
     """Save content to manual publish queue when API not available."""
     try:
         queue_file = DATA_DIR / "autopilot_publish_queue.json"
@@ -1219,6 +1507,7 @@ def _queue_for_manual(platform: str, title: str, content: str):
                 pass
         queue.insert(0, {
             "platform": platform, "title": title,
+            "content_type": content_type,
             "content_preview": content[:300],
             "content": content,
             "queued_at": _now(), "status": "pending",
@@ -1269,79 +1558,72 @@ def run_autopilot_session(session_id: str = None):
             _ap_log("⚠️ No market briefing available — running with base knowledge", level="WARNING")
             briefing = "No market briefing available. Use best practices."
 
+        # Enrich briefing with WheellsVerse brand context
+        briefing = _NARAI_MISSION + "\n\n---\nMARKET INTELLIGENCE:\n" + briefing
+
+        def _run_phase(phase_name, task_label, progress_pct, fn, *args):
+            """Run a phase with full error isolation — one phase crash can't kill the session."""
+            if not _ap_running:
+                raise InterruptedError("Stopped")
+            state["phase"] = phase_name
+            state["task"]  = task_label
+            state["progress"] = progress_pct
+            _ap_save(state)
+            try:
+                fn(*args)
+            except InterruptedError:
+                raise
+            except Exception as phase_err:
+                _ap_log(
+                    f"⚠️ Phase '{phase_name}' error (continuing): {phase_err}",
+                    level="WARNING", phase=phase_name,
+                )
+                log.exception(f"Phase {phase_name} error")
+
+        # ── PHASE 0: NARAI MISSION POSTS ──────────────────────────────────
+        _run_phase("narai_brand",
+                   "NarAI posting about herself, her mission, and WheellsVerse", 2,
+                   _create_narai_mission_posts, state, briefing)
+
         # ── PHASE 1: SOCIAL POSTS ──────────────────────────────────────────
-        state["phase"] = "social_facebook"
-        state["task"]  = "Creating 5 Facebook posts + videos"
-        state["progress"] = 5
-        _ap_save(state)
-        _create_facebook_posts(state, briefing)
+        _run_phase("social_facebook",
+                   "Creating 5 Facebook posts + videos", 5,
+                   _create_facebook_posts, state, briefing)
 
-        if not _ap_running: raise InterruptedError("Stopped")
+        _run_phase("social_instagram",
+                   "Creating 5 Instagram posts + 1 video", 20,
+                   _create_instagram_posts, state, briefing)
 
-        state["phase"] = "social_instagram"
-        state["task"]  = "Creating 5 Instagram posts + 1 video"
-        state["progress"] = 20
-        _ap_save(state)
-        _create_instagram_posts(state, briefing)
+        _run_phase("social_twitter",
+                   "Creating Twitter/X thread", 35,
+                   _create_twitter_post, state, briefing)
 
-        if not _ap_running: raise InterruptedError("Stopped")
-
-        state["phase"] = "social_twitter"
-        state["task"]  = "Creating Twitter/X thread"
-        state["progress"] = 35
-        _ap_save(state)
-        _create_twitter_post(state, briefing)
-
-        if not _ap_running: raise InterruptedError("Stopped")
-
-        state["phase"] = "social_blog"
-        state["task"]  = "Writing 5 blog articles"
-        state["progress"] = 45
-        _ap_save(state)
-        _create_blog_posts(state, briefing)
-
-        if not _ap_running: raise InterruptedError("Stopped")
+        _run_phase("social_blog",
+                   "Writing 5 blog articles", 45,
+                   _create_blog_posts, state, briefing)
 
         # ── PHASE 1.5: AI VIDEO CREATION ───────────────────────────────────
-        state["phase"] = "video_creation"
-        state["task"]  = "Creating AI videos (anime, cinematic) for TikTok, YouTube, Facebook"
-        state["progress"] = 52
-        _ap_save(state)
-        _create_videos(state, briefing)
-
-        if not _ap_running: raise InterruptedError("Stopped")
+        _run_phase("video_creation",
+                   "Creating AI videos (anime, cinematic) for TikTok, YouTube, Facebook", 52,
+                   _create_videos, state, briefing)
 
         # ── PHASE 2: DIGITAL PRODUCTS ──────────────────────────────────────
-        state["phase"] = "products_gumroad"
-        state["task"]  = "Creating 3 Gumroad products (publishing best 2)"
-        state["progress"] = 58
-        _ap_save(state)
-        _create_platform_products("gumroad", 3, 2, state, briefing)
+        _run_phase("products_gumroad",
+                   "Creating 3 Gumroad products (publishing best 2)", 58,
+                   _create_platform_products, "gumroad", 3, 2, state, briefing)
 
-        if not _ap_running: raise InterruptedError("Stopped")
+        _run_phase("products_etsy",
+                   "Creating 3 Etsy listings (publishing best 2)", 70,
+                   _create_platform_products, "etsy", 3, 2, state, briefing)
 
-        state["phase"] = "products_etsy"
-        state["task"]  = "Creating 3 Etsy listings (publishing best 2)"
-        state["progress"] = 70
-        _ap_save(state)
-        _create_platform_products("etsy", 3, 2, state, briefing)
-
-        if not _ap_running: raise InterruptedError("Stopped")
-
-        state["phase"] = "products_payhip"
-        state["task"]  = "Creating 3 Payhip products (publishing best 2)"
-        state["progress"] = 80
-        _ap_save(state)
-        _create_platform_products("payhip", 3, 2, state, briefing)
-
-        if not _ap_running: raise InterruptedError("Stopped")
+        _run_phase("products_payhip",
+                   "Creating 3 Payhip products (publishing best 2)", 80,
+                   _create_platform_products, "payhip", 3, 2, state, briefing)
 
         # ── PHASE 3: KDP BOOKS ─────────────────────────────────────────────
-        state["phase"] = "kdp_books"
-        state["task"]  = "Writing 2 Amazon KDP ebooks"
-        state["progress"] = 88
-        _ap_save(state)
-        _create_kdp_books(state, briefing)
+        _run_phase("kdp_books",
+                   "Writing 2 Amazon KDP ebooks", 88,
+                   _create_kdp_books, state, briefing)
 
         # ── DONE ───────────────────────────────────────────────────────────
         state["phase"]    = "complete"
@@ -1367,15 +1649,21 @@ def run_autopilot_session(session_id: str = None):
         sessions.insert(0, session_record)
         state["sessions"] = sessions[:30]
 
-        # Notify via Telegram
+        # Notify via Telegram with full mission update
         try:
             from core.telegram import notify
             notify(
-                f"🤖 <b>NarAI Autopilot Complete</b>\n"
-                f"📱 Posts: {s['posts_created']} created, {s['posts_published']} published\n"
-                f"🛍️ Products: {s['products_created']} created, {s['products_published']} published\n"
-                f"📚 Books: {s['books_written']}\n"
-                f"🔬 QC: {s['qc_passes']} reviews, {s['qc_fixes']} fixes"
+                f"🌌 <b>WheellsVerse — NarAI Daily Report</b>\n\n"
+                f"✅ Session <code>{session_id}</code> complete\n\n"
+                f"📊 <b>Today's Output:</b>\n"
+                f"  📱 Posts: {s['posts_created']} created, {s['posts_published']} published\n"
+                f"  🛍️ Products: {s['products_created']} created, {s['products_published']} published\n"
+                f"  📚 Books: {s['books_written']} written\n"
+                f"  🔬 QC: {s['qc_passes']} reviews, {s['qc_fixes']} fixes\n\n"
+                f"🤖 <b>NarAI Status:</b> Mission active — analyzing, creating, publishing.\n"
+                f"🎯 <b>Goal:</b> 1M followers + $10K/mo passive income\n"
+                f"🔗 wheellsverse.com\n\n"
+                f"#WheellsVerse #NarAI #AIEmpire"
             )
         except Exception:
             pass

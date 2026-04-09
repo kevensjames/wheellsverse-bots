@@ -2503,26 +2503,31 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 <div class="page" id="page-kdpbooks">
 
   <!-- Top stats row -->
-  <div class="g4" style="margin-bottom:16px">
-    <div class="card">
-      <div class="ct">Published Today</div>
-      <div class="cv gr" id="kdp-stat-today">—</div>
-      <div class="csb">out of 10 genres</div>
-    </div>
-    <div class="card">
-      <div class="ct">Total in Catalog</div>
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:16px">
+    <div class="card" style="text-align:center">
+      <div class="ct">📚 Books Written</div>
       <div class="cv cy" id="kdp-stat-total">—</div>
-      <div class="csb">all-time KDP books</div>
+      <div class="csb">all genres combined</div>
     </div>
-    <div class="card">
-      <div class="ct">Daily Run Status</div>
-      <div class="cv" id="kdp-stat-status" style="font-size:14px">Checking…</div>
-      <div class="csb" id="kdp-stat-sub">—</div>
+    <div class="card" style="text-align:center">
+      <div class="ct">✅ Published</div>
+      <div class="cv gr" id="kdp-stat-published">—</div>
+      <div class="csb">live on Amazon</div>
     </div>
-    <div class="card">
-      <div class="ct">Est. First Sale</div>
-      <div class="cv yl" style="font-size:14px">24–72 hrs</div>
-      <div class="csb">after publish · Amazon review window</div>
+    <div class="card" style="text-align:center">
+      <div class="ct">⏳ Pending</div>
+      <div class="cv yl" id="kdp-stat-pending">—</div>
+      <div class="csb">waiting Amazon approval</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">🔴 Errors</div>
+      <div class="cv" style="color:var(--red)" id="kdp-stat-errors">—</div>
+      <div class="csb" id="kdp-stat-sub">needs attention</div>
+    </div>
+    <div class="card" style="text-align:center">
+      <div class="ct">⚡ Status</div>
+      <div class="cv" id="kdp-stat-status" style="font-size:14px">—</div>
+      <div class="csb">today's run</div>
     </div>
   </div>
 
@@ -3289,20 +3294,27 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
-  <!-- Not connected banner -->
-  <div id="ph-no-token" style="display:none;background:rgba(0,200,150,.08);border:1px solid rgba(0,200,150,.3);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
-    <div style="font-size:12px;font-weight:600;color:#00c896;margin-bottom:4px">⚠ Payhip not connected</div>
-    <div style="font-size:11px;color:var(--text2)">Add <code style="color:#00c896">PAYHIP_API_KEY=your_key</code> to your <code>.env</code> file. Get it at <strong>Payhip → Settings → API</strong>.</div>
-  </div>
-  <div id="ph-webhook-banner" style="display:none;background:rgba(255,200,0,.07);border:1px solid rgba(255,200,0,.25);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
-    <div style="font-size:12px;font-weight:600;color:#ffd700;margin-bottom:6px">📡 Webhook Mode — Sales tracked automatically</div>
-    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Payhip API requires the Plus plan. Your sales are still tracked via webhook — register this URL in Payhip:</div>
-    <div style="display:flex;gap:8px;align-items:center">
+  <!-- Webhook status banner -->
+  <div id="ph-webhook-banner" style="background:rgba(255,200,0,.07);border:1px solid rgba(255,200,0,.25);border-radius:var(--r);padding:14px 18px;margin-bottom:16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:8px">
+      <div id="ph-webhook-status-label" style="font-size:12px;font-weight:600;color:#ffd700">📡 Webhook Mode — register URL below to start tracking sales</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn bsm" id="ph-mark-registered-btn" style="background:rgba(0,200,150,.15);color:#00c896;border:1px solid rgba(0,200,150,.3);display:none" onclick="payhipMarkRegistered()">✅ I've registered the webhook</button>
+        <a id="ph-payhip-settings-link" href="https://payhip.com/account#webhooks" target="_blank" class="btn bsm" style="background:rgba(255,200,0,.15);color:#ffd700;border:1px solid rgba(255,200,0,.3);white-space:nowrap">⚙️ Payhip Settings</a>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text2);margin-bottom:8px">Copy this URL → go to <strong>Payhip → Account → Settings → Webhooks → Add Webhook</strong> → paste → Save:</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
       <code id="ph-webhook-url" style="font-size:10px;color:#ffd700;background:rgba(255,200,0,.1);padding:6px 10px;border-radius:6px;flex:1;word-break:break-all"></code>
       <button class="btn bsm" style="background:rgba(255,200,0,.15);color:#ffd700;border:1px solid rgba(255,200,0,.3);white-space:nowrap" onclick="navigator.clipboard.writeText(document.getElementById('ph-webhook-url').textContent);toast('Copied!','success')">📋 Copy</button>
     </div>
-    <div style="font-size:10px;color:var(--text3);margin-top:8px">📌 In Payhip: <strong>Account → Settings → Webhooks → Add Webhook</strong> → paste the URL above → Save</div>
+    <div id="ph-webhook-verified-row" style="display:none;font-size:10px;color:#00ff88;margin-top:4px">✅ <b>Webhook verified</b> — Payhip has confirmed your webhook is active. Sales will appear here automatically.</div>
+    <div id="ph-webhook-registered-row" style="display:none;font-size:10px;color:#00c896;margin-top:4px">📌 Webhook registered — waiting for first event from Payhip to confirm connection.</div>
+    <div id="ph-webhook-last-event" style="display:none;font-size:10px;color:var(--text3);margin-top:4px"></div>
+    <div style="font-size:10px;color:var(--text3);margin-top:6px">ℹ️ Products list requires Payhip Plus plan API key. Sales &amp; revenue are always tracked via webhook — free.</div>
   </div>
+  <!-- Hidden - kept for compat -->
+  <div id="ph-no-token" style="display:none"></div>
 
   <!-- Stats row -->
   <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
@@ -3417,135 +3429,179 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 <!-- ══ PRODUCT FACTORY PAGE ════════════════════════════════════════════════ -->
 <div class="page" id="page-factory">
-  <div class="sh" style="margin-bottom:16px">
+
+  <!-- ── Header ── -->
+  <div class="sh" style="margin-bottom:18px">
     <div>
-      <div class="st">🏭 Product Factory — Daily AI Publishing Engine</div>
-      <div class="ss" id="factory-status-label">NarAI researches niches, creates masterpieces, and publishes 3-4 products per platform daily</div>
+      <div class="st" style="font-size:16px">🏭 Product Factory</div>
+      <div class="ss" id="factory-status-label">NarAI researches niches, creates full product packages, and publishes to Gumroad · Payhip · Etsy · KDP daily</div>
     </div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-      <div id="factory-engine-badge" style="padding:4px 12px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ IDLE</div>
+      <div id="factory-engine-badge" style="padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ IDLE</div>
       <button class="btn bsm" onclick="factoryLoad()" style="background:rgba(180,0,255,.15);border:1px solid rgba(180,0,255,.3);color:#cc66ff">🔄 Refresh</button>
-      <button id="factory-start-btn" class="btn bsm" onclick="factoryStart()" style="background:rgba(0,255,136,.15);border:1px solid rgba(0,255,136,.3);color:#00ff88">▶ START ENGINE</button>
+      <button id="factory-start-btn" class="btn bsm" onclick="factoryStart()" style="background:linear-gradient(135deg,rgba(0,255,136,.2),rgba(0,180,100,.1));border:1px solid rgba(0,255,136,.35);color:#00ff88;font-weight:600">▶ START ENGINE</button>
       <button id="factory-stop-btn" class="btn bsm" onclick="factoryStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
     </div>
   </div>
 
-  <!-- Engine Controls Card -->
-  <div class="card" style="margin-bottom:18px;border:1px solid rgba(180,0,255,.25)">
-    <div class="sh" style="margin-bottom:14px">
-      <div class="st" style="font-size:12px;color:#cc66ff">⚙ Engine Configuration</div>
+  <!-- ── All-time Stats Row ── -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px">
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(180,0,255,.15)">
+      <div style="font-size:22px;font-weight:800;color:#cc66ff" id="fstat-alltime-total">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">All-Time Products</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px">
-      <div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(0,255,136,.15)">
+      <div style="font-size:22px;font-weight:800;color:#00ff88" id="fstat-today-total">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Today</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(255,215,0,.12)">
+      <div style="font-size:22px;font-weight:800;color:#ffd700" id="fstat-alltime-sessions">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Sessions Run</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(100,200,255,.12)">
+      <div style="font-size:22px;font-weight:800;color:#64c8ff" id="fstat-est-revenue">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Est. Revenue</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:14px;font-weight:800;color:var(--text)" id="fstat-best-plat">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Best Platform</div>
+    </div>
+  </div>
+
+  <!-- ── Two-column layout: Config | Platform Status ── -->
+  <div style="display:grid;grid-template-columns:360px 1fr;gap:14px;margin-bottom:18px;align-items:start">
+
+    <!-- Config card -->
+    <div class="card" style="border:1px solid rgba(180,0,255,.25)">
+      <div style="font-size:11px;font-weight:700;color:#cc66ff;margin-bottom:14px">⚙ Engine Configuration</div>
+
+      <div style="margin-bottom:12px">
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Products per Platform</div>
         <div style="display:flex;align-items:center;gap:10px">
           <input id="factory-target" type="range" min="1" max="10" value="4" style="flex:1;accent-color:#b400ff" oninput="document.getElementById('factory-target-val').textContent=this.value"/>
-          <span id="factory-target-val" style="font-size:13px;font-weight:700;color:#cc66ff;min-width:20px">4</span>
+          <span id="factory-target-val" style="font-size:16px;font-weight:900;color:#cc66ff;min-width:24px">4</span>
         </div>
-        <div style="font-size:9px;color:var(--text3);margin-top:4px">products published per platform per run</div>
       </div>
-      <div>
+
+      <div style="margin-bottom:12px">
         <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Active Platforms</div>
         <div style="display:flex;flex-wrap:wrap;gap:6px" id="factory-platform-toggles">
-          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(255,144,0,.12);border:1px solid rgba(255,144,0,.3);border-radius:6px"><input type="checkbox" id="fp-gumroad" checked style="accent-color:#ff9000"/>🛒 Gumroad</label>
-          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(0,200,150,.12);border:1px solid rgba(0,200,150,.3);border-radius:6px"><input type="checkbox" id="fp-payhip" checked style="accent-color:#00c896"/>💳 Payhip</label>
-          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(245,90,45,.12);border:1px solid rgba(245,90,45,.3);border-radius:6px"><input type="checkbox" id="fp-etsy" checked style="accent-color:#f55a2d"/>🛍️ Etsy</label>
-          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 8px;background:rgba(255,100,100,.12);border:1px solid rgba(255,100,100,.3);border-radius:6px"><input type="checkbox" id="fp-kdp" checked style="accent-color:#ff6464"/>📚 KDP</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 10px;background:rgba(255,144,0,.1);border:1px solid rgba(255,144,0,.3);border-radius:8px"><input type="checkbox" id="fp-gumroad" checked style="accent-color:#ff9000"/>🛒 Gumroad</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 10px;background:rgba(0,200,150,.1);border:1px solid rgba(0,200,150,.3);border-radius:8px"><input type="checkbox" id="fp-payhip" checked style="accent-color:#00c896"/>💳 Payhip</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 10px;background:rgba(245,90,45,.1);border:1px solid rgba(245,90,45,.3);border-radius:8px"><input type="checkbox" id="fp-etsy" checked style="accent-color:#f55a2d"/>🛍️ Etsy</label>
+          <label style="display:flex;align-items:center;gap:5px;font-size:10px;cursor:pointer;padding:4px 10px;background:rgba(255,100,100,.1);border:1px solid rgba(255,100,100,.3);border-radius:8px"><input type="checkbox" id="fp-kdp" checked style="accent-color:#ff6464"/>📚 KDP</label>
         </div>
       </div>
-      <div>
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Niche Override <span style="color:var(--text3)">(optional)</span></div>
-        <input id="factory-niche-override" class="si2" placeholder="e.g. productivity, fitness, finance (comma-separated, or blank for AI choice)"/>
-        <div style="font-size:9px;color:var(--text3);margin-top:4px">leave blank — NarAI picks the best niches automatically</div>
+
+      <div style="margin-bottom:14px">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Niche Override <span style="font-size:8px;color:var(--text3);text-transform:none">(optional)</span></div>
+        <input id="factory-niche-override" class="si2" placeholder="e.g. productivity, fitness, finance…"/>
+        <div style="font-size:9px;color:var(--text3);margin-top:4px">Leave blank — NarAI picks the hottest niches automatically</div>
+      </div>
+
+      <button onclick="factoryStart()" id="factory-start-btn2"
+        style="width:100%;padding:10px;background:linear-gradient(135deg,rgba(180,0,255,.2),rgba(120,0,180,.1));border:1px solid rgba(180,0,255,.4);color:#cc66ff;border-radius:8px;font-size:11px;font-weight:600;cursor:pointer">
+        🏭 Launch Product Factory
+      </button>
+
+      <!-- Current task -->
+      <div id="factory-current-task" style="display:none;margin-top:12px;padding:10px 12px;background:rgba(180,0,255,.07);border:1px solid rgba(180,0,255,.2);border-radius:8px">
+        <div style="font-size:9px;color:#cc66ff;font-weight:600;margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">🔄 Running</div>
+        <div id="factory-task-phase" style="font-size:11px;color:var(--text);margin-bottom:3px">Initializing…</div>
+        <div id="factory-task-detail" style="font-size:9px;color:var(--text3)">Starting…</div>
+        <div style="margin-top:8px;height:3px;background:rgba(180,0,255,.15);border-radius:2px;overflow:hidden">
+          <div id="factory-progress-bar" style="height:100%;background:linear-gradient(90deg,#b400ff,#cc66ff);width:0%;transition:width 0.5s;border-radius:2px"></div>
+        </div>
       </div>
     </div>
 
-    <!-- Current task status -->
-    <div id="factory-current-task" style="display:none;padding:10px 14px;background:rgba(180,0,255,.07);border:1px solid rgba(180,0,255,.2);border-radius:8px;margin-top:4px">
-      <div style="font-size:10px;color:#cc66ff;font-weight:600;margin-bottom:4px">🔄 Currently Running</div>
-      <div id="factory-task-phase" style="font-size:11px;color:var(--text);margin-bottom:2px">Initializing…</div>
-      <div id="factory-task-detail" style="font-size:10px;color:var(--text3)">Starting engine…</div>
-      <div style="margin-top:8px;height:4px;background:rgba(180,0,255,.15);border-radius:2px;overflow:hidden">
-        <div id="factory-progress-bar" style="height:100%;background:linear-gradient(90deg,#b400ff,#cc66ff);width:0%;transition:width 0.5s;border-radius:2px"></div>
+    <!-- Platform status grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="card" style="border:1px solid rgba(255,144,0,.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:#ff9000">🛒 Gumroad</div>
+          <div style="font-size:20px;font-weight:900;color:#ffb347" id="fstat-gumroad-count">0</div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">products published today</div>
+        <div style="height:3px;background:rgba(255,144,0,.1);border-radius:2px;overflow:hidden">
+          <div id="fbar-gumroad" style="height:100%;background:#ff9000;border-radius:2px;transition:width .4s;width:0%"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:6px" id="fconn-gumroad">Checking…</div>
+      </div>
+      <div class="card" style="border:1px solid rgba(0,200,150,.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:#00c896">💳 Payhip</div>
+          <div style="font-size:20px;font-weight:900;color:#00c896" id="fstat-payhip-count">0</div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">products published today</div>
+        <div style="height:3px;background:rgba(0,200,150,.1);border-radius:2px;overflow:hidden">
+          <div id="fbar-payhip" style="height:100%;background:#00c896;border-radius:2px;transition:width .4s;width:0%"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:6px" id="fconn-payhip">Checking…</div>
+      </div>
+      <div class="card" style="border:1px solid rgba(245,90,45,.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:#f55a2d">🛍️ Etsy</div>
+          <div style="font-size:20px;font-weight:900;color:#f98a6c" id="fstat-etsy-count">0</div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">listings published today</div>
+        <div style="height:3px;background:rgba(245,90,45,.1);border-radius:2px;overflow:hidden">
+          <div id="fbar-etsy" style="height:100%;background:#f55a2d;border-radius:2px;transition:width .4s;width:0%"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:6px" id="fconn-etsy">Checking…</div>
+      </div>
+      <div class="card" style="border:1px solid rgba(255,100,100,.2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <div style="font-size:11px;font-weight:700;color:#ff6464">📚 KDP</div>
+          <div style="font-size:20px;font-weight:900;color:#ff9090" id="fstat-kdp-count">0</div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px">books queued today</div>
+        <div style="height:3px;background:rgba(255,100,100,.1);border-radius:2px;overflow:hidden">
+          <div id="fbar-kdp" style="height:100%;background:#ff6464;border-radius:2px;transition:width .4s;width:0%"></div>
+        </div>
+        <div style="font-size:9px;color:var(--text3);margin-top:6px" id="fconn-kdp">Checking…</div>
       </div>
     </div>
   </div>
 
-  <!-- Per-platform stats -->
-  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px">
-    <div class="card" style="border:1px solid rgba(255,144,0,.25);text-align:center">
-      <div class="ct" style="color:#ff9000">🛒 Gumroad</div>
-      <div style="font-size:22px;font-weight:700;color:#ffb347;margin:6px 0" id="fstat-gumroad-count">0</div>
-      <div class="csb">products published today</div>
-      <div style="height:3px;background:rgba(255,144,0,.15);border-radius:2px;margin-top:8px;overflow:hidden">
-        <div id="fbar-gumroad" style="height:100%;background:#ff9000;border-radius:2px;transition:width .4s;width:0%"></div>
-      </div>
-    </div>
-    <div class="card" style="border:1px solid rgba(0,200,150,.25);text-align:center">
-      <div class="ct" style="color:#00c896">💳 Payhip</div>
-      <div style="font-size:22px;font-weight:700;color:#00c896;margin:6px 0" id="fstat-payhip-count">0</div>
-      <div class="csb">products published today</div>
-      <div style="height:3px;background:rgba(0,200,150,.15);border-radius:2px;margin-top:8px;overflow:hidden">
-        <div id="fbar-payhip" style="height:100%;background:#00c896;border-radius:2px;transition:width .4s;width:0%"></div>
-      </div>
-    </div>
-    <div class="card" style="border:1px solid rgba(245,90,45,.25);text-align:center">
-      <div class="ct" style="color:#f55a2d">🛍️ Etsy</div>
-      <div style="font-size:22px;font-weight:700;color:#f98a6c;margin:6px 0" id="fstat-etsy-count">0</div>
-      <div class="csb">listings published today</div>
-      <div style="height:3px;background:rgba(245,90,45,.15);border-radius:2px;margin-top:8px;overflow:hidden">
-        <div id="fbar-etsy" style="height:100%;background:#f55a2d;border-radius:2px;transition:width .4s;width:0%"></div>
-      </div>
-    </div>
-    <div class="card" style="border:1px solid rgba(255,100,100,.25);text-align:center">
-      <div class="ct" style="color:#ff6464">📚 KDP</div>
-      <div style="font-size:22px;font-weight:700;color:#ff9090;margin:6px 0" id="fstat-kdp-count">0</div>
-      <div class="csb">books queued today</div>
-      <div style="height:3px;background:rgba(255,100,100,.15);border-radius:2px;margin-top:8px;overflow:hidden">
-        <div id="fbar-kdp" style="height:100%;background:#ff6464;border-radius:2px;transition:width .4s;width:0%"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Products created this session + live log side by side -->
+  <!-- ── Products + Log ── -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
 
-    <!-- Today's products -->
-    <div class="card" style="border:1px solid rgba(180,0,255,.15)">
-      <div class="sh" style="margin-bottom:12px">
-        <div class="st" style="font-size:11px;color:#cc66ff">📦 Products Created This Session</div>
-        <button class="btn bsm" onclick="factoryResetProducts()" style="background:rgba(255,60,60,.1);border:1px solid rgba(255,60,60,.2);color:#ff6060;font-size:9px">🗑 Clear</button>
+    <div class="card" style="border:1px solid rgba(180,0,255,.15);padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:10px;font-weight:600;color:#cc66ff">📦 Products This Session</div>
+        <button class="btn bsm" onclick="factoryResetProducts()" style="background:rgba(255,60,60,.08);border:1px solid rgba(255,60,60,.2);color:#ff9090;font-size:9px">🗑 Clear</button>
       </div>
-      <div id="factory-products-list" style="max-height:320px;overflow-y:auto">
-        <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No products yet — start the engine to begin</div>
+      <div id="factory-products-list" style="max-height:380px;overflow-y:auto">
+        <div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">No products yet — start the engine</div>
       </div>
     </div>
 
-    <!-- Live log -->
-    <div class="card" style="border:1px solid rgba(180,0,255,.15)">
-      <div class="sh" style="margin-bottom:12px">
-        <div class="st" style="font-size:11px;color:#cc66ff">📡 Live Activity Log</div>
-        <div style="display:flex;gap:6px">
-          <div id="factory-log-pulse" style="width:7px;height:7px;background:#333;border-radius:50%;margin-top:4px;transition:background .3s"></div>
-          <button class="btn bsm" onclick="document.getElementById('factory-log-el').innerHTML=''" style="background:rgba(100,100,100,.1);border:1px solid rgba(100,100,100,.2);color:var(--text3);font-size:9px">Clear</button>
+    <div class="card" style="border:1px solid rgba(180,0,255,.15);padding:0;overflow:hidden">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center">
+        <div style="font-size:10px;font-weight:600;color:#cc66ff">📡 Live Activity</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <div id="factory-log-pulse" style="width:7px;height:7px;background:#333;border-radius:50%;transition:background .3s"></div>
+          <button class="btn bsm" onclick="document.getElementById('factory-log-el').innerHTML=''" style="background:rgba(100,100,100,.08);border:1px solid rgba(100,100,100,.2);color:var(--text3);font-size:9px">Clear</button>
         </div>
       </div>
-      <div id="factory-log-el" style="max-height:320px;overflow-y:auto;font-family:monospace;font-size:10px;line-height:1.7;color:var(--text2)">
+      <div id="factory-log-el" style="max-height:380px;overflow-y:auto;font-family:monospace;font-size:10px;line-height:1.7;color:var(--text2);padding:12px">
         <div style="color:var(--text3)">Waiting for engine…</div>
       </div>
     </div>
   </div>
 
-  <!-- Session history -->
+  <!-- ── Session History ── -->
   <div class="card" style="border:1px solid rgba(180,0,255,.1)">
     <div class="sh" style="margin-bottom:12px">
-      <div class="st" style="font-size:11px;color:#cc66ff">📊 Session History</div>
-      <button class="btn bsm" onclick="factoryLoad()" style="background:rgba(180,0,255,.1);border:1px solid rgba(180,0,255,.2);color:#cc66ff;font-size:9px">🔄 Refresh</button>
+      <div style="font-size:10px;font-weight:600;color:#cc66ff">📊 Session History</div>
+      <button class="btn bsm" onclick="factoryLoad()" style="background:rgba(180,0,255,.1);border:1px solid rgba(180,0,255,.2);color:#cc66ff;font-size:9px">🔄</button>
     </div>
     <div id="factory-sessions-list">
       <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No sessions yet</div>
     </div>
   </div>
+
 </div>
 
 <!-- ══ MARKET INTELLIGENCE PAGE ══════════════════════════════════════════════ -->
@@ -3652,80 +3708,164 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 <!-- ══ QC REVIEW PAGE ════════════════════════════════════════════════════════ -->
 <div class="page" id="page-qcreview">
-  <div class="sh" style="margin-bottom:16px">
+
+  <!-- ── Header ── -->
+  <div class="sh" style="margin-bottom:18px">
     <div>
-      <div class="st">🔬 Quality Control — NarAI Masterpiece Reviewer</div>
-      <div class="ss">After NarAI creates something, QC bots run 5 deep passes. If issues are found, NarAI revises until perfect.</div>
+      <div class="st" style="font-size:16px">🔬 Quality Control Center</div>
+      <div class="ss">NarAI runs 5 deep passes on every creation — Errors · Market Fit · Originality · Platform Rules · Viral Potential</div>
     </div>
-    <button class="btn bsm" onclick="qcLoad()" style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.25);color:#ffd700">🔄 Refresh</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div id="qc-live-dot" style="width:8px;height:8px;border-radius:50%;background:#333;transition:background .4s" title="Live refresh"></div>
+      <button class="btn bsm" onclick="qcLoad()" style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.25);color:#ffd700">🔄 Refresh</button>
+    </div>
   </div>
 
-  <!-- Submit for review -->
-  <div class="card" style="margin-bottom:18px;border:1px solid rgba(255,215,0,.2)">
-    <div class="sh" style="margin-bottom:14px">
-      <div>
-        <div class="st" style="font-size:12px;color:#ffd700">🔬 Submit Content for QC Review</div>
-        <div class="ss" style="font-size:10px">Paste any content NarAI created — QC bots run 5 analysis passes</div>
+  <!-- ── Stat Cards ── -->
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:18px" id="qc-stats-row">
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:22px;font-weight:800;color:var(--text)" id="qc-stat-total">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Total Reviews</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(0,255,136,.15)">
+      <div style="font-size:22px;font-weight:800;color:#00ff88" id="qc-stat-approved">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Approved</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(255,215,0,.15)">
+      <div style="font-size:22px;font-weight:800;color:#ffd700" id="qc-stat-rate">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Approval Rate</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(100,160,255,.15)">
+      <div style="font-size:22px;font-weight:800;color:#64a0ff" id="qc-stat-avg">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Avg Score</div>
+    </div>
+    <div class="card" style="text-align:center;padding:14px 10px;border:1px solid rgba(255,255,255,.07)">
+      <div style="font-size:22px;font-weight:800;color:var(--text)" id="qc-stat-today">—</div>
+      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:3px">Today</div>
+    </div>
+  </div>
+
+  <!-- ── Score Distribution Bar ── -->
+  <div class="card" style="margin-bottom:18px;border:1px solid rgba(255,255,255,.06);padding:14px 16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:10px;font-weight:600;color:var(--text2)">Score Distribution</div>
+      <div id="qc-last-run" style="font-size:9px;color:var(--text3)">Last review: —</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:flex-end;height:36px" id="qc-dist-bar">
+      <div style="flex:1;background:rgba(0,255,136,.15);border-radius:3px 3px 0 0;height:30%;position:relative" title="90-100">
+        <div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:#00ff88;white-space:nowrap" id="qc-d4">90+</div>
+      </div>
+      <div style="flex:1;background:rgba(100,200,100,.15);border-radius:3px 3px 0 0;height:20%;position:relative" title="75-89">
+        <div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:#64c864;white-space:nowrap" id="qc-d3">75–89</div>
+      </div>
+      <div style="flex:1;background:rgba(255,215,0,.15);border-radius:3px 3px 0 0;height:15%;position:relative" title="50-74">
+        <div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:#ffd700;white-space:nowrap" id="qc-d2">50–74</div>
+      </div>
+      <div style="flex:1;background:rgba(255,60,60,.15);border-radius:3px 3px 0 0;height:10%;position:relative" title="0-49">
+        <div style="position:absolute;bottom:-14px;left:50%;transform:translateX(-50%);font-size:8px;color:#ff6060;white-space:nowrap" id="qc-d1">0–49</div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
-      <div>
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Title</div>
-        <input id="qc-title" class="si2" placeholder="e.g. 10 Canva Templates Pack"/>
+    <div style="margin-top:18px;display:flex;gap:8px;flex-wrap:wrap" id="qc-platform-chips"></div>
+  </div>
+
+  <!-- ── Inline result panel (after submit) ── -->
+  <div id="qc-result-panel" style="display:none;margin-bottom:18px"></div>
+
+  <!-- ── Two-column layout: Submit | Feed ── -->
+  <div style="display:grid;grid-template-columns:380px 1fr;gap:14px;align-items:start">
+
+    <!-- Left: Submit card -->
+    <div class="card" style="border:1px solid rgba(255,215,0,.18);position:sticky;top:0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <div style="font-size:18px">🔬</div>
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#ffd700">Submit for QC Review</div>
+          <div style="font-size:9px;color:var(--text3)">5 passes · ~30–60s per review</div>
+        </div>
       </div>
-      <div>
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Content Type</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Title</div>
+          <input id="qc-title" class="si2" placeholder="Content title…"/>
+        </div>
+        <div>
+          <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Platform</div>
+          <select id="qc-platform" class="si2">
+            <option value="instagram">Instagram</option>
+            <option value="facebook">Facebook</option>
+            <option value="tiktok">TikTok</option>
+            <option value="twitter">Twitter / X</option>
+            <option value="youtube">YouTube</option>
+            <option value="gumroad">Gumroad</option>
+            <option value="etsy">Etsy</option>
+            <option value="amazon_kdp">Amazon KDP</option>
+            <option value="payhip">Payhip</option>
+            <option value="blog">Blog</option>
+            <option value="telegram">Telegram</option>
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom:8px">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Content Type</div>
         <select id="qc-type" class="si2">
           <option value="post">📱 Social Post</option>
           <option value="ebook">📖 eBook</option>
           <option value="product">🛍️ Product Listing</option>
-          <option value="template">🎨 Template Description</option>
+          <option value="template">🎨 Template</option>
           <option value="video_script">🎬 Video Script</option>
           <option value="blog_post">📰 Blog Post</option>
           <option value="email">✉️ Email</option>
         </select>
       </div>
-      <div>
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Platform</div>
-        <select id="qc-platform" class="si2">
-          <option value="instagram">Instagram</option>
-          <option value="facebook">Facebook</option>
-          <option value="tiktok">TikTok</option>
-          <option value="twitter">Twitter / X</option>
-          <option value="gumroad">Gumroad</option>
-          <option value="etsy">Etsy</option>
-          <option value="amazon_kdp">Amazon KDP</option>
-          <option value="payhip">Payhip</option>
-          <option value="blog">Blog</option>
-          <option value="telegram">Telegram</option>
-        </select>
+      <div style="margin-bottom:12px">
+        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:4px">Content</div>
+        <textarea id="qc-content" class="si2" rows="7" placeholder="Paste NarAI's creation here…" style="resize:vertical;font-size:11px;line-height:1.6"></textarea>
+      </div>
+
+      <!-- Progress steps -->
+      <div id="qc-progress-steps" style="display:none;margin-bottom:12px">
+        <div style="font-size:9px;color:var(--text3);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Running QC passes…</div>
+        <div style="display:flex;flex-direction:column;gap:4px" id="qc-pass-steps">
+          <div class="qc-step" data-step="0" style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3)"><span class="qc-step-icon">⏳</span> Error Detection</div>
+          <div class="qc-step" data-step="1" style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3)"><span class="qc-step-icon">⏳</span> Market Fit</div>
+          <div class="qc-step" data-step="2" style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3)"><span class="qc-step-icon">⏳</span> Originality</div>
+          <div class="qc-step" data-step="3" style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3)"><span class="qc-step-icon">⏳</span> Platform Rules</div>
+          <div class="qc-step" data-step="4" style="display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text3)"><span class="qc-step-icon">⏳</span> Viral Potential</div>
+        </div>
+      </div>
+
+      <button class="btn" onclick="qcSubmit()" id="qc-submit-btn"
+        style="width:100%;background:linear-gradient(135deg,rgba(255,215,0,.2),rgba(255,180,0,.1));border:1px solid rgba(255,215,0,.4);color:#ffd700;font-weight:600">
+        🔬 Run QC Review (5 Passes)
+      </button>
+      <div id="qc-submit-status" style="font-size:9px;color:var(--text3);margin-top:6px;text-align:center"></div>
+    </div>
+
+    <!-- Right: Live feed -->
+    <div>
+      <!-- Tabs -->
+      <div style="display:flex;gap:6px;margin-bottom:12px" id="qc-tabs">
+        <button onclick="qcSetTab('all')" class="qc-tab qc-tab-active" data-tab="all"
+          style="padding:5px 14px;border-radius:20px;font-size:10px;border:1px solid rgba(255,215,0,.3);background:rgba(255,215,0,.12);color:#ffd700;cursor:pointer">All</button>
+        <button onclick="qcSetTab('approved')" class="qc-tab" data-tab="approved"
+          style="padding:5px 14px;border-radius:20px;font-size:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer">✅ Approved</button>
+        <button onclick="qcSetTab('revision')" class="qc-tab" data-tab="revision"
+          style="padding:5px 14px;border-radius:20px;font-size:10px;border:1px solid rgba(255,255,255,.1);background:rgba(255,255,255,.04);color:var(--text3);cursor:pointer">❌ Needs Revision</button>
+      </div>
+
+      <!-- Results feed -->
+      <div class="card" style="border:1px solid rgba(255,255,255,.06);padding:0;overflow:hidden">
+        <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center">
+          <div style="font-size:10px;font-weight:600;color:var(--text2)">📋 NarAI QC Activity Feed</div>
+          <div id="qc-feed-count" style="font-size:9px;color:var(--text3)"></div>
+        </div>
+        <div id="qc-results-list" style="max-height:620px;overflow-y:auto">
+          <div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading QC reviews…</div>
+        </div>
       </div>
     </div>
-    <div style="margin-bottom:12px">
-      <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px">Content to Review</div>
-      <textarea id="qc-content" class="si2" rows="6" placeholder="Paste the content NarAI created here…" style="resize:vertical;font-size:11px;line-height:1.6"></textarea>
-    </div>
-    <div style="display:flex;gap:10px;align-items:center">
-      <button class="btn" onclick="qcSubmit()" id="qc-submit-btn" style="background:rgba(255,215,0,.15);border:1px solid rgba(255,215,0,.3);color:#ffd700">🔬 Run QC Review (5 Passes)</button>
-      <div id="qc-submit-status" style="font-size:10px;color:var(--text3)"></div>
-    </div>
   </div>
 
-  <!-- QC result display -->
-  <div id="qc-result-panel" style="display:none;margin-bottom:18px">
-    <!-- Filled by JS after review -->
-  </div>
-
-  <!-- Recent QC results -->
-  <div class="card" style="border:1px solid rgba(255,215,0,.1)">
-    <div class="sh" style="margin-bottom:12px">
-      <div class="st" style="font-size:11px;color:#ffd700">📋 Recent QC Reviews</div>
-      <button class="btn bsm" onclick="qcLoad()" style="background:rgba(255,215,0,.1);border:1px solid rgba(255,215,0,.2);color:#ffd700;font-size:9px">🔄</button>
-    </div>
-    <div id="qc-results-list">
-      <div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No QC reviews yet</div>
-    </div>
-  </div>
 </div>
 
 <!-- ══ VIDEO ENGINE PAGE ═════════════════════════════════════════════════════ -->
@@ -3883,10 +4023,12 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       </div>
       <!-- Progress phases -->
       <div style="display:flex;gap:4px;margin-bottom:10px;flex-wrap:wrap">
+        <div id="aphase-narai_brand" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🌌 Brand</div>
         <div id="aphase-facebook" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📘 Facebook</div>
         <div id="aphase-instagram" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📸 Instagram</div>
         <div id="aphase-twitter" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🐦 Twitter</div>
         <div id="aphase-blog" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">📰 Blog</div>
+        <div id="aphase-video" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🎬 Video</div>
         <div id="aphase-gumroad" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🛒 Gumroad</div>
         <div id="aphase-etsy" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">🛍️ Etsy</div>
         <div id="aphase-payhip" style="flex:1;min-width:60px;padding:4px;text-align:center;font-size:9px;border-radius:4px;background:rgba(255,255,255,.04);color:var(--text3)">💳 Payhip</div>
@@ -4187,7 +4329,7 @@ function nav(p){
   if(p==='factory') factoryLoad();
   if(p==='autopilot') apLoad();
   if(p==='marketintel') miLoad();
-  if(p==='qcreview') qcLoad();
+  if(p==='qcreview') { qcLoad(); qcStartPoll(); } else { qcStopPoll(); }
   if(p==='video') videoLoad();
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
@@ -6783,38 +6925,50 @@ async function refreshKDP(){
 async function kdpRefreshStats(){
   try{
     const d = await api('/api/kdp/stats');
-    document.getElementById('kdp-stat-today').textContent  = d.published_today ?? '—';
-    document.getElementById('kdp-stat-total').textContent  = d.total_books      ?? '—';
+    document.getElementById('kdp-stat-total').textContent     = d.total_books     ?? '—';
+    document.getElementById('kdp-stat-published').textContent = d.total_published  ?? '0';
+    document.getElementById('kdp-stat-pending').textContent   = d.total_pending    ?? '0';
+    document.getElementById('kdp-stat-errors').textContent    = d.total_errors     ?? '0';
+
     const statEl = document.getElementById('kdp-stat-status');
     if(statEl){
       const s = d.status ?? 'idle';
-      statEl.textContent = s;
+      const icons = {running:'⚙️', done:'✅', idle:'💤'};
+      statEl.textContent = (icons[s]||'') + ' ' + s;
       statEl.style.color = s==='running' ? 'var(--yellow)' : s==='done' ? 'var(--green)' : 'var(--text2)';
     }
     const subEl = document.getElementById('kdp-stat-sub');
     if(subEl){
-      const errs = d.errors_today || 0;
       const asins = d.live_asins || 0;
-      const limit = d.account_limit || 0;
-      if(limit > 0) subEl.innerHTML = `<span style="color:#ffaa00">⚠️ ${limit} genres hit Amazon's title limit — wait for approval</span>`;
-      else if(errs) subEl.textContent = `${errs} errors today`;
+      const today = d.published_today || 0;
+      if(today > 0) subEl.textContent = `${today} published today`;
       else if(asins) subEl.textContent = `${asins} ASINs live`;
-      else subEl.textContent = 'Ready to publish';
+      else subEl.textContent = 'no runs today yet';
     }
-    // Show limit note if present
+    // Limit note banner
     const limitNote = document.getElementById('kdp-limit-note');
-    if(limitNote) limitNote.style.display = d.limit_note ? 'block' : 'none';
-    if(limitNote && d.limit_note) limitNote.textContent = '⚠️ ' + d.limit_note;
-    // Update genre grid statuses if we have them
+    if(limitNote){
+      limitNote.style.display = d.limit_note ? 'block' : 'none';
+      if(d.limit_note) limitNote.innerHTML = d.limit_note;
+    }
+    // Genre grid — update status + title tooltip
     if(d.genre_status){
       Object.entries(d.genre_status).forEach(([g, s])=>{
         const el = document.getElementById('kdp-genre-status-'+g);
         if(el){
-          el.textContent = s === 'account_limit' ? 'limit' : s;
-          el.style.color = s==='published'||s==='review_required' ? 'var(--green)'
-                         : s==='account_limit' ? '#ffaa00'
+          const labels = {
+            published:'✅ published', review_required:'🔍 in review',
+            pending_approval:'⏳ pending', error:'❌ error', idle:'idle'
+          };
+          el.textContent = labels[s] || s;
+          el.style.color = (s==='published'||s==='review_required') ? 'var(--green)'
+                         : s==='pending_approval' ? '#ffaa00'
                          : s==='error' ? 'var(--red)' : 'var(--text3)';
         }
+        // Update title tooltip on the genre card
+        const card = document.getElementById('kdp-genre-'+g);
+        const title = d.genre_titles?.[g] || '';
+        if(card && title) card.title = title;
       });
     }
   }catch(e){
@@ -10700,38 +10854,68 @@ async function gumroadDelete(id) {
 }
 
 // ── Payhip ────────────────────────────────────────────────────────────────────
+async function payhipMarkRegistered() {
+  try {
+    await api('/api/payhip/mark-registered', 'POST');
+    toast('✅ Webhook marked as registered!', 'success');
+    payhipLoad();
+  } catch(e) { toast('Error: ' + e.message, 'error'); }
+}
+
 async function payhipLoad() {
   document.getElementById('ph-products-list').innerHTML  = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
   document.getElementById('ph-purchases-list').innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">Loading…</div>';
   try {
     const r = await api('/api/payhip/status');
-    if (!r.connected) {
-      document.getElementById('ph-no-token').style.display = 'block';
-      document.getElementById('ph-stat-conn').textContent   = '❌';
-      document.getElementById('ph-stat-conn-lbl').textContent = r.error || 'not connected';
-      document.getElementById('ph-stat-products').textContent = '—';
-      document.getElementById('ph-stat-sales').textContent    = '—';
-      document.getElementById('ph-stat-revenue').textContent  = '—';
-      document.getElementById('ph-products-list').innerHTML = `<div style="padding:24px;text-align:center;color:var(--red);font-size:11px">${r.error}</div>`;
-      document.getElementById('ph-purchases-list').innerHTML = '';
-      return;
-    }
-    document.getElementById('ph-no-token').style.display   = 'none';
-    document.getElementById('ph-stat-conn').textContent     = r.api_active ? '✅' : '📡';
-    document.getElementById('ph-stat-conn-lbl').textContent = r.api_active ? 'API connected' : 'webhook mode';
-    document.getElementById('ph-stat-products').textContent = r.products_count || '—';
-    document.getElementById('ph-stat-sales').textContent    = r.sales_count;
-    document.getElementById('ph-stat-revenue').textContent  = '$' + (r.total_revenue||0).toFixed(2);
-    document.getElementById('ph-user-label').textContent    = r.api_active ? 'Payhip store · 95% royalty' : 'Payhip · webhook mode · 95% royalty';
 
-    // Webhook banner
+    // Status cards
+    document.getElementById('ph-stat-conn').textContent     = r.api_active ? '✅' : (r.webhook_verified ? '✅' : (r.webhook_registered ? '📡' : '⚙️'));
+    document.getElementById('ph-stat-conn-lbl').textContent = r.api_active ? 'API connected' : (r.webhook_verified ? 'webhook verified' : (r.webhook_registered ? 'webhook registered' : 'webhook not set up'));
+    document.getElementById('ph-stat-products').textContent = r.products_count || (r.api_active ? '0' : '—');
+    document.getElementById('ph-stat-sales').textContent    = r.sales_count ?? 0;
+    document.getElementById('ph-stat-revenue').textContent  = '$' + (r.total_revenue||0).toFixed(2);
+    document.getElementById('ph-user-label').textContent    = r.api_active ? 'Payhip store · API connected · 95% royalty' : 'Payhip · webhook mode · 95% royalty';
+
+    // Webhook banner — always visible, update content based on state
     const wb = document.getElementById('ph-webhook-banner');
-    if (r.webhook_mode) {
-      wb.style.display = 'block';
-      document.getElementById('ph-webhook-url').textContent = r.webhook_url || '';
+    wb.style.display = 'block';
+    document.getElementById('ph-webhook-url').textContent = r.webhook_url || '';
+
+    const verified   = r.webhook_verified || false;
+    const registered = r.webhook_registered || false;
+
+    // Status label
+    const lbl = document.getElementById('ph-webhook-status-label');
+    if (r.api_active) {
+      lbl.textContent = '✅ Payhip API connected — Plus plan active';
+      lbl.style.color = '#00ff88';
+    } else if (verified) {
+      lbl.textContent = '✅ Webhook active — sales tracked automatically';
+      lbl.style.color = '#00ff88';
+    } else if (registered) {
+      lbl.textContent = '📡 Webhook registered — waiting for first Payhip event';
+      lbl.style.color = '#ffd700';
     } else {
-      wb.style.display = 'none';
+      lbl.textContent = '⚙️ Webhook not set up — copy URL below and add it to Payhip';
+      lbl.style.color = '#ffaa44';
     }
+
+    // Verified / registered row
+    document.getElementById('ph-webhook-verified-row').style.display  = verified ? 'block' : 'none';
+    document.getElementById('ph-webhook-registered-row').style.display = (!verified && registered) ? 'block' : 'none';
+
+    // Last event
+    const le = document.getElementById('ph-webhook-last-event');
+    if (r.last_event_at) {
+      le.style.display = 'block';
+      le.textContent   = `Last event: ${r.last_event_type || 'unknown'} at ${new Date(r.last_event_at).toLocaleString()}`;
+    } else { le.style.display = 'none'; }
+
+    // Show "I've registered" button only if not yet verified
+    document.getElementById('ph-mark-registered-btn').style.display = (!verified && !registered) ? 'inline-block' : 'none';
+
+    // Hide old no-token banner
+    document.getElementById('ph-no-token').style.display = 'none';
 
     // Products
     if (!r.products || !r.products.length) {
@@ -10826,18 +11010,42 @@ let _factoryLastLogCount = 0;
 
 async function factoryLoad() {
   try {
-    const s = await api('/api/factory/status');
+    const [s, at] = await Promise.all([
+      api('/api/factory/status'),
+      api('/api/factory/alltime').catch(() => ({})),
+    ]);
     _factoryRenderStatus(s);
-    // start polling if running
+    _factoryRenderAlltime(at, s);
     if (s.running && !_factoryPollTimer) {
       _factoryPollTimer = setInterval(_factoryPoll, 2500);
     } else if (!s.running && _factoryPollTimer) {
       clearInterval(_factoryPollTimer);
       _factoryPollTimer = null;
     }
-    // load log
     _factoryLoadLog();
   } catch(e) { toast('Factory status error: ' + e.message, 'error'); }
+}
+
+function _factoryRenderAlltime(at, s) {
+  const set = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+  set('fstat-alltime-total',    at.total_products ?? '0');
+  set('fstat-today-total',      at.today_total ?? '0');
+  set('fstat-alltime-sessions', at.total_sessions ?? '0');
+  set('fstat-est-revenue',      at.est_revenue ? '$' + (at.est_revenue >= 1000 ? (at.est_revenue/1000).toFixed(1) + 'K' : at.est_revenue) : '$0');
+  const bp = at.best_platform;
+  const platIcons = {gumroad:'🛒',payhip:'💳',etsy:'🛍️',kdp:'📚'};
+  set('fstat-best-plat', bp ? (platIcons[bp]||'') + ' ' + (bp.charAt(0).toUpperCase()+bp.slice(1)) : '—');
+
+  // Connection status chips
+  const avail = (s && s.platforms_available) || {};
+  ['gumroad','payhip','etsy','kdp'].forEach(p => {
+    const el = document.getElementById('fconn-' + p);
+    if (!el) return;
+    const info = avail[p] || {};
+    el.innerHTML = info.connected
+      ? '<span style="color:#00ff88">✅ Connected</span>'
+      : '<span style="color:#ff9060">⚠ Not connected</span>';
+  });
 }
 
 function _factoryRenderStatus(s) {
@@ -10847,16 +11055,17 @@ function _factoryRenderStatus(s) {
   const stopBtn = document.getElementById('factory-stop-btn');
   const taskDiv = document.getElementById('factory-current-task');
 
+  const startBtn2 = document.getElementById('factory-start-btn2');
   if (s.running) {
     badge.style.background = 'rgba(0,255,136,.15)';
     badge.style.color = '#00ff88';
     badge.textContent = '🟢 RUNNING';
-    startBtn.style.display = 'none';
+    if(startBtn) startBtn.style.display = 'none';
+    if(startBtn2) startBtn2.style.display = 'none';
     stopBtn.style.display = '';
     taskDiv.style.display = '';
     document.getElementById('factory-task-phase').textContent = s.current_phase || 'Processing…';
     document.getElementById('factory-task-detail').textContent = s.current_task || '';
-    // progress bar estimate
     const total = (s.target_per_platform || 4) * Object.keys(s.platform_counts || {}).length;
     const done = Object.values(s.platform_counts || {}).reduce((a,b)=>a+b,0);
     const pct = total > 0 ? Math.min(100, Math.round(done/total*100)) : 0;
@@ -10866,7 +11075,8 @@ function _factoryRenderStatus(s) {
     badge.style.background = 'rgba(100,100,100,.2)';
     badge.style.color = 'var(--text3)';
     badge.textContent = '⚫ IDLE';
-    startBtn.style.display = '';
+    if(startBtn) startBtn.style.display = '';
+    if(startBtn2) startBtn2.style.display = '';
     stopBtn.style.display = 'none';
     taskDiv.style.display = 'none';
     lbl.textContent = s.last_session ? `Last session: ${s.last_session}` : 'Ready — configure platforms and click START ENGINE';
@@ -10888,18 +11098,26 @@ function _factoryRenderStatus(s) {
   const products = s.products_created || [];
   const pList = document.getElementById('factory-products-list');
   if (products.length === 0) {
-    pList.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No products yet — start the engine to begin</div>';
+    pList.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text3);font-size:11px">No products yet — start the engine to begin</div>';
   } else {
     const platformColors = {gumroad:'#ff9000',payhip:'#00c896',etsy:'#f55a2d',kdp:'#ff6464'};
+    const platformBg    = {gumroad:'rgba(255,144,0,.1)',payhip:'rgba(0,200,150,.1)',etsy:'rgba(245,90,45,.1)',kdp:'rgba(255,100,100,.1)'};
     pList.innerHTML = products.slice().reverse().map(pr => {
       const col = platformColors[pr.platform] || '#cc66ff';
+      const bg  = platformBg[pr.platform] || 'rgba(180,0,255,.08)';
       const statusIcon = pr.status === 'published' ? '✅' : pr.status === 'error' ? '❌' : '🔄';
-      return `<div style="padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:flex-start;gap:10px">
-        <div style="padding:3px 8px;background:rgba(${col.includes('#ff90')?'255,144,0':col.includes('#00c8')?'0,200,150':col.includes('#f55')?'245,90,45':'255,100,100'},.15);border-radius:4px;font-size:9px;font-weight:700;color:${col};white-space:nowrap;min-width:60px;text-align:center">${(pr.platform||'').toUpperCase()}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:11px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${statusIcon} ${pr.title||'Untitled'}</div>
-          <div style="font-size:9px;color:var(--text3);margin-top:2px">${pr.type||''} · $${pr.price||'0'} · ${pr.niche||''}</div>
-          ${pr.url ? `<a href="${pr.url}" target="_blank" style="font-size:9px;color:#cc66ff">🔗 View listing</a>` : ''}
+      const qcColor = (pr.qc_score||0) >= 75 ? '#00ff88' : (pr.qc_score||0) >= 50 ? '#ffd700' : '#ff6060';
+      return `<div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05)">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <span style="padding:2px 8px;background:${bg};border:1px solid ${col}44;border-radius:6px;font-size:9px;font-weight:700;color:${col}">${(pr.platform||'').replace('_',' ').toUpperCase()}</span>
+          <span style="font-size:10px;font-weight:600;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${statusIcon} ${pr.title||'Untitled'}</span>
+          ${pr.price ? `<span style="font-size:10px;font-weight:700;color:#00ff88">$${pr.price}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+          ${pr.niche ? `<span style="font-size:8px;padding:1px 6px;background:rgba(255,255,255,.06);border-radius:6px;color:var(--text3)">${pr.niche}</span>` : ''}
+          ${pr.type ? `<span style="font-size:8px;padding:1px 6px;background:rgba(255,255,255,.06);border-radius:6px;color:var(--text3)">${pr.type}</span>` : ''}
+          ${pr.qc_score ? `<span style="font-size:8px;padding:1px 6px;background:rgba(255,255,255,.06);border-radius:6px;color:${qcColor}">QC: ${pr.qc_score}/100</span>` : ''}
+          ${pr.url ? `<a href="${pr.url}" target="_blank" style="font-size:8px;color:#cc66ff;margin-left:auto">🔗 View</a>` : ''}
         </div>
       </div>`;
     }).join('');
@@ -11020,19 +11238,23 @@ let _apPollTimer = null;
 let _apLastLogCount = 0;
 
 const AP_PHASE_MAP = {
+  'narai_brand':'aphase-narai_brand',
   'social_facebook':'aphase-facebook','social_instagram':'aphase-instagram',
   'social_twitter':'aphase-twitter','social_blog':'aphase-blog',
+  'video_creation':'aphase-video',
   'products_gumroad':'aphase-gumroad','products_etsy':'aphase-etsy',
   'products_payhip':'aphase-payhip','kdp_books':'aphase-kdp',
-  'briefing':'aphase-facebook','starting':'aphase-facebook','complete':'aphase-kdp',
+  'briefing':'aphase-narai_brand','starting':'aphase-narai_brand','complete':'aphase-kdp',
 };
 const AP_PHASE_LABELS = {
   'starting':'🔄 Reading market intelligence…',
   'briefing':'🧠 NarAI reading market briefing…',
+  'narai_brand':'🌌 Phase 0 — NarAI posting about herself and WheellsVerse…',
   'social_facebook':'📘 Creating Facebook posts…',
   'social_instagram':'📸 Creating Instagram posts…',
   'social_twitter':'🐦 Creating Twitter thread…',
   'social_blog':'📰 Writing blog articles…',
+  'video_creation':'🎬 Generating AI videos (TikTok, YouTube, Facebook)…',
   'products_gumroad':'🛒 Creating Gumroad products…',
   'products_etsy':'🛍️ Creating Etsy listings…',
   'products_payhip':'💳 Creating Payhip products…',
@@ -11099,13 +11321,12 @@ function _apRenderStatus(s) {
     if (el) { el.style.background='rgba(0,255,170,.15)'; el.style.color='#00ffaa'; }
   }
   // Mark completed phases
-  const phaseOrder = ['social_facebook','social_instagram','social_twitter','social_blog',
-    'products_gumroad','products_etsy','products_payhip','kdp_books'];
+  const phaseOrder = ['narai_brand','social_facebook','social_instagram','social_twitter',
+    'social_blog','video_creation','products_gumroad','products_etsy','products_payhip','kdp_books'];
   const currentIdx = phaseOrder.indexOf(phase);
   phaseOrder.forEach((p, i) => {
     if (i < currentIdx) {
-      const key = 'aphase-' + p.replace('social_','').replace('products_','').replace('kdp_','kdp');
-      const el = document.getElementById(key);
+      const el = document.getElementById('aphase-' + AP_PHASE_MAP[p]?.replace('aphase-',''));
       if (el) { el.style.background='rgba(0,255,170,.08)'; el.style.color='#00ff88'; }
     }
   });
@@ -11481,31 +11702,128 @@ async function miShowPlatformDetail() {
 }
 
 // ── Quality Control ───────────────────────────────────────────────────────────
+// ── QC State ─────────────────────────────────────────────────────────────────
+let _qcTab = 'all';
+let _qcAllResults = [];
+let _qcPollTimer = null;
+
 async function qcLoad() {
+  const dot = document.getElementById('qc-live-dot');
+  if (dot) dot.style.background = '#ffd700';
   try {
-    const r = await api('/api/qc/results?limit=30');
-    _qcRenderResults(r.results || []);
-  } catch(e) { toast('QC load error: ' + e.message, 'error'); }
+    const [statsRes, resultsRes] = await Promise.all([
+      api('/api/qc/stats'),
+      api('/api/qc/results?limit=100'),
+    ]);
+    _qcAllResults = resultsRes.results || [];
+    _qcRenderStats(statsRes);
+    _qcRenderResults(_qcFilterResults(_qcAllResults));
+    if (dot) setTimeout(() => { dot.style.background = '#00ff88'; }, 300);
+  } catch(e) {
+    if (dot) dot.style.background = '#ff6060';
+    toast('QC load error: ' + e.message, 'error');
+  }
+}
+
+function _qcFilterResults(results) {
+  if (_qcTab === 'approved') return results.filter(r => r.approved);
+  if (_qcTab === 'revision') return results.filter(r => !r.approved);
+  return results;
+}
+
+function qcSetTab(tab) {
+  _qcTab = tab;
+  document.querySelectorAll('.qc-tab').forEach(btn => {
+    const isActive = btn.dataset.tab === tab;
+    btn.style.background = isActive ? 'rgba(255,215,0,.12)' : 'rgba(255,255,255,.04)';
+    btn.style.color = isActive ? '#ffd700' : 'var(--text3)';
+    btn.style.borderColor = isActive ? 'rgba(255,215,0,.3)' : 'rgba(255,255,255,.1)';
+    if (isActive) btn.classList.add('qc-tab-active');
+    else btn.classList.remove('qc-tab-active');
+  });
+  _qcRenderResults(_qcFilterResults(_qcAllResults));
+}
+
+function _qcRenderStats(s) {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  set('qc-stat-total',    s.total   ?? '0');
+  set('qc-stat-approved', s.approved ?? '0');
+  set('qc-stat-rate',     (s.approval_rate ?? 0) + '%');
+  set('qc-stat-avg',      (s.avg_score ?? 0) + '/100');
+  set('qc-stat-today',    s.today_count ?? '0');
+
+  const last = document.getElementById('qc-last-run');
+  if (last && s.last_reviewed_at) {
+    last.textContent = 'Last review: ' + new Date(s.last_reviewed_at).toLocaleString();
+  }
+
+  // Score distribution bars
+  const dist = s.score_distribution || {};
+  const total = (dist['90_100']||0)+(dist['75_89']||0)+(dist['50_74']||0)+(dist['0_49']||0);
+  const pct = v => total ? Math.max(6, Math.round(v/total*100)) : 6;
+  const bars = [
+    {id:'qc-d4', val:dist['90_100']||0, pct:pct(dist['90_100']||0), label:`90+ (${dist['90_100']||0})`, col:'rgba(0,255,136,.25)'},
+    {id:'qc-d3', val:dist['75_89']||0,  pct:pct(dist['75_89']||0),  label:`75–89 (${dist['75_89']||0})`, col:'rgba(100,200,100,.2)'},
+    {id:'qc-d2', val:dist['50_74']||0,  pct:pct(dist['50_74']||0),  label:`50–74 (${dist['50_74']||0})`, col:'rgba(255,215,0,.2)'},
+    {id:'qc-d1', val:dist['0_49']||0,   pct:pct(dist['0_49']||0),   label:`0–49 (${dist['0_49']||0})`, col:'rgba(255,60,60,.2)'},
+  ];
+  const container = document.getElementById('qc-dist-bar');
+  if (container) {
+    container.innerHTML = bars.map(b =>
+      `<div style="flex:1;background:${b.col};border-radius:3px 3px 0 0;height:${b.pct}%;position:relative;min-height:6px" title="${b.label}">
+        <div style="position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);font-size:8px;color:var(--text3);white-space:nowrap">${b.label}</div>
+      </div>`
+    ).join('');
+  }
+
+  // Platform chips
+  const chips = document.getElementById('qc-platform-chips');
+  if (chips && s.by_platform) {
+    chips.innerHTML = Object.entries(s.by_platform).map(([p,n]) =>
+      `<span style="padding:3px 10px;border-radius:12px;font-size:9px;background:rgba(255,255,255,.05);color:var(--text3);border:1px solid rgba(255,255,255,.08)">${p} <b style="color:var(--text2)">${n}</b></span>`
+    ).join('');
+  }
 }
 
 function _qcRenderResults(results) {
   const el = document.getElementById('qc-results-list');
-  if (!results.length) { el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3);font-size:11px">No QC reviews yet</div>'; return; }
+  const countEl = document.getElementById('qc-feed-count');
+  if (countEl) countEl.textContent = results.length + ' reviews';
+  if (!results.length) {
+    el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);font-size:11px">No QC reviews yet — NarAI\'s activity will appear here automatically</div>';
+    return;
+  }
   el.innerHTML = results.map(r => {
     const col = r.approved ? '#00ff88' : r.score >= 60 ? '#ffd700' : '#ff6060';
+    const bgCol = r.approved ? 'rgba(0,255,136,.04)' : r.score >= 60 ? 'rgba(255,215,0,.04)' : 'rgba(255,60,60,.04)';
     const passes = r.passes || [];
-    return `<div style="padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer" onclick="qcShowDetail(${JSON.stringify(r).replace(/</g,'&lt;')})">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
-        <div style="font-size:11px;font-weight:600;color:var(--text)">${r.approved?'✅':'❌'} ${r.title||'Untitled'}</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span style="font-size:11px;font-weight:700;color:${col}">${r.score}/100</span>
-          <span style="padding:2px 8px;border-radius:10px;font-size:9px;background:${r.approved?'rgba(0,255,136,.12)':'rgba(255,60,60,.12)'};color:${col}">${r.approved?'APPROVED':'NEEDS REVISION'}</span>
+    const passBar = passes.map(p => {
+      const pc = p.score >= 75 ? '#00ff88' : p.score >= 50 ? '#ffd700' : '#ff6060';
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div style="font-size:10px;font-weight:700;color:${pc}">${p.score}</div>
+        <div style="width:100%;height:3px;border-radius:2px;background:${pc}44">
+          <div style="width:${p.score}%;height:100%;background:${pc};border-radius:2px"></div>
+        </div>
+        <div style="font-size:7px;color:var(--text3);text-align:center;line-height:1.2">${(p.name||'').split(' ')[0]}</div>
+      </div>`;
+    }).join('');
+    const idx = _qcAllResults.findIndex(x => x.id === r.id);
+    return `<div onclick="qcShowDetail(_qcAllResults[${idx}])"
+      style="padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.05);cursor:pointer;background:${bgCol};transition:background .15s"
+      onmouseover="this.style.background='rgba(255,255,255,.04)'" onmouseout="this.style.background='${bgCol}'">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:var(--text);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.approved?'✅':'❌'} ${r.title||'Untitled'}</div>
+        <div style="display:flex;gap:6px;align-items:center;flex-shrink:0;margin-left:10px">
+          <span style="font-size:13px;font-weight:900;color:${col}">${r.score}</span>
+          <span style="padding:2px 8px;border-radius:10px;font-size:8px;background:${r.approved?'rgba(0,255,136,.12)':'rgba(255,60,60,.1)'};color:${col};white-space:nowrap">${r.approved?'APPROVED':'REVISION'}</span>
         </div>
       </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        ${passes.map(p=>`<span style="font-size:9px;padding:2px 7px;border-radius:8px;background:rgba(255,255,255,.05);color:${p.score>=75?'#00ff88':p.score>=50?'#ffd700':'#ff6060'}">${p.name}: ${p.score}</span>`).join('')}
+      <div style="display:flex;gap:4px;margin-bottom:7px">${passBar}</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span style="font-size:9px;padding:1px 7px;border-radius:8px;background:rgba(255,255,255,.06);color:var(--text3)">${r.platform||'—'}</span>
+        <span style="font-size:9px;padding:1px 7px;border-radius:8px;background:rgba(255,255,255,.06);color:var(--text3)">${r.content_type||'—'}</span>
+        <span style="font-size:9px;color:var(--text3);margin-left:auto">${r.reviewed_at ? new Date(r.reviewed_at).toLocaleString() : ''}</span>
       </div>
-      <div style="font-size:9px;color:var(--text3);margin-top:4px">${r.platform} · ${r.content_type} · ${r.reviewed_at?new Date(r.reviewed_at).toLocaleString():''}</div>
     </div>`;
   }).join('');
 }
@@ -11513,31 +11831,45 @@ function _qcRenderResults(results) {
 function qcShowDetail(r) {
   const panel = document.getElementById('qc-result-panel');
   const col = r.approved ? '#00ff88' : r.score >= 60 ? '#ffd700' : '#ff6060';
+  const ringDeg = Math.round(r.score / 100 * 360);
   panel.style.display = '';
-  panel.innerHTML = `<div class="card" style="border:1px solid ${col}44">
-    <div class="sh" style="margin-bottom:14px">
-      <div>
-        <div class="st" style="font-size:12px;color:${col}">${r.final_verdict}</div>
-        <div class="ss" style="font-size:10px">${r.title} · ${r.platform} · ${r.content_type}</div>
+  panel.innerHTML = `<div class="card" style="border:1px solid ${col}33;background:rgba(0,0,0,.2)">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <div style="position:relative;width:70px;height:70px;flex-shrink:0">
+        <svg viewBox="0 0 36 36" style="width:70px;height:70px;transform:rotate(-90deg)">
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="3"/>
+          <circle cx="18" cy="18" r="15.9" fill="none" stroke="${col}" stroke-width="3"
+            stroke-dasharray="${r.score} ${100-r.score}" stroke-linecap="round"/>
+        </svg>
+        <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:900;color:${col}">${r.score}</div>
       </div>
-      <div style="font-size:28px;font-weight:900;color:${col}">${r.score}<span style="font-size:14px">/100</span></div>
+      <div style="flex:1">
+        <div style="font-size:13px;font-weight:700;color:${col};margin-bottom:3px">${r.final_verdict||''}</div>
+        <div style="font-size:10px;color:var(--text2)">${r.title||'Untitled'}</div>
+        <div style="font-size:9px;color:var(--text3);margin-top:3px">${r.platform} · ${r.content_type} · ${r.reviewed_at?new Date(r.reviewed_at).toLocaleString():''}</div>
+      </div>
+      <button onclick="document.getElementById('qc-result-panel').style.display='none'" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:4px">✕</button>
     </div>
+
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px">
-      ${(r.passes||[]).map(p=>`<div style="text-align:center;padding:10px;background:rgba(0,0,0,.15);border-radius:8px;border:1px solid ${p.score>=75?'rgba(0,255,136,.2)':p.score>=50?'rgba(255,215,0,.2)':'rgba(255,60,60,.2)'}">
-        <div style="font-size:16px;font-weight:700;color:${p.score>=75?'#00ff88':p.score>=50?'#ffd700':'#ff6060'}">${p.score}</div>
-        <div style="font-size:9px;color:var(--text3)">${p.name}</div>
+      ${(r.passes||[]).map(p=>`<div style="text-align:center;padding:10px 6px;background:rgba(0,0,0,.2);border-radius:8px;border:1px solid ${p.score>=75?'rgba(0,255,136,.2)':p.score>=50?'rgba(255,215,0,.2)':'rgba(255,60,60,.2)'}">
+        <div style="font-size:18px;font-weight:900;color:${p.score>=75?'#00ff88':p.score>=50?'#ffd700':'#ff6060'}">${p.score}</div>
+        <div style="font-size:8px;color:var(--text3);margin-top:2px;line-height:1.3">${p.name||''}</div>
+        ${p.passed?'<div style="font-size:8px;color:#00ff88;margin-top:2px">✓ Pass</div>':'<div style="font-size:8px;color:#ff6060;margin-top:2px">✗ Fail</div>'}
       </div>`).join('')}
     </div>
-    ${r.all_issues?.length ? `<div style="margin-bottom:12px">
-      <div style="font-size:10px;font-weight:600;color:#ff6060;margin-bottom:6px">⚠ Issues Found (${r.all_issues.length})</div>
+
+    ${r.all_issues?.length ? `<div style="margin-bottom:12px;padding:10px 12px;background:rgba(255,60,60,.06);border:1px solid rgba(255,60,60,.2);border-radius:8px">
+      <div style="font-size:10px;font-weight:600;color:#ff9999;margin-bottom:6px">⚠ ${r.all_issues.length} Issue${r.all_issues.length!==1?'s':''} Found</div>
       ${r.all_issues.map(i=>`<div style="font-size:10px;color:var(--text2);padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">• ${i}</div>`).join('')}
-    </div>` : ''}
-    ${r.revision_instructions ? `<div style="padding:12px;background:rgba(255,215,0,.06);border:1px solid rgba(255,215,0,.2);border-radius:8px">
-      <div style="font-size:10px;font-weight:600;color:#ffd700;margin-bottom:6px">📝 Revision Instructions for NarAI</div>
-      <div style="font-size:10px;color:var(--text2);line-height:1.7;white-space:pre-wrap">${r.revision_instructions}</div>
+    </div>` : '<div style="font-size:10px;color:#00ff88;margin-bottom:12px">✅ No issues found</div>'}
+
+    ${r.revision_instructions ? `<div style="padding:12px;background:rgba(255,215,0,.05);border:1px solid rgba(255,215,0,.2);border-radius:8px">
+      <div style="font-size:10px;font-weight:600;color:#ffd700;margin-bottom:8px">📝 NarAI Revision Instructions</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.75;white-space:pre-wrap">${r.revision_instructions}</div>
     </div>` : ''}
   </div>`;
-  panel.scrollIntoView({behavior:'smooth'});
+  panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 async function qcSubmit() {
@@ -11547,23 +11879,52 @@ async function qcSubmit() {
   const platform = document.getElementById('qc-platform').value;
   if (!content) { toast('Paste content to review first', 'error'); return; }
 
-  const btn = document.getElementById('qc-submit-btn');
+  const btn    = document.getElementById('qc-submit-btn');
   const status = document.getElementById('qc-submit-status');
-  btn.disabled = true; btn.textContent = '🔬 Reviewing…';
-  status.textContent = 'Running 5 QC passes (30-60 seconds)…';
+  const steps  = document.getElementById('qc-progress-steps');
+  btn.disabled = true;
+  btn.innerHTML = '<span style="opacity:.6">🔬 Reviewing…</span>';
+  status.textContent = '5 passes running — ~30–60s';
+  if (steps) steps.style.display = '';
+
+  // Animate pass steps one by one while waiting
+  const stepEls = document.querySelectorAll('.qc-step .qc-step-icon');
+  let stepIdx = 0;
+  const stepTimer = setInterval(() => {
+    if (stepIdx > 0 && stepEls[stepIdx-1]) stepEls[stepIdx-1].textContent = '✅';
+    if (stepIdx < stepEls.length && stepEls[stepIdx]) stepEls[stepIdx].textContent = '⚙️';
+    stepIdx++;
+    if (stepIdx > stepEls.length) clearInterval(stepTimer);
+  }, 8000);
 
   try {
     const r = await api('/api/qc/review', 'POST', {content, content_type:type, platform, title});
+    clearInterval(stepTimer);
+    stepEls.forEach(el => el.textContent = '✅');
     if (r.error) throw new Error(r.error);
     qcShowDetail(r);
-    toast(r.approved ? '✅ Content approved!' : '❌ Needs revision — see instructions', r.approved ? 'success' : 'error');
+    toast(r.approved ? `✅ Approved! Score: ${r.score}/100` : `❌ Needs revision — Score: ${r.score}/100`, r.approved ? 'success' : 'error');
     await qcLoad();
   } catch(e) {
+    clearInterval(stepTimer);
     toast('QC review failed: ' + e.message, 'error');
   } finally {
-    btn.disabled = false; btn.textContent = '🔬 Run QC Review (5 Passes)';
+    btn.disabled = false;
+    btn.innerHTML = '🔬 Run QC Review (5 Passes)';
     status.textContent = '';
+    if (steps) setTimeout(() => { steps.style.display = 'none'; stepEls.forEach(el => el.textContent = '⏳'); }, 2000);
   }
+}
+
+// ── QC auto-poll (every 12s while on the page) ──────────────────────────────
+function qcStartPoll() {
+  if (_qcPollTimer) return;
+  _qcPollTimer = setInterval(() => {
+    if (document.getElementById('page-qcreview')?.style.display !== 'none') qcLoad();
+  }, 12000);
+}
+function qcStopPoll() {
+  if (_qcPollTimer) { clearInterval(_qcPollTimer); _qcPollTimer = null; }
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────

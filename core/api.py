@@ -5804,60 +5804,96 @@ def _kdp_load_results() -> Dict[str, Any]:
 
 @app.get("/api/kdp/stats")
 async def kdp_stats():
-    """Return quick stats for the KDP dashboard."""
-    import datetime as _dt
-    total = 0
+    """Return KDP stats: all-time published, pending, errors, per-genre status."""
+    import glob as _glob
+
+    # Count written books per genre
+    total_written = 0
+    genre_book_counts: Dict[str, int] = {}
     for g in KDP_GENRES_LIST:
         gdir = KDP_BOOKS_ROOT / g
-        if gdir.exists():
-            total += len(list(gdir.glob("book_*.md")))
+        cnt = len(list(gdir.glob("book_*.md"))) if gdir.exists() else 0
+        genre_book_counts[g] = cnt
+        total_written += cnt
 
-    # Deduplicate latest result per genre from today's files
-    import glob as _glob, time as _t
-    cutoff = _t.time() - 86400
+    # Build latest-per-genre result map (ALL TIME, not just today)
+    all_results: Dict[str, dict] = {}
+    for f in sorted(_glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json"))):
+        try:
+            d = json.loads(Path(f).read_text(errors="replace"))
+            g = d.get("genre", "")
+            if not g:
+                continue
+            prev = all_results.get(g)
+            if prev is None or Path(f).stat().st_mtime > Path(prev.get("_file","")).stat().st_mtime if prev and prev.get("_file") else True:
+                d["_file"] = f
+                all_results[g] = d
+        except Exception:
+            continue
+
+    # Compute per-genre status
     genre_status: Dict[str, str] = {}
-    for f in sorted(_glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json")), reverse=True):
+    genre_titles: Dict[str, str] = {}
+    genre_errors: Dict[str, str] = {}
+    for g, d in all_results.items():
+        err = d.get("error", "")
+        raw_status = d.get("status", "error")
+        if raw_status == "error" and "account_limit" in err:
+            genre_status[g] = "pending_approval"
+        else:
+            genre_status[g] = raw_status
+        genre_titles[g] = d.get("title", "")
+        genre_errors[g] = err
+
+    # All-time totals
+    total_published     = sum(1 for s in genre_status.values() if s in ("published", "review_required"))
+    total_pending       = sum(1 for s in genre_status.values() if s == "pending_approval")
+    total_errors        = sum(1 for s in genre_status.values() if s == "error")
+    genres_not_run      = len([g for g in KDP_GENRES_LIST if g not in genre_status])
+
+    # Today's run
+    import time as _t
+    cutoff = _t.time() - 86400
+    published_today = 0
+    for f in _glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json")):
         try:
             if Path(f).stat().st_mtime < cutoff:
                 continue
             d = json.loads(Path(f).read_text(errors="replace"))
-            g = d.get("genre", "")
-            if g and g not in genre_status:
-                genre_status[g] = d.get("status", "error")
+            if d.get("status") in ("published", "review_required"):
+                published_today += 1
         except Exception:
             continue
-    published_today = sum(1 for s in genre_status.values() if s in ("published", "review_required"))
-    errors_today    = sum(1 for s in genre_status.values() if s == "error")
-    # Enrich genre_status with error details for account_limit cases
-    for f in sorted(_glob.glob(str(KDP_BOOKS_ROOT / "kdp_result_*.json")), reverse=True):
-        try:
-            d = json.loads(Path(f).read_text(errors="replace"))
-            g = d.get("genre", "")
-            err = d.get("error", "")
-            if g and genre_status.get(g) == "error" and "account_limit" in err:
-                genre_status[g] = "account_limit"
-        except Exception:
-            continue
-    account_limit = sum(1 for s in genre_status.values() if s == "account_limit")
-    kdp_results = _kdp_load_results()
 
-    # Check if a publish run is currently active (log has STEP but not COMPLETE)
+    # Live ASINs
+    kdp_results = _kdp_load_results()
+    live_asins = sum(1 for d in kdp_results.values() if d.get("asin"))
+
+    # Running check
     running = False
     if KDP_LOG_PATH.exists():
         tail = KDP_LOG_PATH.read_text(errors="replace")[-3000:]
         running = ("STEP 1" in tail or "STEP 2" in tail or "STEP 3" in tail) and "DAILY PUBLISH COMPLETE" not in tail
 
-    live_asins = sum(1 for d in kdp_results.values() if d.get("asin"))
+    limit_note = ""
+    if total_pending > 0:
+        limit_note = f"⚠️ {total_pending} genre(s) hit Amazon's new-title limit. Books are queued — Amazon typically approves within 24–72 hrs."
 
     return {
         "published_today":   published_today,
-        "errors_today":      errors_today,
-        "account_limit":     account_limit,
-        "total_books":       total,
-        "status":            "running" if running else ("done" if published_today > 0 else "idle"),
+        "total_published":   total_published,
+        "total_pending":     total_pending,
+        "total_errors":      total_errors,
+        "genres_not_run":    genres_not_run,
+        "total_books":       total_written,
+        "account_limit":     total_pending,
+        "errors_today":      total_errors,
+        "status":            "running" if running else ("done" if total_published > 0 else "idle"),
         "live_asins":        live_asins,
         "genre_status":      genre_status,
-        "limit_note":        "Amazon limits new title submissions per account. Wait for pending books to be approved, then re-run." if account_limit > 0 else "",
+        "genre_titles":      genre_titles,
+        "genre_errors":      genre_errors,
+        "limit_note":        limit_note,
     }
 
 @app.get("/api/kdp/log")
@@ -8881,9 +8917,12 @@ async def gumroad_toggle_product(product_id: str, req: dict):
 # ─── PAYHIP ──────────────────────────────────────────────────────────────────
 # ══════════════════════════════════════════════════════════════════════════════
 
-_PAYHIP_BASE         = "https://payhip.com/api/v1"
-_PAYHIP_WEBHOOK_FILE = Path(os.getenv("RAILWAY_VOLUME_PATH", str(ROOT / "data"))) / "payhip_sales.json"
+_PAYHIP_BASE          = "https://payhip.com/api/v1"
+_PAYHIP_DATA_DIR      = Path(os.getenv("RAILWAY_VOLUME_PATH", str(ROOT / "data")))
+_PAYHIP_WEBHOOK_FILE  = _PAYHIP_DATA_DIR / "payhip_sales.json"
+_PAYHIP_STATE_FILE    = _PAYHIP_DATA_DIR / "payhip_state.json"
 _PUBLIC_PATHS.add("/api/payhip/webhook")
+_PUBLIC_PATHS.add("/api/payhip/mark-registered")
 
 def _payhip_token() -> str:
     return os.getenv("PAYHIP_API_KEY", "")
@@ -8901,23 +8940,61 @@ def _payhip_load_sales() -> list:
 
 def _payhip_save_sales(sales: list):
     try:
-        _PAYHIP_WEBHOOK_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _PAYHIP_DATA_DIR.mkdir(parents=True, exist_ok=True)
         _PAYHIP_WEBHOOK_FILE.write_text(json.dumps(sales, indent=2))
     except Exception:
         pass
+
+def _payhip_load_state() -> dict:
+    try:
+        if _PAYHIP_STATE_FILE.exists():
+            return json.loads(_PAYHIP_STATE_FILE.read_text())
+    except Exception:
+        pass
+    return {"verified": False, "registered": False, "last_event_at": None, "last_event_type": None, "event_count": 0}
+
+def _payhip_save_state(state: dict):
+    try:
+        _PAYHIP_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _PAYHIP_STATE_FILE.write_text(json.dumps(state, indent=2))
+    except Exception:
+        pass
+
+def _payhip_fetch_railway_data() -> dict:
+    """
+    When running locally, try to fetch live data from Railway deployment.
+    Returns empty dict if unavailable.
+    """
+    railway_url = os.getenv("RAILWAY_PUBLIC_URL", "")
+    if not railway_url or "127.0.0.1" in railway_url or "localhost" in railway_url:
+        return {}
+    # Only fetch if we're running locally (not on Railway itself)
+    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_NAME"))
+    if is_railway:
+        return {}
+    try:
+        import requests as _rc
+        api_key = os.getenv("NARAI_API_KEY", os.getenv("API_KEY", ""))
+        headers = {"X-API-Key": api_key} if api_key else {}
+        r = _rc.get(f"{railway_url.rstrip('/')}/api/payhip/status", headers=headers, timeout=5)
+        if r.status_code == 200:
+            return r.json()
+    except Exception:
+        pass
+    return {}
 
 
 @app.post("/api/payhip/webhook")
 async def payhip_webhook(request: Request):
     """
     Payhip webhook receiver — no API plan needed.
-    Payhip POSTs here on every sale. We store it locally and notify via Telegram.
-    Register this URL in Payhip: Settings → Webhooks → Add webhook URL
+    Payhip POSTs here on every sale (and sends a test ping when first registered).
+    Register this URL in Payhip: Account → Settings → Webhooks → Add Webhook
     URL: https://grateful-flexibility-production.up.railway.app/api/payhip/webhook
     """
     try:
         body = await request.body()
-        # Payhip sends form-encoded or JSON depending on version
+        # Payhip sends form-encoded or JSON
         try:
             data = json.loads(body)
         except Exception:
@@ -8925,7 +9002,32 @@ async def payhip_webhook(request: Request):
             parsed = parse_qs(body.decode("utf-8", errors="replace"))
             data = {k: v[0] if len(v) == 1 else v for k, v in parsed.items()}
 
-        # Normalise key fields
+        now_iso = datetime.now().isoformat()
+
+        # Mark webhook as verified (Payhip sends a test ping on registration)
+        state = _payhip_load_state()
+        state["verified"]  = True
+        state["registered"] = True
+        state["last_event_at"] = now_iso
+        state["event_count"]   = state.get("event_count", 0) + 1
+
+        # Detect ping / test events (no purchase key, no buyer email, type=test)
+        event_type = data.get("event", data.get("type", ""))
+        is_ping    = (
+            event_type in ("ping", "test", "verification") or
+            (not data.get("purchase_key") and not data.get("buyer_email") and not data.get("email"))
+        )
+
+        if is_ping:
+            state["last_event_type"] = "ping"
+            _payhip_save_state(state)
+            _add_log("📡 Payhip webhook verified — test ping received", "INFO")
+            return {"status": "ok", "type": "ping"}
+
+        state["last_event_type"] = "sale"
+        _payhip_save_state(state)
+
+        # Normalise sale fields
         sale = {
             "id":           data.get("purchase_key") or data.get("id") or "",
             "product_name": data.get("product_title") or data.get("product_name") or data.get("title") or "Unknown Product",
@@ -8933,49 +9035,70 @@ async def payhip_webhook(request: Request):
             "currency":     (data.get("currency") or "USD").upper(),
             "email":        data.get("buyer_email") or data.get("email") or "",
             "country":      data.get("buyer_country") or data.get("country") or "",
-            "created_at":   data.get("purchase_date") or data.get("created_at") or datetime.now().isoformat(),
+            "created_at":   data.get("purchase_date") or data.get("created_at") or now_iso,
             "raw":          data,
         }
 
         sales = _payhip_load_sales()
-        # Deduplicate by id
         if sale["id"] and any(s.get("id") == sale["id"] for s in sales):
             return {"status": "duplicate"}
         sales.insert(0, sale)
-        sales = sales[:500]  # keep last 500 sales
-        _payhip_save_sales(sales)
+        _payhip_save_sales(sales[:500])
 
         _add_log(f"💳 Payhip sale: {sale['product_name']} — ${sale['amount']} from {sale['email']}", "INFO")
 
-        # Telegram notification
         try:
             from core.telegram import notify
             notify(
-                f"💳 New Payhip Sale!\n"
-                f"Product: {sale['product_name']}\n"
-                f"Amount: ${sale['amount']} {sale['currency']}\n"
-                f"Buyer: {sale['email']} ({sale['country']})"
+                f"💳 <b>New Payhip Sale!</b>\n"
+                f"📦 Product: {sale['product_name']}\n"
+                f"💵 Amount: ${sale['amount']} {sale['currency']}\n"
+                f"📧 Buyer: {sale['email']} ({sale['country']})"
             )
         except Exception:
             pass
 
-        return {"status": "ok"}
+        return {"status": "ok", "type": "sale"}
     except Exception as e:
         _add_log(f"Payhip webhook error: {e}", "ERROR")
         return {"status": "error", "detail": str(e)}
 
 
+@app.post("/api/payhip/mark-registered")
+async def payhip_mark_registered():
+    """User manually confirms they've registered the webhook in Payhip."""
+    state = _payhip_load_state()
+    state["registered"] = True
+    if not state.get("verified"):
+        state["last_event_type"] = "manual"
+    _payhip_save_state(state)
+    return {"status": "ok", "registered": True}
+
+
 @app.get("/api/payhip/status")
 async def payhip_status():
     """
-    Return Payhip status. Uses webhook-stored sales when API plan isn't active.
-    Falls back gracefully — webhook data is always available.
+    Return Payhip status. Merges local webhook data with Railway live data when running locally.
     """
-    tok = _payhip_token()
+    tok          = _payhip_token()
+    wh_state     = _payhip_load_state()
     webhook_sales = _payhip_load_sales()
-    total_revenue  = sum(float(s.get("amount", 0)) for s in webhook_sales)
-    railway_url    = os.getenv("RAILWAY_PUBLIC_URL", "http://127.0.0.1:5050").rstrip("/")
-    webhook_url    = railway_url + "/api/payhip/webhook"
+    railway_url  = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+    webhook_url  = (railway_url or "http://localhost:5050") + "/api/payhip/webhook"
+
+    # If running locally and Railway is configured, pull live data from Railway
+    railway_data = _payhip_fetch_railway_data()
+    if railway_data:
+        # Merge Railway sales into local (Railway is source of truth for webhook events)
+        railway_sales = railway_data.get("recent_purchases", [])
+        if railway_sales:
+            webhook_sales = railway_sales
+        railway_state = railway_data.get("webhook_state", {})
+        if railway_state.get("verified"):
+            wh_state["verified"]  = True
+            wh_state["registered"] = True
+
+    total_revenue = sum(float(s.get("amount", 0)) for s in webhook_sales)
 
     # Try the REST API — works on Plus plan
     if tok:
@@ -8994,10 +9117,12 @@ async def payhip_status():
                 return {
                     "connected":        True,
                     "api_active":       True,
+                    "webhook_mode":     False,
+                    "webhook_url":      webhook_url,
+                    "webhook_state":    wh_state,
                     "products_count":   len(products),
                     "sales_count":      len(purchases),
                     "total_revenue":    round(total_revenue, 2),
-                    "webhook_url":      webhook_url,
                     "products":         [
                         {
                             "id":          p.get("link", p.get("id", "")),
@@ -9027,18 +9152,24 @@ async def payhip_status():
         except Exception:
             pass
 
-    # Webhook-only mode (free plan)
+    # Webhook-only mode (free plan) — always "connected", uses webhook events for sales
     return {
         "connected":        True,
         "api_active":       False,
         "webhook_mode":     True,
         "webhook_url":      webhook_url,
+        "webhook_state":    wh_state,
+        "webhook_verified": wh_state.get("verified", False),
+        "webhook_registered": wh_state.get("registered", False),
+        "last_event_at":    wh_state.get("last_event_at"),
+        "last_event_type":  wh_state.get("last_event_type"),
         "products_count":   0,
         "sales_count":      len(webhook_sales),
         "total_revenue":    round(total_revenue, 2),
         "products":         [],
         "recent_purchases": webhook_sales[:20],
-        "note":             "Payhip API requires Plus plan. Sales tracked via webhook — register the URL in Payhip settings.",
+        "note":             "Webhook mode active — sales tracked automatically. API products list requires Payhip Plus plan.",
+        "railway_url":      railway_url,
     }
 
 
@@ -9743,6 +9874,42 @@ async def factory_log(limit: int = 100):
     return {"lines": lines, "count": len(lines)}
 
 
+@app.get("/api/factory/alltime")
+async def factory_alltime():
+    """Return all-time aggregate product factory stats across all sessions."""
+    state = _pf_load_state()
+    sessions = state.get("sessions", [])
+    total_products = sum(s.get("products_count", 0) for s in sessions)
+    total_sessions = len(sessions)
+
+    # Count by platform across all sessions
+    by_platform: dict = {}
+    for s in sessions:
+        for p, n in (s.get("by_platform") or {}).items():
+            by_platform[p] = by_platform.get(p, 0) + n
+
+    # Revenue estimate (average $15 per digital product)
+    avg_price = 15
+    est_revenue = total_products * avg_price
+
+    # Best platform
+    best_platform = max(by_platform, key=lambda p: by_platform[p]) if by_platform else None
+
+    # Today's count
+    products_today = state.get("products_today", {})
+    today_total = sum(len(v) for v in products_today.values() if isinstance(v, list))
+
+    return {
+        "total_products": total_products,
+        "total_sessions": total_sessions,
+        "today_total": today_total,
+        "by_platform": by_platform,
+        "est_revenue": est_revenue,
+        "best_platform": best_platform,
+        "last_session": sessions[0].get("started_at") if sessions else None,
+    }
+
+
 @app.delete("/api/factory/reset")
 async def factory_reset():
     """Clear today's products and reset stats."""
@@ -10033,6 +10200,59 @@ async def qc_result_detail(qc_id: str):
         if r.get("id") == qc_id:
             return r
     return {"error": "QC result not found"}
+
+
+@app.get("/api/qc/stats")
+async def qc_stats():
+    """Return aggregate QC statistics for the dashboard."""
+    from core.market_intelligence import _qc_load
+    from datetime import datetime, timezone
+    results = _qc_load()
+    if not results:
+        return {
+            "total": 0, "approved": 0, "rejected": 0,
+            "approval_rate": 0, "avg_score": 0,
+            "today_count": 0, "last_reviewed_at": None,
+            "by_platform": {}, "by_content_type": {},
+            "score_distribution": {"90_100": 0, "75_89": 0, "50_74": 0, "0_49": 0},
+        }
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    approved = sum(1 for r in results if r.get("approved"))
+    rejected = len(results) - approved
+    scores = [r.get("score", 0) for r in results]
+    avg_score = round(sum(scores) / len(scores)) if scores else 0
+    today_count = sum(1 for r in results if (r.get("reviewed_at") or "").startswith(today))
+
+    by_platform: dict = {}
+    by_type: dict = {}
+    dist = {"90_100": 0, "75_89": 0, "50_74": 0, "0_49": 0}
+    for r in results:
+        p = r.get("platform", "unknown")
+        by_platform[p] = by_platform.get(p, 0) + 1
+        t = r.get("content_type", "unknown")
+        by_type[t] = by_type.get(t, 0) + 1
+        s = r.get("score", 0)
+        if s >= 90:   dist["90_100"] += 1
+        elif s >= 75: dist["75_89"] += 1
+        elif s >= 50: dist["50_74"] += 1
+        else:         dist["0_49"] += 1
+
+    # Top platforms sorted
+    by_platform = dict(sorted(by_platform.items(), key=lambda x: -x[1])[:8])
+
+    return {
+        "total": len(results),
+        "approved": approved,
+        "rejected": rejected,
+        "approval_rate": round(approved / len(results) * 100) if results else 0,
+        "avg_score": avg_score,
+        "today_count": today_count,
+        "last_reviewed_at": results[0].get("reviewed_at") if results else None,
+        "by_platform": by_platform,
+        "by_content_type": by_type,
+        "score_distribution": dist,
+    }
 
 
 # ─── Launch helper ────────────────────────────────────────────────────────────
