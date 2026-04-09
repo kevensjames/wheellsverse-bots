@@ -291,31 +291,17 @@ def generate_video(prompt: str, style: str = "cinematic", platform: str = "tikto
     if style_lower in ("talking_head", "explainer", "avatar") and HEYGEN_KEY:
         return heygen_generate(script or prompt)
 
-    # Anime / cartoon / stylized → Pika Labs
-    if style_lower in ("anime", "cartoon", "3d", "3d_animation", "watercolor", "stylized"):
-        if PIKA_KEY:
-            return pika_generate(prompt, style=style_lower, aspect_ratio=aspect)
-        # Fallback to Runway if Pika key missing
-        if RUNWAY_KEY:
-            return runway_generate(f"{style} style: {prompt}", ratio=_runway_ratio(aspect))
-
-    # Cinematic / realistic → Runway ML
-    if style_lower in ("cinematic", "realistic", "dramatic", "nature"):
-        if RUNWAY_KEY:
-            return runway_generate(prompt, ratio=_runway_ratio(aspect))
-        # Fallback to Pika
-        if PIKA_KEY:
-            return pika_generate(prompt, style="cinematic", aspect_ratio=aspect)
-
-    # Default: try Pika first, then Runway, then HeyGen
-    if PIKA_KEY:
-        return pika_generate(prompt, style="cinematic", aspect_ratio=aspect)
+    # ALL visual styles → Runway Gen-4.5 (Pika API access blocked on free tier)
+    # Runway handles anime/cartoon/3d/cinematic via prompt engineering
     if RUNWAY_KEY:
-        return runway_generate(prompt, ratio=_runway_ratio(aspect))
+        styled_prompt = f"{style} style, {prompt}" if style_lower not in ("cinematic", "realistic") else prompt
+        return runway_generate(styled_prompt, ratio=_runway_ratio(aspect))
+
+    # Fallback → HeyGen avatar
     if HEYGEN_KEY:
         return heygen_generate(script or prompt)
 
-    return {"success": False, "error": "No video API keys configured (PIKA_API_KEY or RUNWAYML_API_KEY)"}
+    return {"success": False, "error": "No video API keys with access. Add Runway credits at runwayml.com"}
 
 
 def get_available_engines() -> dict:
