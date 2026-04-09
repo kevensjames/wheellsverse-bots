@@ -9699,8 +9699,8 @@ async def market_scan_start(req: dict = {}):
     Body: {platforms: ["facebook","instagram",...]}  (empty = all platforms)
     Bot groups: "social", "marketplace", "amazon", "all"
     """
-    from core.market_intelligence import start_scan_background, BOT_GROUPS, ALL_BOTS, _mi_running
-    if _mi_running:
+    from core.market_intelligence import start_scan_background, BOT_GROUPS, ALL_BOTS, get_status as _mi_get_status
+    if _mi_get_status().get("running"):
         return {"error": "A scan is already running — stop it first"}
 
     platforms = req.get("platforms", [])
@@ -9717,8 +9717,8 @@ async def market_scan_start(req: dict = {}):
 @app.post("/api/market/stop")
 async def market_scan_stop():
     """Gracefully stop the running market scan."""
-    from core.market_intelligence import stop_scan, _mi_running
-    if not _mi_running:
+    from core.market_intelligence import stop_scan, get_status as _mi_get_status2
+    if not _mi_get_status2().get("running"):
         return {"status": "not_running"}
     stop_scan()
     return {"status": "stopping"}

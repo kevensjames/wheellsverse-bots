@@ -107,18 +107,34 @@ class Orchestrator:
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
 
-        # Look for a class named "Bot" or the only class that ends with "Bot"
+        # Look for a concrete Bot subclass — skip any class with "Base" in the name
         bot_class = None
+        candidates = []
         for attr_name in dir(mod):
             attr = getattr(mod, attr_name)
             if (isinstance(attr, type) and
+                    attr_name.endswith("Bot") and
+                    "Base" not in attr_name and
                     attr_name not in ("BaseBot", "ABC") and
-                    attr_name.endswith("Bot")):
-                bot_class = attr
-                break
+                    getattr(attr, "__module__", "") == mod.__name__):
+                candidates.append((attr_name, attr))
 
-        if bot_class is None:
+        if not candidates:
+            # Fallback: any Bot subclass defined in this module
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
+                if (isinstance(attr, type) and
+                        attr_name.endswith("Bot") and
+                        "Base" not in attr_name and
+                        attr_name not in ("BaseBot", "ABC")):
+                    candidates.append((attr_name, attr))
+                    break
+
+        if not candidates:
             raise ImportError(f"No Bot class found in {bot_py}")
+
+        # Prefer the most specific (deepest in MRO) concrete class
+        bot_class = max(candidates, key=lambda x: len(x[1].__mro__))[1]
 
         return bot_class()
 
