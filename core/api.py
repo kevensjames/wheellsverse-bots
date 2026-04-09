@@ -9829,6 +9829,51 @@ async def narai_autopilot_queue_mark_done(idx: int):
         return {"error": str(e)}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# VIDEO ENGINE API
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/video/engines")
+async def video_engines():
+    """Return which video engines are configured and available."""
+    from core.video_engine import get_available_engines
+    engines = get_available_engines()
+    return {
+        "engines": engines,
+        "runway_key_set":  bool(os.getenv("RUNWAYML_API_KEY", "")),
+        "pika_key_set":    bool(os.getenv("PIKA_API_KEY", "")),
+        "heygen_key_set":  bool(os.getenv("HEYGEN_API_KEY", "")),
+    }
+
+
+@app.post("/api/video/generate")
+async def video_generate(req: Request):
+    """Manually trigger video generation."""
+    body = await req.json()
+    prompt  = body.get("prompt", "")
+    style   = body.get("style", "anime")
+    platform = body.get("platform", "tiktok")
+    script  = body.get("script", "")
+    if not prompt:
+        return {"error": "prompt required"}
+    from core.video_engine import generate_video
+    result = generate_video(prompt=prompt, style=style, platform=platform, script=script)
+    return result
+
+
+@app.get("/api/video/list")
+async def video_list():
+    """List generated videos."""
+    from pathlib import Path as _P
+    video_dir = _P("outputs/videos")
+    if not video_dir.exists():
+        return {"videos": []}
+    files = sorted(video_dir.glob("*.mp4"), key=lambda f: f.stat().st_mtime, reverse=True)
+    return {"videos": [{"name": f.name, "size_mb": round(f.stat().st_size / 1_000_000, 2),
+                        "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat()}
+                       for f in files[:50]]}
+
+
 # ── NarAI Memory Manager API ─────────────────────────────────────────────────
 
 @app.get("/api/narai/memory/stats")

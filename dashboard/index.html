@@ -507,6 +507,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('autopilot')" id="nav-autopilot" style="background:linear-gradient(90deg,rgba(0,255,170,.15),transparent);border-left:2px solid #00ffaa;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#00ffaa;font-weight:700">Autopilot</span></div>
     <div class="nav-item" onclick="nav('marketintel')" id="nav-marketintel" style="background:linear-gradient(90deg,rgba(0,200,255,.15),transparent);border-left:2px solid #00c8ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔭</span><span style="color:#66d9ff;font-weight:700">Market Intel</span></div>
     <div class="nav-item" onclick="nav('qcreview')" id="nav-qcreview" style="background:linear-gradient(90deg,rgba(255,215,0,.12),transparent);border-left:2px solid #ffd700;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔬</span><span style="color:#ffd700;font-weight:700">QC Review</span></div>
+    <div class="nav-item" onclick="nav('video')" id="nav-video" style="background:linear-gradient(90deg,rgba(255,100,200,.12),transparent);border-left:2px solid #ff64c8;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎬</span><span style="color:#ff64c8;font-weight:700">Video Engine</span></div>
     <!-- Content -->
     <div class="nav-sec" style="color:rgba(255,85,136,.6);font-size:8px;letter-spacing:2.5px">CONTENT</div>
     <div class="nav-item" onclick="nav('publish')" id="nav-publish" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🚀</span><span>Publish</span></div>
@@ -3727,6 +3728,105 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ VIDEO ENGINE PAGE ═════════════════════════════════════════════════════ -->
+<div class="page" id="page-video">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🎬 AI Video Engine — Anime · Cinematic · Avatar</div>
+      <div class="sd">NarAI generates & posts videos via Pika Labs, Runway ML, HeyGen</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bsm" onclick="videoLoad()" style="background:rgba(255,100,200,.1);border:1px solid rgba(255,100,200,.3);color:#ff64c8">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Engine Status -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px">
+    <div class="card" style="text-align:center;border:1px solid rgba(255,100,200,.2)" id="ve-pika-card">
+      <div style="font-size:22px">🎨</div>
+      <div style="font-size:11px;font-weight:700;color:#ff64c8;margin:4px 0">Pika Labs</div>
+      <div style="font-size:9px;color:var(--text3)">Anime · Cartoon · 3D</div>
+      <div id="ve-pika-status" style="font-size:9px;margin-top:6px;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.05)">checking…</div>
+    </div>
+    <div class="card" style="text-align:center;border:1px solid rgba(100,200,255,.2)" id="ve-runway-card">
+      <div style="font-size:22px">🎥</div>
+      <div style="font-size:11px;font-weight:700;color:#64c8ff;margin:4px 0">Runway ML</div>
+      <div style="font-size:9px;color:var(--text3)">Cinematic · Realistic</div>
+      <div id="ve-runway-status" style="font-size:9px;margin-top:6px;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.05)">checking…</div>
+    </div>
+    <div class="card" style="text-align:center;border:1px solid rgba(255,200,0,.2)" id="ve-heygen-card">
+      <div style="font-size:22px">🤖</div>
+      <div style="font-size:11px;font-weight:700;color:#ffd700;margin:4px 0">HeyGen</div>
+      <div style="font-size:9px;color:var(--text3)">Avatar · Explainer</div>
+      <div id="ve-heygen-status" style="font-size:9px;margin-top:6px;padding:3px 8px;border-radius:8px;background:rgba(255,255,255,.05)">checking…</div>
+    </div>
+  </div>
+
+  <!-- Manual Generate -->
+  <div class="card" style="margin-bottom:16px">
+    <div style="font-size:11px;font-weight:700;color:#ff64c8;margin-bottom:12px">🎞️ Generate Video Manually</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:4px">Style</div>
+        <select id="ve-style" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:6px;padding:6px 10px;font-size:10px">
+          <option value="anime">🎌 Anime</option>
+          <option value="cartoon">🖍️ Cartoon</option>
+          <option value="3d">🎮 3D Animation</option>
+          <option value="cinematic" selected>🎬 Cinematic</option>
+          <option value="realistic">📷 Realistic</option>
+          <option value="watercolor">🎨 Watercolor</option>
+          <option value="talking_head">🗣️ Talking Head (HeyGen)</option>
+        </select>
+      </div>
+      <div>
+        <div style="font-size:9px;color:var(--text3);margin-bottom:4px">Platform</div>
+        <select id="ve-platform" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:6px;padding:6px 10px;font-size:10px">
+          <option value="tiktok">TikTok (9:16)</option>
+          <option value="instagram">Instagram Reels (9:16)</option>
+          <option value="youtube">YouTube Shorts (9:16)</option>
+          <option value="facebook">Facebook Video (16:9)</option>
+        </select>
+      </div>
+    </div>
+    <div style="margin-bottom:10px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:4px">Video Prompt</div>
+      <textarea id="ve-prompt" rows="3" placeholder="Describe what you want to see in the video…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:6px;padding:8px 10px;font-size:10px;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+    <div style="margin-bottom:12px">
+      <div style="font-size:9px;color:var(--text3);margin-bottom:4px">Script / Narration (optional — for HeyGen)</div>
+      <textarea id="ve-script" rows="2" placeholder="What NarAI should say in the video…" style="width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);border-radius:6px;padding:8px 10px;font-size:10px;resize:vertical;box-sizing:border-box"></textarea>
+    </div>
+    <button onclick="videoGenerate()" id="ve-gen-btn" style="background:linear-gradient(135deg,#ff64c8,#8844ff);color:#fff;border:none;border-radius:8px;padding:10px 20px;font-size:11px;font-weight:700;cursor:pointer;width:100%">🎬 Generate Video</button>
+    <div id="ve-gen-result" style="margin-top:10px;font-size:10px;display:none"></div>
+  </div>
+
+  <!-- Add API Keys -->
+  <div class="card" style="margin-bottom:16px;border:1px solid rgba(255,200,0,.15)">
+    <div style="font-size:11px;font-weight:700;color:#ffd700;margin-bottom:10px">🔑 Add API Keys (set in Railway env vars)</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:9px;color:var(--text3)">
+      <div style="padding:8px;background:rgba(255,255,255,.03);border-radius:6px">
+        <div style="color:#ff64c8;font-weight:700;margin-bottom:3px">PIKA_API_KEY</div>
+        <div>Get at: pika.art → Settings → API</div>
+        <div style="color:#00ff88;margin-top:2px">Free tier available ✓</div>
+      </div>
+      <div style="padding:8px;background:rgba(255,255,255,.03);border-radius:6px">
+        <div style="color:#64c8ff;font-weight:700;margin-bottom:3px">RUNWAYML_API_KEY</div>
+        <div>Get at: runwayml.com → Account → API</div>
+        <div style="color:#ffd700;margin-top:2px">~$15/mo starter</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Generated Videos -->
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-size:11px;font-weight:700;color:#ff64c8">📹 Generated Videos</div>
+      <button class="btn bsm" onclick="videoLoadList()" style="font-size:9px">🔄</button>
+    </div>
+    <div id="ve-video-list" style="font-size:10px;color:var(--text3)">Loading…</div>
+  </div>
+</div>
+
 <!-- ══ NARAI AUTOPILOT PAGE ══════════════════════════════════════════════════ -->
 <div class="page" id="page-autopilot">
   <div class="sh" style="margin-bottom:16px">
@@ -4033,7 +4133,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine'};
+const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -4087,6 +4187,7 @@ function nav(p){
   if(p==='autopilot') apLoad();
   if(p==='marketintel') miLoad();
   if(p==='qcreview') qcLoad();
+  if(p==='video') videoLoad();
 }
 setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n.toLocaleTimeString();},1000);
 
@@ -11473,6 +11574,81 @@ async function init(){
 }
 setInterval(refreshOV,9000);
 init();
+
+// ── Video Engine ──────────────────────────────────────────────────────────────
+async function videoLoad() {
+  try {
+    const r = await api('/api/video/engines');
+    const e = r.engines || {};
+    const setStatus = (id, ok, label) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = ok ? '✅ Connected' : '❌ No API Key';
+      el.style.background = ok ? 'rgba(0,255,136,.1)' : 'rgba(255,60,60,.1)';
+      el.style.color = ok ? '#00ff88' : '#ff6060';
+    };
+    setStatus('ve-pika-status',   e.pika,   'Pika Labs');
+    setStatus('ve-runway-status', e.runway, 'Runway ML');
+    setStatus('ve-heygen-status', e.heygen, 'HeyGen');
+  } catch(err) { toast('Video engine error: ' + err.message, 'error'); }
+  await videoLoadList();
+}
+
+async function videoGenerate() {
+  const prompt  = document.getElementById('ve-prompt').value.trim();
+  const style   = document.getElementById('ve-style').value;
+  const platform= document.getElementById('ve-platform').value;
+  const script  = document.getElementById('ve-script').value.trim();
+  if (!prompt) { toast('Enter a video prompt', 'error'); return; }
+
+  const btn = document.getElementById('ve-gen-btn');
+  const res = document.getElementById('ve-gen-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Generating… (this takes 2-5 min)';
+  res.style.display = 'none';
+
+  try {
+    const r = await api('/api/video/generate', 'POST', { prompt, style, platform, script });
+    res.style.display = 'block';
+    if (r.success) {
+      res.innerHTML = `<div style="color:#00ff88;padding:8px;background:rgba(0,255,136,.08);border-radius:6px">
+        ✅ Video generated via <strong>${r.source}</strong><br>
+        <a href="${r.video_url}" target="_blank" style="color:#00c8ff;word-break:break-all">${r.video_url}</a>
+        ${r.local_path ? `<br><span style="color:var(--text3);font-size:9px">Saved: ${r.local_path}</span>` : ''}
+      </div>`;
+      await videoLoadList();
+    } else {
+      res.innerHTML = `<div style="color:#ff6060;padding:8px;background:rgba(255,60,60,.08);border-radius:6px">❌ ${r.error}</div>`;
+    }
+  } catch(err) {
+    res.style.display = 'block';
+    res.innerHTML = `<div style="color:#ff6060;padding:8px;background:rgba(255,60,60,.08);border-radius:6px">❌ ${err.message}</div>`;
+  }
+  btn.disabled = false;
+  btn.textContent = '🎬 Generate Video';
+}
+
+async function videoLoadList() {
+  try {
+    const r = await api('/api/video/list');
+    const el = document.getElementById('ve-video-list');
+    if (!el) return;
+    const vids = r.videos || [];
+    if (!vids.length) {
+      el.innerHTML = '<div style="padding:12px;text-align:center;color:var(--text3)">No videos generated yet — NarAI will create them during her daily session</div>';
+      return;
+    }
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px">
+      ${vids.map(v => `
+        <div style="padding:10px;background:rgba(255,100,200,.06);border:1px solid rgba(255,100,200,.15);border-radius:8px">
+          <div style="font-size:18px;text-align:center;margin-bottom:6px">🎞️</div>
+          <div style="font-size:9px;font-weight:700;color:#ff64c8;word-break:break-all">${v.name}</div>
+          <div style="font-size:8px;color:var(--text3);margin-top:3px">${v.size_mb} MB</div>
+          <div style="font-size:8px;color:var(--text3)">${new Date(v.created).toLocaleString()}</div>
+        </div>`).join('')}
+    </div>`;
+  } catch(e) {}
+}
 </script>
 </body>
 </html>
