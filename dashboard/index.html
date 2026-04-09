@@ -3980,6 +3980,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <button class="btn bsm" onclick="apLoad()" style="background:rgba(0,255,170,.1);border:1px solid rgba(0,255,170,.25);color:#00ffaa">🔄 Refresh</button>
       <button id="ap-start-btn" class="btn bsm" onclick="apStart()" style="background:rgba(0,255,170,.15);border:1px solid rgba(0,255,170,.3);color:#00ffaa">▶ RUN NOW</button>
       <button id="ap-stop-btn" class="btn bsm" onclick="apStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
+      <button class="btn bsm" onclick="apReelsNow()" style="background:rgba(255,160,0,.15);border:1px solid rgba(255,160,0,.3);color:#ffa000" title="Generate 3 reels (AI Power + AI Comedy + AI Viral) for Instagram + Facebook now">🎬 REELS NOW</button>
     </div>
   </div>
 
@@ -11465,6 +11466,14 @@ async function apStop() {
     toast('Autopilot stopping…', 'success');
     await apLoad();
   } catch(e) { toast('Failed to stop: ' + e.message, 'error'); }
+}
+
+async function apReelsNow() {
+  try {
+    const r = await api('/api/narai-autopilot/reels?slot=all', 'POST', {});
+    if (r.error) throw new Error(r.error);
+    toast('🎬 Daily Reels started! (AI Power + AI Comedy + AI Viral → IG + FB)', 'success');
+  } catch(e) { toast('Reels failed: ' + e.message, 'error'); }
 }
 
 async function apLoadQueue() {

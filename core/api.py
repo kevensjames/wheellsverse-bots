@@ -90,7 +90,7 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  # NarAI autopilot — dashboard-only, protected by same-origin
                  "/api/narai-autopilot/status", "/api/narai-autopilot/start",
                  "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
-                 "/api/narai-autopilot/queue",
+                 "/api/narai-autopilot/queue", "/api/narai-autopilot/reels",
                  "/api/narai/memory/stats", "/api/narai/memory/search",
                  "/api/narai/memory/context",
                  # NEXORA platform — auth + public creator endpoints are their own auth
