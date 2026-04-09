@@ -81,18 +81,35 @@ class BotScheduler:
 
         s = schedule_str.strip().lower()
 
+        # Normalise shorthand: @every_2h → @every_2hours, @every_1h → @every_hour
+        import re as _re
+        _h = _re.match(r"^@every_(\d+)h$", s)
+        if _h:
+            n = int(_h.group(1))
+            s = "@every_hour" if n == 1 else f"@every_{n}hours"
+
         if s == "@every_5min":
             job = schedule.every(5).minutes.do(fn)
         elif s == "@every_10min":
             job = schedule.every(10).minutes.do(fn)
+        elif s == "@every_15min":
+            job = schedule.every(15).minutes.do(fn)
         elif s == "@every_30min":
             job = schedule.every(30).minutes.do(fn)
         elif s == "@every_hour":
             job = schedule.every().hour.do(fn)
         elif s == "@every_2hours":
             job = schedule.every(2).hours.do(fn)
+        elif s == "@every_3hours":
+            job = schedule.every(3).hours.do(fn)
+        elif s == "@every_4hours":
+            job = schedule.every(4).hours.do(fn)
         elif s == "@every_6hours":
             job = schedule.every(6).hours.do(fn)
+        elif s == "@every_8hours":
+            job = schedule.every(8).hours.do(fn)
+        elif s == "@every_12hours":
+            job = schedule.every(12).hours.do(fn)
         elif s.startswith("@daily"):
             parts = s.split()
             t = parts[1] if len(parts) > 1 else "09:00"

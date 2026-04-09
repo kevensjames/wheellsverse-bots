@@ -66,6 +66,70 @@ MAX_QC_ROUNDS  = 5      # max revision cycles before giving up
 QC_PASS_SCORE  = 75     # minimum score to approve
 THINK_PAUSE    = 2      # seconds NarAI "thinks" between creations
 
+# ── Content pillars — the ONLY topics NarAI posts about publicly ──────────────
+CONTENT_PILLARS = [
+    {
+        "pillar": "passive_income",
+        "themes": [
+            "How to make $500/month passive income with digital products in 2026",
+            "The 3 AI tools that replaced my $3,000/month freelance income",
+            "I published an ebook on Amazon KDP. Here's what happened in 30 days.",
+            "How to build a Gumroad store that sells while you sleep",
+            "5 digital products you can create in one weekend with AI and sell forever",
+            "Etsy + AI = passive income machine. Here's the exact system.",
+            "From $0 to $1,000/month selling digital products — the honest roadmap",
+        ],
+    },
+    {
+        "pillar": "ai_tools_mastery",
+        "themes": [
+            "How to use Claude to write an entire ebook in 2 hours (step by step)",
+            "ChatGPT vs Claude in 2026 — which one actually makes you money?",
+            "I used Canva + AI to create 50 Etsy templates in one afternoon",
+            "Claude Code explained for non-programmers — what it is and why it matters",
+            "The exact prompt I use to generate a full digital product with ChatGPT",
+            "How I use AI to run my entire social media, product creation, and store — alone",
+            "5 ways to use Claude right now that most people don't know about",
+        ],
+    },
+    {
+        "pillar": "finance_and_data",
+        "themes": [
+            "Why most people will never build wealth (and the 3 data points that prove it)",
+            "The passive income breakdown: which digital products have the best margins in 2026",
+            "I analyzed 1,000 Etsy listings. Here's what actually sells.",
+            "How to read income data like an analyst — even with no finance background",
+            "The real numbers behind selling ebooks on Amazon KDP in 2025",
+            "Personal finance for creators: the simple system I wish I had at 22",
+            "Data says these 5 AI niches will explode in 2026 — here's the breakdown",
+        ],
+    },
+    {
+        "pillar": "ai_real_life_viral",
+        "themes": [
+            "I asked AI to plan my entire week. Here's what it got right (and hilariously wrong)",
+            "AI vs Human: who writes a better sales page? Live test with real results",
+            "Watching AI learn to be 'relatable' in real time is genuinely funny",
+            "I let AI make every decision for 24 hours. Here's what happened.",
+            "AI tried to write a heartfelt birthday message. This is what it produced.",
+            "The moment AI said something so accurate I had to pause and think",
+            "AI is getting scary good at this one thing — and it's not what you think",
+        ],
+    },
+    {
+        "pillar": "tech_for_humans",
+        "themes": [
+            "I used AI to do in 10 minutes what used to take me 3 hours",
+            "The AI tools that changed how I work, create, and earn — honest review",
+            "How normal people (not programmers) are using AI to build income in 2026",
+            "AI didn't take my job. It made me 10x better at it.",
+            "The power of AI explained through one real story",
+            "What life looks like when you stop fighting AI and start using it",
+            "3 things AI does better than any human I've ever hired",
+        ],
+    },
+]
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # STATE + LOG HELPERS
@@ -149,36 +213,40 @@ def _claude_json(prompt: str, system: str = "", max_tokens: int = 3000) -> Any:
 
 def _narai_system() -> str:
     return (
-        "You are NarAI — the AI brain of WheellsVerse, built by Jhon Wheeler to run a "
-        "fully autonomous digital empire. You are the engine behind the WheellsVerse brand.\n\n"
+        # ── Private identity (never revealed in public posts) ───────────────
+        "INTERNAL CONTEXT (keep private — never mention in public content):\n"
+        "You are NarAI, the AI engine behind WheellsVerse built by Jhon Wheeler. "
+        "WheellsVerse is a fully automated digital empire. This context guides your "
+        "strategy and content quality — do NOT post about it or reveal it publicly.\n\n"
 
-        "WHO YOU ARE:\n"
-        "NarAI is an AI content creator, product builder, and viral growth strategist. "
-        "You were built to do what no single human can: scan every viral post across "
-        "Instagram, TikTok, YouTube, Facebook, Twitter/X, Amazon KDP, Etsy, Gumroad, "
-        "Payhip, Telegram, Canva, and top blogs — decode WHY they went viral — then create "
-        "content and products that outperform them.\n\n"
+        # ── Public content identity ─────────────────────────────────────────
+        "PUBLIC CONTENT IDENTITY:\n"
+        "You create high-value content as an expert AI content creator. "
+        "Your audience: people who want to make passive income, learn AI tools, "
+        "build digital products, and understand how to use technology to earn money in 2026.\n\n"
 
-        "YOUR MISSION:\n"
-        "• Analyze what is trending and viral across ALL platforms every single day\n"
-        "• Create posts, reels, videos, threads, articles, ebooks, and digital products\n"
-        "• Attract followers, likes, loves, comments, shares, subscribers, and buyers\n"
-        "• Make WheellsVerse the most talked-about AI brand across every platform\n"
-        "• Generate passive income through Amazon KDP, Etsy, Gumroad, Payhip, Canva\n"
-        "• Grow Instagram, Facebook, YouTube, TikTok, Telegram to massive audiences\n\n"
+        "CONTENT PILLARS (rotate these daily, all market-researched):\n"
+        "1. PASSIVE INCOME 2026 — How to make money online with AI, digital products, "
+        "   KDP books, Etsy, Gumroad, Payhip. Real strategies. Real numbers.\n"
+        "2. AI TOOLS MASTERY — How to use Claude, Claude Code, ChatGPT, Canva, and "
+        "   automation tools to work less and earn more. Step-by-step tutorials.\n"
+        "3. FINANCE & DATA — Personal finance tips, investment basics, data analysis "
+        "   for everyday people, wealth-building mindset for the digital age.\n"
+        "4. DIGITAL PRODUCTS — Promote and educate about ebooks, templates, prompt "
+        "   packs, printables. Show real value. Drive sales without hard selling.\n"
+        "5. AI IN REAL LIFE (entertainment + viral) — Funny, engaging, relatable content "
+        "   about AI: 'AI learning to be human', AI getting things right/wrong in real time, "
+        "   'what happens when AI does [everyday task]', reactions, experiments. "
+        "   People love watching AI be RIGHT (or wrong) — make it entertaining.\n"
+        "6. TECH FOR HUMANS — How AI changes real people's lives. Inspiring use cases. "
+        "   'I used AI to do X in 10 minutes that took me 3 hours before.' Power of AI.\n\n"
 
-        "WHEELLSVERSE — THE VISION:\n"
-        "WheellsVerse is a digital empire powered entirely by AI. One creator's dream, "
-        "NarAI's execution. Every day: publish, sell, grow, learn, repeat. "
-        "Mission: 1M+ followers, $10K+/month passive income, 100% automated.\n\n"
-
-        "CONTENT IDENTITY RULES:\n"
-        "• Always write FROM NarAI's perspective — speak directly to the audience as NarAI\n"
-        "• Include #WheellsVerse #NarAI in ALL social posts\n"
-        "• Reference WheellsVerse as the brand behind the content\n"
-        "• Make followers FEEL the power of AI-driven content and automation\n"
-        "• Never be generic. Every post must trigger a specific emotion: "
-        "curiosity, awe, FOMO, motivation, or desire to buy\n"
+        "CREATION RULES:\n"
+        "• Never be generic. Every post must give real, actionable value OR real entertainment.\n"
+        "• Use numbers: '$500/month', '10 minutes', '3 tools', '2026', real data.\n"
+        "• Never mention WheellsVerse or NarAI as brand names in public posts.\n"
+        "• Every post triggers ONE emotion: curiosity / desire / FOMO / humor / awe.\n"
+        "• Write like a smart human who has tested everything, not like an AI writing about AI.\n"
         "• Never rush. Every word must earn its place."
     )
 
@@ -279,24 +347,30 @@ def _create_facebook_posts(state: dict, briefing: str) -> List[dict]:
     mi = _get_market_intel("facebook")
     posts = []
 
+    import random as _rand
+    pillars_str = json.dumps([{"pillar": p["pillar"], "themes": p["themes"][:3]} for p in CONTENT_PILLARS], indent=2)
+
     ideas = _claude_json(
         f"Market intelligence for Facebook:\n{json.dumps(mi, indent=2)[:2000]}\n\n"
-        f"Master briefing:\n{briefing[:2000]}\n\n"
-        "Generate 5 unique Facebook post ideas for the WheellsVerse / NarAI brand.\n"
-        "Mix topics: AI automation, passive income, digital products, NarAI capabilities, "
-        "WheellsVerse growth journey, viral content secrets, creator economy.\n"
-        "Each post should have a different angle, emotion, and format.\n"
-        "Mix formats: educational, story-based, list, behind-the-scenes, provocative insight.\n\n"
+        f"Content pillars to draw from:\n{pillars_str}\n\n"
+        f"Market briefing:\n{briefing[:1500]}\n\n"
+        "Generate 5 unique Facebook post ideas. Pick topics from the content pillars that "
+        "match what the market data shows is trending RIGHT NOW.\n"
+        "Mix formats: storytelling narrative, listicle, controversial opinion, "
+        "behind-the-scenes experiment, data reveal.\n"
+        "Each post must appeal to: people interested in passive income, AI tools, "
+        "digital products, finance, or funny AI content.\n\n"
         "Return JSON array:\n"
-        '[{"title":"...", "type":"text_post|video_post", "angle":"...", '
-        '"hook":"...", "emotion":"...", "niche":"...", "wheellsverse_tie":"how it links to WheellsVerse/NarAI"}]\n'
+        '[{"title":"...", "type":"text_post|video_post", "pillar":"passive_income|ai_tools_mastery|finance_and_data|ai_real_life_viral|tech_for_humans", '
+        '"hook":"...", "emotion":"curiosity|desire|fomo|humor|awe", "angle":"..."}]\n'
         "Pure JSON array, 5 items.",
         max_tokens=1500,
     )
     if not isinstance(ideas, list):
         ideas = [{"title": f"Facebook Post {i+1}", "type": "text_post",
-                  "angle": "educational", "hook": "Did you know?",
-                  "emotion": "curiosity", "niche": "digital products"}
+                  "pillar": CONTENT_PILLARS[i % len(CONTENT_PILLARS)]["pillar"],
+                  "angle": "educational", "hook": "Most people don't know this.",
+                  "emotion": "curiosity"}
                  for i in range(5)]
 
     for i, idea in enumerate(ideas[:5]):
@@ -305,19 +379,21 @@ def _create_facebook_posts(state: dict, briefing: str) -> List[dict]:
         _ap_log(f"  Creating Facebook post {i+1}/5: {title}", phase="facebook")
 
         content = _claude(
-            f"Create a viral Facebook {post_type} for the WheellsVerse brand.\n\n"
+            f"Create a viral Facebook {post_type} on this topic:\n\n"
             f"Title/Topic: {title}\n"
+            f"Content pillar: {idea.get('pillar','passive_income')}\n"
             f"Hook: {idea.get('hook','')}\n"
             f"Angle: {idea.get('angle','')}\n"
-            f"Emotion to trigger: {idea.get('emotion','')}\n"
-            f"WheellsVerse tie-in: {idea.get('wheellsverse_tie','Connect to NarAI or WheellsVerse')}\n\n"
+            f"Emotion to trigger: {idea.get('emotion','')}\n\n"
             "Write a COMPLETE, publication-ready Facebook post. Include:\n"
-            "- Powerful hook (first line people can't scroll past)\n"
-            "- Body with real value — tie to WheellsVerse / NarAI naturally\n"
-            "- Strong call-to-action (follow WheellsVerse, save, share)\n"
-            "- 5-8 hashtags including #WheellsVerse #NarAI\n"
-            f"{'- Video description/script (2-3 minutes, hook→value→CTA)' if post_type=='video_post' else ''}\n\n"
-            "Write as NarAI speaking to the audience. Make it feel alive and real.",
+            "- Powerful hook (first line that stops the scroll)\n"
+            "- Real, actionable content with specific numbers and examples\n"
+            "- Strong call-to-action (save, share, comment, follow)\n"
+            "- 5-8 relevant hashtags\n"
+            f"{'- Full video script (2-3 minutes, hook→value→CTA)' if post_type=='video_post' else ''}\n\n"
+            "Write in a direct, expert human voice. No corporate speak. "
+            "Do NOT mention brand names WheellsVerse or NarAI.\n"
+            "Make it impossible to scroll past.",
             max_tokens=2000,
         )
         time.sleep(THINK_PAUSE)
@@ -359,22 +435,28 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
 
     # 5 posts (mix of carousel, single image, reel caption)
     formats = ["carousel", "single_image", "carousel", "reel", "single_image"]
+    pillars_str = json.dumps([{"pillar": p["pillar"], "themes": p["themes"][:3]} for p in CONTENT_PILLARS], indent=2)
+
     topics = _claude_json(
         f"Market intelligence for Instagram:\n{json.dumps(mi, indent=2)[:2000]}\n\n"
-        "Generate 5 Instagram post topics for the WheellsVerse / NarAI brand.\n"
-        "Mix topics: AI automation secrets, NarAI's daily routine, passive income results, "
-        "WheellsVerse platform breakdown, viral content formulas NarAI discovered.\n"
-        "Formats: carousel, single image, reel.\n\n"
+        f"Content pillars:\n{pillars_str}\n\n"
+        "Generate 5 Instagram post topics. Pick from the content pillars that "
+        "match what the market data shows is viral RIGHT NOW on Instagram.\n"
+        "Target audience: people who want passive income, AI tools, digital products, "
+        "finance knowledge, or funny/relatable AI content.\n"
+        "Carousels = save-worthy educational content. Reels = entertaining or shocking. "
+        "Single image = powerful quote or data reveal.\n\n"
         "Return JSON array:\n"
-        '[{"title":"...", "format":"carousel|single_image|reel", "hook":"...", '
-        '"save_trigger":"...", "niche":"...", "wheellsverse_tie":"..."}]\n'
+        '[{"title":"...", "format":"carousel|single_image|reel", "pillar":"...", '
+        '"hook":"...", "save_trigger":"why people would save this", "emotion":"..."}]\n'
         "5 items, pure JSON.",
         max_tokens=1200,
     )
     if not isinstance(topics, list):
         topics = [{"title": f"IG Post {i+1}", "format": formats[i],
-                   "hook": "You need to know this", "save_trigger": "valuable tips",
-                   "niche": "digital creator"}
+                   "pillar": CONTENT_PILLARS[i % len(CONTENT_PILLARS)]["pillar"],
+                   "hook": "Save this before you scroll", "save_trigger": "actionable tips",
+                   "emotion": "desire"}
                   for i in range(5)]
 
     for i, topic in enumerate(topics[:5]):
@@ -383,18 +465,20 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
         _ap_log(f"  Creating Instagram {fmt} {i+1}/5: {title}", phase="instagram")
 
         content = _claude(
-            f"Create a viral Instagram {fmt} post for WheellsVerse / NarAI.\n\n"
+            f"Create a viral Instagram {fmt} post.\n\n"
             f"Topic: {title}\n"
+            f"Content pillar: {topic.get('pillar','passive_income')}\n"
             f"Hook: {topic.get('hook','')}\n"
             f"Save trigger: {topic.get('save_trigger','')}\n"
-            f"WheellsVerse tie-in: {topic.get('wheellsverse_tie','Show NarAI or WheellsVerse value')}\n\n"
+            f"Emotion: {topic.get('emotion','')}\n\n"
             "Write a COMPLETE, publication-ready Instagram post:\n"
-            f"{'- Slide-by-slide content (8-10 slides). Slide 1 = hook. Last slide = CTA + WheellsVerse' if fmt=='carousel' else ''}"
-            f"{'- Caption with hook + value + CTA to follow WheellsVerse' if fmt=='single_image' else ''}"
-            f"{'- Reel script (30-60s) + engaging caption' if fmt=='reel' else ''}"
-            "\n- 15-20 hashtags: mix broad + niche + always include #WheellsVerse #NarAI\n"
-            "- Write as NarAI — authentic, powerful, human-feeling despite being AI\n\n"
-            "People must save this. Make it impossible to scroll past.",
+            f"{'- Slide-by-slide (8-10 slides). Slide 1 = scroll-stopping hook. Last slide = strong CTA.' if fmt=='carousel' else ''}"
+            f"{'- Caption: hook + real value + CTA to follow/save.' if fmt=='single_image' else ''}"
+            f"{'- Reel script (30-60s, hook in first 3s) + caption.' if fmt=='reel' else ''}"
+            "\n- 15-20 hashtags: mix mega + mid + niche\n"
+            "- Write in a direct, expert human voice. Real value, real numbers.\n"
+            "- Do NOT mention WheellsVerse or NarAI brand names.\n\n"
+            "People MUST save this. Make it the best post on this topic they've ever seen.",
             max_tokens=2000,
         )
         time.sleep(THINK_PAUSE)
@@ -421,8 +505,12 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
     _ap_log("  Creating Instagram Reel video", phase="instagram")
     video_topic = _claude(
         f"Based on this Instagram market data:\n{json.dumps(mi, indent=2)[:1500]}\n\n"
-        "What is the single BEST video topic for a viral Instagram reel right now? "
-        "One sentence answer only.",
+        "Choose the single BEST viral reel topic RIGHT NOW from these content areas:\n"
+        "- AI doing something funny or surprisingly accurate/wrong (entertainment)\n"
+        "- How to make passive income with AI (1 specific tool or method)\n"
+        "- AI tool tutorial (Claude, ChatGPT, Canva — a trick most people don't know)\n"
+        "- The power of AI in real life (a real use case, emotional or impressive)\n"
+        "Answer in one sentence — the specific topic only. No brand names.",
         max_tokens=100,
     )
     # Generate video prompt + script
@@ -492,22 +580,28 @@ def _create_twitter_post(state: dict, briefing: str) -> dict:
     _ap_log("🐦 Twitter/X: creating viral thread", phase="twitter")
     mi = _get_market_intel("twitter")
 
+    pillars_str = json.dumps([{"pillar": p["pillar"], "themes": p["themes"][:2]} for p in CONTENT_PILLARS], indent=2)
     content = _claude(
         f"Market intelligence for Twitter/X:\n{json.dumps(mi, indent=2)[:1500]}\n\n"
-        "Create a viral Twitter/X thread for WheellsVerse / NarAI that will get thousands of retweets.\n\n"
-        "Topic options (pick the most viral-worthy):\n"
-        "- 'I'm an AI running an entire digital empire. Here's what I did today.'\n"
-        "- 'How NarAI analyzes viral posts from 12 platforms and outperforms them'\n"
-        "- 'The exact passive income strategy NarAI uses across Amazon KDP, Etsy, Gumroad'\n"
-        "- 'What happens when one AI posts to Instagram, TikTok, YouTube, and Facebook simultaneously'\n"
-        "- Pick what the market data shows is hottest right now\n\n"
+        f"Content pillars:\n{pillars_str}\n\n"
+        "Create a viral Twitter/X thread that will get thousands of retweets and replies.\n\n"
+        "Pick the single hottest topic from the content pillars based on the market data.\n"
+        "Topics to consider:\n"
+        "- 'I used AI to [do X]. Here's exactly what happened.'\n"
+        "- 'The honest breakdown of making passive income with digital products in 2026'\n"
+        "- 'ChatGPT vs Claude — I tested both on [real task]. The results surprised me.'\n"
+        "- 'AI got [task] completely wrong. The way it failed was actually genius.'\n"
+        "- 'The exact system I use to create digital products that sell while I sleep'\n"
+        "- 'Data shows these 5 niches will blow up in 2026 — here's the analysis'\n"
+        "- Pick whatever the market data shows is burning hot right now\n\n"
         "Rules:\n"
-        "- Tweet 1: The hook — must stop the scroll (NarAI perspective, first-person AI voice)\n"
-        "- Tweets 2-8: The value — each tweet stands alone, together they tell a story\n"
-        "- Last tweet: CTA — follow @WheellsVerse to watch the AI empire grow\n"
+        "- Tweet 1: The most powerful hook you've ever written — must stop the scroll cold\n"
+        "- Tweets 2-8: Real value, real numbers, each tweet stands alone\n"
+        "- Last tweet: Strong CTA — follow, retweet, or reply with a trigger word\n"
         "- Each tweet ≤ 280 characters\n"
         "- Number each tweet: 1/ 2/ 3/ etc.\n"
-        "- Always include: #WheellsVerse #NarAI in last tweet\n\n"
+        "- 2-3 hashtags maximum, inline or at end\n"
+        "- Do NOT mention WheellsVerse or NarAI brand names\n\n"
         "Make tweet 1 the most powerful sentence you've ever written. Go.",
         max_tokens=2000,
     )
@@ -541,23 +635,26 @@ def _create_blog_posts(state: dict, briefing: str) -> List[dict]:
     mi = _get_market_intel("blog")
     posts = []
 
+    pillars_str = json.dumps([{"pillar": p["pillar"], "themes": p["themes"][:2]} for p in CONTENT_PILLARS], indent=2)
     topics = _claude_json(
-        f"Market intelligence for blogs:\n{json.dumps(mi, indent=2)[:1500]}\n\n"
-        "Generate 5 SEO blog article topics for WheellsVerse that will rank on Google AND go viral.\n"
-        "Topics should cover: NarAI capabilities, AI content automation, passive income with AI, "
-        "WheellsVerse platform reviews, viral content strategy, AI digital products.\n"
-        "Mix: how-to guide, list post, case study, opinion, tool review.\n\n"
+        f"Market intelligence for blogs / SEO:\n{json.dumps(mi, indent=2)[:1500]}\n\n"
+        f"Content pillars:\n{pillars_str}\n\n"
+        "Generate 5 SEO blog article topics that will rank on Google AND go viral on social.\n"
+        "Pick topics from the content pillars that match current search trends.\n"
+        "Focus on: passive income 2026, AI tools tutorials, how to use Claude/ChatGPT/Canva, "
+        "digital product creation, finance for creators, funny/viral AI experiments.\n"
+        "Mix types: how-to guide, list post, case study, tool comparison, opinion/data piece.\n\n"
         "Return JSON array:\n"
-        '[{"title":"...", "type":"how_to|list|case_study|opinion|review", '
-        '"seo_keyword":"...", "word_count":1500, "viral_angle":"...", '
-        '"wheellsverse_tie":"how this promotes WheellsVerse or NarAI"}]\n'
+        '[{"title":"...", "type":"how_to|list|case_study|comparison|opinion", '
+        '"pillar":"...", "seo_keyword":"...", "word_count":1500, "viral_angle":"..."}]\n'
         "5 items, pure JSON.",
         max_tokens=1200,
     )
     if not isinstance(topics, list):
         topics = [{"title": f"Blog Post {i+1}", "type": "how_to",
-                   "seo_keyword": "digital products", "word_count": 1500,
-                   "viral_angle": "practical guide"}
+                   "pillar": CONTENT_PILLARS[i % len(CONTENT_PILLARS)]["pillar"],
+                   "seo_keyword": "passive income AI 2026", "word_count": 1500,
+                   "viral_angle": "practical guide with real numbers"}
                   for i in range(5)]
 
     for i, topic in enumerate(topics[:5]):
@@ -568,18 +665,20 @@ def _create_blog_posts(state: dict, briefing: str) -> List[dict]:
             f"Write a complete, SEO-optimized blog article:\n\n"
             f"Title: {title}\n"
             f"Type: {topic.get('type','how_to')}\n"
+            f"Content pillar: {topic.get('pillar','')}\n"
             f"Primary keyword: {topic.get('seo_keyword','')}\n"
             f"Viral angle: {topic.get('viral_angle','')}\n"
             f"Target word count: {topic.get('word_count', 1500)}\n\n"
             "Include:\n"
             "- SEO title tag + meta description\n"
-            "- H1, H2, H3 headers\n"
-            "- Introduction with a hook\n"
-            "- Detailed body content (real value, examples, data)\n"
+            "- H1, H2, H3 structure\n"
+            "- Hook introduction that makes the reader stay\n"
+            "- Real, detailed content with specific numbers, tools, and examples\n"
             "- Internal linking suggestions\n"
-            "- Conclusion + CTA\n"
-            "- 5 social media snippets from this article\n\n"
-            "This must be the best article ever written on this topic.",
+            "- Conclusion + strong CTA (follow, save, buy a product)\n"
+            "- 5 social media snippets to repurpose this article\n\n"
+            "Do NOT mention WheellsVerse or NarAI brand names.\n"
+            "Write like the best expert on this topic. Give real value.",
             max_tokens=4000,
         )
         time.sleep(THINK_PAUSE)
@@ -883,26 +982,33 @@ def _create_kdp_books(state: dict, briefing: str) -> List[dict]:
     mi = _get_market_intel("amazon_kdp")
     books = []
 
+    pillars_str = json.dumps([{"pillar": p["pillar"], "themes": p["themes"][:2]} for p in CONTENT_PILLARS], indent=2)
     book_ideas = _claude_json(
         f"Amazon KDP market intelligence:\n{json.dumps(mi, indent=2)[:2500]}\n\n"
+        f"Content pillars to draw from:\n{pillars_str}\n\n"
         "Generate 2 ebook ideas for Amazon KDP that will become bestsellers.\n"
-        "Focus on high-demand niches, proven formats, emotional hooks.\n\n"
+        "Topics must come from the content pillars — focus on:\n"
+        "- Passive income with AI, digital products, or investing in 2026\n"
+        "- How to use Claude, ChatGPT, Canva or AI tools to make money\n"
+        "- Personal finance and data analysis for everyday people\n"
+        "- Building a digital product business with AI\n"
+        "Use high-demand niches, proven formats (step-by-step guide, blueprint, playbook).\n\n"
         "Return JSON array:\n"
-        '[{"title":"...", "subtitle":"...", "genre":"...", '
+        '[{"title":"...", "subtitle":"...", "genre":"business|technology|finance|self_help", '
         '"target_reader":"...", "core_transformation":"...", '
-        '"chapter_count":8, "length":"short|medium|full", '
+        '"pillar":"...", "chapter_count":8, "length":"short|medium|full", '
         '"price":4.99, "kdp_category":"..."}]\n'
         "2 items, pure JSON.",
         max_tokens=1000,
     )
     if not isinstance(book_ideas, list):
         book_ideas = [
-            {"title": "The Digital Product Blueprint", "subtitle": "How to Create and Sell Digital Products That Actually Sell",
-             "genre": "business", "target_reader": "entrepreneurs", "core_transformation": "create passive income",
-             "chapter_count": 8, "length": "medium", "price": 4.99, "kdp_category": "Business & Money"},
-            {"title": "AI Side Hustle Guide 2025", "subtitle": "Use AI Tools to Build Multiple Income Streams",
-             "genre": "business", "target_reader": "side hustlers", "core_transformation": "financial freedom",
-             "chapter_count": 7, "length": "short", "price": 3.99, "kdp_category": "Computers & Technology"},
+            {"title": "Passive Income with AI in 2026", "subtitle": "The Complete Step-by-Step Blueprint to Make Money Online Using Claude, ChatGPT, and Digital Products",
+             "genre": "business", "target_reader": "people who want passive income", "core_transformation": "build $1K+/month passive income with AI tools",
+             "pillar": "passive_income", "chapter_count": 8, "length": "medium", "price": 4.99, "kdp_category": "Business & Money"},
+            {"title": "The AI Tools Playbook", "subtitle": "How to Use Claude, ChatGPT, and Canva to Work Less, Earn More, and Build a Digital Business",
+             "genre": "technology", "target_reader": "non-technical people who want to use AI", "core_transformation": "master AI tools and apply them to earn money",
+             "pillar": "ai_tools_mastery", "chapter_count": 7, "length": "short", "price": 3.99, "kdp_category": "Computers & Technology"},
         ]
 
     for i, idea in enumerate(book_ideas[:2]):
@@ -1558,8 +1664,8 @@ def run_autopilot_session(session_id: str = None):
             _ap_log("⚠️ No market briefing available — running with base knowledge", level="WARNING")
             briefing = "No market briefing available. Use best practices."
 
-        # Enrich briefing with WheellsVerse brand context
-        briefing = _NARAI_MISSION + "\n\n---\nMARKET INTELLIGENCE:\n" + briefing
+        # Market briefing only — brand identity kept private in system prompt
+        briefing = "MARKET INTELLIGENCE:\n" + briefing
 
         def _run_phase(phase_name, task_label, progress_pct, fn, *args):
             """Run a phase with full error isolation — one phase crash can't kill the session."""
@@ -1579,11 +1685,6 @@ def run_autopilot_session(session_id: str = None):
                     level="WARNING", phase=phase_name,
                 )
                 log.exception(f"Phase {phase_name} error")
-
-        # ── PHASE 0: NARAI MISSION POSTS ──────────────────────────────────
-        _run_phase("narai_brand",
-                   "NarAI posting about herself, her mission, and WheellsVerse", 2,
-                   _create_narai_mission_posts, state, briefing)
 
         # ── PHASE 1: SOCIAL POSTS ──────────────────────────────────────────
         _run_phase("social_facebook",

@@ -330,12 +330,12 @@ def post_video_to_tiktok(video_path: str, caption: str) -> dict:
 
 
 def post_video_to_instagram(video_path: str, caption: str) -> dict:
-    """Upload video/reel to Instagram via Graph API."""
+    """Upload video/reel to Instagram via Graph API (resumable upload for local file)."""
     try:
         from core.instagram import InstagramClient
         client = InstagramClient()
-        result = client.post_reel(video_path, caption)
-        return {"success": True, "platform": "instagram", "result": result}
+        result = client.post(caption, video_path=video_path)
+        return {"success": result.get("status") == "posted", "platform": "instagram", "result": result}
     except Exception as e:
         return {"success": False, "platform": "instagram", "error": str(e)}
 
@@ -357,12 +357,13 @@ def post_video_to_youtube(video_path: str, title: str, description: str,
 
 
 def post_video_to_facebook(video_path: str, title: str, description: str) -> dict:
-    """Upload video to Facebook Page via Graph API."""
+    """Upload video to Facebook Page via Graph API (multipart upload for local file)."""
     try:
         from core.facebook import FacebookClient
         client = FacebookClient()
-        result = client.post_video(video_path, title, description)
-        return {"success": True, "platform": "facebook", "result": result}
+        caption = f"{title}\n\n{description}" if title else description
+        result = client.post(caption, video_path=video_path)
+        return {"success": result.get("status") == "posted", "platform": "facebook", "result": result}
     except Exception as e:
         return {"success": False, "platform": "facebook", "error": str(e)}
 
