@@ -496,6 +496,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('revenue2')" id="nav-revenue2" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📊</span><span>Revenue V2</span></div>
     <div class="nav-item" onclick="nav('adsboard')" id="nav-adsboard" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📢</span><span>Ads Board</span></div>
     <div class="nav-item" onclick="nav('kdpbooks')" id="nav-kdpbooks" style="background:linear-gradient(90deg,rgba(255,136,0,.12),transparent);border-left:2px solid #ff8800;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📚</span><span style="color:#ff9933;font-weight:700">Amazon KDP</span></div>
+    <div class="nav-item" onclick="nav('shopify')" id="nav-shopify" style="background:linear-gradient(90deg,rgba(150,191,71,.15),transparent);border-left:2px solid #96bf47;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🟢</span><span style="color:#96bf47;font-weight:700">Shopify</span></div>
     <div class="nav-item" onclick="nav('etsy')" id="nav-etsy" style="background:linear-gradient(90deg,rgba(245,90,45,.12),transparent);border-left:2px solid #f55a2d;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛍️</span><span style="color:#f98a6c;font-weight:700">Etsy</span></div>
     <div class="nav-item" onclick="nav('gumroad')" id="nav-gumroad" style="background:linear-gradient(90deg,rgba(255,144,0,.12),transparent);border-left:2px solid #ff9000;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛒</span><span style="color:#ffb347;font-weight:700">Gumroad</span></div>
     <div class="nav-item" onclick="nav('payhip')" id="nav-payhip" style="background:linear-gradient(90deg,rgba(0,200,150,.12),transparent);border-left:2px solid #00c896;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💳</span><span style="color:#00c896;font-weight:700">Payhip</span></div>
@@ -505,6 +506,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <!-- Intelligence -->
     <div class="nav-sec" style="color:rgba(0,200,255,.6);font-size:8px;letter-spacing:2.5px">INTELLIGENCE</div>
     <div class="nav-item" onclick="nav('autopilot')" id="nav-autopilot" style="background:linear-gradient(90deg,rgba(0,255,170,.15),transparent);border-left:2px solid #00ffaa;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#00ffaa;font-weight:700">Autopilot</span></div>
+    <div class="nav-item" onclick="nav('naraischedules')" id="nav-naraischedules" style="background:linear-gradient(90deg,rgba(136,68,255,.18),transparent);border-left:2px solid #cc88ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📅</span><span style="color:#cc88ff;font-weight:700">Schedules</span><span id="sched-nav-badge" style="margin-left:auto;font-size:8px;color:#cc88ff;background:rgba(136,68,255,.2);border-radius:10px;padding:1px 6px">—</span></div>
     <div class="nav-item" onclick="nav('marketintel')" id="nav-marketintel" style="background:linear-gradient(90deg,rgba(0,200,255,.15),transparent);border-left:2px solid #00c8ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔭</span><span style="color:#66d9ff;font-weight:700">Market Intel</span></div>
     <div class="nav-item" onclick="nav('qcreview')" id="nav-qcreview" style="background:linear-gradient(90deg,rgba(255,215,0,.12),transparent);border-left:2px solid #ffd700;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔬</span><span style="color:#ffd700;font-weight:700">QC Review</span></div>
     <div class="nav-item" onclick="nav('video')" id="nav-video" style="background:linear-gradient(90deg,rgba(255,100,200,.12),transparent);border-left:2px solid #ff64c8;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎬</span><span style="color:#ff64c8;font-weight:700">Video Engine</span></div>
@@ -4235,6 +4237,156 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ SHOPIFY AUTOPILOT PAGE ══════════════════════════════════════════════ -->
+<div class="page" id="page-shopify">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🟢 Shopify — Autonomous Revenue Store</div>
+      <div class="ss">NarAI creates digital products, POD items &amp; service packages on Shopify daily</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div id="sa-engine-badge" style="padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ IDLE</div>
+      <button class="btn bsm" onclick="saLoad()" style="background:rgba(150,191,71,.1);border:1px solid rgba(150,191,71,.3);color:#96bf47">🔄 Refresh</button>
+      <button id="sa-start-btn" class="btn bsm" onclick="saStart()" style="background:rgba(150,191,71,.15);border:1px solid rgba(150,191,71,.35);color:#96bf47">▶ RUN SESSION</button>
+      <button id="sa-stop-btn" class="btn bsm" onclick="saStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
+      <button class="btn bsm" onclick="saTrendScan()" style="background:rgba(0,204,255,.12);border:1px solid rgba(0,204,255,.3);color:#00ccff">🔭 Trend Scan</button>
+    </div>
+  </div>
+
+  <!-- Status + Progress -->
+  <div style="background:rgba(150,191,71,.06);border:1px solid rgba(150,191,71,.2);border-radius:12px;padding:14px;margin-bottom:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="font-size:11px;font-weight:700;color:#96bf47" id="sa-phase-label">Phase: Idle</span>
+      <span style="font-size:10px;color:var(--text3)" id="sa-session-id">—</span>
+    </div>
+    <div style="font-size:10px;color:var(--text2);margin-bottom:8px" id="sa-task-label">No session running</div>
+    <div style="background:rgba(0,0,0,.3);border-radius:6px;height:8px;overflow:hidden">
+      <div id="sa-progress-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#96bf47,#00ff88);transition:width .5s;border-radius:6px"></div>
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-top:4px;text-align:right" id="sa-progress-pct">0%</div>
+  </div>
+
+  <!-- Stats row -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:14px" id="sa-stats-row">
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:800;color:#96bf47" id="sa-stat-published">0</div>
+      <div style="font-size:9px;color:var(--text3)">Published</div>
+    </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:800;color:#00ccff" id="sa-stat-pod">0</div>
+      <div style="font-size:9px;color:var(--text3)">POD Items</div>
+    </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:800;color:#cc88ff" id="sa-stat-funnel">0</div>
+      <div style="font-size:9px;color:var(--text3)">Funnel Steps</div>
+    </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:800;color:#44ff88" id="sa-stat-revenue">$0</div>
+      <div style="font-size:9px;color:var(--text3)">Revenue Today</div>
+    </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px;text-align:center">
+      <div style="font-size:20px;font-weight:800;color:#ffa500" id="sa-stat-opps">0</div>
+      <div style="font-size:9px;color:var(--text3)">Opportunities</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div style="display:flex;gap:6px;margin-bottom:10px">
+    <button onclick="saTab('products')" id="sa-tab-products" class="sa-tab-btn"
+      style="padding:5px 14px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(150,191,71,.15);border:1px solid rgba(150,191,71,.4);color:#96bf47">
+      📦 Products
+    </button>
+    <button onclick="saTab('funnel')" id="sa-tab-funnel" class="sa-tab-btn"
+      style="padding:5px 14px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      🎯 Funnel
+    </button>
+    <button onclick="saTab('trends')" id="sa-tab-trends" class="sa-tab-btn"
+      style="padding:5px 14px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      🔭 Trends
+    </button>
+    <button onclick="saTab('perf')" id="sa-tab-perf" class="sa-tab-btn"
+      style="padding:5px 14px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      📊 Performance
+    </button>
+    <button onclick="saTab('log')" id="sa-tab-log" class="sa-tab-btn"
+      style="padding:5px 14px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      📋 Log
+    </button>
+  </div>
+
+  <!-- Tab content -->
+  <div id="sa-panel-products">
+    <div id="sa-products-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+      <div style="color:var(--text3);font-size:11px;padding:20px">Run a session to see products created today.</div>
+    </div>
+  </div>
+  <div id="sa-panel-funnel" style="display:none">
+    <div id="sa-funnel-content" style="font-size:11px;color:var(--text2)">No funnel built yet.</div>
+  </div>
+  <div id="sa-panel-trends" style="display:none">
+    <div id="sa-trends-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:8px"></div>
+  </div>
+  <div id="sa-panel-perf" style="display:none">
+    <div id="sa-perf-content" style="font-size:11px;color:var(--text2)">No performance data yet.</div>
+  </div>
+  <div id="sa-panel-log" style="display:none">
+    <div id="sa-log-list" style="font-family:'SF Mono',Consolas,monospace;font-size:9px;line-height:1.7;max-height:400px;overflow-y:auto;background:rgba(0,0,0,.3);border-radius:8px;padding:10px;color:var(--text2)"></div>
+  </div>
+</div>
+
+<!-- ══ NARAI SCHEDULES PAGE ═══════════════════════════════════════════════ -->
+<div class="page" id="page-naraischedules">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">📅 NarAI Schedules — Autonomous Task Manager</div>
+      <div class="ss">Every task NarAI runs daily — toggle, reschedule, or trigger manually</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div id="sched-stats-badge" style="padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(136,68,255,.15);color:#cc88ff;border:1px solid rgba(136,68,255,.3)">— schedules</div>
+      <button class="btn bsm" onclick="schedLoad()" style="background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.25);color:#cc88ff">🔄 Refresh</button>
+    </div>
+  </div>
+
+  <!-- Category filter tabs -->
+  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px" id="sched-cat-tabs">
+    <button class="sched-cat-btn sched-cat-active" onclick="schedFilter('all')" data-cat="all"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(136,68,255,.2);border:1px solid rgba(136,68,255,.5);color:#cc88ff">
+      All
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('products')" data-cat="products"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      🛍️ Products
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('social')" data-cat="social"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      📱 Social
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('video')" data-cat="video"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      🎬 Video
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('revenue')" data-cat="revenue"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      💰 Revenue
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('intelligence')" data-cat="intelligence"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      🔭 Intel
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('seo')" data-cat="seo"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      📈 SEO
+    </button>
+    <button class="sched-cat-btn" onclick="schedFilter('reporting')" data-cat="reporting"
+      style="padding:4px 14px;border-radius:20px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      📊 Reports
+    </button>
+  </div>
+
+  <!-- Schedule grid -->
+  <div id="sched-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px"></div>
+</div>
+
 </div></div></div>
 <!-- ══ ⌘K COMMAND BAR ═════════════════════════════════════════════════════ -->
 <div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)closeCmdBar()">
@@ -4277,7 +4429,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 const API='';
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar'};
+const TITLES={shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -4329,6 +4481,8 @@ function nav(p){
   if(p==='payhip') payhipLoad();
   if(p==='factory') factoryLoad();
   if(p==='autopilot') apLoad();
+  if(p==='naraischedules') schedLoad();
+  if(p==='shopify'){saLoad();saStartPoll();}else{saStopPoll();}
   if(p==='marketintel') miLoad();
   if(p==='qcreview') { qcLoad(); qcStartPoll(); } else { qcStopPoll(); }
   if(p==='video') videoLoad();
@@ -11551,6 +11705,378 @@ const MI_PLATFORM_COLORS = {
   facebook:'#1877f2',instagram:'#e1306c',twitter:'#1da1f2',tiktok:'#ff0050',telegram:'#0088cc',blog:'#ff9900',
   amazon_kdp:'#ff9900',gumroad:'#ff9000',etsy:'#f55a2d',payhip:'#00c896',canva:'#7d2ae8',amazon_products:'#ff9900'
 };
+
+// ══════════════════════════════════════════════════════════════════════════════
+// SHOPIFY AUTOPILOT MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+let _saCurrentTab = 'products';
+let _saPollTimer  = null;
+
+function saTab(tab) {
+  _saCurrentTab = tab;
+  ['products','funnel','trends','perf','log'].forEach(t => {
+    const panel = document.getElementById('sa-panel-' + t);
+    const btn   = document.getElementById('sa-tab-' + t);
+    if (panel) panel.style.display = t === tab ? '' : 'none';
+    if (btn) {
+      btn.style.background = t === tab ? 'rgba(150,191,71,.15)' : 'rgba(255,255,255,.05)';
+      btn.style.border     = t === tab ? '1px solid rgba(150,191,71,.4)' : '1px solid rgba(255,255,255,.12)';
+      btn.style.color      = t === tab ? '#96bf47' : 'var(--text2)';
+    }
+  });
+  if (tab === 'funnel')  saLoadFunnel();
+  if (tab === 'trends')  saLoadTrends();
+  if (tab === 'perf')    saLoadPerf();
+  if (tab === 'log')     saLoadLog();
+}
+
+function saSetBadge(running, phase) {
+  const badge = document.getElementById('sa-engine-badge');
+  if (!badge) return;
+  if (running) {
+    badge.textContent = '🟢 RUNNING — ' + (phase||'').toUpperCase();
+    badge.style.background = 'rgba(150,191,71,.2)';
+    badge.style.color = '#96bf47';
+  } else {
+    badge.textContent = '⚫ IDLE';
+    badge.style.background = 'rgba(100,100,100,.2)';
+    badge.style.color = 'var(--text3)';
+  }
+}
+
+async function saLoad() {
+  try {
+    const d = await api('/api/shopify-autopilot/status');
+    saSetBadge(d.running, d.phase);
+
+    const pl = document.getElementById('sa-phase-label');
+    if (pl) pl.textContent = 'Phase: ' + (d.phase||'idle');
+    const tl = document.getElementById('sa-task-label');
+    if (tl) tl.textContent = d.task || 'No session running';
+    const sid = document.getElementById('sa-session-id');
+    if (sid) sid.textContent = d.session_id ? 'Session: ' + d.session_id : '—';
+
+    const pb  = document.getElementById('sa-progress-bar');
+    const pct = document.getElementById('sa-progress-pct');
+    const p   = d.progress || 0;
+    if (pb)  pb.style.width = p + '%';
+    if (pct) pct.textContent = p + '%';
+
+    const s = d.stats || {};
+    const _sv = (id, v) => { const el = document.getElementById(id); if(el) el.textContent = v; };
+    _sv('sa-stat-published', s.products_published||0);
+    _sv('sa-stat-pod',       s.pod_created||0);
+    _sv('sa-stat-funnel',    s.funnel_steps_built||0);
+    _sv('sa-stat-revenue',   '$'+(s.revenue_today||0));
+    _sv('sa-stat-opps',      s.opportunities_found||0);
+
+    // Start/stop buttons
+    const startBtn = document.getElementById('sa-start-btn');
+    const stopBtn  = document.getElementById('sa-stop-btn');
+    if (startBtn) startBtn.style.display = d.running ? 'none' : '';
+    if (stopBtn)  stopBtn.style.display  = d.running ? '' : 'none';
+
+    // Load products tab if active
+    if (_saCurrentTab === 'products') saLoadProducts(d);
+  } catch(e) {
+    const tl = document.getElementById('sa-task-label');
+    if (tl) tl.textContent = 'API error: ' + e.message;
+  }
+}
+
+async function saLoadProducts(statusData) {
+  const grid = document.getElementById('sa-products-grid');
+  if (!grid) return;
+  try {
+    const d = statusData || await api('/api/shopify-autopilot/products');
+    const products = d.today_products || d.products || [];
+    if (!products.length) {
+      grid.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:20px">No products created in this session yet.</div>';
+      return;
+    }
+    const TYPE_COLORS = {
+      digital: {bg:'rgba(136,68,255,.12)',border:'rgba(136,68,255,.3)',text:'#cc88ff'},
+      pod:     {bg:'rgba(0,204,255,.12)', border:'rgba(0,204,255,.3)', text:'#00ccff'},
+      service: {bg:'rgba(255,160,0,.12)',  border:'rgba(255,160,0,.3)',  text:'#ffa500'},
+    };
+    grid.innerHTML = products.map(p => {
+      const col = TYPE_COLORS[p.type] || TYPE_COLORS.digital;
+      return `
+<div style="background:rgba(255,255,255,.03);border:1px solid ${col.border};border-radius:10px;padding:12px">
+  <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:4px">${esc(p.title||'Untitled')}</div>
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+    <span style="font-size:8px;padding:2px 8px;border-radius:10px;background:${col.bg};color:${col.text};border:1px solid ${col.border}">${p.type||'digital'}</span>
+    <span style="font-size:10px;font-weight:800;color:#44ff88">$${p.price||0}</span>
+  </div>
+  <div style="font-size:8px;color:var(--text3)">${p.published_at ? new Date(p.published_at).toLocaleTimeString() : ''}</div>
+  ${p.shopify_id ? `<div style="font-size:8px;color:var(--text3);margin-top:2px">Shopify ID: ${p.shopify_id}</div>` : ''}
+</div>`;
+    }).join('');
+  } catch(e) {
+    grid.innerHTML = `<div style="color:#ff6060;font-size:11px;padding:20px">Error: ${e.message}</div>`;
+  }
+}
+
+async function saLoadFunnel() {
+  const el = document.getElementById('sa-funnel-content');
+  if (!el) return;
+  try {
+    const d = await api('/api/shopify-autopilot/funnel');
+    const f = d.funnel;
+    if (!f) { el.innerHTML = '<div style="color:var(--text3);padding:20px">No funnel built yet — run a session first.</div>'; return; }
+    const steps = f.steps || [];
+    el.innerHTML = `
+<div style="font-size:11px;font-weight:700;color:#96bf47;margin-bottom:10px">
+  ${esc(f.niche||'AI + Money')} — ${steps.length}-Step Funnel
+</div>
+<div style="display:flex;flex-direction:column;gap:8px">
+${steps.map((s,i) => {
+  const prices = ['Free','$9','$29','$99','$19/mo'];
+  const colors = ['#44ff88','#00ccff','#cc88ff','#ffa500','#ff5588'];
+  return `
+<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;display:flex;gap:12px;align-items:center">
+  <div style="font-size:22px;font-weight:900;color:${colors[i]||'#fff'};min-width:30px">${prices[i]||'—'}</div>
+  <div>
+    <div style="font-size:10px;font-weight:700;color:var(--text1)">${esc(s.title||'Step '+(i+1))}</div>
+    <div style="font-size:9px;color:var(--text3);margin-top:2px">${esc(s.format||'')} ${s.shopify_product_id ? '· Shopify ✅' : '· Not created'}</div>
+  </div>
+</div>`;
+}).join('')}
+</div>`;
+  } catch(e) { el.innerHTML = `<div style="color:#ff6060">Error: ${e.message}</div>`; }
+}
+
+async function saLoadTrends() {
+  const grid = document.getElementById('sa-trends-grid');
+  if (!grid) return;
+  try {
+    const d = await api('/api/shopify-autopilot/trend-scan');
+    const opps = d.opportunities || [];
+    if (!opps.length) { grid.innerHTML = '<div style="color:var(--text3);padding:20px">No trends scanned yet.</div>'; return; }
+    grid.innerHTML = opps.map(o => `
+<div style="background:rgba(255,255,255,.03);border:1px solid rgba(0,204,255,.2);border-radius:10px;padding:12px">
+  <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+    <span style="font-size:9px;padding:2px 8px;border-radius:10px;background:rgba(0,204,255,.12);color:#00ccff;border:1px solid rgba(0,204,255,.3)">${o.product_type||'digital'}</span>
+    <span style="font-size:10px;font-weight:800;color:#ffa500">🔥 ${o.urgency_score||0}</span>
+  </div>
+  <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:4px">${esc(o.title_concept||'')}</div>
+  <div style="font-size:9px;color:var(--text3);margin-bottom:4px">${esc(o.viral_hook||'')}</div>
+  <div style="font-size:9px;color:#44ff88">$${o.price_floor||0} – $${o.price_ceiling||0}</div>
+  <div style="font-size:8px;color:var(--text3);margin-top:4px">${esc(o.why_now||'')}</div>
+</div>`).join('');
+  } catch(e) { grid.innerHTML = `<div style="color:#ff6060">Error: ${e.message}</div>`; }
+}
+
+async function saLoadPerf() {
+  const el = document.getElementById('sa-perf-content');
+  if (!el) return;
+  try {
+    const d = await api('/api/shopify-autopilot/performance');
+    const ins = d.insights || [];
+    if (!ins.length) { el.innerHTML = '<div style="color:var(--text3);padding:20px">No performance data yet.</div>'; return; }
+    const latest = ins[0];
+    const grade = latest.session_grade || '—';
+    const gradeCol = {A:'#44ff88',B:'#96bf47',C:'#ffa500',D:'#ff6060'}[grade] || '#fff';
+    el.innerHTML = `
+<div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:16px;margin-bottom:12px">
+  <div style="font-size:32px;font-weight:900;color:${gradeCol};margin-bottom:8px">Session Grade: ${grade}</div>
+  <div style="font-size:11px;color:var(--text2);margin-bottom:4px"><b>What Worked:</b></div>
+  <ul style="font-size:10px;color:var(--text2);margin:0 0 8px 14px">${(latest.what_worked||[]).map(w=>`<li>${esc(w)}</li>`).join('')}</ul>
+  <div style="font-size:11px;color:var(--text2);margin-bottom:4px"><b>Next Session Focus:</b></div>
+  <div style="font-size:10px;color:#96bf47">${esc(latest.next_session_focus||'')}</div>
+</div>`;
+  } catch(e) { el.innerHTML = `<div style="color:#ff6060">Error: ${e.message}</div>`; }
+}
+
+async function saLoadLog() {
+  const el = document.getElementById('sa-log-list');
+  if (!el) return;
+  try {
+    const d = await api('/api/shopify-autopilot/log?limit=80');
+    const logs = d.logs || [];
+    if (!logs.length) { el.textContent = 'No log entries yet.'; return; }
+    const levelColor = {INFO:'var(--text2)',WARNING:'#ffa500',ERROR:'#ff6060'};
+    el.innerHTML = logs.map(l => {
+      const col = levelColor[l.level] || 'var(--text2)';
+      const ts  = l.ts ? l.ts.slice(11,19) : '';
+      return `<div><span style="color:var(--text3)">${ts}</span> <span style="color:${col}">${esc(l.msg||'')}</span></div>`;
+    }).join('');
+  } catch(e) { el.textContent = 'Error: ' + e.message; }
+}
+
+async function saStart() {
+  try {
+    const d = await api('/api/shopify-autopilot/start','POST');
+    if (d.started) {
+      toast('🟢 Shopify Autopilot session started: ' + d.session_id, 'ok');
+      saStartPoll();
+    } else {
+      toast(d.reason || 'Could not start', 'error');
+    }
+  } catch(e) { toast('Start failed: '+e.message,'error'); }
+}
+
+async function saStop() {
+  try {
+    await api('/api/shopify-autopilot/stop','POST');
+    toast('⏹ Stop signal sent','info');
+    saStopPoll();
+    await saLoad();
+  } catch(e) { toast('Stop failed: '+e.message,'error'); }
+}
+
+async function saTrendScan() {
+  toast('🔭 Scanning for viral trends…','info');
+  saTab('trends');
+  await saLoadTrends();
+}
+
+function saStartPoll() {
+  saStopPoll();
+  _saPollTimer = setInterval(saLoad, 5000);
+}
+function saStopPoll() {
+  if (_saPollTimer) { clearInterval(_saPollTimer); _saPollTimer = null; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// NARAI SCHEDULES MODULE
+// ══════════════════════════════════════════════════════════════════════════════
+let _schedData = [];
+let _schedCatFilter = 'all';
+
+const SCHED_CAT_COLORS = {
+  products:    {bg:'rgba(136,68,255,.15)',  border:'rgba(136,68,255,.4)',  text:'#cc88ff'},
+  social:      {bg:'rgba(0,204,255,.12)',   border:'rgba(0,204,255,.35)',  text:'#00ccff'},
+  video:       {bg:'rgba(255,160,0,.12)',   border:'rgba(255,160,0,.35)',  text:'#ffa500'},
+  revenue:     {bg:'rgba(68,255,136,.12)',  border:'rgba(68,255,136,.35)', text:'#44ff88'},
+  intelligence:{bg:'rgba(0,200,255,.12)',   border:'rgba(0,200,255,.35)',  text:'#00c8ff'},
+  seo:         {bg:'rgba(255,204,68,.12)',  border:'rgba(255,204,68,.35)', text:'#ffcc44'},
+  reporting:   {bg:'rgba(255,85,136,.12)', border:'rgba(255,85,136,.35)', text:'#ff5588'},
+};
+
+function schedFilter(cat) {
+  _schedCatFilter = cat;
+  document.querySelectorAll('.sched-cat-btn').forEach(b => {
+    const active = b.dataset.cat === cat;
+    b.style.background = active ? 'rgba(136,68,255,.2)' : 'rgba(255,255,255,.05)';
+    b.style.border = active ? '1px solid rgba(136,68,255,.5)' : '1px solid rgba(255,255,255,.12)';
+    b.style.color = active ? '#cc88ff' : 'var(--text2)';
+  });
+  schedRender();
+}
+
+function schedRender() {
+  const grid = document.getElementById('sched-grid');
+  if (!grid) return;
+  const filtered = _schedCatFilter === 'all'
+    ? _schedData
+    : _schedData.filter(s => s.category === _schedCatFilter);
+
+  if (!filtered.length) {
+    grid.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px">No schedules found.</div>';
+    return;
+  }
+
+  grid.innerHTML = filtered.map(s => {
+    const col     = SCHED_CAT_COLORS[s.category] || SCHED_CAT_COLORS.reporting;
+    const enabled = s.enabled !== false;
+    const lastRun = s.last_run ? new Date(s.last_run).toLocaleString() : 'Never';
+    const nextRun = s.next_run ? new Date(s.next_run).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : '—';
+    const nextDate = s.next_run ? new Date(s.next_run).toLocaleDateString() : '';
+    const statusCol = s.last_status === 'success' ? '#44ff88'
+                    : s.last_status === 'running'  ? '#00ccff'
+                    : s.last_status === 'never'    ? 'var(--text3)'
+                    : '#ff6060';
+    const freqLabel = s.frequency === 'weekly' ? `Weekly ${s.day||''} ${s.time||''}`
+                    : s.frequency === 'every_30min' ? 'Every 30 min'
+                    : `Daily ${s.time||''}`;
+
+    return `
+<div class="sched-card" style="background:rgba(255,255,255,.03);border:1px solid ${enabled ? col.border : 'rgba(255,255,255,.08)'};border-radius:12px;padding:14px;transition:all .2s;opacity:${enabled ? '1' : '.5'}">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+    <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:0">
+      <span style="font-size:18px">${s.icon||'⏰'}</span>
+      <div style="min-width:0">
+        <div style="font-size:11px;font-weight:700;color:var(--text1);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(s.name)}</div>
+        <div style="font-size:9px;color:${col.text};margin-top:1px">${freqLabel}</div>
+      </div>
+    </div>
+    <!-- Toggle switch -->
+    <div onclick="schedToggle('${s.id}', ${!enabled})"
+      style="width:36px;height:20px;border-radius:10px;background:${enabled ? col.bg : 'rgba(255,255,255,.06)'};border:1px solid ${enabled ? col.border : 'rgba(255,255,255,.15)'};cursor:pointer;position:relative;flex-shrink:0;transition:all .2s" title="${enabled ? 'Disable' : 'Enable'}">
+      <div style="width:14px;height:14px;border-radius:50%;background:${enabled ? col.text : 'var(--text3)'};position:absolute;top:2px;left:${enabled ? '19px' : '2px'};transition:left .2s"></div>
+    </div>
+  </div>
+
+  <div style="font-size:9px;color:var(--text3);line-height:1.5;margin-bottom:10px">${esc(s.description)}</div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px">
+    <div style="background:rgba(0,0,0,.2);border-radius:7px;padding:6px">
+      <div style="font-size:8px;color:var(--text3);margin-bottom:2px">NEXT RUN</div>
+      <div style="font-size:10px;font-weight:700;color:${enabled ? col.text : 'var(--text3)'}">${nextRun}</div>
+      <div style="font-size:8px;color:var(--text3)">${nextDate}</div>
+    </div>
+    <div style="background:rgba(0,0,0,.2);border-radius:7px;padding:6px">
+      <div style="font-size:8px;color:var(--text3);margin-bottom:2px">LAST RUN</div>
+      <div style="font-size:10px;font-weight:700;color:${statusCol}">${s.last_status||'never'}</div>
+      <div style="font-size:8px;color:var(--text3)">${lastRun}</div>
+    </div>
+  </div>
+
+  <div style="display:flex;gap:5px">
+    <button onclick="schedTrigger('${s.id}','${esc(s.name)}')"
+      style="flex:1;padding:5px 8px;border-radius:7px;background:${col.bg};border:1px solid ${col.border};color:${col.text};font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .2s"
+      title="Trigger now">
+      ▶ Run Now
+    </button>
+    <span style="padding:5px 8px;border-radius:7px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:var(--text3);font-size:8px;display:flex;align-items:center">
+      ${s.run_count||0}× ran
+    </span>
+  </div>
+</div>`;
+  }).join('');
+}
+
+async function schedLoad() {
+  try {
+    const data = await api('/api/narai/schedules');
+    _schedData = data.schedules || [];
+    const stats = data.stats || {};
+
+    // Update badge
+    const badge = document.getElementById('sched-stats-badge');
+    if (badge) badge.textContent = `${stats.enabled||0} active · ${stats.ran_today||0} ran today`;
+
+    const navBadge = document.getElementById('sched-nav-badge');
+    if (navBadge) navBadge.textContent = `${stats.enabled||0}`;
+
+    schedRender();
+  } catch(e) {
+    const grid = document.getElementById('sched-grid');
+    if (grid) grid.innerHTML = `<div style="color:#ff6060;font-size:11px;padding:20px">Failed to load schedules: ${e.message}</div>`;
+  }
+}
+
+async function schedToggle(id, enable) {
+  try {
+    await api(`/api/narai/schedules/${id}`, 'PATCH', {enabled: enable});
+    toast(`Schedule ${enable ? 'enabled' : 'disabled'}`, 'info');
+    await schedLoad();
+  } catch(e) {
+    toast(`Failed: ${e.message}`, 'error');
+  }
+}
+
+async function schedTrigger(id, name) {
+  try {
+    await api(`/api/narai/schedules/${id}/trigger`, 'POST');
+    toast(`▶ Triggered: ${name}`, 'ok');
+    setTimeout(schedLoad, 2000);
+  } catch(e) {
+    toast(`Trigger failed: ${e.message}`, 'error');
+  }
+}
 
 async function miLoad() {
   try {

@@ -480,8 +480,13 @@ async def _lifespan(application: FastAPI):
                     session_id = start_autopilot_background()
                     _add_log(f"🤖 NarAI Autopilot daily session started: {session_id}", "INFO")
                     try:
+                        from core.narai_scheduler import mark_ran
+                        mark_ran("narai_autopilot", "running")
+                    except Exception:
+                        pass
+                    try:
                         from core.telegram import notify
-                        notify("🤖 <b>NarAI Autopilot Started</b>\nDaily creation session beginning — social posts, products, KDP books incoming…")
+                        notify("🤖 <b>NarAI Autopilot Started</b>\nDaily creation session beginning — social posts, 2 products per platform + Instagram & Facebook promotion incoming…")
                     except Exception:
                         pass
                 except Exception as _eAP:
@@ -526,6 +531,32 @@ async def _lifespan(application: FastAPI):
             _add_log(f"Daily Reels schedule failed: {_e}", "WARNING")
 
         _add_log("All background startup tasks complete", "INFO")
+
+        # ── Master schedule runner — calls run_pending() every 30 seconds ────
+        # All schedule jobs registered above (NarAI autopilot, reels, blast,
+        # inbox, pipelines, market intel, WhatsApp, Telegram) share the same
+        # global `schedule` module. This single loop drives ALL of them.
+        try:
+            import schedule as _master_sched
+            import time as _master_time
+
+            def _master_schedule_loop():
+                _add_log("🕐 Master schedule loop started — all NarAI tasks now active", "INFO")
+                while True:
+                    try:
+                        _master_sched.run_pending()
+                    except Exception as _loop_err:
+                        _add_log(f"Schedule loop error: {_loop_err}", "WARNING")
+                    _master_time.sleep(30)
+
+            _ls_th.Thread(
+                target=_master_schedule_loop,
+                daemon=True,
+                name="narai-master-scheduler",
+            ).start()
+            _add_log("Master schedule loop running (30s tick)", "INFO")
+        except Exception as _e:
+            _add_log(f"Master schedule loop failed to start: {_e}", "ERROR")
 
     # Launch background init — DO NOT block here
     _ls_th.Thread(target=_lifespan_bg, daemon=True, name="lifespan-bg").start()
@@ -604,7 +635,8 @@ async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""
     if _API_KEY:
         path = request.url.path
-        _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/")
+        _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
+                             "/api/shopify-autopilot/", "/api/narai/schedules")
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -10654,3 +10686,368 @@ def launch(port: int = 5050, preload: bool = True):
         log_level="warning",
         reload=False,
     )
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SHOPIFY INTEGRATION
+# ─────────────────────────────────────────────────────────────────────────────
+# OAuth:    GET  /api/shopify/oauth-url?shop=mystore.myshopify.com
+#           GET  /api/shopify/callback?code=...&shop=...&hmac=...
+# Status:   GET  /api/shopify/status
+# Products: GET  /api/shopify/products
+#           POST /api/shopify/products
+# Orders:   GET  /api/shopify/orders
+# Webhooks: POST /api/shopify/webhook
+# Publish:  POST /api/shopify/publish-narai-product
+# ═════════════════════════════════════════════════════════════════════════════
+
+_PUBLIC_PATHS.add("/api/shopify/oauth-url")
+_PUBLIC_PATHS.add("/api/shopify/callback")
+_PUBLIC_PATHS.add("/api/shopify/webhook")
+
+
+@app.get("/api/shopify/oauth-url")
+async def shopify_oauth_url(shop: str = Query(..., description="mystore.myshopify.com")):
+    """
+    Step 1 of OAuth. Returns the Shopify authorization URL.
+    Redirect the user's browser to the returned URL.
+    """
+    from core.shopify_client import get_oauth_url
+    url = get_oauth_url(shop)
+    return {"oauth_url": url, "shop": shop}
+
+
+@app.get("/api/shopify/callback")
+async def shopify_oauth_callback(
+    code:  str = Query(...),
+    shop:  str = Query(...),
+    hmac:  str = Query(""),
+    state: str = Query(""),
+):
+    """
+    Step 2 of OAuth. Shopify redirects here after the user approves.
+    Exchanges the code for a permanent access token and registers webhooks.
+    """
+    from core.shopify_client import exchange_code_for_token, register_webhooks
+    import os
+
+    result = exchange_code_for_token(shop, code)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error", "OAuth failed"))
+
+    # Register all webhooks automatically after connecting
+    base_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+    webhooks = register_webhooks(base_url)
+    registered = sum(1 for w in webhooks if w["registered"])
+
+    logger.info(f"Shopify connected: {shop} — {registered}/{len(webhooks)} webhooks registered")
+
+    return HTMLResponse(f"""
+    <html><body style="font-family:sans-serif;text-align:center;padding:60px;background:#0d0d1a;color:#fff">
+    <h1 style="color:#00e5b0">✅ Shopify Connected!</h1>
+    <p><strong>{shop}</strong> is now linked to WheellsVerse.</p>
+    <p style="color:#888">{registered}/{len(webhooks)} webhooks registered</p>
+    <p><a href="/" style="color:#00e5b0">← Back to Dashboard</a></p>
+    </body></html>
+    """)
+
+
+@app.get("/api/shopify/status")
+async def shopify_status():
+    """Return Shopify connection + store summary."""
+    from core.shopify_client import get_status
+    return get_status()
+
+
+@app.get("/api/shopify/products")
+async def shopify_list_products(limit: int = Query(50), status: str = Query("active")):
+    """List all products in the Shopify store."""
+    from core.shopify_client import list_products
+    products = list_products(limit=limit, status=status)
+    return {"products": products, "count": len(products)}
+
+
+@app.post("/api/shopify/products")
+async def shopify_create_product(request: Request):
+    """
+    Manually create a Shopify product.
+    Body: {title, description, price, tags[], product_type}
+    """
+    from core.shopify_client import create_product
+    body = await request.json()
+    result = create_product(
+        title=body.get("title", ""),
+        description=body.get("description", ""),
+        price=float(body.get("price", 0)),
+        product_type=body.get("product_type", "Digital"),
+        tags=body.get("tags", []),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@app.get("/api/shopify/orders")
+async def shopify_list_orders(limit: int = Query(50), status: str = Query("any")):
+    """List orders and revenue summary."""
+    from core.shopify_client import list_orders, get_orders_summary
+    summary = get_orders_summary()
+    orders  = list_orders(limit=limit, status=status)
+    return {"summary": summary, "orders": orders}
+
+
+@app.post("/api/shopify/webhook")
+async def shopify_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Receive Shopify webhook events.
+    Topics handled: orders/create, orders/paid, products/create, app/uninstalled.
+    """
+    import os
+    from core.shopify_client import _add_log
+
+    payload   = await request.body()
+    hmac_hdr  = request.headers.get("X-Shopify-Hmac-Sha256", "")
+    topic     = request.headers.get("X-Shopify-Topic", "")
+    shop_hdr  = request.headers.get("X-Shopify-Shop-Domain", "")
+
+    # Verify HMAC
+    if hmac_hdr:
+        from core.shopify_client import verify_webhook_hmac
+        if not verify_webhook_hmac(payload, hmac_hdr):
+            logger.warning(f"Shopify webhook HMAC mismatch — topic={topic}")
+            raise HTTPException(status_code=401, detail="Invalid HMAC")
+
+    try:
+        data = json.loads(payload)
+    except Exception:
+        data = {}
+
+    logger.info(f"Shopify webhook: {topic} from {shop_hdr}")
+    _add_log(f"Webhook received: {topic} from {shop_hdr}")
+
+    def _handle():
+        try:
+            if topic == "orders/paid":
+                order_id  = data.get("id")
+                total     = data.get("total_price")
+                customer  = data.get("customer", {}).get("email", "")
+                _add_log(f"💰 Order paid: #{order_id} ${total} — {customer}")
+
+            elif topic == "orders/create":
+                order_id = data.get("id")
+                _add_log(f"🛒 New order created: #{order_id}")
+
+            elif topic == "products/create":
+                product_id = data.get("id")
+                title      = data.get("title", "")
+                _add_log(f"📦 Product created: '{title}' (ID {product_id})")
+
+            elif topic == "app/uninstalled":
+                # Clear token on uninstall
+                from core.shopify_client import TOKEN_FILE
+                if TOKEN_FILE.exists():
+                    TOKEN_FILE.unlink()
+                _add_log("⚠️ Shopify app uninstalled — token cleared", "WARNING")
+
+        except Exception as e:
+            _add_log(f"Webhook handler error ({topic}): {e}", "ERROR")
+
+    background_tasks.add_task(_handle)
+    return {"status": "ok"}
+
+
+@app.post("/api/shopify/publish-narai-product")
+async def shopify_publish_narai_product(request: Request):
+    """
+    Publish a NarAI product package to Shopify.
+    Body: the full product package JSON from build_complete_product_package()
+          or pass {"package_path": "/path/to/package.json"} to load from disk.
+    """
+    from core.shopify_client import publish_narai_product, is_connected
+
+    if not is_connected():
+        raise HTTPException(
+            status_code=400,
+            detail="Shopify not connected. Visit /api/shopify/oauth-url?shop=yourstore.myshopify.com to connect.",
+        )
+
+    body = await request.json()
+
+    # Load from disk if package_path provided
+    if "package_path" in body and not body.get("title"):
+        pkg_path = Path(body["package_path"])
+        if not pkg_path.exists():
+            raise HTTPException(status_code=404, detail=f"Package not found: {pkg_path}")
+        body = json.loads(pkg_path.read_text())
+
+    result = publish_narai_product(body)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@app.post("/api/shopify/discount")
+async def shopify_create_discount(request: Request):
+    """
+    Create a discount code.
+    Body: {title, code, percent_off?, amount_off?, usage_limit?, ends_at?}
+    """
+    from core.shopify_client import create_discount_code
+    body = await request.json()
+    result = create_discount_code(
+        title=body.get("title", "Discount"),
+        code=body.get("code", ""),
+        percent_off=float(body.get("percent_off", 0)),
+        amount_off=float(body.get("amount_off", 0)),
+        usage_limit=int(body.get("usage_limit", 100)),
+        ends_at=body.get("ends_at", ""),
+    )
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("error"))
+    return result
+
+
+@app.post("/api/shopify/register-webhooks")
+async def shopify_register_webhooks():
+    """Re-register all Shopify webhooks (call after changing server URL)."""
+    from core.shopify_client import register_webhooks, is_connected
+    if not is_connected():
+        raise HTTPException(status_code=400, detail="Shopify not connected")
+    import os
+    base_url = os.getenv("RAILWAY_PUBLIC_URL", "").rstrip("/")
+    results  = register_webhooks(base_url)
+    return {"webhooks": results, "registered": sum(1 for w in results if w["registered"])}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SHOPIFY AUTOPILOT ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+_PUBLIC_PATHS.add("/api/shopify-autopilot/status")
+_PUBLIC_PATHS.add("/api/shopify-autopilot/log")
+
+
+@app.get("/api/shopify-autopilot/status")
+async def shopify_autopilot_status():
+    """Current Shopify autopilot state — phase, progress, stats."""
+    from core.narai_shopify_autopilot import get_shopify_autopilot_status
+    return get_shopify_autopilot_status()
+
+
+@app.post("/api/shopify-autopilot/start")
+async def shopify_autopilot_start():
+    """Start a Shopify autopilot session in the background."""
+    from core.narai_shopify_autopilot import start_shopify_autopilot_background
+    return start_shopify_autopilot_background()
+
+
+@app.post("/api/shopify-autopilot/stop")
+async def shopify_autopilot_stop():
+    """Signal the Shopify autopilot to stop after the current phase."""
+    from core.narai_shopify_autopilot import stop_shopify_autopilot
+    return stop_shopify_autopilot()
+
+
+@app.get("/api/shopify-autopilot/log")
+async def shopify_autopilot_log(limit: int = 100):
+    """Recent Shopify autopilot log entries (newest first)."""
+    from core.narai_shopify_autopilot import get_shopify_autopilot_logs
+    return {"logs": get_shopify_autopilot_logs(limit=limit)}
+
+
+@app.get("/api/shopify-autopilot/products")
+async def shopify_autopilot_products():
+    """Products created in the current/last Shopify autopilot session."""
+    from core.narai_shopify_autopilot import _sa_load
+    state = _sa_load()
+    return {
+        "products":    state.get("today_products", []),
+        "total":       len(state.get("today_products", [])),
+        "session_id":  state.get("session_id"),
+    }
+
+
+@app.get("/api/shopify-autopilot/funnel")
+async def shopify_autopilot_funnel():
+    """The active 5-step monetization funnel built by the autopilot."""
+    from core.funnel_builder import get_active_funnel
+    funnel = get_active_funnel()
+    if not funnel:
+        return {"funnel": None, "message": "No funnel built yet — run a session first"}
+    return {"funnel": funnel}
+
+
+@app.get("/api/shopify-autopilot/performance")
+async def shopify_autopilot_performance():
+    """Performance insights and learning from recent sessions."""
+    from pathlib import Path
+    import json
+    learning_file = Path(__file__).parent.parent / "data" / "shopify_learning.json"
+    if not learning_file.exists():
+        return {"insights": [], "message": "No performance data yet"}
+    try:
+        insights = json.loads(learning_file.read_text())
+        return {"insights": insights[:10]}
+    except Exception:
+        return {"insights": [], "error": "Failed to read learning file"}
+
+
+@app.post("/api/shopify-autopilot/trend-scan")
+async def shopify_autopilot_trend_scan():
+    """Trigger an immediate viral trend scan and return opportunities."""
+    from core.viral_trend_engine import run_trend_scan
+    opportunities = run_trend_scan(refresh=True)
+    return {
+        "opportunities": opportunities,
+        "count":         len(opportunities),
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NARAI SCHEDULE ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+_PUBLIC_PATHS.add("/api/narai/schedules")
+
+
+@app.get("/api/narai/schedules")
+async def narai_get_schedules():
+    """List all NarAI scheduled tasks with status, next run, last run."""
+    from core.narai_scheduler import get_schedules, get_schedule_stats
+    return {
+        "schedules": get_schedules(),
+        "stats":     get_schedule_stats(),
+    }
+
+
+@app.patch("/api/narai/schedules/{schedule_id}")
+async def narai_update_schedule(schedule_id: str, request: Request):
+    """
+    Enable/disable a schedule or change its run time.
+    Body: {enabled?: bool, time?: "HH:MM"}
+    """
+    from core.narai_scheduler import update_schedule
+    body    = await request.json()
+    enabled = body.get("enabled")
+    t       = body.get("time")
+    result  = update_schedule(schedule_id, enabled=enabled, time=t)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Schedule not found: {schedule_id}")
+    return result
+
+
+@app.post("/api/narai/schedules/{schedule_id}/trigger")
+async def narai_trigger_schedule(schedule_id: str):
+    """Manually trigger a schedule right now (runs in background)."""
+    from core.narai_scheduler import trigger_schedule
+    result = trigger_schedule(schedule_id)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message"))
+    return result
+
+
+@app.get("/api/narai/schedules/stats")
+async def narai_schedule_stats():
+    """Quick summary stats for the schedule dashboard."""
+    from core.narai_scheduler import get_schedule_stats
+    return get_schedule_stats()

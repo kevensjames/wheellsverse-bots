@@ -990,6 +990,8 @@ def _create_platform_products(
         if published:
             state["stats"]["products_published"] = state["stats"].get("products_published", 0) + 1
             _ap_log(f"  📤 Published to {platform}: '{prod['title']}'", phase=platform)
+            # ── Auto-promote on Instagram + Facebook ──────────────────────────
+            _promote_product_on_social(prod, platform, state)
         else:
             # Queue full package for manual upload
             _queue_for_manual(
@@ -1006,6 +1008,116 @@ def _create_platform_products(
         phase=platform,
     )
     return products
+
+
+def _promote_product_on_social(product: dict, platform: str, state: dict):
+    """
+    Auto-promote a newly published product on Instagram and Facebook.
+    Creates:
+      - 1 Instagram promotional post (benefit-led, CTA)
+      - 1 Instagram Reel script (60-second product walkthrough)
+      - 1 Facebook promotional post (longer, story-driven)
+      - 1 Facebook video/Reel post
+    """
+    title  = product.get("title", "")
+    price  = product.get("price", 0)
+    niche  = product.get("niche", "")
+    ptype  = product.get("type", product.get("product_type", "digital product"))
+    mkt    = product.get("marketing", {})
+
+    _ap_log(f"  📣 Promoting '{title}' on Instagram + Facebook…", phase="promote")
+
+    # ── Generate promotion copy ────────────────────────────────────────────────
+    promo_prompt = (
+        f"Write social media promotion for this newly published digital product.\n\n"
+        f"PRODUCT: {title}\n"
+        f"TYPE: {ptype}\n"
+        f"NICHE: {niche}\n"
+        f"PRICE: ${price}\n"
+        f"MARKETING ANGLES: {json.dumps(mkt, default=str)[:500]}\n\n"
+        f"Return JSON with these exact keys:\n"
+        f"{{\n"
+        f'  "ig_post": "Instagram caption (hook first line, 3-5 sentences, 5 hashtags, CTA to bio link)",\n'
+        f'  "ig_reel_script": "60-second Reel script (hook 0-3s, value 3-45s, CTA 45-60s). Include [VISUAL] cues.",\n'
+        f'  "fb_post": "Facebook post (longer, story-driven, 150-250 words, ends with question to drive comments)",\n'
+        f'  "fb_video_script": "60-second Facebook video script — same structure as reel but warmer tone",\n'
+        f'  "promo_headline": "one-line hook under 10 words"\n'
+        f"}}"
+    )
+
+    try:
+        promo = _claude_json(promo_prompt, max_tokens=3000)
+    except Exception as e:
+        _ap_log(f"  Promo copy generation failed: {e}", level="WARNING", phase="promote")
+        return
+
+    if not isinstance(promo, dict):
+        _ap_log("  Promo copy returned invalid format", level="WARNING", phase="promote")
+        return
+
+    ig_post         = promo.get("ig_post", "")
+    ig_reel_script  = promo.get("ig_reel_script", "")
+    fb_post         = promo.get("fb_post", "")
+    fb_video_script = promo.get("fb_video_script", "")
+
+    # ── Post Instagram promotional post ───────────────────────────────────────
+    if ig_post:
+        ok = _publish_instagram(ig_post, f"Promo: {title}", "single_image")
+        _ap_log(
+            f"  {'✅' if ok else '⚠️'} Instagram promo post {'sent' if ok else 'queued'}: {title[:40]}",
+            phase="promote",
+        )
+
+    # ── Post Instagram Reel (video script — queued for video engine) ───────────
+    if ig_reel_script:
+        _queue_for_manual("instagram_reel", f"Product Reel: {title}", ig_reel_script, "video_script")
+        try:
+            from core.video_engine import generate_video, post_video_to_instagram
+            _ap_log(f"  🎬 Generating product Reel for '{title}'…", phase="promote")
+            vid = generate_video(
+                script=ig_reel_script,
+                platform="instagram",
+                style="cinematic",
+                duration=60,
+            )
+            if vid and vid.get("video_url"):
+                post_video_to_instagram(vid["video_url"], caption=ig_post or ig_reel_script[:200])
+                _ap_log(f"  ✅ Instagram Reel posted for '{title}'", phase="promote")
+        except Exception as ve:
+            _ap_log(f"  Reel generation skipped: {ve}", level="WARNING", phase="promote")
+
+    # ── Post Facebook promotional post ────────────────────────────────────────
+    if fb_post:
+        ok = _publish_facebook(fb_post, f"Promo: {title}", "text_post")
+        _ap_log(
+            f"  {'✅' if ok else '⚠️'} Facebook promo post {'sent' if ok else 'queued'}: {title[:40]}",
+            phase="promote",
+        )
+
+    # ── Post Facebook video/Reel ──────────────────────────────────────────────
+    if fb_video_script:
+        _queue_for_manual("facebook_video", f"Product Video: {title}", fb_video_script, "video_script")
+        try:
+            from core.video_engine import generate_video
+            from core.facebook import FacebookClient
+            _ap_log(f"  🎬 Generating product video for Facebook: '{title}'…", phase="promote")
+            vid = generate_video(
+                script=fb_video_script,
+                platform="facebook",
+                style="cinematic",
+                duration=60,
+            )
+            if vid and vid.get("video_url"):
+                fb = FacebookClient()
+                fb.post_video(vid["video_url"], description=fb_post or fb_video_script[:300])
+                _ap_log(f"  ✅ Facebook video posted for '{title}'", phase="promote")
+        except Exception as ve:
+            _ap_log(f"  Facebook video skipped: {ve}", level="WARNING", phase="promote")
+
+    state["stats"]["posts_created"]   = state["stats"].get("posts_created", 0) + 2
+    state["stats"]["posts_published"] = state["stats"].get("posts_published", 0) + (
+        1 if ig_post else 0
+    ) + (1 if fb_post else 0)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1596,35 +1708,84 @@ def _publish_blog(content: str, title: str) -> bool:
 
 
 def _publish_product(product: dict, platform: str) -> bool:
+    """
+    Publish a NarAI product to its target platform.
+    Handles: gumroad, shopify, etsy, payhip.
+    Product dict is the full package from _create_platform_products().
+    """
     title   = product.get("title", "")
-    content = product.get("content", "")
+    content = product.get("content", "") or product.get("listing_content", "")
     price   = product.get("price", 9.99)
 
-    # Extract description from content
-    desc = content[:2000]
-
     try:
+        # ── Gumroad ───────────────────────────────────────────────────────────
         if platform == "gumroad":
             import urllib.request, urllib.parse
             token = os.getenv("GUMROAD_ACCESS_TOKEN", "")
             if not token:
+                _ap_log(f"  Gumroad: no token — queuing '{title}'", phase="gumroad")
                 _queue_for_manual(platform, title, content)
                 return False
-            price_cents = int(float(price) * 100)
-            data = urllib.parse.urlencode({
-                "name": title, "description": desc,
-                "price": price_cents, "published": "true",
-            }).encode()
-            req = urllib.request.Request(
+
+            # Use pre-built upload data if available (from Gumroad engine)
+            upload_data = product.get("gumroad_upload_data", {})
+            description = upload_data.get("description") or content
+            tags        = upload_data.get("tags", [])
+            price_cents = upload_data.get("price") or int(float(price) * 100)
+
+            fields = {
+                "name":        title,
+                "description": description[:20000],
+                "price":       str(price_cents),
+                "published":   "true",
+            }
+            if tags:
+                fields["tags"] = ",".join(tags[:10])
+
+            data = urllib.parse.urlencode(fields).encode()
+            req  = urllib.request.Request(
                 "https://api.gumroad.com/v2/products",
                 data=data,
-                headers={"Authorization": f"Bearer {token}",
-                         "Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
             )
-            with urllib.request.urlopen(req, timeout=15) as r:
+            with urllib.request.urlopen(req, timeout=20) as r:
                 resp = json.loads(r.read())
-                return resp.get("success", False)
 
+            if resp.get("success"):
+                gumroad_id = resp.get("product", {}).get("id", "")
+                _ap_log(f"  ✅ Gumroad published: '{title}' (ID {gumroad_id})", phase="gumroad")
+                return True
+            else:
+                _ap_log(f"  ⚠️ Gumroad API error: {resp}", level="WARNING", phase="gumroad")
+                _queue_for_manual(platform, title, content)
+                return False
+
+        # ── Shopify ───────────────────────────────────────────────────────────
+        elif platform == "shopify":
+            try:
+                from core.shopify_client import publish_narai_product, is_connected
+                if not is_connected():
+                    _ap_log("  Shopify: not connected — queuing for manual upload", phase="shopify")
+                    _queue_for_manual(platform, title, content)
+                    return False
+                result = publish_narai_product(product)
+                if result.get("success"):
+                    url = result.get("product_url", "")
+                    _ap_log(f"  ✅ Shopify published: '{title}' → {url}", phase="shopify")
+                    return True
+                else:
+                    _ap_log(f"  ⚠️ Shopify publish failed: {result.get('error')}", level="WARNING", phase="shopify")
+                    _queue_for_manual(platform, title, content)
+                    return False
+            except Exception as se:
+                _ap_log(f"  Shopify publish error: {se}", level="WARNING", phase="shopify")
+                _queue_for_manual(platform, title, content)
+                return False
+
+        # ── Etsy / Payhip (manual queue — no full API yet) ────────────────────
         elif platform in ("etsy", "payhip"):
             _queue_for_manual(platform, title, content)
             return False
@@ -1744,22 +1905,42 @@ def run_autopilot_session(session_id: str = None):
                    "Creating AI videos (anime, cinematic) for TikTok, YouTube, Facebook", 52,
                    _create_videos, state, briefing)
 
-        # ── PHASE 2: DIGITAL PRODUCTS ──────────────────────────────────────
+        # ── PHASE 2: DIGITAL PRODUCTS (2 per platform, all published + promoted) ─
         _run_phase("products_gumroad",
-                   "Creating 3 Gumroad products (publishing best 2)", 58,
-                   _create_platform_products, "gumroad", 3, 2, state, briefing)
+                   "Creating 2 Gumroad products + promoting on Instagram & Facebook", 58,
+                   _create_platform_products, "gumroad", 2, 2, state, briefing)
 
         _run_phase("products_etsy",
-                   "Creating 3 Etsy listings (publishing best 2)", 70,
-                   _create_platform_products, "etsy", 3, 2, state, briefing)
+                   "Creating 2 Etsy listings + promoting on Instagram & Facebook", 70,
+                   _create_platform_products, "etsy", 2, 2, state, briefing)
 
         _run_phase("products_payhip",
-                   "Creating 3 Payhip products (publishing best 2)", 80,
-                   _create_platform_products, "payhip", 3, 2, state, briefing)
+                   "Creating 2 Payhip products + promoting on Instagram & Facebook", 80,
+                   _create_platform_products, "payhip", 2, 2, state, briefing)
+
+        # ── PHASE 2.5: SHOPIFY AUTOPILOT ───────────────────────────────────
+        state["phase"]    = "shopify"
+        state["task"]     = "NarAI is building Shopify products…"
+        state["progress"] = 84
+        _ap_save(state)
+        try:
+            from core.narai_shopify_autopilot import run_shopify_session
+            shopify_result = run_shopify_session()
+            shopify_stats  = shopify_result.get("stats", {})
+            state["stats"]["products_published"] = (
+                state["stats"].get("products_published", 0)
+                + shopify_stats.get("products_published", 0)
+            )
+            _ap_log(
+                f"Shopify autopilot: {shopify_stats.get('products_published', 0)} products published",
+                phase="shopify",
+            )
+        except Exception as se:
+            _ap_log(f"Shopify autopilot error: {se}", level="WARNING", phase="shopify")
 
         # ── PHASE 3: KDP BOOKS ─────────────────────────────────────────────
         _run_phase("kdp_books",
-                   "Writing 2 Amazon KDP ebooks", 88,
+                   "Writing 2 Amazon KDP ebooks", 92,
                    _create_kdp_books, state, briefing)
 
         # ── DONE ───────────────────────────────────────────────────────────
