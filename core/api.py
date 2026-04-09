@@ -9762,7 +9762,7 @@ async def narai_autopilot_status():
 
 
 @app.post("/api/narai-autopilot/start")
-async def narai_autopilot_start(req: dict = {}):
+async def narai_autopilot_start():
     """
     Manually trigger NarAI's autopilot session.
     (Normally runs automatically at 01:30 daily.)
