@@ -35,16 +35,16 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 log = logging.getLogger("shopify_client")
 
-ROOT     = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 TOKEN_FILE = DATA_DIR / "shopify_token.json"
-LOG_FILE   = DATA_DIR / "shopify_log.json"
+LOG_FILE = DATA_DIR / "shopify_log.json"
 
 API_VERSION = "2026-04"   # matches your Shopify dashboard setting
 
@@ -101,7 +101,7 @@ def get_credentials() -> tuple[str, str, str]:
     Priority: env vars (direct token) → saved OAuth token file.
     """
     # Direct token from .env (custom app flow — no OAuth needed)
-    env_shop  = os.getenv("SHOPIFY_STORE", "")
+    env_shop = os.getenv("SHOPIFY_STORE", "")
     env_token = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
     if env_shop and env_token:
         return env_shop, env_token, os.getenv("SHOPIFY_API_KEY", "")
@@ -129,16 +129,16 @@ def get_oauth_url(shop: str, state: str = "") -> str:
     Build the Shopify OAuth authorization URL.
     Redirect the user (browser) to this URL to start the install flow.
     """
-    api_key    = os.getenv("SHOPIFY_API_KEY", "")
-    base_url   = os.getenv("RAILWAY_PUBLIC_URL", "http://localhost:5050").rstrip("/")
-    redirect   = f"{base_url}/api/shopify/callback"
-    nonce      = state or str(int(time.time()))
+    api_key = os.getenv("SHOPIFY_API_KEY", "")
+    base_url = os.getenv("RAILWAY_PUBLIC_URL", "http://localhost:5050").rstrip("/")
+    redirect = f"{base_url}/api/shopify/callback"
+    nonce = state or str(int(time.time()))
 
     params = urllib.parse.urlencode({
-        "client_id":    api_key,
-        "scope":        SCOPES,
+        "client_id": api_key,
+        "scope": SCOPES,
         "redirect_uri": redirect,
-        "state":        nonce,
+        "state": nonce,
     })
     shop = shop.rstrip("/")
     if not shop.endswith(".myshopify.com"):
@@ -153,16 +153,16 @@ def exchange_code_for_token(shop: str, code: str) -> dict:
     Called from the /api/shopify/callback endpoint.
     Returns {success, access_token, shop, scope} or {success:False, error}.
     """
-    api_key    = os.getenv("SHOPIFY_API_KEY", "")
+    api_key = os.getenv("SHOPIFY_API_KEY", "")
     api_secret = os.getenv("SHOPIFY_API_SECRET", "")
 
     if not shop.endswith(".myshopify.com"):
         shop = f"{shop}.myshopify.com"
 
     body = json.dumps({
-        "client_id":     api_key,
+        "client_id": api_key,
         "client_secret": api_secret,
-        "code":          code,
+        "code": code,
     }).encode()
 
     try:
@@ -174,18 +174,18 @@ def exchange_code_for_token(shop: str, code: str) -> dict:
         with urllib.request.urlopen(req, timeout=15) as r:
             data = json.loads(r.read())
 
-        token  = data.get("access_token", "")
-        scope  = data.get("scope", "")
+        token = data.get("access_token", "")
+        scope = data.get("scope", "")
 
         if not token:
             return {"success": False, "error": f"No token in response: {data}"}
 
         _save_token({
-            "shop":         shop,
+            "shop": shop,
             "access_token": token,
-            "scope":        scope,
+            "scope": scope,
             "connected_at": _now(),
-            "api_key":      api_key,
+            "api_key": api_key,
         })
         _add_log(f"✅ OAuth complete — connected to {shop}")
         return {"success": True, "access_token": token, "shop": shop, "scope": scope}
@@ -218,9 +218,9 @@ def _api(
     Returns parsed JSON response or {error: ...}.
     """
     if not shop or not token:
-        creds = _load_token()
-        shop  = shop  or creds.get("shop", "")
-        token = token or creds.get("access_token", "")
+        shop_env, token_env, _ = get_credentials()
+        shop = shop or shop_env
+        token = token or token_env
 
     if not shop or not token:
         return {"error": "Shopify not connected — complete OAuth first"}
@@ -232,7 +232,7 @@ def _api(
     }
 
     data = json.dumps(body).encode() if body else None
-    req  = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
+    req = urllib.request.Request(url, data=data, headers=headers, method=method.upper())
 
     try:
         with urllib.request.urlopen(req, timeout=30) as r:
@@ -268,18 +268,18 @@ def create_product(
     """
     payload = {
         "product": {
-            "title":        title,
-            "body_html":    description,
-            "vendor":       vendor,
+            "title": title,
+            "body_html": description,
+            "vendor": vendor,
             "product_type": product_type,
-            "tags":         ", ".join(tags or []),
-            "status":       "active",
+            "tags": ", ".join(tags or []),
+            "status": "active",
             "variants": [{
-                "price":               f"{price:.2f}",
-                "requires_shipping":   requires_shipping,
+                "price": f"{price:.2f}",
+                "requires_shipping": requires_shipping,
                 "fulfillment_service": "manual",
                 "inventory_management": None,
-                "inventory_policy":    "continue",   # never out of stock (digital)
+                "inventory_policy": "continue",   # never out of stock (digital)
             }],
         }
     }
@@ -293,19 +293,19 @@ def create_product(
         return {"success": False, "error": result["error"]}
 
     product = result.get("product", {})
-    pid     = product.get("id")
-    handle  = product.get("handle", "")
+    pid = product.get("id")
+    handle = product.get("handle", "")
     shop, *_ = get_credentials()
-    url     = f"https://{shop}/products/{handle}" if shop and handle else ""
+    url = f"https://{shop}/products/{handle}" if shop and handle else ""
 
     _add_log(f"✅ Product created: '{title}' (ID {pid}) @ ${price}")
     return {
-        "success":    True,
+        "success": True,
         "product_id": pid,
         "product_url": url,
-        "handle":     handle,
-        "admin_url":  f"https://{shop}/admin/products/{pid}",
-        "product":    product,
+        "handle": handle,
+        "admin_url": f"https://{shop}/admin/products/{pid}",
+        "product": product,
     }
 
 
@@ -362,15 +362,13 @@ def upload_digital_file(file_path: str, filename: str = "") -> dict:
 
     Note: Shopify Files API uses GraphQL. Requires write_files scope.
     """
-    import base64
 
     path = Path(file_path)
     if not path.exists():
         return {"success": False, "error": f"File not found: {file_path}"}
 
-    fname    = filename or path.name
-    encoded  = base64.b64encode(path.read_bytes()).decode()
-    mime     = "application/pdf" if fname.endswith(".pdf") else "application/octet-stream"
+    fname = filename or path.name
+    mime = "application/pdf" if fname.endswith(".pdf") else "application/octet-stream"
 
     shop, token, _ = get_credentials()
     if not shop or not token:
@@ -395,10 +393,10 @@ def upload_digital_file(file_path: str, filename: str = "") -> dict:
         """,
         "variables": {
             "input": [{
-                "filename":   fname,
-                "mimeType":   mime,
-                "resource":   "FILE",
-                "fileSize":   str(path.stat().st_size),
+                "filename": fname,
+                "mimeType": mime,
+                "resource": "FILE",
+                "fileSize": str(path.stat().st_size),
                 "httpMethod": "POST",
             }]
         }
@@ -421,13 +419,12 @@ def upload_digital_file(file_path: str, filename: str = "") -> dict:
         if not targets:
             return {"success": False, "error": f"Stage failed: {stage_data}"}
 
-        target      = targets[0]
-        upload_url  = target["url"]
-        params      = {p["name"]: p["value"] for p in target["parameters"]}
+        target = targets[0]
+        upload_url = target["url"]
+        params = {p["name"]: p["value"] for p in target["parameters"]}
         resource_url = target["resourceUrl"]
 
         # Upload the actual file
-        import io
         boundary = "----WheellsVerseBoundary"
         body_parts = []
         for key, val in params.items():
@@ -464,7 +461,7 @@ def upload_digital_file(file_path: str, filename: str = "") -> dict:
             "variables": {
                 "files": [{
                     "originalSource": resource_url,
-                    "contentType":    "FILE",
+                    "contentType": "FILE",
                 }]
             }
         }
@@ -482,7 +479,7 @@ def upload_digital_file(file_path: str, filename: str = "") -> dict:
             .get("files", [])
         )
         file_url = files[0].get("url", resource_url) if files else resource_url
-        file_id  = files[0].get("id", "") if files else ""
+        file_id = files[0].get("id", "") if files else ""
 
         _add_log(f"✅ Digital file uploaded: {fname}")
         return {"success": True, "file_url": file_url, "file_id": file_id, "filename": fname}
@@ -500,9 +497,9 @@ def attach_download_to_product(variant_id: int, file_url: str, filename: str) ->
     payload = {
         "metafield": {
             "namespace": "digital_downloads",
-            "key":       "download_url",
-            "value":     file_url,
-            "type":      "url",
+            "key": "download_url",
+            "value": file_url,
+            "type": "url",
         }
     }
     result = _api("POST", f"variants/{variant_id}/metafields.json", payload)
@@ -532,14 +529,14 @@ def get_order(order_id: int) -> dict:
 def get_orders_summary(days: int = 30) -> dict:
     """Return revenue summary for the last N days."""
     orders = list_orders(limit=250, status="any")
-    total  = sum(float(o.get("total_price", 0)) for o in orders)
-    paid   = [o for o in orders if o.get("financial_status") == "paid"]
+    total = sum(float(o.get("total_price", 0)) for o in orders)
+    paid = [o for o in orders if o.get("financial_status") == "paid"]
     return {
-        "total_orders":  len(orders),
-        "paid_orders":   len(paid),
+        "total_orders": len(orders),
+        "paid_orders": len(paid),
         "total_revenue": round(total, 2),
-        "currency":      orders[0].get("currency", "USD") if orders else "USD",
-        "recent":        orders[:10],
+        "currency": orders[0].get("currency", "USD") if orders else "USD",
+        "recent": orders[:10],
     }
 
 
@@ -589,19 +586,19 @@ def create_discount_code(
     Pass either percent_off (e.g. 20 = 20% off) or amount_off (e.g. 5 = $5 off).
     """
     value_type = "percentage" if percent_off else "fixed_amount"
-    value      = f"-{percent_off}" if percent_off else f"-{amount_off}"
+    value = f"-{percent_off}" if percent_off else f"-{amount_off}"
 
     payload = {
         "price_rule": {
-            "title":              title,
-            "target_type":        "line_item",
-            "target_selection":   "all",
-            "allocation_method":  "across",
-            "value_type":         value_type,
-            "value":              value,
+            "title": title,
+            "target_type": "line_item",
+            "target_selection": "all",
+            "allocation_method": "across",
+            "value_type": value_type,
+            "value": value,
             "customer_selection": "all",
-            "usage_limit":        usage_limit,
-            "starts_at":          _now(),
+            "usage_limit": usage_limit,
+            "starts_at": _now(),
         }
     }
     if ends_at:
@@ -622,11 +619,11 @@ def create_discount_code(
 
     _add_log(f"✅ Discount code created: {code.upper()} ({value_type}: {value})")
     return {
-        "success":      True,
-        "rule_id":      rule_id,
+        "success": True,
+        "rule_id": rule_id,
         "discount_code": code.upper(),
-        "value_type":   value_type,
-        "value":        value,
+        "value_type": value_type,
+        "value": value,
     }
 
 
@@ -657,9 +654,9 @@ def register_webhooks(base_url: str = "") -> list:
     for topic in WEBHOOK_TOPICS:
         payload = {
             "webhook": {
-                "topic":   topic,
+                "topic": topic,
                 "address": f"{base_url}/api/shopify/webhook",
-                "format":  "json",
+                "format": "json",
             }
         }
         r = _api("POST", "webhooks.json", payload)
@@ -696,18 +693,18 @@ def publish_narai_product(product_package: dict) -> dict:
     if not is_connected():
         return {"success": False, "error": "Shopify not connected — run OAuth first"}
 
-    title        = product_package.get("title", "Untitled Product")
-    description  = product_package.get("sales_page") or product_package.get("listing_content", "")
-    price        = float(product_package.get("price", 19.99))
-    niche        = product_package.get("niche", "Digital Products")
-    ptype        = product_package.get("product_type", "ebook")
-    keywords     = (
+    title = product_package.get("title", "Untitled Product")
+    description = product_package.get("sales_page") or product_package.get("listing_content", "")
+    price = float(product_package.get("price", 19.99))
+    niche = product_package.get("niche", "Digital Products")
+    ptype = product_package.get("product_type", "ebook")
+    keywords = (
         product_package.get("concept", {}).get("keywords")
         or product_package.get("strategy", {}).get("keywords", [])
     )
-    pricing      = product_package.get("pricing", {})
-    cover_image  = product_package.get("cover_image", {})
-    disclaimer   = product_package.get("disclaimer", "")
+    pricing = product_package.get("pricing", {})
+    cover_image = product_package.get("cover_image", {})
+    disclaimer = product_package.get("disclaimer", "")
 
     errors = []
 
@@ -733,12 +730,12 @@ def publish_narai_product(product_package: dict) -> dict:
         return {"success": False, "error": product_result.get("error"), "errors": [product_result.get("error")]}
 
     product_id = product_result["product_id"]
-    product    = product_result.get("product", {})
+    product = product_result.get("product", {})
     variant_id = product.get("variants", [{}])[0].get("id")
 
     # ── 2. Upload cover image ─────────────────────────────────────────────────
     cover_local = cover_image.get("local_path", "")
-    cover_url   = cover_image.get("url", "")
+    cover_url = cover_image.get("url", "")
 
     if cover_local and Path(cover_local).exists():
         img_result = add_product_image(product_id, image_path=cover_local)
@@ -750,15 +747,15 @@ def publish_narai_product(product_package: dict) -> dict:
             errors.append(f"Cover image URL: {img_result.get('error')}")
 
     # ── 3. Upload digital file (PDF) if available ─────────────────────────────
-    delivery  = product_package.get("delivery", {})
+    delivery = product_package.get("delivery", {})
     main_files = delivery.get("main_files", [])
-    pkg_path   = product_package.get("package_path", "")
+    pkg_path = product_package.get("package_path", "")
 
     # Try to find an actual PDF to attach
     pdf_uploaded = False
     for file_info in main_files[:1]:   # attach the primary file
-        fname    = file_info.get("filename", "")
-        pkg_dir  = Path(pkg_path).parent if pkg_path else DATA_DIR / "narai_products"
+        fname = file_info.get("filename", "")
+        pkg_dir = Path(pkg_path).parent if pkg_path else DATA_DIR / "narai_products"
         pdf_path = pkg_dir / fname
         if pdf_path.exists():
             upload_result = upload_digital_file(str(pdf_path), fname)
@@ -781,9 +778,9 @@ def publish_narai_product(product_package: dict) -> dict:
     discount_code_str = ""
     if launch_price and float(launch_price) < price:
         discount_pct = round((1 - float(launch_price) / price) * 100)
-        safe_title   = "".join(c for c in title[:12] if c.isalnum()).upper()
-        code         = f"{safe_title}LAUNCH"
-        disc_result  = create_discount_code(
+        safe_title = "".join(c for c in title[:12] if c.isalnum()).upper()
+        code = f"{safe_title}LAUNCH"
+        disc_result = create_discount_code(
             title=f"Launch discount for {title[:40]}",
             code=code,
             percent_off=discount_pct,
@@ -802,13 +799,13 @@ def publish_narai_product(product_package: dict) -> dict:
     )
 
     return {
-        "success":       True,
-        "product_id":    product_id,
-        "product_url":   product_result.get("product_url", ""),
-        "admin_url":     product_result.get("admin_url", ""),
+        "success": True,
+        "product_id": product_id,
+        "product_url": product_result.get("product_url", ""),
+        "admin_url": product_result.get("admin_url", ""),
         "discount_code": discount_code_str,
-        "pdf_uploaded":  pdf_uploaded,
-        "errors":        errors,
+        "pdf_uploaded": pdf_uploaded,
+        "errors": errors,
     }
 
 
@@ -823,25 +820,25 @@ def get_status() -> dict:
     connected = bool(shop and token)
 
     status = {
-        "connected":    connected,
-        "shop":         shop,
+        "connected": connected,
+        "shop": shop,
         "connected_at": tok.get("connected_at", ""),
-        "scope":        tok.get("scope", ""),
-        "api_version":  API_VERSION,
+        "scope": tok.get("scope", ""),
+        "api_version": API_VERSION,
     }
 
     if connected:
         try:
             info = _api("GET", "shop.json")
             shop_info = info.get("shop", {})
-            summary   = get_orders_summary()
-            products  = list_products(limit=10)
+            summary = get_orders_summary()
+            products = list_products(limit=10)
             status.update({
-                "shop_name":     shop_info.get("name", ""),
-                "shop_email":    shop_info.get("email", ""),
-                "currency":      shop_info.get("currency", "USD"),
-                "plan":          shop_info.get("plan_name", ""),
-                "total_orders":  summary.get("total_orders", 0),
+                "shop_name": shop_info.get("name", ""),
+                "shop_email": shop_info.get("email", ""),
+                "currency": shop_info.get("currency", "USD"),
+                "plan": shop_info.get("plan_name", ""),
+                "total_orders": summary.get("total_orders", 0),
                 "total_revenue": summary.get("total_revenue", 0),
                 "products_count": len(products),
                 "recent_products": [
