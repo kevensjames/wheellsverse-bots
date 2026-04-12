@@ -12,6 +12,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import sys
 import time
 from collections import deque
@@ -530,6 +531,14 @@ async def _lifespan(application: FastAPI):
         except Exception as _e:
             _add_log(f"Daily Reels schedule failed: {_e}", "WARNING")
 
+        # ── NarAI Always-On Services (wake word + mood check-ins) ────────────
+        try:
+            from bots.narai.bot import start_always_on
+            start_always_on(start_wake_word=True, start_checkins=True)
+            _add_log("NarAI always-on services started (wake word + mood check-ins)", "INFO")
+        except Exception as _e:
+            _add_log(f"NarAI always-on services failed: {_e}", "WARNING")
+
         _add_log("All background startup tasks complete", "INFO")
 
         # ── Master schedule runner — calls run_pending() every 30 seconds ────
@@ -562,6 +571,24 @@ async def _lifespan(application: FastAPI):
     _ls_th.Thread(target=_lifespan_bg, daemon=True, name="lifespan-bg").start()
     _add_log("WheellsVerse API started — background init running", "INFO")
 
+    # Start Telegram bot if token is set
+    try:
+        from core.telegram_bot import start_bot_service as _tg_start, is_enabled as _tg_enabled
+        if _tg_enabled():
+            asyncio.create_task(_tg_start())
+            _add_log("Telegram bot started", "INFO")
+    except Exception as _tg_e:
+        _add_log(f"Telegram bot start failed: {_tg_e}", "WARNING")
+
+    # Start Discord bot if token is set
+    try:
+        from core.discord_bot import start_bot as _dc_start, is_enabled as _dc_enabled
+        if _dc_enabled():
+            asyncio.create_task(_dc_start())
+            _add_log("Discord bot started", "INFO")
+    except Exception as _dc_e:
+        _add_log(f"Discord bot start failed: {_dc_e}", "WARNING")
+
     yield
     # Shutdown
     from core.job_queue import get_queue
@@ -571,6 +598,12 @@ async def _lifespan(application: FastAPI):
             _scheduler.stop()
         except Exception:
             pass
+    # Stop Telegram
+    try:
+        from core.telegram_bot import stop_bot_service as _tg_stop
+        await _tg_stop()
+    except Exception:
+        pass
 
 app = FastAPI(
     title="WheellsVerse Bot Ecosystem",
@@ -624,9 +657,19 @@ async def security_headers_middleware(request: Request, call_next):
     """Add security headers to all responses."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Allow Shopify admin to embed this app in an iframe
+    origin = request.headers.get("origin", "")
+    if "myshopify.com" in origin or "shopify.com" in origin:
+        response.headers["Content-Security-Policy"] = f"frame-ancestors https://{origin.split('://')[-1]} https://admin.shopify.com;"
+    else:
+        response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    # Prevent Railway CDN / Fastly from caching API responses
+    if request.url.path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Surrogate-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
     return response
 
 
@@ -636,7 +679,8 @@ async def api_key_middleware(request: Request, call_next):
     if _API_KEY:
         path = request.url.path
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
-                             "/api/shopify-autopilot/", "/api/narai/schedules")
+                             "/api/shopify-autopilot/", "/api/sa/",
+                             "/api/narai/schedules", "/api/narai/sched")
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -695,6 +739,50 @@ async def serve_dashboard():
         "Pragma": "no-cache",
         "Expires": "0",
     })
+
+
+# ─── PWA Manifest + Service Worker ───────────────────────────────────────────
+
+@app.get("/manifest.json")
+async def pwa_manifest():
+    from fastapi.responses import JSONResponse
+    return JSONResponse({
+        "name": "WheellsVerse AI Command Center",
+        "short_name": "WheellsVerse",
+        "description": "NarAI — autonomous bot ecosystem dashboard",
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": "#0d0f14",
+        "theme_color": "#0d0f14",
+        "orientation": "landscape-primary",
+        "icons": [
+            {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+            {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+        ],
+        "categories": ["productivity", "utilities"],
+    })
+
+
+@app.get("/sw.js")
+async def service_worker():
+    from fastapi.responses import Response
+    js = """
+const CACHE = 'wheellsverse-v1';
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => clients.claim());
+self.addEventListener('fetch', e => {
+  // Network-first: always try live data, fall back to cache for offline
+  if (e.request.url.includes('/api/')) {
+    e.respondWith(
+      fetch(e.request).catch(() =>
+        caches.match(e.request).then(r => r || new Response('{"error":"offline"}', {headers:{'Content-Type':'application/json'}}))
+      )
+    );
+  }
+});
+"""
+    return Response(js, media_type="application/javascript",
+                    headers={"Service-Worker-Allowed": "/"})
 
 
 # ─── Overview ─────────────────────────────────────────────────────────────────
@@ -6166,6 +6254,417 @@ async def kdp_run(req: KDPRunRequest, background_tasks: BackgroundTasks):
     return {"status": "launched", "mode": req.mode, "genre": req.genre}
 
 
+# ─── NarAI Publisher Engine ───────────────────────────────────────────────────
+
+_publisher_engine = None
+_literary_qc      = None
+_continuity_engine = None
+_volume_completion = None
+
+
+def _get_publisher_engine():
+    global _publisher_engine
+    if _publisher_engine is None:
+        from bots.books.publisher_engine.pipeline import PublisherEnginePipeline
+        _publisher_engine = PublisherEnginePipeline()
+    return _publisher_engine
+
+
+def _get_literary_qc():
+    global _literary_qc
+    if _literary_qc is None:
+        from core.literary_qc import LiteraryQCAgent
+        _literary_qc = LiteraryQCAgent()
+    return _literary_qc
+
+
+def _get_continuity_engine():
+    global _continuity_engine
+    if _continuity_engine is None:
+        from core.continuity_engine import ContinuityEngine
+        _continuity_engine = ContinuityEngine()
+    return _continuity_engine
+
+
+# ── KDP Registry + Autopilot Queue endpoints ─────────────────────────────────
+
+_kdp_registry_singleton = None
+KDP_AUTOPILOT_QUEUE_FILE = ROOT / "data" / "kdp_autopilot_queue.json"
+
+
+def _get_kdp_registry():
+    global _kdp_registry_singleton
+    if _kdp_registry_singleton is None:
+        from core.kdp_registry import KDPRegistry
+        _kdp_registry_singleton = KDPRegistry()
+    return _kdp_registry_singleton
+
+
+@app.get("/api/kdp/registry")
+async def kdp_registry_list(genre: str = "", status: str = "",
+                             api_key: str = Depends(verify_api_key)):
+    reg = _get_kdp_registry()
+    entries = reg.get_all()
+    if genre:
+        entries = [e for e in entries if e.get("genre") == genre]
+    if status:
+        entries = [e for e in entries if e.get("status") == status]
+    return {"entries": entries, "count": len(entries)}
+
+
+@app.post("/api/kdp/registry")
+async def kdp_registry_upsert(req: dict, api_key: str = Depends(verify_api_key)):
+    reg = _get_kdp_registry()
+    entry_id = req.get("id", "")
+    title    = req.get("title", "")
+    genre    = req.get("genre", "unknown")
+    if entry_id:
+        # Update by ID
+        ok = reg.update_entry(entry_id, **{k: v for k, v in req.items()
+                                           if k not in ("id", "title", "genre")})
+        if not ok and title:
+            ok = reg.update_entry(entry_id, title=title, genre=genre,
+                                  **{k: v for k, v in req.items()
+                                     if k not in ("id", "title", "genre")})
+        return {"status": "updated" if ok else "not_found", "id": entry_id}
+    if not title:
+        return {"error": "title is required"}
+    existing = reg.find_by_title(title)
+    if existing:
+        reg.update_entry(existing["id"], **{k: v for k, v in req.items()
+                                            if k not in ("id", "title", "genre")})
+        return {"status": "updated", "id": existing["id"]}
+    entry = reg.add_book(title, genre, **{k: v for k, v in req.items()
+                                          if k not in ("title", "genre", "id")})
+    return {"status": "added", "id": entry["id"]}
+
+
+@app.delete("/api/kdp/registry/{entry_id}")
+async def kdp_registry_delete(entry_id: str, api_key: str = Depends(verify_api_key)):
+    reg = _get_kdp_registry()
+    ok = reg.delete_entry(entry_id)
+    return {"status": "deleted" if ok else "not_found"}
+
+
+@app.get("/api/kdp/queue")
+async def kdp_autopilot_queue_get(api_key: str = Depends(verify_api_key)):
+    if not KDP_AUTOPILOT_QUEUE_FILE.exists():
+        return {"queue": []}
+    try:
+        return {"queue": json.loads(KDP_AUTOPILOT_QUEUE_FILE.read_text(encoding="utf-8"))}
+    except Exception as e:
+        return {"error": str(e), "queue": []}
+
+
+@app.delete("/api/kdp/queue/{entry_id}")
+async def kdp_autopilot_queue_delete(entry_id: str, api_key: str = Depends(verify_api_key)):
+    if not KDP_AUTOPILOT_QUEUE_FILE.exists():
+        return {"error": "queue file not found"}
+    try:
+        queue = json.loads(KDP_AUTOPILOT_QUEUE_FILE.read_text(encoding="utf-8"))
+        new_queue = [q for q in queue if q.get("id") != entry_id]
+        KDP_AUTOPILOT_QUEUE_FILE.write_text(json.dumps(new_queue, indent=2), encoding="utf-8")
+        return {"status": "deleted" if len(new_queue) < len(queue) else "not_found"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/kdp/queue/{entry_id}/publish")
+async def kdp_autopilot_queue_publish(entry_id: str,
+                                      background_tasks: BackgroundTasks,
+                                      api_key: str = Depends(verify_api_key)):
+    if not KDP_AUTOPILOT_QUEUE_FILE.exists():
+        return {"error": "queue file not found"}
+    try:
+        queue = json.loads(KDP_AUTOPILOT_QUEUE_FILE.read_text(encoding="utf-8"))
+        entry = next((q for q in queue if q.get("id") == entry_id), None)
+        if not entry:
+            return {"error": "entry not found"}
+
+        def _do_publish():
+            try:
+                from core.kdp_uploader import upload_book
+                result = upload_book(
+                    genre=entry["genre"],
+                    manuscript_path=entry.get("manuscript_path") or None,
+                    cover_path=entry.get("cover_path") or None,
+                    headless=True,
+                )
+                new_status = "published" if result.get("status") == "published" else "error"
+                for q in queue:
+                    if q.get("id") == entry_id:
+                        q["status"] = new_status
+                        q["kdp_result"] = result
+                        q["published_at"] = datetime.now().isoformat()
+                KDP_AUTOPILOT_QUEUE_FILE.write_text(json.dumps(queue, indent=2), encoding="utf-8")
+                if new_status == "published":
+                    _get_kdp_registry().add_book(
+                        title=entry["title"],
+                        genre=entry["genre"],
+                        asin=result.get("asin", ""),
+                        status="live",
+                        word_count=entry.get("word_count", 0),
+                        manuscript_path=entry.get("manuscript_path", ""),
+                        publish_date=datetime.now().isoformat(),
+                    )
+                _add_log(f"KDP autopilot publish {'OK' if new_status=='published' else 'FAILED'}: {entry['title']}", "INFO")
+            except Exception as e:
+                _add_log(f"KDP autopilot publish error: {e}", "ERROR")
+
+        background_tasks.add_task(_do_publish)
+        return {"status": "publish_started", "entry_id": entry_id, "title": entry["title"]}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.get("/api/kdp/series")
+async def kdp_series_list(api_key: str = Depends(verify_api_key)):
+    reg = _get_kdp_registry()
+    all_entries = reg.get_all()
+    series_map: dict = {}
+    for e in all_entries:
+        sn = (e.get("series_name") or "").strip()
+        if not sn:
+            continue
+        series_map.setdefault(sn, []).append(e)
+    result = []
+    for sn, books in series_map.items():
+        books_sorted = sorted(books, key=lambda x: x.get("volume_number") or 0)
+        vols = [b.get("volume_number") for b in books_sorted if b.get("volume_number")]
+        max_vol = max(vols) if vols else 0
+        gaps = [v for v in range(1, max_vol + 1) if v not in vols]
+        result.append({
+            "series_name":  sn,
+            "book_count":   len(books_sorted),
+            "volumes":      books_sorted,
+            "volume_gaps":  gaps,
+            "has_gaps":     bool(gaps),
+        })
+    return {"series": result, "total_series": len(result)}
+
+
+def _get_volume_completion():
+    global _volume_completion
+    if _volume_completion is None:
+        from bots.books.volume_completion_bot import VolumeCompletionBot
+        _volume_completion = VolumeCompletionBot()
+    return _volume_completion
+
+
+class PublisherEngineRunRequest(BaseModel):
+    manuscript: str
+    title: str
+    genre: str = "mystery"
+    author: str = "J.K. Blaze"
+    skip_agents: list = []
+
+
+class LiteraryQCRequest(BaseModel):
+    manuscript: str
+    title: str
+    genre: str = "mystery"
+    vol1_path: Optional[str] = None
+
+
+class ContinuityCheckRequest(BaseModel):
+    vol1_path: str
+    vol2_path: str
+
+
+class ExtractBibleRequest(BaseModel):
+    manuscript_path: str
+    title: str = ""
+
+
+class CompleteVolumeRequest(BaseModel):
+    source_path: str
+    genre: str = "mystery"
+
+
+# ── Publisher Engine pipeline ─────────────────────────────────────────────────
+
+@app.post("/api/publisher-engine/run")
+async def publisher_engine_run(req: PublisherEngineRunRequest):
+    """Run the full 7-agent publisher pipeline on a manuscript."""
+    def _run():
+        return _get_publisher_engine().run(
+            action="process",
+            manuscript=req.manuscript,
+            title=req.title,
+            genre=req.genre,
+            author=req.author,
+            skip_agents=req.skip_agents,
+        )
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
+@app.get("/api/publisher-engine/status")
+async def publisher_engine_status():
+    return _get_publisher_engine().run(action="status")
+
+
+@app.get("/api/publisher-engine/results")
+async def publisher_engine_results():
+    return _get_publisher_engine().run(action="results")
+
+
+# ── Literary QC ───────────────────────────────────────────────────────────────
+
+@app.post("/api/literary-qc/review")
+async def literary_qc_review(req: LiteraryQCRequest):
+    """Run 7-pass literary QC on a manuscript."""
+    def _run():
+        vol1_bible = None
+        if req.vol1_path:
+            try:
+                vol1_bible = _get_continuity_engine().extract_from_file(req.vol1_path)
+            except Exception:
+                pass
+        return _get_literary_qc().review_manuscript(
+            manuscript=req.manuscript,
+            title=req.title,
+            genre=req.genre,
+            vol1_bible=vol1_bible,
+        )
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
+@app.get("/api/literary-qc/results")
+async def literary_qc_results():
+    import json as _json
+    results_file = ROOT / "data" / "literary_qc_results.json"
+    if results_file.exists():
+        try:
+            return {"results": _json.loads(results_file.read_text())[-20:]}
+        except Exception:
+            pass
+    return {"results": []}
+
+
+@app.get("/api/literary-qc/results/{title}")
+async def literary_qc_result_by_title(title: str):
+    import json as _json
+    results_file = ROOT / "data" / "literary_qc_results.json"
+    if results_file.exists():
+        try:
+            all_results = _json.loads(results_file.read_text())
+            matches = [r for r in all_results if title.lower() in r.get("title", "").lower()]
+            return {"results": matches[-5:]}
+        except Exception:
+            pass
+    return {"results": []}
+
+
+@app.post("/api/literary-qc/full-analysis")
+async def literary_qc_full_analysis(req: LiteraryQCRequest):
+    """Deep chapter-by-chapter analysis — flags incomplete chapters, dispatches to rewrite queue."""
+    def _run():
+        vol1_bible = None
+        if req.vol1_path:
+            try:
+                vol1_bible = _get_continuity_engine().extract_from_file(req.vol1_path)
+            except Exception:
+                pass
+        return _get_literary_qc().full_book_analysis(
+            manuscript=req.manuscript,
+            title=req.title,
+            genre=req.genre,
+            vol1_bible=vol1_bible,
+            manuscript_path="",
+        )
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
+@app.get("/api/literary-qc/rewrite-queue")
+async def literary_qc_rewrite_queue():
+    """Return all books currently queued for NarAI full rewrite."""
+    import json as _json
+    queue_file = ROOT / "data" / "narai_rewrite_queue.json"
+    if queue_file.exists():
+        try:
+            return {"queue": _json.loads(queue_file.read_text())}
+        except Exception:
+            pass
+    return {"queue": []}
+
+
+@app.post("/api/literary-qc/rewrite-queue/{rewrite_id}/status")
+async def literary_qc_rewrite_status(rewrite_id: str, req: dict = {}):
+    """Update the status of a rewrite queue entry (pending → in_progress → done)."""
+    import json as _json
+    queue_file = ROOT / "data" / "narai_rewrite_queue.json"
+    new_status = req.get("status", "pending") if req else "pending"
+    try:
+        queue = _json.loads(queue_file.read_text()) if queue_file.exists() else []
+        for entry in queue:
+            if entry.get("id") == rewrite_id:
+                entry["status"] = new_status
+                break
+        queue_file.write_text(_json.dumps(queue, indent=2), encoding="utf-8")
+        return {"ok": True, "id": rewrite_id, "status": new_status}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+# ── Volume Completion ─────────────────────────────────────────────────────────
+
+@app.get("/api/volumes/scan")
+async def volumes_scan():
+    """Scan all manuscripts and identify incomplete ones."""
+    def _run():
+        return _get_volume_completion().run(action="scan")
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
+@app.get("/api/volumes/status")
+async def volumes_status():
+    import json as _json
+    scan_file = ROOT / "data" / "volume_scan_results.json"
+    if scan_file.exists():
+        try:
+            return _json.loads(scan_file.read_text())
+        except Exception:
+            pass
+    return {"status": "no scan yet"}
+
+
+@app.post("/api/volumes/complete")
+async def volumes_complete(req: CompleteVolumeRequest):
+    """Complete an incomplete manuscript volume."""
+    def _run():
+        return _get_volume_completion().run(
+            action="complete_one",
+            source_path=req.source_path,
+            genre=req.genre,
+        )
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
+# ── Continuity ────────────────────────────────────────────────────────────────
+
+@app.post("/api/continuity/check")
+async def continuity_check(req: ContinuityCheckRequest):
+    """Compare two volumes for continuity errors."""
+    def _run():
+        engine = _get_continuity_engine()
+        from pathlib import Path as _Path
+        vol1_text = _Path(req.vol1_path).read_text(encoding="utf-8")
+        vol2_text = _Path(req.vol2_path).read_text(encoding="utf-8")
+        vol1_bible = engine.extract_story_bible(vol1_text, "vol1")
+        comparison = engine.compare_volumes(vol1_bible, vol2_text)
+        report = engine.generate_continuity_report(comparison)
+        return {"comparison": comparison, "report": report}
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
+@app.post("/api/continuity/extract-bible")
+async def continuity_extract_bible(req: ExtractBibleRequest):
+    """Extract a story bible from a manuscript file."""
+    def _run():
+        return _get_continuity_engine().extract_from_file(req.manuscript_path)
+    return await asyncio.get_event_loop().run_in_executor(None, _run)
+
+
 # ─── NarAI — General Overseer AI ─────────────────────────────────────────────
 
 _narai = None
@@ -6183,6 +6682,8 @@ def _get_narai():
 
 class NarAICommandRequest(BaseModel):
     text: str
+    conversation_id: Optional[str] = None
+    search: Optional[bool] = None    # override search toggle per-message
 
 class NarAISkillRequest(BaseModel):
     name: str
@@ -6309,17 +6810,292 @@ async def narai_fix(background_tasks: BackgroundTasks):
     return {"status": "fix_started"}
 
 
+# ─── Chat intent detection ────────────────────────────────────────────────────
+
+_BOT_START_RE   = re.compile(r'\b(?:start|run|launch)\s+bot\s+([a-z0-9_\-]+)', re.I)
+_BOT_STOP_RE    = re.compile(r'\b(?:stop|kill|terminate)\s+bot\s+([a-z0-9_\-]+)', re.I)
+_BOT_RESTART_RE = re.compile(r'\brestart\s+bot\s+([a-z0-9_\-]+)', re.I)
+_BOT_LIST_RE    = re.compile(r'\b(?:list|show|what)\s+(?:all\s+)?bots?\b', re.I)
+_CODE_GEN_RE    = re.compile(r'\b(?:generate|write|create|make|build)\s+(?:a\s+)?(?:bot|code|script|program)', re.I)
+_CODE_RUN_RE    = re.compile(r'\b(?:run|execute|launch)\s+(?:code|script|file)\s+([^\s]+)', re.I)
+
+
+def _handle_chat_intent(text: str):
+    """
+    Detect bot/code intents in a chat message. Returns a response dict or None.
+    Fast regex path — no API call cost.
+    """
+    # Bot list
+    if _BOT_LIST_RE.search(text):
+        try:
+            from core.bot_manager import discover_bots
+            bots = discover_bots()
+            running = [b for b in bots if b["status"] == "running"]
+            lines = [f"• **{b['name']}** ({b['category']}) — {b['status']}" for b in bots[:20]]
+            summary = "\n".join(lines) if lines else "No bots found."
+            return {
+                "response": f"Here are your bots ({len(bots)} total, {len(running)} running):\n\n{summary}",
+                "intent": "bot_list",
+                "data": bots[:20],
+            }
+        except Exception as e:
+            return {"response": f"Could not list bots: {e}", "intent": "bot_list"}
+
+    # Bot restart (check before start to avoid partial match)
+    m = _BOT_RESTART_RE.search(text)
+    if m:
+        bot_name = m.group(1)
+        try:
+            from core.bot_manager import restart_bot
+            entry = restart_bot(bot_name)
+            return {
+                "response": f"Restarted **{bot_name}** — PID {entry['pid']} is live.",
+                "intent": "bot_restart",
+                "data": entry,
+            }
+        except Exception as e:
+            return {"response": f"Could not restart {bot_name}: {e}", "intent": "bot_restart"}
+
+    # Bot start
+    m = _BOT_START_RE.search(text)
+    if m:
+        bot_name = m.group(1)
+        try:
+            from core.bot_manager import start_bot
+            entry = start_bot(bot_name)
+            return {
+                "response": f"Started **{bot_name}** — PID {entry['pid']} running.",
+                "intent": "bot_start",
+                "data": entry,
+            }
+        except Exception as e:
+            return {"response": f"Could not start {bot_name}: {e}", "intent": "bot_start"}
+
+    # Bot stop
+    m = _BOT_STOP_RE.search(text)
+    if m:
+        bot_name = m.group(1)
+        try:
+            from core.bot_manager import stop_bot
+            entry = stop_bot(bot_name)
+            return {
+                "response": f"Stopped **{bot_name}**.",
+                "intent": "bot_stop",
+                "data": entry,
+            }
+        except Exception as e:
+            return {"response": f"Could not stop {bot_name}: {e}", "intent": "bot_stop"}
+
+    # Code run
+    m = _CODE_RUN_RE.search(text)
+    if m:
+        path = m.group(1)
+        try:
+            from core.code_engine import run_code
+            run_id = run_code(path)
+            return {
+                "response": f"Running `{path}` — stream output at `/api/code/stream/{run_id}`.",
+                "intent": "code_run",
+                "data": {"run_id": run_id, "path": path},
+            }
+        except Exception as e:
+            return {"response": f"Could not run {path}: {e}", "intent": "code_run"}
+
+    # Code generation — signal to frontend to switch to Code Studio
+    if _CODE_GEN_RE.search(text):
+        return {
+            "response": "I can generate that code! Head to the **Code Studio** tab and describe what you want — I'll build it live.",
+            "intent": "code_gen",
+            "action": "open_code_studio",
+        }
+
+    return None
+
+
 @app.post("/api/narai/command")
 async def narai_command(req: NarAICommandRequest, background_tasks: BackgroundTasks):
     narai = _get_narai()
+    mood  = narai.get_mood() if narai else {"state": "neutral"}
+
+    # Fast intent detection — handle bot/code commands without calling the AI
+    intent_result = _handle_chat_intent(req.text)
+    if intent_result:
+        # Still save to conversation if one is active
+        try:
+            if req.conversation_id:
+                from core.chat_db import add_message
+                add_message(req.conversation_id, "user",      req.text)
+                add_message(req.conversation_id, "assistant", intent_result.get("response", ""))
+        except Exception:
+            pass
+        return {**intent_result, "mood": mood}
+
+    # ── Conversation memory ──────────────────────────────────────────────────
+    try:
+        from core.chat_db import (
+            add_message, auto_title, create_conversation,
+            get_claude_history, get_setting, get_conversation,
+        )
+        from core.artifact_engine import detect_artifact, get_artifact_meta
+
+        # Create or use existing conversation
+        conv_id = req.conversation_id
+        is_new_conv = False
+        if not conv_id:
+            conv_id = create_conversation()
+            is_new_conv = True
+
+        # Get conversation-level system prompt or fall back to global default
+        conv = get_conversation(conv_id)
+        sys_prompt = (
+            (conv.get("system_prompt") if conv else None)
+            or get_setting("system_prompt")
+            or (
+                "You are NarAI, a powerful personal AI assistant built by Jhon (J.K. Blaze). "
+                "You have access to WheellsVerse — a 142-bot automation system. "
+                "You can write code, run bots, search the web, read files, and remember conversations. "
+                "You are direct, precise, and never waste words. "
+                "When you write code you always write complete working production code with no placeholders."
+            )
+        )
+
+        # Web search injection
+        search_context = ""
+        search_used = False
+        search_on = req.search if req.search is not None else (get_setting("search_enabled") == "true")
+        if search_on:
+            try:
+                from core.search_engine import should_search, run_search
+                if should_search(req.text):
+                    sr = run_search(req.text)
+                    if sr["found"]:
+                        search_context = sr["context"]
+                        search_used = True
+            except Exception as _se:
+                logger.warning(f"Search error: {_se}")
+
+        if search_context:
+            sys_prompt = sys_prompt + "\n\n" + search_context
+
+        # Get conversation history
+        history = get_claude_history(conv_id, max_messages=40)
+
+        # Save user message
+        add_message(conv_id, "user", req.text, search_used=search_used)
+
+        # Call Claude with full history
+        from anthropic import Anthropic as _Ant
+        model = (conv.get("model") if conv else None) or get_setting("default_model") or "claude-sonnet-4-20250514"
+        max_tokens = int(get_setting("max_tokens") or 4096)
+        temperature = float(get_setting("temperature") or 0.7)
+
+        client = _Ant(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        messages_payload = history + [{"role": "user", "content": req.text}]
+        resp = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=sys_prompt,
+            messages=messages_payload,
+        )
+        response_text = resp.content[0].text if resp.content else ""
+        tokens = resp.usage.input_tokens + resp.usage.output_tokens if hasattr(resp, "usage") else 0
+
+        # Check for artifacts
+        artifact = detect_artifact(response_text)
+
+        # Save assistant message
+        has_code = "```" in response_text
+        msg_id = add_message(
+            conv_id, "assistant", response_text,
+            tokens_used=tokens, has_code=has_code, search_used=search_used,
+        )
+
+        # Auto-title on first exchange (async)
+        if is_new_conv:
+            background_tasks.add_task(auto_title, conv_id)
+
+        result = {
+            "response":        response_text,
+            "conversation_id": conv_id,
+            "message_id":      msg_id,
+            "mood":            mood,
+            "search_used":     search_used,
+        }
+        if artifact:
+            result["artifact"] = {**artifact, **get_artifact_meta(artifact)}
+        return result
+
+    except Exception as e:
+        logger.exception("NarAI command error")
+        # Fallback: try legacy path
+        if narai:
+            try:
+                response = narai.run(action="command", text=req.text)
+                return {"response": response, "mood": mood, "conversation_id": req.conversation_id}
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/fix_video_audio")
+async def narai_fix_video_audio(req: dict):
+    """
+    Detect a silent video, add audio, and repost to Instagram + Facebook.
+    Body: { "video_path": "...", "caption": "...", "title": "...", "platforms": ["instagram","facebook"] }
+    """
+    narai = _get_narai()
     if not narai:
         raise HTTPException(status_code=503, detail="NarAI offline")
-    # Run synchronously so we get the response back
-    try:
-        response = narai.run(action="command", text=req.text)
-        return {"response": response, "mood": narai.get_mood()}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    video_path = req.get("video_path", "")
+    if not video_path:
+        raise HTTPException(status_code=400, detail="video_path is required")
+    result = narai.run(
+        action="fix_video_audio",
+        video_path=video_path,
+        caption=req.get("caption", ""),
+        title=req.get("title", ""),
+        platforms=req.get("platforms", ["instagram", "facebook"]),
+    )
+    _add_log(f"NarAI: fix_video_audio → {result.get('summary', '')}", "INFO")
+    return result
+
+
+@app.get("/api/narai/graphify/status")
+async def narai_graphify_status():
+    """Return NarAI's current knowledge graph stats."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    return narai.run(action="graphify", context="status")
+
+
+@app.post("/api/narai/graphify/build")
+async def narai_graphify_build(background_tasks: BackgroundTasks):
+    """Trigger a full graph rebuild of NarAI's codebase (AST extraction, no LLM)."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    background_tasks.add_task(narai.run, action="graphify", context="build", path=".")
+    _add_log("NarAI: Graphify build triggered", "INFO")
+    return {"status": "building", "message": "NarAI is mapping her system brain..."}
+
+
+@app.post("/api/narai/graphify/query")
+async def narai_graphify_query(req: dict):
+    """Query NarAI's knowledge graph with a natural language question."""
+    narai = _get_narai()
+    if not narai:
+        raise HTTPException(status_code=503, detail="NarAI offline")
+    question = req.get("question", "")
+    if not question:
+        raise HTTPException(status_code=400, detail="question is required")
+    result = narai.run(
+        action="graphify",
+        context="query",
+        question=question,
+        budget=req.get("budget", 2000),
+    )
+    return result
 
 
 @app.post("/api/narai/create_skill")
@@ -10683,7 +11459,8 @@ def launch(port: int = 5050, preload: bool = True):
         "core.api:app",
         host="0.0.0.0",
         port=port,
-        log_level="warning",
+        log_level="info",
+        access_log=True,
         reload=False,
     )
 
@@ -10755,8 +11532,12 @@ async def shopify_oauth_callback(
 @app.get("/api/shopify/status")
 async def shopify_status():
     """Return Shopify connection + store summary."""
+    import os
     from core.shopify_client import get_status
-    return get_status()
+    result = get_status()
+    result["_env_store"] = os.getenv("SHOPIFY_STORE", "NOT_SET")
+    result["_env_token_prefix"] = os.getenv("SHOPIFY_ACCESS_TOKEN", "NOT_SET")[:12]
+    return result
 
 
 @app.get("/api/shopify/products")
@@ -10923,10 +11704,16 @@ async def shopify_register_webhooks():
 # SHOPIFY AUTOPILOT ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
+_PUBLIC_PATHS.add("/api/sa/status")
+_PUBLIC_PATHS.add("/api/sa/log")
+_PUBLIC_PATHS.add("/api/sa/store")
+_PUBLIC_PATHS.add("/api/sa/setup-boutique")
+# Keep old paths too as aliases so any cached bookmarks still work
 _PUBLIC_PATHS.add("/api/shopify-autopilot/status")
 _PUBLIC_PATHS.add("/api/shopify-autopilot/log")
 
 
+@app.get("/api/sa/status")
 @app.get("/api/shopify-autopilot/status")
 async def shopify_autopilot_status():
     """Current Shopify autopilot state — phase, progress, stats."""
@@ -10934,6 +11721,7 @@ async def shopify_autopilot_status():
     return get_shopify_autopilot_status()
 
 
+@app.post("/api/sa/start")
 @app.post("/api/shopify-autopilot/start")
 async def shopify_autopilot_start():
     """Start a Shopify autopilot session in the background."""
@@ -10941,6 +11729,7 @@ async def shopify_autopilot_start():
     return start_shopify_autopilot_background()
 
 
+@app.post("/api/sa/stop")
 @app.post("/api/shopify-autopilot/stop")
 async def shopify_autopilot_stop():
     """Signal the Shopify autopilot to stop after the current phase."""
@@ -10948,6 +11737,7 @@ async def shopify_autopilot_stop():
     return stop_shopify_autopilot()
 
 
+@app.get("/api/sa/log")
 @app.get("/api/shopify-autopilot/log")
 async def shopify_autopilot_log(limit: int = 100):
     """Recent Shopify autopilot log entries (newest first)."""
@@ -10955,6 +11745,7 @@ async def shopify_autopilot_log(limit: int = 100):
     return {"logs": get_shopify_autopilot_logs(limit=limit)}
 
 
+@app.get("/api/sa/products")
 @app.get("/api/shopify-autopilot/products")
 async def shopify_autopilot_products():
     """Products created in the current/last Shopify autopilot session."""
@@ -10967,6 +11758,7 @@ async def shopify_autopilot_products():
     }
 
 
+@app.get("/api/sa/funnel")
 @app.get("/api/shopify-autopilot/funnel")
 async def shopify_autopilot_funnel():
     """The active 5-step monetization funnel built by the autopilot."""
@@ -10977,6 +11769,7 @@ async def shopify_autopilot_funnel():
     return {"funnel": funnel}
 
 
+@app.get("/api/sa/performance")
 @app.get("/api/shopify-autopilot/performance")
 async def shopify_autopilot_performance():
     """Performance insights and learning from recent sessions."""
@@ -10992,6 +11785,7 @@ async def shopify_autopilot_performance():
         return {"insights": [], "error": "Failed to read learning file"}
 
 
+@app.post("/api/sa/trend-scan")
 @app.post("/api/shopify-autopilot/trend-scan")
 async def shopify_autopilot_trend_scan():
     """Trigger an immediate viral trend scan and return opportunities."""
@@ -11003,13 +11797,48 @@ async def shopify_autopilot_trend_scan():
     }
 
 
+@app.get("/api/sa/store")
+@app.get("/api/shopify-autopilot/store")
+async def shopify_store_stats():
+    """Live Shopify store stats: products, orders, revenue, collections."""
+    try:
+        from core.narai_shopify_engine import get_store_stats
+        return get_store_stats()
+    except Exception as e:
+        from core.shopify_client import is_connected
+        return {
+            "total_products":  0,
+            "total_orders":    0,
+            "total_revenue":   0,
+            "product_types":   {},
+            "recent_products": [],
+            "recent_orders":   [],
+            "connected":       is_connected(),
+            "error":           str(e),
+        }
+
+
+@app.post("/api/sa/setup-boutique")
+async def shopify_setup_boutique():
+    """Create Shopify collections + boutique page."""
+    try:
+        from core.narai_shopify_engine import create_boutique_collections, create_boutique_page
+        cols = create_boutique_collections()
+        page = create_boutique_page()
+        return {"success": True, "collections": cols, "page": page}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # NARAI SCHEDULE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 
+_PUBLIC_PATHS.add("/api/narai/sched")
 _PUBLIC_PATHS.add("/api/narai/schedules")
 
 
+@app.get("/api/narai/sched")
 @app.get("/api/narai/schedules")
 async def narai_get_schedules():
     """List all NarAI scheduled tasks with status, next run, last run."""
@@ -11020,6 +11849,7 @@ async def narai_get_schedules():
     }
 
 
+@app.patch("/api/narai/sched/{schedule_id}")
 @app.patch("/api/narai/schedules/{schedule_id}")
 async def narai_update_schedule(schedule_id: str, request: Request):
     """
@@ -11036,6 +11866,7 @@ async def narai_update_schedule(schedule_id: str, request: Request):
     return result
 
 
+@app.post("/api/narai/sched/{schedule_id}/trigger")
 @app.post("/api/narai/schedules/{schedule_id}/trigger")
 async def narai_trigger_schedule(schedule_id: str):
     """Manually trigger a schedule right now (runs in background)."""
@@ -11046,8 +11877,660 @@ async def narai_trigger_schedule(schedule_id: str):
     return result
 
 
+@app.get("/api/narai/sched/stats")
 @app.get("/api/narai/schedules/stats")
 async def narai_schedule_stats():
     """Quick summary stats for the schedule dashboard."""
     from core.narai_scheduler import get_schedule_stats
     return get_schedule_stats()
+
+
+# ─── SSE Streaming chat endpoint ─────────────────────────────────────────────
+
+class StreamChatRequest(BaseModel):
+    text: str
+    conversation_id: Optional[str] = None
+    search: Optional[bool] = None
+    model: Optional[str] = None
+
+
+@app.post("/api/narai/stream")
+async def narai_stream(req: StreamChatRequest, background_tasks: BackgroundTasks):
+    """
+    Streaming chat via Server-Sent Events.
+    Sends: data: {"token":"..."}\n\n  then  data: {"done":true,"conversation_id":"..."}\n\n
+    """
+    from core.chat_db import (
+        add_message, auto_title, create_conversation,
+        get_claude_history, get_setting, get_conversation,
+    )
+    from core.artifact_engine import detect_artifact, get_artifact_meta
+
+    # Intent check first (non-streaming path for bot/code commands)
+    intent = _handle_chat_intent(req.text)
+    if intent:
+        async def _intent_stream():
+            import json as _j
+            text = intent.get("response", "")
+            yield f"data: {_j.dumps({'token': text})}\n\n"
+            yield f"data: {_j.dumps({'done': True, 'conversation_id': req.conversation_id or '', 'intent': intent.get('intent')})}\n\n"
+        return StreamingResponse(_intent_stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    conv_id    = req.conversation_id
+    is_new     = False
+    if not conv_id:
+        conv_id = create_conversation()
+        is_new = True
+
+    conv       = get_conversation(conv_id) or {}
+    sys_prompt = (
+        conv.get("system_prompt")
+        or get_setting("system_prompt")
+        or (
+            "You are NarAI, a powerful personal AI assistant built by Jhon (J.K. Blaze). "
+            "You have access to WheellsVerse — a 142-bot automation system. "
+            "You can write code, run bots, search the web, read files, and remember conversations. "
+            "You are direct, precise, and never waste words. "
+            "When you write code you always write complete working production code with no placeholders."
+        )
+    )
+
+    # Inject long-term user memory
+    try:
+        from core.memory_engine import format_memory_context
+        mem_ctx = format_memory_context()
+        if mem_ctx:
+            sys_prompt = mem_ctx + "\n" + sys_prompt
+    except Exception:
+        pass
+
+    # Search
+    search_used = False
+    search_on   = req.search if req.search is not None else (get_setting("search_enabled") == "true")
+    if search_on:
+        try:
+            from core.search_engine import should_search, run_search
+            if should_search(req.text):
+                sr = run_search(req.text)
+                if sr["found"]:
+                    sys_prompt += "\n\n" + sr["context"]
+                    search_used = True
+        except Exception:
+            pass
+
+    history = get_claude_history(conv_id, max_messages=40)
+    add_message(conv_id, "user", req.text, search_used=search_used)
+
+    model      = req.model or conv.get("model") or get_setting("default_model") or "claude-sonnet-4-6"
+    max_tokens = int(get_setting("max_tokens") or 4096)
+
+    async def _event_generator():
+        import json as _j
+        from core.model_router import stream_chat as _stream_chat
+        full_text = []
+        try:
+            all_messages = history + [{"role": "user", "content": req.text}]
+            for chunk in await asyncio.to_thread(
+                lambda: list(_stream_chat(model, all_messages, system=sys_prompt, max_tokens=max_tokens))
+            ):
+                if "token" in chunk:
+                    full_text.append(chunk["token"])
+                    yield f"data: {_j.dumps({'token': chunk['token']})}\n\n"
+
+            assembled = "".join(full_text)
+            has_code  = "```" in assembled
+            artifact  = detect_artifact(assembled)
+
+            # Save to DB
+            msg_id = add_message(
+                conv_id, "assistant", assembled,
+                has_code=has_code, search_used=search_used,
+            )
+            if is_new:
+                background_tasks.add_task(auto_title, conv_id)
+
+            # Extract long-term memory facts in background
+            try:
+                from core.memory_engine import extract_facts as _extract_facts
+                background_tasks.add_task(_extract_facts, conv_id, assembled)
+            except Exception:
+                pass
+
+            done_payload = {
+                "done":            True,
+                "conversation_id": conv_id,
+                "message_id":      msg_id,
+                "search_used":     search_used,
+            }
+            if artifact:
+                done_payload["artifact"] = {**artifact, **get_artifact_meta(artifact)}
+            yield f"data: {_j.dumps(done_payload)}\n\n"
+
+        except Exception as e:
+            yield f"data: {_j.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+# ─── File upload endpoint ─────────────────────────────────────────────────────
+
+@app.post("/api/narai/upload")
+async def narai_upload(
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
+    """
+    Upload a file to a conversation. Returns processed content block for Claude.
+    Accepts multipart/form-data: file + conversation_id
+    """
+    try:
+        from fastapi import UploadFile, Form
+        form = await request.form()
+        file_obj = form.get("file")
+        conv_id  = form.get("conversation_id", "")
+
+        if not file_obj:
+            raise HTTPException(status_code=400, detail="No file provided")
+
+        filename = getattr(file_obj, "filename", "upload")
+        data     = await file_obj.read()
+
+        # Save to disk
+        from core.file_handler import save_upload, process_file, get_file_info
+        from core.chat_db import add_file, create_conversation
+
+        if not conv_id:
+            conv_id = create_conversation()
+
+        saved_path = save_upload(filename, data, conv_id)
+
+        # Register in DB
+        fid = add_file(
+            conversation_id=conv_id,
+            filename=filename,
+            filepath=str(saved_path),
+            filetype=saved_path.suffix.lstrip("."),
+            size=len(data),
+        )
+
+        # Get content block for Claude
+        content_block = process_file(str(saved_path))
+        file_info     = get_file_info(str(saved_path))
+
+        return {
+            "ok":             True,
+            "file_id":        fid,
+            "conversation_id": conv_id,
+            "filename":       filename,
+            "path":           str(saved_path),
+            "type":           file_info.get("type"),
+            "size":           len(data),
+            "content_block":  content_block,
+            "preview":        file_info.get("preview", ""),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Upload error")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Chat with file context ───────────────────────────────────────────────────
+
+class ChatWithFileRequest(BaseModel):
+    text: str
+    conversation_id: Optional[str] = None
+    file_paths: Optional[list] = None   # list of already-uploaded file paths
+    search: Optional[bool] = None
+
+
+@app.post("/api/narai/chat")
+async def narai_chat_with_context(req: ChatWithFileRequest, background_tasks: BackgroundTasks):
+    """
+    Enhanced chat that accepts file context.
+    If file_paths provided, processes them and includes in Claude message.
+    """
+    from core.chat_db import (
+        add_message, auto_title, create_conversation,
+        get_claude_history, get_setting, get_conversation,
+    )
+    from core.artifact_engine import detect_artifact, get_artifact_meta
+    from core.file_handler import process_file
+    from anthropic import Anthropic as _Ant
+
+    conv_id = req.conversation_id
+    is_new  = False
+    if not conv_id:
+        conv_id = create_conversation()
+        is_new  = True
+
+    conv       = get_conversation(conv_id) or {}
+    sys_prompt = (
+        conv.get("system_prompt")
+        or get_setting("system_prompt")
+        or (
+            "You are NarAI, a powerful personal AI assistant built by Jhon (J.K. Blaze). "
+            "You have access to WheellsVerse — a 142-bot automation system. "
+            "You can write code, run bots, search the web, read files, and remember conversations. "
+            "You are direct, precise, and never waste words. "
+            "When you write code you always write complete working production code with no placeholders."
+        )
+    )
+
+    # Search
+    search_used = False
+    search_on = req.search if req.search is not None else (get_setting("search_enabled") == "true")
+    if search_on:
+        try:
+            from core.search_engine import should_search, run_search
+            if should_search(req.text):
+                sr = run_search(req.text)
+                if sr["found"]:
+                    sys_prompt += "\n\n" + sr["context"]
+                    search_used = True
+        except Exception:
+            pass
+
+    history = get_claude_history(conv_id, max_messages=30)
+
+    # Build user message content array (text + file blocks)
+    user_content: list = []
+    has_file = False
+    has_image = False
+    if req.file_paths:
+        for fp in req.file_paths:
+            block = process_file(fp)
+            if block:
+                user_content.append(block)
+                has_file = True
+                if block.get("type") == "image":
+                    has_image = True
+    user_content.append({"type": "text", "text": req.text})
+
+    add_message(conv_id, "user", req.text, has_file=has_file, has_image=has_image, search_used=search_used)
+
+    model      = conv.get("model") or get_setting("default_model") or "claude-sonnet-4-20250514"
+    max_tokens = int(get_setting("max_tokens") or 4096)
+    temp       = float(get_setting("temperature") or 0.7)
+    client     = _Ant(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+
+    msgs = history + [{"role": "user", "content": user_content if len(user_content) > 1 else req.text}]
+    resp = client.messages.create(model=model, max_tokens=max_tokens, system=sys_prompt, messages=msgs)
+    response_text = resp.content[0].text if resp.content else ""
+    tokens = (resp.usage.input_tokens + resp.usage.output_tokens) if hasattr(resp, "usage") else 0
+
+    artifact = detect_artifact(response_text)
+    has_code = "```" in response_text
+    msg_id   = add_message(conv_id, "assistant", response_text,
+                           tokens_used=tokens, has_code=has_code, search_used=search_used)
+
+    if is_new:
+        background_tasks.add_task(auto_title, conv_id)
+
+    narai = _get_narai()
+    result = {
+        "response":        response_text,
+        "conversation_id": conv_id,
+        "message_id":      msg_id,
+        "mood":            narai.get_mood() if narai else {"state": "neutral"},
+        "search_used":     search_used,
+    }
+    if artifact:
+        result["artifact"] = {**artifact, **get_artifact_meta(artifact)}
+    return result
+
+
+# ─── Conversation memory public access (no auth needed for dashboard) ─────────
+_PUBLIC_CHAT_PATHS = {"/api/narai/stream", "/api/narai/chat", "/api/narai/upload"}
+
+
+# ─── Bot Control + Code Engine routers ───────────────────────────────────────
+
+from core.bot_router   import router as _bot_router
+from core.code_router  import router as _code_router
+from core.chat_router  import router as _chat_router
+from core.voice_router import router as _voice_router
+
+app.include_router(_bot_router,   dependencies=[Depends(verify_api_key)])
+app.include_router(_code_router,  dependencies=[Depends(verify_api_key)])
+app.include_router(_chat_router,  dependencies=[Depends(verify_api_key)])
+app.include_router(_voice_router, dependencies=[Depends(verify_api_key)])
+
+# ─── Wave 3 routers ───────────────────────────────────────────────────────────
+from core.agent_router      import router as _agent_router
+from core.prompt_router     import router as _prompt_router
+from core.knowledge_router  import router as _knowledge_router
+from core.notify_router     import router as _notify_router
+from core.stripe_router     import router as _stripe_router
+from core.scheduler_router  import router as _scheduler_router
+from core.analytics_router  import router as _analytics_router
+from core.builder_router    import router as _builder_router
+from core.creative_router   import router as _creative_router
+from core.market_router     import router as _market_router
+from core.github_router     import router as _github_router
+from core.log_router        import router as _log_router
+
+app.include_router(_agent_router,     dependencies=[Depends(verify_api_key)])
+app.include_router(_prompt_router,    dependencies=[Depends(verify_api_key)])
+app.include_router(_knowledge_router, dependencies=[Depends(verify_api_key)])
+app.include_router(_notify_router,    dependencies=[Depends(verify_api_key)])
+app.include_router(_scheduler_router, dependencies=[Depends(verify_api_key)])
+app.include_router(_analytics_router, dependencies=[Depends(verify_api_key)])
+app.include_router(_builder_router,   dependencies=[Depends(verify_api_key)])
+app.include_router(_creative_router,  dependencies=[Depends(verify_api_key)])
+app.include_router(_market_router,    dependencies=[Depends(verify_api_key)])
+app.include_router(_github_router,    dependencies=[Depends(verify_api_key)])
+app.include_router(_log_router,       dependencies=[Depends(verify_api_key)])
+# Stripe webhook is public — register router without global auth dep
+app.include_router(_stripe_router)
+
+# ─── API Key Management endpoints ────────────────────────────────────────────
+@app.get("/api/apikeys")
+async def apikeys_list(api_key: str = Depends(verify_api_key)):
+    from core.api_keys import list_keys
+    return {"keys": list_keys()}
+
+@app.post("/api/apikeys")
+async def apikeys_create(req: dict, api_key: str = Depends(verify_api_key)):
+    from core.api_keys import create_key
+    name = req.get("name", "API Key")
+    plan = req.get("plan", "free")
+    result = create_key(name, plan)
+    return result
+
+@app.delete("/api/apikeys/{key_id}")
+async def apikeys_revoke(key_id: str, api_key: str = Depends(verify_api_key)):
+    from core.api_keys import revoke_key
+    revoke_key(key_id)
+    return {"revoked": True}
+
+@app.post("/api/apikeys/{key_id}/rotate")
+async def apikeys_rotate(key_id: str, api_key: str = Depends(verify_api_key)):
+    from core.api_keys import rotate_key
+    return rotate_key(key_id)
+
+# ─── Public /v1/ API endpoints ───────────────────────────────────────────────
+
+async def _verify_public_key(request: Request) -> dict:
+    """Verify wv_ API key for public /v1/ routes."""
+    from core.api_keys import verify_key
+    raw = request.headers.get("X-WV-Key", "") or request.query_params.get("wv_key", "")
+    result = verify_key(raw)
+    if not result.get("valid"):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=401, detail=result.get("reason", "Invalid API key"))
+    return result
+
+
+@app.post("/v1/chat")
+async def v1_chat(request: Request, key_data: dict = Depends(_verify_public_key)):
+    """Public chat endpoint. Accepts {message, model?, system?}."""
+    body = await request.json()
+    message = body.get("message", "").strip()
+    if not message:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="message required")
+    model = body.get("model", os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"))
+    system = body.get("system", "You are NarAI, a helpful AI assistant.")
+    from core.model_router import chat as _model_chat
+    result = _model_chat(model, [{"role": "user", "content": message}], system=system)
+    return {"response": result["content"], "model": result["model"], "tokens": result["tokens"]}
+
+
+@app.post("/v1/generate")
+async def v1_generate(request: Request, key_data: dict = Depends(_verify_public_key)):
+    """Public code generation endpoint."""
+    body = await request.json()
+    prompt = body.get("prompt", "").strip()
+    if not prompt:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="prompt required")
+    from core.code_engine import generate_code, validate_code
+    code = generate_code(prompt)
+    valid, err = validate_code(code)
+    return {"code": code, "valid": valid, "error": err}
+
+
+@app.get("/v1/bots")
+async def v1_bots(request: Request, key_data: dict = Depends(_verify_public_key)):
+    """Public bot listing endpoint."""
+    from core.bot_manager import list_bots, discover_bots
+    return {"bots": list_bots(), "available": discover_bots()}
+
+
+@app.post("/v1/bots/run")
+async def v1_bots_run(request: Request, key_data: dict = Depends(_verify_public_key)):
+    """Public bot run endpoint."""
+    body = await request.json()
+    bot_name = body.get("bot_name", "").strip()
+    category = body.get("category", "")
+    if not bot_name:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="bot_name required")
+    from core.bot_manager import start_bot
+    return start_bot(bot_name, category)
+
+
+@app.get("/api/models")
+async def get_models(api_key: str = Depends(verify_api_key)):
+    """Return list of all supported models with availability flags."""
+    from core.model_router import list_models
+    return {"models": list_models()}
+
+
+# ── Token / Env Manager ──────────────────────────────────────────────────────
+
+# Keys whose values are NEVER sent to the frontend (even masked)
+_TOKEN_BLACKLIST = set()
+
+# Category schema — maps .env key prefixes/names to (category, subcategory)
+_TOKEN_SCHEMA = [
+    # category, subcategory, [exact keys or prefix patterns]
+    ("AI",          "Anthropic",    ["ANTHROPIC_API_KEY"]),
+    ("AI",          "OpenAI",       ["OPENAI_API_KEY", "OPENAI_MODEL", "OPENAI_MODEL_FAST"]),
+    ("AI",          "HeyGen",       ["HEYGEN_API_KEY", "HEYGEN_AVATAR_ID", "HEYGEN_VOICE_ID"]),
+    ("AI",          "Pika / Runway",["PIKA_API_KEY", "RUNWAYML_API_KEY", "LEONARDO_API_KEY"]),
+    ("Social",      "Twitter / X",  ["TWITTER_API_KEY","TWITTER_API_SECRET","TWITTER_BEARER_TOKEN",
+                                     "TWITTER_ACCESS_TOKEN","TWITTER_ACCESS_SECRET",
+                                     "TWITTER_EMAIL","TWITTER_PASSWORD","TWITTER_USERNAME",
+                                     "AUTO_POST_TWITTER","TWITTER_DAILY_LIMIT"]),
+    ("Social",      "Facebook",     ["FACEBOOK_PAGE_TOKEN","FACEBOOK_PAGE_ID",
+                                     "FACEBOOK_EMAIL","FACEBOOK_PASSWORD","FACEBOOK_PAGE_URL",
+                                     "META_APP_ID","META_APP_SECRET"]),
+    ("Social",      "Instagram",    ["INSTAGRAM_PAGE_TOKEN","INSTAGRAM_ACCOUNT_ID",
+                                     "INSTAGRAM_USERNAME","INSTAGRAM_PASSWORD",
+                                     "INSTAGRAM_ACCESS_TOKEN"]),
+    ("Social",      "TikTok",       ["TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET",
+                                     "TIKTOK_REDIRECT_URI","TIKTOK_ACCESS_TOKEN",
+                                     "TIKTOK_REFRESH_TOKEN","TIKTOK_OPEN_ID",
+                                     "TIKTOK_ADVERTISER_ID"]),
+    ("Social",      "LinkedIn",     ["LINKEDIN_EMAIL","LINKEDIN_PASSWORD",
+                                     "AUTO_POST_LINKEDIN","LINKEDIN_REDIRECT_URI"]),
+    ("Social",      "Pinterest",    ["PINTEREST_APP_ID","PINTEREST_APP_SECRET",
+                                     "PINTEREST_ACCESS_TOKEN","PINTEREST_BOARD_ID",
+                                     "PINTEREST_REDIRECT_URI"]),
+    ("Social",      "Threads",      ["THREADS_ACCESS_TOKEN","THREADS_USER_ID"]),
+    ("Social",      "WhatsApp",     ["WHATSAPP_ACCESS_TOKEN","WHATSAPP_PHONE_NUMBER_ID",
+                                     "WHATSAPP_VERIFY_TOKEN","WHATSAPP_OWNER_NUMBER"]),
+    ("Messaging",   "Telegram",     ["TELEGRAM_BOT_TOKEN","TELEGRAM_CHAT_ID"]),
+    ("Messaging",   "Slack",        ["SLACK_WEBHOOK_URL","SLACK_BOT_TOKEN"]),
+    ("Messaging",   "Email",        ["EMAIL_HOST","EMAIL_PORT","EMAIL_USER",
+                                     "EMAIL_PASSWORD","EMAIL_FROM_NAME"]),
+    ("Payments",    "Stripe",       ["STRIPE_SECRET_KEY","STRIPE_PUBLIC_KEY",
+                                     "STRIPE_PUBLISHABLE_KEY","STRIPE_WEBHOOK_SECRET",
+                                     "STRIPE_BOT_PACK_URL","STRIPE_PRO_URL",
+                                     "STRIPE_BOT_PACK_PRICE_ID","STRIPE_PRO_PRICE_ID",
+                                     "STRIPE_NEXORA_URL"]),
+    ("Ecommerce",   "Amazon KDP",   ["KDP_EMAIL","KDP_PASSWORD"]),
+    ("Ecommerce",   "Shopify",      ["SHOPIFY_API_KEY","SHOPIFY_API_SECRET","SHOPIFY_STORE",
+                                     "SHOPIFY_ACCESS_TOKEN","SHOPIFY_ACCESS_TOKEN_SECONDARY",
+                                     "SHOPIFY_AUTOPILOT_ENABLED","SHOPIFY_PRODUCTS_PER_SESSION",
+                                     "SHOPIFY_POD_PER_SESSION"]),
+    ("Ecommerce",   "Gumroad",      ["GUMROAD_ACCESS_TOKEN","GUMROAD_APP_ID","GUMROAD_APP_SECRET"]),
+    ("Ecommerce",   "Etsy",         ["ETSY_KEYSTRING","ETSY_SHARED_SECRET","ETSY_SHOP_ID",
+                                     "ETSY_ACCESS_TOKEN","ETSY_REFRESH_TOKEN"]),
+    ("Ecommerce",   "Payhip",       ["PAYHIP_API_KEY"]),
+    ("Ecommerce",   "Printful",     ["PRINTFUL_API_KEY"]),
+    ("Ecommerce",   "WooCommerce",  ["WOOCOMMERCE_CONSUMER_KEY","WOOCOMMERCE_CONSUMER_SECRET",
+                                     "WOOCOMMERCE_STORE_URL"]),
+    ("Ecommerce",   "Courses",      ["TEACHABLE_API_KEY","TEACHABLE_SITE_URL",
+                                     "THINKIFIC_API_KEY","THINKIFIC_SUBDOMAIN"]),
+    ("Content",     "WordPress",    ["WORDPRESS_URL","WORDPRESS_TOKEN","WORDPRESS_USER",
+                                     "WORDPRESS_APP_PASSWORD","WORDPRESS_APP_PASS"]),
+    ("Content",     "Medium",       ["MEDIUM_TOKEN"]),
+    ("Content",     "Ghost",        ["GHOST_URL"]),
+    ("Content",     "Notion",       ["NOTION_TOKEN","NOTION_API_KEY","NOTION_DATABASE_ID"]),
+    ("Content",     "Canva",        ["CANVA_CLIENT_ID","CANVA_CLIENT_SECRET"]),
+    ("Marketing",   "ConvertKit",   ["CONVERTKIT_API_KEY","CONVERTKIT_API_SECRET"]),
+    ("Marketing",   "Ads / Impact", ["FB_AD_ACCOUNT_ID","DAILY_AD_BUDGET",
+                                     "BOOST_SCORE_THRESHOLD","IMPACT_ACCOUNT_SID",
+                                     "IMPACT_API_PASSWORD"]),
+    ("Marketing",   "Affiliates",   ["AFFILIATE_AMAZON_TAG","AFFILIATE_AMAZON_TAG_2",
+                                     "AFFILIATE_AMAZON_VIDEO_URL","AFFILIATE_COINBASE_URL",
+                                     "AFFILIATE_BINANCE_URL","AFFILIATE_ROBINHOOD_URL",
+                                     "AFFILIATE_CONVERTKIT_URL","AFFILIATE_JASPER_URL",
+                                     "AFFILIATE_BLUEHOST_URL","AFFILIATE_FIVERR_URL",
+                                     "AFFILIATE_CLICKBANK_URL","AFFILIATE_APPSUMO_URL"]),
+    ("Google",      "Search Console",["GOOGLE_SHEETS_CREDENTIALS_PATH",
+                                      "GOOGLE_ANALYTICS_PROPERTY_ID"]),
+    ("System",      "Business Info",["BUSINESS_NAME","BUSINESS_NICHE","BUSINESS_WEBSITE",
+                                     "OWNER_NAME","BRAND_TONE","TARGET_AUDIENCE",
+                                     "BRAND_NAME","BRAND_NICHE","AUTHOR_NAME",
+                                     "CTA_URL","LEAD_MAGNET_TITLE"]),
+    ("System",      "Server",       ["PORT","DASHBOARD_PORT","LOG_LEVEL","TIMEZONE",
+                                     "BOT_OUTPUT_DIR","BOT_LOG_DIR","BOT_DATA_DIR",
+                                     "PYTHONUNBUFFERED","RUN_ON_START",
+                                     "DECISION_ENGINE_ENABLED","DECISION_ENGINE_INTERVAL"]),
+    ("System",      "Dashboard",    ["API_KEY","NEXORA_WAITLIST_URL"]),
+    ("System",      "Shorts",       ["SHORTS_DAILY_COUNT","SHORTS_DAILY_TIME",
+                                     "SHORTS_DEFAULT_PLATFORMS","DAILY_PUBLISH_TIME",
+                                     "DAILY_POSTS_COUNT"]),
+]
+
+_SECRET_KEYS = {
+    "KEY","SECRET","PASSWORD","TOKEN","PASS","WEBHOOK","CREDENTIAL","CLIENT_SECRET",
+    "APP_SECRET","API_SECRET","ACCESS_SECRET","PRIVATE",
+}
+
+def _is_secret(key: str) -> bool:
+    return any(s in key.upper() for s in _SECRET_KEYS)
+
+def _mask(val: str) -> str:
+    if not val or len(val) <= 8:
+        return "••••••••"
+    return val[:4] + "•" * (len(val) - 8) + val[-4:]
+
+def _build_token_tree(show_values: bool = False) -> list:
+    """Read .env and return categorized token tree."""
+    import re
+    env_path = ROOT / ".env"
+    env_vars: dict[str, str] = {}
+    if env_path.exists():
+        for line in env_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)', line)
+            if m:
+                env_vars[m.group(1)] = m.group(2).strip('"\'')
+
+    # Assign keys to schema groups
+    assigned: set[str] = set()
+    groups: list[dict] = []
+    for cat, subcat, keys in _TOKEN_SCHEMA:
+        items = []
+        for k in keys:
+            if k not in env_vars:
+                continue
+            assigned.add(k)
+            secret = _is_secret(k)
+            raw = env_vars[k]
+            has_value = bool(raw)
+            items.append({
+                "key": k,
+                "has_value": has_value,
+                "is_secret": secret,
+                "value": (raw if (show_values and not secret) else
+                          (_mask(raw) if secret and has_value else "")),
+            })
+        if items:
+            groups.append({"category": cat, "subcategory": subcat, "tokens": items})
+
+    # Unassigned keys → "Other / Uncategorized"
+    unassigned = [k for k in env_vars if k not in assigned]
+    if unassigned:
+        items = []
+        for k in sorted(unassigned):
+            secret = _is_secret(k)
+            raw = env_vars[k]
+            has_value = bool(raw)
+            items.append({
+                "key": k,
+                "has_value": has_value,
+                "is_secret": secret,
+                "value": (raw if (show_values and not secret) else
+                          (_mask(raw) if secret and has_value else "")),
+            })
+        groups.append({"category": "Other", "subcategory": "Uncategorized", "tokens": items})
+
+    return groups
+
+
+@app.get("/api/tokens")
+async def get_tokens(api_key: str = Depends(verify_api_key)):
+    """Return categorized token tree (values masked for secrets)."""
+    groups = _build_token_tree(show_values=False)
+    total   = sum(len(g["tokens"]) for g in groups)
+    filled  = sum(1 for g in groups for t in g["tokens"] if t["has_value"])
+    return {"groups": groups, "total": total, "filled": filled, "empty": total - filled}
+
+
+@app.post("/api/tokens")
+async def update_tokens(request: Request, api_key: str = Depends(verify_api_key)):
+    """Update one or more .env values. Body: {updates: {KEY: value, ...}}"""
+    import re
+    data = await request.json()
+    updates: dict = data.get("updates", {})
+    if not updates:
+        return {"ok": False, "error": "No updates provided"}
+
+    env_path = ROOT / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    updated_keys: set[str] = set()
+
+    # Update existing lines
+    new_lines = []
+    for line in lines:
+        m = re.match(r'^([A-Za-z_][A-Za-z0-9_]*)=(.*)', line)
+        if m and m.group(1) in updates:
+            k = m.group(1)
+            v = updates[k]
+            new_lines.append(f'{k}={v}')
+            updated_keys.add(k)
+        else:
+            new_lines.append(line)
+
+    # Append new keys that didn't exist
+    for k, v in updates.items():
+        if k not in updated_keys:
+            new_lines.append(f'{k}={v}')
+
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    return {"ok": True, "updated": list(updates.keys())}
+
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Telegram webhook endpoint — no API key auth (Telegram sends its own token)."""
+    try:
+        data = await request.json()
+        from core.telegram_bot import process_update
+        await process_update(data)
+    except Exception as e:
+        logger.warning(f"[telegram webhook] error: {e}")
+    return {"ok": True}
