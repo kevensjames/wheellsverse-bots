@@ -1,0 +1,57 @@
+# Secrets — never bake into the image (pass via Railway/Render env vars)
+.env
+*.env.local
+
+# Virtual environment (rebuilt inside container)
+venv/
+.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Generated data (use mounted volumes in production)
+outputs/
+logs/
+data/leads/
+data/intelligence.json
+data/strategy.json
+
+# NarAI runtime state — never overwrite live data on deploy
+# (skill Python files and narai_skills.json ARE deployed — they're code, not state)
+data/narai_memory.json
+data/wa_inbox.json
+data/wa_schedule.json
+data/wa_contacts.json
+
+# macOS / IDE noise
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
+
+# Docker build files
+.dockerignore
+compose*.yaml
+
+# Large local-only directories
+.claude/
+.venv/
+venv/
+node_modules/
+*.zip
+*.tar.gz
+*.mp4
+*.mp3
+*.wav
