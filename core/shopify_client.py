@@ -818,9 +818,8 @@ def publish_narai_product(product_package: dict) -> dict:
 
 def get_status() -> dict:
     """Return full Shopify connection + store status."""
+    shop, token, _ = get_credentials()
     tok = _load_token()
-    shop    = tok.get("shop", "")
-    token   = tok.get("access_token", "")
     connected = bool(shop and token)
 
     status = {
