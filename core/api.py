@@ -6208,7 +6208,7 @@ async def get_character_registry_api(
         entries = [e for e in entries if e.get("genre", "").lower() == genre.lower()]
     if series:
         entries = [e for e in entries if series.lower() in e.get("series_name", "").lower()]
-    return {"entries": entries, "total": len(entries)}
+    return {"entries": entries, "total": len(entries), "total_books": len(entries)}
 
 
 @app.post("/api/character-registry/check")
@@ -11161,10 +11161,22 @@ async def shopify_autopilot_status():
 
 
 @app.post("/api/shopify-autopilot/start")
-async def shopify_autopilot_start():
-    """Start a Shopify autopilot session in the background."""
+async def shopify_autopilot_start(request: Request):
+    """
+    Start a Shopify autopilot session in the background.
+    Optional body: {media_mode: bool, intelligence_mode: bool}
+    """
     from core.narai_shopify_autopilot import start_shopify_autopilot_background
-    return start_shopify_autopilot_background()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    media_mode       = bool(body.get("media_mode", False))
+    intelligence_mode = bool(body.get("intelligence_mode", False))
+    return start_shopify_autopilot_background(
+        media_mode=media_mode,
+        intelligence_mode=intelligence_mode,
+    )
 
 
 @app.post("/api/shopify-autopilot/stop")
@@ -11227,6 +11239,139 @@ async def shopify_autopilot_trend_scan():
         "opportunities": opportunities,
         "count":         len(opportunities),
     }
+
+
+# ── Media Engine endpoints ────────────────────────────────────────────────────
+
+@app.post("/api/shopify/media/generate/{product_id}")
+async def shopify_generate_media(product_id: int, request: Request, background_tasks: BackgroundTasks):
+    """
+    Trigger media generation (cover images + 3D mockup + video) for an existing
+    Shopify product and upload everything automatically.
+    Body (optional): {title, tagline, _product_type_key, _niche}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+
+    def _do_media():
+        try:
+            from core.media_engine import generate_and_upload
+            result = generate_and_upload(product_id, body)
+            logger.info(f"Media generated for product {product_id}: {result}")
+        except Exception as e:
+            logger.error(f"Media generation error for {product_id}: {e}")
+
+    background_tasks.add_task(_do_media)
+    return {
+        "status": "generating",
+        "product_id": product_id,
+        "message": "Media generation started in background — check product in Shopify admin in 2–5 minutes",
+    }
+
+
+@app.post("/api/shopify/media/generate-batch")
+async def shopify_generate_media_batch(request: Request, background_tasks: BackgroundTasks):
+    """
+    Generate media for multiple products at once.
+    Body: {products: [{product_id, title, tagline, _product_type_key}, ...]}
+    """
+    body = await request.json()
+    products = body.get("products", [])
+
+    def _do_batch():
+        from core.media_engine import generate_and_upload
+        import time as _time
+        for p in products:
+            pid = p.get("product_id")
+            if not pid:
+                continue
+            try:
+                generate_and_upload(int(pid), p)
+                logger.info(f"Batch media done for product {pid}")
+            except Exception as e:
+                logger.error(f"Batch media error for {pid}: {e}")
+            _time.sleep(2)
+
+    background_tasks.add_task(_do_batch)
+    return {"status": "batch_generating", "product_count": len(products)}
+
+
+# ── Store Intelligence endpoints ──────────────────────────────────────────────
+
+@app.post("/api/shopify/intelligence/analyze")
+async def shopify_intelligence_analyze():
+    """
+    Run a full store analysis: revenue per category, niche gaps, dead stock, top products.
+    Caches result to data/store_intelligence.json.
+    """
+    from core.store_intelligence import analyze_store
+    result = analyze_store()
+    if "error" in result:
+        raise HTTPException(status_code=500, detail=result["error"])
+    return result
+
+
+@app.get("/api/shopify/intelligence/opportunities")
+async def shopify_intelligence_opportunities():
+    """
+    Return scored opportunities from the last cached analysis.
+    Call /analyze first to refresh data.
+    """
+    from core.store_intelligence import get_cached_analysis, score_opportunities, analyze_store
+    analysis = get_cached_analysis()
+    if not analysis:
+        analysis = analyze_store()
+    opportunities = score_opportunities(analysis)
+    return {
+        "opportunities": opportunities,
+        "count": len(opportunities),
+        "analyzed_at": analysis.get("analyzed_at"),
+        "store_summary": {
+            "total_products": analysis.get("total_products"),
+            "total_revenue":  analysis.get("total_revenue"),
+            "total_orders":   analysis.get("total_orders"),
+            "gaps_count":     len(analysis.get("category_gaps", [])),
+        },
+    }
+
+
+@app.post("/api/shopify/intelligence/autopilot")
+async def shopify_intelligence_autopilot(request: Request, background_tasks: BackgroundTasks):
+    """
+    Run the full intelligence autopilot:
+    Analyze store → Score opportunities → Publish best products → (optional) Generate media.
+    Body: {n_products: int, media_mode: bool}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    n_products = int(body.get("n_products", 5))
+    media_mode = bool(body.get("media_mode", False))
+
+    def _do_intel():
+        from core.store_intelligence import run_intelligence_autopilot
+        run_intelligence_autopilot(n_products=n_products, media_mode=media_mode)
+
+    background_tasks.add_task(_do_intel)
+    return {
+        "status": "started",
+        "n_products": n_products,
+        "media_mode": media_mode,
+        "message": "Intelligence autopilot running in background — check logs for progress",
+    }
+
+
+@app.get("/api/shopify/intelligence/status")
+async def shopify_intelligence_status():
+    """Return the last cached store intelligence analysis."""
+    from core.store_intelligence import get_cached_analysis
+    analysis = get_cached_analysis()
+    if not analysis:
+        return {"available": False, "message": "No analysis yet — run /api/shopify/intelligence/analyze first"}
+    return {"available": True, **analysis}
 
 
 # ══════════════════════════════════════════════════════════════════════════════

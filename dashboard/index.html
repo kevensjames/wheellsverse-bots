@@ -2681,6 +2681,60 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
+  <!-- Write from Idea Studio -->
+  <div class="card" style="margin-top:18px">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+      <div>
+        <div class="st">✍️ Write a Book from Your Idea</div>
+        <div class="ss" style="margin-top:3px">Describe your concept — NarAI writes a full best-seller (~50,000 words) and queues it for KDP automatically</div>
+      </div>
+      <button onclick="kdpIdeaToggle()" id="kdp-idea-toggle-btn" class="btn" style="background:linear-gradient(135deg,#6366f1,#8b5cf6);border-color:#6366f1;color:#fff;font-size:12px;padding:6px 16px;font-weight:600">✍️ New Book Idea</button>
+    </div>
+    <div id="kdp-idea-form" style="display:none;margin-bottom:14px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:10px">
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Book Title *</label>
+          <input id="kdp-idea-title" class="si2" placeholder="e.g. The Last Lighthouse Keeper" style="width:100%">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Genre</label>
+            <select id="kdp-idea-genre" class="si2" style="width:100%">
+              <option value="fantasy">Fantasy</option>
+              <option value="mystery">Mystery</option>
+              <option value="romance">Romance</option>
+              <option value="sci_fi">Sci-Fi</option>
+              <option value="thriller">Thriller</option>
+              <option value="historical">Historical</option>
+              <option value="horror">Horror</option>
+              <option value="adventure">Adventure</option>
+              <option value="self_help">Self Help</option>
+              <option value="true_crime">True Crime</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Chapters</label>
+            <input id="kdp-idea-chapters" type="number" value="20" min="10" max="25" class="si2" style="width:100%">
+          </div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Your Idea / Logline *</label>
+        <textarea id="kdp-idea-logline" class="si2" rows="3"
+          placeholder="e.g. A lighthouse keeper discovers that the ships she guides to safety are actually the souls of the dead — and someone has been exploiting her gift for centuries."
+          style="width:100%;resize:vertical"></textarea>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button onclick="kdpSubmitIdea()" id="kdp-idea-submit-btn" class="btn" style="background:linear-gradient(135deg,#059669,#10b981);border-color:#059669;color:#fff;font-size:12px;padding:6px 20px;font-weight:600">🚀 Generate Book</button>
+        <button onclick="kdpIdeaToggle()" class="btn" style="background:transparent;border-color:#555;color:#999;font-size:12px;padding:6px 14px">Cancel</button>
+      </div>
+    </div>
+    <div id="kdp-idea-jobs" style="display:none">
+      <div class="ss" style="margin-bottom:8px;padding-top:10px;border-top:1px solid #1f2937">Active Writing Jobs</div>
+      <div id="kdp-idea-jobs-list"></div>
+    </div>
+  </div>
+
   <!-- Character Registry Panel -->
   <div class="card" style="margin-top:18px">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
@@ -2693,6 +2747,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn" onclick="kdpLoadCharRegistry()" style="font-size:11px;padding:4px 10px">↻ Refresh</button>
         <button class="btn" onclick="kdpShowCheckPanel()" style="font-size:11px;padding:4px 10px;background:rgba(255,160,0,.15);border-color:#ffa000;color:#ffa000">🔍 Check Names</button>
+        <button class="btn" onclick="kdpToggleAddChar()" style="font-size:11px;padding:4px 10px;background:rgba(99,102,241,.15);border-color:#6366f1;color:#818cf8">＋ Add Name</button>
       </div>
     </div>
     <!-- Name-check mini panel -->
@@ -2705,6 +2760,35 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <button class="btn" onclick="document.getElementById('kdp-check-panel').style.display='none'" style="font-size:11px;padding:4px 10px;background:transparent;border-color:#555;color:#999">Close</button>
       </div>
       <div id="kdp-check-result" style="margin-top:8px;font-size:12px"></div>
+    </div>
+    <!-- Add Character inline form -->
+    <div id="kdp-add-char-panel" style="display:none;background:rgba(99,102,241,.07);border:1px solid #3730a3;border-radius:6px;padding:12px;margin-bottom:12px">
+      <div class="ss" style="margin-bottom:8px">Add a character name to the registry — prevents NarAI from reusing the name in future books</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Character Name *</label>
+          <input id="kdp-add-char-name" class="si2" placeholder="Sara Chen" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Role</label>
+          <select id="kdp-add-char-role" class="si2" style="width:100%">
+            <option value="protagonist">Protagonist</option>
+            <option value="antagonist">Antagonist</option>
+            <option value="supporting" selected>Supporting</option>
+            <option value="minor">Minor</option>
+          </select>
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Book Title *</label>
+          <input id="kdp-add-char-book" class="si2" placeholder="The Memory Thief" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:11px;color:var(--text3);display:block;margin-bottom:3px">Series / Genre</label>
+          <input id="kdp-add-char-series" class="si2" placeholder="Series name or genre" style="width:100%">
+        </div>
+        <button onclick="kdpAddCharacter()" class="btn" style="background:#6366f1;border-color:#6366f1;color:#fff;font-size:12px;padding:7px 14px;white-space:nowrap">＋ Add</button>
+      </div>
+      <div id="kdp-add-char-result" style="margin-top:8px;font-size:12px"></div>
     </div>
     <div style="overflow-x:auto">
       <table style="width:100%;border-collapse:collapse;font-size:12px">
@@ -4611,6 +4695,56 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
+  <!-- ══ GODMODE CONTROL PANEL ═══════════════════════════════════════════ -->
+  <div style="background:linear-gradient(135deg,rgba(255,0,100,.06),rgba(136,68,255,.08));border:1px solid rgba(255,0,100,.25);border-radius:14px;padding:16px;margin-bottom:14px">
+    <div style="font-size:11px;font-weight:800;color:#ff3388;letter-spacing:.05em;margin-bottom:12px">
+      ⚡ GODMODE — Autopilot Intelligence Controls
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px;margin-bottom:14px">
+
+      <!-- Toggle: Media Mode -->
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,165,0,.2);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px">
+        <div style="flex:1">
+          <div style="font-size:10px;font-weight:700;color:#ffa500">🎨 Media Mode</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">Auto-generate cover images, 3D mockups &amp; video animations for every product</div>
+        </div>
+        <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
+          <input type="checkbox" id="gm-media-mode" style="opacity:0;width:0;height:0">
+          <span onclick="document.getElementById('gm-media-mode').click()" style="position:absolute;cursor:pointer;inset:0;background:rgba(255,165,0,.15);border:1px solid rgba(255,165,0,.3);border-radius:20px;transition:.3s" id="gm-media-slider"></span>
+        </label>
+      </div>
+
+      <!-- Toggle: Intelligence Mode -->
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(136,68,255,.2);border-radius:10px;padding:12px;display:flex;align-items:center;gap:12px">
+        <div style="flex:1">
+          <div style="font-size:10px;font-weight:700;color:#cc88ff">🧠 Intelligence Mode</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">Analyse store gaps &amp; velocity before creating — always picks the best-selling niches</div>
+        </div>
+        <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
+          <input type="checkbox" id="gm-intel-mode" style="opacity:0;width:0;height:0">
+          <span onclick="document.getElementById('gm-intel-mode').click()" style="position:absolute;cursor:pointer;inset:0;background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.3);border-radius:20px;transition:.3s" id="gm-intel-slider"></span>
+        </label>
+      </div>
+
+    </div>
+
+    <!-- Action buttons -->
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button onclick="saRunGodmode()" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,rgba(255,0,100,.2),rgba(136,68,255,.2));border:1px solid rgba(255,0,100,.4);color:#ff3388">
+        ⚡ GODMODE RUN
+      </button>
+      <button onclick="saIntelAnalyze()" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.3);color:#cc88ff">
+        🧠 Analyse Store Now
+      </button>
+      <button onclick="saRunIntelAutopilot()" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);color:#00ccff">
+        🤖 Intelligence Autopilot
+      </button>
+      <button onclick="saTab('intelligence')" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+        📊 View Store Intel
+      </button>
+    </div>
+  </div>
+
   <!-- Connection warning -->
   <div id="sa-connect-warn" style="display:none;background:rgba(255,150,0,.08);border:1px solid rgba(255,150,0,.3);border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:10px;color:#ffa500">
     ⚠️ <strong>Shopify not connected.</strong> Set <code>SHOPIFY_STORE</code> (e.g. <code>mystore.myshopify.com</code>) and <code>SHOPIFY_ACCESS_TOKEN</code> in Railway environment variables. Then run a session.
@@ -4714,6 +4848,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <button onclick="saTab('webhooks')" id="sa-tab-webhooks" class="sa-tab-btn"
       style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
       🔔 Webhooks
+    </button>
+    <button onclick="saTab('intelligence')" id="sa-tab-intelligence" class="sa-tab-btn"
+      style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(136,68,255,.08);border:1px solid rgba(136,68,255,.3);color:#cc88ff">
+      🧠 Store Intel
     </button>
     <button onclick="saTab('admin')" id="sa-tab-admin" class="sa-tab-btn"
       style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,100,0,.08);border:1px solid rgba(255,100,0,.3);color:#ff9944">
@@ -4939,6 +5077,46 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <b>app/uninstalled</b> → Clear token
       </div>
     </div>
+  </div>
+
+  <!-- ── Store Intelligence ───────────────────────────────────── -->
+  <div id="sa-panel-intelligence" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">
+      <button onclick="saIntelAnalyze()" class="btn bsm" style="background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.3);color:#cc88ff;font-size:9px">🧠 Run Analysis</button>
+      <button onclick="saLoadIntelOpportunities()" class="btn bsm" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);color:#00ccff;font-size:9px">🎯 Reload Opportunities</button>
+      <button onclick="saRunIntelAutopilot()" class="btn bsm" style="background:rgba(255,0,100,.1);border:1px solid rgba(255,0,100,.3);color:#ff3388;font-size:9px">🤖 Run Intelligence Autopilot</button>
+      <span id="sa-intel-analyzed-at" style="font-size:9px;color:var(--text3)">—</span>
+    </div>
+
+    <!-- Store summary metrics -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px" id="sa-intel-metrics">
+      <div style="background:rgba(150,191,71,.08);border:1px solid rgba(150,191,71,.2);border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#96bf47" id="intel-total-products">—</div>
+        <div style="font-size:9px;color:var(--text3)">Active Products</div>
+      </div>
+      <div style="background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.2);border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#00ccff" id="intel-total-orders">—</div>
+        <div style="font-size:9px;color:var(--text3)">Total Orders</div>
+      </div>
+      <div style="background:rgba(68,255,136,.08);border:1px solid rgba(68,255,136,.2);border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#44ff88" id="intel-total-revenue">—</div>
+        <div style="font-size:9px;color:var(--text3)">Revenue</div>
+      </div>
+      <div style="background:rgba(255,0,100,.08);border:1px solid rgba(255,0,100,.2);border-radius:10px;padding:10px;text-align:center">
+        <div style="font-size:18px;font-weight:800;color:#ff3388" id="intel-gaps">—</div>
+        <div style="font-size:9px;color:var(--text3)">Niche Gaps</div>
+      </div>
+    </div>
+
+    <!-- Opportunities list -->
+    <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:8px">🎯 Top Opportunities (ranked by velocity + gap score)</div>
+    <div id="sa-intel-opportunities" style="display:flex;flex-direction:column;gap:6px">
+      <div style="color:var(--text3);font-size:11px;padding:20px">Click "Run Analysis" to score your store opportunities.</div>
+    </div>
+
+    <!-- Category performance table -->
+    <div style="font-size:10px;font-weight:700;color:var(--text1);margin:14px 0 8px">📊 Category Performance</div>
+    <div id="sa-intel-categories" style="display:flex;flex-direction:column;gap:4px"></div>
   </div>
 
   <!-- ── Shopify Admin Embed ────────────────────────────────────── -->
@@ -8909,6 +9087,100 @@ async function kdpCheckNames(){
       el.innerHTML = `<div style="color:#86efac">✅ All ${names.length} name(s) are unique — safe to use!</div>`;
     }
   }catch(e){ toast('Check failed','error'); }
+}
+
+// ── Add Character to Registry ──────────────────────────────────────────────
+function kdpToggleAddChar(){
+  const p = document.getElementById('kdp-add-char-panel');
+  if(p) p.style.display = p.style.display==='none' ? 'block' : 'none';
+}
+
+async function kdpAddCharacter(){
+  const name   = (document.getElementById('kdp-add-char-name')?.value||'').trim();
+  const role   = document.getElementById('kdp-add-char-role')?.value||'supporting';
+  const book   = (document.getElementById('kdp-add-char-book')?.value||'').trim();
+  const series = (document.getElementById('kdp-add-char-series')?.value||'').trim();
+  const res    = document.getElementById('kdp-add-char-result');
+  if(!name||!book){
+    if(res) res.innerHTML = '<span style="color:#f87171">Name and Book Title are required.</span>';
+    return;
+  }
+  try{
+    const r = await api('/api/character-registry/add','POST',{
+      name, role, book_title: book, series_name: series, genre: series||'fiction'
+    });
+    if(res) res.innerHTML = r.conflict_warning
+      ? `<span style="color:#fbbf24">⚠️ Added — but conflicts with: ${r.conflict_warning} in another series</span>`
+      : `<span style="color:#86efac">✅ ${r.message}</span>`;
+    ['kdp-add-char-name','kdp-add-char-book','kdp-add-char-series'].forEach(id=>{
+      const el = document.getElementById(id); if(el) el.value='';
+    });
+    await kdpLoadCharRegistry();
+  }catch(e){
+    if(res) res.innerHTML = `<span style="color:#f87171">Error: ${e.message}</span>`;
+  }
+}
+
+// ── Write from Idea Studio ─────────────────────────────────────────────────
+function kdpIdeaToggle(){
+  const f = document.getElementById('kdp-idea-form');
+  if(f) f.style.display = f.style.display==='none' ? 'block' : 'none';
+}
+
+async function kdpSubmitIdea(){
+  const title    = (document.getElementById('kdp-idea-title')?.value||'').trim();
+  const logline  = (document.getElementById('kdp-idea-logline')?.value||'').trim();
+  const genre    = document.getElementById('kdp-idea-genre')?.value||'fantasy';
+  const chapters = parseInt(document.getElementById('kdp-idea-chapters')?.value)||20;
+  if(!title||!logline){ toast('Title and Idea are required','warn'); return; }
+  const btn = document.getElementById('kdp-idea-submit-btn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Queuing…'; }
+  try{
+    const r = await api('/api/books/write','POST',{title, logline, genre, num_chapters: chapters});
+    toast(`✍️ "${title}" queued — job ${r.job_id.slice(-6)}`, 'success');
+    document.getElementById('kdp-idea-jobs').style.display='block';
+    _kdpPollIdeaJob(r.job_id, title, genre, chapters);
+    kdpIdeaToggle();
+    ['kdp-idea-title','kdp-idea-logline'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  }catch(e){ toast('Error: '+e.message,'error'); }
+  finally{ if(btn){ btn.disabled=false; btn.textContent='🚀 Generate Book'; } }
+}
+
+function _kdpPollIdeaJob(jobId, title, genre, totalChapters){
+  const listEl = document.getElementById('kdp-idea-jobs-list');
+  if(!listEl) return;
+  const row = document.createElement('div');
+  row.id = `kdp-job-${jobId}`;
+  row.style.cssText='display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1f2937;font-size:12px';
+  row.innerHTML=`<span id="kdp-job-icon-${jobId}" style="color:#fbbf24;font-size:14px">⏳</span>`
+    +`<span style="flex:1;color:#e5e7eb;font-weight:500">${title}</span>`
+    +`<span style="color:#6b7280;font-size:11px">${genre}</span>`
+    +`<span id="kdp-job-status-${jobId}" style="color:#9ca3af;font-size:11px">queued</span>`;
+  listEl.prepend(row);
+  const iv = setInterval(async()=>{
+    try{
+      const j = await api(`/api/books/job/${jobId}`);
+      const stEl   = document.getElementById(`kdp-job-status-${jobId}`);
+      const iconEl = document.getElementById(`kdp-job-icon-${jobId}`);
+      if(j.status==='running'){
+        const ch = j.result?.chapters_written||0;
+        if(stEl) stEl.textContent = ch ? `ch ${ch}/${totalChapters}` : 'writing…';
+      } else if(j.status==='done'){
+        clearInterval(iv);
+        if(iconEl) iconEl.textContent='✅';
+        const wc = (j.result?.word_count||0).toLocaleString();
+        const qc = j.result?.qc_score||'?';
+        if(stEl) stEl.innerHTML=`<span style="color:#86efac">done · ${wc} words · QC ${qc}</span>`;
+        toast(`📚 "${title}" complete! ${wc} words, QC ${qc}`,'success');
+        setTimeout(()=>refreshKDP(), 1500);
+      } else if(j.status==='error'){
+        clearInterval(iv);
+        if(iconEl) iconEl.textContent='❌';
+        if(stEl) stEl.innerHTML=`<span style="color:#f87171">failed: ${j.error||'unknown'}</span>`;
+        toast(`❌ "${title}" failed`,'error');
+      }
+    }catch(e){ /* ignore transient network errors */ }
+  }, 8000);
 }
 
 async function kdpGenCover(genre, title) {
@@ -13697,7 +13969,7 @@ let _saPollTimer  = null;
 
 function saTab(tab) {
   _saCurrentTab = tab;
-  ['store','products','catalog','pod','funnel','trends','perf','log','orders','discounts','customers','webhooks','admin'].forEach(t => {
+  ['store','products','catalog','pod','funnel','trends','perf','log','orders','discounts','customers','webhooks','intelligence','admin'].forEach(t => {
     const panel = document.getElementById('sa-panel-' + t);
     const btn   = document.getElementById('sa-tab-' + t);
     if (panel) panel.style.display = t === tab ? '' : 'none';
@@ -13715,8 +13987,9 @@ function saTab(tab) {
   if (tab === 'log')       saLoadLog();
   if (tab === 'products')  saLoadProducts();
   if (tab === 'orders')    saLoadOrders();
-  if (tab === 'customers') saLoadCustomers();
-  if (tab === 'webhooks')  saLoadWebhooks();
+  if (tab === 'customers')     saLoadCustomers();
+  if (tab === 'webhooks')      saLoadWebhooks();
+  if (tab === 'intelligence')  saLoadIntelOpportunities();
 }
 
 async function saLoadStore() {
@@ -13770,8 +14043,9 @@ async function saLoadStore() {
   </div>
   <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px">
     ${p.id ? `<a href="https://admin.shopify.com/store/7tiy1y-wd/products/${p.id}" target="_blank" style="font-size:8px;color:#00ccff;text-decoration:none;padding:2px 6px;border-radius:5px;border:1px solid rgba(0,204,255,.25)">Edit ↗</a>` : ''}
+    ${p.id ? `<button onclick="saGenMedia(${p.id},'${esc(p.title||'')}','${(p.product_type||'').toLowerCase().replace(/ /g,'_')}')" style="font-size:8px;color:#ffa500;background:rgba(255,165,0,.1);border:1px solid rgba(255,165,0,.25);border-radius:5px;padding:2px 6px;cursor:pointer;font-family:inherit">🎨 Media</button>` : ''}
     ${p.id ? `<button onclick="saDeleteProduct(${p.id},'${esc(p.title||'')}')" style="font-size:8px;color:#ff6060;background:rgba(255,96,96,.1);border:1px solid rgba(255,96,96,.25);border-radius:5px;padding:2px 6px;cursor:pointer;font-family:inherit">🗑 Delete</button>` : ''}
-    ${p.status==='active'?`<button onclick="saArchiveProduct(${p.id})" style="font-size:8px;color:#ffa500;background:rgba(255,165,0,.1);border:1px solid rgba(255,165,0,.25);border-radius:5px;padding:2px 6px;cursor:pointer;font-family:inherit">📦 Archive</button>`:''}
+    ${p.status==='active'?`<button onclick="saArchiveProduct(${p.id})" style="font-size:8px;color:var(--text3);background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:5px;padding:2px 6px;cursor:pointer;font-family:inherit">📦 Archive</button>`:''}
   </div>
 </div>`;
       }).join('');
@@ -13883,6 +14157,137 @@ async function saLoadWebhooks() {
     list.innerHTML = `<div style="color:#ff6060;font-size:11px;padding:20px">Error: ${esc(e.message)}</div>`;
   }
 }
+
+// ── Godmode helpers ───────────────────────────────────────────────────────────
+
+function saGodmodeConfig() {
+  return {
+    media_mode:       document.getElementById('gm-media-mode')?.checked   || false,
+    intelligence_mode: document.getElementById('gm-intel-mode')?.checked  || false,
+  };
+}
+
+async function saRunGodmode() {
+  const cfg = saGodmodeConfig();
+  const flags = [];
+  if (cfg.media_mode) flags.push('🎨 Media');
+  if (cfg.intelligence_mode) flags.push('🧠 Intelligence');
+  toast(`⚡ GODMODE starting${flags.length ? ' [' + flags.join(' + ') + ']' : ''}…`, 'info');
+  try {
+    const d = await api('/api/shopify-autopilot/start', 'POST', cfg);
+    if (d.started) {
+      toast(`🟢 GODMODE session ${d.session_id} started`, 'ok');
+      saStartPoll();
+    } else {
+      toast(d.reason || 'Could not start', 'error');
+    }
+  } catch(e) { toast('GODMODE error: ' + e.message, 'error'); }
+}
+
+async function saGenMedia(productId, title, productType) {
+  toast(`🎨 Generating media for "${title}"…`, 'info');
+  try {
+    await api(`/api/shopify/media/generate/${productId}`, 'POST', {
+      title, _product_type_key: productType
+    });
+    toast(`✅ Media generation started — check product in Shopify Admin in ~3 min`, 'ok');
+  } catch(e) { toast('Media gen error: ' + e.message, 'error'); }
+}
+
+async function saIntelAnalyze() {
+  toast('🧠 Analysing store…', 'info');
+  try {
+    const d = await api('/api/shopify/intelligence/analyze', 'POST');
+    // Update metrics
+    const sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+    sv('intel-total-products', d.total_products || 0);
+    sv('intel-total-orders',   d.total_orders   || 0);
+    sv('intel-total-revenue',  '$' + (d.total_revenue || 0).toFixed(2));
+    sv('intel-gaps',           (d.category_gaps || []).length);
+    const ts = document.getElementById('sa-intel-analyzed-at');
+    if (ts) ts.textContent = 'Analysed: ' + new Date(d.analyzed_at).toLocaleTimeString();
+    toast(`📊 Analysis done — ${(d.category_gaps||[]).length} gaps found, $${(d.total_revenue||0).toFixed(2)} revenue`, 'ok');
+    saLoadIntelOpportunities();
+  } catch(e) { toast('Analysis error: ' + e.message, 'error'); }
+}
+
+async function saLoadIntelOpportunities() {
+  const el = document.getElementById('sa-intel-opportunities');
+  const cats = document.getElementById('sa-intel-categories');
+  if (!el) return;
+  el.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:20px">Loading…</div>';
+  try {
+    const d = await api('/api/shopify/intelligence/opportunities');
+    // Update metrics from store_summary
+    if (d.store_summary) {
+      const sv = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+      sv('intel-total-products', d.store_summary.total_products || 0);
+      sv('intel-total-orders',   d.store_summary.total_orders   || 0);
+      sv('intel-total-revenue',  '$' + (d.store_summary.total_revenue || 0).toFixed(2));
+      sv('intel-gaps',           d.store_summary.gaps_count || 0);
+    }
+    const PRIORITY_COLORS = { HIGH: '#ff3388', MEDIUM: '#ffa500', LOW: '#96bf47' };
+    el.innerHTML = (d.opportunities || []).map(o => `
+<div style="background:rgba(255,255,255,.03);border:1px solid ${o.priority==='HIGH'?'rgba(255,51,136,.25)':'rgba(255,255,255,.08)'};border-radius:10px;padding:12px;display:flex;gap:10px;align-items:flex-start">
+  <div style="width:32px;height:32px;border-radius:8px;background:rgba(136,68,255,.15);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0">
+    ${o.priority==='HIGH'?'🔥':o.priority==='MEDIUM'?'⚡':'💡'}
+  </div>
+  <div style="flex:1;min-width:0">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="font-size:10px;font-weight:700;color:var(--text1)">${esc(o.niche)}</div>
+      <div style="display:flex;gap:4px;align-items:center;flex-shrink:0">
+        <span style="font-size:8px;padding:2px 6px;border-radius:8px;background:rgba(136,68,255,.15);color:#cc88ff;font-weight:700">score ${o.score}</span>
+        <span style="font-size:8px;padding:2px 6px;border-radius:8px;background:${o.priority==='HIGH'?'rgba(255,51,136,.15)':'rgba(255,165,0,.12)'};color:${PRIORITY_COLORS[o.priority]||'#ffa500'};font-weight:700">${o.priority}</span>
+      </div>
+    </div>
+    <div style="font-size:9px;color:var(--text3);margin-top:3px">${esc(o.reason)}</div>
+    <div style="font-size:8px;color:#00ccff;margin-top:4px">${(o.product_types||[]).join(' · ')} · $${o.price_range?o.price_range[0]+'-'+o.price_range[1]:'?'}</div>
+  </div>
+</div>`).join('') || '<div style="color:var(--text3);font-size:11px;padding:20px">No opportunities scored yet — run Analysis first.</div>';
+
+    const ts = document.getElementById('sa-intel-analyzed-at');
+    if (ts && d.analyzed_at) ts.textContent = 'Last: ' + new Date(d.analyzed_at).toLocaleTimeString();
+  } catch(e) {
+    el.innerHTML = `<div style="color:#ff6060;font-size:11px;padding:20px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function saRunIntelAutopilot() {
+  const cfg = saGodmodeConfig();
+  const n = parseInt(prompt('How many products to create? (default 5)', '5') || '5');
+  if (isNaN(n) || n < 1) return;
+  toast(`🤖 Intelligence Autopilot: creating ${n} products${cfg.media_mode?' + media':''}…`, 'info');
+  try {
+    await api('/api/shopify/intelligence/autopilot', 'POST', {
+      n_products: n,
+      media_mode: cfg.media_mode,
+    });
+    toast(`🧠 Intelligence Autopilot running — check session log`, 'ok');
+    saStartPoll();
+  } catch(e) { toast('Intel autopilot error: ' + e.message, 'error'); }
+}
+
+// Update saStart to pass godmode flags
+const _saStartOriginal = saStart;
+saStart = async function() {
+  const cfg = saGodmodeConfig();
+  const hasFlags = cfg.media_mode || cfg.intelligence_mode;
+  if (hasFlags) {
+    // Use godmode start
+    await saRunGodmode();
+  } else {
+    // Normal start
+    try {
+      const d = await api('/api/shopify-autopilot/start', 'POST', {});
+      if (d.started) {
+        toast('🟢 Shopify Autopilot session started: ' + d.session_id, 'ok');
+        saStartPoll();
+      } else {
+        toast(d.reason || 'Could not start', 'error');
+      }
+    } catch(e) { toast('Start failed: ' + e.message, 'error'); }
+  }
+};
 
 function saSetBadge(running, phase) {
   const badge = document.getElementById('sa-engine-badge');
