@@ -6166,6 +6166,132 @@ async def kdp_run(req: KDPRunRequest, background_tasks: BackgroundTasks):
     return {"status": "launched", "mode": req.mode, "genre": req.genre}
 
 
+# ─── Character Registry Endpoints ────────────────────────────────────────────
+
+_character_registry_singleton = None
+
+def _get_character_registry():
+    global _character_registry_singleton
+    if _character_registry_singleton is None:
+        try:
+            from core.character_registry import CharacterRegistry
+            _character_registry_singleton = CharacterRegistry()
+        except Exception as e:
+            logger.error("CharacterRegistry init failed: %s", e)
+    return _character_registry_singleton
+
+
+class CharNameCheckRequest(BaseModel):
+    names: list
+    series_name: str = ""
+
+
+class CharAddRequest(BaseModel):
+    name: str
+    role: str = "supporting"
+    book_title: str
+    series_name: str = ""
+    genre: str = "fiction"
+
+
+@app.get("/api/character-registry")
+async def get_character_registry_api(
+    genre: str = None,
+    series: str = None,
+):
+    """Return all registered character entries, optionally filtered by genre/series."""
+    cr = _get_character_registry()
+    if not cr:
+        raise HTTPException(status_code=503, detail="Character registry unavailable")
+    entries = cr._load()
+    if genre:
+        entries = [e for e in entries if e.get("genre", "").lower() == genre.lower()]
+    if series:
+        entries = [e for e in entries if series.lower() in e.get("series_name", "").lower()]
+    return {"entries": entries, "total": len(entries)}
+
+
+@app.post("/api/character-registry/check")
+async def check_character_names(req: CharNameCheckRequest):
+    """Check a list of proposed names for conflicts with existing registry entries."""
+    cr = _get_character_registry()
+    if not cr:
+        raise HTTPException(status_code=503, detail="Character registry unavailable")
+    conflicts = cr.check_conflicts(req.names, series_name=req.series_name)
+    safe = [n for n in req.names if n not in conflicts]
+    return {"conflicts": conflicts, "safe": safe, "total_checked": len(req.names)}
+
+
+@app.post("/api/character-registry/add")
+async def add_character_api(req: CharAddRequest):
+    """Manually add a single character name to the registry."""
+    cr = _get_character_registry()
+    if not cr:
+        raise HTTPException(status_code=503, detail="Character registry unavailable")
+    if not req.name.strip() or not req.book_title.strip():
+        raise HTTPException(status_code=400, detail="name and book_title are required")
+    conflicts = cr.check_conflicts([req.name], series_name=req.series_name)
+    entry = cr.add_character(
+        name=req.name,
+        role=req.role,
+        book_title=req.book_title,
+        series_name=req.series_name,
+        genre=req.genre,
+    )
+    return {
+        "ok": True,
+        "entry_id": entry.get("id"),
+        "conflict_warning": conflicts[0] if conflicts else None,
+        "message": f"'{req.name}' added to registry for '{req.book_title}'",
+    }
+
+
+# ─── Book Write-from-Idea Endpoints ──────────────────────────────────────────
+
+class BookWriteRequest(BaseModel):
+    title: str
+    logline: str
+    genre: str = "fantasy"
+    num_chapters: int = 20
+
+
+@app.post("/api/books/write")
+async def write_book_from_idea(req: BookWriteRequest):
+    """Queue an async best-seller writing job from a user-supplied idea. Returns job_id immediately."""
+    from core.job_queue import get_queue as get_job_queue
+    from bots.books.write_bestseller import BestsellerWriter
+
+    if not req.title.strip() or not req.logline.strip():
+        raise HTTPException(status_code=400, detail="title and logline are required")
+
+    num_chapters = max(10, min(25, req.num_chapters))
+    # Capture in local vars for the closure
+    _title, _logline, _genre, _nch = req.title, req.logline, req.genre, num_chapters
+
+    def _run_write():
+        writer = BestsellerWriter(genre=_genre)
+        return writer.write(title=_title, logline=_logline, num_chapters=_nch)
+
+    jq = get_job_queue()
+    job_id = await jq.submit(
+        name=f"write:{_title[:40]}",
+        fn=_run_write,
+        meta={"title": _title, "genre": _genre, "logline": _logline, "num_chapters": _nch},
+    )
+    _add_log(f"Book write queued: '{_title}' ({_genre}, {_nch} ch)", "INFO")
+    return {"ok": True, "job_id": job_id, "title": _title, "genre": _genre}
+
+
+@app.get("/api/books/job/{job_id}")
+async def get_book_job(job_id: str):
+    """Get status and result of a book-writing job."""
+    from core.job_queue import get_queue as get_job_queue
+    job = get_job_queue().get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job not found: {job_id}")
+    return job
+
+
 # ─── NarAI — General Overseer AI ─────────────────────────────────────────────
 
 _narai = None
@@ -10787,6 +10913,81 @@ async def shopify_create_product(request: Request):
     return result
 
 
+@app.put("/api/shopify/products/{product_id}")
+async def shopify_update_product(product_id: int, request: Request):
+    """Update an existing Shopify product. Body: {title, description, price, status, tags}"""
+    from core.shopify_client import _shopify_request
+    body = await request.json()
+    update = {}
+    if "title" in body:
+        update["title"] = body["title"]
+    if "description" in body:
+        update["body_html"] = body["description"]
+    if "price" in body:
+        update["variants"] = [{"price": str(float(body["price"]))}]
+    if "status" in body:
+        update["status"] = body["status"]
+    if "tags" in body:
+        update["tags"] = body["tags"]
+    resp = _shopify_request("PUT", f"products/{product_id}.json", {"product": update})
+    product = resp.get("product", {})
+    if not product.get("id"):
+        raise HTTPException(status_code=400, detail=resp.get("errors", "Update failed"))
+    return {"success": True, "product_id": product.get("id"), "title": product.get("title")}
+
+
+@app.delete("/api/shopify/products/{product_id}")
+async def shopify_delete_product(product_id: int):
+    """Delete a Shopify product by ID."""
+    from core.shopify_client import _shopify_request
+    resp = _shopify_request("DELETE", f"products/{product_id}.json")
+    return {"success": True, "deleted_id": product_id}
+
+
+@app.get("/api/shopify/customers")
+async def shopify_list_customers(limit: int = Query(50)):
+    """List Shopify customers."""
+    from core.shopify_client import _shopify_request
+    resp = _shopify_request("GET", f"customers.json?limit={limit}")
+    customers = resp.get("customers", [])
+    return {
+        "customers": [
+            {
+                "id": c.get("id"),
+                "email": c.get("email"),
+                "first_name": c.get("first_name"),
+                "last_name": c.get("last_name"),
+                "orders_count": c.get("orders_count", 0),
+                "total_spent": c.get("total_spent", "0.00"),
+                "created_at": c.get("created_at"),
+                "tags": c.get("tags", ""),
+            }
+            for c in customers
+        ],
+        "count": len(customers),
+    }
+
+
+@app.get("/api/shopify/webhooks/status")
+async def shopify_webhooks_status():
+    """List all registered webhooks."""
+    from core.shopify_client import _shopify_request
+    resp = _shopify_request("GET", "webhooks.json")
+    webhooks = resp.get("webhooks", [])
+    return {
+        "webhooks": [
+            {
+                "id": w.get("id"),
+                "topic": w.get("topic"),
+                "address": w.get("address"),
+                "created_at": w.get("created_at"),
+            }
+            for w in webhooks
+        ],
+        "count": len(webhooks),
+    }
+
+
 @app.get("/api/shopify/orders")
 async def shopify_list_orders(limit: int = Query(50), status: str = Query("any")):
     """List orders and revenue summary."""
@@ -10828,10 +11029,35 @@ async def shopify_webhook(request: Request, background_tasks: BackgroundTasks):
     def _handle():
         try:
             if topic == "orders/paid":
-                order_id  = data.get("id")
-                total     = data.get("total_price")
-                customer  = data.get("customer", {}).get("email", "")
-                _add_log(f"💰 Order paid: #{order_id} ${total} — {customer}")
+                order_id   = data.get("id")
+                total      = data.get("total_price")
+                customer   = data.get("customer", {})
+                email      = customer.get("email", "")
+                first_name = customer.get("first_name", "")
+                _add_log(f"💰 Order paid: #{order_id} ${total} — {email}")
+
+                # ── ConvertKit: tag buyer (upgrade #19) ──────────────────────
+                if email:
+                    try:
+                        from core.convertkit import add_subscriber
+                        line_items = data.get("line_items", [])
+                        product_names = [li.get("title","") for li in line_items]
+                        tags = ["customer", "buyer"] + [f"bought:{n[:40]}" for n in product_names if n]
+                        add_subscriber(email, first_name=first_name, tags=tags, fields={
+                            "order_id": str(order_id),
+                            "order_total": str(total),
+                        })
+                        _add_log(f"📧 ConvertKit: subscribed buyer {email}")
+                    except Exception as ck_err:
+                        _add_log(f"ConvertKit capture error: {ck_err}", "WARNING")
+
+                # ── Auto-restock: trigger new product publish in background ──
+                try:
+                    from core.narai_shopify_engine import run_autopilot_session
+                    run_autopilot_session(num_digital=1, num_pod=0, num_services=0, num_subscriptions=0)
+                    _add_log("♻️ Auto-restock: queued 1 new product after sale")
+                except Exception as rs_err:
+                    _add_log(f"Auto-restock error: {rs_err}", "WARNING")
 
             elif topic == "orders/create":
                 order_id = data.get("id")

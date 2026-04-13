@@ -4707,6 +4707,14 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
       🏷️ Discounts
     </button>
+    <button onclick="saTab('customers')" id="sa-tab-customers" class="sa-tab-btn"
+      style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      👥 Customers
+    </button>
+    <button onclick="saTab('webhooks')" id="sa-tab-webhooks" class="sa-tab-btn"
+      style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+      🔔 Webhooks
+    </button>
     <button onclick="saTab('admin')" id="sa-tab-admin" class="sa-tab-btn"
       style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,100,0,.08);border:1px solid rgba(255,100,0,.3);color:#ff9944">
       🔗 Shopify Admin
@@ -4746,6 +4754,12 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         {emoji:'🌐',title:'Website Templates',range:'$49–$199',desc:'SaaS, portfolio, landing page HTML/CSS templates.',tags:'website, template',color:'#ff6060'},
         {emoji:'💼',title:'Resume & Career Kits',range:'$19–$49',desc:'ATS-optimised resume + LinkedIn + cover letter pack.',tags:'resume, career',color:'#44ff88'},
         {emoji:'🚀',title:'AI Starter Kits',range:'$49–$99',desc:'NarAI-lite bundles, automation setup guides, prompt libraries.',tags:'ai, bundle',color:'#00ccff'},
+        {emoji:'🎓',title:'Online Courses',range:'$97–$297',desc:'Step-by-step video/text courses on AI, trading, and automation.',tags:'course, education',color:'#ff9944'},
+        {emoji:'💻',title:'Software Licenses',range:'$47–$197',desc:'Lifetime software access, SaaS tools, API integrations.',tags:'software, lifetime',color:'#cc88ff'},
+        {emoji:'📐',title:'SaaS Templates',range:'$97–$497',desc:'Full-stack SaaS starter kits with auth, payments, and DB.',tags:'saas, developer',color:'#00ccff'},
+        {emoji:'🎨',title:'Stock Media Packs',range:'$17–$67',desc:'AI-generated backgrounds, mockups, and graphics bundles.',tags:'media, content-creator',color:'#ff6060'},
+        {emoji:'🎵',title:'Music Beat Packs',range:'$17–$97',desc:'Royalty-free beats for content creators, YouTube, TikTok.',tags:'music, beats',color:'#44ff88'},
+        {emoji:'🎬',title:'Video Preset Packs',range:'$17–$67',desc:'LUTs, transitions, and After Effects presets for creators.',tags:'video, presets',color:'#ffa500'},
         {emoji:'💳',title:'$19/mo Subscription',range:'$19/month',desc:'AI Stock Alerts Club — daily signals + Telegram community.',tags:'subscription, trading',color:'#ffa500'},
         {emoji:'🛠️',title:'Services',range:'$49–$499',desc:'AI Automation Setup, Website Build, Resume Overhaul, Trading Coaching.',tags:'service',color:'#cc88ff'},
       ].map(c=>`
@@ -4892,6 +4906,37 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
             </div>
           `).join('')}
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Customers ─────────────────────────────────────────────── -->
+  <div id="sa-panel-customers" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button onclick="saLoadCustomers()" class="btn bsm" style="background:rgba(0,204,255,.1);border:1px solid rgba(0,204,255,.3);color:#00ccff;font-size:9px">🔄 Refresh Customers</button>
+      <span id="sa-customers-count" style="font-size:10px;color:var(--text3)">—</span>
+    </div>
+    <div id="sa-customers-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px">
+      <div style="color:var(--text3);font-size:11px;padding:20px">Click Refresh to load customers.</div>
+    </div>
+  </div>
+
+  <!-- ── Webhooks Status ─────────────────────────────────────────── -->
+  <div id="sa-panel-webhooks" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+      <button onclick="saLoadWebhooks()" class="btn bsm" style="background:rgba(150,191,71,.1);border:1px solid rgba(150,191,71,.3);color:#96bf47;font-size:9px">🔄 Refresh Webhooks</button>
+      <span id="sa-webhooks-count" style="font-size:10px;color:var(--text3)">—</span>
+    </div>
+    <div id="sa-webhooks-list" style="display:flex;flex-direction:column;gap:8px">
+      <div style="color:var(--text3);font-size:11px;padding:20px">Click Refresh to check registered webhooks.</div>
+    </div>
+    <div style="background:rgba(255,165,0,.06);border:1px solid rgba(255,165,0,.2);border-radius:10px;padding:12px;margin-top:12px">
+      <div style="font-size:10px;font-weight:700;color:#ffa500;margin-bottom:6px">ℹ️ Webhook Events</div>
+      <div style="font-size:10px;color:var(--text2);line-height:1.7">
+        <b>orders/paid</b> → ConvertKit capture + auto-restock trigger<br>
+        <b>orders/create</b> → Log new order<br>
+        <b>products/create</b> → Log new product<br>
+        <b>app/uninstalled</b> → Clear token
       </div>
     </div>
   </div>
@@ -13652,7 +13697,7 @@ let _saPollTimer  = null;
 
 function saTab(tab) {
   _saCurrentTab = tab;
-  ['store','products','catalog','pod','funnel','trends','perf','log','orders','discounts','admin'].forEach(t => {
+  ['store','products','catalog','pod','funnel','trends','perf','log','orders','discounts','customers','webhooks','admin'].forEach(t => {
     const panel = document.getElementById('sa-panel-' + t);
     const btn   = document.getElementById('sa-tab-' + t);
     if (panel) panel.style.display = t === tab ? '' : 'none';
@@ -13663,13 +13708,15 @@ function saTab(tab) {
       btn.style.color      = t === tab ? (isAdmin ? '#ff9944' : '#96bf47') : (isAdmin ? '#ff9944' : 'var(--text2)');
     }
   });
-  if (tab === 'store')    saLoadStore();
-  if (tab === 'funnel')   saLoadFunnel();
-  if (tab === 'trends')   saLoadTrends();
-  if (tab === 'perf')     saLoadPerf();
-  if (tab === 'log')      saLoadLog();
-  if (tab === 'products') saLoadProducts();
-  if (tab === 'orders')   saLoadOrders();
+  if (tab === 'store')     saLoadStore();
+  if (tab === 'funnel')    saLoadFunnel();
+  if (tab === 'trends')    saLoadTrends();
+  if (tab === 'perf')      saLoadPerf();
+  if (tab === 'log')       saLoadLog();
+  if (tab === 'products')  saLoadProducts();
+  if (tab === 'orders')    saLoadOrders();
+  if (tab === 'customers') saLoadCustomers();
+  if (tab === 'webhooks')  saLoadWebhooks();
 }
 
 async function saLoadStore() {
@@ -13721,7 +13768,11 @@ async function saLoadStore() {
     <span style="font-size:11px;font-weight:800;color:#44ff88">$${price}</span>
     ${p.status === 'active' ? `<span style="font-size:8px;color:#44ff88">● active</span>` : `<span style="font-size:8px;color:var(--text3)">● draft</span>`}
   </div>
-  ${p.id ? `<a href="https://${d.store_domain||''}/admin/products/${p.id}" target="_blank" style="font-size:8px;color:#00ccff;text-decoration:none">Open in Shopify ↗</a>` : ''}
+  <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:2px">
+    ${p.id ? `<a href="https://admin.shopify.com/store/7tiy1y-wd/products/${p.id}" target="_blank" style="font-size:8px;color:#00ccff;text-decoration:none;padding:2px 6px;border-radius:5px;border:1px solid rgba(0,204,255,.25)">Edit ↗</a>` : ''}
+    ${p.id ? `<button onclick="saDeleteProduct(${p.id},'${esc(p.title||'')}')" style="font-size:8px;color:#ff6060;background:rgba(255,96,96,.1);border:1px solid rgba(255,96,96,.25);border-radius:5px;padding:2px 6px;cursor:pointer;font-family:inherit">🗑 Delete</button>` : ''}
+    ${p.status==='active'?`<button onclick="saArchiveProduct(${p.id})" style="font-size:8px;color:#ffa500;background:rgba(255,165,0,.1);border:1px solid rgba(255,165,0,.25);border-radius:5px;padding:2px 6px;cursor:pointer;font-family:inherit">📦 Archive</button>`:''}
+  </div>
 </div>`;
       }).join('');
     }
@@ -13757,6 +13808,80 @@ async function saSetupBoutique() {
       toast('Boutique setup failed: ' + (d.error || 'unknown'), 'error');
     }
   } catch(e) { toast('Setup error: ' + e.message, 'error'); }
+}
+
+async function saDeleteProduct(id, title) {
+  if (!confirm(`Delete "${title}" from Shopify? This cannot be undone.`)) return;
+  try {
+    await api(`/api/shopify/products/${id}`, 'DELETE');
+    toast(`🗑 Deleted: ${title}`, 'ok');
+    saLoadStore();
+  } catch(e) { toast('Delete failed: ' + e.message, 'error'); }
+}
+
+async function saArchiveProduct(id) {
+  try {
+    await api(`/api/shopify/products/${id}`, 'PUT', {status: 'archived'});
+    toast('📦 Product archived', 'ok');
+    saLoadStore();
+  } catch(e) { toast('Archive failed: ' + e.message, 'error'); }
+}
+
+async function saLoadCustomers() {
+  const list = document.getElementById('sa-customers-list');
+  const cnt  = document.getElementById('sa-customers-count');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:20px">Loading…</div>';
+  try {
+    const d = await api('/api/shopify/customers?limit=50');
+    const customers = d.customers || [];
+    if (cnt) cnt.textContent = `${customers.length} customers`;
+    if (!customers.length) {
+      list.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:20px">No customers yet.</div>';
+      return;
+    }
+    list.innerHTML = customers.map(c => `
+<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px">
+  <div style="font-size:10px;font-weight:700;color:var(--text1)">${esc((c.first_name||'') + ' ' + (c.last_name||'')).trim() || 'Unknown'}</div>
+  <div style="font-size:9px;color:#00ccff;margin-top:2px">${esc(c.email||'—')}</div>
+  <div style="display:flex;gap:10px;margin-top:6px;font-size:9px;color:var(--text2)">
+    <span>🛒 ${c.orders_count||0} orders</span>
+    <span style="color:#44ff88">💰 $${c.total_spent||'0.00'}</span>
+  </div>
+  ${c.tags ? `<div style="font-size:8px;color:var(--text3);margin-top:4px">🏷 ${esc(c.tags)}</div>` : ''}
+</div>`).join('');
+  } catch(e) {
+    list.innerHTML = `<div style="color:#ff6060;font-size:11px;padding:20px">Error: ${esc(e.message)}</div>`;
+  }
+}
+
+async function saLoadWebhooks() {
+  const list = document.getElementById('sa-webhooks-list');
+  const cnt  = document.getElementById('sa-webhooks-count');
+  if (!list) return;
+  list.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:20px">Loading…</div>';
+  try {
+    const d = await api('/api/shopify/webhooks/status');
+    const hooks = d.webhooks || [];
+    if (cnt) cnt.textContent = `${hooks.length} webhooks registered`;
+    const EXPECTED = ['orders/paid','orders/create','products/create','app/uninstalled'];
+    const registered = hooks.map(h => h.topic);
+    const statusItems = EXPECTED.map(topic => {
+      const found = registered.includes(topic);
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px">
+        <span style="font-size:10px;color:var(--text1)">${topic}</span>
+        <span style="font-size:9px;font-weight:700;color:${found?'#44ff88':'#ff6060'}">${found?'✅ Active':'❌ Missing'}</span>
+      </div>`;
+    });
+    const extra = hooks.filter(h => !EXPECTED.includes(h.topic)).map(h =>
+      `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px">
+        <span style="font-size:10px;color:var(--text2)">${h.topic}</span>
+        <span style="font-size:9px;color:var(--text3)">${esc(h.address||'').slice(0,40)}…</span>
+      </div>`);
+    list.innerHTML = [...statusItems, ...extra].join('');
+  } catch(e) {
+    list.innerHTML = `<div style="color:#ff6060;font-size:11px;padding:20px">Error: ${esc(e.message)}</div>`;
+  }
 }
 
 function saSetBadge(running, phase) {
