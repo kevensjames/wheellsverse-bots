@@ -10937,7 +10937,7 @@ async def shopify_create_product(request: Request):
 @app.put("/api/shopify/products/{product_id}")
 async def shopify_update_product(product_id: int, request: Request):
     """Update an existing Shopify product. Body: {title, description, price, status, tags}"""
-    from core.shopify_client import _shopify_request
+    from core.shopify_client import _api
     body = await request.json()
     update = {}
     if "title" in body:
@@ -10950,7 +10950,7 @@ async def shopify_update_product(product_id: int, request: Request):
         update["status"] = body["status"]
     if "tags" in body:
         update["tags"] = body["tags"]
-    resp = _shopify_request("PUT", f"products/{product_id}.json", {"product": update})
+    resp = _api("PUT", f"products/{product_id}.json", {"product": update})
     product = resp.get("product", {})
     if not product.get("id"):
         raise HTTPException(status_code=400, detail=resp.get("errors", "Update failed"))
@@ -10960,16 +10960,16 @@ async def shopify_update_product(product_id: int, request: Request):
 @app.delete("/api/shopify/products/{product_id}")
 async def shopify_delete_product(product_id: int):
     """Delete a Shopify product by ID."""
-    from core.shopify_client import _shopify_request
-    resp = _shopify_request("DELETE", f"products/{product_id}.json")
+    from core.shopify_client import _api
+    _api("DELETE", f"products/{product_id}.json")
     return {"success": True, "deleted_id": product_id}
 
 
 @app.get("/api/shopify/customers")
 async def shopify_list_customers(limit: int = Query(50)):
     """List Shopify customers."""
-    from core.shopify_client import _shopify_request
-    resp = _shopify_request("GET", f"customers.json?limit={limit}")
+    from core.shopify_client import _api
+    resp = _api("GET", f"customers.json?limit={limit}")
     customers = resp.get("customers", [])
     return {
         "customers": [
@@ -10992,8 +10992,8 @@ async def shopify_list_customers(limit: int = Query(50)):
 @app.get("/api/shopify/webhooks/status")
 async def shopify_webhooks_status():
     """List all registered webhooks."""
-    from core.shopify_client import _shopify_request
-    resp = _shopify_request("GET", "webhooks.json")
+    from core.shopify_client import _api
+    resp = _api("GET", "webhooks.json")
     webhooks = resp.get("webhooks", [])
     return {
         "webhooks": [
@@ -11173,6 +11173,12 @@ async def shopify_register_webhooks():
 _PUBLIC_PATHS.add("/api/shopify-autopilot/status")
 _PUBLIC_PATHS.add("/api/shopify-autopilot/log")
 
+# /api/sa/* — short aliases used by the dashboard
+for _p in ["/api/sa/status", "/api/sa/store", "/api/sa/products", "/api/sa/funnel",
+           "/api/sa/trend-scan", "/api/sa/performance", "/api/sa/log",
+           "/api/sa/start", "/api/sa/stop", "/api/sa/setup-boutique"]:
+    _PUBLIC_PATHS.add(_p)
+
 
 @app.get("/api/shopify-autopilot/status")
 async def shopify_autopilot_status():
@@ -11260,6 +11266,113 @@ async def shopify_autopilot_trend_scan():
         "opportunities": opportunities,
         "count":         len(opportunities),
     }
+
+
+# ── /api/sa/* short aliases (used by Shopify Autopilot dashboard tab) ─────────
+
+@app.get("/api/sa/status")
+async def sa_status():
+    from core.narai_shopify_autopilot import get_shopify_autopilot_status
+    return get_shopify_autopilot_status()
+
+@app.get("/api/sa/store")
+async def sa_store():
+    from core.shopify_client import get_status, list_products
+    from core.narai_shopify_autopilot import _sa_load
+    status = get_status()
+    state  = _sa_load()
+    products = list_products(limit=50)
+    return {
+        "connected":           status.get("connected", False),
+        "shop":                status.get("shop", ""),
+        "total_products":      status.get("products_count", len(products)),
+        "total_revenue_today": status.get("total_revenue", 0),
+        "total_orders":        status.get("total_orders", 0),
+        "products":            [
+            {
+                "id":           p.get("id"),
+                "title":        p.get("title"),
+                "price":        float(p["variants"][0]["price"]) if p.get("variants") else 0,
+                "product_type": p.get("product_type", ""),
+                "status":       p.get("status"),
+                "image":        (p.get("image") or {}).get("src", ""),
+            }
+            for p in products
+        ],
+        "session_id":   state.get("session_id"),
+        "session_phase": state.get("phase", "idle"),
+    }
+
+@app.post("/api/sa/start")
+async def sa_start(request: Request):
+    from core.narai_shopify_autopilot import start_shopify_autopilot_background
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    return start_shopify_autopilot_background(
+        media_mode=bool(body.get("media_mode", False)),
+        intelligence_mode=bool(body.get("intelligence_mode", False)),
+    )
+
+@app.post("/api/sa/stop")
+async def sa_stop():
+    from core.narai_shopify_autopilot import stop_shopify_autopilot
+    return stop_shopify_autopilot()
+
+@app.get("/api/sa/products")
+async def sa_products():
+    from core.narai_shopify_autopilot import _sa_load
+    state = _sa_load()
+    return {"products": state.get("today_products", []), "total": len(state.get("today_products", []))}
+
+@app.get("/api/sa/funnel")
+async def sa_funnel():
+    try:
+        from core.funnel_builder import get_active_funnel
+        funnel = get_active_funnel()
+        return {"funnel": funnel} if funnel else {"funnel": None, "message": "No funnel yet"}
+    except Exception:
+        return {"funnel": None, "message": "Funnel builder not available"}
+
+@app.get("/api/sa/trend-scan")
+async def sa_trend_scan_get():
+    from core.viral_trend_engine import run_trend_scan
+    opps = run_trend_scan(refresh=False)
+    return {"opportunities": opps, "count": len(opps)}
+
+@app.post("/api/sa/trend-scan")
+async def sa_trend_scan_post():
+    from core.viral_trend_engine import run_trend_scan
+    opps = run_trend_scan(refresh=True)
+    return {"opportunities": opps, "count": len(opps)}
+
+@app.get("/api/sa/performance")
+async def sa_performance():
+    from pathlib import Path as _Path
+    lf = _Path(__file__).parent.parent / "data" / "shopify_learning.json"
+    try:
+        import json as _json
+        insights = _json.loads(lf.read_text()) if lf.exists() else []
+        return {"insights": insights[:10]}
+    except Exception:
+        return {"insights": []}
+
+@app.get("/api/sa/log")
+async def sa_log(limit: int = 80):
+    from core.narai_shopify_autopilot import get_shopify_autopilot_logs
+    return {"logs": get_shopify_autopilot_logs(limit=limit)}
+
+@app.post("/api/sa/setup-boutique")
+async def sa_setup_boutique():
+    """Set up Shopify boutique collections and pages."""
+    from core.narai_shopify_engine import create_boutique_collections, create_boutique_page
+    try:
+        cols  = create_boutique_collections()
+        page  = create_boutique_page()
+        return {"success": True, "collections": len(cols), "page": bool(page)}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
 
 
 # ── Media Engine endpoints ────────────────────────────────────────────────────
