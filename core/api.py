@@ -636,7 +636,9 @@ async def api_key_middleware(request: Request, call_next):
     if _API_KEY:
         path = request.url.path
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
-                             "/api/shopify-autopilot/", "/api/narai/schedules")
+                             "/api/shopify-autopilot/", "/api/shopify/agents/",
+                             "/api/shopify/media/", "/api/shopify/intelligence/",
+                             "/api/shopify/", "/api/narai/schedules")
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
