@@ -100,6 +100,25 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook",
                  "/api/nx/fan/register", "/api/nx/fan/login", "/api/nx/fan/logout"}
 
+# Shopify dashboard endpoints — all served by the same-origin dashboard, no extra auth
+for _p in [
+    "/api/shopify/status", "/api/shopify/products", "/api/shopify/orders",
+    "/api/shopify/customers", "/api/shopify/webhooks/status", "/api/shopify/webhook",
+    "/api/shopify/discount", "/api/shopify/register-webhooks",
+    "/api/shopify/oauth-url", "/api/shopify/callback",
+    "/api/shopify/publish-narai-product",
+    # Agent Workforce
+    "/api/shopify/agents/start", "/api/shopify/agents/stop",
+    "/api/shopify/agents/status", "/api/shopify/agents/dispatch",
+    "/api/shopify/agents/upgrade-now", "/api/shopify/agents/logs",
+    # Media Engine
+    "/api/shopify/media/generate-batch",
+    # Store Intelligence
+    "/api/shopify/intelligence/analyze", "/api/shopify/intelligence/opportunities",
+    "/api/shopify/intelligence/autopilot", "/api/shopify/intelligence/status",
+]:
+    _PUBLIC_PATHS.add(_p)
+
 async def verify_api_key(request: Request):
     """
     Optional API key guard.
