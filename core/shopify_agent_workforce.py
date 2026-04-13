@@ -152,6 +152,34 @@ class BaseShopifyAgent:
     def log(self, msg: str, level: str = "INFO"):
         _agent_log(self.name, msg, level)
 
+    def _ai_call(self, prompt: str, system: str = "You are an expert AI assistant.", max_tokens: int = 1500) -> str:
+        """AI call with OpenAI primary + Claude fallback, handles quota errors gracefully."""
+        # Try OpenAI first
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+            resp = client.chat.completions.create(
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+            )
+            return resp.choices[0].message.content.strip()
+        except Exception as e:
+            err = str(e).lower()
+            if not any(x in err for x in ("quota", "429", "rate_limit", "invalid_api_key", "auth", "credit")):
+                raise
+            self.log(f"OpenAI unavailable — falling back to Claude: {type(e).__name__}", "WARNING")
+
+        # Fallback to Claude
+        import anthropic
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        resp = client.messages.create(
+            model=os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001"),
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return resp.content[0].text.strip()
+
     def handle(self, task: Task) -> dict:
         """Dispatch to the correct action handler. Override in subclasses."""
         handler = getattr(self, f"_do_{task.action}", None)
@@ -440,14 +468,7 @@ Rules:
 Current description: {current[:500]}"""
 
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-            resp = client.messages.create(
-                model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
-                max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            new_description = resp.content[0].text.strip()
+            new_description = self._ai_call(prompt)
 
             # Update product
             self.shopify("PUT", f"products/{product_id}.json", {
