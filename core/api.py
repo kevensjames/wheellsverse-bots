@@ -11375,6 +11375,81 @@ async def shopify_intelligence_status():
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# SHOPIFY AGENT WORKFORCE ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.post("/api/shopify/agents/start")
+async def shopify_agents_start(request: Request, background_tasks: BackgroundTasks):
+    """Start the full AI Agent Workforce (all 10 agents)."""
+    from core.shopify_agent_workforce import start_workforce, start_upgrade_scheduler
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    upgrade_interval = float(body.get("upgrade_interval_hours", 6.0))
+
+    result = start_workforce()
+
+    def _sched():
+        start_upgrade_scheduler(interval_hours=upgrade_interval)
+    if result.get("started"):
+        background_tasks.add_task(_sched)
+
+    return result
+
+
+@app.post("/api/shopify/agents/stop")
+async def shopify_agents_stop():
+    """Stop the AI Agent Workforce."""
+    from core.shopify_agent_workforce import stop_workforce
+    return stop_workforce()
+
+
+@app.get("/api/shopify/agents/status")
+async def shopify_agents_status():
+    """Get current status of all agents, queue size, and recent task log."""
+    from core.shopify_agent_workforce import workforce_status
+    return workforce_status()
+
+
+@app.post("/api/shopify/agents/dispatch")
+async def shopify_agents_dispatch(request: Request):
+    """
+    Manually dispatch a task to a specific agent.
+    Body: {agent_type, action, payload?, priority?}
+    Agents: ThemeAgent, BoutiqueAgent, SEOAgent, CopywriterAgent, PricingAgent,
+            ProductResearchAgent, FunnelAgent, ReviewAgent, MonitorAgent, UpgradeAgent
+    """
+    body = await request.json()
+    from core.shopify_agent_workforce import dispatch_task, PRIORITY_MEDIUM
+    task_id = dispatch_task(
+        agent_type=body.get("agent_type", "UpgradeAgent"),
+        action=body.get("action", "run_upgrade_cycle"),
+        payload=body.get("payload", {}),
+        priority=int(body.get("priority", PRIORITY_MEDIUM)),
+    )
+    return {"task_id": task_id, "queued": True}
+
+
+@app.post("/api/shopify/agents/upgrade-now")
+async def shopify_agents_upgrade_now():
+    """Trigger an immediate full upgrade cycle across all agents."""
+    from core.shopify_agent_workforce import dispatch_task, PRIORITY_HIGH
+    task_id = dispatch_task("UpgradeAgent", "run_upgrade_cycle", {}, PRIORITY_HIGH)
+    return {"task_id": task_id, "message": "Full upgrade cycle queued for immediate execution"}
+
+
+@app.get("/api/shopify/agents/logs")
+async def shopify_agents_logs(limit: int = 50):
+    """Get recent agent activity logs."""
+    from core.shopify_agent_workforce import _load_json, AGENT_LOG_FILE, TASK_LOG_FILE
+    return {
+        "agent_logs": _load_json(AGENT_LOG_FILE, [])[:limit],
+        "task_logs":  _load_json(TASK_LOG_FILE, [])[:min(limit, 20)],
+    }
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # NARAI SCHEDULE ENDPOINTS
 # ══════════════════════════════════════════════════════════════════════════════
 

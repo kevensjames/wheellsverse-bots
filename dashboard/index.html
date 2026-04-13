@@ -4742,6 +4742,9 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <button onclick="saTab('intelligence')" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
         📊 View Store Intel
       </button>
+      <button onclick="saTab('agents')" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,0,100,.08);border:1px solid rgba(255,0,100,.25);color:#ff3388">
+        🤖 Agent Workforce
+      </button>
     </div>
   </div>
 
@@ -4852,6 +4855,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <button onclick="saTab('intelligence')" id="sa-tab-intelligence" class="sa-tab-btn"
       style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(136,68,255,.08);border:1px solid rgba(136,68,255,.3);color:#cc88ff">
       🧠 Store Intel
+    </button>
+    <button onclick="saTab('agents')" id="sa-tab-agents" class="sa-tab-btn"
+      style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,0,100,.08);border:1px solid rgba(255,0,100,.3);color:#ff3388">
+      🤖 Agent Workforce
     </button>
     <button onclick="saTab('admin')" id="sa-tab-admin" class="sa-tab-btn"
       style="padding:5px 12px;border-radius:8px;font-size:10px;cursor:pointer;font-family:inherit;background:rgba(255,100,0,.08);border:1px solid rgba(255,100,0,.3);color:#ff9944">
@@ -5117,6 +5124,116 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <!-- Category performance table -->
     <div style="font-size:10px;font-weight:700;color:var(--text1);margin:14px 0 8px">📊 Category Performance</div>
     <div id="sa-intel-categories" style="display:flex;flex-direction:column;gap:4px"></div>
+  </div>
+
+  <!-- ── Agent Workforce ───────────────────────────────────────── -->
+  <div id="sa-panel-agents" style="display:none">
+
+    <!-- Header + status -->
+    <div style="background:linear-gradient(135deg,rgba(255,0,100,.07),rgba(136,68,255,.09));border:1px solid rgba(255,0,100,.2);border-radius:14px;padding:16px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div>
+          <div style="font-size:11px;font-weight:800;color:#ff3388;letter-spacing:.05em">⚡ AI AGENT WORKFORCE</div>
+          <div style="font-size:9px;color:var(--text3);margin-top:2px">10 specialised AI agents controlling your Shopify store 24/7</div>
+        </div>
+        <div id="aw-status-badge" style="padding:5px 14px;border-radius:20px;font-size:10px;font-weight:700;background:rgba(100,100,100,.2);color:var(--text3)">⚫ OFFLINE</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="awStart()" id="aw-start-btn" style="padding:7px 18px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:linear-gradient(135deg,rgba(255,0,100,.2),rgba(136,68,255,.2));border:1px solid rgba(255,0,100,.4);color:#ff3388">
+          🚀 START WORKFORCE
+        </button>
+        <button onclick="awStop()" id="aw-stop-btn" style="padding:7px 18px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,60,60,.1);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">
+          ⏹ STOP ALL
+        </button>
+        <button onclick="awUpgradeNow()" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.3);color:#cc88ff">
+          ⚡ Upgrade Now
+        </button>
+        <button onclick="awLoadStatus()" style="padding:7px 16px;border-radius:8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.12);color:var(--text2)">
+          🔄 Refresh
+        </button>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:4px">
+          <span style="font-size:9px;color:var(--text3)">Upgrade every</span>
+          <select id="aw-interval" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:var(--text2);font-size:9px;padding:2px 6px;font-family:inherit">
+            <option value="2">2h</option>
+            <option value="4">4h</option>
+            <option value="6" selected>6h</option>
+            <option value="12">12h</option>
+            <option value="24">24h</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Agent grid -->
+    <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:8px">🤖 Agent Status</div>
+    <div id="aw-agent-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px;margin-bottom:14px">
+      ${[
+        {key:'ThemeAgent',           emoji:'🎨', name:'Theme Agent',       desc:'CSS, layout, premium UI upgrades',               color:'#cc88ff'},
+        {key:'BoutiqueAgent',        emoji:'🏪', name:'Boutique Agent',    desc:'Collections, pages, navigation menus',           color:'#96bf47'},
+        {key:'SEOAgent',             emoji:'🔍', name:'SEO Agent',         desc:'Meta titles, descriptions, structured data',     color:'#00ccff'},
+        {key:'CopywriterAgent',      emoji:'✍️', name:'Copywriter Agent',  desc:'Claude AI product descriptions & hooks',         color:'#ffa500'},
+        {key:'PricingAgent',         emoji:'💰', name:'Pricing Agent',     desc:'A/B price anchors, seasonal pricing',            color:'#44ff88'},
+        {key:'ProductResearchAgent', emoji:'🔭', name:'Research Agent',    desc:'Trend scanning, gap analysis, new products',     color:'#00ccff'},
+        {key:'FunnelAgent',          emoji:'🌀', name:'Funnel Agent',      desc:'Upsell rules, bundles, discount codes',          color:'#ff9944'},
+        {key:'ReviewAgent',          emoji:'📊', name:'Review Agent',      desc:'Performance review, winners, dead stock',        color:'#44ff88'},
+        {key:'MonitorAgent',         emoji:'👁', name:'Monitor Agent',     desc:'KPIs every hour, fires upgrade tasks',           color:'#ff3388'},
+        {key:'UpgradeAgent',         emoji:'⚡', name:'Upgrade Agent',     desc:'24/7 continuous store improvement engine',       color:'#ff3388'},
+      ].map(a=>`
+        <div id="aw-card-${a.key}" style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-size:18px">${a.emoji}</span>
+            <div>
+              <div style="font-size:10px;font-weight:700;color:var(--text1)">${a.name}</div>
+              <div id="aw-status-${a.key}" style="font-size:8px;color:var(--text3)">⚫ offline</div>
+            </div>
+          </div>
+          <div style="font-size:9px;color:var(--text3);margin-bottom:8px">${a.desc}</div>
+          <button onclick="awDispatch('${a.key}')" style="font-size:8px;padding:3px 8px;border-radius:5px;cursor:pointer;font-family:inherit;background:rgba(${a.color==='#ff3388'?'255,51,136':'136,68,255'},.1);border:1px solid rgba(${a.color==='#ff3388'?'255,51,136':'136,68,255'},.25);color:${a.color}">
+            ▶ Dispatch Task
+          </button>
+        </div>`).join('')}
+    </div>
+
+    <!-- Queue + Log -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:8px">
+          📋 Task Queue <span id="aw-queue-size" style="font-size:9px;color:#ffa500;margin-left:6px">0 tasks</span>
+        </div>
+        <div id="aw-recent-tasks" style="font-size:9px;color:var(--text3);display:flex;flex-direction:column;gap:3px">
+          <span>No tasks yet.</span>
+        </div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:8px">📡 Agent Log</div>
+        <div id="aw-agent-log" style="font-size:9px;color:var(--text3);display:flex;flex-direction:column;gap:3px;max-height:180px;overflow-y:auto">
+          <span>No activity yet.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual dispatch panel -->
+    <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:12px;margin-top:10px">
+      <div style="font-size:10px;font-weight:700;color:var(--text1);margin-bottom:8px">🎯 Manual Dispatch</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <select id="aw-dispatch-agent" style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:6px;color:var(--text2);font-size:9px;padding:4px 8px;font-family:inherit">
+          <option value="ThemeAgent">ThemeAgent — inject_premium_css</option>
+          <option value="BoutiqueAgent">BoutiqueAgent — rebuild_collections</option>
+          <option value="SEOAgent">SEOAgent — optimize_all_products</option>
+          <option value="CopywriterAgent">CopywriterAgent — upgrade_weakest</option>
+          <option value="PricingAgent">PricingAgent — audit_prices</option>
+          <option value="ProductResearchAgent">ProductResearchAgent — gap_analysis</option>
+          <option value="FunnelAgent">FunnelAgent — build_upsell_discounts</option>
+          <option value="ReviewAgent">ReviewAgent — performance_review</option>
+          <option value="MonitorAgent">MonitorAgent — hourly_check</option>
+          <option value="UpgradeAgent">UpgradeAgent — run_upgrade_cycle</option>
+        </select>
+        <button onclick="awManualDispatch()" style="padding:5px 14px;border-radius:6px;font-size:9px;font-weight:700;cursor:pointer;font-family:inherit;background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.3);color:#cc88ff">
+          Dispatch ▶
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <!-- ── Shopify Admin Embed ────────────────────────────────────── -->
@@ -13969,7 +14086,7 @@ let _saPollTimer  = null;
 
 function saTab(tab) {
   _saCurrentTab = tab;
-  ['store','products','catalog','pod','funnel','trends','perf','log','orders','discounts','customers','webhooks','intelligence','admin'].forEach(t => {
+  ['store','products','catalog','pod','funnel','trends','perf','log','orders','discounts','customers','webhooks','intelligence','agents','admin'].forEach(t => {
     const panel = document.getElementById('sa-panel-' + t);
     const btn   = document.getElementById('sa-tab-' + t);
     if (panel) panel.style.display = t === tab ? '' : 'none';
@@ -13990,6 +14107,7 @@ function saTab(tab) {
   if (tab === 'customers')     saLoadCustomers();
   if (tab === 'webhooks')      saLoadWebhooks();
   if (tab === 'intelligence')  saLoadIntelOpportunities();
+  if (tab === 'agents')        awLoadStatus();
 }
 
 async function saLoadStore() {
@@ -14288,6 +14406,158 @@ saStart = async function() {
     } catch(e) { toast('Start failed: ' + e.message, 'error'); }
   }
 };
+
+// ── Agent Workforce JS ────────────────────────────────────────────────────────
+
+const _AW_AGENT_ACTIONS = {
+  ThemeAgent:           'inject_premium_css',
+  BoutiqueAgent:        'rebuild_collections',
+  SEOAgent:             'optimize_all_products',
+  CopywriterAgent:      'upgrade_weakest',
+  PricingAgent:         'audit_prices',
+  ProductResearchAgent: 'gap_analysis',
+  FunnelAgent:          'build_upsell_discounts',
+  ReviewAgent:          'performance_review',
+  MonitorAgent:         'hourly_check',
+  UpgradeAgent:         'run_upgrade_cycle',
+};
+
+let _awPollTimer = null;
+
+async function awStart() {
+  const interval = parseFloat(document.getElementById('aw-interval')?.value || '6');
+  toast('🚀 Starting Agent Workforce…', 'info');
+  try {
+    const d = await api('/api/shopify/agents/start', 'POST', { upgrade_interval_hours: interval });
+    if (d.started) {
+      toast(`✅ ${d.agents.length} agents online — upgrading every ${interval}h`, 'ok');
+      document.getElementById('aw-start-btn').style.display = 'none';
+      document.getElementById('aw-stop-btn').style.display  = '';
+      _awStartPoll();
+    } else {
+      toast(d.reason || 'Could not start', 'error');
+    }
+  } catch(e) { toast('Start failed: ' + e.message, 'error'); }
+}
+
+async function awStop() {
+  try {
+    await api('/api/shopify/agents/stop', 'POST');
+    toast('⏹ Agent Workforce stopped', 'ok');
+    document.getElementById('aw-start-btn').style.display = '';
+    document.getElementById('aw-stop-btn').style.display  = 'none';
+    _awStopPoll();
+    awLoadStatus();
+  } catch(e) { toast('Stop error: ' + e.message, 'error'); }
+}
+
+async function awUpgradeNow() {
+  toast('⚡ Queuing full upgrade cycle…', 'info');
+  try {
+    const d = await api('/api/shopify/agents/upgrade-now', 'POST');
+    toast(`✅ Upgrade cycle queued (task ${d.task_id})`, 'ok');
+  } catch(e) { toast('Upgrade error: ' + e.message, 'error'); }
+}
+
+async function awDispatch(agentKey) {
+  const action = _AW_AGENT_ACTIONS[agentKey] || 'run';
+  toast(`▶ Dispatching ${agentKey}: ${action}…`, 'info');
+  try {
+    const d = await api('/api/shopify/agents/dispatch', 'POST', {
+      agent_type: agentKey,
+      action: action,
+      payload: {},
+      priority: 2,
+    });
+    toast(`✅ Task ${d.task_id} queued for ${agentKey}`, 'ok');
+    setTimeout(awLoadStatus, 1500);
+  } catch(e) { toast('Dispatch error: ' + e.message, 'error'); }
+}
+
+async function awManualDispatch() {
+  const sel = document.getElementById('aw-dispatch-agent');
+  if (!sel) return;
+  const agentKey = sel.value;
+  await awDispatch(agentKey);
+}
+
+async function awLoadStatus() {
+  try {
+    const d = await api('/api/shopify/agents/status');
+    const running = d.running;
+
+    // Badge
+    const badge = document.getElementById('aw-status-badge');
+    if (badge) {
+      badge.textContent   = running ? '🟢 ONLINE' : '⚫ OFFLINE';
+      badge.style.background = running ? 'rgba(150,191,71,.2)' : 'rgba(100,100,100,.2)';
+      badge.style.color   = running ? '#96bf47' : 'var(--text3)';
+    }
+
+    // Start/stop buttons
+    const startBtn = document.getElementById('aw-start-btn');
+    const stopBtn  = document.getElementById('aw-stop-btn');
+    if (startBtn) startBtn.style.display = running ? 'none' : '';
+    if (stopBtn)  stopBtn.style.display  = running ? '' : 'none';
+
+    // Queue size
+    const qEl = document.getElementById('aw-queue-size');
+    if (qEl) qEl.textContent = `${d.queue_size || 0} tasks`;
+
+    // Per-agent status cards
+    const agents = d.agents || {};
+    for (const [key, info] of Object.entries(agents)) {
+      const el = document.getElementById(`aw-status-${key}`);
+      if (!el) continue;
+      const isWorking = info.status === 'working';
+      el.textContent = isWorking
+        ? `🟡 ${info.last_task || 'working'}…`
+        : (running ? `🟢 idle (${info.tasks_done || 0} done)` : '⚫ offline');
+      el.style.color = isWorking ? '#ffa500' : (running ? '#44ff88' : 'var(--text3)');
+    }
+
+    // Recent tasks
+    const tasksEl = document.getElementById('aw-recent-tasks');
+    if (tasksEl && d.recent_tasks?.length) {
+      tasksEl.innerHTML = d.recent_tasks.slice(0, 8).map(t => {
+        const task = t.task || {};
+        const ok   = t.result?.success;
+        return `<div style="display:flex;justify-content:space-between;gap:6px">
+          <span style="color:var(--text2)">[${esc(task.agent_type||'?')}] ${esc(task.action||'?')}</span>
+          <span style="color:${ok?'#44ff88':'#ff6060'};flex-shrink:0">${ok?'✓':'✗'}</span>
+        </div>`;
+      }).join('');
+    }
+
+    // Agent log
+    const logEl = document.getElementById('aw-agent-log');
+    if (logEl) {
+      const logs = await api('/api/shopify/agents/logs?limit=20');
+      const entries = logs.agent_logs || [];
+      if (entries.length) {
+        logEl.innerHTML = entries.map(e => {
+          const col = e.level === 'ERROR' ? '#ff6060' : e.level === 'WARNING' ? '#ffa500' : 'var(--text2)';
+          const ts  = e.ts ? e.ts.slice(11, 19) : '';
+          return `<div style="color:${col}"><span style="color:var(--text3);margin-right:4px">${ts}</span>[${esc(e.agent||'?')}] ${esc(e.msg||'')}</div>`;
+        }).join('');
+        logEl.scrollTop = 0;
+      }
+    }
+
+    if (running) _awStartPoll();
+
+  } catch(e) {
+    log.warn?.('awLoadStatus error:', e);
+  }
+}
+
+function _awStartPoll() {
+  _awStopPoll();
+  _awPollTimer = setInterval(awLoadStatus, 8000);
+}
+function _awStopPoll() {
+  if (_awPollTimer) { clearInterval(_awPollTimer); _awPollTimer = null; }
+}
 
 function saSetBadge(running, phase) {
   const badge = document.getElementById('sa-engine-badge');
