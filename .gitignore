@@ -23,11 +23,24 @@ env/
 outputs/
 logs/
 data/leads/
+wheelsverse/
+graphify-out/
 
 # Intelligence + analytics (persisted on server volume)
 data/intelligence.json
 data/strategy.json
 outputs/reports/platform_analytics.json
+
+# Large media/binary files — not needed in deploy
+*.mp4
+*.mp3
+*.wav
+*.zip
+*.tar.gz
+*.pdf
+
+# Claude local config
+.claude/
 
 # macOS
 .DS_Store
