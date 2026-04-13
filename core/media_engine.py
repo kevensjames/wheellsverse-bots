@@ -39,7 +39,7 @@ log = logging.getLogger("media_engine")
 # ── API Keys ──────────────────────────────────────────────────────────────────
 OPENAI_KEY   = os.getenv("OPENAI_API_KEY", "")
 LEONARDO_KEY = os.getenv("LEONARDO_API_KEY", "")
-RUNWAY_KEY   = os.getenv("RUNWAY_API_KEY", "")
+RUNWAY_KEY   = os.getenv("RUNWAYML_API_KEY", "") or os.getenv("RUNWAY_API_KEY", "")
 LUMA_KEY     = os.getenv("LUMAAI_API_KEY", "")
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
