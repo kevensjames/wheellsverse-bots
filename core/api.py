@@ -1148,7 +1148,7 @@ async def health():
         "status":   "ok",
         "uptime":   int(time.time() - _server_start),
         "browser":  browser_ok,
-        "version":  "nexora-v5-shopify-schedules",
+        "version":  "nexora-v6-agent-workforce",
         "nx_routes": True,
         "narai_autopilot": True,
     }
