@@ -377,7 +377,7 @@ def generate_fast_seller_specs(opportunities: list[dict], n_products: int = 5) -
     These are passed directly to publish_digital_product() or publish_pod_via_printful().
     """
     from core.narai_shopify_engine import (   # type: ignore
-        build_product_data, PRODUCT_TYPES, generate_digital_product, generate_pod_product,
+        PRODUCT_TYPES, generate_digital_product, generate_pod_product,
     )
 
     specs: list[dict] = []
@@ -439,8 +439,9 @@ def run_intelligence_autopilot(
     Returns a summary dict suitable for the dashboard.
     """
     from core.narai_shopify_engine import (   # type: ignore
-        publish_digital_product, publish_pod_via_printful, is_connected,
+        publish_digital_product, publish_pod_via_printful,
     )
+    from core.shopify_client import is_connected
 
     _log = log_fn or (lambda m: log.info(f"[StoreIntel] {m}"))
 
