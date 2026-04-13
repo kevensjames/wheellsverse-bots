@@ -151,13 +151,40 @@ class BaseBot(ABC):
                 raise ImportError("openai package not installed. Run: pip install openai")
         return self._client
 
-    def ai(self, prompt: str, system: str = "You are a helpful expert assistant.",
+    def _ai_claude(self, prompt: str, system: str = None,
+                   model: str = None, max_tokens: int = 2000,
+                   temperature: float = 0.7) -> str:
+        """Call Claude (Anthropic) directly — used as fallback when OpenAI quota is exceeded."""
+        import anthropic
+        claude_model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        msgs = [{"role": "user", "content": prompt}]
+        kwargs: dict = {"model": claude_model, "max_tokens": max_tokens, "messages": msgs}
+        if system:
+            kwargs["system"] = system
+        resp = client.messages.create(**kwargs)
+        return resp.content[0].text.strip()
+
+    def _get_personality_system(self, platform: str = "", topic: str = "") -> str:
+        """Returns NarAI's full personality prompt (identity + emotional state + platform + topic)."""
+        try:
+            from core.personality import PersonalityEngine
+            p = platform or getattr(self, "platform", "") or "general"
+            t = topic or getattr(self, "topic", "") or getattr(self, "niche", "") or ""
+            return PersonalityEngine.get().get_full_prompt(p, t)
+        except Exception:
+            return "You are NarAI — a confident, direct AI persona. Be bold, data-driven, and empowering."
+
+    def ai(self, prompt: str, system: str = None,
            model: Optional[str] = None, max_tokens: int = 2000,
            temperature: float = 0.7) -> str:
         """
         Send a prompt to OpenAI and return the text response.
         Includes retry logic (3 attempts) and token usage logging.
+        If no system prompt is given, NarAI's live personality is injected automatically.
         """
+        if system is None:
+            system = self._get_personality_system()
         model = model or os.getenv("OPENAI_MODEL", "gpt-4o-mini")
         prompt = prompt.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
         system = system.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
@@ -182,6 +209,15 @@ class BaseBot(ABC):
                                  self.name)
             return resp.choices[0].message.content.strip()
         except Exception as e:
+            err_str = str(e).lower()
+            # Quota / auth errors → fall back to Claude so bots keep running
+            if any(x in err_str for x in ("insufficient_quota", "429", "rate_limit", "invalid_api_key", "authentication")):
+                self.logger.warning(f"OpenAI unavailable ({type(e).__name__}) — falling back to Claude")
+                try:
+                    return self._ai_claude(prompt, system=system, max_tokens=max_tokens, temperature=temperature)
+                except Exception as ce:
+                    self.logger.error(f"Claude fallback also failed: {ce}")
+                    raise e
             self.logger.error(f"OpenAI error: {e}")
             raise
 
@@ -212,13 +248,16 @@ class BaseBot(ABC):
                 raise ImportError("anthropic package not installed. Run: pip install anthropic")
         return self._claude_client
 
-    def claude(self, prompt: str, system: str = "You are a helpful expert assistant.",
+    def claude(self, prompt: str, system: str = None,
                model: Optional[str] = None, max_tokens: int = 2000,
                temperature: float = 0.7) -> str:
         """
         Send a prompt to Claude (Anthropic) and return the text response.
         Includes retry logic (3 attempts) and token usage logging.
+        If no system prompt is given, NarAI's live personality is injected automatically.
         """
+        if system is None:
+            system = self._get_personality_system()
         model = model or os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
         prompt = prompt.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
         system = system.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
