@@ -159,12 +159,12 @@ NICHE_CATALOGUE: list[dict] = [
 
 def _fetch_store_data() -> tuple[list, list]:
     """Return (products, orders) from Shopify. Each is a list of dicts."""
-    from core.shopify_client import _shopify_request   # type: ignore
+    from core.shopify_client import _api
 
-    products_resp = _shopify_request("GET", "products.json?limit=250&status=active")
+    products_resp = _api("GET", "products.json?limit=250&status=active")
     products = products_resp.get("products", [])
 
-    orders_resp = _shopify_request("GET", "orders.json?limit=250&status=paid&fields=id,line_items,total_price,created_at,customer")
+    orders_resp = _api("GET", "orders.json?limit=250&status=paid&fields=id,line_items,total_price,created_at,customer")
     orders = orders_resp.get("orders", [])
 
     return products, orders

@@ -146,8 +146,8 @@ class BaseShopifyAgent:
     @property
     def shopify(self):
         """Lazy import of Shopify client helper."""
-        from core.shopify_client import _shopify_request   # type: ignore
-        return _shopify_request
+        from core.shopify_client import _api
+        return _api
 
     def log(self, msg: str, level: str = "INFO"):
         _agent_log(self.name, msg, level)
