@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "wheellsverse-signals",
+  "name": "wheellsverse-bots",
   "compatibility_date": "2025-09-27",
   "assets": {
     "directory": "."
