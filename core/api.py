@@ -640,12 +640,17 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
-    """Add security headers to all responses."""
+    """Add security headers to all responses and prevent CDN/browser caching."""
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # Prevent Fastly/CDN from caching API responses (especially 404s)
+    if request.url.path.startswith("/api/") or request.url.path in ("/", "/landing"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Surrogate-Control"] = "no-store"
+        response.headers["Pragma"] = "no-cache"
     return response
 
 
@@ -657,7 +662,7 @@ async def api_key_middleware(request: Request, call_next):
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
                              "/api/shopify-autopilot/", "/api/shopify/agents/",
                              "/api/shopify/media/", "/api/shopify/intelligence/",
-                             "/api/shopify/", "/api/narai/schedules")
+                             "/api/shopify/", "/api/narai/schedules", "/api/sa/")
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -5863,6 +5868,175 @@ async def ads_deploy_all(background_tasks: BackgroundTasks):
 async def ads_clear_queue():
     _save_ads({"queue": []})
     return {"status": "cleared"}
+
+
+# ─── Publisher Engine ─────────────────────────────────────────────────────────
+
+class PublisherEngineRunRequest(BaseModel):
+    manuscript: str
+    title: str
+    genre: str = "mystery"
+    author: str = "J.K. Blaze"
+    skip_agents: list = []
+
+
+@app.get("/api/publisher-engine/status")
+async def publisher_engine_status():
+    """Return current publisher engine status."""
+    from bots.books.publisher_engine.pipeline import PublisherEnginePipeline
+    return PublisherEnginePipeline()._load_status()
+
+
+@app.get("/api/publisher-engine/results")
+async def publisher_engine_results(limit: int = 20):
+    """Return recent publisher engine run results."""
+    from bots.books.publisher_engine.pipeline import PublisherEnginePipeline
+    results = PublisherEnginePipeline()._load_results()
+    return {"results": results[:limit]}
+
+
+@app.post("/api/publisher-engine/run")
+async def publisher_engine_run(req: PublisherEngineRunRequest):
+    """Run a manuscript through the full 7-agent publisher engine."""
+    from bots.books.publisher_engine.pipeline import PublisherEnginePipeline
+    result = await asyncio.to_thread(
+        PublisherEnginePipeline().process,
+        manuscript=req.manuscript,
+        title=req.title,
+        genre=req.genre,
+        author=req.author,
+        skip_agents=req.skip_agents,
+    )
+    return result
+
+
+# ─── Literary QC ──────────────────────────────────────────────────────────────
+
+class LiteraryQCRequest(BaseModel):
+    manuscript: str
+    title: str
+    genre: str = "mystery"
+    vol1_bible: dict = None
+    manuscript_path: str = ""
+
+
+@app.get("/api/literary-qc/results")
+async def literary_qc_results(limit: int = 50):
+    """Return recent literary QC results."""
+    from core.literary_qc import LiteraryQCAgent
+    results = LiteraryQCAgent()._load_results()
+    return {"results": results[:limit]}
+
+
+@app.get("/api/literary-qc/rewrite-queue")
+async def literary_qc_rewrite_queue():
+    """Return manuscripts queued for rewrite."""
+    from core.literary_qc import LiteraryQCAgent, QC_RESULTS_FILE
+    import json
+    if QC_RESULTS_FILE.exists():
+        all_results = json.loads(QC_RESULTS_FILE.read_text())
+        queue = [r for r in all_results if r.get("rewrite_needed")]
+    else:
+        queue = []
+    return {"queue": queue}
+
+
+@app.post("/api/literary-qc/review")
+async def literary_qc_review(req: LiteraryQCRequest):
+    """Run a manuscript through literary QC review passes."""
+    from core.literary_qc import LiteraryQCAgent
+    result = await asyncio.to_thread(
+        LiteraryQCAgent().review_manuscript,
+        manuscript=req.manuscript,
+        title=req.title,
+        vol1_bible=req.vol1_bible,
+        genre=req.genre,
+    )
+    return result
+
+
+@app.post("/api/literary-qc/full-analysis")
+async def literary_qc_full_analysis(req: LiteraryQCRequest):
+    """Run a full literary analysis including chapter count and structure."""
+    from core.literary_qc import LiteraryQCAgent
+    result = await asyncio.to_thread(
+        LiteraryQCAgent().full_book_analysis,
+        manuscript=req.manuscript,
+        title=req.title,
+        genre=req.genre,
+        vol1_bible=req.vol1_bible,
+        manuscript_path=req.manuscript_path,
+    )
+    return result
+
+
+# ─── Volume Completion ────────────────────────────────────────────────────────
+
+@app.get("/api/volumes/status")
+async def volumes_status():
+    """Return volume scan/completion status summary."""
+    from bots.books.volume_completion_bot import VolumeCompletionBot, SCAN_FILE
+    import json
+    if SCAN_FILE.exists():
+        data = json.loads(SCAN_FILE.read_text())
+    else:
+        data = {}
+    return {"status": "ok", "scan": data}
+
+
+@app.get("/api/volumes/scan")
+async def volumes_scan():
+    """Scan all manuscript outputs and identify incomplete volumes."""
+    from bots.books.volume_completion_bot import VolumeCompletionBot
+    result = await asyncio.to_thread(VolumeCompletionBot().scan_all_manuscripts)
+    return result
+
+
+@app.post("/api/volumes/complete")
+async def volumes_complete(request: Request):
+    """Complete a specific incomplete volume."""
+    body = await request.json()
+    file_path = body.get("file")
+    if not file_path:
+        raise HTTPException(status_code=422, detail="'file' field is required")
+    from bots.books.volume_completion_bot import VolumeCompletionBot
+    result = await asyncio.to_thread(
+        VolumeCompletionBot().complete_volume, file_path
+    )
+    return result
+
+
+# ─── Continuity Engine ────────────────────────────────────────────────────────
+
+class ContinuityExtractRequest(BaseModel):
+    manuscript_path: str
+
+
+class ContinuityCheckRequest(BaseModel):
+    vol1_path: str
+    vol2_path: str
+
+
+@app.post("/api/continuity/extract-bible")
+async def continuity_extract_bible(req: ContinuityExtractRequest):
+    """Extract a story bible from a manuscript file."""
+    from core.continuity_engine import ContinuityEngine
+    result = await asyncio.to_thread(
+        ContinuityEngine().extract_from_file, req.manuscript_path
+    )
+    return result
+
+
+@app.post("/api/continuity/check")
+async def continuity_check(req: ContinuityCheckRequest):
+    """Compare two volumes for continuity issues."""
+    from core.continuity_engine import ContinuityEngine
+    result = await asyncio.to_thread(
+        ContinuityEngine().compare_volumes,
+        req.vol1_path,
+        req.vol2_path,
+    )
+    return result
 
 
 # ─── Amazon KDP ───────────────────────────────────────────────────────────────
