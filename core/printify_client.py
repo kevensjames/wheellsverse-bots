@@ -184,33 +184,37 @@ def get_blueprint_variants(blueprint_id: int, provider_id: int) -> List[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _claude_json(prompt: str, max_tokens: int = 2000) -> Any:
-    """Local Claude JSON helper."""
-    import anthropic
-    model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        system=(
-            "You are NarAI's design director. You create compelling print-on-demand "
-            "product designs for identity-driven niches: entrepreneurs, programmers, "
-            "and dark fantasy / anime fans. Output pure JSON only — no prose."
-        ),
-        messages=[{"role": "user", "content": prompt}],
-    )
-    raw = r.content[0].text.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
-    raw = re.sub(r"```\s*$", "", raw, flags=re.MULTILINE)
+    """Local Claude JSON helper. Returns {} on any failure — never raises."""
     try:
-        return json.loads(raw.strip())
-    except Exception:
-        m = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", raw)
-        if m:
-            try:
-                return json.loads(m.group(1))
-            except Exception:
-                pass
-    return {}
+        import anthropic
+        model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
+        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        r = client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=(
+                "You are NarAI's design director. You create compelling print-on-demand "
+                "product designs for identity-driven niches: entrepreneurs, programmers, "
+                "and dark fantasy / anime fans. Output pure JSON only — no prose."
+            ),
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = r.content[0].text.strip()
+        raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
+        raw = re.sub(r"```\s*$", "", raw, flags=re.MULTILINE)
+        try:
+            return json.loads(raw.strip())
+        except Exception:
+            m = re.search(r"(\{[\s\S]*\}|\[[\s\S]*\])", raw)
+            if m:
+                try:
+                    return json.loads(m.group(1))
+                except Exception:
+                    pass
+        return {}
+    except Exception as e:
+        log.warning(f"Claude JSON failed (using fallback): {e}")
+        return {}
 
 
 def generate_pod_design(niche: str, product_type: str) -> dict:
