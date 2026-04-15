@@ -6177,7 +6177,8 @@ setInterval(()=>{const n=new Date();document.getElementById('clk').textContent=n
 function toast(msg,type='info'){const c=document.getElementById('toast-container');const t=document.createElement('div');t.className=`tst ts-${type}`;t.textContent=msg;c.appendChild(t);setTimeout(()=>t.remove(),3200);}
 async function api(path,method='GET',body=null){
   const h={'Content-Type':'application/json'};
-  if(API_KEY) h['X-API-Key']=API_KEY;
+  const _k=API_KEY||(typeof localStorage!=='undefined'?localStorage.getItem('wv_api_key')||'':'');
+  if(_k) h['X-API-Key']=_k;
   const o={method,headers:h};
   if(body)o.body=JSON.stringify(body);
   const url=API+path;

@@ -716,6 +716,10 @@ async def serve_dashboard():
             "const API_KEY = '';",
             f"const API_KEY = '{_API_KEY}';",
         )
+    # Inject absolute base URL so browser calls Railway directly (bypasses CDN cache for relative paths)
+    _pub_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    if _pub_domain:
+        html = html.replace("const API='';", f"const API='https://{_pub_domain}';")
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache",
