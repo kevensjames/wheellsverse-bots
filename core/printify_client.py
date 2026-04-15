@@ -82,34 +82,38 @@ def _api(
     body: Optional[dict] = None,
 ) -> dict:
     """Base Printify REST caller."""
+    import requests as _requests
+
     api_key = os.getenv("PRINTIFY_API_KEY", "")
     if not api_key:
         raise RuntimeError("PRINTIFY_API_KEY not set")
 
     url = f"{PRINTIFY_BASE}/{endpoint.lstrip('/')}"
-    data = json.dumps(body).encode() if body else None
-
-    req = urllib.request.Request(
-        url,
-        data=data,
-        method=method.upper(),
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        },
-    )
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+    }
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            return json.loads(resp.read().decode())
-    except urllib.error.HTTPError as e:
-        body_bytes = e.read()
-        try:
-            err = json.loads(body_bytes)
-        except Exception:
-            err = {"raw": body_bytes.decode(errors="replace")}
-        log.error(f"[Printify] {method} {endpoint} → HTTP {e.code}: {err}")
-        return {"error": True, "code": e.code, "detail": err}
+        resp = _requests.request(
+            method.upper(), url,
+            headers=headers,
+            json=body,
+            timeout=30,
+        )
+        if resp.status_code >= 400:
+            try:
+                err = resp.json()
+            except Exception:
+                err = {"raw": resp.text[:500]}
+            log.error(f"[Printify] {method} {endpoint} → HTTP {resp.status_code}: {err}")
+            return {"error": True, "code": resp.status_code, "detail": err}
+        return resp.json()
     except Exception as e:
         log.error(f"[Printify] {method} {endpoint} → {e}")
         return {"error": True, "detail": str(e)}
