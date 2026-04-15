@@ -119,7 +119,7 @@ async function wvSubscribe(e){{
   var btn=document.getElementById('wv-btn');
   btn.textContent='...';btn.disabled=true;
   try{{
-    await fetch('/.netlify/functions/subscribe',{{
+    await fetch('/api/subscribe',{{
       method:'POST',
       headers:{{'Content-Type':'application/json'}},
       body:JSON.stringify({{email:document.getElementById('wv-email').value}})
@@ -146,12 +146,12 @@ def _md_to_html(md: str) -> str:
     html = md
     # Headers
     html = re.sub(r'^#### (.+)$', r'<h4>\1</h4>', html, flags=re.MULTILINE)
-    html = re.sub(r'^### (.+)$',  r'<h3>\1</h3>', html, flags=re.MULTILINE)
-    html = re.sub(r'^## (.+)$',   r'<h2>\1</h2>', html, flags=re.MULTILINE)
-    html = re.sub(r'^# (.+)$',    r'<h1>\1</h1>', html, flags=re.MULTILINE)
+    html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+    html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+    html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
     # Bold/italic
     html = re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', html)
-    html = re.sub(r'\*(.+?)\*',     r'<em>\1</em>', html)
+    html = re.sub(r'\*(.+?)\*', r'<em>\1</em>', html)
     # Links
     html = re.sub(r'\[([^\]]+)\]\(([^\)]+)\)', r'<a href="\2">\1</a>', html)
     # Code
@@ -181,8 +181,8 @@ class PublishPipeline:
     ALL_PLATFORMS = ["twitter", "tiktok", "email", "blog", "facebook", "instagram"]
 
     def __init__(self):
-        self._twitter    = None
-        self._tiktok     = None
+        self._twitter = None
+        self._tiktok = None
         self._convertkit = None
 
     def _tw(self):
@@ -214,11 +214,11 @@ class PublishPipeline:
             if not fb.is_configured():
                 return {"platform": "facebook", "status": "skipped",
                         "reason": "No Facebook credentials. Add FACEBOOK_PAGE_TOKEN+FACEBOOK_PAGE_ID or FACEBOOK_EMAIL+FACEBOOK_PASSWORD to .env"}
-            clean   = re.sub(r'[#*`>]', '', content).strip()
+            clean = re.sub(r'[#*`>]', '', content).strip()
             snippet = clean[:300].rsplit(' ', 1)[0] + '...' if len(clean) > 300 else clean
-            tags    = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
+            tags = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
             message = f"{title}\n\n{snippet}\n\n{tags}"
-            result  = fb.post(message, image_url=image_url, video_url=video_url)
+            result = fb.post(message, image_url=image_url, video_url=video_url)
             return {"platform": "facebook", **result}
         except Exception as e:
             return {"platform": "facebook", "status": "error", "error": str(e)}
@@ -231,11 +231,11 @@ class PublishPipeline:
             if not ig.is_configured():
                 return {"platform": "instagram", "status": "skipped",
                         "reason": "No Instagram credentials. Add INSTAGRAM_PAGE_TOKEN+INSTAGRAM_ACCOUNT_ID or INSTAGRAM_USERNAME+INSTAGRAM_PASSWORD to .env"}
-            clean   = re.sub(r'[#*`>]', '', content).strip()
+            clean = re.sub(r'[#*`>]', '', content).strip()
             snippet = clean[:200].rsplit(' ', 1)[0] + '...' if len(clean) > 200 else clean
-            tags    = ' '.join(f'#{h}' for h in (hashtags or [])[:20])
+            tags = ' '.join(f'#{h}' for h in (hashtags or [])[:20])
             caption = f"{title}\n\n{snippet}\n\n{tags}"
-            result  = ig.post(caption, image_url=image_url)
+            result = ig.post(caption, image_url=image_url)
             return {"platform": "instagram", **result}
         except Exception as e:
             return {"platform": "instagram", "status": "error", "error": str(e)}
@@ -303,11 +303,11 @@ class PublishPipeline:
         try:
             # Build HTML email body
             body_html = _md_to_html(content)
-            amazon_tag   = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+            amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
             amazon_tag_2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
             amazon_video_url = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amazon_tag_2}")
             coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "")
-            robinhood_url= os.getenv("AFFILIATE_ROBINHOOD_URL", "")
+            robinhood_url = os.getenv("AFFILIATE_ROBINHOOD_URL", "")
             footer_html = (
                 f'<hr/><p><strong>💰 Today\'s affiliate picks:</strong><br/>'
                 f'📈 <a href="{robinhood_url}">Free stock on Robinhood</a> | '
@@ -344,17 +344,13 @@ class PublishPipeline:
         try:
             BLOG_DIR.mkdir(parents=True, exist_ok=True)
             slug = slug or re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-            ts   = datetime.now().strftime("%Y%m%d")
+            ts = datetime.now().strftime("%Y%m%d")
             filename = f"{ts}-{slug[:60]}.html"
             filepath = BLOG_DIR / filename
 
-            body_html    = _md_to_html(content)
-            description  = re.sub(r'<[^>]+>', '', body_html)[:160]
-            amazon_tag   = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-            amazon_tag_2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
-            amazon_video_url = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amazon_tag_2}")
-            coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "")
-            robinhood_url= os.getenv("AFFILIATE_ROBINHOOD_URL", "")
+            body_html = _md_to_html(content)
+            description = re.sub(r'<[^>]+>', '', body_html)[:160]
+            amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
             from core.click_tracker import tracking_url
             site_base = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev")
@@ -461,7 +457,7 @@ class PublishPipeline:
 
         published = sum(1 for r in results if r.get("status") in
                         ("posted", "saved", "draft_created", "content_saved", "sent"))
-        skipped   = sum(1 for r in results if r.get("status") == "skipped")
+        skipped = sum(1 for r in results if r.get("status") == "skipped")
 
         # Trigger Netlify deploy if any blog posts were saved
         blog_saved = [r for r in results if r.get("platform") == "blog" and r.get("status") == "saved"]
@@ -500,10 +496,10 @@ class PublishPipeline:
             pass
 
         return {
-            "title":     title,
-            "results":   results,
+            "title": title,
+            "results": results,
             "published": published,
-            "skipped":   skipped,
+            "skipped": skipped,
         }
 
     def publish_from_file(self, md_path: str, **kwargs) -> Dict:
@@ -517,13 +513,13 @@ class PublishPipeline:
         tt = self._tt()
         ck = self._ck()
         return {
-            "twitter":    tw.get_status(),
-            "tiktok":     tt.get_status(),
+            "twitter": tw.get_status(),
+            "tiktok": tt.get_status(),
             "convertkit": ck.get_status(),
-            "blog":       {"connected": True, "path": str(BLOG_DIR.relative_to(ROOT))},
-            "facebook":   {"connected": bool(os.getenv("FACEBOOK_PAGE_TOKEN")),
+            "blog": {"connected": True, "path": str(BLOG_DIR.relative_to(ROOT))},
+            "facebook": {"connected": bool(os.getenv("FACEBOOK_PAGE_TOKEN")),
                            "page_id": os.getenv("FACEBOOK_PAGE_ID", "not set")},
-            "instagram":  {"connected": bool(os.getenv("INSTAGRAM_PAGE_TOKEN")),
+            "instagram": {"connected": bool(os.getenv("INSTAGRAM_PAGE_TOKEN")),
                            "account_id": os.getenv("INSTAGRAM_ACCOUNT_ID", "not set")},
         }
 

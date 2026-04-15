@@ -47,24 +47,24 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List
 
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR  = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
 AP_STATE_FILE = DATA_DIR / "autopilot_state.json"
-AP_LOG_FILE   = DATA_DIR / "autopilot_log.json"
+AP_LOG_FILE = DATA_DIR / "autopilot_log.json"
 
 log = logging.getLogger("narai_autopilot")
 
-MAX_QC_ROUNDS  = 5      # max revision cycles before giving up
-QC_PASS_SCORE  = 75     # minimum score to approve
-THINK_PAUSE    = 2      # seconds NarAI "thinks" between creations
+MAX_QC_ROUNDS = 5      # max revision cycles before giving up
+QC_PASS_SCORE = 75     # minimum score to approve
+THINK_PAUSE = 2      # seconds NarAI "thinks" between creations
 
 # ── Content pillars — the ONLY topics NarAI posts about publicly ──────────────
 CONTENT_PILLARS = [
@@ -138,6 +138,7 @@ CONTENT_PILLARS = [
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
 def _ap_load() -> dict:
     try:
         if AP_STATE_FILE.exists():
@@ -154,11 +155,13 @@ def _ap_load() -> dict:
         "sessions": [],
     }
 
+
 def _ap_save(state: dict):
     try:
         AP_STATE_FILE.write_text(json.dumps(state, indent=2, default=str))
     except Exception:
         pass
+
 
 def _ap_log(msg: str, level: str = "INFO", phase: str = ""):
     entry = {"ts": _now(), "level": level, "msg": msg, "phase": phase}
@@ -169,6 +172,7 @@ def _ap_log(msg: str, level: str = "INFO", phase: str = ""):
     except Exception:
         pass
     log.info(f"[Autopilot] {msg}")
+
 
 def _ap_load_logs() -> list:
     try:
@@ -196,6 +200,7 @@ def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
     )
     return r.content[0].text.strip()
 
+
 def _claude_json(prompt: str, system: str = "", max_tokens: int = 3000) -> Any:
     raw = _claude(prompt, system, max_tokens)
     raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
@@ -210,6 +215,7 @@ def _claude_json(prompt: str, system: str = "", max_tokens: int = 3000) -> Any:
             except Exception:
                 pass
     return {}
+
 
 def _narai_system() -> str:
     return (
@@ -250,6 +256,7 @@ def _narai_system() -> str:
         "• Never rush. Every word must earn its place."
     )
 
+
 def _get_market_intel(platform: str) -> dict:
     """Fetch the latest market intelligence for a platform."""
     try:
@@ -260,6 +267,7 @@ def _get_market_intel(platform: str) -> dict:
         return data
     except Exception:
         return {}
+
 
 def _get_full_briefing() -> str:
     """Get NarAI's full market briefing."""
@@ -347,7 +355,6 @@ def _create_facebook_posts(state: dict, briefing: str) -> List[dict]:
     mi = _get_market_intel("facebook")
     posts = []
 
-    import random as _rand
     pillars_str = json.dumps([{"pillar": p["pillar"], "themes": p["themes"][:3]} for p in CONTENT_PILLARS], indent=2)
 
     ideas = _claude_json(
@@ -367,30 +374,30 @@ def _create_facebook_posts(state: dict, briefing: str) -> List[dict]:
         max_tokens=1500,
     )
     if not isinstance(ideas, list):
-        ideas = [{"title": f"Facebook Post {i+1}", "type": "text_post",
+        ideas = [{"title": f"Facebook Post {i + 1}", "type": "text_post",
                   "pillar": CONTENT_PILLARS[i % len(CONTENT_PILLARS)]["pillar"],
                   "angle": "educational", "hook": "Most people don't know this.",
                   "emotion": "curiosity"}
                  for i in range(5)]
 
     for i, idea in enumerate(ideas[:5]):
-        title = idea.get("title", f"Facebook Post {i+1}")
+        title = idea.get("title", f"Facebook Post {i + 1}")
         post_type = idea.get("type", "text_post")
-        _ap_log(f"  Creating Facebook post {i+1}/5: {title}", phase="facebook")
+        _ap_log(f"  Creating Facebook post {i + 1}/5: {title}", phase="facebook")
 
         content = _claude(
             f"Create a viral Facebook {post_type} on this topic:\n\n"
             f"Title/Topic: {title}\n"
-            f"Content pillar: {idea.get('pillar','passive_income')}\n"
-            f"Hook: {idea.get('hook','')}\n"
-            f"Angle: {idea.get('angle','')}\n"
-            f"Emotion to trigger: {idea.get('emotion','')}\n\n"
+            f"Content pillar: {idea.get('pillar', 'passive_income')}\n"
+            f"Hook: {idea.get('hook', '')}\n"
+            f"Angle: {idea.get('angle', '')}\n"
+            f"Emotion to trigger: {idea.get('emotion', '')}\n\n"
             "Write a COMPLETE, publication-ready Facebook post. Include:\n"
             "- Powerful hook (first line that stops the scroll)\n"
             "- Real, actionable content with specific numbers and examples\n"
             "- Strong call-to-action (save, share, comment, follow)\n"
             "- 5-8 relevant hashtags\n"
-            f"{'- Full video script (2-3 minutes, hook→value→CTA)' if post_type=='video_post' else ''}\n\n"
+            f"{'- Full video script (2-3 minutes, hook→value→CTA)' if post_type == 'video_post' else ''}\n\n"
             "Write in a direct, expert human voice. No corporate speak. "
             "Do NOT mention brand names WheellsVerse or NarAI.\n"
             "Make it impossible to scroll past.",
@@ -453,28 +460,28 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
         max_tokens=1200,
     )
     if not isinstance(topics, list):
-        topics = [{"title": f"IG Post {i+1}", "format": formats[i],
+        topics = [{"title": f"IG Post {i + 1}", "format": formats[i],
                    "pillar": CONTENT_PILLARS[i % len(CONTENT_PILLARS)]["pillar"],
                    "hook": "Save this before you scroll", "save_trigger": "actionable tips",
                    "emotion": "desire"}
                   for i in range(5)]
 
     for i, topic in enumerate(topics[:5]):
-        title = topic.get("title", f"Instagram Post {i+1}")
+        title = topic.get("title", f"Instagram Post {i + 1}")
         fmt = topic.get("format", "carousel")
-        _ap_log(f"  Creating Instagram {fmt} {i+1}/5: {title}", phase="instagram")
+        _ap_log(f"  Creating Instagram {fmt} {i + 1}/5: {title}", phase="instagram")
 
         content = _claude(
             f"Create a viral Instagram {fmt} post.\n\n"
             f"Topic: {title}\n"
-            f"Content pillar: {topic.get('pillar','passive_income')}\n"
-            f"Hook: {topic.get('hook','')}\n"
-            f"Save trigger: {topic.get('save_trigger','')}\n"
-            f"Emotion: {topic.get('emotion','')}\n\n"
+            f"Content pillar: {topic.get('pillar', 'passive_income')}\n"
+            f"Hook: {topic.get('hook', '')}\n"
+            f"Save trigger: {topic.get('save_trigger', '')}\n"
+            f"Emotion: {topic.get('emotion', '')}\n\n"
             "Write a COMPLETE, publication-ready Instagram post:\n"
-            f"{'- Slide-by-slide (8-10 slides). Slide 1 = scroll-stopping hook. Last slide = strong CTA.' if fmt=='carousel' else ''}"
-            f"{'- Caption: hook + real value + CTA to follow/save.' if fmt=='single_image' else ''}"
-            f"{'- Reel script (30-60s, hook in first 3s) + caption.' if fmt=='reel' else ''}"
+            f"{'- Slide-by-slide (8-10 slides). Slide 1 = scroll-stopping hook. Last slide = strong CTA.' if fmt == 'carousel' else ''}"
+            f"{'- Caption: hook + real value + CTA to follow/save.' if fmt == 'single_image' else ''}"
+            f"{'- Reel script (30-60s, hook in first 3s) + caption.' if fmt == 'reel' else ''}"
             "\n- 15-20 hashtags: mix mega + mid + niche\n"
             "- Write in a direct, expert human voice. Real value, real numbers.\n"
             "- Do NOT mention WheellsVerse or NarAI brand names.\n\n"
@@ -538,7 +545,7 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
     if qc_video.get("approved"):
         try:
             from core.video_engine import generate_video, post_video_to_instagram
-            _ap_log(f"  🎬 Generating video ({video_plan.get('style','anime')}) via AI engine…", phase="instagram")
+            _ap_log(f"  🎬 Generating video ({video_plan.get('style', 'anime')}) via AI engine…", phase="instagram")
             vresult = generate_video(
                 prompt=video_plan.get("prompt", video_topic),
                 style=video_plan.get("style", "anime"),
@@ -548,11 +555,11 @@ def _create_instagram_posts(state: dict, briefing: str) -> List[dict]:
             if vresult.get("success"):
                 video_url = vresult.get("video_url", "")
                 local_path = vresult.get("local_path", "")
-                _ap_log(f"  ✅ Video generated via {vresult.get('source','')}: {video_url[:60]}", phase="instagram")
+                _ap_log(f"  ✅ Video generated via {vresult.get('source', '')}: {video_url[:60]}", phase="instagram")
                 pub = post_video_to_instagram(local_path, video_plan.get("caption", ""))
                 published = pub.get("success", False)
             else:
-                _ap_log(f"  ⚠️ Video generation failed: {vresult.get('error','')} — queuing script", phase="instagram")
+                _ap_log(f"  ⚠️ Video generation failed: {vresult.get('error', '')} — queuing script", phase="instagram")
                 _queue_for_manual("instagram", f"Reel: {video_topic[:50]}", final_script, "video_script")
         except Exception as ve:
             _ap_log(f"  ⚠️ Video engine error: {ve}", phase="instagram")
@@ -625,7 +632,7 @@ def _create_twitter_post(state: dict, briefing: str) -> dict:
         state["stats"]["posts_published"] += 1
     _ap_save(state)
 
-    _ap_log(f"✅ Twitter: thread created (score={qc_result.get('score',0)}, published={published})", phase="twitter")
+    _ap_log(f"✅ Twitter: thread created (score={qc_result.get('score', 0)}, published={published})", phase="twitter")
     return post
 
 
@@ -651,23 +658,23 @@ def _create_blog_posts(state: dict, briefing: str) -> List[dict]:
         max_tokens=1200,
     )
     if not isinstance(topics, list):
-        topics = [{"title": f"Blog Post {i+1}", "type": "how_to",
+        topics = [{"title": f"Blog Post {i + 1}", "type": "how_to",
                    "pillar": CONTENT_PILLARS[i % len(CONTENT_PILLARS)]["pillar"],
                    "seo_keyword": "passive income AI 2026", "word_count": 1500,
                    "viral_angle": "practical guide with real numbers"}
                   for i in range(5)]
 
     for i, topic in enumerate(topics[:5]):
-        title = topic.get("title", f"Blog Post {i+1}")
-        _ap_log(f"  Writing blog article {i+1}/5: {title}", phase="blog")
+        title = topic.get("title", f"Blog Post {i + 1}")
+        _ap_log(f"  Writing blog article {i + 1}/5: {title}", phase="blog")
 
         content = _claude(
             f"Write a complete, SEO-optimized blog article:\n\n"
             f"Title: {title}\n"
-            f"Type: {topic.get('type','how_to')}\n"
-            f"Content pillar: {topic.get('pillar','')}\n"
-            f"Primary keyword: {topic.get('seo_keyword','')}\n"
-            f"Viral angle: {topic.get('viral_angle','')}\n"
+            f"Type: {topic.get('type', 'how_to')}\n"
+            f"Content pillar: {topic.get('pillar', '')}\n"
+            f"Primary keyword: {topic.get('seo_keyword', '')}\n"
+            f"Viral angle: {topic.get('viral_angle', '')}\n"
             f"Target word count: {topic.get('word_count', 1500)}\n\n"
             "Include:\n"
             "- SEO title tag + meta description\n"
@@ -711,9 +718,9 @@ def _create_blog_posts(state: dict, briefing: str) -> List[dict]:
 
 _DAILY_REEL_CONFIGS = [
     {
-        "slot":    "morning",
-        "theme":   "power_of_ai",
-        "label":   "AI Power — Morning Reel",
+        "slot": "morning",
+        "theme": "power_of_ai",
+        "label": "AI Power — Morning Reel",
         "angles": [
             "An AI tool solves a problem in 10 seconds that took a human 3 hours",
             "The power of AI in real life — a transformation story (before vs after AI)",
@@ -721,15 +728,15 @@ _DAILY_REEL_CONFIGS = [
             "How AI is changing jobs, money, and daily life in 2026",
             "A mind-blowing AI moment that proves the future is already here",
         ],
-        "tone":    "inspiring, emotional, slightly shocking — makes people say 'wow'",
-        "style":   "cinematic",
-        "aspect":  "9:16",
+        "tone": "inspiring, emotional, slightly shocking — makes people say 'wow'",
+        "style": "cinematic",
+        "aspect": "9:16",
         "post_to": ["instagram", "facebook"],
     },
     {
-        "slot":    "afternoon",
-        "theme":   "ai_being_human",
-        "label":   "AI Trying to Be Human — Afternoon Comic Reel",
+        "slot": "afternoon",
+        "theme": "ai_being_human",
+        "label": "AI Trying to Be Human — Afternoon Comic Reel",
         "angles": [
             "AI tries to order coffee like a human and gets confused by the menu",
             "AI attempts to give relationship advice — hilarious results",
@@ -737,15 +744,15 @@ _DAILY_REEL_CONFIGS = [
             "AI tries to write a grocery list but overthinks every item",
             "AI attempts to take a lunch break — doesn't know how to 'rest'",
         ],
-        "tone":    "comedy, relatable, self-aware — makes people laugh and share",
-        "style":   "cartoon",
-        "aspect":  "9:16",
+        "tone": "comedy, relatable, self-aware — makes people laugh and share",
+        "style": "cartoon",
+        "aspect": "9:16",
         "post_to": ["instagram", "facebook"],
     },
     {
-        "slot":    "evening",
-        "theme":   "ai_real_life_viral",
-        "label":   "AI in Real Life — Evening Viral Reel",
+        "slot": "evening",
+        "theme": "ai_real_life_viral",
+        "label": "AI in Real Life — Evening Viral Reel",
         "angles": [
             "What happens when AI runs your entire morning routine",
             "AI vs humans: who does it better? (side-by-side comparison)",
@@ -753,9 +760,9 @@ _DAILY_REEL_CONFIGS = [
             "AI explains something complex in 30 seconds — and nails it",
             "The moment AI surprised even the people who built it",
         ],
-        "tone":    "punchy, surprising, relatable — earns saves and shares",
-        "style":   "cinematic",
-        "aspect":  "9:16",
+        "tone": "punchy, surprising, relatable — earns saves and shares",
+        "style": "cinematic",
+        "aspect": "9:16",
         "post_to": ["instagram", "facebook"],
     },
 ]
@@ -765,11 +772,11 @@ def _create_one_reel(cfg: dict, state: dict, briefing: str, slot_override: str =
     """Generate and publish one reel for the given slot config."""
     from core.video_engine import generate_video, publish_video_everywhere, get_available_engines
 
-    label   = cfg["label"]
-    theme   = cfg["theme"]
-    slot    = slot_override or cfg["slot"]
+    label = cfg["label"]
+    theme = cfg["theme"]
+    slot = slot_override or cfg["slot"]
     import random as _r
-    angle   = _r.choice(cfg["angles"])
+    angle = _r.choice(cfg["angles"])
 
     _ap_log(f"  🎬 [{slot.upper()}] {label}: '{angle[:60]}'", phase="video")
 
@@ -797,9 +804,9 @@ def _create_one_reel(cfg: dict, state: dict, briefing: str, slot_override: str =
             "instagram_caption": angle, "facebook_caption": angle,
         }
 
-    title  = concept.get("title", angle[:50])
+    title = concept.get("title", angle[:50])
     prompt = concept.get("prompt", angle)
-    style  = concept.get("style", cfg["style"])
+    style = concept.get("style", cfg["style"])
     script = concept.get("script", "")
     ig_cap = concept.get("instagram_caption", title)
     fb_cap = concept.get("facebook_caption", title)
@@ -807,17 +814,17 @@ def _create_one_reel(cfg: dict, state: dict, briefing: str, slot_override: str =
     final_script, qc_result = _qc_loop(script, title, "video_script", "instagram", state)
 
     published_to = []
-    video_url    = ""
-    local_path   = ""
+    video_url = ""
+    local_path = ""
 
     engines = get_available_engines()
     if qc_result.get("approved") and engines.get("any"):
-        _ap_log(f"  ✅ Script approved ({qc_result.get('score',0)}) — generating…", phase="video")
+        _ap_log(f"  ✅ Script approved ({qc_result.get('score', 0)}) — generating…", phase="video")
         vresult = generate_video(prompt=prompt, style=style, platform="instagram", script=final_script)
         if vresult.get("success"):
-            video_url  = vresult.get("video_url", "")
+            video_url = vresult.get("video_url", "")
             local_path = vresult.get("local_path", "")
-            _ap_log(f"  🎥 Video ready ({vresult.get('source','')}): {video_url[:60]}", phase="video")
+            _ap_log(f"  🎥 Video ready ({vresult.get('source', '')}): {video_url[:60]}", phase="video")
             # Post to Instagram with Instagram caption
             pub_ig = publish_video_everywhere(local_path, title, ig_cap, platforms=["instagram"])
             # Post to Facebook with Facebook caption
@@ -829,13 +836,13 @@ def _create_one_reel(cfg: dict, state: dict, briefing: str, slot_override: str =
             if failed_to:
                 _queue_for_manual("instagram", title, f"Video: {video_url}\n\nIG Caption: {ig_cap}\n\nFB Caption: {fb_cap}", "video")
         else:
-            _ap_log(f"  ⚠️ Gen failed: {vresult.get('error','')} — queuing script", phase="video")
+            _ap_log(f"  ⚠️ Gen failed: {vresult.get('error', '')} — queuing script", phase="video")
             _queue_for_manual("instagram", title, f"Script:\n{final_script}\n\nIG: {ig_cap}\n\nFB: {fb_cap}", "video_script")
     elif not engines.get("any"):
         _ap_log("  ⚠️ No video engine — queuing script for manual post", phase="video")
         _queue_for_manual("instagram", title, f"Script:\n{final_script}\n\nIG: {ig_cap}\n\nFB: {fb_cap}", "video_script")
     else:
-        _ap_log(f"  ❌ Script rejected ({qc_result.get('score',0)}) — skipping", phase="video")
+        _ap_log(f"  ❌ Script rejected ({qc_result.get('score', 0)}) — skipping", phase="video")
 
     rec = {
         "platform": "instagram+facebook", "title": title, "theme": theme,
@@ -911,7 +918,7 @@ def _create_platform_products(
     products: List[dict] = []
 
     for i in range(count):
-        _ap_log(f"  🔨 Building product {i+1}/{count} for {platform}…", phase=platform)
+        _ap_log(f"  🔨 Building product {i + 1}/{count} for {platform}…", phase=platform)
 
         # ── Run the 9-step product engine ─────────────────────────────────────
         try:
@@ -924,9 +931,9 @@ def _create_platform_products(
             _ap_log(f"  ⚠️ Product engine error: {eng_err}", level="WARNING", phase=platform)
             continue
 
-        title    = package.get("title", f"Product {i+1}")
-        price    = package.get("price", 19.99)
-        ptype    = package.get("product_type", "ebook")
+        title = package.get("title", f"Product {i + 1}")
+        price = package.get("price", 19.99)
+        ptype = package.get("product_type", "ebook")
 
         # ── QC on the sales page + product content ────────────────────────────
         qc_text = (
@@ -944,29 +951,29 @@ def _create_platform_products(
             pkg_path = None
 
         product = {
-            "platform":       platform,
-            "title":          title,
-            "type":           ptype,
-            "price":          price,
-            "niche":          package.get("niche", ""),
+            "platform": platform,
+            "title": title,
+            "type": ptype,
+            "price": price,
+            "niche": package.get("niche", ""),
             # Content shortcuts for the publish helper
-            "content":        package.get("listing_content", package.get("sales_page", "")),
-            "description":    package.get("description", ""),
-            "sales_page":     package.get("sales_page", ""),
+            "content": package.get("listing_content", package.get("sales_page", "")),
+            "description": package.get("description", ""),
+            "sales_page": package.get("sales_page", ""),
             "product_content": package.get("product_content", ""),
             # Marketing
-            "cover_prompts":  package.get("cover_prompts", {}),
-            "pricing":        package.get("pricing", {}),
-            "marketing":      package.get("marketing", {}),
-            "disclaimer":     package.get("disclaimer", ""),
-            "delivery":       package.get("delivery", {}),
-            "bonuses":        package.get("bonuses", {}),
+            "cover_prompts": package.get("cover_prompts", {}),
+            "pricing": package.get("pricing", {}),
+            "marketing": package.get("marketing", {}),
+            "disclaimer": package.get("disclaimer", ""),
+            "delivery": package.get("delivery", {}),
+            "bonuses": package.get("bonuses", {}),
             # QC + status
-            "qc_score":       qc_result.get("score", 0),
-            "approved":       qc_result.get("approved", False),
-            "published":      False,
-            "package_path":   str(pkg_path) if pkg_path else "",
-            "created_at":     _now(),
+            "qc_score": qc_result.get("score", 0),
+            "approved": qc_result.get("approved", False),
+            "published": False,
+            "package_path": str(pkg_path) if pkg_path else "",
+            "created_at": _now(),
         }
 
         products.append(product)
@@ -974,7 +981,7 @@ def _create_platform_products(
         state["stats"]["products_created"] = state["stats"].get("products_created", 0) + 1
         _ap_save(state)
         _ap_log(
-            f"  ✅ Product {i+1} complete: '{title}' | QC {qc_result.get('score',0)}/100 "
+            f"  ✅ Product {i + 1} complete: '{title}' | QC {qc_result.get('score', 0)}/100 "
             f"| {'APPROVED' if qc_result.get('approved') else 'PENDING'}",
             phase=platform,
         )
@@ -1019,11 +1026,11 @@ def _promote_product_on_social(product: dict, platform: str, state: dict):
       - 1 Facebook promotional post (longer, story-driven)
       - 1 Facebook video/Reel post
     """
-    title  = product.get("title", "")
-    price  = product.get("price", 0)
-    niche  = product.get("niche", "")
-    ptype  = product.get("type", product.get("product_type", "digital product"))
-    mkt    = product.get("marketing", {})
+    title = product.get("title", "")
+    price = product.get("price", 0)
+    niche = product.get("niche", "")
+    ptype = product.get("type", product.get("product_type", "digital product"))
+    mkt = product.get("marketing", {})
 
     _ap_log(f"  📣 Promoting '{title}' on Instagram + Facebook…", phase="promote")
 
@@ -1055,9 +1062,9 @@ def _promote_product_on_social(product: dict, platform: str, state: dict):
         _ap_log("  Promo copy returned invalid format", level="WARNING", phase="promote")
         return
 
-    ig_post         = promo.get("ig_post", "")
-    ig_reel_script  = promo.get("ig_reel_script", "")
-    fb_post         = promo.get("fb_post", "")
+    ig_post = promo.get("ig_post", "")
+    ig_reel_script = promo.get("ig_reel_script", "")
+    fb_post = promo.get("fb_post", "")
     fb_video_script = promo.get("fb_video_script", "")
 
     # ── Post Instagram promotional post ───────────────────────────────────────
@@ -1114,7 +1121,7 @@ def _promote_product_on_social(product: dict, platform: str, state: dict):
         except Exception as ve:
             _ap_log(f"  Facebook video skipped: {ve}", level="WARNING", phase="promote")
 
-    state["stats"]["posts_created"]   = state["stats"].get("posts_created", 0) + 2
+    state["stats"]["posts_created"] = state["stats"].get("posts_created", 0) + 2
     state["stats"]["posts_published"] = state["stats"].get("posts_published", 0) + (
         1 if ig_post else 0
     ) + (1 if fb_post else 0)
@@ -1160,9 +1167,9 @@ def _create_kdp_books(state: dict, briefing: str) -> List[dict]:
         ]
 
     for i, idea in enumerate(book_ideas[:2]):
-        title = idea.get("title", f"Book {i+1}")
-        full_title = f"{title}: {idea.get('subtitle','')}" if idea.get("subtitle") else title
-        _ap_log(f"  Writing KDP book {i+1}/2: {title}", phase="kdp")
+        title = idea.get("title", f"Book {i + 1}")
+        full_title = f"{title}: {idea.get('subtitle', '')}" if idea.get("subtitle") else title
+        _ap_log(f"  Writing KDP book {i + 1}/2: {title}", phase="kdp")
 
         # Write the full book
         book_content = _write_full_ebook(idea)
@@ -1181,9 +1188,9 @@ def _create_kdp_books(state: dict, briefing: str) -> List[dict]:
         cover_brief = _claude(
             f"Create a detailed Canva book cover design brief for:\n\n"
             f"Title: {title}\n"
-            f"Subtitle: {idea.get('subtitle','')}\n"
-            f"Genre: {idea.get('genre','business')}\n"
-            f"Target reader: {idea.get('target_reader','')}\n\n"
+            f"Subtitle: {idea.get('subtitle', '')}\n"
+            f"Genre: {idea.get('genre', 'business')}\n"
+            f"Target reader: {idea.get('target_reader', '')}\n\n"
             "Specify EXACTLY:\n"
             "- KDP cover dimensions (6×9 inches → 1800×2700px at 300 DPI)\n"
             "- Color palette (3 specific hex codes)\n"
@@ -1203,11 +1210,11 @@ def _create_kdp_books(state: dict, briefing: str) -> List[dict]:
         kdp_listing = _claude(
             f"Create a complete Amazon KDP listing for:\n\n"
             f"Title: {title}\n"
-            f"Subtitle: {idea.get('subtitle','')}\n"
-            f"Genre: {idea.get('genre','')}\n"
-            f"Target reader: {idea.get('target_reader','')}\n"
-            f"Core transformation: {idea.get('core_transformation','')}\n"
-            f"KDP Category: {idea.get('kdp_category','')}\n"
+            f"Subtitle: {idea.get('subtitle', '')}\n"
+            f"Genre: {idea.get('genre', '')}\n"
+            f"Target reader: {idea.get('target_reader', '')}\n"
+            f"Core transformation: {idea.get('core_transformation', '')}\n"
+            f"KDP Category: {idea.get('kdp_category', '')}\n"
             f"Price: ${idea.get('price', 4.99)}\n\n"
             "Create:\n"
             "1. BOOK DESCRIPTION (600 words, HTML formatted for KDP, benefit-driven)\n"
@@ -1220,8 +1227,7 @@ def _create_kdp_books(state: dict, briefing: str) -> List[dict]:
         )
 
         # Package for KDP
-        kdp_package = _package_kdp_book(title, book_content, idea)
-
+        _package_kdp_book(title, book_content, idea)
         published = False
         if qc_result.get("approved"):
             _ap_log(f"  ✅ KDP book approved — packaging for upload: {title}", phase="kdp")
@@ -1239,7 +1245,7 @@ def _create_kdp_books(state: dict, briefing: str) -> List[dict]:
             "published": published,
             "canva_url": canva_url,
             "has_listing": True,
-            "package_path": str(DATA_DIR / "kdp_packages" / f"{title[:40].replace(' ','_')}.json"),
+            "package_path": str(DATA_DIR / "kdp_packages" / f"{title[:40].replace(' ', '_')}.json"),
             "created_at": _now(),
         }
         books.append(book)
@@ -1383,7 +1389,7 @@ p{{margin:1em 0;text-align:justify;}}
 </head>
 <body>
 <h1>{title}</h1>
-<p class="subtitle">{idea.get('subtitle','')}</p>
+<p class="subtitle">{idea.get('subtitle', '')}</p>
 <div class="dedication">By WheellsVerse</div>
 <hr/>
 {content.replace(chr(10), '<br/>').replace('## ', '<h2>').replace('# ', '<h1>').replace('</h1>', '</h1>').replace('</h2>', '</h2>')}
@@ -1516,19 +1522,19 @@ def _create_narai_mission_posts(state: dict, briefing: str) -> List[dict]:
     # Platform assignments for the 3 posts
     platform_sets = [
         {"primary": "instagram", "also": ["facebook", "telegram"]},
-        {"primary": "tiktok",    "also": ["youtube", "instagram"]},
-        {"primary": "twitter",   "also": ["telegram"]},
+        {"primary": "tiktok", "also": ["youtube", "instagram"]},
+        {"primary": "twitter", "also": ["telegram"]},
     ]
 
     for i, (angle_cfg, plat_cfg) in enumerate(zip(angles, platform_sets)):
-        platform  = plat_cfg["primary"]
+        platform = plat_cfg["primary"]
         also_post = plat_cfg["also"]
-        angle     = angle_cfg["angle"]
-        hook      = angle_cfg["hook"]
-        emotion   = angle_cfg["emotion"]
-        fmt       = angle_cfg["format"]
+        angle = angle_cfg["angle"]
+        hook = angle_cfg["hook"]
+        emotion = angle_cfg["emotion"]
+        fmt = angle_cfg["format"]
 
-        _ap_log(f"  ✍️  Mission post {i+1}/3: [{angle}] for {platform}", phase="narai_brand")
+        _ap_log(f"  ✍️  Mission post {i + 1}/3: [{angle}] for {platform}", phase="narai_brand")
 
         # Generate the post
         content = _claude(
@@ -1563,25 +1569,30 @@ def _create_narai_mission_posts(state: dict, briefing: str) -> List[dict]:
         if qc_result.get("approved"):
             if platform == "instagram":
                 ok = _publish_instagram(final_content, f"NarAI: {angle}", "single_image")
-                if ok: published_platforms.append("instagram")
+                if ok:
+                    published_platforms.append("instagram")
             elif platform == "facebook":
                 ok = _publish_facebook(final_content, f"NarAI: {angle}", "text_post")
-                if ok: published_platforms.append("facebook")
+                if ok:
+                    published_platforms.append("facebook")
             elif platform == "twitter":
                 ok = _publish_twitter(final_content)
-                if ok: published_platforms.append("twitter")
+                if ok:
+                    published_platforms.append("twitter")
             elif platform == "tiktok":
                 _queue_for_manual("tiktok", f"NarAI: {angle}", final_content, "video_script")
 
             # Also post to Telegram always (high-value updates go to community)
             if "telegram" in also_post:
-                ok = _publish_telegram(final_content, f"🤖 NarAI — {angle.replace('_',' ').title()}")
-                if ok: published_platforms.append("telegram")
+                ok = _publish_telegram(final_content, f"🤖 NarAI — {angle.replace('_', ' ').title()}")
+                if ok:
+                    published_platforms.append("telegram")
 
             # Also post to Facebook if primary was Instagram
             if "facebook" in also_post and platform != "facebook":
                 ok = _publish_facebook(final_content, f"NarAI: {angle}", "text_post")
-                if ok: published_platforms.append("facebook")
+                if ok:
+                    published_platforms.append("facebook")
 
         post = {
             "platform": platform,
@@ -1602,7 +1613,7 @@ def _create_narai_mission_posts(state: dict, briefing: str) -> List[dict]:
 
     _ap_log(
         f"✅ NarAI Mission Posts: {len(posts)} created, "
-        f"published to: {set(p for post in posts for p in post.get('published_to',[]))}",
+        f"published to: {set(p for post in posts for p in post.get('published_to', []))}",
         phase="narai_brand"
     )
     return posts
@@ -1612,6 +1623,16 @@ def _create_narai_mission_posts(state: dict, briefing: str) -> List[dict]:
 # PUBLISH HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _is_token_error(err: Exception) -> bool:
+    """Detect OAuth/token expiry errors from social API responses."""
+    msg = str(err).lower()
+    return any(k in msg for k in (
+        "401", "403", "invalid_token", "token_expired",
+        "access_token", "unauthorized", "authentication",
+        "oauth", "forbidden", "invalid access",
+    ))
+
+
 def _publish_facebook(content: str, title: str, post_type: str) -> bool:
     try:
         from core.facebook import FacebookClient
@@ -1619,13 +1640,21 @@ def _publish_facebook(content: str, title: str, post_type: str) -> bool:
         result = fb.post(content)
         ok = result.get("status") == "posted"
         if ok:
-            _ap_log(f"  ✅ Facebook posted: {title[:40]} — {result.get('post_id','')}", phase="facebook")
+            _ap_log(f"  ✅ Facebook posted: {title[:40]} — {result.get('post_id', '')}", phase="facebook")
         else:
             _ap_log(f"  ⚠️ Facebook post issue: {result} — queuing", phase="facebook")
             _queue_for_manual("facebook", title, content)
         return ok
     except Exception as e:
-        _ap_log(f"  Facebook publish error: {e}", level="WARNING", phase="facebook")
+        if _is_token_error(e):
+            _ap_log(
+                "  ⛔ TOKEN_EXPIRED: Facebook access token invalid or expired. "
+                "Re-authenticate at https://developers.facebook.com/tools/explorer/ "
+                "and update FACEBOOK_PAGE_TOKEN in Railway env vars.",
+                level="ERROR", phase="facebook",
+            )
+        else:
+            _ap_log(f"  Facebook publish error: {e}", level="WARNING", phase="facebook")
         _queue_for_manual("facebook", title, content)
         return False
 
@@ -1637,13 +1666,20 @@ def _publish_instagram(content: str, title: str, fmt: str) -> bool:
         result = ig.post(content)
         ok = result.get("status") == "posted"
         if ok:
-            _ap_log(f"  ✅ Instagram posted: {title[:40]} — {result.get('post_id','')}", phase="instagram")
+            _ap_log(f"  ✅ Instagram posted: {title[:40]} — {result.get('post_id', '')}", phase="instagram")
         else:
             _ap_log(f"  ⚠️ Instagram post issue: {result} — queuing", phase="instagram")
             _queue_for_manual("instagram", title, content)
         return ok
     except Exception as e:
-        _ap_log(f"  Instagram publish error: {e}", level="WARNING", phase="instagram")
+        if _is_token_error(e):
+            _ap_log(
+                "  ⛔ TOKEN_EXPIRED: Instagram access token invalid or expired. "
+                "Re-authenticate via Meta Business Suite and update INSTAGRAM_PAGE_TOKEN.",
+                level="ERROR", phase="instagram",
+            )
+        else:
+            _ap_log(f"  Instagram publish error: {e}", level="WARNING", phase="instagram")
         _queue_for_manual("instagram", title, content)
         return False
 
@@ -1663,7 +1699,15 @@ def _publish_twitter(content: str) -> bool:
             _queue_for_manual("twitter", "Thread", content)
         return ok
     except Exception as e:
-        _ap_log(f"  Twitter publish error: {e}", level="WARNING", phase="twitter")
+        if _is_token_error(e):
+            _ap_log(
+                "  ⛔ TOKEN_EXPIRED: Twitter/X access token invalid or expired. "
+                "Re-authenticate at developer.twitter.com and update "
+                "TWITTER_ACCESS_TOKEN + TWITTER_ACCESS_SECRET in Railway env vars.",
+                level="ERROR", phase="twitter",
+            )
+        else:
+            _ap_log(f"  Twitter publish error: {e}", level="WARNING", phase="twitter")
         _queue_for_manual("twitter", "Thread", content)
         return False
 
@@ -1683,8 +1727,9 @@ def _publish_telegram(content: str, title: str = "") -> bool:
 
 def _publish_blog(content: str, title: str) -> bool:
     try:
-        import urllib.request, os
-        wp_url  = os.getenv("WORDPRESS_API_URL", "")
+        import urllib.request
+        import os
+        wp_url = os.getenv("WORDPRESS_API_URL", "")
         wp_user = os.getenv("WORDPRESS_USER", "")
         wp_pass = os.getenv("WORDPRESS_APP_PASSWORD", "")
         if not (wp_url and wp_user and wp_pass):
@@ -1692,7 +1737,7 @@ def _publish_blog(content: str, title: str) -> bool:
             return False
         import base64
         creds = base64.b64encode(f"{wp_user}:{wp_pass}".encode()).decode()
-        body  = json.dumps({"title": title, "content": content, "status": "publish"}).encode()
+        body = json.dumps({"title": title, "content": content, "status": "publish"}).encode()
         req = urllib.request.Request(
             f"{wp_url}/wp-json/wp/v2/posts",
             data=body,
@@ -1713,14 +1758,15 @@ def _publish_product(product: dict, platform: str) -> bool:
     Handles: gumroad, shopify, etsy, payhip.
     Product dict is the full package from _create_platform_products().
     """
-    title   = product.get("title", "")
+    title = product.get("title", "")
     content = product.get("content", "") or product.get("listing_content", "")
-    price   = product.get("price", 9.99)
+    price = product.get("price", 9.99)
 
     try:
         # ── Gumroad ───────────────────────────────────────────────────────────
         if platform == "gumroad":
-            import urllib.request, urllib.parse
+            import urllib.request
+            import urllib.parse
             token = os.getenv("GUMROAD_ACCESS_TOKEN", "")
             if not token:
                 _ap_log(f"  Gumroad: no token — queuing '{title}'", phase="gumroad")
@@ -1730,20 +1776,20 @@ def _publish_product(product: dict, platform: str) -> bool:
             # Use pre-built upload data if available (from Gumroad engine)
             upload_data = product.get("gumroad_upload_data", {})
             description = upload_data.get("description") or content
-            tags        = upload_data.get("tags", [])
+            tags = upload_data.get("tags", [])
             price_cents = upload_data.get("price") or int(float(price) * 100)
 
             fields = {
-                "name":        title,
+                "name": title,
                 "description": description[:20000],
-                "price":       str(price_cents),
-                "published":   "true",
+                "price": str(price_cents),
+                "published": "true",
             }
             if tags:
                 fields["tags"] = ",".join(tags[:10])
 
             data = urllib.parse.urlencode(fields).encode()
-            req  = urllib.request.Request(
+            req = urllib.request.Request(
                 "https://api.gumroad.com/v2/products",
                 data=data,
                 headers={
@@ -1826,7 +1872,7 @@ def _queue_for_manual(platform: str, title: str, content: str, content_type: str
 # ══════════════════════════════════════════════════════════════════════════════
 
 _ap_running = False
-_ap_thread  = None
+_ap_thread = None
 
 
 def run_autopilot_session(session_id: str = None):
@@ -1869,7 +1915,7 @@ def run_autopilot_session(session_id: str = None):
             if not _ap_running:
                 raise InterruptedError("Stopped")
             state["phase"] = phase_name
-            state["task"]  = task_label
+            state["task"] = task_label
             state["progress"] = progress_pct
             _ap_save(state)
             try:
@@ -1919,14 +1965,14 @@ def run_autopilot_session(session_id: str = None):
                    _create_platform_products, "payhip", 2, 2, state, briefing)
 
         # ── PHASE 2.5: SHOPIFY AUTOPILOT ───────────────────────────────────
-        state["phase"]    = "shopify"
-        state["task"]     = "NarAI is building Shopify products…"
+        state["phase"] = "shopify"
+        state["task"] = "NarAI is building Shopify products…"
         state["progress"] = 84
         _ap_save(state)
         try:
             from core.narai_shopify_autopilot import run_shopify_session
             shopify_result = run_shopify_session()
-            shopify_stats  = shopify_result.get("stats", {})
+            shopify_stats = shopify_result.get("stats", {})
             state["stats"]["products_published"] = (
                 state["stats"].get("products_published", 0)
                 + shopify_stats.get("products_published", 0)
@@ -1944,8 +1990,8 @@ def run_autopilot_session(session_id: str = None):
                    _create_kdp_books, state, briefing)
 
         # ── DONE ───────────────────────────────────────────────────────────
-        state["phase"]    = "complete"
-        state["task"]     = "Session complete ✅"
+        state["phase"] = "complete"
+        state["task"] = "Session complete ✅"
         state["progress"] = 100
         s = state["stats"]
         summary = (
@@ -1988,17 +2034,39 @@ def run_autopilot_session(session_id: str = None):
 
     except InterruptedError:
         state["phase"] = "stopped"
-        state["task"]  = "Stopped by user"
+        state["task"] = "Stopped by user"
         _ap_log("⏹ Autopilot stopped by user", level="WARNING")
     except Exception as e:
         state["phase"] = "error"
-        state["task"]  = f"Error: {str(e)[:100]}"
+        state["task"] = f"Error: {str(e)[:100]}"
         _ap_log(f"❌ Autopilot error: {e}", level="ERROR")
         log.exception("Autopilot session error")
     finally:
-        state["running"]   = False
-        _ap_running        = False
+        state["running"] = False
+        _ap_running = False
         _ap_save(state)
+
+        # ── Persist session to 5-tier memory system ────────────────────────
+        try:
+            from core.narai_memory_manager import save_autopilot_session
+            stats = state.get("stats", {})
+            content_count = sum([
+                stats.get("facebook_posts", 0),
+                stats.get("instagram_posts", 0),
+                stats.get("tweets", 0),
+                stats.get("blogs", 0),
+                stats.get("videos", 0),
+                stats.get("products", 0),
+                stats.get("kdp_books", 0),
+            ])
+            save_autopilot_session(
+                session_id=session_id,
+                stats=stats,
+                content_count=content_count,
+            )
+            _ap_log(f"Memory updated: {content_count} items saved to autopilot tier", phase="memory")
+        except Exception as mem_err:
+            _ap_log(f"Memory save failed (non-fatal): {mem_err}", level="WARNING", phase="memory")
 
 
 _reels_running = False
@@ -2046,7 +2114,7 @@ def run_daily_reels_session(slot: str = "all"):
 
 def start_reels_background(slot: str = "all") -> str:
     """Start a daily reels session in the background."""
-    global _reels_running, _reels_thread
+    global _reels_thread
     if _reels_running:
         return "already_running"
     _reels_thread = threading.Thread(
@@ -2058,7 +2126,7 @@ def start_reels_background(slot: str = "all") -> str:
 
 
 def start_autopilot_background(session_id: str = None) -> str:
-    global _ap_running, _ap_thread
+    global _ap_thread
     if _ap_running:
         return "already_running"
     session_id = session_id or f"ap_{int(time.time())}"
@@ -2079,22 +2147,22 @@ def stop_autopilot():
 def get_ap_status() -> dict:
     state = _ap_load()
     return {
-        "running":    _ap_running,
+        "running": _ap_running,
         "session_id": state.get("session_id"),
-        "phase":      state.get("phase", "idle"),
-        "task":       state.get("task", ""),
-        "progress":   state.get("progress", 0),
+        "phase": state.get("phase", "idle"),
+        "task": state.get("task", ""),
+        "progress": state.get("progress", 0),
         "started_at": state.get("started_at"),
-        "stats":      state.get("stats", {}),
+        "stats": state.get("stats", {}),
         "today_content": state.get("today_content", []),
-        "sessions":   state.get("sessions", []),
+        "sessions": state.get("sessions", []),
     }
 
 
 def get_ap_logs(limit: int = 200) -> list:
     logs = _ap_load_logs()[:limit]
     return [
-        f"[{e.get('ts','')[:19]}] [{e.get('level','INFO')}] [{e.get('phase','—')}] {e.get('msg','')}"
+        f"[{e.get('ts', '')[:19]}] [{e.get('level', 'INFO')}] [{e.get('phase', '—')}] {e.get('msg', '')}"
         for e in logs
     ]
 

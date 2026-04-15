@@ -41,12 +41,10 @@ from __future__ import annotations
 
 import json
 import logging
-import os
-import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List
 
 from dotenv import load_dotenv
 
@@ -61,11 +59,11 @@ log = logging.getLogger("narai_memory_manager")
 # ── Tier configuration ──────────────────────────────────────────────────────
 
 TIERS = {
-    "core":      {"dir": MEMORY_ROOT / "core",      "max_entries": 500_000, "gb": 50},
-    "market":    {"dir": MEMORY_ROOT / "market",     "max_entries": 100_000, "gb": 30},
-    "creation":  {"dir": MEMORY_ROOT / "creation",   "max_entries": 100_000, "gb": 30},
-    "personal":  {"dir": MEMORY_ROOT / "personal",   "max_entries":   5_000, "gb": 20},
-    "autopilot": {"dir": MEMORY_ROOT / "autopilot",  "max_entries":  50_000, "gb": 20},
+    "core": {"dir": MEMORY_ROOT / "core", "max_entries": 500_000, "gb": 50},
+    "market": {"dir": MEMORY_ROOT / "market", "max_entries": 100_000, "gb": 30},
+    "creation": {"dir": MEMORY_ROOT / "creation", "max_entries": 100_000, "gb": 30},
+    "personal": {"dir": MEMORY_ROOT / "personal", "max_entries": 5_000, "gb": 20},
+    "autopilot": {"dir": MEMORY_ROOT / "autopilot", "max_entries": 50_000, "gb": 20},
 }
 
 # Create all tier directories
@@ -79,8 +77,10 @@ _LEGACY_FILE = ROOT / "data" / "narai_memory.json"
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
+
 def _tier_file(tier: str) -> Path:
     return TIERS[tier]["dir"] / "memory.json"
+
 
 def _load_tier(tier: str) -> list:
     f = _tier_file(tier)
@@ -90,6 +90,7 @@ def _load_tier(tier: str) -> list:
     except Exception:
         pass
     return []
+
 
 def _save_tier(tier: str, entries: list):
     f = _tier_file(tier)
@@ -120,13 +121,13 @@ def save(
         tier = "core"
 
     entry = {
-        "key":        key,
-        "content":    content,
-        "tags":       tags or [],
-        "metadata":   metadata or {},
+        "key": key,
+        "content": content,
+        "tags": tags or [],
+        "metadata": metadata or {},
         "importance": importance,
-        "saved_at":   _now(),
-        "tier":       tier,
+        "saved_at": _now(),
+        "tier": tier,
     }
 
     entries = _load_tier(tier)
@@ -277,7 +278,7 @@ def get_context(platform: str, task: str, limit: int = 15) -> str:
     if personal:
         parts.append("=== NarAI's Core Knowledge ===")
         for e in personal[:5]:
-            parts.append(f"• {e.get('content','')[:200]}")
+            parts.append(f"• {e.get('content', '')[:200]}")
 
     # Platform market intel
     market_entries = search(platform, tiers=["market"], limit=3)
@@ -293,14 +294,14 @@ def get_context(platform: str, task: str, limit: int = 15) -> str:
         parts.append(f"\n=== Previous Successful {platform.title()} Content ===")
         for c in published_creations[:3]:
             meta = c.get("metadata", {})
-            parts.append(f"• [{meta.get('content_type','')}] '{meta.get('title','')}' — QC: {meta.get('qc_score',0)}/100")
+            parts.append(f"• [{meta.get('content_type', '')}] '{meta.get('title', '')}' — QC: {meta.get('qc_score', 0)}/100")
 
     # Task-specific search
     task_memories = search(task, tiers=["core", "personal"], limit=5)
     if task_memories:
         parts.append(f"\n=== Relevant Memory for: {task} ===")
         for m in task_memories[:3]:
-            parts.append(f"• {m.get('content','')[:200]}")
+            parts.append(f"• {m.get('content', '')[:200]}")
 
     return "\n".join(parts) if parts else f"No specific memory for {platform}/{task}."
 
@@ -329,15 +330,91 @@ def stats() -> dict:
         f = _tier_file(tier_name)
         size_mb = round(f.stat().st_size / 1024 / 1024, 2) if f.exists() else 0
         result[tier_name] = {
-            "entries":    count,
-            "max":        cfg["max_entries"],
-            "usage_pct":  round(count / cfg["max_entries"] * 100, 1),
-            "size_mb":    size_mb,
+            "entries": count,
+            "max": cfg["max_entries"],
+            "usage_pct": round(count / cfg["max_entries"] * 100, 1),
+            "size_mb": size_mb,
             "capacity_gb": cfg["gb"],
         }
     result["total_entries"] = total_entries
-    result["memory_root"]   = str(MEMORY_ROOT)
+    result["memory_root"] = str(MEMORY_ROOT)
     return result
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SYSTEM STATE ADAPTER — used by NarAICore
+# ══════════════════════════════════════════════════════════════════════════════
+
+_STATE_FILE = Path("data/system_state.json")
+
+
+def load_state() -> dict:
+    """
+    Load lightweight system state for NarAICore goal decisions.
+    Returns: {revenue, audience, assets, last_goal, consecutive_failures, total_cycles}
+    """
+    try:
+        if _STATE_FILE.exists():
+            import json
+            return json.loads(_STATE_FILE.read_text())
+    except Exception:
+        pass
+    return {
+        "revenue": 0.0,
+        "audience": 0,
+        "assets": 0,
+        "last_goal": None,
+        "consecutive_failures": 0,
+        "total_cycles": 0,
+    }
+
+
+def update_state(state: dict, goal: str, results: list, metrics: dict) -> None:
+    """
+    Persist system state + record cycle in autopilot memory tier.
+    Called by NarAICore after each cycle.
+    """
+    import json, time
+    from datetime import datetime, timezone
+
+    # Update state fields
+    if metrics.get("failure", 0) > metrics.get("success", 0):
+        state["consecutive_failures"] = state.get("consecutive_failures", 0) + 1
+    else:
+        state["consecutive_failures"] = 0
+    state["last_goal"]    = goal
+    state["total_cycles"] = state.get("total_cycles", 0) + 1
+    state["last_updated"] = datetime.now(timezone.utc).isoformat()
+
+    # Persist state file
+    try:
+        _STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _STATE_FILE.write_text(json.dumps(state, indent=2))
+    except Exception as e:
+        import logging
+        logging.getLogger("narai_memory_manager").warning(f"State save failed: {e}")
+
+    # Record in autopilot tier
+    session_id = f"core_cycle_{int(time.time())}"
+    save(
+        tier="autopilot",
+        key=session_id,
+        content=json.dumps({"goal": goal, "metrics": metrics}),
+        tags=["core_cycle", goal],
+        importance=5,
+    )
+
+    # Record each successful task result in creation tier
+    for r in results:
+        if r.get("status") == "success":
+            save_creation(
+                content_type=r.get("task", "task"),
+                platform="narai_core",
+                title=r.get("task", ""),
+                content=r.get("output", ""),
+                qc_score=100,
+                published=True,
+            )
 
 
 def consolidate():

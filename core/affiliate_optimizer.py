@@ -36,23 +36,23 @@ import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR   = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-OPT_FILE   = DATA_DIR / "affiliate_optimizer.json"
+OPT_FILE = DATA_DIR / "affiliate_optimizer.json"
 
 logger = logging.getLogger("affiliate_optimizer")
 
-MIN_DATA_POINTS  = 20      # clicks before declaring a winner
-RETEST_DAYS      = 7       # re-run tests every 7 days
+MIN_DATA_POINTS = 20      # clicks before declaring a winner
+RETEST_DAYS = 7       # re-run tests every 7 days
 WINNER_THRESHOLD = 1.5     # winner must be 1.5x better than runner-up
-CHECK_INTERVAL   = 3600    # check every hour
+CHECK_INTERVAL = 3600    # check every hour
 
 
 # ─── All affiliate programs per niche ────────────────────────────────────────
@@ -61,60 +61,60 @@ def _build_program_pool() -> Dict[str, List[Dict]]:
     """Build the full test pool from .env values."""
     return {
         "crypto": [
-            {"name": "coinbase",   "url": os.getenv("AFFILIATE_COINBASE_URL",""),
+            {"name": "coinbase", "url": os.getenv("AFFILIATE_COINBASE_URL", ""),
              "label": "Coinbase — $10 BTC signup", "commission": "$10/signup"},
-            {"name": "binance",    "url": os.getenv("AFFILIATE_BINANCE_URL",""),
-             "label": "Binance — 50% commission",  "commission": "50% fees"},
-            {"name": "clickbank",  "url": os.getenv("AFFILIATE_CLICKBANK_URL",""),
-             "label": "ClickBank Crypto",          "commission": "50-75%"},
+            {"name": "binance", "url": os.getenv("AFFILIATE_BINANCE_URL", ""),
+             "label": "Binance — 50% commission", "commission": "50% fees"},
+            {"name": "clickbank", "url": os.getenv("AFFILIATE_CLICKBANK_URL", ""),
+             "label": "ClickBank Crypto", "commission": "50-75%"},
         ],
         "investing": [
-            {"name": "robinhood",  "url": os.getenv("AFFILIATE_ROBINHOOD_URL",""),
-             "label": "Robinhood — free stock",    "commission": "$3-225/signup"},
-            {"name": "coinbase",   "url": os.getenv("AFFILIATE_COINBASE_URL",""),
-             "label": "Coinbase — $10 BTC",        "commission": "$10/signup"},
-            {"name": "clickbank",  "url": os.getenv("AFFILIATE_CLICKBANK_URL",""),
-             "label": "ClickBank Investing",       "commission": "50-75%"},
+            {"name": "robinhood", "url": os.getenv("AFFILIATE_ROBINHOOD_URL", ""),
+             "label": "Robinhood — free stock", "commission": "$3-225/signup"},
+            {"name": "coinbase", "url": os.getenv("AFFILIATE_COINBASE_URL", ""),
+             "label": "Coinbase — $10 BTC", "commission": "$10/signup"},
+            {"name": "clickbank", "url": os.getenv("AFFILIATE_CLICKBANK_URL", ""),
+             "label": "ClickBank Investing", "commission": "50-75%"},
         ],
         "ai_tools": [
-            {"name": "jasper",     "url": os.getenv("AFFILIATE_JASPER_URL",""),
+            {"name": "jasper", "url": os.getenv("AFFILIATE_JASPER_URL", ""),
              "label": "Jasper AI — 25% recurring", "commission": "25% recurring"},
-            {"name": "appsumo",    "url": os.getenv("AFFILIATE_APPSUMO_URL",""),
+            {"name": "appsumo", "url": os.getenv("AFFILIATE_APPSUMO_URL", ""),
              "label": "AppSumo — up to $200/sale", "commission": "$200/sale"},
-            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL",""),
-             "label": "ConvertKit — 30% recurring","commission": "30% recurring"},
+            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL", ""),
+             "label": "ConvertKit — 30% recurring", "commission": "30% recurring"},
         ],
         "passive_income": [
-            {"name": "clickbank",  "url": os.getenv("AFFILIATE_CLICKBANK_URL",""),
-             "label": "ClickBank — 75% commission","commission": "50-75%"},
-            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL",""),
-             "label": "ConvertKit — 30% recurring","commission": "30% recurring"},
-            {"name": "bluehost",   "url": os.getenv("AFFILIATE_BLUEHOST_URL",""),
-             "label": "Bluehost — $65/signup",     "commission": "$65/signup"},
+            {"name": "clickbank", "url": os.getenv("AFFILIATE_CLICKBANK_URL", ""),
+             "label": "ClickBank — 75% commission", "commission": "50-75%"},
+            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL", ""),
+             "label": "ConvertKit — 30% recurring", "commission": "30% recurring"},
+            {"name": "bluehost", "url": os.getenv("AFFILIATE_BLUEHOST_URL", ""),
+             "label": "Bluehost — $65/signup", "commission": "$65/signup"},
         ],
         "blogging": [
-            {"name": "bluehost",   "url": os.getenv("AFFILIATE_BLUEHOST_URL",""),
-             "label": "Bluehost — $65/signup",     "commission": "$65/signup"},
-            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL",""),
-             "label": "ConvertKit — 30% recurring","commission": "30% recurring"},
-            {"name": "jasper",     "url": os.getenv("AFFILIATE_JASPER_URL",""),
+            {"name": "bluehost", "url": os.getenv("AFFILIATE_BLUEHOST_URL", ""),
+             "label": "Bluehost — $65/signup", "commission": "$65/signup"},
+            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL", ""),
+             "label": "ConvertKit — 30% recurring", "commission": "30% recurring"},
+            {"name": "jasper", "url": os.getenv("AFFILIATE_JASPER_URL", ""),
              "label": "Jasper AI — 25% recurring", "commission": "25% recurring"},
         ],
         "email_marketing": [
-            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL",""),
-             "label": "ConvertKit — 30% recurring","commission": "30% recurring"},
-            {"name": "bluehost",   "url": os.getenv("AFFILIATE_BLUEHOST_URL",""),
-             "label": "Bluehost — $65/signup",     "commission": "$65/signup"},
-            {"name": "jasper",     "url": os.getenv("AFFILIATE_JASPER_URL",""),
-             "label": "Jasper AI",                 "commission": "25% recurring"},
+            {"name": "convertkit", "url": os.getenv("AFFILIATE_CONVERTKIT_URL", ""),
+             "label": "ConvertKit — 30% recurring", "commission": "30% recurring"},
+            {"name": "bluehost", "url": os.getenv("AFFILIATE_BLUEHOST_URL", ""),
+             "label": "Bluehost — $65/signup", "commission": "$65/signup"},
+            {"name": "jasper", "url": os.getenv("AFFILIATE_JASPER_URL", ""),
+             "label": "Jasper AI", "commission": "25% recurring"},
         ],
         "general": [
-            {"name": "coinbase",   "url": os.getenv("AFFILIATE_COINBASE_URL",""),
-             "label": "Coinbase",                  "commission": "$10/signup"},
-            {"name": "robinhood",  "url": os.getenv("AFFILIATE_ROBINHOOD_URL",""),
-             "label": "Robinhood",                 "commission": "$3-225/signup"},
-            {"name": "jasper",     "url": os.getenv("AFFILIATE_JASPER_URL",""),
-             "label": "Jasper AI",                 "commission": "25% recurring"},
+            {"name": "coinbase", "url": os.getenv("AFFILIATE_COINBASE_URL", ""),
+             "label": "Coinbase", "commission": "$10/signup"},
+            {"name": "robinhood", "url": os.getenv("AFFILIATE_ROBINHOOD_URL", ""),
+             "label": "Robinhood", "commission": "$3-225/signup"},
+            {"name": "jasper", "url": os.getenv("AFFILIATE_JASPER_URL", ""),
+             "label": "Jasper AI", "commission": "25% recurring"},
         ],
     }
 
@@ -125,16 +125,16 @@ class AffiliateTest:
     """Tracks an A/B test between affiliate programs for a niche."""
 
     def __init__(self, niche: str, programs: List[Dict]):
-        self.niche      = niche
-        self.programs   = programs          # list of program dicts
-        self.clicks:    Dict[str, int]   = {p["name"]: 0 for p in programs}
+        self.niche = niche
+        self.programs = programs          # list of program dicts
+        self.clicks: Dict[str, int] = {p["name"]: 0 for p in programs}
         self.conversions: Dict[str, int] = {p["name"]: 0 for p in programs}
-        self.revenue:   Dict[str, float] = {p["name"]: 0.0 for p in programs}
-        self.started_at  = datetime.now().isoformat()
-        self.winner:     Optional[str]   = None
-        self.winner_url: Optional[str]   = None
+        self.revenue: Dict[str, float] = {p["name"]: 0.0 for p in programs}
+        self.started_at = datetime.now().isoformat()
+        self.winner: Optional[str] = None
+        self.winner_url: Optional[str] = None
         self.next_retest = (datetime.now() + timedelta(days=RETEST_DAYS)).isoformat()
-        self.status      = "testing"   # testing / winner_found / retesting
+        self.status = "testing"   # testing / winner_found / retesting
 
     def record_click(self, program_name: str):
         if program_name in self.clicks:
@@ -143,7 +143,7 @@ class AffiliateTest:
     def record_conversion(self, program_name: str, revenue: float = 0.0):
         if program_name in self.conversions:
             self.conversions[program_name] += 1
-            self.revenue[program_name]     += revenue
+            self.revenue[program_name] += revenue
 
     def ctr(self, program_name: str) -> float:
         total = sum(self.clicks.values())
@@ -174,9 +174,9 @@ class AffiliateTest:
         if not scores:
             return None
 
-        ranked  = sorted(scores.items(), key=lambda x: x[1], reverse=True)
-        best    = ranked[0]
-        runner  = ranked[1] if len(ranked) > 1 else (None, 0)
+        ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        best = ranked[0]
+        runner = ranked[1] if len(ranked) > 1 else (None, 0)
 
         if best[1] == 0:
             return None
@@ -186,7 +186,7 @@ class AffiliateTest:
             self.winner = best[0]
             prog = next((p for p in self.programs if p["name"] == best[0]), {})
             self.winner_url = prog.get("url", "")
-            self.status     = "winner_found"
+            self.status = "winner_found"
             return self.winner
 
         return None
@@ -220,7 +220,7 @@ class AffiliateOptimizer:
     def __init__(self):
         self._tests: Dict[str, AffiliateTest] = {}
         self._file_lock = threading.Lock()
-        self._running   = False
+        self._running = False
         self._thread: Optional[threading.Thread] = None
         self._load()
         self._init_missing_tests()
@@ -275,7 +275,7 @@ class AffiliateOptimizer:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(
+        self._thread = threading.Thread(
             target=self._run, daemon=True, name="AffiliateOptimizer"
         )
         self._thread.start()
@@ -302,12 +302,12 @@ class AffiliateOptimizer:
             clicks_file = DATA_DIR / "clicks.json"
             if not clicks_file.exists():
                 return
-            raw    = json.loads(clicks_file.read_text())
+            raw = json.loads(clicks_file.read_text())
             clicks = raw if isinstance(raw, list) else raw.get("clicks", [])
 
             for click in clicks:
                 partner = click.get("partner", "")
-                niche   = click.get("niche", "general")
+                niche = click.get("niche", "general")
                 # Find which test this click belongs to
                 test = self._tests.get(niche) or self._tests.get("general")
                 if test:
@@ -325,7 +325,8 @@ class AffiliateOptimizer:
             if test.status == "testing":
                 winner = test.evaluate()
                 if winner:
-                    prog = next((p for p in test.programs if p["name"] == winner), {})
+                    winner_program = next((p for p in test.programs if p["name"] == winner), {})
+                    test.winner_program = winner_program  # store on test for downstream use
                     logger.info(
                         f"[AffOpt] 🏆 WINNER [{niche}]: {winner} "
                         f"(CTR={test.ctr(winner):.2%}, "
@@ -339,7 +340,7 @@ class AffiliateOptimizer:
         for niche, test in self._tests.items():
             if test.should_retest():
                 logger.info(f"[AffOpt] Retesting {niche}")
-                pool  = _build_program_pool()
+                pool = _build_program_pool()
                 valid = [p for p in pool.get(niche, []) if p.get("url")]
                 self._tests[niche] = AffiliateTest(niche, valid)
                 self._save()
@@ -360,11 +361,11 @@ class AffiliateOptimizer:
         if test.winner and test.winner_url:
             prog = next((p for p in test.programs if p["name"] == test.winner), {})
             return {
-                "name":   test.winner,
-                "url":    test.winner_url,
-                "label":  prog.get("label", test.winner),
+                "name": test.winner,
+                "url": test.winner_url,
+                "label": prog.get("label", test.winner),
                 "status": "winner",
-                "niche":  niche,
+                "niche": niche,
             }
 
         # Still testing — rotate to gather data
@@ -374,13 +375,13 @@ class AffiliateOptimizer:
 
         # Weighted random: favour programs with fewer clicks (explore)
         weights = [1 / max(test.clicks.get(p["name"], 0) + 1, 1) for p in testing]
-        chosen  = random.choices(testing, weights=weights, k=1)[0]
+        chosen = random.choices(testing, weights=weights, k=1)[0]
         return {
-            "name":   chosen["name"],
-            "url":    chosen["url"],
-            "label":  chosen["label"],
+            "name": chosen["name"],
+            "url": chosen["url"],
+            "label": chosen["label"],
             "status": "testing",
-            "niche":  niche,
+            "niche": niche,
         }
 
     def record_click(self, niche: str, program_name: str):
@@ -403,10 +404,10 @@ class AffiliateOptimizer:
         winners = {}
         for niche, test in self._tests.items():
             winners[niche] = {
-                "winner":    test.winner,
-                "url":       test.winner_url,
-                "status":    test.status,
-                "clicks":    test.clicks,
+                "winner": test.winner,
+                "url": test.winner_url,
+                "status": test.status,
+                "clicks": test.clicks,
                 "total_clicks": test.total_clicks(),
             }
         return winners
@@ -414,10 +415,10 @@ class AffiliateOptimizer:
     def summary(self) -> Dict:
         winners_found = sum(1 for t in self._tests.values() if t.winner)
         return {
-            "niches_tracked":  len(self._tests),
-            "winners_found":   winners_found,
-            "still_testing":   len(self._tests) - winners_found,
-            "total_clicks":    sum(t.total_clicks() for t in self._tests.values()),
+            "niches_tracked": len(self._tests),
+            "winners_found": winners_found,
+            "still_testing": len(self._tests) - winners_found,
+            "total_clicks": sum(t.total_clicks() for t in self._tests.values()),
             "winners": {
                 niche: {"winner": t.winner, "clicks": t.total_clicks()}
                 for niche, t in self._tests.items() if t.winner
@@ -433,19 +434,19 @@ class AffiliateOptimizer:
 
     def _fallback_link(self, niche: str) -> Dict:
         fallbacks = {
-            "crypto":         ("coinbase",   os.getenv("AFFILIATE_COINBASE_URL",""),   "Coinbase"),
-            "investing":      ("robinhood",  os.getenv("AFFILIATE_ROBINHOOD_URL",""),  "Robinhood"),
-            "ai_tools":       ("jasper",     os.getenv("AFFILIATE_JASPER_URL",""),     "Jasper AI"),
-            "passive_income": ("clickbank",  os.getenv("AFFILIATE_CLICKBANK_URL",""),  "ClickBank"),
-            "blogging":       ("bluehost",   os.getenv("AFFILIATE_BLUEHOST_URL",""),   "Bluehost"),
-            "email_marketing":("convertkit", os.getenv("AFFILIATE_CONVERTKIT_URL",""), "ConvertKit"),
+            "crypto": ("coinbase", os.getenv("AFFILIATE_COINBASE_URL", ""), "Coinbase"),
+            "investing": ("robinhood", os.getenv("AFFILIATE_ROBINHOOD_URL", ""), "Robinhood"),
+            "ai_tools": ("jasper", os.getenv("AFFILIATE_JASPER_URL", ""), "Jasper AI"),
+            "passive_income": ("clickbank", os.getenv("AFFILIATE_CLICKBANK_URL", ""), "ClickBank"),
+            "blogging": ("bluehost", os.getenv("AFFILIATE_BLUEHOST_URL", ""), "Bluehost"),
+            "email_marketing": ("convertkit", os.getenv("AFFILIATE_CONVERTKIT_URL", ""), "ConvertKit"),
         }
-        name, url, label = fallbacks.get(niche, ("coinbase", os.getenv("AFFILIATE_COINBASE_URL",""), "Coinbase"))
+        name, url, label = fallbacks.get(niche, ("coinbase", os.getenv("AFFILIATE_COINBASE_URL", ""), "Coinbase"))
         return {"name": name, "url": url, "label": label, "status": "fallback", "niche": niche}
 
     def _notify_winner(self, niche: str, winner: str, test: AffiliateTest):
         try:
-            token   = os.getenv("TELEGRAM_BOT_TOKEN")
+            token = os.getenv("TELEGRAM_BOT_TOKEN")
             chat_id = os.getenv("TELEGRAM_CHAT_ID")
             if not (token and chat_id):
                 return

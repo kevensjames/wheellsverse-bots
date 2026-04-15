@@ -543,12 +543,133 @@ def _create_service_packages(state: dict) -> List[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _build_funnels(state: dict, market_intel: dict, niche: str) -> dict:
-    """Build and wire 5-step monetization funnel."""
-    from core.funnel_builder import build_shopify_funnel
+    """
+    Build a 3-tier upsell funnel from existing Shopify products.
 
-    funnel = build_shopify_funnel(niche=niche, market_intel=market_intel)
-    state["stats"]["funnel_steps_built"] = funnel.get("stats", {}).get("steps_created", 0)
-    state["stats"]["products_published"] += funnel.get("stats", {}).get("shopify_products", 0)
+    Tier 1 (Entry)   — lowest-price product → discount code ENTRY10
+    Tier 2 (Upsell)  — mid-price product    → discount code UPSELL15
+    Tier 3 (Premium) — highest-price product → discount code VIP20
+
+    Updates each product's metafields with funnel position data so
+    the storefront can render CTAs between tiers.
+    """
+    from core import shopify_client
+
+    _sa_log("Building 3-tier upsell funnel…", phase="funnel")
+    funnel: dict = {"tiers": [], "discount_codes": [], "errors": []}
+    steps_built = 0
+
+    try:
+        # ── 1. Fetch active products sorted by price ───────────────────────
+        products = shopify_client.list_products(limit=50, status="active")
+        if not products:
+            _sa_log("No active products found — funnel skipped", level="WARNING", phase="funnel")
+            return funnel
+
+        # Sort by lowest variant price
+        def _min_price(p: dict) -> float:
+            try:
+                return min(float(v.get("price", 9999)) for v in p.get("variants", [{}]))
+            except Exception:
+                return 9999.0
+
+        products_sorted = sorted(products, key=_min_price)
+
+        # Pick 3 tiers: cheapest, middle, most expensive
+        n = len(products_sorted)
+        tier_products = [
+            products_sorted[0],
+            products_sorted[n // 2] if n > 1 else products_sorted[0],
+            products_sorted[-1] if n > 2 else products_sorted[0],
+        ]
+        tier_labels   = ["entry",    "upsell",   "premium"]
+        discount_pcts = [10,         15,         20]
+        discount_pfx  = ["ENTRY",    "UPSELL",   "VIP"]
+
+        # ── 2. Create discount codes + tag each product ────────────────────
+        for i, (prod, label, pct, pfx) in enumerate(
+            zip(tier_products, tier_labels, discount_pcts, discount_pfx)
+        ):
+            pid   = prod.get("id")
+            title = prod.get("title", f"product_{pid}")
+            code  = f"{pfx}{pct}_{niche[:6].upper()}"
+            price = _min_price(prod)
+
+            # Create discount code via Shopify
+            try:
+                discount_result = shopify_client.create_discount_code(
+                    code=code,
+                    percentage=pct,
+                    usage_limit=500,
+                    title=f"Funnel {label.title()} — {niche}",
+                )
+                discount_id = discount_result.get("price_rule_id") or discount_result.get("id")
+                _sa_log(f"Discount {code} ({pct}% off) created: id={discount_id}", phase="funnel")
+            except Exception as dc_err:
+                _sa_log(f"Discount creation failed for {code}: {dc_err}", level="WARNING", phase="funnel")
+                discount_id = None
+                funnel["errors"].append({"step": f"discount_{label}", "error": str(dc_err)})
+
+            # Tag product with funnel position via metafield
+            try:
+                shopify_client.update_product(pid, {
+                    "product": {
+                        "id": pid,
+                        "tags": f"funnel-{label}, funnel-tier-{i+1}, {niche}",
+                        "metafields": [
+                            {"namespace": "funnel", "key": "tier",     "value": label,       "type": "single_line_text_field"},
+                            {"namespace": "funnel", "key": "position", "value": str(i + 1),  "type": "single_line_text_field"},
+                            {"namespace": "funnel", "key": "niche",    "value": niche,        "type": "single_line_text_field"},
+                            {"namespace": "funnel", "key": "discount", "value": code,         "type": "single_line_text_field"},
+                        ],
+                    }
+                })
+            except Exception as uf_err:
+                _sa_log(f"Metafield update failed for {title}: {uf_err}", level="WARNING", phase="funnel")
+                funnel["errors"].append({"step": f"metafield_{label}", "error": str(uf_err)})
+
+            tier_info = {
+                "tier": label,
+                "position": i + 1,
+                "product_id": pid,
+                "product_title": title,
+                "price": price,
+                "discount_code": code,
+                "discount_pct": pct,
+                "discount_id": discount_id,
+            }
+            funnel["tiers"].append(tier_info)
+            if discount_id:
+                funnel["discount_codes"].append(code)
+            steps_built += 1
+            _sa_log(
+                f"  Tier {i+1} ({label}): \"{title}\" ${price:.2f} → {code}",
+                phase="funnel",
+            )
+
+        # ── 3. Also run funnel_builder for additional funnel logic ─────────
+        try:
+            from core.funnel_builder import build_shopify_funnel
+            fb_result = build_shopify_funnel(niche=niche, market_intel=market_intel)
+            funnel["funnel_builder"] = fb_result
+            steps_built += fb_result.get("stats", {}).get("steps_created", 0)
+        except Exception as fb_err:
+            _sa_log(f"funnel_builder.build_shopify_funnel failed (non-fatal): {fb_err}", level="WARNING", phase="funnel")
+
+    except Exception as e:
+        _sa_log(f"Funnel build error: {e}", level="ERROR", phase="funnel")
+        funnel["errors"].append({"step": "funnel_build", "error": str(e)})
+
+    funnel["stats"] = {"steps_created": steps_built, "discount_codes": len(funnel["discount_codes"])}
+    state["stats"]["funnel_steps_built"] = steps_built
+    state["stats"]["products_published"] = state["stats"].get("products_published", 0) + len(funnel["tiers"])
+
+    _sa_log(
+        f"Funnel complete: {steps_built} steps, "
+        f"{len(funnel['discount_codes'])} codes, "
+        f"{len(funnel.get('errors', []))} errors",
+        phase="funnel",
+    )
     return funnel
 
 

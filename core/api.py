@@ -662,7 +662,8 @@ async def api_key_middleware(request: Request, call_next):
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
                              "/api/shopify-autopilot/", "/api/shopify/agents/",
                              "/api/shopify/media/", "/api/shopify/intelligence/",
-                             "/api/shopify/", "/api/narai/schedules", "/api/sa/")
+                             "/api/shopify/", "/api/narai/schedules", "/api/sa/",
+                             "/api/narai/run", "/api/narai/revenue", "/api/narai/status")
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -6495,7 +6496,7 @@ def _get_narai():
     global _narai
     if _narai is None:
         try:
-            from bots.narai.bot import get_narai
+            from bots.narai.narai.bot import get_narai
             _narai = get_narai()
         except Exception as e:
             logger.error(f"NarAI init failed: {e}")
@@ -11860,3 +11861,109 @@ async def narai_schedule_stats():
     """Quick summary stats for the schedule dashboard."""
     from core.narai_scheduler import get_schedule_stats
     return get_schedule_stats()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# NARAI CORE ENGINE ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/narai/status")
+async def narai_core_status():
+    """Return NarAI system state: revenue, audience, assets, last goal, cycle count."""
+    try:
+        from core.narai_memory_manager import load_state
+        from core.settings import settings
+        state = load_state()
+        return {
+            "status":   "online",
+            "state":    state,
+            "settings": settings.summary(),
+        }
+    except Exception as e:
+        logger.error(f"narai_core_status error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/run")
+async def narai_core_run(background_tasks: BackgroundTasks):
+    """
+    Run one full NarAI autonomous cycle in the background.
+    Cycle: State → Goal → Plan → Execute → Evaluate → Learn
+    """
+    try:
+        from core.narai_core import get_narai_core
+        core = get_narai_core()
+
+        def _run():
+            try:
+                result = core.run_cycle()
+                logger.info(f"NarAI Core cycle complete: {result.get('metrics')}")
+            except Exception as exc:
+                logger.error(f"NarAI Core cycle error: {exc}")
+
+        background_tasks.add_task(_run)
+        return {"started": True, "message": "NarAI Core cycle started in background"}
+    except Exception as e:
+        logger.error(f"narai_core_run error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/revenue")
+async def narai_revenue_run(background_tasks: BackgroundTasks):
+    """
+    Run one full revenue loop in the background.
+    Loop: Shopify session → POD top-up → Stripe snapshot → memory update
+    """
+    try:
+        from core.revenue_loop import get_revenue_loop
+        loop = get_revenue_loop()
+
+        def _run():
+            try:
+                result = loop.run()
+                logger.info(
+                    f"Revenue loop complete: "
+                    f"shopify={result['shopify'].get('status')} "
+                    f"pod={result['pod'].get('status')} "
+                    f"errors={result['errors_count']}"
+                )
+            except Exception as exc:
+                logger.error(f"Revenue loop error: {exc}")
+
+        background_tasks.add_task(_run)
+        return {"started": True, "message": "Revenue loop started in background"}
+    except Exception as e:
+        logger.error(f"narai_revenue_run error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# EMAIL SUBSCRIBE ENDPOINT
+# ══════════════════════════════════════════════════════════════════════════════
+
+class SubscribeRequest(BaseModel):
+    email: str
+    first_name: str = ""
+    tags: list = []
+
+_PUBLIC_PATHS.add("/api/subscribe")
+
+@app.post("/api/subscribe")
+async def email_subscribe(req: SubscribeRequest):
+    """
+    Add an email subscriber via ConvertKit.
+    Called from the blog HTML email capture form.
+    """
+    import re as _re
+    if not req.email or not _re.match(r"[^@]+@[^@]+\.[^@]+", req.email):
+        raise HTTPException(status_code=400, detail="Invalid email address")
+    try:
+        from core.convertkit import ConvertKitClient
+        ck = ConvertKitClient()
+        result = ck.subscribe(email=req.email, first_name=req.first_name, tags=req.tags)
+        logger.info(f"New subscriber: {req.email}")
+        return {"subscribed": True, "email": req.email, "result": result}
+    except Exception as e:
+        logger.warning(f"ConvertKit subscribe failed for {req.email}: {e}")
+        # Don't expose internal errors — return success to user regardless
+        return {"subscribed": True, "email": req.email}

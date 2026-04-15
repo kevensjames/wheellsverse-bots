@@ -694,9 +694,13 @@ def publish_and_enrich(
     ptype_code = product_type_slug.upper()[:3]
     updated_variants = []
     for i, v in enumerate(current_variants):
-        color = (v.get("option2") or "").upper().replace(" ", "")[:6] or "DFLT"
-        size  = (v.get("option1") or "").upper().replace(" ", "")[:4] or str(i)
-        sku   = f"{brand_code}-{ptype_code}-{color}-{size}"
+        # Use variant_id as the unique suffix — guarantees no duplicate SKUs
+        # even when option1/option2 are missing or identical
+        color = (v.get("option2") or "").upper().replace(" ", "")[:6] or ""
+        size  = (v.get("option1") or "").upper().replace(" ", "")[:4] or ""
+        opts  = f"-{color}" if color else ""
+        opts += f"-{size}"  if size  else ""
+        sku   = f"{brand_code}-{ptype_code}{opts}-{v['id']}"
         updated_variants.append({
             "id":                   v["id"],
             "price":                v.get("price") or base_price,

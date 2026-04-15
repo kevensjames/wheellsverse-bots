@@ -32,9 +32,19 @@ ROOT = Path(__file__).parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
-from rich import print as rprint
+# ── Startup env validation ────────────────────────────────────────────────────
+try:
+    from core.settings import settings
+    settings.validate()
+except EnvironmentError as _env_err:
+    # Print clearly but don't crash the dashboard — missing vars will
+    # disable individual features, not the whole app.
+    print(str(_env_err), file=sys.stderr)
+except Exception:
+    pass  # Settings import failure must never prevent startup
+
+from rich.console import Console  # noqa: E402
+from rich.prompt import Prompt, Confirm  # noqa: E402
 
 console = Console()
 
@@ -208,19 +218,19 @@ def parse_args():
         description="WheellsVerse Bot Ecosystem v2.0",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    p.add_argument("--status",    action="store_true", help="Show all bot statuses")
-    p.add_argument("--list",      action="store_true", help="List all bot names")
+    p.add_argument("--status", action="store_true", help="Show all bot statuses")
+    p.add_argument("--list", action="store_true", help="List all bot names")
     p.add_argument("--pipelines", action="store_true", help="List all pipelines")
-    p.add_argument("--run",       type=str, metavar="BOT",      help="Run one bot")
-    p.add_argument("--category",  type=str, metavar="CAT",      help="Run all bots in a category")
-    p.add_argument("--pipeline",  type=str, metavar="PIPELINE", help="Run a pipeline")
-    p.add_argument("--all",       action="store_true", help="Run all 70 bots")
-    p.add_argument("--parallel",  action="store_true", help="Run in parallel")
-    p.add_argument("--schedule",  action="store_true", help="Start scheduler (blocking)")
+    p.add_argument("--run", type=str, metavar="BOT", help="Run one bot")
+    p.add_argument("--category", type=str, metavar="CAT", help="Run all bots in a category")
+    p.add_argument("--pipeline", type=str, metavar="PIPELINE", help="Run a pipeline")
+    p.add_argument("--all", action="store_true", help="Run all 70 bots")
+    p.add_argument("--parallel", action="store_true", help="Run in parallel")
+    p.add_argument("--schedule", action="store_true", help="Start scheduler (blocking)")
     p.add_argument("--dashboard", action="store_true", help="Start web dashboard")
-    p.add_argument("--port",      type=int, default=int(os.getenv("PORT", "5050")), help="Dashboard port (default: $PORT or 5050)")
-    p.add_argument("--check",     action="store_true", help="Check setup & .env")
-    p.add_argument("--command",   type=str, metavar="CMD", help="Execute a natural language command")
+    p.add_argument("--port", type=int, default=int(os.getenv("PORT", "5050")), help="Dashboard port (default: $PORT or 5050)")
+    p.add_argument("--check", action="store_true", help="Check setup & .env")
+    p.add_argument("--command", type=str, metavar="CMD", help="Execute a natural language command")
     return p.parse_args()
 
 
@@ -253,8 +263,8 @@ def main():
     from core.pipeline import PipelineEngine
     from core.scheduler import BotScheduler
 
-    orch  = get_orchestrator()
-    pe    = PipelineEngine(orch)
+    orch = get_orchestrator()
+    pe = PipelineEngine(orch)
     sched = BotScheduler(orch)
 
     if args.status:
