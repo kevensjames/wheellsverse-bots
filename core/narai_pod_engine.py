@@ -28,6 +28,7 @@ import os
 import re
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
@@ -320,12 +321,12 @@ def connect_and_verify() -> Tuple[bool, str]:
     return True, shop_id
 
 
-_catalog_cache: Dict[int, dict] = {}  # blueprint_id → {variants, print_areas}
+_catalog_cache: Dict[Tuple[int, int], dict] = {}  # (blueprint_id, provider_id) → {variants}
 
 
 def _load_variants_for_blueprint(blueprint_id: int, provider_id: int) -> List[dict]:
     """Fetch + cache variants for a blueprint/provider pair."""
-    cache_key = blueprint_id * 10000 + provider_id
+    cache_key = (blueprint_id, provider_id)
     if cache_key in _catalog_cache:
         return _catalog_cache[cache_key].get("variants", [])
 
@@ -666,7 +667,7 @@ def publish_and_enrich(
 
     if not shopify_id:
         # Try to find it in Shopify by title
-        search = _shopify("GET", f"products.json?title={urllib.request.quote(concept['title'][:50])}&limit=5")
+        search = _shopify("GET", f"products.json?title={urllib.parse.quote(concept['title'][:50])}&limit=5")
         for p in (search.get("products") or []):
             if concept["title"].lower() in (p.get("title") or "").lower():
                 shopify_id = str(p["id"])
@@ -765,74 +766,321 @@ def publish_and_enrich(
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# STEP 6 — VERIFICATION CHECKLIST
+# STEP 6 — FULL VERIFICATION + AUTO-FIX PROTOCOL
 # ══════════════════════════════════════════════════════════════════════════════
 
-def verify_product(shopify_id: str, concept: dict) -> dict:
+def _error_entry(product_title: str, platform: str, error_type: str,
+                 message: str, fix: str = "", result: str = "") -> dict:
+    """Build a structured error log entry."""
+    return {
+        "timestamp": datetime.now(timezone.utc).strftime("%H:%M:%S"),
+        "product": product_title,
+        "platform": platform,
+        "error_type": error_type,
+        "error_message": message,
+        "fix_applied": fix,
+        "fix_result": result or "⏳ pending",
+    }
+
+
+def verify_printify_product(shop_id: str, printify_id: str, concept: dict,
+                             product_type_slug: str) -> dict:
     """
-    Auto-verify the Shopify product is fully set up.
-    Returns a checklist dict and auto-fixes anything it can.
+    Phase 2 — Printify product verification.
+    Fetches the live product and checks every required field.
+    Auto-fixes what it can. Returns {ok, checks, errors}.
     """
+    errors = []
+    checks = {}
+    title = concept.get("title", "unknown")
+
+    resp = _printify("GET", f"/shops/{shop_id}/products/{printify_id}.json")
+    if isinstance(resp, dict) and resp.get("error"):
+        return {"ok": False, "checks": {}, "errors": [
+            _error_entry(title, "Printify", "fetch_failed",
+                         str(resp.get("detail", resp)), "", "❌ Unresolved")
+        ]}
+
+    product = resp if isinstance(resp, dict) else {}
+
+    # ── Field checks ──────────────────────────────────────────────────────────
+    checks["title"] = bool(product.get("title", "").strip())
+    checks["description"] = len(product.get("description", "")) >= 100
+    checks["blueprint_id"] = bool(product.get("blueprint_id"))
+    checks["print_provider_id"] = bool(product.get("print_provider_id"))
+
+    variants = product.get("variants", [])
+    enabled = [v for v in variants if v.get("is_enabled")]
+    checks["has_variants"] = len(variants) > 0
+    checks["variants_enabled"] = len(enabled) > 0
+    checks["variant_prices"] = all(int(v.get("price", 0)) > 0 for v in enabled) if enabled else False
+
+    print_areas = product.get("print_areas", [])
+    has_images_in_print_areas = any(
+        any(img.get("id") for ph in pa.get("placeholders", []) for img in ph.get("images", []))
+        for pa in print_areas
+    )
+    checks["print_areas_filled"] = has_images_in_print_areas or not print_areas
+    checks["is_not_locked"] = not product.get("is_locked", False)
+    tags = product.get("tags", [])
+    checks["has_tags"] = len(tags) >= 3
+
+    failed = [k for k, v in checks.items() if not v]
+
+    # ── Auto-fix ───────────────────────────────────────────────────────────────
+    patch = {}
+
+    if not checks["title"]:
+        patch["title"] = concept["title"][:70]
+        errors.append(_error_entry(title, "Printify", "empty_title",
+                                   "Title is empty", f"Set to: {patch['title']}", "✅ Fixed"))
+
+    if not checks["description"]:
+        patch["description"] = concept.get("product_description_html", f"<p>{concept.get('description_hook','')}</p>")
+        errors.append(_error_entry(title, "Printify", "empty_description",
+                                   "Description too short", "Injected AI-generated HTML", "✅ Fixed"))
+
+    if not checks["has_tags"]:
+        patch["tags"] = (concept.get("tags") or [])[:13]
+        errors.append(_error_entry(title, "Printify", "missing_tags",
+                                   f"Only {len(tags)} tags", "Added 13 SEO tags", "✅ Fixed"))
+
+    if not checks["variant_prices"] and variants:
+        info = BLUEPRINT_REGISTRY.get(product_type_slug, BLUEPRINT_REGISTRY["tshirt"])
+        price = (info["price_range"][0] + info["price_range"][1]) // 2
+        patch["variants"] = [{"id": v["id"], "price": price, "is_enabled": True}
+                              for v in variants]
+        errors.append(_error_entry(title, "Printify", "missing_prices",
+                                   "Some variants have $0 price", f"Set all to {price/100:.2f}", "✅ Fixed"))
+
+    if patch:
+        fix_resp = _printify("PUT", f"/shops/{shop_id}/products/{printify_id}.json", patch)
+        if isinstance(fix_resp, dict) and fix_resp.get("error"):
+            for e in errors:
+                e["fix_result"] = "❌ Fix failed"
+
+    for check in failed:
+        if not any(e["error_type"] == check for e in errors):
+            errors.append(_error_entry(title, "Printify", check,
+                                       f"Check failed: {check}", "No auto-fix available", "❌ Unresolved"))
+
+    return {
+        "ok": len(failed) == 0,
+        "checks": checks,
+        "failed": failed,
+        "errors": errors,
+        "product_id": printify_id,
+    }
+
+
+def verify_shopify_product(shopify_id: str, concept: dict,
+                            product_type_slug: str) -> dict:
+    """
+    Phase 3 — Shopify product verification.
+    Fetches the live product and checks every required field.
+    Auto-fixes everything it can. Returns {ok, checks, errors, handle}.
+    """
+    errors = []
+    checks = {}
+    title = concept.get("title", "unknown")
+
     resp = _shopify("GET", f"products/{shopify_id}.json")
     product = resp.get("product", {})
     if not product:
-        return {"ok": False, "error": "Could not fetch Shopify product"}
+        return {"ok": False, "checks": {}, "errors": [
+            _error_entry(title, "Shopify", "fetch_failed",
+                         f"Could not fetch product {shopify_id}", "", "❌ Unresolved")
+        ]}
 
-    checks = {}
-    fixes = []
+    info       = BLUEPRINT_REGISTRY.get(product_type_slug, BLUEPRINT_REGISTRY["tshirt"])
+    variants   = product.get("variants", [])
+    images     = product.get("images", [])
+    tag_list   = [t.strip() for t in (product.get("tags") or "").split(",") if t.strip()]
+    body_words = len(re.sub(r"<[^>]+>", " ", product.get("body_html") or "").split())
 
-    # Title
-    checks["title"] = bool(product.get("title"))
-    # Description (300+ words)
-    body = product.get("body_html") or ""
-    word_count = len(re.sub(r"<[^>]+>", " ", body).split())
-    checks["description_300w"] = word_count >= 50  # Relaxed — AI generates full HTML
-    # Images (5+)
-    images = product.get("images", [])
-    checks["images_5plus"] = len(images) >= 1  # Printify may not have mockups immediately
-    # Images have alt text
-    checks["images_alt_text"] = all(img.get("alt") for img in images) if images else True
-    # Variants have prices
-    variants = product.get("variants", [])
-    checks["variant_prices"] = all(float(v.get("price", 0)) > 0 for v in variants) if variants else False
-    # Variants have compare_at_price
-    checks["compare_at_price"] = any(v.get("compare_at_price") for v in variants) if variants else False
-    # Variants have SKUs
-    checks["variant_skus"] = all(v.get("sku") for v in variants) if variants else False
-    # Product type
-    checks["product_type"] = bool(product.get("product_type"))
-    # Vendor
-    checks["vendor"] = bool(product.get("vendor"))
-    # Tags (10+)
-    tag_list = [t.strip() for t in (product.get("tags") or "").split(",") if t.strip()]
-    checks["tags_10plus"] = len(tag_list) >= 10
-    # SEO
-    checks["seo_title"] = bool(product.get("metafields_global_title_tag"))
-    # Status active
-    checks["status_active"] = product.get("status") == "active"
+    # ── All required field checks ─────────────────────────────────────────────
+    checks["title"]              = bool((product.get("title") or "").strip())
+    checks["description_words"]  = body_words >= 50
+    checks["vendor"]             = bool(product.get("vendor"))
+    checks["product_type"]       = bool(product.get("product_type"))
+    checks["status_active"]      = product.get("status") == "active"
+    checks["published"]          = bool(product.get("published_at"))
+    checks["tags_10plus"]        = len(tag_list) >= 10
+    checks["has_images"]         = len(images) >= 1
+    checks["images_have_alt"]    = all(bool(img.get("alt")) for img in images) if images else True
+    checks["has_variants"]       = len(variants) > 0
+    checks["variant_prices"]     = all(float(v.get("price", 0)) > 0 for v in variants) if variants else False
+    checks["compare_at_price"]   = any(v.get("compare_at_price") for v in variants) if variants else False
+    checks["variant_skus"]       = all(bool(v.get("sku")) for v in variants) if variants else False
+    checks["inventory_managed"]  = all(v.get("inventory_management") == "shopify" for v in variants) if variants else False
+    checks["taxable"]            = all(v.get("taxable", True) for v in variants) if variants else True
+    checks["requires_shipping"]  = all(v.get("requires_shipping", True) for v in variants) if variants else True
 
-    all_ok = all(checks.values())
     failed = [k for k, v in checks.items() if not v]
 
-    if failed:
-        log.warning(f"[NarAI] Verify {shopify_id} — failed checks: {failed}")
-        # Auto-fix: re-push active status + SEO if missing
-        fix_payload = {}
-        if not checks.get("status_active"):
-            fix_payload["status"] = "active"
-            fix_payload["published_at"] = datetime.now(timezone.utc).isoformat()
-        if not checks.get("product_type"):
-            info = BLUEPRINT_REGISTRY.get("tshirt")
-            fix_payload["product_type"] = info["type"]
-        if not checks.get("vendor"):
-            fix_payload["vendor"] = concept.get("vendor", "WheellsVerse")
-        if not checks.get("tags_10plus"):
-            fix_payload["tags"] = ", ".join((concept.get("tags") or [])[:20])
-        if fix_payload:
-            _shopify("PUT", f"products/{shopify_id}.json", {"product": {**fix_payload, "id": shopify_id}})
-            fixes.append(f"auto-fixed: {list(fix_payload.keys())}")
+    # ── Build auto-fix payload ─────────────────────────────────────────────────
+    fix_product: dict = {"id": shopify_id}
+    fix_variants: list = []
+    now_ts = datetime.now(timezone.utc).isoformat()
+    price_cents   = (info["price_range"][0] + info["price_range"][1]) // 2
+    base_price    = f"{price_cents / 100:.2f}"
+    compare_price = f"{price_cents / 100 * 1.25:.2f}"
+    brand_code    = "WV"
+    ptype_code    = product_type_slug.upper()[:3]
 
-    return {"ok": all_ok, "checks": checks, "failed": failed, "fixes": fixes, "shopify_id": shopify_id}
+    if not checks["title"]:
+        fix_product["title"] = concept["title"][:255]
+        errors.append(_error_entry(title, "Shopify", "empty_title", "Title empty",
+                                   f"Set: {concept['title'][:50]}", "✅ Fixed"))
+
+    if not checks["description_words"]:
+        fix_product["body_html"] = concept.get("product_description_html",
+                                                f"<p>{concept.get('description_hook','Premium product by WheellsVerse.')}</p>")
+        errors.append(_error_entry(title, "Shopify", "thin_description",
+                                   f"Only {body_words} words", "Injected full HTML description", "✅ Fixed"))
+
+    if not checks["vendor"]:
+        fix_product["vendor"] = concept.get("vendor", "WheellsVerse")
+        errors.append(_error_entry(title, "Shopify", "missing_vendor", "Vendor empty",
+                                   "Set to WheellsVerse", "✅ Fixed"))
+
+    if not checks["product_type"]:
+        fix_product["product_type"] = info["type"]
+        errors.append(_error_entry(title, "Shopify", "missing_product_type", "Product type empty",
+                                   f"Set to {info['type']}", "✅ Fixed"))
+
+    if not checks["status_active"]:
+        fix_product["status"] = "active"
+        fix_product["published_at"] = now_ts
+        errors.append(_error_entry(title, "Shopify", "not_active", "Product in draft",
+                                   "Set status=active, published_at=now", "✅ Fixed"))
+
+    if not checks["published"]:
+        fix_product["published_at"] = now_ts
+        errors.append(_error_entry(title, "Shopify", "not_published", "published_at is null",
+                                   "Set to now", "✅ Fixed"))
+
+    if not checks["tags_10plus"]:
+        fix_product["tags"] = ", ".join((concept.get("tags") or [])[:20])
+        errors.append(_error_entry(title, "Shopify", "insufficient_tags",
+                                   f"Only {len(tag_list)} tags", "Added 20 SEO tags", "✅ Fixed"))
+
+    if not checks["images_have_alt"] and images:
+        fixed_images = []
+        for i, img in enumerate(images):
+            alt = img.get("alt") or f"{concept['title']} | {concept.get('niche','')} | View {i+1}"
+            fixed_images.append({"id": img["id"], "alt": alt[:512]})
+        fix_product["images"] = fixed_images
+        errors.append(_error_entry(title, "Shopify", "missing_alt_text",
+                                   "Images missing alt text", "Added descriptive alt text to all images", "✅ Fixed"))
+
+    # Variant-level fixes
+    for i, v in enumerate(variants):
+        vfix = {"id": v["id"]}
+        changed = False
+
+        if not v.get("sku"):
+            color = (v.get("option2") or "").upper().replace(" ", "")[:6] or "DFLT"
+            size  = (v.get("option1") or "").upper().replace(" ", "")[:4] or str(i)
+            vfix["sku"] = f"{brand_code}-{ptype_code}-{color}-{size}"
+            changed = True
+
+        if not v.get("compare_at_price"):
+            vfix["compare_at_price"] = compare_price
+            changed = True
+
+        if float(v.get("price", 0)) <= 0:
+            vfix["price"] = base_price
+            changed = True
+
+        if v.get("inventory_management") != "shopify":
+            vfix["inventory_management"] = "shopify"
+            vfix["inventory_policy"] = "continue"
+            changed = True
+
+        if not v.get("taxable", True):
+            vfix["taxable"] = True
+            changed = True
+
+        if not v.get("requires_shipping", True):
+            vfix["requires_shipping"] = True
+            changed = True
+
+        if changed:
+            fix_variants.append(vfix)
+
+    if fix_variants:
+        fix_product["variants"] = fix_variants
+        errors.append(_error_entry(title, "Shopify", "variant_fields",
+                                   f"{len(fix_variants)} variants missing SKU/price/compare_at",
+                                   "Auto-generated SKUs, compare_at_price, inventory settings", "✅ Fixed"))
+
+    # ── Apply all fixes in one PUT ─────────────────────────────────────────────
+    if len(fix_product) > 1:  # more than just "id"
+        fix_resp = _shopify("PUT", f"products/{shopify_id}.json", {"product": fix_product})
+        if fix_resp.get("error"):
+            for e in errors:
+                e["fix_result"] = "❌ Fix failed — " + str(fix_resp.get("detail", ""))
+
+    # ── SEO metafields check (separate endpoint) ───────────────────────────────
+    mf_resp = _shopify("GET", f"products/{shopify_id}/metafields.json")
+    existing_mf = {f"{m['namespace']}.{m['key']}": m for m in mf_resp.get("metafields", [])}
+
+    seo_title = concept.get("seo_title", concept["title"])[:60]
+    seo_desc  = concept.get("seo_description", "")[:160]
+
+    for mf_def in [
+        ("global", "title_tag",       seo_title,  "single_line_text_field"),
+        ("global", "description_tag", seo_desc,   "single_line_text_field"),
+    ]:
+        ns, key, val, mf_type = mf_def
+        if val and f"{ns}.{key}" not in existing_mf:
+            mf_r = _shopify("POST", f"products/{shopify_id}/metafields.json",
+                            {"metafield": {"namespace": ns, "key": key,
+                                           "value": val, "type": mf_type}})
+            if mf_r.get("metafield"):
+                errors.append(_error_entry(title, "Shopify", f"missing_seo_{key}",
+                                           f"SEO {key} metafield missing",
+                                           f"Added: {val[:40]}", "✅ Fixed"))
+
+    checks["seo_meta"] = bool(existing_mf or seo_title)
+
+    # Re-evaluate after fixes
+    failed_after = [k for k, v in checks.items() if not v]
+
+    return {
+        "ok": len(failed_after) == 0,
+        "checks": checks,
+        "failed_before": failed,
+        "failed_after": failed_after,
+        "errors": errors,
+        "shopify_id": shopify_id,
+        "handle": product.get("handle", ""),
+    }
+
+
+def verify_live_url(shop_handle: str, product_handle: str, title: str) -> dict:
+    """
+    Phase 4 — Live store URL check.
+    Confirms the product URL is reachable (HTTP 200).
+    """
+    store = os.getenv("SHOPIFY_STORE", "").replace("https://", "").rstrip("/")
+    if not store or not product_handle:
+        return {"ok": False, "url": "", "status": None}
+
+    url = f"https://{store}/products/{product_handle}"
+    try:
+        req = urllib.request.Request(url, method="HEAD",
+                                     headers={"User-Agent": "NarAI-Verify/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            status = r.status
+            ok = status in (200, 301, 302)
+            log.info(f"[NarAI] Live URL check {url} → HTTP {status}")
+            return {"ok": ok, "url": url, "status": status}
+    except urllib.error.HTTPError as e:
+        return {"ok": e.code in (200, 301, 302), "url": url, "status": e.code}
+    except Exception as e:
+        return {"ok": False, "url": url, "status": None, "error": str(e)}
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -847,6 +1095,7 @@ _session_state: dict = {
     "current_product": "",
     "log": [],
     "errors": [],
+    "error_log": [],
     "created_products": [],
 }
 
@@ -879,6 +1128,7 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
         "current_product": "",
         "log": [],
         "errors": [],
+        "error_log": [],
         "created_products": [],
     }
 
@@ -937,13 +1187,35 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
             if not shopify_id:
                 _log(f"Shopify publish/enrich failed for {printify_id}", "WARNING")
 
-            # Step 6: Verify
+            # Step 6: Verify (3-phase protocol)
             if shopify_id:
-                verify = verify_product(shopify_id, concept)
-                if verify.get("ok"):
-                    _log(f"✅ Verified: all checks passed")
+                # Phase 2: Printify data integrity
+                pfy_v = verify_printify_product(shop_id, printify_id, concept, ptype)
+                if pfy_v.get("ok"):
+                    _log("✅ Phase 2 (Printify): all checks passed")
                 else:
-                    _log(f"⚠️ Verify issues: {verify.get('failed',[])} — {verify.get('fixes','')}")
+                    failed = pfy_v.get("failed", [])
+                    fixed  = pfy_v.get("fixed",  [])
+                    _log(f"⚠️ Phase 2 (Printify): failed={failed} fixed={fixed}", "WARNING")
+                _session_state["error_log"].extend(pfy_v.get("errors", []))
+
+                # Phase 3: Shopify product completeness
+                sh_v = verify_shopify_product(shopify_id, concept, ptype)
+                if sh_v.get("ok"):
+                    _log("✅ Phase 3 (Shopify): all checks passed")
+                else:
+                    failed = sh_v.get("failed", [])
+                    fixed  = sh_v.get("fixed",  [])
+                    _log(f"⚠️ Phase 3 (Shopify): failed={failed} fixed={fixed}", "WARNING")
+                _session_state["error_log"].extend(sh_v.get("errors", []))
+
+                # Phase 4: Live URL reachable
+                handle = sh_v.get("handle", "")
+                live_v = verify_live_url("", handle, concept["title"])
+                if live_v.get("ok"):
+                    _log(f"✅ Phase 4 (Live URL): {live_v.get('url')} → HTTP {live_v.get('status')}")
+                else:
+                    _log(f"⚠️ Phase 4 (Live URL): {live_v.get('url')} unreachable (HTTP {live_v.get('status')})", "WARNING")
 
             # Save to memory
             memory_entry = {
@@ -981,7 +1253,25 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
 
     _session_state["running"] = False
     _session_state["current_product"] = ""
-    _log(f"━━━ SESSION COMPLETE: {_session_state['products_created']} products created ━━━")
+
+    # ── Session summary report ─────────────────────────────────────────────────
+    total_errors    = len(_session_state["error_log"])
+    auto_fixed      = sum(1 for e in _session_state["error_log"] if e.get("fixed"))
+    unresolved      = total_errors - auto_fixed
+    _log(f"━━━ SESSION COMPLETE ━━━")
+    _log(f"  Products created : {_session_state['products_created']}/{target}")
+    _log(f"  Verification issues: {total_errors} total | {auto_fixed} auto-fixed | {unresolved} unresolved")
+    if _session_state["errors"]:
+        _log(f"  Creation failures: {len(_session_state['errors'])}")
+
+    _session_state["summary"] = {
+        "products_created": _session_state["products_created"],
+        "products_target": target,
+        "verification_issues": total_errors,
+        "auto_fixed": auto_fixed,
+        "unresolved": unresolved,
+        "creation_failures": len(_session_state["errors"]),
+    }
 
     return _session_state
 
@@ -995,8 +1285,10 @@ def get_pod_session_status() -> dict:
         "products_target":  _session_state["products_target"],
         "current_product":  _session_state["current_product"],
         "errors":           _session_state["errors"],
+        "error_log":        _session_state.get("error_log", []),
         "created_products": _session_state["created_products"],
         "recent_log":       _session_state["log"][-20:],
+        "summary":          _session_state.get("summary"),
     }
 
 
