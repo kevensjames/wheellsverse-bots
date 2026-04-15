@@ -11549,6 +11549,61 @@ async def sa_setup_boutique():
         return {"success": False, "error": str(e)}
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+# NARAI POD ENGINE ENDPOINTS
+# ══════════════════════════════════════════════════════════════════════════════
+
+for _p in ["/api/pod/status", "/api/pod/start", "/api/pod/stop",
+           "/api/pod/memory", "/api/pod/log"]:
+    _PUBLIC_PATHS.add(_p)
+
+
+@app.get("/api/pod/status")
+async def pod_status():
+    """Current NarAI POD session status."""
+    from core.narai_pod_engine import get_pod_session_status
+    return get_pod_session_status()
+
+
+@app.post("/api/pod/start")
+async def pod_start(request: Request, background_tasks: BackgroundTasks):
+    """Start a NarAI POD creation session in the background."""
+    from core.narai_pod_engine import get_pod_session_status, run_pod_session
+    if get_pod_session_status().get("running"):
+        return {"started": False, "reason": "Session already running"}
+    body = {}
+    try:
+        body = await request.json()
+    except Exception:
+        pass
+    target = int(body.get("target", 10))
+    product_types = body.get("product_types") or None
+    background_tasks.add_task(run_pod_session, target=target, product_types=product_types)
+    return {"started": True, "target": target}
+
+
+@app.post("/api/pod/stop")
+async def pod_stop():
+    """Signal the POD session to stop after the current product."""
+    from core.narai_pod_engine import _session_state
+    _session_state["products_target"] = _session_state.get("products_created", 0)
+    return {"stopping": True}
+
+
+@app.get("/api/pod/memory")
+async def pod_memory():
+    """Return NarAI product memory stats."""
+    from core.narai_pod_engine import get_pod_memory_stats
+    return get_pod_memory_stats()
+
+
+@app.get("/api/pod/log")
+async def pod_log(limit: int = 50):
+    """Return recent POD session log entries."""
+    from core.narai_pod_engine import _session_state
+    return {"log": _session_state.get("log", [])[-limit:]}
+
+
 # ── Media Engine endpoints ────────────────────────────────────────────────────
 
 @app.post("/api/shopify/media/generate/{product_id}")

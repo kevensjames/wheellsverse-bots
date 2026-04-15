@@ -4692,6 +4692,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <button id="sa-shopify-stop-btn" class="btn bsm" onclick="saStop()" style="background:rgba(255,60,60,.15);border:1px solid rgba(255,60,60,.3);color:#ff6060;display:none">⏹ STOP</button>
       <button class="btn bsm" onclick="saSetupBoutique()" style="background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.3);color:#cc88ff">🏪 Setup Boutique</button>
       <button class="btn bsm" onclick="saTrendScan()" style="background:rgba(0,204,255,.12);border:1px solid rgba(0,204,255,.3);color:#00ccff">🔭 Scan Trends</button>
+      <button id="pod-start-btn" class="btn bsm" onclick="podStart()" style="background:rgba(255,160,0,.12);border:1px solid rgba(255,160,0,.3);color:#ffa000">🎨 Narai POD</button>
+      <span id="pod-badge" style="font-size:9px;font-weight:700;padding:3px 8px;border-radius:10px;background:rgba(100,100,100,.2);color:var(--text3)">POD: idle</span>
     </div>
   </div>
 
@@ -14767,6 +14769,46 @@ function saStartPoll() {
 }
 function saStopPoll() {
   if (_saPollTimer) { clearInterval(_saPollTimer); _saPollTimer = null; }
+}
+
+// ── NarAI POD Engine controls ─────────────────────────────────────────────
+let _podPollTimer = null;
+async function podStart() {
+  const btn = document.getElementById('pod-start-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Starting…'; }
+  try {
+    const d = await api('/api/pod/start', 'POST', {target: 10});
+    if (d.started) {
+      toast('🎨 NarAI POD session started — creating 10 products', 'success');
+      podStartPoll();
+    } else {
+      toast(d.reason || 'POD session could not start', 'warning');
+    }
+  } catch(e) { toast('POD error: ' + e.message, 'error'); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = '🎨 Narai POD'; } }
+}
+async function podLoadStatus() {
+  try {
+    const d = await api('/api/pod/status');
+    const badge = document.getElementById('pod-badge');
+    if (badge) {
+      if (d.running) {
+        badge.textContent = `POD: ${d.products_created}/${d.products_target} — ${d.current_product || 'working'}`;
+        badge.style.background = 'rgba(255,160,0,.15)';
+        badge.style.color = '#ffa000';
+      } else {
+        badge.textContent = `POD: ${d.products_created || 0} made`;
+        badge.style.background = 'rgba(100,100,100,.2)';
+        badge.style.color = 'var(--text3)';
+        if (_podPollTimer) { clearInterval(_podPollTimer); _podPollTimer = null; }
+      }
+    }
+  } catch(e) {}
+}
+function podStartPoll() {
+  if (_podPollTimer) clearInterval(_podPollTimer);
+  _podPollTimer = setInterval(podLoadStatus, 4000);
+  podLoadStatus();
 }
 
 async function saLoadOrders() {
