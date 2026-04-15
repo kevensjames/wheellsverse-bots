@@ -717,9 +717,17 @@ async def serve_dashboard():
             f"const API_KEY = '{_API_KEY}';",
         )
     # Inject absolute base URL so browser calls Railway directly (bypasses CDN cache for relative paths)
-    _pub_domain = os.getenv("RAILWAY_PUBLIC_DOMAIN", "").strip()
+    # Priority: BASE_URL env var > RAILWAY_PUBLIC_DOMAIN > RAILWAY_STATIC_URL > known Railway URL
+    _pub_domain = (
+        os.getenv("BASE_URL", "")
+        or os.getenv("RAILWAY_PUBLIC_DOMAIN", "")
+        or os.getenv("RAILWAY_STATIC_URL", "")
+        or ("grateful-flexibility-production.up.railway.app" if os.getenv("RAILWAY_ENVIRONMENT_NAME") else "")
+    ).strip().rstrip("/")
     if _pub_domain:
-        html = html.replace("const API='';", f"const API='https://{_pub_domain}';")
+        if not _pub_domain.startswith("http"):
+            _pub_domain = f"https://{_pub_domain}"
+        html = html.replace("const API='';", f"const API='{_pub_domain}';")
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache",
