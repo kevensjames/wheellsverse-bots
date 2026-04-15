@@ -8,7 +8,7 @@ NarAI Shopify Autopilot — Daily Autonomous Revenue Session
 
   Phase 1 (0-15%)  — Viral Trend Scan
   Phase 2 (15-50%) — Digital Products (3-5 products)
-  Phase 3 (50-65%) — POD Products via Printful (2-3 products)
+  Phase 3 (50-65%) — POD Products via Printify (2-3 products, Printful fallback)
   Phase 4 (65-75%) — Service Packages (1-2 fixed offers)
   Phase 5 (75-90%) — Monetization Funnel (5-step value ladder)
   Phase 6 (90-100%)— Performance Review + Learning Loop
@@ -378,12 +378,19 @@ def _create_digital_products(state: dict, session_opps: dict, market_intel: dict
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _create_pod_products(state: dict, session_opps: dict) -> List[dict]:
-    """Create POD products via Printful and sync to Shopify."""
+    """Create POD products via Printify (primary) or Printful (fallback) and sync to Shopify."""
+    # Prefer Printify if key is set, fall back to Printful
+    from core.printify_client import is_connected as printify_connected
     from core.printful_client import is_connected as printful_connected
-    from core.printful_client import generate_pod_design, create_pod_product, sync_to_shopify
 
-    if not printful_connected():
-        _sa_log("PRINTFUL_API_KEY not set — skipping POD phase", level="WARNING", phase="pod")
+    if printify_connected():
+        from core.printify_client import generate_pod_design, create_pod_product, sync_to_shopify
+        provider_name = "Printify"
+    elif printful_connected():
+        from core.printful_client import generate_pod_design, create_pod_product, sync_to_shopify
+        provider_name = "Printful"
+    else:
+        _sa_log("Neither PRINTIFY_API_KEY nor PRINTFUL_API_KEY set — skipping POD phase", level="WARNING", phase="pod")
         return []
 
     pod_opps = session_opps.get("pod", [])
@@ -391,19 +398,23 @@ def _create_pod_products(state: dict, session_opps: dict) -> List[dict]:
         _sa_log("No POD opportunities this session", phase="pod")
         return []
 
+    _sa_log(f"POD provider: {provider_name}", phase="pod")
     created = []
 
     for i, opp in enumerate(pod_opps, 1):
         niche = opp.get("pod_niche") or opp.get("niche", "entrepreneur mindset")
         product_type = "tshirt"  # default
-        if "hoodie" in opp.get("title_concept", "").lower():
+        title_concept = opp.get("title_concept", "").lower()
+        if "hoodie" in title_concept:
             product_type = "hoodie"
-        elif "mug" in opp.get("title_concept", "").lower():
+        elif "mug" in title_concept:
             product_type = "mug"
-        elif "poster" in opp.get("title_concept", "").lower():
+        elif "poster" in title_concept:
             product_type = "poster"
+        elif "sticker" in title_concept:
+            product_type = "sticker"
 
-        _sa_log(f"Creating POD product {i}/{len(pod_opps)}: {niche} {product_type}", phase="pod")
+        _sa_log(f"Creating POD product {i}/{len(pod_opps)}: {niche} {product_type} via {provider_name}", phase="pod")
 
         try:
             design = generate_pod_design(niche, product_type)
@@ -411,7 +422,7 @@ def _create_pod_products(state: dict, session_opps: dict) -> List[dict]:
             desc = design.get("product_description", "")
             price = float(opp.get("price_floor", 29))
 
-            printful_result = create_pod_product(
+            pod_result = create_pod_product(
                 title=title,
                 description=desc,
                 niche=niche,
@@ -420,11 +431,11 @@ def _create_pod_products(state: dict, session_opps: dict) -> List[dict]:
                 price=price,
             )
 
-            if printful_result.get("success"):
+            if pod_result.get("success"):
                 state["stats"]["pod_created"] += 1
 
                 shopify_result = sync_to_shopify(
-                    printful_result,
+                    pod_result,
                     description=desc,
                     tags=[niche.replace(" ", "-"), "pod", "apparel"],
                 )
@@ -432,7 +443,8 @@ def _create_pod_products(state: dict, session_opps: dict) -> List[dict]:
                 entry = {
                     "title": title,
                     "shopify_id": shopify_result.get("shopify_product_id"),
-                    "printful_id": printful_result.get("product_id"),
+                    "pod_id": pod_result.get("product_id"),
+                    "provider": provider_name.lower(),
                     "price": price,
                     "type": "pod",
                     "niche": niche,
@@ -440,9 +452,9 @@ def _create_pod_products(state: dict, session_opps: dict) -> List[dict]:
                 }
                 state["today_products"].append(entry)
                 created.append(entry)
-                _sa_log(f"✅ POD created: {title} → Printful {printful_result.get('product_id')}", phase="pod")
+                _sa_log(f"✅ POD created: {title} → {provider_name} {pod_result.get('product_id')}", phase="pod")
             else:
-                _sa_log(f"Printful create failed: {printful_result.get('error')}", level="WARNING", phase="pod")
+                _sa_log(f"{provider_name} create failed: {pod_result.get('error')}", level="WARNING", phase="pod")
 
         except Exception as e:
             _sa_log(f"POD product {i} error: {e}", level="ERROR", phase="pod")

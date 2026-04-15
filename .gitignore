@@ -2,6 +2,10 @@
 .env
 !.env.example
 *.env.local
+client_secret.json
+*_secret.json
+*credentials*.json
+youtube_client_secret.json
 
 # Python
 __pycache__/
