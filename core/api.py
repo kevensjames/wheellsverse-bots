@@ -19,7 +19,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-import yaml
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
@@ -69,7 +68,7 @@ def _setup_logging():
 
 _setup_logging()
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
@@ -84,6 +83,11 @@ _API_KEY = os.getenv("API_KEY", "").strip()
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
                  # Legal pages — publicly accessible, no auth required
                  "/terms", "/terms.html", "/privacy", "/privacy.html", "/disclaimer", "/store",
+                 # Public site pages
+                 "/login", "/signup", "/pricing", "/narai",
+                 # NarAI user API (auth handled per-endpoint via Bearer token)
+                 "/api/narai/chat", "/api/narai/conversations", "/api/narai/profile",
+                 "/api/narai/memory",
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
                  "/api/stripe/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
@@ -304,7 +308,7 @@ async def _lifespan(application: FastAPI):
             import schedule as _schedR
             def _run_revenue_pipeline():
                 try:
-                    pe = _get_pipeline_engine()
+                    pe = _get_pipeline()
                     result = pe.run_pipeline("full_revenue_blast")
                     published = result.get("completed", 0)
                     _add_log(f"Revenue pipeline complete — {published} bots ran", "INFO")
@@ -325,7 +329,7 @@ async def _lifespan(application: FastAPI):
             import schedule as _schedS
             def _run_seo_pipeline():
                 try:
-                    pe = _get_pipeline_engine()
+                    pe = _get_pipeline()
                     pe.run_pipeline("seo_daily")
                     _add_log("SEO daily pipeline complete", "INFO")
                 except Exception as _eS:
@@ -340,7 +344,7 @@ async def _lifespan(application: FastAPI):
             import schedule as _schedSD
             def _run_social_pipeline():
                 try:
-                    pe = _get_pipeline_engine()
+                    pe = _get_pipeline()
                     pe.run_pipeline("social_domination")
                     _add_log("Social domination pipeline complete", "INFO")
                 except Exception as _eSD:
@@ -357,7 +361,7 @@ async def _lifespan(application: FastAPI):
             import schedule as _schedAR
             def _run_affiliate_pipeline():
                 try:
-                    pe = _get_pipeline_engine()
+                    pe = _get_pipeline()
                     pe.run_pipeline("affiliate_revenue")
                     _add_log("Affiliate revenue pipeline complete", "INFO")
                 except Exception as _eAR:
@@ -707,14 +711,25 @@ async def serve_landing():
     return HTMLResponse(lp_path.read_text(encoding="utf-8"))
 
 
-# ─── Legal Pages ──────────────────────────────────────────────────────────────
+# ─── Frontend helpers ─────────────────────────────────────────────────────────
 
-def _serve_frontend(filename: str) -> HTMLResponse:
-    """Read and serve an HTML file from the frontend/ directory."""
+_SUPABASE_URL  = os.getenv("SUPABASE_URL", "")
+_SUPABASE_ANON = os.getenv("SUPABASE_ANON_KEY", "")
+
+
+def _serve_frontend(filename: str, cache: bool = True) -> HTMLResponse:
+    """Read and serve an HTML file from the frontend/ directory.
+    Injects Supabase credentials into %%SUPABASE_URL%% / %%SUPABASE_ANON_KEY%% placeholders.
+    """
     path = ROOT / "frontend" / filename
     if not path.exists():
         return HTMLResponse(f"<h1>{filename} not found</h1>", status_code=404)
-    return HTMLResponse(path.read_text(encoding="utf-8"))
+    html = path.read_text(encoding="utf-8")
+    # Inject Supabase public keys (safe — anon key is meant to be public)
+    html = html.replace("'%%SUPABASE_URL%%'", f"'{_SUPABASE_URL}'")
+    html = html.replace("'%%SUPABASE_ANON_KEY%%'", f"'{_SUPABASE_ANON}'")
+    headers = {"Cache-Control": "no-store, no-cache"} if not cache else {}
+    return HTMLResponse(html, headers=headers)
 
 
 @app.get("/terms", response_class=HTMLResponse)
@@ -739,12 +754,224 @@ async def serve_disclaimer():
 
 @app.get("/store", response_class=HTMLResponse)
 async def serve_store():
-    """Store page — publicly accessible."""
     return _serve_frontend("store/index.html")
 
 
+# ─── Public Site Pages ────────────────────────────────────────────────────────
+
+@app.get("/login", response_class=HTMLResponse)
+async def serve_login():
+    return _serve_frontend("login.html", cache=False)
+
+
+@app.get("/signup", response_class=HTMLResponse)
+async def serve_signup():
+    return _serve_frontend("signup.html", cache=False)
+
+
+@app.get("/pricing", response_class=HTMLResponse)
+async def serve_pricing():
+    return _serve_frontend("pricing.html")
+
+
+@app.get("/narai", response_class=HTMLResponse)
+async def serve_narai_landing():
+    return _serve_frontend("narai_landing.html")
+
+
+@app.get("/chat", response_class=HTMLResponse)
+async def serve_chat():
+    return _serve_frontend("chat.html", cache=False)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def serve_user_dashboard():
+    return _serve_frontend("dashboard.html", cache=False)
+
+
+@app.get("/nexora", response_class=HTMLResponse)
+async def serve_nexora():
+    return _serve_frontend("nexora/index.html")
+
+
+@app.get("/blog", response_class=HTMLResponse)
+async def serve_blog():
+    return _serve_frontend("blog/index.html")
+
+
+# ─── NarAI User API ───────────────────────────────────────────────────────────
+
+from fastapi import Header
+
+
+def _get_narai_user(authorization: str = None):
+    """Extract and verify Bearer token, return user dict or raise 401."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ", 1)[1]
+    try:
+        from core.narai_user import verify_token
+        user = verify_token(token)
+        if not user:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        return user, token
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=401, detail=str(e))
+
+
+class NaraiChatRequest(BaseModel):
+    conversation_id: str
+    message: str
+    model: Optional[str] = None
+
+
+class CreateConvRequest(BaseModel):
+    title: Optional[str] = "New Chat"
+
+
+@app.get("/api/narai/profile")
+async def narai_get_profile(request: Request):
+    """Return the authenticated user's profile."""
+    auth = request.headers.get("Authorization")
+    user, _ = _get_narai_user(auth)
+    try:
+        from core.narai_user import get_profile
+        profile = get_profile(user["id"])
+        if not profile:
+            raise HTTPException(status_code=404, detail="Profile not found")
+        return profile
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/narai/conversations")
+async def narai_list_conversations(request: Request):
+    """List conversations for the authenticated user."""
+    auth = request.headers.get("Authorization")
+    user, _ = _get_narai_user(auth)
+    try:
+        from core.narai_user import list_conversations
+        return list_conversations(user["id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/conversations")
+async def narai_create_conversation(request: Request, body: CreateConvRequest):
+    """Create a new conversation."""
+    auth = request.headers.get("Authorization")
+    user, _ = _get_narai_user(auth)
+    try:
+        from core.narai_user import create_conversation
+        from core.narai_chat import chat_title_from_message
+        title = body.title or "New Chat"
+        conv_id = create_conversation(user["id"], title[:60])
+        if not conv_id:
+            raise HTTPException(status_code=500, detail="Failed to create conversation")
+        return {"id": conv_id, "title": title}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/narai/conversations/{conv_id}/messages")
+async def narai_get_messages(conv_id: str, request: Request):
+    """Get messages for a conversation."""
+    auth = request.headers.get("Authorization")
+    user, _ = _get_narai_user(auth)
+    try:
+        from core.narai_user import get_conversation_messages
+        return get_conversation_messages(conv_id, user["id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/narai/memory")
+async def narai_get_memory(request: Request):
+    """Get memory notes for the authenticated user."""
+    auth = request.headers.get("Authorization")
+    user, _ = _get_narai_user(auth)
+    try:
+        from core.narai_user import get_user_memory
+        return get_user_memory(user["id"])
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/chat")
+async def narai_chat(request: Request, body: NaraiChatRequest):
+    """Stream a chat response from NarAI."""
+    auth = request.headers.get("Authorization")
+    user, _ = _get_narai_user(auth)
+
+    # Check quota
+    try:
+        from core.narai_user import check_and_increment_quota
+        quota = check_and_increment_quota(user["id"])
+        if not quota.get("allowed"):
+            raise HTTPException(status_code=429, detail={
+                "reason": "quota_exceeded",
+                "used": quota.get("used"),
+                "limit": quota.get("limit"),
+                "tier": quota.get("tier"),
+                "upgrade_url": "/pricing",
+            })
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # Fail open on quota check errors
+
+    # Stream response
+    from core.narai_chat import chat_stream
+    from core.narai_user import get_profile
+    profile = get_profile(user["id"]) or {}
+    tier = profile.get("tier", "free")
+
+    return StreamingResponse(
+        chat_stream(
+            user_id=user["id"],
+            conversation_id=body.conversation_id,
+            user_message=body.message,
+            tier=tier,
+            requested_model=body.model,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 @app.get("/", response_class=HTMLResponse)
-async def serve_dashboard():
+async def serve_homepage():
+    """Public homepage — WheellsVerse ecosystem."""
+    hp = ROOT / "frontend" / "index.html"
+    if hp.exists():
+        return HTMLResponse(hp.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "no-store, no-cache"})
+    # Fallback to old dashboard
+    return await _serve_old_dashboard()
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def serve_admin_dashboard():
+    """Admin dashboard — internal use."""
+    return await _serve_old_dashboard()
+
+
+async def _serve_old_dashboard():
     html_path = ROOT / "dashboard" / "index.html"
     if not html_path.exists():
         return HTMLResponse("<h1>Dashboard not found. Expected: dashboard/index.html</h1>", status_code=500)
@@ -1258,7 +1485,7 @@ async def list_memory(project: str = "global", limit: int = 50):
 async def save_memory(req: MemorySaveRequest):
     from core.memory import get_memory
     mem = get_memory()
-    entry = mem.save(
+    mem.save(
         key=req.key,
         content=req.content,
         project=req.project,
@@ -1686,9 +1913,6 @@ class ContentRunRequest(BaseModel):
     publish: bool = False
     publish_platforms: List[str] = ["static"]
 
-class PublishRequest(BaseModel):
-    piece_index: int = 0            # index into last run's pieces
-    platforms:   List[str] = ["static"]
 
 
 @app.post("/api/content/run")
@@ -1801,7 +2025,7 @@ async def generate_lead_magnet(topic: str = "AI Automation", background_tasks: B
     engine = get_monetization_engine()
 
     def _gen():
-        path = engine.generate_lead_magnet_pdf(topic)
+        engine.generate_lead_magnet_pdf(topic)
         _add_log(f"Lead magnet PDF generated: {topic[:40]}", "INFO")
 
     if background_tasks:
@@ -1855,7 +2079,7 @@ async def record_engagement(
 async def generate_intelligence_report(background_tasks: BackgroundTasks):
     from core.intelligence import get_intelligence
     def _gen():
-        report = get_intelligence().generate_improvement_report()
+        get_intelligence().generate_improvement_report()
         _add_log("Intelligence improvement report generated", "INFO")
     background_tasks.add_task(_gen)
     return {"status": "generating", "location": "outputs/reports/"}
@@ -1980,7 +2204,7 @@ async def scored_leads():
     High score = higher purchase intent.
     """
     from core.email_capture import get_email_capture
-    from datetime import datetime, timedelta
+    from datetime import datetime
     SOURCE_SCORES = {
         "blog_cta": 30, "blog_index": 25, "landing_page": 20,
         "twitter": 15, "tiktok": 15, "smoke_test": 0,
@@ -2114,7 +2338,7 @@ async def generate_analytics_report(background_tasks: BackgroundTasks):
     """Generate and save the daily analytics report."""
     from core.analytics import get_analytics
     def _gen():
-        report = get_analytics().generate_daily_report()
+        get_analytics().generate_daily_report()
         _add_log("Daily analytics report generated", "INFO")
     background_tasks.add_task(_gen)
     return {"status": "generating", "location": "outputs/reports/"}
@@ -2135,9 +2359,6 @@ class ScreenshotRequest(BaseModel):
 
 class TwitterPostRequest(BaseModel):
     tweets: List[str]
-
-class LinkedInPostRequest(BaseModel):
-    content: str
 
 class ScrapeRequest(BaseModel):
     url: str
@@ -2218,7 +2439,7 @@ async def post_to_linkedin(req: LinkedInPostRequest, background_tasks: Backgroun
     def _run():
         from core.browser import post_linkedin
         try:
-            result = post_linkedin(req.content)
+            post_linkedin(req.content)
             _add_log(f"LinkedIn post published ({len(req.content)} chars)", "INFO")
         except Exception as e:
             _add_log(f"LinkedIn post failed: {e}", "ERROR")
@@ -2506,7 +2727,7 @@ async def superagent_upgrade(req: UpgradeRequest, background_tasks: BackgroundTa
 
 
 @app.get("/api/revenue")
-async def revenue_dashboard(days: int = 30):
+async def revenue_earnings(days: int = 30):
     """
     Single combined endpoint for the Money Board.
     Returns affiliate earnings, bot statuses, and system config in one call.
@@ -3850,11 +4071,7 @@ async def publish_batch(background_tasks: BackgroundTasks,
     """Publish the N most recent unpublished bot outputs."""
     platform_list = [p.strip() for p in platforms.split(",")] if platforms else None
     outputs_dir = ROOT / "outputs"
-    blog_dir    = ROOT / "outputs" / "published" / "blog"
-
     # Gather recent markdown files not yet in blog
-    existing_slugs = {f.stem[9:] for f in blog_dir.glob("*.html")} if blog_dir.exists() else set()
-
     md_files = sorted(
         [f for f in outputs_dir.rglob("*.md")
          if "published" not in str(f)],
@@ -3906,7 +4123,6 @@ async def trigger_daily_publish(background_tasks: BackgroundTasks):
 @app.get("/api/publish/schedule")
 async def get_publish_schedule():
     """Return current auto-publish schedule settings."""
-    from core.click_tracker import _load_clicks
     import json
     used_file = ROOT / "data" / "used_topics.json"
     used_count = 0
@@ -4082,19 +4298,6 @@ async def create_invoice(req: InvoiceRequest):
         _add_log(f"Invoice created for {req.customer_email}", "INFO")
         return result
     except Exception as e:
-        raise HTTPException(400, str(e))
-
-
-@app.post("/api/stripe/webhook")
-async def stripe_webhook(request: Request):
-    """Handle Stripe webhook events (payment success → drip enroll)."""
-    from core.stripe_client import get_stripe
-    payload    = await request.body()
-    sig_header = request.headers.get("stripe-signature", "")
-    try:
-        result = get_stripe().handle_webhook(payload, sig_header)
-        return result
-    except ValueError as e:
         raise HTTPException(400, str(e))
 
 
@@ -4413,14 +4616,14 @@ async def reddit_post(req: RedditPostRequest, background_tasks: BackgroundTasks)
     return {"status": "posting", "title": req.title[:80]}
 
 
-class RepurposeRequest(BaseModel):
+class RedditRepurposeRequest(BaseModel):
     content: str
     title:   str = ""
     formats: Optional[List[str]] = None   # None = all 6 formats
 
 
 @app.post("/api/reddit/post-repurposed")
-async def reddit_post_repurposed(req: RepurposeRequest, background_tasks: BackgroundTasks):
+async def reddit_post_repurposed(req: RedditRepurposeRequest, background_tasks: BackgroundTasks):
     """Repurpose content then post the Reddit format automatically."""
     def _run():
         from core.repurpose import repurpose
@@ -4530,7 +4733,7 @@ async def system_report():
         from core.twitter import TwitterClient
         r = TwitterClient().get_status()
         report["services"].append({"name":"Twitter / X","icon":"🐦","ok":r.get("connected",False),"note":r.get("username","") or "Not configured","docs":"developer.twitter.com"})
-    except Exception as e:
+    except Exception:
         report["services"].append({"name":"Twitter / X","icon":"🐦","ok":False,"note":"Missing API keys"})
 
     # YouTube
@@ -4538,7 +4741,7 @@ async def system_report():
         from core.youtube import get_youtube_status
         r = get_youtube_status()
         report["services"].append({"name":"YouTube","icon":"▶️","ok":r.get("connected",False),"note":r.get("channel","") or r.get("reason","OAuth needed")[:60],"docs":"console.cloud.google.com"})
-    except Exception as e:
+    except Exception:
         yt_key = os.getenv("YOUTUBE_API_KEY","")
         yt_cid = os.getenv("YOUTUBE_CLIENT_ID","")
         report["services"].append({"name":"YouTube","icon":"▶️","ok":bool(yt_key and yt_cid),"note":"API key set, OAuth needed" if (yt_key and yt_cid) else "Missing credentials"})
@@ -4719,7 +4922,7 @@ async def telegram_register_webhook():
 # ─── Auto-Repurposing Pipeline ───────────────────────────────────────────────
 
 @app.post("/api/repurpose")
-async def repurpose_content(req: RepurposeRequest, background_tasks: BackgroundTasks):
+async def repurpose_content(req: RedditRepurposeRequest, background_tasks: BackgroundTasks):
     """Repurpose markdown content into Twitter thread, TikTok caption, email subjects,
     Reddit post, Instagram caption, and LinkedIn post — all at once."""
     result_holder: Dict[str, Any] = {}
@@ -5522,7 +5725,7 @@ async def generate_newsletter():
 @app.get("/api/revenue/v2")
 async def revenue_v2():
     """Enhanced revenue endpoint: Impact + click tracker + sparklines + goal tracking."""
-    from core.impact import get_earnings, get_clicks
+    from core.impact import get_earnings
     from core.click_tracker import _load_clicks
 
     # Impact data
@@ -5841,7 +6044,6 @@ async def ads_deploy_all(background_tasks: BackgroundTasks):
 
     def _run_all():
         for item in ready:
-            req = AdsDeployRequest(slug=item["slug"])
             # inline deploy logic per item
             platform = item["platform"]
             copy     = item["copy"]
@@ -5970,7 +6172,7 @@ async def literary_qc_results(limit: int = 50):
 @app.get("/api/literary-qc/rewrite-queue")
 async def literary_qc_rewrite_queue():
     """Return manuscripts queued for rewrite."""
-    from core.literary_qc import LiteraryQCAgent, QC_RESULTS_FILE
+    from core.literary_qc import QC_RESULTS_FILE
     import json
     if QC_RESULTS_FILE.exists():
         all_results = json.loads(QC_RESULTS_FILE.read_text())
@@ -6014,7 +6216,7 @@ async def literary_qc_full_analysis(req: LiteraryQCRequest):
 @app.get("/api/volumes/status")
 async def volumes_status():
     """Return volume scan/completion status summary."""
-    from bots.books.volume_completion_bot import VolumeCompletionBot, SCAN_FILE
+    from bots.books.volume_completion_bot import SCAN_FILE
     import json
     if SCAN_FILE.exists():
         data = json.loads(SCAN_FILE.read_text())
@@ -6266,7 +6468,6 @@ async def kdp_generate_cover(genre: str, req: dict = {}):
         return {"error": f"No manuscripts found for genre: {genre}"}
     latest = manuscripts[0]
     raw_title = req.get("title") or (latest.stem.replace("book_","").replace("_"," ").title())
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     cover_path = None
     canva_url  = None
     try:
@@ -6933,14 +7134,14 @@ async def email_stats():
     from core.email_funnel import get_stats
     return get_stats()
 
-class SubscribeRequest(BaseModel):
+class KitSubscribeRequest(BaseModel):
     email: str
     first_name: str = ""
     tags: List[str] = []
     niche: str = "general"
 
 @app.post("/api/email/subscribe")
-async def email_subscribe(req: SubscribeRequest):
+async def email_subscribe_kit(req: KitSubscribeRequest):
     from core.email_funnel import add_subscriber
     result = add_subscriber(req.email, req.first_name, req.tags)
     _add_log(f"Email subscribe: {req.email} — {result.get('status','error')}", "INFO")
@@ -6958,7 +7159,7 @@ async def email_build_sequence(req: BuildSequenceRequest,
     def _build():
         emails = build_sequence(req.niche, req.sequence_type)
         name   = req.name or f"{req.niche}_{req.sequence_type}"
-        result = create_sequence_in_convertkit(name, emails)
+        create_sequence_in_convertkit(name, emails)
         _add_log(f"Email sequence built: {name} ({len(emails)} emails)", "INFO")
     background_tasks.add_task(_build)
     return {"status": "building", "niche": req.niche, "type": req.sequence_type}
@@ -7264,7 +7465,7 @@ async def heygen_generate(req: HeyGenVideoRequest, background_tasks: BackgroundT
 @app.get("/api/shorts/status")
 async def shorts_status():
     from core import heygen, elevenlabs as el
-    results = list((RESULTS_DIR := ROOT / "outputs" / "shorts_results").glob("*.json"))
+    results = list((ROOT / "outputs" / "shorts_results").glob("*.json"))
     results = sorted(results, key=lambda f: f.stat().st_mtime, reverse=True)
     recent  = []
     for r in results[:10]:
@@ -7307,7 +7508,6 @@ async def shorts_run(req: ShortsRequest, background_tasks: BackgroundTasks):
 
 @app.get("/api/shorts/results")
 async def shorts_results(limit: int = 20):
-    from pathlib import Path as _P
     results_dir = ROOT / "outputs" / "shorts_results"
     files = sorted(results_dir.glob("*.json"), key=lambda f: f.stat().st_mtime, reverse=True)
     out = []
@@ -7462,7 +7662,6 @@ def _save_stripe_payment(event: dict):
 @app.post("/api/stripe/webhook")
 async def stripe_webhook(request: Request):
     """Stripe webhook — records payment events (checkout.session.completed, invoice.paid, etc.)"""
-    import hmac, hashlib
     payload = await request.body()
     sig     = request.headers.get("stripe-signature", "")
     secret  = os.getenv("STRIPE_WEBHOOK_SECRET", "")
@@ -7683,7 +7882,7 @@ async def nexora_recruit(background_tasks: BackgroundTasks):
         try:
             from bots.revenue.bot_09_nexora_beta import NexoraBetaBot
             bot = NexoraBetaBot()
-            result = bot.run(action="recruit")
+            bot.run(action="recruit")
             _add_log("NEXORA recruitment posts generated", "INFO")
         except ImportError:
             try:
@@ -7693,7 +7892,7 @@ async def nexora_recruit(background_tasks: BackgroundTasks):
                 spec = _il.util.spec_from_file_location("bot", ROOT/"bots"/"revenue"/"09_nexora_beta"/"bot.py")
                 mod  = _il.util.module_from_spec(spec)
                 spec.loader.exec_module(mod)
-                result = mod.NexoraBetaBot().run(action="recruit")
+                mod.NexoraBetaBot().run(action="recruit")
                 _add_log("NEXORA recruitment posts generated", "INFO")
             except Exception as e:
                 _add_log(f"NEXORA recruit failed: {e}", "ERROR")
@@ -7916,8 +8115,7 @@ async def nx_public_creator(handle: str):
 @app.get("/api/nx/creator/{handle}/posts")
 async def nx_public_posts(handle: str, request: Request):
     """Return posts for a fan — subscribers see all, others only free."""
-    from core.nexora_db import (get_creator_by_handle, get_active_subscriber_count,
-                                 list_posts, get_conn)
+    from core.nexora_db import (get_creator_by_handle, list_posts, get_conn)
     creator = get_creator_by_handle(handle)
     if not creator:
         raise HTTPException(status_code=404, detail="Creator not found")
@@ -8474,7 +8672,7 @@ class LeadCaptureRequest(BaseModel):
 async def leads_capture(req: LeadCaptureRequest, background_tasks: BackgroundTasks):
     from core.lead_capture import LeadCaptureEngine
     def _run():
-        result = LeadCaptureEngine.get().capture(
+        LeadCaptureEngine.get().capture(
             req.contact, req.name, req.source,
             req.platform, req.user_id, niche=req.niche,
         )
@@ -9717,7 +9915,6 @@ async def payhip_prepare_product(req: dict):
 
     # Generate with Claude
     try:
-        from core.base_bot import BaseBot
         import anthropic
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
         prompt = (
@@ -9743,7 +9940,7 @@ async def payhip_prepare_product(req: dict):
         generated = msg.content[0].text.strip()
         _add_log(f"Payhip product description generated: {name}", "INFO")
         return {"title": name, "price": price, "description": generated}
-    except Exception as e:
+    except Exception:
         # Fallback: return basic template
         fallback = (
             f"{name}\n\n"
@@ -10383,7 +10580,7 @@ async def factory_alltime():
 @app.delete("/api/factory/reset")
 async def factory_reset():
     """Clear today's products and reset stats."""
-    global _pf_running
+    global _pf_running  # noqa: F824
     if _pf_running:
         return {"error": "Stop the factory first"}
     state = _pf_load_state()
@@ -10944,7 +11141,7 @@ def launch(port: int = 5050, preload: bool = True):
 
         # ── Auto-start Week 5 engines ───────────────────────────────────────────
         try:
-            from core.goal_tracker import GoalTracker
+            from core.goal_tracker import GoalTracker  # noqa: F811
             GoalTracker.get().start()
             _add_log("GoalTracker started — daily goal reports at 07:00", "INFO")
         except Exception as e:
@@ -11237,7 +11434,6 @@ async def shopify_webhook(request: Request, background_tasks: BackgroundTasks):
     Receive Shopify webhook events.
     Topics handled: orders/create, orders/paid, products/create, app/uninstalled.
     """
-    import os
     from core.shopify_client import _add_log
 
     payload   = await request.body()

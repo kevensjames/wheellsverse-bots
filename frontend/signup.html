@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Create Account — NarAI by WheellsVerse</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{
+    --bg:#05070d;--surface:#0d1117;--border:#1a2035;
+    --cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;
+    --text:#e2e8f0;--muted:#64748b;
+  }
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;
+    min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px 16px}
+  body::before{
+    content:'';position:fixed;top:0;left:0;width:100%;height:100%;
+    background:radial-gradient(ellipse at 80% 20%,rgba(168,85,247,0.07) 0%,transparent 60%),
+              radial-gradient(ellipse at 20% 80%,rgba(0,212,255,0.07) 0%,transparent 60%);
+    pointer-events:none;z-index:0
+  }
+
+  .logo{position:fixed;top:28px;left:32px;text-decoration:none;display:flex;align-items:center;gap:10px;z-index:10}
+  .logo-mark{width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),var(--purple));
+    border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:#000}
+  .logo-text{font-size:20px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+  .card{
+    position:relative;z-index:1;width:100%;max-width:440px;padding:48px 40px;
+    background:var(--surface);border:1px solid var(--border);border-radius:20px;
+    box-shadow:0 0 60px rgba(168,85,247,0.05)
+  }
+
+  .badge{
+    display:inline-flex;align-items:center;gap:6px;padding:6px 12px;
+    background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);
+    border-radius:100px;font-size:12px;color:var(--green);font-weight:600;margin-bottom:20px
+  }
+  h1{font-size:28px;font-weight:700;margin-bottom:6px}
+  .subtitle{color:var(--muted);font-size:15px;margin-bottom:32px}
+
+  .google-btn{
+    width:100%;padding:13px;background:transparent;border:1px solid var(--border);
+    border-radius:12px;color:var(--text);font-family:'Space Grotesk',sans-serif;font-size:15px;
+    font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;
+    transition:all 0.2s;margin-bottom:24px
+  }
+  .google-btn:hover{border-color:var(--purple);background:rgba(168,85,247,0.05)}
+  .google-btn img{width:20px;height:20px}
+
+  .divider{display:flex;align-items:center;gap:12px;margin-bottom:24px}
+  .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+  .divider span{color:var(--muted);font-size:13px}
+
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .field{margin-bottom:18px}
+  label{display:block;font-size:13px;font-weight:500;color:var(--muted);margin-bottom:6px}
+  input{
+    width:100%;padding:13px 16px;background:rgba(255,255,255,0.03);
+    border:1px solid var(--border);border-radius:12px;color:var(--text);
+    font-family:'Space Grotesk',sans-serif;font-size:15px;outline:none;transition:all 0.2s
+  }
+  input:focus{border-color:var(--purple);background:rgba(168,85,247,0.03)}
+  input::placeholder{color:var(--muted)}
+
+  .btn-primary{
+    width:100%;padding:14px;background:linear-gradient(135deg,var(--purple),var(--cyan));
+    border:none;border-radius:12px;color:#fff;font-family:'Space Grotesk',sans-serif;
+    font-size:16px;font-weight:700;cursor:pointer;transition:all 0.2s;
+    display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px
+  }
+  .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 30px rgba(168,85,247,0.3)}
+  .btn-primary:disabled{opacity:0.6;cursor:not-allowed;transform:none}
+
+  .terms-note{
+    font-size:12px;color:var(--muted);text-align:center;margin-top:16px;line-height:1.6
+  }
+  .terms-note a{color:var(--cyan);text-decoration:none}
+  .terms-note a:hover{text-decoration:underline}
+
+  .login-link{text-align:center;margin-top:20px;font-size:14px;color:var(--muted)}
+  .login-link a{color:var(--purple);text-decoration:none;font-weight:600}
+  .login-link a:hover{text-decoration:underline}
+
+  .error-msg{
+    background:rgba(255,59,59,0.1);border:1px solid rgba(255,59,59,0.3);
+    border-radius:10px;padding:12px 16px;font-size:14px;color:#ff6b6b;
+    margin-bottom:18px;display:none
+  }
+  .success-msg{
+    background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);
+    border-radius:10px;padding:16px;font-size:15px;color:var(--green);
+    margin-bottom:18px;display:none;text-align:center
+  }
+
+  .spinner{
+    width:18px;height:18px;border:2px solid rgba(255,255,255,0.3);
+    border-top-color:#fff;border-radius:50%;animation:spin 0.7s linear infinite;display:none
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* Free tier perks */
+  .perks{background:rgba(0,212,255,0.04);border:1px solid rgba(0,212,255,0.1);
+    border-radius:12px;padding:16px;margin-bottom:24px}
+  .perks h3{font-size:13px;color:var(--cyan);font-weight:600;margin-bottom:10px}
+  .perk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);margin-bottom:6px}
+  .perk:last-child{margin-bottom:0}
+  .perk::before{content:'✓';color:var(--green);font-weight:700;flex-shrink:0}
+</style>
+</head>
+<body>
+
+<a href="/" class="logo">
+  <div class="logo-mark">N</div>
+  <span class="logo-text">NarAI</span>
+</a>
+
+<div class="card">
+  <div class="badge">✦ Free forever — no credit card needed</div>
+  <h1>Create your account</h1>
+  <p class="subtitle">Join thousands using NarAI to work smarter</p>
+
+  <div class="perks">
+    <h3>Free tier includes:</h3>
+    <div class="perk">10 AI messages per day</div>
+    <div class="perk">Chat history (7 days)</div>
+    <div class="perk">NarAI intelligence</div>
+    <div class="perk">Upgrade anytime</div>
+  </div>
+
+  <button class="google-btn" onclick="signUpGoogle()">
+    <img src="https://www.google.com/favicon.ico" alt="Google">
+    Continue with Google
+  </button>
+
+  <div class="divider"><span>or create with email</span></div>
+
+  <div class="error-msg" id="errorMsg"></div>
+  <div class="success-msg" id="successMsg"></div>
+
+  <div class="row">
+    <div class="field">
+      <label>First name</label>
+      <input type="text" id="firstName" placeholder="Alex">
+    </div>
+    <div class="field">
+      <label>Last name</label>
+      <input type="text" id="lastName" placeholder="Smith">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Email</label>
+    <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+  </div>
+
+  <div class="field">
+    <label>Password</label>
+    <input type="password" id="password" placeholder="At least 8 characters"
+           onkeydown="if(event.key==='Enter')signUp()">
+  </div>
+
+  <button class="btn-primary" onclick="signUp()" id="signUpBtn">
+    <div class="spinner" id="spinner"></div>
+    <span id="btnText">Create Free Account</span>
+  </button>
+
+  <p class="terms-note">
+    By creating an account you agree to our
+    <a href="/terms">Terms of Use</a> and <a href="/privacy">Privacy Policy</a>.
+  </p>
+
+  <p class="login-link">Already have an account? <a href="/login">Sign in</a></p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+  const SUPABASE_URL  = '%%SUPABASE_URL%%';
+  const SUPABASE_ANON = '%%SUPABASE_ANON_KEY%%';
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+  function showError(msg){const el=document.getElementById('errorMsg');el.textContent=msg;el.style.display='block';document.getElementById('successMsg').style.display='none'}
+  function showSuccess(msg){const el=document.getElementById('successMsg');el.textContent=msg;el.style.display='block';document.getElementById('errorMsg').style.display='none'}
+  function hideMessages(){document.getElementById('errorMsg').style.display='none';document.getElementById('successMsg').style.display='none'}
+  function setLoading(on){
+    document.getElementById('spinner').style.display=on?'block':'none';
+    document.getElementById('btnText').textContent=on?'Creating account...':'Create Free Account';
+    document.getElementById('signUpBtn').disabled=on
+  }
+
+  async function signUp(){
+    hideMessages();setLoading(true);
+    const firstName=document.getElementById('firstName').value.trim();
+    const lastName=document.getElementById('lastName').value.trim();
+    const email=document.getElementById('email').value.trim();
+    const password=document.getElementById('password').value;
+    if(!email||!password){showError('Please fill in all fields');setLoading(false);return}
+    if(password.length<8){showError('Password must be at least 8 characters');setLoading(false);return}
+    const {error}=await sb.auth.signUp({
+      email,password,
+      options:{data:{full_name:`${firstName} ${lastName}`.trim(),first_name:firstName}}
+    });
+    if(error){showError(error.message);setLoading(false);return}
+    showSuccess('Account created! Check your email to verify, then sign in.');
+    setLoading(false);
+    setTimeout(()=>window.location.href='/login',3000)
+  }
+
+  async function signUpGoogle(){
+    const {error}=await sb.auth.signInWithOAuth({
+      provider:'google',
+      options:{redirectTo:window.location.origin+'/chat'}
+    });
+    if(error)showError(error.message)
+  }
+
+  // If already logged in, redirect
+  sb.auth.getSession().then(({data:{session}})=>{
+    if(session)window.location.href='/chat'
+  })
+</script>
+</body>
+</html>

@@ -108,3 +108,19 @@ pyhunter>=1.7.0
 # WebSocket support (Live Chat bot)
 websockets>=12.0
 # deploy-1776700000
+
+# ── Wave 2 additions ─────────────────────────────────────────────────────────
+python-multipart>=0.0.9
+duckduckgo-search>=6.0.0
+
+# ── Wave 3 additions ─────────────────────────────────────────────────────────
+sentence-transformers>=2.7.0
+pywebpush>=2.0.0
+python-telegram-bot[webhooks]>=20.0
+discord.py>=2.3.0
+PyGithub>=2.1.0
+google-generativeai>=0.7.0
+mistralai>=1.0.0
+
+# ── NarAI User Platform (Supabase auth + DB) ─────────────────────────────────
+supabase>=2.4.0

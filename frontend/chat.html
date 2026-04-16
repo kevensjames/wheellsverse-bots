@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NarAI — Chat</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#05070d;--sidebar:#0a0d14;--surface:#0d1117;--border:#1a2035;
+  --cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;
+  --text:#e2e8f0;--muted:#64748b;--hover:#111827
+}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;height:100vh;overflow:hidden;display:flex}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:260px;flex-shrink:0;background:var(--sidebar);border-right:1px solid var(--border);
+  display:flex;flex-direction:column;height:100vh;overflow:hidden
+}
+.sidebar-header{padding:16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:8px;text-decoration:none}
+.logo-mark{width:30px;height:30px;background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;color:#000}
+.logo-text{font-size:17px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+
+.new-chat-btn{
+  display:flex;align-items:center;gap:8px;width:calc(100% - 24px);margin:12px;
+  padding:10px 14px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);
+  border-radius:10px;color:var(--cyan);font-family:'Space Grotesk',sans-serif;font-size:14px;
+  font-weight:600;cursor:pointer;transition:all 0.2s
+}
+.new-chat-btn:hover{background:rgba(0,212,255,0.15)}
+
+.sidebar-section{padding:8px 16px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+
+.conv-list{flex:1;overflow-y:auto;padding:0 8px}
+.conv-list::-webkit-scrollbar{width:4px}
+.conv-list::-webkit-scrollbar-track{background:transparent}
+.conv-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+.conv-item{
+  padding:10px 10px;border-radius:8px;cursor:pointer;transition:all 0.15s;
+  display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);
+  margin-bottom:2px;position:relative
+}
+.conv-item:hover{background:var(--hover);color:var(--text)}
+.conv-item.active{background:rgba(0,212,255,0.08);color:var(--text)}
+.conv-item .conv-title{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.sidebar-footer{padding:12px;border-top:1px solid var(--border)}
+.user-row{display:flex;align-items:center;gap:10px;padding:10px;border-radius:10px;cursor:pointer;transition:all 0.2s}
+.user-row:hover{background:var(--hover)}
+.avatar{width:32px;height:32px;background:linear-gradient(135deg,var(--purple),var(--cyan));
+  border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#000;flex-shrink:0}
+.user-info{flex:1;min-width:0}
+.user-name{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-tier{font-size:11px;color:var(--muted);text-transform:capitalize}
+.tier-dot{width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px}
+.tier-dot.free{background:var(--muted)}
+.tier-dot.pro{background:var(--cyan)}
+.tier-dot.max{background:var(--purple)}
+.tier-dot.ultra{background:var(--gold)}
+
+/* ── MAIN ── */
+.main{flex:1;display:flex;flex-direction:column;height:100vh;overflow:hidden;position:relative}
+
+.chat-header{
+  padding:0 24px;height:56px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0
+}
+.model-select{
+  display:flex;align-items:center;gap:8px;padding:6px 12px;
+  background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:8px;
+  font-family:'Space Grotesk',sans-serif;font-size:13px;color:var(--text);cursor:pointer;
+  outline:none
+}
+.model-select option{background:var(--surface)}
+.header-actions{display:flex;align-items:center;gap:8px}
+.icon-btn{
+  width:32px;height:32px;background:transparent;border:1px solid var(--border);
+  border-radius:8px;color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  font-size:16px;transition:all 0.2s
+}
+.icon-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+/* ── MESSAGES ── */
+.messages{flex:1;overflow-y:auto;padding:24px;scroll-behavior:smooth}
+.messages::-webkit-scrollbar{width:4px}
+.messages::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* EMPTY STATE */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;text-align:center;padding:40px}
+.empty-logo{width:64px;height:64px;background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:32px;
+  font-weight:700;color:#000;margin-bottom:20px}
+.empty-state h2{font-size:24px;font-weight:700;margin-bottom:8px}
+.empty-state p{color:var(--muted);font-size:15px;max-width:360px;margin-bottom:32px;line-height:1.6}
+
+.suggestions{display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:520px;width:100%}
+.suggestion{
+  padding:14px 16px;background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  text-align:left;cursor:pointer;transition:all 0.2s;font-family:'Space Grotesk',sans-serif;font-size:13px;color:var(--muted)
+}
+.suggestion:hover{border-color:var(--cyan);color:var(--text);background:rgba(0,212,255,0.04)}
+.suggestion .s-icon{font-size:20px;margin-bottom:8px;display:block}
+.suggestion .s-title{font-weight:600;color:var(--text);margin-bottom:4px;font-size:14px}
+
+/* MESSAGE BUBBLES */
+.msg{display:flex;gap:12px;margin-bottom:24px;animation:fadeIn 0.2s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.msg.user{flex-direction:row-reverse}
+.msg-avatar{width:32px;height:32px;border-radius:8px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+.msg.assistant .msg-avatar{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000}
+.msg.user .msg-avatar{background:linear-gradient(135deg,var(--purple),#ec4899);color:#fff}
+.msg-content{max-width:70%;min-width:0}
+.msg.user .msg-content{align-items:flex-end;display:flex;flex-direction:column}
+.msg-bubble{
+  padding:12px 16px;border-radius:14px;font-size:15px;line-height:1.65;word-wrap:break-word
+}
+.msg.assistant .msg-bubble{background:var(--surface);border:1px solid var(--border);border-radius:4px 14px 14px 14px}
+.msg.user .msg-bubble{background:rgba(0,212,255,0.1);border:1px solid rgba(0,212,255,0.2);border-radius:14px 4px 14px 14px}
+
+/* Markdown rendering */
+.msg-bubble h1,.msg-bubble h2,.msg-bubble h3{margin:16px 0 8px;line-height:1.3}
+.msg-bubble h1{font-size:20px}.msg-bubble h2{font-size:17px}.msg-bubble h3{font-size:15px}
+.msg-bubble p{margin-bottom:10px}.msg-bubble p:last-child{margin-bottom:0}
+.msg-bubble ul,.msg-bubble ol{margin:8px 0 10px 20px}
+.msg-bubble li{margin-bottom:4px}
+.msg-bubble strong{color:#fff;font-weight:600}
+.msg-bubble code{
+  background:rgba(0,0,0,0.4);border:1px solid var(--border);border-radius:4px;
+  padding:1px 6px;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--cyan)
+}
+.msg-bubble pre{
+  background:#0a0c12;border:1px solid var(--border);border-radius:10px;
+  padding:16px;margin:12px 0;overflow-x:auto;position:relative
+}
+.msg-bubble pre code{background:none;border:none;padding:0;font-size:13px;color:#cdd6f4;line-height:1.6}
+.copy-btn{
+  position:absolute;top:8px;right:8px;padding:4px 10px;background:rgba(255,255,255,0.05);
+  border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:11px;
+  cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all 0.2s
+}
+.copy-btn:hover{color:var(--text);border-color:var(--cyan)}
+
+.msg-model{font-size:11px;color:var(--muted);margin-top:6px;display:flex;align-items:center;gap:4px}
+
+/* Typing cursor */
+.typing-cursor{display:inline-block;width:2px;height:16px;background:var(--cyan);margin-left:2px;vertical-align:middle;animation:blink 0.7s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+/* ── INPUT ── */
+.input-area{padding:20px 24px;border-top:1px solid var(--border);flex-shrink:0}
+.input-wrap{
+  display:flex;align-items:flex-end;gap:12px;background:var(--surface);
+  border:1px solid var(--border);border-radius:16px;padding:12px 16px;
+  transition:border-color 0.2s
+}
+.input-wrap:focus-within{border-color:rgba(0,212,255,0.4)}
+textarea{
+  flex:1;background:transparent;border:none;outline:none;color:var(--text);
+  font-family:'Space Grotesk',sans-serif;font-size:15px;resize:none;
+  min-height:24px;max-height:180px;line-height:1.6;overflow-y:auto
+}
+textarea::placeholder{color:var(--muted)}
+textarea::-webkit-scrollbar{width:4px}
+textarea::-webkit-scrollbar-thumb{background:var(--border)}
+
+.send-btn{
+  width:36px;height:36px;background:linear-gradient(135deg,var(--cyan),var(--purple));
+  border:none;border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:all 0.2s;opacity:0.5
+}
+.send-btn.active{opacity:1}
+.send-btn:hover.active{transform:translateY(-1px);box-shadow:0 4px 15px rgba(0,212,255,0.3)}
+.send-btn svg{width:16px;height:16px;fill:none;stroke:#000;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round}
+
+.input-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.input-hint{font-size:12px;color:var(--muted)}
+.quota-display{font-size:12px;color:var(--muted)}
+.quota-display span{color:var(--cyan);font-weight:600}
+
+/* Quota exceeded banner */
+.quota-banner{
+  background:rgba(255,215,0,0.05);border:1px solid rgba(255,215,0,0.2);
+  border-radius:12px;padding:16px 20px;margin-bottom:20px;
+  display:none;align-items:center;justify-content:space-between;gap:16px
+}
+.quota-banner p{font-size:14px;color:var(--gold)}
+.upgrade-link{
+  padding:8px 18px;background:linear-gradient(135deg,var(--gold),#ff9500);
+  border-radius:8px;color:#000;font-size:13px;font-weight:700;text-decoration:none;white-space:nowrap
+}
+
+/* Mobile */
+@media(max-width:768px){
+  .sidebar{display:none}
+  .suggestions{grid-template-columns:1fr}
+  .msg-content{max-width:90%}
+}
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <div class="sidebar-header">
+    <a href="/" class="logo">
+      <div class="logo-mark">N</div>
+      <span class="logo-text">NarAI</span>
+    </a>
+  </div>
+
+  <button class="new-chat-btn" onclick="newChat()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New Chat
+  </button>
+
+  <div class="sidebar-section">Recent</div>
+  <div class="conv-list" id="convList">
+    <!-- Filled by JS -->
+  </div>
+
+  <div class="sidebar-footer">
+    <div class="user-row" onclick="window.location.href='/dashboard'">
+      <div class="avatar" id="userAvatar">?</div>
+      <div class="user-info">
+        <div class="user-name" id="userName">Loading...</div>
+        <div class="user-tier"><span class="tier-dot free" id="tierDot"></span><span id="userTier">free</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+  <div class="chat-header">
+    <select class="model-select" id="modelSelect" onchange="onModelChange()">
+      <option value="claude-haiku-4-5-20251001">⚡ NarAI Haiku (Fast)</option>
+      <option value="claude-sonnet-4-6">🧠 NarAI Sonnet (Smart)</option>
+      <option value="claude-opus-4-6">🔥 NarAI Opus (Powerful)</option>
+      <option value="gpt-4o">🌐 NarAI GPT-4o</option>
+    </select>
+    <div class="header-actions">
+      <button class="icon-btn" onclick="window.location.href='/pricing'" title="Upgrade">⬆</button>
+      <button class="icon-btn" onclick="window.location.href='/dashboard'" title="Dashboard">⊞</button>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-logo">N</div>
+      <h2>What can I help you with?</h2>
+      <p>I'm NarAI — built by Jhon Kevens D Wheeler. Ask me anything. I remember everything.</p>
+      <div class="suggestions">
+        <div class="suggestion" onclick="useSuggestion(this)">
+          <span class="s-icon">💻</span>
+          <div class="s-title">Write code for me</div>
+          Build a Python script or debug an error
+        </div>
+        <div class="suggestion" onclick="useSuggestion(this)">
+          <span class="s-icon">📊</span>
+          <div class="s-title">Analyze & strategize</div>
+          Business plans, market research, growth
+        </div>
+        <div class="suggestion" onclick="useSuggestion(this)">
+          <span class="s-icon">✍️</span>
+          <div class="s-title">Write content</div>
+          Blog posts, emails, social media copy
+        </div>
+        <div class="suggestion" onclick="useSuggestion(this)">
+          <span class="s-icon">🔍</span>
+          <div class="s-title">Research anything</div>
+          Deep dives, summaries, fact-checking
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="input-area">
+    <div class="quota-banner" id="quotaBanner">
+      <p>⚡ You've reached your daily message limit. Upgrade to keep chatting.</p>
+      <a href="/pricing" class="upgrade-link">Upgrade Now</a>
+    </div>
+    <div class="input-wrap">
+      <textarea id="messageInput" placeholder="Message NarAI..." rows="1"
+        onkeydown="handleKey(event)" oninput="autoResize(this);updateSendBtn()"></textarea>
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+      </button>
+    </div>
+    <div class="input-footer">
+      <span class="input-hint">Enter to send · Shift+Enter for new line</span>
+      <span class="quota-display"><span id="quotaUsed">-</span> / <span id="quotaLimit">-</span> today</span>
+    </div>
+  </div>
+</div>
+
+<!-- Supabase + Marked.js -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"></script>
+<script>
+const SUPABASE_URL  = '%%SUPABASE_URL%%';
+const SUPABASE_ANON = '%%SUPABASE_ANON_KEY%%';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// ── State ──────────────────────────────────────────────────────────────────
+let currentUser = null;
+let currentToken = null;
+let currentConvId = null;
+let isStreaming = false;
+let userProfile = null;
+
+// Configure marked
+marked.setOptions({breaks:true, gfm:true});
+
+// ── Auth ───────────────────────────────────────────────────────────────────
+async function init(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session){window.location.href='/login';return}
+  currentUser = session.user;
+  currentToken = session.access_token;
+  await loadProfile();
+  await loadConversations();
+}
+
+async function loadProfile(){
+  try{
+    const res = await fetch('/api/narai/profile', {headers:{'Authorization':'Bearer '+currentToken}});
+    if(res.ok){
+      userProfile = await res.json();
+      const name = userProfile.name || currentUser.email.split('@')[0];
+      document.getElementById('userAvatar').textContent = name[0].toUpperCase();
+      document.getElementById('userName').textContent = name;
+      const tier = userProfile.tier || 'free';
+      document.getElementById('userTier').textContent = tier;
+      document.getElementById('tierDot').className = `tier-dot ${tier}`;
+      // Update model options based on tier
+      updateModelOptions(tier);
+      // Update quota display
+      updateQuotaDisplay(userProfile);
+    }
+  }catch(e){console.warn('Profile load failed',e)}
+}
+
+function updateModelOptions(tier){
+  const sel = document.getElementById('modelSelect');
+  const opts = sel.options;
+  // Haiku: always available
+  // Sonnet+GPT4o: pro+
+  // Opus: max+
+  for(let opt of opts){
+    if(opt.value==='claude-haiku-4-5-20251001') opt.disabled=false;
+    else if(opt.value==='claude-opus-4-6') opt.disabled = !['max','ultra'].includes(tier);
+    else opt.disabled = tier==='free';
+    if(opt.disabled) opt.text += ' 🔒';
+  }
+  // Lock to haiku if free
+  if(tier==='free') sel.value='claude-haiku-4-5-20251001';
+  else sel.value='claude-sonnet-4-6';
+}
+
+function updateQuotaDisplay(profile){
+  const used = profile.messages_used_today||0;
+  const tiers = {free:10,pro:100,max:500,ultra:'∞'};
+  const limit = tiers[profile.tier||'free'];
+  document.getElementById('quotaUsed').textContent=used;
+  document.getElementById('quotaLimit').textContent=limit;
+}
+
+// ── Conversations ──────────────────────────────────────────────────────────
+async function loadConversations(){
+  try{
+    const res = await fetch('/api/narai/conversations',{headers:{'Authorization':'Bearer '+currentToken}});
+    if(!res.ok) return;
+    const convs = await res.json();
+    renderConvList(convs);
+  }catch(e){console.warn('Conv load failed',e)}
+}
+
+function renderConvList(convs){
+  const el = document.getElementById('convList');
+  if(!convs.length){el.innerHTML='<div style="padding:12px 10px;font-size:13px;color:var(--muted)">No conversations yet</div>';return}
+  el.innerHTML = convs.map(c=>`
+    <div class="conv-item ${c.id===currentConvId?'active':''}" onclick="loadConv('${c.id}')">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span class="conv-title">${escHtml(c.title)}</span>
+    </div>
+  `).join('');
+}
+
+async function loadConv(id){
+  currentConvId = id;
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML='';
+  document.getElementById('emptyState')&&(document.getElementById('emptyState').style.display='none');
+  try{
+    const res = await fetch(`/api/narai/conversations/${id}/messages`,{headers:{'Authorization':'Bearer '+currentToken}});
+    if(!res.ok) return;
+    const data = await res.json();
+    data.forEach(m=>appendMessage(m.role,m.content,m.model_used,false));
+    msgs.scrollTop=msgs.scrollHeight;
+    // Update active state in sidebar
+    document.querySelectorAll('.conv-item').forEach(el=>el.classList.toggle('active',el.onclick.toString().includes(id)));
+  }catch(e){console.warn('Load conv failed',e)}
+}
+
+// ── Messaging ──────────────────────────────────────────────────────────────
+function newChat(){
+  currentConvId=null;
+  const msgs=document.getElementById('messages');
+  msgs.innerHTML=`<div class="empty-state" id="emptyState">
+    <div class="empty-logo">N</div>
+    <h2>What can I help you with?</h2>
+    <p>I'm NarAI — built by Jhon Kevens D Wheeler. Ask me anything. I remember everything.</p>
+    <div class="suggestions">
+      <div class="suggestion" onclick="useSuggestion(this)"><span class="s-icon">💻</span><div class="s-title">Write code for me</div>Build a Python script or debug an error</div>
+      <div class="suggestion" onclick="useSuggestion(this)"><span class="s-icon">📊</span><div class="s-title">Analyze & strategize</div>Business plans, market research, growth</div>
+      <div class="suggestion" onclick="useSuggestion(this)"><span class="s-icon">✍️</span><div class="s-title">Write content</div>Blog posts, emails, social media copy</div>
+      <div class="suggestion" onclick="useSuggestion(this)"><span class="s-icon">🔍</span><div class="s-title">Research anything</div>Deep dives, summaries, fact-checking</div>
+    </div>
+  </div>`;
+  document.querySelectorAll('.conv-item').forEach(el=>el.classList.remove('active'));
+}
+
+function useSuggestion(el){
+  const title = el.querySelector('.s-title').textContent;
+  document.getElementById('messageInput').value=title;
+  updateSendBtn();
+  sendMessage();
+}
+
+async function sendMessage(){
+  if(isStreaming) return;
+  const input = document.getElementById('messageInput');
+  const text = input.value.trim();
+  if(!text) return;
+
+  // Clear input
+  input.value='';
+  autoResize(input);
+  updateSendBtn();
+
+  // Hide empty state
+  const emptyState = document.getElementById('emptyState');
+  if(emptyState) emptyState.remove();
+
+  // Show user message
+  appendMessage('user', text, null, false);
+
+  // Create conversation if needed
+  if(!currentConvId){
+    try{
+      const res = await fetch('/api/narai/conversations',{
+        method:'POST',headers:{'Authorization':'Bearer '+currentToken,'Content-Type':'application/json'},
+        body:JSON.stringify({title:text.substring(0,60)})
+      });
+      if(res.ok){
+        const data=await res.json();
+        currentConvId=data.id;
+        await loadConversations();
+      }
+    }catch(e){console.warn('Create conv failed',e)}
+  }
+
+  if(!currentConvId){appendMessage('assistant','Failed to create conversation. Please try again.',null,false);return}
+
+  // Start streaming response
+  const model = document.getElementById('modelSelect').value;
+  isStreaming=true;
+  const assistantEl = appendMessage('assistant','',model,true);
+  const bubbleEl = assistantEl.querySelector('.msg-bubble');
+  let fullText='';
+
+  try{
+    const res = await fetch('/api/narai/chat',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+currentToken,'Content-Type':'application/json'},
+      body:JSON.stringify({conversation_id:currentConvId,message:text,model})
+    });
+
+    if(res.status===429){
+      bubbleEl.innerHTML='<span style="color:var(--gold)">⚡ Daily limit reached. <a href="/pricing" style="color:var(--cyan)">Upgrade to continue</a></span>';
+      document.getElementById('quotaBanner').style.display='flex';
+      isStreaming=false;return
+    }
+
+    const reader=res.body.getReader();
+    const decoder=new TextDecoder();
+    let buf='';
+
+    while(true){
+      const{done,value}=await reader.read();
+      if(done) break;
+      buf+=decoder.decode(value,{stream:true});
+      const lines=buf.split('\n');
+      buf=lines.pop()||'';
+      for(const line of lines){
+        if(!line.startsWith('data:')) continue;
+        try{
+          const d=JSON.parse(line.slice(5));
+          if(d.done) break;
+          if(d.token){
+            fullText+=d.token;
+            bubbleEl.innerHTML=marked.parse(fullText)+'<span class="typing-cursor"></span>';
+            addCopyBtns(bubbleEl);
+            document.getElementById('messages').scrollTop=99999;
+          }
+        }catch{}
+      }
+    }
+    // Final render without cursor
+    bubbleEl.innerHTML=marked.parse(fullText);
+    addCopyBtns(bubbleEl);
+    // Refresh quota
+    if(userProfile){userProfile.messages_used_today=(userProfile.messages_used_today||0)+1;updateQuotaDisplay(userProfile)}
+  }catch(e){
+    bubbleEl.innerHTML='<span style="color:#ff6b6b">Error: '+escHtml(e.message)+'</span>';
+  }
+  isStreaming=false;
+  document.getElementById('messages').scrollTop=99999;
+}
+
+function appendMessage(role, content, model, streaming){
+  const msgs = document.getElementById('messages');
+  const isUser = role==='user';
+  const div = document.createElement('div');
+  div.className=`msg ${role}`;
+  const initials = isUser ? (userProfile?.name?.[0]?.toUpperCase()||'U') : 'N';
+  const html = content ? (isUser ? escHtml(content) : marked.parse(content)) : (streaming?'<span class="typing-cursor"></span>':'');
+  div.innerHTML=`
+    <div class="msg-avatar">${initials}</div>
+    <div class="msg-content">
+      <div class="msg-bubble">${html}</div>
+      ${model&&!isUser?`<div class="msg-model">⚡ ${modelLabel(model)}</div>`:''}
+    </div>`;
+  if(!streaming&&!isUser) addCopyBtns(div.querySelector('.msg-bubble'));
+  msgs.appendChild(div);
+  msgs.scrollTop=msgs.scrollHeight;
+  return div;
+}
+
+function modelLabel(m){
+  const map={'claude-haiku-4-5-20251001':'NarAI Haiku','claude-sonnet-4-6':'NarAI Sonnet','claude-opus-4-6':'NarAI Opus','gpt-4o':'NarAI GPT-4o'};
+  return map[m]||m;
+}
+
+function addCopyBtns(el){
+  el.querySelectorAll('pre:not([data-cb])').forEach(pre=>{
+    pre.setAttribute('data-cb','1');
+    const btn=document.createElement('button');
+    btn.className='copy-btn';btn.textContent='Copy';
+    btn.onclick=()=>{navigator.clipboard.writeText(pre.querySelector('code')?.textContent||pre.textContent);btn.textContent='Copied!';setTimeout(()=>btn.textContent='Copy',2000)};
+    pre.style.position='relative';pre.appendChild(btn);
+  });
+}
+
+// ── Utils ──────────────────────────────────────────────────────────────────
+function handleKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendMessage()}}
+function autoResize(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,180)+'px'}
+function updateSendBtn(){const v=document.getElementById('messageInput').value.trim();document.getElementById('sendBtn').classList.toggle('active',v.length>0)}
+function onModelChange(){}
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

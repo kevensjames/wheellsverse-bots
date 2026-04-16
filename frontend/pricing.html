@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pricing — NarAI by WheellsVerse</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  :root{--bg:#05070d;--surface:#0d1117;--border:#1a2035;--cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;--text:#e2e8f0;--muted:#64748b}
+  body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh}
+  body::before{content:'';position:fixed;top:0;left:0;width:100%;height:100%;
+    background:radial-gradient(ellipse at 50% 0%,rgba(168,85,247,0.1) 0%,transparent 50%);pointer-events:none;z-index:0}
+
+  /* NAV */
+  nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+    padding:0 40px;height:64px;background:rgba(5,7,13,0.9);backdrop-filter:blur(20px);
+    border-bottom:1px solid var(--border)}
+  .nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+  .logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--cyan),var(--purple));
+    border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#000}
+  .logo-text{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .nav-links{display:flex;align-items:center;gap:8px}
+  .nav-link{padding:8px 16px;color:var(--muted);text-decoration:none;font-size:14px;border-radius:8px;transition:all 0.2s}
+  .nav-link:hover{color:var(--text);background:rgba(255,255,255,0.05)}
+  .btn-nav{padding:8px 20px;background:linear-gradient(135deg,var(--cyan),var(--purple));
+    border-radius:8px;color:#000;font-size:14px;font-weight:700;text-decoration:none;transition:all 0.2s}
+  .btn-nav:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,0.3)}
+
+  /* HERO */
+  .hero{padding:120px 40px 60px;text-align:center;position:relative;z-index:1}
+  .hero-badge{display:inline-flex;align-items:center;gap:6px;padding:6px 16px;
+    background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.2);
+    border-radius:100px;font-size:13px;color:var(--cyan);margin-bottom:24px}
+  .hero h1{font-size:clamp(36px,5vw,60px);font-weight:700;line-height:1.1;margin-bottom:16px}
+  .hero h1 span{background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p{font-size:18px;color:var(--muted);max-width:540px;margin:0 auto 40px}
+
+  /* TOGGLE */
+  .toggle-wrap{display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:60px}
+  .toggle-label{font-size:15px;color:var(--muted)}
+  .toggle-label.active{color:var(--text)}
+  .toggle{width:48px;height:26px;background:var(--border);border-radius:100px;cursor:pointer;
+    position:relative;transition:background 0.2s}
+  .toggle.on{background:var(--cyan)}
+  .toggle::after{content:'';position:absolute;top:3px;left:3px;width:20px;height:20px;
+    background:#fff;border-radius:50%;transition:transform 0.2s}
+  .toggle.on::after{transform:translateX(22px)}
+  .save-badge{background:rgba(0,255,136,0.1);border:1px solid rgba(0,255,136,0.2);
+    color:var(--green);font-size:12px;font-weight:600;padding:3px 10px;border-radius:100px}
+
+  /* CARDS */
+  .cards{max-width:1100px;margin:0 auto;display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:0 40px 100px;position:relative;z-index:1}
+  @media(max-width:900px){.cards{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.cards{grid-template-columns:1fr}}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px 28px;
+    position:relative;transition:all 0.3s}
+  .card:hover{transform:translateY(-4px);border-color:rgba(255,255,255,0.1)}
+  .card.popular{border-color:var(--cyan);box-shadow:0 0 40px rgba(0,212,255,0.1)}
+
+  .popular-badge{position:absolute;top:-13px;left:50%;transform:translateX(-50%);
+    background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000;
+    font-size:12px;font-weight:700;padding:4px 16px;border-radius:100px;white-space:nowrap}
+
+  .tier-icon{width:44px;height:44px;border-radius:12px;display:flex;align-items:center;
+    justify-content:center;font-size:22px;margin-bottom:20px}
+  .free .tier-icon{background:rgba(100,116,139,0.15)}
+  .pro .tier-icon{background:rgba(0,212,255,0.1)}
+  .max .tier-icon{background:rgba(168,85,247,0.1)}
+  .ultra .tier-icon{background:rgba(255,215,0,0.1)}
+
+  .tier-name{font-size:14px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+  .tier-price{font-size:48px;font-weight:700;line-height:1;margin-bottom:4px}
+  .tier-price sup{font-size:20px;vertical-align:top;margin-top:10px}
+  .tier-price .period{font-size:16px;font-weight:400;color:var(--muted)}
+  .free .tier-price{color:var(--text)}
+  .pro .tier-price{color:var(--cyan)}
+  .max .tier-price{color:var(--purple)}
+  .ultra .tier-price{color:var(--gold)}
+
+  .tier-desc{font-size:13px;color:var(--muted);margin:12px 0 24px;line-height:1.5}
+
+  .btn-tier{
+    width:100%;padding:12px;border-radius:12px;font-family:'Space Grotesk',sans-serif;
+    font-size:15px;font-weight:600;cursor:pointer;transition:all 0.2s;margin-bottom:28px;
+    text-decoration:none;display:block;text-align:center
+  }
+  .free .btn-tier{background:transparent;border:1px solid var(--border);color:var(--text)}
+  .free .btn-tier:hover{border-color:var(--muted)}
+  .pro .btn-tier{background:rgba(0,212,255,0.1);border:1px solid var(--cyan);color:var(--cyan)}
+  .pro .btn-tier:hover{background:rgba(0,212,255,0.2)}
+  .max .btn-tier{background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;color:#fff}
+  .max .btn-tier:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(168,85,247,0.3)}
+  .ultra .btn-tier{background:linear-gradient(135deg,var(--gold),#ff9500);border:none;color:#000}
+  .ultra .btn-tier:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(255,215,0,0.3)}
+
+  .divider-line{height:1px;background:var(--border);margin-bottom:24px}
+
+  .features-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;
+    letter-spacing:1px;margin-bottom:14px}
+  .feature{display:flex;align-items:flex-start;gap:10px;font-size:14px;margin-bottom:10px;line-height:1.4}
+  .feature .check{color:var(--green);font-size:15px;flex-shrink:0;margin-top:1px}
+  .feature .cross{color:var(--muted);font-size:15px;flex-shrink:0;margin-top:1px}
+  .feature .text{color:var(--muted)}
+  .feature .text.active{color:var(--text)}
+
+  /* FAQ */
+  .faq{max-width:700px;margin:0 auto;padding:0 40px 100px;position:relative;z-index:1}
+  .faq h2{font-size:32px;font-weight:700;text-align:center;margin-bottom:40px}
+  .faq-item{border-bottom:1px solid var(--border);padding:20px 0}
+  .faq-q{font-size:16px;font-weight:600;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+  .faq-q::after{content:'+';color:var(--cyan);font-size:20px;flex-shrink:0}
+  .faq-a{font-size:14px;color:var(--muted);line-height:1.7;margin-top:12px;display:none}
+  .faq-item.open .faq-q::after{content:'−'}
+  .faq-item.open .faq-a{display:block}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="logo-mark">N</div>
+    <span class="logo-text">NarAI</span>
+  </a>
+  <div class="nav-links">
+    <a href="/blog" class="nav-link">Blog</a>
+    <a href="/narai" class="nav-link">Features</a>
+    <a href="/login" class="nav-link">Sign In</a>
+    <a href="/signup" class="btn-nav">Start Free</a>
+  </div>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">✦ Simple, transparent pricing</div>
+  <h1>Choose your <span>NarAI</span> plan</h1>
+  <p>Start free. Upgrade when you're ready. Cancel anytime.</p>
+</div>
+
+<div class="toggle-wrap">
+  <span class="toggle-label active" id="monthlyLabel">Monthly</span>
+  <div class="toggle" id="billingToggle" onclick="toggleBilling()"></div>
+  <span class="toggle-label" id="annualLabel">Annual</span>
+  <span class="save-badge" id="saveBadge" style="display:none">Save 20%</span>
+</div>
+
+<div class="cards">
+
+  <!-- FREE -->
+  <div class="card free">
+    <div class="tier-icon">⚡</div>
+    <div class="tier-name">Free</div>
+    <div class="tier-price"><sup>$</sup>0</div>
+    <p class="tier-desc">Try NarAI with no commitment. No credit card.</p>
+    <a href="/signup" class="btn-tier">Get Started Free</a>
+    <div class="divider-line"></div>
+    <div class="features-label">What's included</div>
+    <div class="feature"><span class="check">✓</span><span class="text active">10 messages / day</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">7-day chat history</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Claude Haiku model</span></div>
+    <div class="feature"><span class="cross">✗</span><span class="text">Persistent memory</span></div>
+    <div class="feature"><span class="cross">✗</span><span class="text">Advanced models</span></div>
+    <div class="feature"><span class="cross">✗</span><span class="text">Code mode</span></div>
+  </div>
+
+  <!-- PRO -->
+  <div class="card pro">
+    <div class="tier-icon">🚀</div>
+    <div class="tier-name">Pro</div>
+    <div class="tier-price" id="proPrice"><sup>$</sup>9.99<span class="period">/mo</span></div>
+    <p class="tier-desc">For power users who need more conversations and smarter AI.</p>
+    <a href="/signup?plan=pro" class="btn-tier">Get Pro</a>
+    <div class="divider-line"></div>
+    <div class="features-label">Everything in Free, plus</div>
+    <div class="feature"><span class="check">✓</span><span class="text active">100 messages / day</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">90-day chat history</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Claude Sonnet + GPT-4o</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Persistent memory</span></div>
+    <div class="feature"><span class="cross">✗</span><span class="text">Code mode</span></div>
+    <div class="feature"><span class="cross">✗</span><span class="text">Web search</span></div>
+  </div>
+
+  <!-- MAX (popular) -->
+  <div class="card max popular">
+    <div class="popular-badge">⭐ Most Popular</div>
+    <div class="tier-icon">🔥</div>
+    <div class="tier-name">Max</div>
+    <div class="tier-price" id="maxPrice"><sup>$</sup>19.99<span class="period">/mo</span></div>
+    <p class="tier-desc">Unlimited history, code mode, and all models unlocked.</p>
+    <a href="/signup?plan=max" class="btn-tier">Get Max</a>
+    <div class="divider-line"></div>
+    <div class="features-label">Everything in Pro, plus</div>
+    <div class="feature"><span class="check">✓</span><span class="text active">500 messages / day</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Unlimited chat history</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Claude Opus + all models</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Code mode (expert)</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Web search</span></div>
+    <div class="feature"><span class="cross">✗</span><span class="text">API access</span></div>
+  </div>
+
+  <!-- ULTRA -->
+  <div class="card ultra">
+    <div class="tier-icon">👑</div>
+    <div class="tier-name">Ultra</div>
+    <div class="tier-price" id="ultraPrice"><sup>$</sup>50<span class="period">/mo</span></div>
+    <p class="tier-desc">Unlimited everything. Priority access. Built for professionals.</p>
+    <a href="/signup?plan=ultra" class="btn-tier">Get Ultra</a>
+    <div class="divider-line"></div>
+    <div class="features-label">Everything in Max, plus</div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Unlimited messages</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Priority processing</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">NarAI API access</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Projects & workspaces</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Advanced memory</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Early access to new features</span></div>
+  </div>
+
+</div>
+
+<!-- FAQ -->
+<div class="faq">
+  <h2>Frequently asked questions</h2>
+
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Can I cancel anytime?</div>
+    <div class="faq-a">Yes. Cancel anytime from your account settings. You keep access until the end of your billing period. No penalties, no questions asked.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">What is NarAI exactly?</div>
+    <div class="faq-a">NarAI is an AI assistant built by Jhon Kevens D Wheeler — creator of WheellsVerse. It combines the power of multiple AI models (Claude, GPT-4o) into one interface with persistent memory, code mode, and web search. Think ChatGPT + Claude + Perplexity in one, smarter.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">Does NarAI remember me?</div>
+    <div class="faq-a">Yes — on Pro, Max, and Ultra plans. NarAI learns your name, goals, projects, and preferences over time. Every conversation builds on the last. Free tier has 7-day memory only.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">What's the difference between plans?</div>
+    <div class="faq-a">Free = 10 msgs/day, basic AI. Pro = 100 msgs/day + persistent memory. Max = 500 msgs/day + code mode + all models. Ultra = unlimited everything + API access.</div>
+  </div>
+  <div class="faq-item" onclick="toggleFaq(this)">
+    <div class="faq-q">What payment methods do you accept?</div>
+    <div class="faq-a">All major credit and debit cards via Stripe. Secure, encrypted, PCI-compliant. We never store your card details.</div>
+  </div>
+</div>
+
+<script>
+  let annual = false;
+  const prices = {pro:{m:9.99,a:7.99},max:{m:19.99,a:15.99},ultra:{m:50,a:39.99}};
+
+  function toggleBilling(){
+    annual=!annual;
+    document.getElementById('billingToggle').classList.toggle('on',annual);
+    document.getElementById('monthlyLabel').classList.toggle('active',!annual);
+    document.getElementById('annualLabel').classList.toggle('active',annual);
+    document.getElementById('saveBadge').style.display=annual?'inline-flex':'none';
+    const fmt=(v)=>Number.isInteger(v)?v:v.toFixed(2);
+    document.getElementById('proPrice').innerHTML=`<sup>$</sup>${fmt(annual?prices.pro.a:prices.pro.m)}<span class="period">/mo</span>`;
+    document.getElementById('maxPrice').innerHTML=`<sup>$</sup>${fmt(annual?prices.max.a:prices.max.m)}<span class="period">/mo</span>`;
+    document.getElementById('ultraPrice').innerHTML=`<sup>$</sup>${fmt(annual?prices.ultra.a:prices.ultra.m)}<span class="period">/mo</span>`;
+  }
+
+  function toggleFaq(el){el.classList.toggle('open')}
+</script>
+</body>
+</html>

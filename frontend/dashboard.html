@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — NarAI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#05070d;--surface:#0d1117;--border:#1a2035;--cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;--text:#e2e8f0;--muted:#64748b}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 70% 10%,rgba(168,85,247,0.06) 0%,transparent 50%);pointer-events:none}
+
+nav{position:sticky;top:0;z-index:100;display:flex;align-items:center;justify-content:space-between;
+  padding:0 40px;height:64px;background:rgba(5,7,13,0.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:10px;text-decoration:none}
+.logo-mark{width:32px;height:32px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#000}
+.logo-text{font-size:18px;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.nav-right{display:flex;align-items:center;gap:12px}
+.btn-chat{padding:8px 20px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:8px;color:#000;font-size:14px;font-weight:700;text-decoration:none}
+.btn-logout{padding:8px 16px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--muted);font-size:14px;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all 0.2s}
+.btn-logout:hover{border-color:var(--muted);color:var(--text)}
+
+.content{max-width:1000px;margin:0 auto;padding:40px}
+
+/* PROFILE HEADER */
+.profile-header{display:flex;align-items:center;gap:20px;margin-bottom:40px;padding:28px;
+  background:var(--surface);border:1px solid var(--border);border-radius:20px}
+.big-avatar{width:64px;height:64px;background:linear-gradient(135deg,var(--purple),var(--cyan));
+  border-radius:18px;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;color:#000;flex-shrink:0}
+.profile-info{flex:1}
+.profile-name{font-size:24px;font-weight:700;margin-bottom:4px}
+.profile-email{color:var(--muted);font-size:14px;margin-bottom:10px}
+.tier-badge{
+  display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:100px;
+  font-size:13px;font-weight:600
+}
+.tier-badge.free{background:rgba(100,116,139,0.15);color:var(--muted);border:1px solid var(--border)}
+.tier-badge.pro{background:rgba(0,212,255,0.1);color:var(--cyan);border:1px solid rgba(0,212,255,0.2)}
+.tier-badge.max{background:rgba(168,85,247,0.1);color:var(--purple);border:1px solid rgba(168,85,247,0.2)}
+.tier-badge.ultra{background:rgba(255,215,0,0.1);color:var(--gold);border:1px solid rgba(255,215,0,0.2)}
+.upgrade-btn{padding:10px 22px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:10px;color:#000;font-size:14px;font-weight:700;text-decoration:none;white-space:nowrap}
+
+/* STATS */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+@media(max-width:700px){.stats{grid-template-columns:1fr 1fr}}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px}
+.stat-label{font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.stat-value{font-size:32px;font-weight:700;line-height:1}
+.stat-sub{font-size:12px;color:var(--muted);margin-top:4px}
+.stat-card.cyan .stat-value{color:var(--cyan)}
+.stat-card.purple .stat-value{color:var(--purple)}
+.stat-card.green .stat-value{color:var(--green)}
+.stat-card.gold .stat-value{color:var(--gold)}
+
+/* USAGE BAR */
+.usage-section{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:32px}
+.section-title{font-size:16px;font-weight:700;margin-bottom:16px}
+.usage-bar-wrap{background:rgba(255,255,255,0.04);border-radius:100px;height:8px;margin-bottom:8px;overflow:hidden}
+.usage-bar{height:100%;border-radius:100px;background:linear-gradient(90deg,var(--cyan),var(--purple));transition:width 0.6s ease}
+.usage-labels{display:flex;justify-content:space-between;font-size:13px;color:var(--muted)}
+.usage-labels span:first-child{color:var(--text);font-weight:600}
+
+/* CONVERSATIONS */
+.section{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
+.section-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+.see-all{font-size:13px;color:var(--cyan);text-decoration:none}
+.see-all:hover{text-decoration:underline}
+.conv-row{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04);cursor:pointer;transition:all 0.15s}
+.conv-row:last-child{border-bottom:none}
+.conv-row:hover{opacity:0.8}
+.conv-icon{width:36px;height:36px;background:rgba(0,212,255,0.08);border:1px solid rgba(0,212,255,0.15);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.conv-info{flex:1;min-width:0}
+.conv-title{font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:2px}
+.conv-meta{font-size:12px;color:var(--muted)}
+.conv-count{font-size:12px;color:var(--muted);white-space:nowrap}
+.empty-convs{text-align:center;padding:32px;color:var(--muted);font-size:14px}
+
+/* SUBSCRIPTION */
+.sub-section{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:24px;margin-bottom:24px}
+.sub-info{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.sub-details h3{font-size:18px;font-weight:700;margin-bottom:6px}
+.sub-details p{font-size:14px;color:var(--muted);line-height:1.6}
+.sub-actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn-outline{padding:9px 18px;background:transparent;border:1px solid var(--border);border-radius:9px;color:var(--text);font-size:13px;font-weight:600;cursor:pointer;font-family:'Space Grotesk',sans-serif;transition:all 0.2s;text-decoration:none}
+.btn-outline:hover{border-color:var(--cyan);color:var(--cyan)}
+.btn-upgrade-sm{padding:9px 18px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:9px;color:#000;font-size:13px;font-weight:700;text-decoration:none}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <div class="logo-mark">N</div>
+    <span class="logo-text">NarAI</span>
+  </a>
+  <div class="nav-right">
+    <a href="/chat" class="btn-chat">Open Chat →</a>
+    <button class="btn-logout" onclick="signOut()">Sign Out</button>
+  </div>
+</nav>
+
+<div class="content">
+
+  <!-- PROFILE HEADER -->
+  <div class="profile-header">
+    <div class="big-avatar" id="bigAvatar">?</div>
+    <div class="profile-info">
+      <div class="profile-name" id="profileName">Loading...</div>
+      <div class="profile-email" id="profileEmail"></div>
+      <div class="tier-badge free" id="tierBadge">Free Plan</div>
+    </div>
+    <a href="/pricing" class="upgrade-btn" id="upgradeBtn">⬆ Upgrade</a>
+  </div>
+
+  <!-- STATS -->
+  <div class="stats">
+    <div class="stat-card cyan">
+      <div class="stat-label">Messages Today</div>
+      <div class="stat-value" id="statToday">-</div>
+      <div class="stat-sub" id="statLimit">of - limit</div>
+    </div>
+    <div class="stat-card purple">
+      <div class="stat-label">Total Conversations</div>
+      <div class="stat-value" id="statConvs">-</div>
+      <div class="stat-sub">all time</div>
+    </div>
+    <div class="stat-card green">
+      <div class="stat-label">Memory Notes</div>
+      <div class="stat-value" id="statMemory">-</div>
+      <div class="stat-sub">NarAI remembers</div>
+    </div>
+    <div class="stat-card gold">
+      <div class="stat-label">Plan</div>
+      <div class="stat-value" id="statPlan" style="font-size:22px;margin-top:4px">Free</div>
+      <div class="stat-sub">current tier</div>
+    </div>
+  </div>
+
+  <!-- USAGE -->
+  <div class="usage-section">
+    <div class="section-title">Daily Usage</div>
+    <div class="usage-bar-wrap"><div class="usage-bar" id="usageBar" style="width:0%"></div></div>
+    <div class="usage-labels">
+      <span id="usageText">0 messages used today</span>
+      <span id="usageReset">Resets at midnight</span>
+    </div>
+  </div>
+
+  <!-- RECENT CONVERSATIONS -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title">Recent Conversations</div>
+      <a href="/chat" class="see-all">New Chat →</a>
+    </div>
+    <div id="convContainer">
+      <div class="empty-convs">No conversations yet. <a href="/chat" style="color:var(--cyan)">Start chatting →</a></div>
+    </div>
+  </div>
+
+  <!-- SUBSCRIPTION -->
+  <div class="sub-section">
+    <div class="section-title" style="margin-bottom:16px">Subscription</div>
+    <div class="sub-info">
+      <div class="sub-details">
+        <h3 id="subPlanName">Free Plan</h3>
+        <p id="subDescription">10 messages/day · 7-day history · Claude Haiku model</p>
+      </div>
+      <div class="sub-actions">
+        <a href="/pricing" class="btn-upgrade-sm" id="subUpgradeBtn">Upgrade Plan</a>
+        <a href="/pricing" class="btn-outline">View All Plans</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL  = '%%SUPABASE_URL%%';
+const SUPABASE_ANON = '%%SUPABASE_ANON_KEY%%';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+const TIER_DESCS={
+  free:'10 messages/day · 7-day history · Claude Haiku model',
+  pro:'100 messages/day · 90-day history · Claude Sonnet + GPT-4o · Memory',
+  max:'500 messages/day · Unlimited history · All models · Code mode · Web search',
+  ultra:'Unlimited messages · All models · API access · Projects · Priority'
+};
+const TIER_LIMITS={free:10,pro:100,max:500,ultra:null};
+const TIER_LABELS={free:'Free Plan',pro:'Pro Plan',max:'Max Plan',ultra:'Ultra Plan'};
+
+async function init(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){window.location.href='/login';return}
+  const token=session.access_token;
+
+  // Load profile + stats
+  try{
+    const [profRes,convsRes,memRes]=await Promise.all([
+      fetch('/api/narai/profile',{headers:{'Authorization':'Bearer '+token}}),
+      fetch('/api/narai/conversations',{headers:{'Authorization':'Bearer '+token}}),
+      fetch('/api/narai/memory',{headers:{'Authorization':'Bearer '+token}})
+    ]);
+
+    if(profRes.ok){
+      const p=await profRes.json();
+      const name=p.name||session.user.email.split('@')[0];
+      const tier=p.tier||'free';
+      const used=p.messages_used_today||0;
+      const limit=TIER_LIMITS[tier];
+
+      document.getElementById('bigAvatar').textContent=name[0].toUpperCase();
+      document.getElementById('profileName').textContent=name;
+      document.getElementById('profileEmail').textContent=session.user.email;
+
+      const badge=document.getElementById('tierBadge');
+      badge.textContent=TIER_LABELS[tier];
+      badge.className=`tier-badge ${tier}`;
+
+      document.getElementById('statToday').textContent=used;
+      document.getElementById('statLimit').textContent=`of ${limit??'∞'} limit`;
+      document.getElementById('statPlan').textContent=tier.charAt(0).toUpperCase()+tier.slice(1);
+
+      // Usage bar
+      const pct=limit?Math.min((used/limit)*100,100):0;
+      document.getElementById('usageBar').style.width=pct+'%';
+      document.getElementById('usageText').textContent=`${used} message${used!==1?'s':''} used today`;
+
+      // Subscription section
+      document.getElementById('subPlanName').textContent=TIER_LABELS[tier];
+      document.getElementById('subDescription').textContent=TIER_DESCS[tier];
+      if(tier!=='free'){
+        document.getElementById('subUpgradeBtn').textContent='Manage Plan';
+        document.getElementById('upgradeBtn').textContent='Manage Plan';
+      }
+    }
+
+    if(convsRes.ok){
+      const convs=await convsRes.json();
+      document.getElementById('statConvs').textContent=convs.length;
+      if(convs.length){
+        document.getElementById('convContainer').innerHTML=convs.slice(0,5).map(c=>`
+          <div class="conv-row" onclick="window.location.href='/chat?conv=${c.id}'">
+            <div class="conv-icon">💬</div>
+            <div class="conv-info">
+              <div class="conv-title">${escHtml(c.title)}</div>
+              <div class="conv-meta">${timeAgo(c.updated_at)}</div>
+            </div>
+            <div class="conv-count">${c.message_count||0} msgs</div>
+          </div>
+        `).join('');
+      }
+    }
+
+    if(memRes.ok){
+      const mem=await memRes.json();
+      document.getElementById('statMemory').textContent=mem.length||0;
+    }
+  }catch(e){console.warn('Dashboard load error',e)}
+}
+
+async function signOut(){
+  await sb.auth.signOut();
+  window.location.href='/';
+}
+
+function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+function timeAgo(iso){
+  const d=new Date(iso),now=new Date();
+  const s=Math.floor((now-d)/1000);
+  if(s<60)return 'just now';
+  if(s<3600)return Math.floor(s/60)+'m ago';
+  if(s<86400)return Math.floor(s/3600)+'h ago';
+  return Math.floor(s/86400)+'d ago';
+}
+
+init();
+</script>
+</body>
+</html>
