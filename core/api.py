@@ -1077,12 +1077,17 @@ async def clone_list_meetings(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_homepage():
-    """Public homepage — WheellsVerse ecosystem."""
+    """Root — serve admin dashboard locally, public homepage on Railway."""
+    import socket
+    hostname = socket.gethostname()
+    # On Railway the hostname is a container ID; locally it's the Mac hostname
+    is_local = "railway" not in hostname.lower() and "production" not in hostname.lower()
+    if is_local:
+        return await _serve_old_dashboard()
     hp = ROOT / "frontend" / "index.html"
     if hp.exists():
         return HTMLResponse(hp.read_text(encoding="utf-8"),
                             headers={"Cache-Control": "no-store, no-cache"})
-    # Fallback to old dashboard
     return await _serve_old_dashboard()
 
 

@@ -11,13 +11,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Layer 1: torch (CPU-only, ~500 MB) — cached as its own layer, never re-runs
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
-
-# Layer 2: app dependencies — only re-runs when requirements.txt changes
+# Dependencies — only re-runs when requirements.txt changes
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Layer 3: app code — re-runs on every deploy (fast, no pip work)
 COPY . .
