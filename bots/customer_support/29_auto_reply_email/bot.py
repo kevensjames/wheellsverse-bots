@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class AutoReplyEmailBot(BaseBot):
@@ -22,10 +22,10 @@ class AutoReplyEmailBot(BaseBot):
             brand_tone: str = None, product_type: str = None, **kwargs):
 
         cfg = self.config
-        scenarios    = scenarios or cfg.get("scenarios",
+        scenarios = scenarios or cfg.get("scenarios",
             "order confirmation, shipping update, refund request, general inquiry, technical issue")
-        brand_name   = brand_name or cfg.get("brand_name", "WheellsVerse")
-        brand_tone   = brand_tone or cfg.get("brand_tone", "professional, friendly, helpful")
+        brand_name = brand_name or cfg.get("brand_name", "WheellsVerse")
+        brand_tone = brand_tone or cfg.get("brand_tone", "professional, friendly, helpful")
         product_type = product_type or cfg.get("product_type", "AI automation software/tools")
 
         scenario_list = [s.strip() for s in scenarios.split(",")]
@@ -120,9 +120,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Auto Reply Email Generator")
     parser.add_argument("--scenarios", type=str, default=None)
-    parser.add_argument("--brand",     type=str, default=None)
-    parser.add_argument("--tone",      type=str, default="professional, friendly")
-    parser.add_argument("--product",   type=str, default=None)
+    parser.add_argument("--brand", type=str, default=None)
+    parser.add_argument("--tone", type=str, default="professional, friendly")
+    parser.add_argument("--product", type=str, default=None)
     args = parser.parse_args()
     bot = AutoReplyEmailBot()
     result = bot.execute(scenarios=args.scenarios, brand_name=args.brand,

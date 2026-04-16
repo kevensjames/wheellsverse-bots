@@ -1,0 +1,7 @@
+{
+  "description": "Content calendar — manages editorial schedule for SEO content",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@weekly mon 07:00"
+}
+

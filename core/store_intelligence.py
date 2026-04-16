@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import random
 import time
 from datetime import datetime, timezone
@@ -441,8 +440,6 @@ def run_intelligence_autopilot(
     from core.narai_shopify_engine import (   # type: ignore
         publish_digital_product, publish_pod_via_printful,
     )
-    from core.shopify_client import is_connected
-
     _log = log_fn or (lambda m: log.info(f"[StoreIntel] {m}"))
 
     _log("🧠 Store Intelligence: analysing live store…")

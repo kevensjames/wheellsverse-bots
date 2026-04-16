@@ -1,0 +1,1 @@
+{"description": "Analytics agent — weekly reports and insights powered by Claude", "ai_provider": "claude", "enabled": true, "schedule": "@weekly mon 09:00"}

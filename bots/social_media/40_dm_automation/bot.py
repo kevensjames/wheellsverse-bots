@@ -10,16 +10,16 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 SEQUENCE_TYPES = {
     "new_follower_welcome": "Welcome new followers and introduce your brand value",
     "lead_magnet_delivery": "Deliver a free resource and begin nurturing toward offer",
-    "sales_conversation":   "Warm up cold leads and open a sales dialogue",
+    "sales_conversation": "Warm up cold leads and open a sales dialogue",
     "collaboration_outreach": "Reach out to potential partners or co-creators",
-    "re_engagement":        "Re-engage followers who haven't interacted recently",
-    "event_invitation":     "Invite followers to a webinar, launch, or event",
-    "feedback_request":     "Collect testimonials or product feedback via DM",
+    "re_engagement": "Re-engage followers who haven't interacted recently",
+    "event_invitation": "Invite followers to a webinar, launch, or event",
+    "feedback_request": "Collect testimonials or product feedback via DM",
 }
 
 
@@ -33,9 +33,9 @@ class DMAutomationBot(BaseBot):
 
         cfg = self.config
         sequence_type = sequence_type or cfg.get("sequence_type", "new_follower_welcome")
-        platform      = platform or cfg.get("platform", "instagram")
-        goal          = goal or cfg.get("goal", "convert followers into email subscribers")
-        num_messages  = num_messages or cfg.get("num_messages", 4)
+        platform = platform or cfg.get("platform", "instagram")
+        goal = goal or cfg.get("goal", "convert followers into email subscribers")
+        num_messages = num_messages or cfg.get("num_messages", 4)
 
         seq_desc = SEQUENCE_TYPES.get(sequence_type, sequence_type)
         self.logger.info(f"Building DM sequence: {sequence_type} on {platform}")
@@ -163,11 +163,11 @@ Variables to insert for higher response rates:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="DM Automation Sequence Builder")
-    parser.add_argument("--type",     type=str, default=None,
+    parser.add_argument("--type", type=str, default=None,
                         choices=list(SEQUENCE_TYPES.keys()),
                         help=f"Sequence type: {', '.join(SEQUENCE_TYPES.keys())}")
     parser.add_argument("--platform", type=str, default="instagram")
-    parser.add_argument("--goal",     type=str, default=None)
+    parser.add_argument("--goal", type=str, default=None)
     parser.add_argument("--messages", type=int, default=4)
     args = parser.parse_args()
     bot = DMAutomationBot()

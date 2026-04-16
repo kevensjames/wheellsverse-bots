@@ -10,11 +10,11 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
-AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 STOCK_TOPICS = [
     "How to start investing in stocks with $100 — a beginner's guide",
@@ -113,7 +113,7 @@ Use plain English. Avoid jargon without explanation. Make readers feel confident
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Stock Investing Content Creator Bot")
-    parser.add_argument("--topic",    type=str, default=None, help="Investing topic to cover")
+    parser.add_argument("--topic", type=str, default=None, help="Investing topic to cover")
     parser.add_argument("--audience", type=str, default="beginner", choices=["beginner", "intermediate", "advanced"])
     args = parser.parse_args()
     bot = StockInvestingContentCreatorBot()

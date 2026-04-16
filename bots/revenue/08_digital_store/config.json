@@ -1,0 +1,7 @@
+{
+  "description": "Digital Store — promotes AI Income Kit bundle ($299) daily. Target: 5 bundles/month = $1,495.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 13:00",
+  "action": "promote"
+}

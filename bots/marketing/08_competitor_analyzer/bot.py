@@ -3,7 +3,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
+
 
 class CompetitorAnalyzerBot(BaseBot):
     def __init__(self):
@@ -12,9 +13,9 @@ class CompetitorAnalyzerBot(BaseBot):
     def run(self, your_brand: str = None, competitors: list = None,
             niche: str = None, **kwargs):
         cfg = self.config
-        your_brand  = your_brand or cfg.get("your_brand", "WheellsVerse")
+        your_brand = your_brand or cfg.get("your_brand", "WheellsVerse")
         competitors = competitors or cfg.get("competitors", ["Zapier", "Make.com", "n8n"])
-        niche       = niche or cfg.get("niche", "AI automation tools")
+        niche = niche or cfg.get("niche", "AI automation tools")
 
         self.logger.info(f"Analyzing competitors: {competitors}")
         system = "You are a competitive intelligence analyst who helps businesses find gaps and opportunities in their market."
@@ -58,9 +59,10 @@ Specific steps to outcompete in your top 3 weakness areas"""
 
         result = self.ai(prompt, system=system, max_tokens=3000)
         out = f"# Competitor Analysis: {your_brand}\n**vs. {', '.join(competitors)}**\n**Niche:** {niche}\n\n---\n\n{result}\n\n---\n*WheellsVerse Competitor Analyzer Bot*"
-        safe = your_brand.replace(" ","_")[:20]
+        safe = your_brand.replace(" ", "_")[:20]
         path = self.save_output(out, f"competitor_analysis_{safe}.md", ext="md")
         return {"file": str(path)}
+
 
 if __name__ == "__main__":
     import argparse

@@ -26,7 +26,7 @@ import os
 import threading
 import time
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
@@ -273,8 +273,6 @@ def build_system_state(orchestrator, health_registry) -> Dict[str, Any]:
     history = orchestrator.run_history
     today_runs = [r["bot"] for r in history if r["timestamp"].startswith(today_str)]
 
-    pipeline_names_ran_today = set(r.split("/")[-1] for r in today_runs)
-
     return {
         "timestamp": now.isoformat(),
         "hour": now.hour,
@@ -323,8 +321,8 @@ class DecisionEngine:
         self._last_market_eval: float = 0.0    # cooldown: 30 min
         self._last_trends_eval: float = 0.0    # cooldown: 2 h
         self._last_health_eval: float = 0.0    # cooldown: 15 min
-        self._last_perf_eval:   float = 0.0    # cooldown: 1 h
-        self._last_leads_eval:  float = 0.0    # cooldown: 4 h
+        self._last_perf_eval: float = 0.0    # cooldown: 1 h
+        self._last_leads_eval: float = 0.0    # cooldown: 4 h
         self._last_run_summary: Optional[Dict] = None
 
     # ─── State + analysis ─────────────────────────────────────────────────────
@@ -454,8 +452,7 @@ class DecisionEngine:
         """Broadcast an alert through output_automation and increment counter."""
         try:
             from core.output_automation import get_automator
-            result = get_automator().send_alert(
-                title, message,
+            get_automator().send_alert(title, message,
                 channels=channels or ["slack", "discord", "email"],
             )
             self._alerts_sent += 1
@@ -506,9 +503,9 @@ class DecisionEngine:
                 return []
 
             for coin in prices:
-                name    = coin.get("coin", "?")
-                price   = coin.get("price_usd", 0)
-                change  = float(coin.get("change_24h") or 0)
+                name = coin.get("coin", "?")
+                price = coin.get("price_usd", 0)
+                change = float(coin.get("change_24h") or 0)
 
                 if change >= 5.0:
                     msg = (
@@ -568,23 +565,23 @@ class DecisionEngine:
             from core.integrations import get_integrations
             intel = get_integrations().get_content_intelligence()
 
-            trending   = intel.get("trending_now", [])[:8]
-            reddit     = intel.get("reddit", [])[:5]
-            news       = intel.get("news", [])[:3]
+            trending = intel.get("trending_now", [])[:8]
+            reddit = intel.get("reddit", [])[:5]
+            news = intel.get("news", [])[:3]
 
             if not trending and not reddit:
                 logger.debug("evaluate_trends: no trends found, skipping pipeline")
                 return []
 
-            topics_str  = ", ".join(trending) if trending else "general content"
-            reddit_str  = "\n".join(f"• {p['title']}" for p in reddit) if reddit else ""
+            topics_str = ", ".join(trending) if trending else "general content"
+            reddit_str = "\n".join(f"• {p['title']}" for p in reddit) if reddit else ""
             news_titles = "\n".join(f"• {a['title']}" for a in news) if news else ""
 
             # Trigger content pipeline
             pipeline_result = "skipped"
             try:
                 out = self.pipeline_engine.run_pipeline("content_machine")
-                ok  = out.get("succeeded", 0)
+                ok = out.get("succeeded", 0)
                 tot = out.get("total_bots", 0)
                 pipeline_result = f"content_machine: {ok}/{tot} bots succeeded"
             except Exception as pe:
@@ -721,14 +718,14 @@ class DecisionEngine:
         entries = []
         try:
             from core.intelligence import get_intelligence
-            intel    = get_intelligence()
+            intel = get_intelligence()
             strategy = intel.get_strategy()
 
             if strategy.get("status") != "ready":
                 return []
 
-            trend    = strategy.get("trend", "neutral")
-            action   = strategy.get("strategy_adjustments", {}).get("action", "")
+            trend = strategy.get("trend", "neutral")
+            action = strategy.get("strategy_adjustments", {}).get("action", "")
             top_topics = strategy.get("top_topics", [])
 
             # Scaling — ramp up best-performing content type
@@ -749,7 +746,7 @@ class DecisionEngine:
                         "performance", "scale_top_topic",
                         f"Scaling best topic: {best_topic[:40]} (trend: {trend})",
                         "pipeline_triggered",
-                        f"content_pipeline: {result.get('pieces_created',0)} pieces",
+                        f"content_pipeline: {result.get('pieces_created', 0)} pieces",
                     ))
                 except Exception as e:
                     entries.append(self._log_intel(
@@ -768,7 +765,7 @@ class DecisionEngine:
                 )
                 entries.append(self._log_intel(
                     "performance", "pivot_strategy",
-                    f"Declining performance detected — alert sent",
+                    "Declining performance detected — alert sent",
                     "alert_sent",
                     f"avg_score: {strategy.get('avg_recent_score', 0)}",
                 ))
@@ -829,14 +826,14 @@ class DecisionEngine:
             from core.intelligence import get_intelligence
             from core.analytics import get_analytics
 
-            cap      = get_email_capture()
-            intel    = get_intelligence()
+            cap = get_email_capture()
+            intel = get_intelligence()
             analytics = get_analytics()
 
-            leads_today    = len(cap.get_leads_today())
-            top_topics     = intel.get_strategy().get("top_topics", [])
-            best_topic     = top_topics[0]["topic"] if top_topics else None
-            best_score     = top_topics[0]["avg_score"] if top_topics else 0
+            leads_today = len(cap.get_leads_today())
+            top_topics = intel.get_strategy().get("top_topics", [])
+            best_topic = top_topics[0]["topic"] if top_topics else None
+            best_score = top_topics[0]["avg_score"] if top_topics else 0
 
             # Rule: No leads today → trigger extra content generation
             if leads_today == 0:
@@ -930,7 +927,6 @@ class DecisionEngine:
                 get_status, get_narai_briefing, start_scan_background,
                 _mi_load, _save_to_narai_memory
             )
-            import time as _t
             from datetime import datetime, timezone
 
             status = get_status()
@@ -974,8 +970,8 @@ class DecisionEngine:
                 mi = _mi_load()
                 for insight in mi.get("top_insights", [])[:5]:
                     _save_to_narai_memory(
-                        key=f"top_insight_{insight.get('platform','')}",
-                        content=f"TOP INSIGHT [{insight.get('platform','').upper()}]: {insight.get('insight','')}",
+                        key=f"top_insight_{insight.get('platform', '')}",
+                        content=f"TOP INSIGHT [{insight.get('platform', '').upper()}]: {insight.get('insight', '')}",
                         tags=["market_intel", "top_insight", insight.get("platform", "")],
                     )
 
@@ -1006,19 +1002,19 @@ class DecisionEngine:
 
         Returns a structured summary dict.
         """
-        start_ts   = time.time()
-        start_iso  = datetime.now().isoformat()
+        start_ts = time.time()
+        start_iso = datetime.now().isoformat()
         all_entries: List[Dict] = []
         errors: List[str] = []
 
         for label, fn in [
-            ("market_intel",self.evaluate_market_intelligence),  # NarAI reads market first
-            ("market",      self.evaluate_market),
-            ("trends",      self.evaluate_trends),
-            ("health",      self.evaluate_system_health),
+            ("market_intel", self.evaluate_market_intelligence),  # NarAI reads market first
+            ("market", self.evaluate_market),
+            ("trends", self.evaluate_trends),
+            ("health", self.evaluate_system_health),
             ("performance", self.evaluate_performance),
-            ("leads",       self.evaluate_leads),
-            ("rules",       self.run_cycle),
+            ("leads", self.evaluate_leads),
+            ("rules", self.run_cycle),
         ]:
             try:
                 result = fn()
@@ -1030,23 +1026,23 @@ class DecisionEngine:
         duration = round(time.time() - start_ts, 2)
 
         summary: Dict[str, Any] = {
-            "started_at":          start_iso,
-            "completed_at":        datetime.now().isoformat(),
-            "duration_s":          duration,
-            "total_actions":       len(all_entries),
-            "market_actions":      len([e for e in all_entries if e.get("type") == "market"]),
-            "trend_actions":       len([e for e in all_entries if e.get("type") == "trend"]),
-            "health_actions":      len([e for e in all_entries if e.get("type") == "system"]),
+            "started_at": start_iso,
+            "completed_at": datetime.now().isoformat(),
+            "duration_s": duration,
+            "total_actions": len(all_entries),
+            "market_actions": len([e for e in all_entries if e.get("type") == "market"]),
+            "trend_actions": len([e for e in all_entries if e.get("type") == "trend"]),
+            "health_actions": len([e for e in all_entries if e.get("type") == "system"]),
             "performance_actions": len([e for e in all_entries if e.get("type") == "performance"]),
-            "lead_actions":        len([e for e in all_entries if e.get("type") == "leads"]),
-            "rule_actions":        len([e for e in all_entries
-                                        if e.get("type") not in ("market","trend","system","performance","leads")]),
-            "alerts_sent":         self._alerts_sent,
-            "errors":              errors,
-            "decisions":           all_entries,
+            "lead_actions": len([e for e in all_entries if e.get("type") == "leads"]),
+            "rule_actions": len([e for e in all_entries
+                                        if e.get("type") not in ("market", "trend", "system", "performance", "leads")]),
+            "alerts_sent": self._alerts_sent,
+            "errors": errors,
+            "decisions": all_entries,
         }
 
-        self._last_run_ts      = time.time()
+        self._last_run_ts = time.time()
         self._last_run_summary = summary
 
         logger.info(

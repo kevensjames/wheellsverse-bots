@@ -1,0 +1,7 @@
+{
+  "description": "Prompt Bible — generates 10,000 ChatGPT prompts product ($47 Gumroad). Daily promo posts to FB + IG.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 09:00",
+  "action": "promote"
+}

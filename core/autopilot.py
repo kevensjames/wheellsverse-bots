@@ -25,8 +25,12 @@ This is full autonomy. NarAI is the employee who never sleeps.
 """
 
 from __future__ import annotations
-import json, os, logging, threading, time
-from datetime import datetime, timezone, timedelta
+import json
+import os
+import logging
+import threading
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -38,7 +42,7 @@ log = logging.getLogger(__name__)
 
 STATE_FILE = Path("data/autopilot.json")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT  = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
 
 BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools, crypto, and passive income")
 
@@ -47,16 +51,16 @@ BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools, crypto, and passive income")
 
 class AutopilotState:
     def __init__(self):
-        self.enabled         = False
-        self.mode            = "full"     # full / content_only / monitor_only
+        self.enabled = False
+        self.mode = "full"     # full / content_only / monitor_only
         self.last_hourly_run = ""
-        self.last_daily_run  = ""
-        self.hourly_count    = 0
-        self.daily_count     = 0
-        self.total_posts     = 0
-        self.total_leads     = 0
+        self.last_daily_run = ""
+        self.hourly_count = 0
+        self.daily_count = 0
+        self.total_posts = 0
+        self.total_leads = 0
         self.errors: List[str] = []
-        self.log: List[Dict]   = []
+        self.log: List[Dict] = []
 
     def add_log(self, message: str, level: str = "INFO"):
         entry = {"ts": datetime.now(timezone.utc).isoformat(),
@@ -82,16 +86,16 @@ class AutopilotState:
     @classmethod
     def from_dict(cls, d: Dict) -> "AutopilotState":
         s = cls()
-        s.enabled          = d.get("enabled", False)
-        s.mode             = d.get("mode", "full")
-        s.last_hourly_run  = d.get("last_hourly_run", "")
-        s.last_daily_run   = d.get("last_daily_run", "")
-        s.hourly_count     = d.get("hourly_count", 0)
-        s.daily_count      = d.get("daily_count", 0)
-        s.total_posts      = d.get("total_posts", 0)
-        s.total_leads      = d.get("total_leads", 0)
-        s.errors           = d.get("errors", [])
-        s.log              = d.get("log", [])
+        s.enabled = d.get("enabled", False)
+        s.mode = d.get("mode", "full")
+        s.last_hourly_run = d.get("last_hourly_run", "")
+        s.last_daily_run = d.get("last_daily_run", "")
+        s.hourly_count = d.get("hourly_count", 0)
+        s.daily_count = d.get("daily_count", 0)
+        s.total_posts = d.get("total_posts", 0)
+        s.total_leads = d.get("total_leads", 0)
+        s.errors = d.get("errors", [])
+        s.log = d.get("log", [])
         return s
 
 
@@ -133,7 +137,7 @@ class AutopilotEngine:
 
     def enable(self, mode: str = "full"):
         self._state.enabled = True
-        self._state.mode    = mode
+        self._state.mode = mode
         self._save()
         self._start_loop()
         self._notify(f"🤖 NarAI Autopilot ENABLED — mode: {mode}\n\nShe's running on her own now.")
@@ -162,7 +166,7 @@ class AutopilotEngine:
         try:
             from core.trending import TrendingEngine
             trend_result = TrendingEngine.get().refresh()
-            s.add_log(f"Trends: {trend_result.get('total',0)} topics found")
+            s.add_log(f"Trends: {trend_result.get('total', 0)} topics found")
             results["trending"] = trend_result.get("total", 0)
         except Exception as e:
             s.add_log(f"Trending refresh failed: {e}", "WARNING")
@@ -245,7 +249,7 @@ class AutopilotEngine:
 
         # ── 1. Generate SEO blog post ─────────────────────────────────────────
         try:
-            from core.seo import generate_seo_content, research_keywords
+            from core.seo import generate_seo_content
             from core.trending import TrendingEngine
             trend = TrendingEngine.get().get_best_for_content(niche="crypto")
             keyword = (trend["topic"][:50] if trend else "AI tools for passive income 2025")
@@ -306,8 +310,8 @@ class AutopilotEngine:
 
         # ── 7. Keyword research for tomorrow ──────────────────────────────────
         try:
-            from core.seo import research_keywords
-            research_keywords("AI passive income 2025", niche="ai_tools", count=10)
+            from core.seo import research_keywords as _research_keywords
+            _research_keywords("AI passive income 2025", niche="ai_tools", count=10)
             s.add_log("Keyword research complete")
         except Exception as e:
             s.add_log(f"Keyword research failed: {e}", "WARNING")
@@ -506,12 +510,12 @@ class AutopilotEngine:
         """Show which engines are currently running."""
         active = {}
         for name, module, cls_name in [
-            ("feedback_loop",    "core.feedback_loop",    "FeedbackLoop"),
-            ("viral_detector",   "core.viral_detector",   "ViralDetector"),
-            ("dm_reply",         "core.dm_reply",         "DMReplyEngine"),
-            ("budget_manager",   "core.budget_manager",   "BudgetManager"),
-            ("trending",         "core.trending",         "TrendingEngine"),
-            ("goal_tracker",     "core.goal_tracker",     "GoalTracker"),
+            ("feedback_loop", "core.feedback_loop", "FeedbackLoop"),
+            ("viral_detector", "core.viral_detector", "ViralDetector"),
+            ("dm_reply", "core.dm_reply", "DMReplyEngine"),
+            ("budget_manager", "core.budget_manager", "BudgetManager"),
+            ("trending", "core.trending", "TrendingEngine"),
+            ("goal_tracker", "core.goal_tracker", "GoalTracker"),
             ("content_calendar", "core.content_calendar", "ContentCalendar"),
         ]:
             try:
@@ -532,11 +536,14 @@ class AutopilotEngine:
 def enable(mode: str = "full"):
     AutopilotEngine.get().enable(mode)
 
+
 def disable():
     AutopilotEngine.get().disable()
 
+
 def status() -> Dict:
     return AutopilotEngine.get().status()
+
 
 def run_now() -> Dict:
     return AutopilotEngine.get().run_hourly()

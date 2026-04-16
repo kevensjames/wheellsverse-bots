@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class FAQChatBot(BaseBot):
@@ -22,11 +22,11 @@ class FAQChatBot(BaseBot):
             brand_tone: str = None, num_faqs: int = None, **kwargs):
 
         cfg = self.config
-        product          = product or cfg.get("product", "WheellsVerse AI automation platform")
+        product = product or cfg.get("product", "WheellsVerse AI automation platform")
         common_questions = common_questions or cfg.get("common_questions",
             "pricing, how to get started, integrations, cancellation, technical issues")
-        brand_tone       = brand_tone or cfg.get("brand_tone", "helpful, clear, friendly")
-        num_faqs         = num_faqs or cfg.get("num_faqs", 25)
+        brand_tone = brand_tone or cfg.get("brand_tone", "helpful, clear, friendly")
+        num_faqs = num_faqs or cfg.get("num_faqs", 25)
 
         question_areas = [q.strip() for q in common_questions.split(",")]
         self.logger.info(f"Building FAQ system for: {product}")
@@ -137,10 +137,10 @@ How to keep the FAQ updated:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="FAQ Chatbot Builder")
-    parser.add_argument("--product",    type=str, default=None)
-    parser.add_argument("--questions",  type=str, default=None)
-    parser.add_argument("--tone",       type=str, default="helpful, friendly")
-    parser.add_argument("--count",      type=int, default=25)
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--questions", type=str, default=None)
+    parser.add_argument("--tone", type=str, default="helpful, friendly")
+    parser.add_argument("--count", type=int, default=25)
     args = parser.parse_args()
     bot = FAQChatBot()
     result = bot.execute(product=args.product, common_questions=args.questions,

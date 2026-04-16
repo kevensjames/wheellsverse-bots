@@ -10,22 +10,22 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 EPISODE_FORMATS = {
-    "solo":       "Solo host deep dive — monologue with storytelling",
-    "interview":  "Guest interview with prepared questions and flow",
-    "co_hosted":  "Two-host conversation with dynamic back-and-forth",
-    "panel":      "Multiple guests discussing a topic or case study",
+    "solo": "Solo host deep dive — monologue with storytelling",
+    "interview": "Guest interview with prepared questions and flow",
+    "co_hosted": "Two-host conversation with dynamic back-and-forth",
+    "panel": "Multiple guests discussing a topic or case study",
     "case_study": "In-depth walkthrough of a specific example or story",
-    "q_and_a":    "Audience questions answered by the host",
-    "roundup":    "Weekly/monthly news roundup or trend analysis",
+    "q_and_a": "Audience questions answered by the host",
+    "roundup": "Weekly/monthly news roundup or trend analysis",
 }
 
 EPISODE_LENGTHS = {
-    "short":    "15-20 minutes — quick insight or news format",
-    "medium":   "30-45 minutes — standard episode with story arc",
-    "long":     "60-90 minutes — deep dive or extended interview",
+    "short": "15-20 minutes — quick insight or news format",
+    "medium": "30-45 minutes — standard episode with story arc",
+    "long": "60-90 minutes — deep dive or extended interview",
 }
 
 
@@ -39,14 +39,14 @@ class PodcastGeneratorBot(BaseBot):
             episode_number: int = None, **kwargs):
 
         cfg = self.config
-        topic          = topic or cfg.get("topic",
+        topic = topic or cfg.get("topic",
             "How AI bots run your business while you sleep")
         episode_format = episode_format or cfg.get("episode_format", "solo")
         episode_length = episode_length or cfg.get("episode_length", "medium")
-        show_name      = show_name or cfg.get("show_name", "The WheellsVerse Podcast")
+        show_name = show_name or cfg.get("show_name", "The WheellsVerse Podcast")
         episode_number = episode_number or cfg.get("episode_number", 1)
 
-        fmt_desc    = EPISODE_FORMATS.get(episode_format, episode_format)
+        fmt_desc = EPISODE_FORMATS.get(episode_format, episode_format)
         length_desc = EPISODE_LENGTHS.get(episode_length, episode_length)
 
         self.logger.info(f"Generating podcast episode: {topic}")
@@ -238,13 +238,13 @@ Include [PAUSE] markers, transition phrases, and engagement hooks throughout.]
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Podcast Episode Generator")
-    parser.add_argument("--topic",    type=str, default=None)
-    parser.add_argument("--format",   type=str, default="solo",
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--format", type=str, default="solo",
                         choices=list(EPISODE_FORMATS.keys()))
-    parser.add_argument("--length",   type=str, default="medium",
+    parser.add_argument("--length", type=str, default="medium",
                         choices=list(EPISODE_LENGTHS.keys()))
-    parser.add_argument("--show",     type=str, default="The WheellsVerse Podcast")
-    parser.add_argument("--episode",  type=int, default=1)
+    parser.add_argument("--show", type=str, default="The WheellsVerse Podcast")
+    parser.add_argument("--episode", type=int, default=1)
     args = parser.parse_args()
     bot = PodcastGeneratorBot()
     result = bot.execute(topic=args.topic, episode_format=args.format,

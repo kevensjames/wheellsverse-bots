@@ -1,0 +1,7 @@
+{
+  "description": "Prompt intelligence — analyzes brand visibility in AI engine responses",
+  "default_brand": "WheellsVerse",
+  "default_industry": "passive income and crypto investing",
+  "ai_provider": "claude",
+  "enabled": true
+}

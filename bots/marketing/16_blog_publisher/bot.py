@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
@@ -25,10 +25,10 @@ class BlogPublisherBot(BaseBot):
             include_affiliate: bool = False, **kwargs):
 
         cfg = self.config
-        topic           = topic or cfg.get("topic", "How to automate your business with AI in 2025")
-        target_keyword  = target_keyword or cfg.get("target_keyword", "AI automation for business")
-        word_count      = word_count or cfg.get("word_count", 1500)
-        tone            = tone or cfg.get("tone", "authoritative, practical, engaging")
+        topic = topic or cfg.get("topic", "How to automate your business with AI in 2025")
+        target_keyword = target_keyword or cfg.get("target_keyword", "AI automation for business")
+        word_count = word_count or cfg.get("word_count", 1500)
+        tone = tone or cfg.get("tone", "authoritative, practical, engaging")
         include_affiliate = include_affiliate or cfg.get("include_affiliate", False)
 
         self.logger.info(f"Publishing blog post: {topic}")
@@ -131,7 +131,7 @@ TONE: {tone}
         publish_results = {}
 
         # ── Publish to WordPress ───────────────────────────────────────────────
-        wp_url  = os.getenv("WORDPRESS_URL", "").rstrip("/")
+        wp_url = os.getenv("WORDPRESS_URL", "").rstrip("/")
         wp_user = os.getenv("WORDPRESS_USER", "")
         wp_pass = os.getenv("WORDPRESS_APP_PASS", "").replace(" ", "")
         if wp_url and wp_user and wp_pass:
@@ -165,7 +165,7 @@ TONE: {tone}
                 self.logger.warning(f"WordPress publish error: {e}")
 
         # ── Post to Telegram ───────────────────────────────────────────────────
-        tg_token   = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
         tg_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
         if tg_token and tg_chat_id:
             try:
@@ -199,10 +199,10 @@ TONE: {tone}
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Blog Publisher Bot")
-    parser.add_argument("--topic",     type=str, default=None)
-    parser.add_argument("--keyword",   type=str, default=None)
-    parser.add_argument("--words",     type=int, default=1500)
-    parser.add_argument("--tone",      type=str, default="authoritative, practical")
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--keyword", type=str, default=None)
+    parser.add_argument("--words", type=int, default=1500)
+    parser.add_argument("--tone", type=str, default="authoritative, practical")
     parser.add_argument("--affiliate", action="store_true", help="Include affiliate links")
     args = parser.parse_args()
     bot = BlogPublisherBot()

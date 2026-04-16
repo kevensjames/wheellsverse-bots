@@ -15,26 +15,26 @@ Revenue model per book:
   - Full novel (50K words): $4.99-$9.99 → exponential after reviews
   - Series: first book free → hook readers → sell sequels
 """
-import json
 import os
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 GENRE_OUTPUT_MAP = {
-    "childrens":   "childrens",
-    "mystery":     "mystery",
-    "adventure":   "adventure",
-    "historical":  "historical",
-    "self_help":   "self_help",
-    "romance":     "romance",
-    "sci_fi":      "sci_fi",
-    "fantasy":     "fantasy",
-    "horror":      "horror",
-    "true_crime":  "true_crime",
+    "childrens": "childrens",
+    "mystery": "mystery",
+    "adventure": "adventure",
+    "historical": "historical",
+    "self_help": "self_help",
+    "romance": "romance",
+    "sci_fi": "sci_fi",
+    "fantasy": "fantasy",
+    "horror": "horror",
+    "true_crime": "true_crime",
 }
 
 PRICE_MAP = {
@@ -73,13 +73,13 @@ class BaseBookBot(BaseBot):
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         actions = {
-            "write":    self._write_book,
-            "outline":  self._outline,
-            "chapter":  self._write_chapter,
-            "cover":    self._cover_brief,
-            "listing":  self._kdp_listing,
-            "promote":  self._promote,
-            "series":   self._plan_series,
+            "write": self._write_book,
+            "outline": self._outline,
+            "chapter": self._write_chapter,
+            "cover": self._cover_brief,
+            "listing": self._kdp_listing,
+            "promote": self._promote,
+            "series": self._plan_series,
         }
         fn = actions.get(action, self._write_book)
         return fn(ts, **kwargs)
@@ -115,9 +115,9 @@ class BaseBookBot(BaseBot):
 
         # KDP-competitive word targets — minimum 10,000 for a viable ebook
         word_targets = {
-            "short":  "12,000-18,000",   # novelette — ~60-80 pages
+            "short": "12,000-18,000",   # novelette — ~60-80 pages
             "medium": "30,000-45,000",   # novella — ~120-180 pages
-            "full":   "55,000-80,000",   # novel — ~220-320 pages
+            "full": "55,000-80,000",   # novel — ~220-320 pages
         }
         word_target = word_targets.get(length, "12,000-18,000")
 
@@ -142,6 +142,24 @@ class BaseBookBot(BaseBot):
             "Ends on: [hook]\n"
         )
         outline_raw = self.claude(outline_prompt, system=sys_prompt, max_tokens=4000)
+        # ── Character name conflict guard ────────────────────────────────────
+        try:
+            from core.character_registry import get_character_registry
+            _cr = get_character_registry()
+            _proposed = re.findall(r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\b', outline_raw)
+            _series = kwargs.get('series_name', title)
+            _conflicts = _cr.check_conflicts(_proposed, series_name=_series)
+            if _conflicts:
+                self.logger.warning(
+                    "Character name conflicts detected: %s — regenerating outline with different names",
+                    _conflicts
+                )
+                outline_raw = self.claude(
+                    outline_prompt + f"\n\nCRITICAL: The following names are ALREADY USED in other WheellsVerse books — you MUST use completely different, unique names instead: {', '.join(_conflicts)}",
+                    system=sys_prompt, max_tokens=4000
+                )
+        except Exception as _cr_err:
+            self.logger.debug("Character registry check skipped: %s", _cr_err)
 
         # ── Step 2: Write each chapter based on outline ──────────────────────
         self.logger.info("Pass 2/3 — writing full manuscript chapter by chapter")
@@ -169,7 +187,7 @@ class BaseBookBot(BaseBot):
         for i, (ch_num, ch_title) in enumerate(chapter_lines):
             ch_title = ch_title.strip()
             is_first = i == 0
-            is_last  = i == len(chapter_lines) - 1
+            is_last = i == len(chapter_lines) - 1
 
             instructions = ""
             if is_first:
@@ -211,6 +229,19 @@ class BaseBookBot(BaseBot):
         )
         result = "\n\n".join(chapters) + back_matter
 
+        # ── Step 3b: Ensure the book has a proper ending ────────────────────
+        if not self._is_complete(result):
+            self.logger.warning("Book missing proper ending — asking Claude to complete it")
+            try:
+                ending = self.claude(
+                    f"The following {self.genre} book is missing its ending. Write a final closing paragraph "                    f"(150-250 words) that resolves any open threads, then write '**THE END**' on its own line.\n\n"                    f"Book title: {title}\n\nLast 800 words of the manuscript:\n{result[-3200:]}",
+                    system=sys_prompt, max_tokens=700,
+                )
+                result = result.rstrip() + "\n\n" + ending.strip()
+                self.logger.info("Ending appended by completeness check")
+            except Exception as _end_err:
+                self.logger.warning("Completeness fix failed: %s", _end_err)
+
         safe_title = title.lower().replace(" ", "_").replace("'", "")[:40]
         fpath = self.output_dir / f"{safe_title}_{ts}.md"
         fpath.write_text(result, encoding="utf-8")
@@ -221,7 +252,7 @@ class BaseBookBot(BaseBot):
 
         # ── Step 4: Generate cover image via DALL-E ──────────────────────────
         cover_path = None
-        canva_url  = None
+        canva_url = None
         try:
             cover_path = self._generate_cover_image(title, ts)
             self.logger.info("Cover generated: %s", cover_path)
@@ -250,17 +281,63 @@ class BaseBookBot(BaseBot):
         except Exception:
             pass
 
-        return {
-            "file":       str(path),
+        # ── Step 7: Auto pipeline: QC → Publisher Engine ─────────────────────
+        auto_result = {}
+        if kwargs.get("auto_pipeline", True):
+            auto_result = self._auto_pipeline(result, title, fpath, ts)
+
+        base_dict = {
+            "file": str(path),
             "manuscript": str(fpath),
-            "html":       str(html_path) if html_path else None,
-            "cover":      str(cover_path) if cover_path else None,
-            "canva_url":  canva_url,
+            "html": str(html_path) if html_path else None,
+            "cover": str(cover_path) if cover_path else None,
+            "canva_url": canva_url,
             "word_count": word_count,
-            "action":     "write",
-            "title":      title,
-            "genre":      self.genre,
+            "action": "write",
+            "title": title,
+            "genre": self.genre,
         }
+        base_dict.update(auto_result)
+        return base_dict
+
+    def _auto_pipeline(self, manuscript: str, title: str, fpath, ts: str) -> dict:
+        """
+        After writing: run QC → if approved, run Publisher Engine → auto-queue for KDP.
+        Non-fatal: errors are logged but do not raise.
+        """
+        result = {}
+        try:
+            from core.literary_qc import LiteraryQCAgent
+            qc = LiteraryQCAgent()
+            qc_result = qc.full_book_analysis(
+                manuscript, title,
+                genre=self.genre,
+                manuscript_path=str(fpath),
+            )
+            result["qc_result"] = qc_result
+            result["autopilot_queued"] = qc_result.get("autopilot_queued", False)
+            result["rewrite_queued"] = qc_result.get("rewrite_needed", False)
+
+            if qc_result.get("approved", False):
+                self.logger.info("QC approved — running Publisher Engine for: %s", title)
+                try:
+                    from bots.books.publisher_engine.pipeline import PublisherEnginePipeline
+                    pe = PublisherEnginePipeline()
+                    pe_result = pe.process(manuscript, title, self.genre)
+                    result["publisher_engine_result"] = {
+                        k: v for k, v in pe_result.items()
+                        if k not in ("agents",)
+                    }
+                except Exception as pe_err:
+                    self.logger.warning("Publisher Engine failed (non-fatal): %s", pe_err)
+            else:
+                self.logger.info(
+                    "QC rejected (%s) — book queued for rewrite, Publisher Engine skipped",
+                    qc_result.get("verdict", "REJECTED"),
+                )
+        except Exception as e:
+            self.logger.warning("Auto-pipeline failed (non-fatal): %s", e)
+        return result
 
     # ── Cover + packaging helpers ─────────────────────────────────────────────
 
@@ -290,7 +367,7 @@ class BaseBookBot(BaseBot):
         covers_dir = Path(__file__).resolve().parents[2] / "outputs" / "books" / "covers" / "generated"
         covers_dir.mkdir(parents=True, exist_ok=True)
         safe = title.lower().replace(" ", "_")[:30]
-        out  = covers_dir / f"cover_{self.genre}_{safe}_{ts}.png"
+        out = covers_dir / f"cover_{self.genre}_{safe}_{ts}.png"
         urllib.request.urlretrieve(img_url, str(out))
         return out
 
@@ -303,8 +380,8 @@ class BaseBookBot(BaseBot):
 
         # Simple markdown → HTML conversion (no extra deps)
         import re as _re
-        lines   = manuscript.split("\n")
-        body    = []
+        lines = manuscript.split("\n")
+        body = []
         for line in lines:
             if line.startswith("# "):
                 body.append(f'<h1 class="title">{line[2:]}</h1>')
@@ -323,7 +400,7 @@ class BaseBookBot(BaseBot):
             else:
                 # Bold and italic inline
                 line = _re.sub(r'\*\*(.+?)\*\*', r'<strong>\1</strong>', line)
-                line = _re.sub(r'\*(.+?)\*',     r'<em>\1</em>', line)
+                line = _re.sub(r'\*(.+?)\*', r'<em>\1</em>', line)
                 body.append(f'<p>{line}</p>')
 
         cover_html = ""

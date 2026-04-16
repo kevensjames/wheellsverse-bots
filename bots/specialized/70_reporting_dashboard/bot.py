@@ -10,24 +10,24 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 REPORT_TYPES = {
-    "weekly":    "Weekly operations and performance review",
-    "monthly":   "Monthly business performance summary",
+    "weekly": "Weekly operations and performance review",
+    "monthly": "Monthly business performance summary",
     "quarterly": "Quarterly strategic review and goal assessment",
-    "annual":    "Annual business review and next-year planning",
-    "launch":    "Product or campaign launch performance report",
+    "annual": "Annual business review and next-year planning",
+    "launch": "Product or campaign launch performance report",
     "marketing": "Marketing and content performance breakdown",
-    "revenue":   "Revenue and financial performance report",
-    "growth":    "Growth metrics and audience/follower report",
+    "revenue": "Revenue and financial performance report",
+    "growth": "Growth metrics and audience/follower report",
 }
 
 BUSINESS_STAGES = {
-    "pre_revenue":   "Pre-revenue -- tracking activities and pipeline",
+    "pre_revenue": "Pre-revenue -- tracking activities and pipeline",
     "early_revenue": "Early revenue ($0-$10K MRR) -- proving the model",
-    "growth":        "Growth ($10K-$100K MRR) -- scaling what works",
-    "scale":         "Scale ($100K+ MRR) -- optimizing for efficiency",
+    "growth": "Growth ($10K-$100K MRR) -- scaling what works",
+    "scale": "Scale ($100K+ MRR) -- optimizing for efficiency",
 }
 
 
@@ -41,15 +41,15 @@ class ReportingDashboardBot(BaseBot):
             stage: str = None, **kwargs):
 
         cfg = self.config
-        report_type   = report_type or cfg.get("report_type", "weekly")
+        report_type = report_type or cfg.get("report_type", "weekly")
         business_type = business_type or cfg.get("business_type",
             "SaaS/AI automation tools -- WheellsVerse")
-        metrics       = metrics or cfg.get("metrics",
+        metrics = metrics or cfg.get("metrics",
             "revenue, new subscribers, content views, bot executions, email list growth, social followers")
-        period        = period or cfg.get("period", "current week")
-        stage         = stage or cfg.get("stage", "early_revenue")
+        period = period or cfg.get("period", "current week")
+        stage = stage or cfg.get("stage", "early_revenue")
 
-        type_desc  = REPORT_TYPES.get(report_type, report_type)
+        type_desc = REPORT_TYPES.get(report_type, report_type)
         stage_desc = BUSINESS_STAGES.get(stage, stage)
 
         self.logger.info(f"Building {report_type} business report for: {business_type}")
@@ -266,13 +266,13 @@ METRICS TO TRACK: {metrics}
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Business Reporting Dashboard Builder")
-    parser.add_argument("--type",     type=str, default="weekly",
+    parser.add_argument("--type", type=str, default="weekly",
                         choices=list(REPORT_TYPES.keys()))
     parser.add_argument("--business", type=str, default=None)
-    parser.add_argument("--metrics",  type=str, default=None,
+    parser.add_argument("--metrics", type=str, default=None,
                         help="Comma-separated list of metrics to include")
-    parser.add_argument("--period",   type=str, default="current week")
-    parser.add_argument("--stage",    type=str, default="early_revenue",
+    parser.add_argument("--period", type=str, default="current week")
+    parser.add_argument("--stage", type=str, default="early_revenue",
                         choices=list(BUSINESS_STAGES.keys()))
     args = parser.parse_args()
     bot = ReportingDashboardBot()

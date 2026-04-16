@@ -10,50 +10,50 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 DOC_TYPES = {
     "api_reference": {
-        "desc":      "Complete API reference documentation",
-        "sections":  "Overview, authentication, endpoints, request/response examples, error codes, rate limits, SDKs",
-        "audience":  "developers integrating the API",
+        "desc": "Complete API reference documentation",
+        "sections": "Overview, authentication, endpoints, request/response examples, error codes, rate limits, SDKs",
+        "audience": "developers integrating the API",
     },
     "user_guide": {
-        "desc":      "End-user product guide from setup to advanced usage",
-        "sections":  "Introduction, installation, core features, advanced usage, troubleshooting, FAQ",
-        "audience":  "end users of the product",
+        "desc": "End-user product guide from setup to advanced usage",
+        "sections": "Introduction, installation, core features, advanced usage, troubleshooting, FAQ",
+        "audience": "end users of the product",
     },
     "tutorial": {
-        "desc":      "Step-by-step tutorial for a specific task",
-        "sections":  "Prerequisites, overview, step-by-step instructions, code examples, next steps",
-        "audience":  "users learning to do a specific thing",
+        "desc": "Step-by-step tutorial for a specific task",
+        "sections": "Prerequisites, overview, step-by-step instructions, code examples, next steps",
+        "audience": "users learning to do a specific thing",
     },
     "sop": {
-        "desc":      "Standard Operating Procedure for a business process",
-        "sections":  "Purpose, scope, responsibilities, step-by-step procedure, quality checks, revision history",
-        "audience":  "team members executing the process",
+        "desc": "Standard Operating Procedure for a business process",
+        "sections": "Purpose, scope, responsibilities, step-by-step procedure, quality checks, revision history",
+        "audience": "team members executing the process",
     },
     "release_notes": {
-        "desc":      "Product release notes / changelog",
-        "sections":  "Version, date, new features, improvements, bug fixes, breaking changes, upgrade notes",
-        "audience":  "existing users and developers upgrading",
+        "desc": "Product release notes / changelog",
+        "sections": "Version, date, new features, improvements, bug fixes, breaking changes, upgrade notes",
+        "audience": "existing users and developers upgrading",
     },
     "readme": {
-        "desc":      "GitHub/project README documentation",
-        "sections":  "Overview, features, installation, quick start, usage, configuration, contributing, license",
-        "audience":  "developers evaluating or using the project",
+        "desc": "GitHub/project README documentation",
+        "sections": "Overview, features, installation, quick start, usage, configuration, contributing, license",
+        "audience": "developers evaluating or using the project",
     },
     "architecture_doc": {
-        "desc":      "Technical architecture and system design document",
-        "sections":  "System overview, components, data flow, tech stack, scalability, security, decisions",
-        "audience":  "engineers and technical stakeholders",
+        "desc": "Technical architecture and system design document",
+        "sections": "System overview, components, data flow, tech stack, scalability, security, decisions",
+        "audience": "engineers and technical stakeholders",
     },
 }
 
 COMPLEXITY_LEVELS = {
-    "beginner":      "Assume no prior technical knowledge — explain every concept",
-    "intermediate":  "Assume basic technical knowledge — focus on the product-specific details",
-    "advanced":      "Assume technical expertise — skip basics, focus on edge cases and nuances",
+    "beginner": "Assume no prior technical knowledge — explain every concept",
+    "intermediate": "Assume basic technical knowledge — focus on the product-specific details",
+    "advanced": "Assume technical expertise — skip basics, focus on edge cases and nuances",
 }
 
 
@@ -67,18 +67,18 @@ class TechnicalWriterBot(BaseBot):
             specific_topic: str = None, **kwargs):
 
         cfg = self.config
-        product       = product or cfg.get("product",
+        product = product or cfg.get("product",
             "WheellsVerse Bot Platform — Python-based AI automation bot ecosystem")
-        doc_type      = doc_type or cfg.get("doc_type", "user_guide")
-        audience      = audience or cfg.get("audience", "developers and technical entrepreneurs")
-        complexity    = complexity or cfg.get("complexity", "intermediate")
+        doc_type = doc_type or cfg.get("doc_type", "user_guide")
+        audience = audience or cfg.get("audience", "developers and technical entrepreneurs")
+        complexity = complexity or cfg.get("complexity", "intermediate")
         specific_topic = specific_topic or cfg.get("specific_topic",
             "Getting started with WheellsVerse bots")
 
         dt = DOC_TYPES.get(doc_type, DOC_TYPES["user_guide"])
-        dt_desc     = dt["desc"]
+        dt_desc = dt["desc"]
         dt_sections = dt["sections"]
-        cx_desc     = COMPLEXITY_LEVELS.get(complexity, complexity)
+        cx_desc = COMPLEXITY_LEVELS.get(complexity, complexity)
 
         self.logger.info(f"Writing {doc_type} for: {product}")
 
@@ -197,13 +197,13 @@ Common issues and solutions for {specific_topic}:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Technical Documentation Writer")
-    parser.add_argument("--product",    type=str, default=None)
-    parser.add_argument("--type",       type=str, default="user_guide",
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--type", type=str, default="user_guide",
                         choices=list(DOC_TYPES.keys()))
-    parser.add_argument("--audience",   type=str, default=None)
+    parser.add_argument("--audience", type=str, default=None)
     parser.add_argument("--complexity", type=str, default="intermediate",
                         choices=list(COMPLEXITY_LEVELS.keys()))
-    parser.add_argument("--topic",      type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     args = parser.parse_args()
     bot = TechnicalWriterBot()
     result = bot.execute(product=args.product, doc_type=args.type,

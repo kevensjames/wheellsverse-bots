@@ -1,0 +1,7 @@
+{
+  "description": "SEO Blog — publishes 1 optimized article daily targeting high-value keywords. Monetized via affiliate links.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 05:00",
+  "action": "write"
+}

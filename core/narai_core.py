@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -268,7 +267,6 @@ class NarAICore:
             from core.narai_memory_manager import save as mem_save
             session_id = f"core_cycle_{int(time.time())}"
             stats = {"goal": goal, "metrics": metrics}
-            content_count = metrics.get("success", 0)
             mem_save(
                 tier="autopilot",
                 key=session_id,

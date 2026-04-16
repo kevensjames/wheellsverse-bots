@@ -1,0 +1,7 @@
+{
+  "description": "NEXORA Beta — recruits founding creators ($29/month), manages landing page and onboarding. 50 spots = $1,450 MRR.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 15:00",
+  "action": "recruit"
+}

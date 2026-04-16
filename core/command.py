@@ -12,7 +12,7 @@ import logging
 import os
 import re
 import threading
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 logger = logging.getLogger("command")
 

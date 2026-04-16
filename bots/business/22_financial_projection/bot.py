@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class FinancialProjectionBot(BaseBot):
@@ -23,11 +23,11 @@ class FinancialProjectionBot(BaseBot):
             monthly_expenses: float = None, **kwargs):
 
         cfg = self.config
-        business_type      = business_type or cfg.get("business_type", "SaaS")
-        revenue_model      = revenue_model or cfg.get("revenue_model", "subscription + affiliate")
-        starting_mrr       = starting_mrr or cfg.get("starting_mrr", 500)
+        business_type = business_type or cfg.get("business_type", "SaaS")
+        revenue_model = revenue_model or cfg.get("revenue_model", "subscription + affiliate")
+        starting_mrr = starting_mrr or cfg.get("starting_mrr", 500)
         monthly_growth_rate = monthly_growth_rate or cfg.get("monthly_growth_rate", 15)
-        monthly_expenses   = monthly_expenses or cfg.get("monthly_expenses", 300)
+        monthly_expenses = monthly_expenses or cfg.get("monthly_expenses", 300)
 
         self.logger.info(f"Building financial projections: {business_type} | MRR: ${starting_mrr}")
 
@@ -138,10 +138,10 @@ List the 10 key assumptions behind these projections and the risk if each is wro
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Financial Projection Generator")
-    parser.add_argument("--type",     type=str, default="SaaS")
-    parser.add_argument("--model",    type=str, default="subscription", dest="rev_model")
-    parser.add_argument("--mrr",      type=float, default=500)
-    parser.add_argument("--growth",   type=float, default=15)
+    parser.add_argument("--type", type=str, default="SaaS")
+    parser.add_argument("--model", type=str, default="subscription", dest="rev_model")
+    parser.add_argument("--mrr", type=float, default=500)
+    parser.add_argument("--growth", type=float, default=15)
     parser.add_argument("--expenses", type=float, default=300)
     args = parser.parse_args()
     bot = FinancialProjectionBot()

@@ -10,21 +10,21 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 PLAN_DURATIONS = {
-    "30_days":  "Month 1 -- Foundation: establish presence and test content",
-    "60_days":  "Months 1-2 -- Build: grow audience and identify what works",
-    "90_days":  "Months 1-3 -- Scale: double down on winners, expand reach",
+    "30_days": "Month 1 -- Foundation: establish presence and test content",
+    "60_days": "Months 1-2 -- Build: grow audience and identify what works",
+    "90_days": "Months 1-3 -- Scale: double down on winners, expand reach",
 }
 
 CONTENT_GOALS = {
-    "grow_audience":   "Maximize follower growth and reach",
-    "drive_revenue":   "Convert audience into customers",
+    "grow_audience": "Maximize follower growth and reach",
+    "drive_revenue": "Convert audience into customers",
     "build_authority": "Establish thought leadership and credibility",
-    "launch_product":  "Build anticipation and launch a product/service",
+    "launch_product": "Build anticipation and launch a product/service",
     "grow_email_list": "Convert social followers to email subscribers",
-    "mixed":           "Balance of all the above",
+    "mixed": "Balance of all the above",
 }
 
 
@@ -38,18 +38,18 @@ class ContentPlanningBot(BaseBot):
             content_themes: str = None, **kwargs):
 
         cfg = self.config
-        niche          = niche or cfg.get("niche", "AI automation and entrepreneurship")
-        plan_duration  = plan_duration or cfg.get("plan_duration", "90_days")
-        platforms      = platforms or cfg.get("platforms", "twitter,instagram,linkedin,tiktok")
-        goal           = goal or cfg.get("goal", "grow_audience")
+        niche = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        plan_duration = plan_duration or cfg.get("plan_duration", "90_days")
+        platforms = platforms or cfg.get("platforms", "twitter,instagram,linkedin,tiktok")
+        goal = goal or cfg.get("goal", "grow_audience")
         content_themes = content_themes or cfg.get("content_themes",
             "AI tools, automation tips, entrepreneur mindset, passive income, behind-the-scenes")
 
         duration_desc = PLAN_DURATIONS.get(plan_duration, plan_duration)
-        goal_desc     = CONTENT_GOALS.get(goal, goal)
+        goal_desc = CONTENT_GOALS.get(goal, goal)
         platform_list = [p.strip() for p in platforms.split(",")]
-        days          = int(plan_duration.split("_")[0])
-        weeks         = days // 7
+        days = int(plan_duration.split("_")[0])
+        weeks = days // 7
 
         self.logger.info(f"Building {plan_duration} content plan for {niche}")
 
@@ -251,13 +251,13 @@ High-potential ideas for {niche} -- ready to execute:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="30/60/90-Day Content Strategy Planner")
-    parser.add_argument("--niche",     type=str, default=None)
-    parser.add_argument("--duration",  type=str, default="90_days",
+    parser.add_argument("--niche", type=str, default=None)
+    parser.add_argument("--duration", type=str, default="90_days",
                         choices=list(PLAN_DURATIONS.keys()))
     parser.add_argument("--platforms", type=str, default="twitter,instagram,linkedin,tiktok")
-    parser.add_argument("--goal",      type=str, default="grow_audience",
+    parser.add_argument("--goal", type=str, default="grow_audience",
                         choices=list(CONTENT_GOALS.keys()))
-    parser.add_argument("--themes",    type=str, default=None)
+    parser.add_argument("--themes", type=str, default=None)
     args = parser.parse_args()
     bot = ContentPlanningBot()
     result = bot.execute(niche=args.niche, plan_duration=args.duration,

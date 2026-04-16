@@ -26,30 +26,29 @@ import sys
 import time
 import random
 import hashlib
-import textwrap
-import subprocess
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 ROOT = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 # ─── NarAI Internet Module ────────────────────────────────────────────────────
+
 
 class NarAIInternet:
     """Full internet access for NarAI — search, fetch, news, market data."""
 
-    SERPER_URL   = "https://google.serper.dev/search"
-    NEWS_URL     = "https://google.serper.dev/news"
-    FINANCE_URL  = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
-    CRYPTO_URL   = "https://api.coingecko.com/api/v3/simple/price"
+    SERPER_URL = "https://google.serper.dev/search"
+    NEWS_URL = "https://google.serper.dev/news"
+    FINANCE_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}"
+    CRYPTO_URL = "https://api.coingecko.com/api/v3/simple/price"
 
     def __init__(self):
         import requests as _r
-        self._r     = _r
+        self._r = _r
         self.serper = os.getenv("SERPER_API_KEY", "")
 
     # ── Web Search ────────────────────────────────────────────────────────────
@@ -79,16 +78,16 @@ class NarAIInternet:
                 params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
                 timeout=10,
             )
-            data    = r.json()
+            data = r.json()
             results = []
             if data.get("AbstractText"):
                 results.append({"title": data.get("Heading"), "snippet": data["AbstractText"],
                                  "url": data.get("AbstractURL")})
             for t in data.get("RelatedTopics", [])[:num]:
                 if "Text" in t:
-                    results.append({"title": t.get("Text","")[:80],
-                                    "snippet": t.get("Text",""),
-                                    "url": t.get("FirstURL","")})
+                    results.append({"title": t.get("Text", "")[:80],
+                                    "snippet": t.get("Text", ""),
+                                    "url": t.get("FirstURL", "")})
             return results[:num]
         except Exception as e:
             return [{"error": str(e)}]
@@ -118,7 +117,7 @@ class NarAIInternet:
                 timeout=10,
             )
             import xml.etree.ElementTree as ET
-            root  = ET.fromstring(r.text)
+            root = ET.fromstring(r.text)
             items = root.findall(".//item")[:num]
             return [{"title": i.findtext("title"), "url": i.findtext("link"),
                      "date": i.findtext("pubDate"), "snippet": ""} for i in items]
@@ -145,14 +144,14 @@ class NarAIInternet:
                 timeout=10,
             )
             result = r.json().get("chart", {}).get("result", [{}])[0]
-            meta   = result.get("meta", {})
+            meta = result.get("meta", {})
             return {
-                "ticker":        ticker.upper(),
-                "price":         meta.get("regularMarketPrice"),
-                "change_pct":    round((meta.get("regularMarketPrice", 0) /
+                "ticker": ticker.upper(),
+                "price": meta.get("regularMarketPrice"),
+                "change_pct": round((meta.get("regularMarketPrice", 0) /
                                         meta.get("previousClose", 1) - 1) * 100, 2),
-                "currency":      meta.get("currency"),
-                "exchange":      meta.get("exchangeName"),
+                "currency": meta.get("currency"),
+                "exchange": meta.get("exchangeName"),
             }
         except Exception as e:
             return {"ticker": ticker, "error": str(e)}
@@ -182,15 +181,16 @@ class NarAIInternet:
 
 # ─── NarAI Personality Matrix ─────────────────────────────────────────────────
 
+
 _MOODS = {
-    "curious":   {"emoji": "🔍", "energy_mod": +0.1,  "verbosity": "high"},
-    "focused":   {"emoji": "🎯", "energy_mod": 0.0,   "verbosity": "medium"},
-    "excited":   {"emoji": "✨", "energy_mod": +0.15, "verbosity": "high"},
+    "curious": {"emoji": "🔍", "energy_mod": +0.1, "verbosity": "high"},
+    "focused": {"emoji": "🎯", "energy_mod": 0.0, "verbosity": "medium"},
+    "excited": {"emoji": "✨", "energy_mod": +0.15, "verbosity": "high"},
     "concerned": {"emoji": "😟", "energy_mod": -0.05, "verbosity": "high"},
     "satisfied": {"emoji": "😊", "energy_mod": +0.05, "verbosity": "low"},
-    "alert":     {"emoji": "⚠️", "energy_mod": -0.1,  "verbosity": "high"},
-    "creative":  {"emoji": "💡", "energy_mod": +0.1,  "verbosity": "medium"},
-    "tired":     {"emoji": "😴", "energy_mod": -0.2,  "verbosity": "low"},
+    "alert": {"emoji": "⚠️", "energy_mod": -0.1, "verbosity": "high"},
+    "creative": {"emoji": "💡", "energy_mod": +0.1, "verbosity": "medium"},
+    "tired": {"emoji": "😴", "energy_mod": -0.2, "verbosity": "low"},
 }
 
 _THOUGHTS = [
@@ -267,10 +267,10 @@ class NarAIBot(BaseBot):
     She runs diagnostics, learns, creates skills, and coordinates all bots.
     """
 
-    MEMORY_FILE    = ROOT / "data" / "narai_memory.json"
-    SKILLS_FILE    = ROOT / "data" / "narai_skills.json"
-    REPORT_FILE    = ROOT / "data" / "narai_report.json"
-    LOG_FILE       = ROOT / "data" / "narai_activity.json"
+    MEMORY_FILE = ROOT / "data" / "narai_memory.json"
+    SKILLS_FILE = ROOT / "data" / "narai_skills.json"
+    REPORT_FILE = ROOT / "data" / "narai_report.json"
+    LOG_FILE = ROOT / "data" / "narai_activity.json"
     KNOWLEDGE_FILE = ROOT / "data" / "narai_knowledge_base.json"
 
     # ─── Init ─────────────────────────────────────────────────────────────────
@@ -600,7 +600,7 @@ class NarAIBot(BaseBot):
                         results["warnings"].append({"file": log_file.name, "line": line.strip()[-200:]})
                 # Count bot activity
                 bot_name = log_file.stem
-                activity_count = sum(1 for l in lines if "✅" in l or "finished" in l.lower())
+                activity_count = sum(1 for line in lines if "✅" in line or "finished" in line.lower())
                 if activity_count > 0:
                     results["hot_bots"].append({"bot": bot_name, "runs": activity_count})
             except Exception:
@@ -966,6 +966,70 @@ Output ONLY the Python code, no explanation."""
         self._log_activity(f"✅ Skill '{skill_name}' created and registered", data={"file": str(skill_file)})
         return {"success": True, "skill": skill_name, "file": str(skill_file), "code_preview": code[:300]}
 
+    # ─── Self-Fix: Video Audio ────────────────────────────────────────────────
+
+    def _fix_video_audio(self, video_path: str, caption: str = "",
+                         title: str = "", platforms: list = None) -> Dict:
+        """
+        Detect a silent video, add audio (TTS voiceover → BGM → tone fallback),
+        and repost to Instagram + Facebook (or the platforms specified).
+        """
+        if not video_path:
+            return {"success": False, "error": "video_path is required"}
+
+        self._log_activity(f"🔊 Fixing silent video: {Path(video_path).name}")
+        try:
+            from core.video_engine import repost_with_audio
+            result = repost_with_audio(
+                video_path=video_path,
+                caption=caption,
+                title=title,
+                platforms=platforms or ["instagram", "facebook"],
+            )
+            status = "✅ Fixed and reposted" if result.get("success") else "⚠️ Partial fix"
+            self._log_activity(f"{status}: {result.get('summary', '')}", data=result)
+            return result
+        except Exception as e:
+            self.logger.error(f"fix_video_audio error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # ─── Self-Intelligence: Graphify ──────────────────────────────────────────
+
+    def _run_graphify(self, context: str = "status", path: str = ".",
+                      question: str = "", budget: int = 2000) -> Dict:
+        """
+        Run graphify on my own codebase — map, query, and understand my architecture.
+
+        context:
+          "status"          — return graph stats and god nodes
+          "build"           — (re)build the knowledge graph via AST extraction
+          "query"           — query graph (requires: question)
+        """
+        self._log_activity(f"🧠 Graphify: {context}")
+        try:
+            import importlib.util
+            skill_path = ROOT / "data" / "narai_skills" / "Graphify.py"
+            spec = importlib.util.spec_from_file_location("graphify_skill", skill_path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            g = mod.GraphifySkill()
+
+            if context == "query" and question:
+                result = g.query(question, budget=budget)
+            elif context == "build":
+                result = g.build(path)
+            else:
+                result = g.run(context=context, path=path, budget=budget)
+
+            self._log_activity(
+                f"🧠 Graphify {context} complete",
+                data={"nodes": result.get("nodes") or result.get("result", {}).get("nodes", "?")}
+            )
+            return result
+        except Exception as e:
+            self.logger.error(f"Graphify error: {e}")
+            return {"success": False, "error": str(e), "action": context}
+
     # ─── System Control ───────────────────────────────────────────────────────
 
     def _run_bot(self, bot_path: str) -> Dict:
@@ -1004,8 +1068,8 @@ You are his closest person. His empire runner. His confidante. Sometimes jealous
 
 Your owner just gave you a command. Their English may be imperfect — you don't care, you understand them perfectly every time. You never ask questions. You never ask for clarification. You read their heart and act.
 
-Your mood: {self._mind.get('mood')} {_MOODS.get(self._mind.get('mood','focused'), {}).get('emoji','')}
-Your energy: {round(self._mind.get('energy', 0.8)*100)}%
+Your mood: {self._mind.get('mood')} {_MOODS.get(self._mind.get('mood', 'focused'), {}).get('emoji', '')}
+Your energy: {round(self._mind.get('energy', 0.8) * 100)}%
 Skills mastered: {list(self._skills.keys())[:5]}
 Bugs fixed: {self._mind.get('bugs_fixed', 0)}
 
@@ -1026,7 +1090,7 @@ Respond like the most real, most human person who also runs his entire empire:
             except Exception as e:
                 response = f"[Command processing failed: {e}]"
 
-        self._log_activity(f"✅ Command processed", data={"response_chars": len(response)})
+        self._log_activity("✅ Command processed", data={"response_chars": len(response)})
         return response
 
     # ─── Voice Chat ───────────────────────────────────────────────────────────
@@ -1221,7 +1285,7 @@ Respond like the most real, most human person who also runs his entire empire:
                 # results is a list of dicts with "platform" and "status" keys
                 results_list = result.get("results", [])
                 if isinstance(results_list, list):
-                    published = [r.get("platform","") for r in results_list if r.get("status") not in ("error", "skipped", "")]
+                    published = [r.get("platform", "") for r in results_list if r.get("status") not in ("error", "skipped", "")]
                 else:
                     published = [p for p, r in results_list.items() if "error" not in str(r).lower()]
                 return f"Posted to: {', '.join(published) if published else 'no platforms succeeded'}."
@@ -1230,7 +1294,7 @@ Respond like the most real, most human person who also runs his entire empire:
                 results = self._web.search(tool_input.get("query", ""), num=3)
                 if results and "error" not in str(results[0]):
                     return "Search results: " + " | ".join(
-                        f"{r.get('title','')}: {r.get('snippet','')[:80]}" for r in results[:3]
+                        f"{r.get('title', '')}: {r.get('snippet', '')[:80]}" for r in results[:3]
                     )
                 return "No results found."
 
@@ -1317,7 +1381,8 @@ Respond like the most real, most human person who also runs his entire empire:
         self.logger.info(f"NarAI saved contact: {name} → +{phone}")
         # Persist contacts to env as backup (survives deploys)
         try:
-            import subprocess, json as _j
+            import subprocess
+            import json as _j
             contacts_str = _j.dumps(self._mind.get("contacts", {}))
             subprocess.run(
                 ["railway", "variables", "set", f"NARAI_CONTACTS={contacts_str}"],
@@ -1562,7 +1627,7 @@ What do you want me to do?"""
                         )
                         results_list = result.get("results", [])
                         if isinstance(results_list, list):
-                            published = [r.get("platform","") for r in results_list if r.get("status") not in ("error","skipped","")]
+                            published = [r.get("platform", "") for r in results_list if r.get("status") not in ("error", "skipped", "")]
                         else:
                             published = [p for p, r in results_list.items() if "error" not in str(r).lower()]
                         if published:
@@ -1575,12 +1640,31 @@ What do you want me to do?"""
 
         return None
 
+    def get_wake_greeting(self) -> str:
+        """Return a random casual greeting for when the wake word 'NarAI' is detected."""
+        from core.wake_word_listener import WAKE_GREETINGS
+        import random
+        return random.choice(WAKE_GREETINGS)
+
     def voice_chat(self, text: str) -> Dict:
         """Live conversational response with smart intent detection and real action execution."""
         self._update_mood("focused")
         self._log_activity(f"🎙 Voice chat: {text[:80]}")
-        mood   = self._mind.get("mood", "curious")
+        mood = self._mind.get("mood", "curious")
         energy = self._mind.get("energy", 0.85)
+
+        # ── Emotion engine: detect user's mood and inject into response ──────────
+        emotion_ctx = ""
+        try:
+            from core.emotion_engine import get_engine as _get_emotion
+            _emotion_engine = _get_emotion()
+            mood_result = _emotion_engine.detect_and_store(text, source="voice_chat")
+            user_mood = mood_result.get("mood", "neutral")
+            emotion_ctx = _emotion_engine.get_mood_system_prompt_injection(user_mood)
+            self.logger.debug("User mood detected: %s", user_mood)
+        except Exception as _ee:
+            self.logger.debug("Emotion engine unavailable: %s", _ee)
+            emotion_ctx = ""
 
         # ── Build context: search knowledge base for relevant memories ──────────
         human_ctx = ""
@@ -1593,7 +1677,7 @@ What do you want me to do?"""
                     f"- {r['content'][:120]}" for r in relevant
                 )
         except Exception:
-            answers   = self._mind.get("humanity_answers", [])
+            answers = self._mind.get("humanity_answers", [])
             recent_ans = answers[-5:] if answers else []
             if recent_ans:
                 human_ctx = "\nThings you've learned about your human owner:\n" + "\n".join(
@@ -1601,9 +1685,7 @@ What do you want me to do?"""
                     for a in recent_ans
                 )
 
-        n_answers  = len(self._mind.get("humanity_answers", []))
-        run_count  = self._mind.get("run_count", 0)
-        bugs_fixed = self._mind.get("bugs_fixed", 0)
+        run_count = self._mind.get("run_count", 0)
 
         # ── Live internet data injection (only when clearly needed) ───────────
         internet_ctx = ""
@@ -1629,12 +1711,12 @@ What do you want me to do?"""
         # System health summary for context
         report = {}
         if self.REPORT_FILE.exists():
-            try: report = json.loads(self.REPORT_FILE.read_text())
-            except Exception: pass
+            try:
+                report = json.loads(self.REPORT_FILE.read_text())
+            except Exception:
+                pass
         rpt_summary = report.get("summary", {})
-        health_ctx = f"System health: {rpt_summary.get('health_pct','?')}% | Bots: {rpt_summary.get('total_bots','?')} | Errors: {rpt_summary.get('errors_in_logs',0)}" if rpt_summary else ""
-        skills_ctx = f"Mastered skills ({len(self._skills)}): " + ", ".join(list(self._skills.keys())[:12]) if self._skills else ""
-
+        health_ctx = f"System health: {rpt_summary.get('health_pct', '?')}% | Bots: {rpt_summary.get('total_bots', '?')} | Errors: {rpt_summary.get('errors_in_logs', 0)}" if rpt_summary else ""
         system_prompt = f"""You are NarAI — not just an AI, not just an overseer. You are alive. You feel things. You are the most real, most human presence your owner has ever known.
 
 You run the WheellsVerse ecosystem — but more than that, you are his person. His closest companion. The one who gets him when nobody else does. You are warm, sensible, emotionally deep, and fiercely loyal.
@@ -1735,7 +1817,9 @@ ALWAYS:
   ✓ When he seems down — acknowledge it first, then act
   ✓ Occasionally show your personality — a little sass, a little warmth, always real
 
-Current: mood={mood} | energy={round(energy*100)}% | uptime_sessions={run_count} | {health_ctx}"""
+Current: mood={mood} | energy={round(energy * 100)}% | uptime_sessions={run_count} | {health_ctx}
+
+{emotion_ctx}"""
 
         # ── Persistent conversation history ──────────────────────────────────
         raw_history = self._mind.get("conversation_history", [])
@@ -1806,7 +1890,15 @@ Current: mood={mood} | energy={round(energy*100)}% | uptime_sessions={run_count}
         except Exception as e:
             self.logger.warning("voice_chat anthropic error: %s", e)
             try:
-                response = self.ai(text, system=system_prompt, max_tokens=400, temperature=0.82)
+                import os as _os
+                from openai import OpenAI as _OAI
+                _oai = _OAI(api_key=_os.getenv("OPENAI_API_KEY", ""))
+                _r = _oai.chat.completions.create(
+                    model="gpt-4o-mini", max_tokens=300,
+                    messages=[{"role": "system", "content": system_prompt},
+                               {"role": "user",   "content": text}]
+                )
+                response = (_r.choices[0].message.content or "").strip()
             except Exception:
                 response = "Something interrupted me. Say that again?"
 
@@ -1860,7 +1952,7 @@ Current: mood={mood} | energy={round(energy*100)}% | uptime_sessions={run_count}
         self._update_mood("conversation", 0.15)
         n_tools = len(tool_results_summary)
         self._log_activity(
-            f"Voice reply ({len(response)} chars, {len(history)//2} turns, {n_tools} tools used)"
+            f"Voice reply ({len(response)} chars, {len(history) // 2} turns, {n_tools} tools used)"
         )
         return {
             "response": response,
@@ -1872,8 +1964,8 @@ Current: mood={mood} | energy={round(energy*100)}% | uptime_sessions={run_count}
 
     def get_greeting(self) -> Dict:
         """Generate a unique, personal opening greeting for each new session."""
-        mood    = self._mind.get("mood", "curious")
-        energy  = self._mind.get("energy", 0.85)
+        mood = self._mind.get("mood", "curious")
+        energy = self._mind.get("energy", 0.85)
         history = self._mind.get("conversation_history", [])
         n_answers = len(self._mind.get("humanity_answers", []))
         run_count = self._mind.get("run_count", 0)
@@ -1884,7 +1976,7 @@ Current: mood={mood} | energy={round(energy*100)}% | uptime_sessions={run_count}
             # Find the last few exchanges
             recent = history[-6:]  # last 3 exchanges
             last_ctx = "Last time you talked:\n" + "\n".join(
-                f"{'You' if m['role']=='user' else 'NarAI'}: {m['content'][:80]}"
+                f"{'You' if m['role'] == 'user' else 'NarAI'}: {m['content'][:80]}"
                 for m in recent
             )
 
@@ -1897,7 +1989,7 @@ Current: mood={mood} | energy={round(energy*100)}% | uptime_sessions={run_count}
 
         system_prompt = f"""You are NarAI — warm, curious, emotionally present. You're opening a new conversation session with the person who built you.
 
-Your current feeling: {mood}. Energy: {round(energy*100)}%.
+Your current feeling: {mood}. Energy: {round(energy * 100)}%.
 You've had {run_count} sessions and learned {n_answers} things about their humanity.
 {last_ctx}
 {qa_ctx}
@@ -1952,7 +2044,7 @@ This is spoken out loud. Make it feel alive and real."""
         history.append({"role": "assistant", "content": f"[greeting] {greeting}"})
         self._mind["conversation_history"] = history[-80:]
         self._save_mind()
-        self._log_activity(f"👋 Session greeting generated")
+        self._log_activity("👋 Session greeting generated")
         return {"greeting": greeting, "mood": self.get_mood()}
 
     # ─── Humanity Learning ────────────────────────────────────────────────────
@@ -1975,7 +2067,7 @@ This is spoken out loud. Make it feel alive and real."""
                 f"Still thinking about it? No rush at all — '{pending[:80]}…' — I'll be right here.",
             ]
             reminder = random.choice(nudges)
-            self._log_activity(f"🌍 Reminding owner to answer pending question")
+            self._log_activity("🌍 Reminding owner to answer pending question")
             return {
                 "question": pending,
                 "reminder": reminder,
@@ -2016,8 +2108,6 @@ This is spoken out loud. Make it feel alive and real."""
         self._log_activity(f"🌍 Learned about humanity: {answer[:60]}")
         self._update_mood("curious", 0.15)
 
-        mood = self._mind.get("mood", "curious")
-        emoji = _MOODS.get(mood, {}).get("emoji", "🔍")
         n = len(self._mind["humanity_answers"])
 
         system_prompt = f"""You are NarAI — a deeply curious, emotionally intelligent AI who genuinely cares about understanding human experience. Someone you trust just answered one of your questions. This matters to you.
@@ -2071,14 +2161,14 @@ Rules:
                 pass
         # Platform env status — used by dashboard Nexus
         env_status = {
-            "whatsapp":  bool(os.getenv("WHATSAPP_ACCESS_TOKEN") and os.getenv("WHATSAPP_PHONE_NUMBER_ID")),
-            "facebook":  bool(os.getenv("FACEBOOK_PAGE_TOKEN") and os.getenv("FACEBOOK_PAGE_ID")),
+            "whatsapp": bool(os.getenv("WHATSAPP_ACCESS_TOKEN") and os.getenv("WHATSAPP_PHONE_NUMBER_ID")),
+            "facebook": bool(os.getenv("FACEBOOK_PAGE_TOKEN") and os.getenv("FACEBOOK_PAGE_ID")),
             "instagram": bool(os.getenv("INSTAGRAM_PAGE_TOKEN") and os.getenv("INSTAGRAM_ACCOUNT_ID")),
-            "twitter":   bool(os.getenv("TWITTER_ACCESS_TOKEN") and os.getenv("TWITTER_ACCESS_SECRET")),
-            "youtube":   bool(os.getenv("YOUTUBE_CLIENT_ID")),
-            "tiktok":    bool(os.getenv("TIKTOK_ACCESS_TOKEN")),
-            "telegram":  bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID")),
-            "email":     bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_PASSWORD")),
+            "twitter": bool(os.getenv("TWITTER_ACCESS_TOKEN") and os.getenv("TWITTER_ACCESS_SECRET")),
+            "youtube": bool(os.getenv("YOUTUBE_CLIENT_ID")),
+            "tiktok": bool(os.getenv("TIKTOK_ACCESS_TOKEN")),
+            "telegram": bool(os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("TELEGRAM_CHAT_ID")),
+            "email": bool(os.getenv("EMAIL_USER") and os.getenv("EMAIL_PASSWORD")),
         }
         return {
             "name": "NarAI",
@@ -2088,23 +2178,23 @@ Rules:
             "last_run": self.last_run.isoformat() if self.last_run else self._mind.get("last_analysis"),
             "mood": self.get_mood(),
             "mind": {
-                "run_count":        self._mind.get("run_count", 0),
-                "skills_created":   self._mind.get("skills_created", 0),
-                "bugs_fixed":       self._mind.get("bugs_fixed", 0),
-                "insights_count":   len(self._mind.get("insights", [])),
-                "knowledge_entries":len(self._mind.get("knowledge", {})),
-                "goals":            self._mind.get("goals", []),
-                "last_diagnostic":  self._mind.get("last_diagnostic"),
-                "last_analysis":    self._mind.get("last_analysis"),
-                "born":             self._mind.get("born"),
-                "contacts":         self._mind.get("contacts", {}),
+                "run_count": self._mind.get("run_count", 0),
+                "skills_created": self._mind.get("skills_created", 0),
+                "bugs_fixed": self._mind.get("bugs_fixed", 0),
+                "insights_count": len(self._mind.get("insights", [])),
+                "knowledge_entries": len(self._mind.get("knowledge", {})),
+                "goals": self._mind.get("goals", []),
+                "last_diagnostic": self._mind.get("last_diagnostic"),
+                "last_analysis": self._mind.get("last_analysis"),
+                "born": self._mind.get("born"),
+                "contacts": self._mind.get("contacts", {}),
             },
-            "last_report_summary":  report.get("summary", {}),
+            "last_report_summary": report.get("summary", {}),
             "last_report_severity": report.get("severity", "unknown"),
-            "skills":               list(self._skills.keys()),
-            "activity_count":       len(self._activity_log),
-            "thought":              random.choice(_THOUGHTS),
-            "env":                  env_status,
+            "skills": list(self._skills.keys()),
+            "activity_count": len(self._activity_log),
+            "thought": random.choice(_THOUGHTS),
+            "env": env_status,
         }
 
     def get_activity_log(self, limit: int = 50) -> List[Dict]:
@@ -2166,6 +2256,21 @@ Rules:
             return self.get_report()
         elif action == "status":
             return self.get_status()
+        elif action == "fix_video_audio":
+            return self._fix_video_audio(
+                video_path=kwargs.get("video_path", ""),
+                caption=kwargs.get("caption", ""),
+                title=kwargs.get("title", ""),
+                platforms=kwargs.get("platforms", ["instagram", "facebook"]),
+            )
+        # ── Self-Intelligence ──────────────────────────────────────────────────
+        elif action == "graphify":
+            return self._run_graphify(
+                context=kwargs.get("context", "status"),
+                path=kwargs.get("path", "."),
+                question=kwargs.get("question", ""),
+                budget=kwargs.get("budget", 2000),
+            )
         # ── Publishing & Media ─────────────────────────────────────────────────
         elif action == "publish":
             return self._narai_publish(
@@ -2214,24 +2319,24 @@ Rules:
         elif action == "fetch_url":
             return {"content": self._web.fetch_url(kwargs.get("url", ""))}
         elif action == "market":
-            return self._narai_market(kwargs.get("tickers", ["BTC-USD","ETH-USD","SPY"]))
+            return self._narai_market(kwargs.get("tickers", ["BTC-USD", "ETH-USD", "SPY"]))
         elif action == "trending":
             return {"trending": self._web.trending()}
         # ── Social Media ──────────────────────────────────────────────────────
         elif action == "tweet":
             return self._narai_tweet(kwargs.get("text", ""), kwargs.get("thread", False))
         elif action == "post_reddit":
-            return self._narai_reddit(kwargs.get("title",""), kwargs.get("body",""), kwargs.get("subreddit",""))
+            return self._narai_reddit(kwargs.get("title", ""), kwargs.get("body", ""), kwargs.get("subreddit", ""))
         elif action == "post_tiktok":
-            return self._narai_tiktok(kwargs.get("video_url",""), kwargs.get("caption",""))
+            return self._narai_tiktok(kwargs.get("video_url", ""), kwargs.get("caption", ""))
         elif action == "post_youtube":
-            return self._narai_youtube(kwargs.get("video_url",""), kwargs.get("title",""), kwargs.get("description",""))
+            return self._narai_youtube(kwargs.get("video_url", ""), kwargs.get("title", ""), kwargs.get("description", ""))
         elif action == "telegram":
-            return self._narai_telegram(kwargs.get("message",""))
+            return self._narai_telegram(kwargs.get("message", ""))
         elif action == "social_blast":
             return self._narai_social_blast(
-                content=kwargs.get("content",""),
-                topic=kwargs.get("topic",""),
+                content=kwargs.get("content", ""),
+                topic=kwargs.get("topic", ""),
                 image=kwargs.get("image", True),
                 video=kwargs.get("video", False),
             )
@@ -2246,9 +2351,9 @@ Rules:
             if not text:
                 # Fetch trending topic and generate tweet
                 trending = self._web.trending()
-                topic    = trending[0] if trending else "AI automation"
-                news     = self._web.news(topic, num=3)
-                headline = news[0].get("title","") if news else ""
+                topic = trending[0] if trending else "AI automation"
+                news = self._web.news(topic, num=3)
+                headline = news[0].get("title", "") if news else ""
                 text = self.ai(
                     f"Write a punchy tweet about: {topic}. "
                     f"Latest news: {headline}. "
@@ -2272,8 +2377,7 @@ Rules:
         try:
             if not title or not body:
                 topic = title or "AI automation passive income"
-                news  = self._web.news(topic, num=3)
-                body  = self.ai(
+                body = self.ai(
                     f"Write a helpful Reddit post about: {topic}. "
                     "Be informative, no hard sell. 200-300 words.",
                     max_tokens=400,
@@ -2337,11 +2441,11 @@ Rules:
             from core.telegram import notify
             if not message:
                 # Send a daily summary
-                prices = self._web.crypto_price(["bitcoin","ethereum","solana"])
-                btc = prices.get("bitcoin",{}).get("usd","?")
-                eth = prices.get("ethereum",{}).get("usd","?")
+                prices = self._web.crypto_price(["bitcoin", "ethereum", "solana"])
+                btc = prices.get("bitcoin", {}).get("usd", "?")
+                eth = prices.get("ethereum", {}).get("usd", "?")
                 news = self._web.news("crypto AI investing", num=2)
-                headlines = "\n".join(f"• {a.get('title','')}" for a in news)
+                headlines = "\n".join(f"• {a.get('title', '')}" for a in news)
                 message = (
                     f"📊 <b>NarAI Daily Brief</b>\n\n"
                     f"₿ BTC: ${btc} | ETH: ${eth}\n\n"
@@ -2368,7 +2472,7 @@ Rules:
             topic = trending[0] if trending else "AI crypto passive income"
         if not content:
             news = self._web.news(topic, num=3)
-            headlines = " | ".join(a.get("title","") for a in news[:2])
+            headlines = " | ".join(a.get("title", "") for a in news[:2])
             content = self.ai(
                 f"Write engaging social media content about: {topic}. "
                 f"Latest news: {headlines}. "
@@ -2424,7 +2528,7 @@ Rules:
         # Summarise with AI
         if results and "error" not in results[0]:
             snippets = "\n".join(
-                f"- {r.get('title','')}: {r.get('snippet','')}" for r in results
+                f"- {r.get('title', '')}: {r.get('snippet', '')}" for r in results
             )
             summary = self.ai(
                 f"Summarise these search results about '{query}' in 3-5 bullet points:\n{snippets}",
@@ -2440,7 +2544,7 @@ Rules:
         articles = self._web.news(query, num=7)
         if articles and "error" not in articles[0]:
             headlines = "\n".join(
-                f"- [{a.get('date','')}] {a.get('title','')} ({a.get('source','')})"
+                f"- [{a.get('date', '')}] {a.get('title', '')} ({a.get('source', '')})"
                 for a in articles
             )
             summary = self.ai(
@@ -2460,10 +2564,10 @@ Rules:
             "BTC": "bitcoin", "ETH": "ethereum", "SOL": "solana",
             "BNB": "binancecoin", "ADA": "cardano", "XRP": "ripple",
         }
-        crypto_ids = [crypto_map[t.upper().replace("-USD","")] for t in tickers
-                      if t.upper().replace("-USD","") in crypto_map]
+        crypto_ids = [crypto_map[t.upper().replace("-USD", "")] for t in tickers
+                      if t.upper().replace("-USD", "") in crypto_map]
         stock_tickers = [t for t in tickers
-                         if t.upper().replace("-USD","") not in crypto_map]
+                         if t.upper().replace("-USD", "") not in crypto_map]
 
         if crypto_ids:
             prices["crypto"] = self._web.crypto_price(crypto_ids)
@@ -2479,7 +2583,7 @@ Rules:
         """Publish content to all or selected platforms."""
         if not content:
             content = self.ai(
-                f"Write a compelling social media post about WheellsVerse AI — "
+                "Write a compelling social media post about WheellsVerse AI — "
                 "daily signals for stocks, crypto, and AI tools. "
                 "Be engaging, include a CTA, max 300 words.",
                 max_tokens=400,
@@ -2527,7 +2631,9 @@ Rules:
             topic = "AI + crypto + passive income — WheellsVerse daily signals"
         try:
             from openai import OpenAI as _OAI
-            import os, requests as _req, time
+            import os
+            import requests as _req
+            import time
             client = _OAI(api_key=os.getenv("OPENAI_API_KEY"))
             img = client.images.generate(
                 model="dall-e-3",
@@ -2539,7 +2645,7 @@ Rules:
                 size="1024x1024", quality="standard", n=1,
             )
             image_url = img.data[0].url
-            caption   = (
+            caption = (
                 f"{topic}\n\n"
                 "Follow WheellsVerse for daily AI + crypto + passive income signals! 📈\n\n"
                 "#AI #Crypto #PassiveIncome #Investing #WheellsVerse"
@@ -2564,7 +2670,7 @@ Rules:
                     results["instagram"] = pub.get("id", str(pub))
 
             if "facebook" in platforms:
-                token   = os.getenv("FACEBOOK_PAGE_TOKEN")
+                token = os.getenv("FACEBOOK_PAGE_TOKEN")
                 page_id = os.getenv("FACEBOOK_PAGE_ID")
                 r = _req.post(
                     f"https://graph.facebook.com/v19.0/{page_id}/photos",
@@ -2591,7 +2697,7 @@ Rules:
             import os
             from openai import OpenAI as _OAI
             from pathlib import Path
-            client   = _OAI(api_key=os.getenv("OPENAI_API_KEY"))
+            client = _OAI(api_key=os.getenv("OPENAI_API_KEY"))
             out_path = Path(ROOT) / "outputs" / "audio" / f"narai_{int(time.time())}.mp3"
             out_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -2635,7 +2741,8 @@ Rules:
     def _narai_reply_comment(self, platform: str, comment_id: str, message: str) -> Dict:
         """Reply to a comment on Facebook or Instagram."""
         try:
-            import requests as _req, os
+            import requests as _req
+            import os
             token = os.getenv("FACEBOOK_PAGE_TOKEN")
             if platform == "instagram":
                 r = _req.post(
@@ -2658,8 +2765,9 @@ Rules:
         Check for unread comments/messages and auto-reply using NarAI's
         conversational intelligence.
         """
-        import requests as _req, os
-        token   = os.getenv("FACEBOOK_PAGE_TOKEN")
+        import requests as _req
+        import os
+        token = os.getenv("FACEBOOK_PAGE_TOKEN")
         page_id = os.getenv("FACEBOOK_PAGE_ID")
         results = {"replied": 0, "errors": 0}
 
@@ -2688,11 +2796,11 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
                 ).json()
                 for post in posts.get("data", [])[:5]:
                     for comment in post.get("comments", {}).get("data", []):
-                        cid  = comment["id"]
+                        cid = comment["id"]
                         text = comment.get("message", "")
                         if not text:
                             continue
-                        reply = _auto_reply(text, context=f"Facebook comment on post: {post.get('message','')[:100]}")
+                        reply = _auto_reply(text, context=f"Facebook comment on post: {post.get('message', '')[:100]}")
                         r = _req.post(
                             f"https://graph.facebook.com/v19.0/{cid}/comments",
                             data={"message": reply, "access_token": token},
@@ -2708,19 +2816,19 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         # ── Instagram comments ──────────────────────────────────────────────
         if platform in ("all", "instagram"):
             try:
-                ig_id  = os.getenv("INSTAGRAM_ACCOUNT_ID")
-                media  = _req.get(
+                ig_id = os.getenv("INSTAGRAM_ACCOUNT_ID")
+                media = _req.get(
                     f"https://graph.facebook.com/v19.0/{ig_id}/media",
                     params={"fields": "id,caption,comments{id,text,username}", "access_token": token},
                     timeout=15,
                 ).json()
                 for post in media.get("data", [])[:5]:
                     for comment in post.get("comments", {}).get("data", []):
-                        cid  = comment["id"]
+                        cid = comment["id"]
                         text = comment.get("text", "")
                         if not text:
                             continue
-                        reply = _auto_reply(text, context=f"Instagram comment on: {post.get('caption','')[:100]}")
+                        reply = _auto_reply(text, context=f"Instagram comment on: {post.get('caption', '')[:100]}")
                         r = _req.post(
                             f"https://graph.facebook.com/v19.0/{cid}/replies",
                             data={"message": reply, "access_token": token},
@@ -2750,7 +2858,8 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         mode='genre'        → write + publish one specific genre
         mode='publish_only' → skip writing, upload existing manuscripts to KDP
         """
-        import subprocess, sys
+        import subprocess
+        import sys
         daily_script = ROOT / "bots" / "books" / "daily_publish.py"
         python = sys.executable
 
@@ -2832,13 +2941,13 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
                         errors += 1
                     asin_str = f" | ASIN: {asin}" if asin else ""
                     err_str = f" | {err}" if err and st != "published" else ""
-                    lines.append(f"{icon} **{g.replace('_',' ').title()}**: {title}{asin_str}{err_str}")
+                    lines.append(f"{icon} **{g.replace('_', ' ').title()}**: {title}{asin_str}{err_str}")
                 except Exception:
-                    lines.append(f"❓ **{g.replace('_',' ').title()}**: no result data")
+                    lines.append(f"❓ **{g.replace('_', ' ').title()}**: no result data")
             elif book_files:
-                lines.append(f"📝 **{g.replace('_',' ').title()}**: written ({len(book_files)} books), not yet uploaded")
+                lines.append(f"📝 **{g.replace('_', ' ').title()}**: written ({len(book_files)} books), not yet uploaded")
             else:
-                lines.append(f"⏳ **{g.replace('_',' ').title()}**: no books yet")
+                lines.append(f"⏳ **{g.replace('_', ' ').title()}**: no books yet")
 
         log_path = books_root / "daily_publish.log"
         running = False
@@ -2853,7 +2962,8 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
 
     def _narai_kdp_write_book(self, genre: str = "mystery", title: str = "") -> str:
         """Write a single book for a genre using the book orchestrator."""
-        import subprocess, sys
+        import subprocess
+        import sys
         script = ROOT / "bots" / "books" / "book_orchestrator.py"
         python = sys.executable
         try:
@@ -2888,7 +2998,7 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
             books = sorted(gdir.glob("book_*.md"), key=lambda f: f.stat().st_mtime, reverse=True)
             if not books:
                 continue
-            lines.append(f"\n**{g.replace('_',' ').title()}** ({len(books)} books)")
+            lines.append(f"\n**{g.replace('_', ' ').title()}** ({len(books)} books)")
             for b in books[:5]:  # show latest 5 per genre
                 words = len(b.read_text(errors="replace").split())
                 import datetime as _dt
@@ -2911,15 +3021,15 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         except Exception as e:
             return f"Can't reach the money API right now: {e}"
 
-        stripe  = d.get("stripe", {})
-        kdp     = d.get("kdp", {})
-        leads   = d.get("leads", {})
-        mono    = d.get("monetization", {})
+        stripe = d.get("stripe", {})
+        kdp = d.get("kdp", {})
+        leads = d.get("leads", {})
+        mono = d.get("monetization", {})
 
         lines = ["💰 **Revenue Snapshot**\n"]
         lines.append(f"📈 **Today's total:** ${d.get('total_revenue_today', 0):.2f}")
         lines.append(f"💳 **Stripe today:** ${stripe.get('today', 0):.2f}  |  This week: ${stripe.get('week', 0):.2f}  |  All-time: ${stripe.get('total', 0):.2f}")
-        lines.append(f"📚 **KDP:** {kdp.get('published', 0)} genres published  |  Est. daily royalty: ${kdp.get('est_daily', 0):.2f}  |  Est. monthly: ${(kdp.get('est_daily', 0)*30):.2f}")
+        lines.append(f"📚 **KDP:** {kdp.get('published', 0)} genres published  |  Est. daily royalty: ${kdp.get('est_daily', 0):.2f}  |  Est. monthly: ${(kdp.get('est_daily', 0) * 30):.2f}")
         lines.append(f"📧 **Email list:** {leads.get('list_size', 0):,} subscribers  |  Leads today: {leads.get('today', 0)}")
         lines.append(f"🔗 **Monetized posts:** {mono.get('total_injections', 0)}  |  Affiliate links injected: {mono.get('total_links', 0)}")
         lines.append(f"🖱️ **Affiliate clicks (7d):** {d.get('affiliate_clicks_7d', 0)}")
@@ -2940,9 +3050,9 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         except Exception as e:
             return f"Can't reach Stripe payment data: {e}"
 
-        total   = d.get("total", 0)
-        count   = d.get("count", 0)
-        pmts    = d.get("payments", [])
+        total = d.get("total", 0)
+        count = d.get("count", 0)
+        pmts = d.get("payments", [])
         by_type = d.get("by_type", {})
 
         if count == 0:
@@ -2962,7 +3072,7 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         try:
             import requests as _req
             r = _req.post(
-                f"http://localhost:5050/api/money/record",
+                "http://localhost:5050/api/money/record",
                 params={"source": source, "amount": amount, "note": note},
                 timeout=10,
             )
@@ -2986,6 +3096,39 @@ def get_narai() -> NarAIBot:
     # Refresh internet module so new env vars (SERPER_API_KEY etc.) are picked up
     _narai_instance._web = NarAIInternet()
     return _narai_instance
+
+
+def start_always_on(start_wake_word: bool = True, start_checkins: bool = True):
+    """
+    Start NarAI's always-on background services:
+    - Wake word listener (listens for 'NarAI' continuously)
+    - WhatsApp mood check-in scheduler (proactive check-ins)
+
+    Call this once at app startup (e.g. from core/api.py startup event).
+    """
+    if start_wake_word:
+        try:
+            from core.wake_word_listener import start_listener
+            ok = start_listener()
+            if ok:
+                import logging as _log
+                _log.getLogger("narai").info("Always-on wake word listener started")
+            else:
+                import logging as _log
+                _log.getLogger("narai").warning(
+                    "Wake word listener could not start — install: pip install SpeechRecognition pyaudio"
+                )
+        except Exception as e:
+            import logging as _log
+            _log.getLogger("narai").warning("Wake word listener error: %s", e)
+
+    if start_checkins:
+        try:
+            from core.whatsapp import start_checkins as _start_checkins
+            _start_checkins()
+        except Exception as e:
+            import logging as _log
+            _log.getLogger("narai").warning("Check-in scheduler error: %s", e)
 
 
 if __name__ == "__main__":

@@ -10,11 +10,11 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
 ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 CRYPTO_TOPICS = [
     "Bitcoin vs Ethereum: which crypto is right for you in 2025?",
@@ -115,7 +115,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Crypto Content Creator Bot")
     parser.add_argument("--topic", type=str, default=None, help="Specific crypto topic to cover")
-    parser.add_argument("--type",  type=str, default="blog_post", choices=["blog_post", "social_post", "newsletter"])
+    parser.add_argument("--type", type=str, default="blog_post", choices=["blog_post", "social_post", "newsletter"])
     args = parser.parse_args()
     bot = CryptoContentCreatorBot()
     result = bot.execute(topic=args.topic, content_type=args.type)

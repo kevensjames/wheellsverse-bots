@@ -19,6 +19,44 @@ from datetime import datetime
 
 logger = logging.getLogger("kdp_uploader")
 
+
+class SeriesGuardError(Exception):
+    """Raised when a sequel is uploaded before its predecessor is live on KDP."""
+    pass
+
+
+def _check_series_guard(title: str, series: str = "", volume: int = 0):
+    """
+    Raise SeriesGuardError if volume > 1 and Vol N-1 is not live in the KDP registry.
+    Parses 'Volume 2', 'Vol. 2', 'Book 2' from title if volume not explicitly given.
+    """
+    import re as _re
+    if not volume:
+        m = _re.search(r'\b(?:Volume|Vol\.?|Book)\s*(\d+)', title, _re.IGNORECASE)
+        volume = int(m.group(1)) if m else 0
+    if not volume or volume <= 1:
+        return  # standalone or Vol 1 — no guard needed
+
+    # Try to infer series name from title if not provided
+    if not series:
+        m = _re.search(r'^(.*?)\s*(?:Volume|Vol\.?|Book)\s*\d+', title, _re.IGNORECASE)
+        series = m.group(1).strip(': -').strip() if m else title
+
+    if not series:
+        return
+
+    from core.kdp_registry import get_registry
+    reg = get_registry()
+    prev_vol = volume - 1
+
+    if not reg.series_exists_on_kdp(series, prev_vol):
+        raise SeriesGuardError(
+            f"SERIES GUARD: Cannot upload '{title}' (Volume {volume}) — "
+            f"'{series} Volume {prev_vol}' is not yet live on KDP. "
+            f"Publish Volume {prev_vol} first, then retry."
+        )
+
+
 # Load .env
 try:
     from dotenv import load_dotenv
@@ -162,20 +200,45 @@ def _read_kdp_package(genre: str) -> dict:
     # Extract keywords
     kw_section = content.find("KEYWORDS")
     if kw_section > -1:
-        kw_lines = content[kw_section:kw_section+500].split("\n")[1:8]
+        kw_lines = content[kw_section:kw_section + 500].split("\n")[1:8]
         data["keywords"] = [
-            l.strip().lstrip("1234567890. ").strip()
-            for l in kw_lines if l.strip() and l.strip()[0].isdigit()
+            line.strip().lstrip("1234567890. ").strip()
+            for line in kw_lines if line.strip() and line.strip()[0].isdigit()
         ][:7]
 
     return data
+
+
+def _kdp_error(code: str, detail: str = "") -> dict:
+    """Return a standardised error dict with a human-readable message."""
+    messages = {
+        "no_credentials": "KDP_EMAIL / KDP_PASSWORD missing in .env — add them and retry.",
+        "no_manuscript": "No manuscript file found for this genre — run the book writer first.",
+        "validation_failed": "Pre-submission validation failed — see 'validation_errors' for details.",
+        "login_failed": "Amazon login failed — check your email/password in .env.",
+        "2fa_timeout": "Two-factor authentication required — enter the code within 90s or disable 2FA.",
+        "account_limit": "Amazon title creation limit reached — wait for pending books to be approved (24–72h).",
+        "details_rejected": "KDP rejected the book details form — see screenshot for the specific error message.",
+        "manuscript_upload": "Manuscript upload failed — KDP may not support this file format.",
+        "cover_upload": "Cover image upload failed — ensure it's JPEG/PNG, under 50 MB, min 625×1000px.",
+        "pricing_error": "KDP pricing/territory step failed — price must be $0.99–$9.99.",
+        "publish_failed": "Final publish step failed — book may be saved as draft; check KDP dashboard.",
+        "timeout": "Browser timed out waiting for KDP — Amazon may be slow; retry in a few minutes.",
+        "unknown": "Unexpected error during KDP upload.",
+    }
+    msg = messages.get(code, messages["unknown"])
+    if detail:
+        msg = f"{msg} Detail: {detail}"
+    logger.error("KDP error [%s]: %s", code, msg)
+    return {"status": "error", "error_code": code, "error": msg}
 
 
 def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                 headless: bool = False) -> dict:
     """
     Full KDP upload automation via Playwright.
-    Logs in, fills all fields, uploads files, sets price, publishes.
+    Validates first, then logs in, fills all fields, uploads files, sets price, publishes.
+    Logs all errors with descriptive messages. Retries transient failures automatically.
     """
     from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
 
@@ -183,7 +246,7 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
     password = os.getenv("KDP_PASSWORD", "")
 
     if not email or not password:
-        return {"status": "error", "error": "KDP_EMAIL and KDP_PASSWORD not set in .env"}
+        return _kdp_error("no_credentials")
 
     # Find manuscript if not provided
     if not manuscript_path:
@@ -211,9 +274,25 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
         else:
             manuscripts = []
         if not manuscripts:
-            return {"status": "error", "error": f"No manuscript found for genre: {genre}"}
+            return _kdp_error("no_manuscript", f"genre={genre}, looked in: {genre_dir}")
         manuscript_path = str(manuscripts[0])
         logger.info("Using manuscript: %s", manuscript_path)
+
+    # Auto-upgrade .md → .html: KDP doesn't accept Markdown, prefer packaged HTML
+    if manuscript_path and manuscript_path.endswith(".md"):
+        stem = Path(manuscript_path).stem  # e.g. "pe_the_cartographer_of_dying_cities_20260412_230347"
+        # Strip "pe_" prefix if present, as packaged HTMLs use the title slug
+        html_stem = stem.lstrip("pe_").lstrip("bs_")
+        packaged_dir = ROOT / "outputs" / "books" / "packaged"
+        candidates = list(packaged_dir.glob(f"*{html_stem}*.html")) if packaged_dir.exists() else []
+        if not candidates:
+            # Broader search: any HTML in packaged dir matching key title words
+            title_words = [w for w in html_stem.split("_") if len(w) > 3][:4]
+            candidates = [f for f in packaged_dir.glob("*.html")
+                          if all(w in f.stem for w in title_words)] if packaged_dir.exists() else []
+        if candidates:
+            manuscript_path = str(sorted(candidates, key=lambda f: f.stat().st_mtime, reverse=True)[0])
+            logger.info("Auto-upgraded manuscript to HTML: %s", manuscript_path)
 
     # Read KDP package data
     pkg = _read_kdp_package(genre)
@@ -221,6 +300,44 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
     author = pkg.get("author", "J.K. Blaze")
     description = pkg.get("description_html", f"A compelling {genre} novel by J.K. Blaze.")
     keywords = pkg.get("keywords", [f"{genre} fiction", "WheellsVerse"])
+
+    # ── Series guard — block Vol N upload if Vol N-1 not live ────────────────
+    try:
+        _check_series_guard(
+            title=title,
+            series=pkg.get("series_name", ""),
+            volume=int(pkg.get("volume_number") or 0),
+        )
+    except SeriesGuardError as _sg:
+        logger.error("Series guard blocked upload: %s", _sg)
+        return {"status": "error", "error_code": "series_guard",
+                "error": str(_sg), "blocked": True}
+
+    # ── Manuscript completeness gate ─────────────────────────────────────────
+    ms_path_for_check = manuscript_path or pkg.get("manuscript_path", "")
+    if ms_path_for_check:
+        try:
+            from pathlib import Path as _Path
+            _ms_text = _Path(ms_path_for_check).read_text(encoding="utf-8", errors="replace")
+            _tail    = _ms_text[-400:].lower()
+            _end_markers = ["the end", "epilogue", "about the author", "acknowledgment"]
+            _has_end = any(m in _tail for m in _end_markers)
+            _last_char = _ms_text.rstrip()[-1:] if _ms_text.rstrip() else ""
+            _wc = len(_ms_text.split())
+            if _wc < 8000 or (not _has_end and _last_char not in (".", "!", "?", '"', "'", chr(8230))):
+                logger.error(
+                    "KDP upload blocked: manuscript incomplete (wc=%d, has_end=%s)", _wc, _has_end
+                )
+                return {
+                    "status":     "error",
+                    "error_code": "manuscript_incomplete",
+                    "error":      f"Manuscript incomplete ({_wc} words, no end marker) — QC must pass first.",
+                    "blocked":    True,
+                }
+        except FileNotFoundError:
+            pass  # No file to check — let upload proceed
+        except Exception as _ce:
+            logger.warning("Manuscript completeness check failed (non-fatal): %s", _ce)
 
     # Price by genre
     from bots.books.book_publisher import KDP_PRICES
@@ -246,6 +363,34 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
             for line in raw.split("\n")
         )
         txt_path.write_text(clean, encoding="utf-8")
+
+    # ── Pre-submission validation ─────────────────────────────────────────────
+    try:
+        from core.kdp_validator import KDPValidator
+        vr = KDPValidator().validate(
+            genre=genre,
+            manuscript_path=manuscript_path,
+            cover_path=cover_path,
+            title=title,
+            author=author,
+            description=description,
+            keywords=keywords,
+            price=price,
+        )
+        if not vr.is_valid:
+            err_summary = " | ".join(vr.errors[:5])
+            logger.error("KDP validation failed for '%s': %s", title, err_summary)
+            return {
+                **_kdp_error("validation_failed"),
+                "genre": genre,
+                "title": title,
+                "validation_errors": vr.errors,
+                "validation_warnings": vr.warnings,
+            }
+        if vr.warnings:
+            logger.warning("KDP validation warnings for '%s': %s", title, vr.warnings)
+    except ImportError:
+        logger.warning("kdp_validator not available — skipping pre-flight check")
 
     result = {
         "status": "pending",
@@ -487,8 +632,8 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                 popup_txt = _dismiss_any_popup()
                 if popup_txt and "limit" in popup_txt.lower():
                     page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_limit_popup.png"))
-                    result["status"] = "error"
-                    result["error"] = "account_limit_reached: Amazon title creation limit — existing books still under review. Try again once approved."
+                    result.update(_kdp_error("account_limit"))
+                    result["screenshot"] = str(ROOT / "outputs" / "books" / f"kdp_{genre}_limit_popup.png")
                     raise Exception("account_limit_reached")
 
                 logger.info("After create navigation — URL: %s", page.url)
@@ -739,28 +884,28 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
             time.sleep(2)
 
             genre_kdp_category = {
-                "childrens":  "Children's Books",
-                "mystery":    "Mystery",
-                "adventure":  "Action & Adventure",
+                "childrens": "Children's Books",
+                "mystery": "Mystery",
+                "adventure": "Action & Adventure",
                 "historical": "Historical Fiction",
-                "self_help":  "Self-Help",
-                "romance":    "Romance",
-                "sci_fi":     "Science Fiction & Fantasy",
-                "fantasy":    "Science Fiction & Fantasy",
-                "horror":     "Horror",
+                "self_help": "Self-Help",
+                "romance": "Romance",
+                "sci_fi": "Science Fiction & Fantasy",
+                "fantasy": "Science Fiction & Fantasy",
+                "horror": "Horror",
                 "true_crime": "True Crime",
             }
             # Sub-category keyword for the 2nd dropdown (more specific)
             genre_kdp_subcat = {
-                "childrens":  "children",
-                "mystery":    "mystery",
-                "adventure":  "adventure",
+                "childrens": "children",
+                "mystery": "mystery",
+                "adventure": "adventure",
                 "historical": "historical",
-                "self_help":  "self",
-                "romance":    "romance",
-                "sci_fi":     "science",
-                "fantasy":    "fantasy",
-                "horror":     "horror",
+                "self_help": "self",
+                "romance": "romance",
+                "sci_fi": "science",
+                "fantasy": "fantasy",
+                "horror": "horror",
                 "true_crime": "crime",
             }
             cat_keyword = genre_kdp_category.get(genre, "Literature")
@@ -974,8 +1119,7 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                 logger.info("Popup after save dismissed: %s", popup_after_save[:80])
                 if "limit" in popup_after_save.lower():
                     page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_limit_popup.png"))
-                    result["status"] = "error"
-                    result["error"] = "account_limit_reached: Amazon title creation limit — wait for pending books to be approved."
+                    result.update(_kdp_error("account_limit"))
                     raise Exception("account_limit_reached")
                 # Wait for page to settle after popup
                 time.sleep(3)
@@ -1037,8 +1181,10 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                             logger.warning("Book ID is 'new' — validation failed, book not created")
                             # Take a screenshot of what's on screen for debugging
                             page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_details_error.png"))
-                            result["status"] = "error"
-                            result["error"] = "KDP details validation failed — book not saved. Check kdp_details_error screenshot."
+                            result.update(_kdp_error("details_rejected",
+                                "Book ID is 'new' — KDP form validation failed. "
+                                f"Screenshot saved: kdp_{genre}_details_error.png"))
+                            result["screenshot"] = str(ROOT / "outputs" / "books" / f"kdp_{genre}_details_error.png")
                         else:
                             content_url = f"{KDP_URL}/en_US/title-setup/kindle/{book_id}/content"
                             logger.info("Navigating to content: %s", content_url)
@@ -1382,14 +1528,16 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
         except PWTimeout as e:
             logger.error("Timeout during KDP upload: %s", e)
             screenshot = str(ROOT / "outputs" / "books" / f"kdp_{genre}_error.png")
-            page.screenshot(path=screenshot)
-            result["status"] = "error"
-            result["error"] = f"Timeout: {e}"
+            try:
+                page.screenshot(path=screenshot)
+            except Exception:
+                pass
+            result.update(_kdp_error("timeout", str(e)))
             result["screenshot"] = screenshot
 
         except Exception as e:
             err_msg = str(e)
-            # Don't overwrite a pre-set error (e.g. details validation failure)
+            # Don't overwrite a pre-set error (e.g. account_limit, details validation)
             if not (result.get("status") == "error" and result.get("error")):
                 logger.error("KDP upload error: %s", e)
                 screenshot = str(ROOT / "outputs" / "books" / f"kdp_{genre}_error.png")
@@ -1397,8 +1545,22 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                     page.screenshot(path=screenshot)
                 except Exception:
                     pass
-                result["status"] = "error"
-                result["error"] = err_msg
+                # Classify the error into a meaningful code
+                err_lower = err_msg.lower()
+                if "login" in err_lower or "password" in err_lower or "sign in" in err_lower:
+                    result.update(_kdp_error("login_failed", err_msg[:200]))
+                elif "mfa" in err_lower or "2fa" in err_lower or "otp" in err_lower or "verification" in err_lower:
+                    result.update(_kdp_error("2fa_timeout", err_msg[:200]))
+                elif "manuscript" in err_lower or "upload" in err_lower:
+                    result.update(_kdp_error("manuscript_upload", err_msg[:200]))
+                elif "cover" in err_lower or "image" in err_lower:
+                    result.update(_kdp_error("cover_upload", err_msg[:200]))
+                elif "price" in err_lower or "territory" in err_lower or "royalt" in err_lower:
+                    result.update(_kdp_error("pricing_error", err_msg[:200]))
+                elif "publish" in err_lower:
+                    result.update(_kdp_error("publish_failed", err_msg[:200]))
+                else:
+                    result.update(_kdp_error("unknown", err_msg[:200]))
                 result["screenshot"] = screenshot
             else:
                 logger.info("Early exit: %s", err_msg)

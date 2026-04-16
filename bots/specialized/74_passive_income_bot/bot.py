@@ -10,11 +10,11 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
 ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 PASSIVE_INCOME_IDEAS = [
     "dividend investing for beginners",
@@ -32,10 +32,10 @@ PASSIVE_INCOME_IDEAS = [
 ]
 
 CONTENT_FORMATS = {
-    "guide":       "a comprehensive beginner's guide",
-    "listicle":    "a ranked list article with explanations",
-    "case_study":  "a realistic case study with hypothetical numbers",
-    "comparison":  "a side-by-side comparison of strategies",
+    "guide": "a comprehensive beginner's guide",
+    "listicle": "a ranked list article with explanations",
+    "case_study": "a realistic case study with hypothetical numbers",
+    "comparison": "a side-by-side comparison of strategies",
     "action_plan": "a 30-day action plan",
 }
 
@@ -66,7 +66,7 @@ class PassiveIncomeBotBot(BaseBot):
 ## Affiliate Links to Integrate Naturally
 - [Robinhood — free stock investing]({ROBINHOOD_URL}): Use for stock/dividend-related sections
 - [Coinbase — crypto investing]({COINBASE_URL}): Use for crypto-related sections
-- [Amazon — passive income books](https://www.amazon.com/s?k={topic.replace(' ','+')}&tag={AMAZON_TAG}): Recommend at the end
+- [Amazon — passive income books](https://www.amazon.com/s?k={topic.replace(' ', '+')}&tag={AMAZON_TAG}): Recommend at the end
 
 ## Content Requirements
 - **Length:** 800-1100 words
@@ -115,7 +115,7 @@ Format as clean Markdown with scannable headers."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Passive Income Bot")
-    parser.add_argument("--topic",  type=str, default=None, help="Passive income topic")
+    parser.add_argument("--topic", type=str, default=None, help="Passive income topic")
     parser.add_argument("--format", type=str, default="guide",
                         choices=["guide", "listicle", "case_study", "comparison", "action_plan"])
     args = parser.parse_args()

@@ -10,23 +10,23 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 BOOK_GENRES = {
     "nonfiction_business": "Business/entrepreneurship non-fiction -- practical, data-backed, story-driven",
     "nonfiction_self_help": "Self-help/personal development -- motivational, actionable, relatable",
-    "how_to_guide":         "How-to/instructional -- step-by-step, practical, outcome-focused",
-    "memoir":               "Memoir/personal story -- narrative, reflective, emotionally resonant",
-    "fiction_thriller":     "Thriller fiction -- tension-driven, fast-paced, cliffhangers",
-    "fiction_scifi":        "Science fiction -- world-building, conceptual, character-driven",
+    "how_to_guide": "How-to/instructional -- step-by-step, practical, outcome-focused",
+    "memoir": "Memoir/personal story -- narrative, reflective, emotionally resonant",
+    "fiction_thriller": "Thriller fiction -- tension-driven, fast-paced, cliffhangers",
+    "fiction_scifi": "Science fiction -- world-building, conceptual, character-driven",
 }
 
 OUTPUT_MODES = {
-    "chapter_outline":   "Detailed chapter outline with section headings and key points",
-    "full_chapter":      "Complete written chapter with full prose",
-    "book_outline":      "Full book outline with all chapters and chapter summaries",
-    "opening_hook":      "First 3-5 paragraphs optimized to hook the reader",
-    "chapter_summary":   "Summary + key takeaways from an existing chapter",
+    "chapter_outline": "Detailed chapter outline with section headings and key points",
+    "full_chapter": "Complete written chapter with full prose",
+    "book_outline": "Full book outline with all chapters and chapter summaries",
+    "opening_hook": "First 3-5 paragraphs optimized to hook the reader",
+    "chapter_summary": "Summary + key takeaways from an existing chapter",
 }
 
 
@@ -40,15 +40,15 @@ class BookWriterBot(BaseBot):
             output_mode: str = None, **kwargs):
 
         cfg = self.config
-        book_title     = book_title or cfg.get("book_title", "The AI Entrepreneur: Building Automated Businesses")
-        chapter_title  = chapter_title or cfg.get("chapter_title", "Chapter 1: Why Automation Changes Everything")
-        genre          = genre or cfg.get("genre", "nonfiction_business")
+        book_title = book_title or cfg.get("book_title", "The AI Entrepreneur: Building Automated Businesses")
+        chapter_title = chapter_title or cfg.get("chapter_title", "Chapter 1: Why Automation Changes Everything")
+        genre = genre or cfg.get("genre", "nonfiction_business")
         target_audience = target_audience or cfg.get("target_audience",
             "entrepreneurs and business owners who want to automate their operations")
-        output_mode    = output_mode or cfg.get("output_mode", "full_chapter")
+        output_mode = output_mode or cfg.get("output_mode", "full_chapter")
 
-        genre_desc    = BOOK_GENRES.get(genre, genre)
-        mode_desc     = OUTPUT_MODES.get(output_mode, output_mode)
+        genre_desc = BOOK_GENRES.get(genre, genre)
+        mode_desc = OUTPUT_MODES.get(output_mode, output_mode)
 
         self.logger.info(f"Writing book content: {output_mode} for '{chapter_title}'")
 
@@ -164,12 +164,12 @@ BRAND VOICE: WheellsVerse -- practical, direct, entrepreneurial, optimistic abou
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Book Chapter Writer & Outline Builder")
-    parser.add_argument("--book",      type=str, default=None)
-    parser.add_argument("--chapter",   type=str, default=None)
-    parser.add_argument("--genre",     type=str, default="nonfiction_business",
+    parser.add_argument("--book", type=str, default=None)
+    parser.add_argument("--chapter", type=str, default=None)
+    parser.add_argument("--genre", type=str, default="nonfiction_business",
                         choices=list(BOOK_GENRES.keys()))
-    parser.add_argument("--audience",  type=str, default=None)
-    parser.add_argument("--mode",      type=str, default="full_chapter",
+    parser.add_argument("--audience", type=str, default=None)
+    parser.add_argument("--mode", type=str, default="full_chapter",
                         choices=list(OUTPUT_MODES.keys()))
     args = parser.parse_args()
     bot = BookWriterBot()

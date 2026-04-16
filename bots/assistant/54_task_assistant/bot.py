@@ -10,22 +10,22 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 WORK_STYLES = {
-    "deep_work":    "Long uninterrupted blocks — 2-4 hours per session",
-    "pomodoro":     "25-minute sprints with 5-minute breaks",
-    "time_boxing":  "Fixed-duration boxes per task — strict cutoffs",
-    "flow_based":   "Work until natural stopping points, no fixed intervals",
-    "batch_work":   "Group similar tasks together, switch contexts minimally",
+    "deep_work": "Long uninterrupted blocks — 2-4 hours per session",
+    "pomodoro": "25-minute sprints with 5-minute breaks",
+    "time_boxing": "Fixed-duration boxes per task — strict cutoffs",
+    "flow_based": "Work until natural stopping points, no fixed intervals",
+    "batch_work": "Group similar tasks together, switch contexts minimally",
 }
 
 FRAMEWORKS = {
     "eisenhower": "Urgent/Important matrix — eliminate, delegate, schedule, or do",
-    "eat_frog":   "Do the hardest/most important task first",
-    "ivy_lee":    "Pick 6 tasks, work in strict priority order",
-    "time_block":  "Assign every hour to a specific task category",
-    "mit":        "3 Most Important Tasks — everything else is secondary",
+    "eat_frog": "Do the hardest/most important task first",
+    "ivy_lee": "Pick 6 tasks, work in strict priority order",
+    "time_block": "Assign every hour to a specific task category",
+    "mit": "3 Most Important Tasks — everything else is secondary",
 }
 
 
@@ -38,12 +38,12 @@ class TaskAssistantBot(BaseBot):
             available_hours: str = None, work_style: str = None, **kwargs):
 
         cfg = self.config
-        tasks_today    = tasks_today or cfg.get("tasks_today",
+        tasks_today = tasks_today or cfg.get("tasks_today",
             "write 3 blog posts, fix API bug, reply to 20 DMs, review bot outputs, record video")
-        priorities     = priorities or cfg.get("priorities",
+        priorities = priorities or cfg.get("priorities",
             "content creation is highest, revenue-generating tasks second, admin last")
         available_hours = available_hours or cfg.get("available_hours", "8 hours")
-        work_style     = work_style or cfg.get("work_style", "time_block")
+        work_style = work_style or cfg.get("work_style", "time_block")
 
         style_desc = WORK_STYLES.get(work_style, work_style)
         self.logger.info(f"Planning {available_hours} of tasks: {work_style} style")
@@ -186,11 +186,11 @@ Based on today's task list, tasks likely to carry over:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Daily Task Planning Assistant")
-    parser.add_argument("--tasks",    type=str, default=None,
+    parser.add_argument("--tasks", type=str, default=None,
                         help="Comma-separated list of today's tasks")
     parser.add_argument("--priority", type=str, default=None)
-    parser.add_argument("--hours",    type=str, default="8 hours")
-    parser.add_argument("--style",    type=str, default="time_block",
+    parser.add_argument("--hours", type=str, default="8 hours")
+    parser.add_argument("--style", type=str, default="time_block",
                         choices=list(WORK_STYLES.keys()))
     args = parser.parse_args()
     bot = TaskAssistantBot()

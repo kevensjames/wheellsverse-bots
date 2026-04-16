@@ -1,0 +1,6 @@
+{
+  "description": "SEO rank tracker — monitors keyword positions daily",
+  "default_domain": "wheellsverse-bots.pages.dev",
+  "enabled": true,
+  "schedule": "@daily 06:00"
+}

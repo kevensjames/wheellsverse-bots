@@ -10,29 +10,29 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 DESIGN_TYPES = {
-    "logo":           "Brand logo and identity system",
-    "social_banner":  "Social media profile banner or cover image",
-    "post_graphic":   "Social media post or carousel graphics",
-    "ad_creative":    "Paid advertising creative (Facebook/Instagram/Google)",
-    "website_hero":   "Website hero section or landing page visual",
-    "thumbnail":      "YouTube thumbnail or blog featured image",
-    "brand_kit":      "Complete brand style guide -- colors, fonts, logo usage",
-    "presentation":   "Presentation or pitch deck visual style",
+    "logo": "Brand logo and identity system",
+    "social_banner": "Social media profile banner or cover image",
+    "post_graphic": "Social media post or carousel graphics",
+    "ad_creative": "Paid advertising creative (Facebook/Instagram/Google)",
+    "website_hero": "Website hero section or landing page visual",
+    "thumbnail": "YouTube thumbnail or blog featured image",
+    "brand_kit": "Complete brand style guide -- colors, fonts, logo usage",
+    "presentation": "Presentation or pitch deck visual style",
     "product_mockup": "Product screenshot or UI mockup",
-    "infographic":    "Data visualization or process infographic",
+    "infographic": "Data visualization or process infographic",
 }
 
 DESIGN_STYLES = {
-    "modern_minimal":   "Clean lines, lots of white space, minimal elements",
-    "bold_energetic":   "Strong colors, bold typography, high contrast",
-    "professional":     "Corporate-appropriate, trust-building, conservative",
+    "modern_minimal": "Clean lines, lots of white space, minimal elements",
+    "bold_energetic": "Strong colors, bold typography, high contrast",
+    "professional": "Corporate-appropriate, trust-building, conservative",
     "creative_playful": "Colorful, fun, personality-driven",
-    "dark_premium":     "Dark backgrounds, gold/silver accents, luxury feel",
+    "dark_premium": "Dark backgrounds, gold/silver accents, luxury feel",
     "techy_futuristic": "Neon, gradients, tech aesthetic, AI/crypto vibes",
-    "warm_authentic":   "Natural colors, human-centered, relatable and warm",
+    "warm_authentic": "Natural colors, human-centered, relatable and warm",
 }
 
 
@@ -46,15 +46,15 @@ class DesigningBot(BaseBot):
             assets_needed: str = None, **kwargs):
 
         cfg = self.config
-        design_type   = design_type or cfg.get("design_type", "brand_kit")
-        brand_name    = brand_name or cfg.get("brand_name", "WheellsVerse")
-        style         = style or cfg.get("style", "techy_futuristic")
-        colors        = colors or cfg.get("colors",
+        design_type = design_type or cfg.get("design_type", "brand_kit")
+        brand_name = brand_name or cfg.get("brand_name", "WheellsVerse")
+        style = style or cfg.get("style", "techy_futuristic")
+        colors = colors or cfg.get("colors",
             "deep navy #0A1628, electric blue #1E90FF, white #FFFFFF, gold accent #FFD700")
         assets_needed = assets_needed or cfg.get("assets_needed",
             "logo, social banners, post templates, thumbnail template")
 
-        type_desc  = DESIGN_TYPES.get(design_type, design_type)
+        type_desc = DESIGN_TYPES.get(design_type, design_type)
         style_desc = DESIGN_STYLES.get(style, style)
         asset_list = [a.strip() for a in assets_needed.split(",")]
 
@@ -233,13 +233,13 @@ One-page brand guide for {brand_name}:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Visual Design Brief & AI Prompt Generator")
-    parser.add_argument("--type",    type=str, default="brand_kit",
+    parser.add_argument("--type", type=str, default="brand_kit",
                         choices=list(DESIGN_TYPES.keys()))
-    parser.add_argument("--brand",   type=str, default="WheellsVerse")
-    parser.add_argument("--style",   type=str, default="techy_futuristic",
+    parser.add_argument("--brand", type=str, default="WheellsVerse")
+    parser.add_argument("--style", type=str, default="techy_futuristic",
                         choices=list(DESIGN_STYLES.keys()))
-    parser.add_argument("--colors",  type=str, default=None)
-    parser.add_argument("--assets",  type=str, default=None,
+    parser.add_argument("--colors", type=str, default=None)
+    parser.add_argument("--assets", type=str, default=None,
                         help="Comma-separated list of design assets to generate")
     args = parser.parse_args()
     bot = DesigningBot()

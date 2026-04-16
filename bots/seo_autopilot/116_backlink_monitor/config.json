@@ -1,0 +1,6 @@
+{
+  "description": "Backlink monitor — tracks referring domains and new backlinks",
+  "default_domain": "wheellsverse-bots.pages.dev",
+  "enabled": true,
+  "schedule": "@weekly sun 08:00"
+}

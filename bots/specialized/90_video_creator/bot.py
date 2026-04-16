@@ -18,7 +18,7 @@ import requests
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 HEYGEN_API = "https://api.heygen.com"
@@ -28,9 +28,9 @@ class VideoCreatorBot(BaseBot):
 
     def __init__(self):
         super().__init__("90_video_creator", "specialized")
-        self.api_key    = os.getenv("HEYGEN_API_KEY", "")
-        self.avatar_id  = os.getenv("HEYGEN_AVATAR_ID", "")
-        self.voice_id   = os.getenv("HEYGEN_VOICE_ID", "")
+        self.api_key = os.getenv("HEYGEN_API_KEY", "")
+        self.avatar_id = os.getenv("HEYGEN_AVATAR_ID", "")
+        self.voice_id = os.getenv("HEYGEN_VOICE_ID", "")
 
     def _headers(self):
         return {"X-Api-Key": self.api_key, "Content-Type": "application/json"}
@@ -99,7 +99,7 @@ class VideoCreatorBot(BaseBot):
 
             if status == "completed":
                 return {
-                    "status":    "completed",
+                    "status": "completed",
                     "video_url": data.get("video_url", ""),
                     "thumbnail": data.get("thumbnail_url", ""),
                 }
@@ -133,9 +133,9 @@ class VideoCreatorBot(BaseBot):
     def run(self, topic: str = None, script: str = None,
             publish_to: str = None, **kwargs):
 
-        cfg          = self.config
-        topic        = topic       or cfg.get("topic", "AI tools for passive income")
-        publish_to   = publish_to  or cfg.get("publish_to", "youtube,instagram,facebook")
+        cfg = self.config
+        topic = topic or cfg.get("topic", "AI tools for passive income")
+        publish_to = publish_to or cfg.get("publish_to", "youtube,instagram,facebook")
 
         # Step 1: Generate script with GPT if not provided
         if not script:
@@ -160,7 +160,7 @@ Output ONLY the spoken script, no stage directions.""",
         if not self.api_key:
             # Save script only (no HeyGen key)
             self.logger.warning("HEYGEN_API_KEY not set — saving script only")
-            ts   = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+            ts = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
             path = self.save_output(
                 f"# Video Script: {topic}\n\n{script}",
                 f"video_script_{ts}.md", ext="md"
@@ -266,7 +266,7 @@ Output ONLY the spoken script, no stage directions.""",
             pass
 
         # Save output
-        ts   = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = __import__("datetime").datetime.now().strftime("%Y%m%d_%H%M%S")
         safe = "".join(c if c.isalnum() else "_" for c in topic[:30])
         path = self.save_output(
             f"# Video: {topic}\n\n**Script:**\n{script}\n\n"
@@ -276,22 +276,22 @@ Output ONLY the spoken script, no stage directions.""",
         )
 
         return {
-            "status":          "completed",
-            "video_id":        video_id,
-            "video_url":       video_url,
-            "thumbnail":       thumbnail,
+            "status": "completed",
+            "video_id": video_id,
+            "video_url": video_url,
+            "thumbnail": thumbnail,
             "publish_results": publish_results,
-            "file":            str(path),
+            "file": str(path),
         }
 
 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="AI Video Creator (HeyGen)")
-    parser.add_argument("--topic",   type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--publish", type=str, default="youtube,instagram")
     parser.add_argument("--avatars", action="store_true", help="List available avatars")
-    parser.add_argument("--voices",  action="store_true", help="List available voices")
+    parser.add_argument("--voices", action="store_true", help="List available voices")
     args = parser.parse_args()
 
     bot = VideoCreatorBot()

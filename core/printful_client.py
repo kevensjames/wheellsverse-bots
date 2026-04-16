@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import re
-import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -37,32 +36,32 @@ PRINTFUL_BASE = "https://api.printful.com"
 # Printful product IDs (stable catalog IDs as of 2024)
 NICHE_PRODUCTS: Dict[str, List[Dict]] = {
     "entrepreneur mindset": [
-        {"printful_id": 380, "type": "hoodie",  "label": "Unisex Hoodie"},
-        {"printful_id": 19,  "type": "mug",     "label": "White Glossy Mug"},
+        {"printful_id": 380, "type": "hoodie", "label": "Unisex Hoodie"},
+        {"printful_id": 19, "type": "mug", "label": "White Glossy Mug"},
         {"printful_id": 471, "type": "journal", "label": "Spiral Notebook"},
     ],
     "hacker / programmer": [
-        {"printful_id": 71,  "type": "tshirt",   "label": "Unisex Staple T-Shirt"},
-        {"printful_id": 1,   "type": "poster",   "label": "Poster"},
+        {"printful_id": 71, "type": "tshirt", "label": "Unisex Staple T-Shirt"},
+        {"printful_id": 1, "type": "poster", "label": "Poster"},
         {"printful_id": 491, "type": "desk_mat", "label": "Gaming Mouse Pad"},
     ],
     "dark fantasy / anime": [
-        {"printful_id": 71,  "type": "tshirt",    "label": "Unisex Staple T-Shirt"},
-        {"printful_id": 1,   "type": "art_print", "label": "Poster"},
-        {"printful_id": 358, "type": "sticker",   "label": "Kiss-Cut Stickers"},
+        {"printful_id": 71, "type": "tshirt", "label": "Unisex Staple T-Shirt"},
+        {"printful_id": 1, "type": "art_print", "label": "Poster"},
+        {"printful_id": 358, "type": "sticker", "label": "Kiss-Cut Stickers"},
     ],
 }
 
 # Default variant options per product type
 DEFAULT_VARIANTS: Dict[str, List[Dict]] = {
-    "tshirt":   [{"size": "S"}, {"size": "M"}, {"size": "L"}, {"size": "XL"}, {"size": "2XL"}],
-    "hoodie":   [{"size": "S"}, {"size": "M"}, {"size": "L"}, {"size": "XL"}],
-    "mug":      [{"size": "11oz"}, {"size": "15oz"}],
-    "poster":   [{"size": "12x16"}, {"size": "18x24"}],
-    "journal":  [{"size": "lined"}],
+    "tshirt": [{"size": "S"}, {"size": "M"}, {"size": "L"}, {"size": "XL"}, {"size": "2XL"}],
+    "hoodie": [{"size": "S"}, {"size": "M"}, {"size": "L"}, {"size": "XL"}],
+    "mug": [{"size": "11oz"}, {"size": "15oz"}],
+    "poster": [{"size": "12x16"}, {"size": "18x24"}],
+    "journal": [{"size": "lined"}],
     "desk_mat": [{"size": "36x18"}],
-    "art_print":[{"size": "12x16"}, {"size": "18x24"}],
-    "sticker":  [{"size": "3x3"}, {"size": "4x4"}],
+    "art_print": [{"size": "12x16"}, {"size": "18x24"}],
+    "sticker": [{"size": "3x3"}, {"size": "4x4"}],
 }
 
 
@@ -85,7 +84,7 @@ def _api(
     if not api_key:
         raise RuntimeError("PRINTFUL_API_KEY not set")
 
-    url  = f"{PRINTFUL_BASE}/{endpoint.lstrip('/')}"
+    url = f"{PRINTFUL_BASE}/{endpoint.lstrip('/')}"
     data = json.dumps(body).encode() if body else None
 
     req = urllib.request.Request(
@@ -94,8 +93,8 @@ def _api(
         method=method.upper(),
         headers={
             "Authorization": f"Bearer {api_key}",
-            "Content-Type":  "application/json",
-            "Accept":        "application/json",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
         },
     )
     try:
@@ -224,19 +223,19 @@ Return JSON:
 
     if not isinstance(design, dict) or not design.get("design_prompt"):
         design = {
-            "design_prompt":      f"Minimalist {niche} motivational design, dark background, gold typography, premium feel",
-            "negative_prompt":    "low quality, blurry, watermark, copyrighted logos",
-            "colors":             ["#0f0f0f", "#c9a84c", "#ffffff"],
-            "style":              "minimal typographic",
-            "text_overlay":       "Build. Ship. Repeat.",
-            "tagline":            "For the ones who never stop building",
-            "product_title":      f"{niche.title()} {product_type.replace('_', ' ').title()}",
+            "design_prompt": f"Minimalist {niche} motivational design, dark background, gold typography, premium feel",
+            "negative_prompt": "low quality, blurry, watermark, copyrighted logos",
+            "colors": ["#0f0f0f", "#c9a84c", "#ffffff"],
+            "style": "minimal typographic",
+            "text_overlay": "Build. Ship. Repeat.",
+            "tagline": "For the ones who never stop building",
+            "product_title": f"{niche.title()} {product_type.replace('_', ' ').title()}",
             "product_description": f"Wear your identity. Built for {niche} who move fast and build things.",
         }
 
     # Attempt cover image generation
     image_path = None
-    image_url  = None
+    image_url = None
     try:
         from core.cover_engine import generate_cover
         cover = generate_cover(
@@ -246,20 +245,20 @@ Return JSON:
             product_type=product_type,
         )
         image_path = cover.get("path")
-        image_url  = cover.get("url")
+        image_url = cover.get("url")
     except Exception as e:
         log.warning(f"[Printful] Cover generation failed: {e}")
 
     return {
-        "design_prompt":      design.get("design_prompt", ""),
-        "negative_prompt":    design.get("negative_prompt", ""),
-        "image_path":         image_path,
-        "image_url":          image_url,
-        "colors":             design.get("colors", []),
-        "style":              design.get("style", ""),
-        "text_overlay":       design.get("text_overlay", ""),
-        "tagline":            design.get("tagline", ""),
-        "product_title":      design.get("product_title", ""),
+        "design_prompt": design.get("design_prompt", ""),
+        "negative_prompt": design.get("negative_prompt", ""),
+        "image_path": image_path,
+        "image_url": image_url,
+        "colors": design.get("colors", []),
+        "style": design.get("style", ""),
+        "text_overlay": design.get("text_overlay", ""),
+        "tagline": design.get("tagline", ""),
+        "product_title": design.get("product_title", ""),
         "product_description": design.get("product_description", ""),
     }
 
@@ -315,7 +314,6 @@ def create_pod_product(
         return {"success": False, "error": "PRINTFUL_API_KEY not set"}
 
     printful_product_id = _resolve_printful_product_id(niche, product_type)
-    variants_spec       = DEFAULT_VARIANTS.get(product_type, DEFAULT_VARIANTS["tshirt"])
 
     # Build variant list for Printful
     # We need to fetch real variant IDs from the catalog
@@ -344,9 +342,9 @@ def create_pod_product(
 
     body = {
         "sync_product": {
-            "name":        title,
+            "name": title,
             "description": description,
-            "thumbnail":   files[0]["url"] if files else "",
+            "thumbnail": files[0]["url"] if files else "",
         },
         "sync_variants": sync_variants,
     }
@@ -355,8 +353,8 @@ def create_pod_product(
 
     if resp.get("error") or resp.get("code", 200) != 200:
         return {
-            "success":    False,
-            "error":      str(resp.get("detail", resp)),
+            "success": False,
+            "error": str(resp.get("detail", resp)),
             "printful_id": None,
         }
 
@@ -364,11 +362,11 @@ def create_pod_product(
     sync_product = result.get("sync_product", {})
 
     return {
-        "success":     True,
-        "product_id":  sync_product.get("id"),
+        "success": True,
+        "product_id": sync_product.get("id"),
         "printful_id": printful_product_id,
-        "name":        sync_product.get("name", title),
-        "variants":    result.get("sync_variants", []),
+        "name": sync_product.get("name", title),
+        "variants": result.get("sync_variants", []),
         "preview_url": sync_product.get("thumbnail_url", ""),
         "external_id": sync_product.get("external_id"),
     }
@@ -398,46 +396,46 @@ def sync_to_shopify(printful_product: dict, description: str = "", tags: List[st
     except ImportError:
         return {"success": False, "error": "shopify_client not available"}
 
-    title   = printful_product.get("name", "POD Product")
-    p_id    = printful_product.get("product_id")
+    title = printful_product.get("name", "POD Product")
+    p_id = printful_product.get("product_id")
     preview = printful_product.get("preview_url", "")
 
     # Build variant list for Shopify
     shopify_variants = []
     for v in printful_product.get("variants", []):
         shopify_variants.append({
-            "option1":             v.get("name", "Default"),
-            "price":               str(v.get("retail_price", "29.99")),
-            "requires_shipping":   True,
+            "option1": v.get("name", "Default"),
+            "price": str(v.get("retail_price", "29.99")),
+            "requires_shipping": True,
             "inventory_management": None,
-            "inventory_policy":    "continue",
+            "inventory_policy": "continue",
             "fulfillment_service": "manual",
         })
 
     if not shopify_variants:
         shopify_variants = [{
-            "option1":             "Default",
-            "price":               "29.99",
-            "requires_shipping":   True,
+            "option1": "Default",
+            "price": "29.99",
+            "requires_shipping": True,
             "inventory_management": None,
-            "inventory_policy":    "continue",
+            "inventory_policy": "continue",
         }]
 
     product_data = {
-        "title":            title,
-        "body_html":        f"<p>{description}</p>" if description else "",
-        "vendor":           "WheellsVerse",
-        "product_type":     "POD",
-        "tags":             ", ".join(tags or ["pod", "print-on-demand", "apparel"]),
+        "title": title,
+        "body_html": f"<p>{description}</p>" if description else "",
+        "vendor": "WheellsVerse",
+        "product_type": "POD",
+        "tags": ", ".join(tags or ["pod", "print-on-demand", "apparel"]),
         "requires_shipping": True,
-        "variants":         shopify_variants,
-        "options":          [{"name": "Size", "values": [v.get("option1", "M") for v in shopify_variants[:5]]}],
+        "variants": shopify_variants,
+        "options": [{"name": "Size", "values": [v.get("option1", "M") for v in shopify_variants[:5]]}],
         "metafields": [
             {
                 "namespace": "printful",
-                "key":       "product_id",
-                "value":     str(p_id),
-                "type":      "single_line_text_field",
+                "key": "product_id",
+                "value": str(p_id),
+                "type": "single_line_text_field",
             }
         ],
     }
@@ -446,8 +444,8 @@ def sync_to_shopify(printful_product: dict, description: str = "", tags: List[st
 
     if not result.get("success"):
         return {
-            "success":            False,
-            "error":              result.get("error", "Shopify create failed"),
+            "success": False,
+            "error": result.get("error", "Shopify create failed"),
             "printful_product_id": p_id,
         }
 
@@ -461,10 +459,10 @@ def sync_to_shopify(printful_product: dict, description: str = "", tags: List[st
             pass
 
     return {
-        "success":            True,
-        "shopify_product_id":  shopify_id,
+        "success": True,
+        "shopify_product_id": shopify_id,
         "printful_product_id": p_id,
-        "title":               title,
+        "title": title,
     }
 
 

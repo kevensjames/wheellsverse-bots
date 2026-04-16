@@ -20,10 +20,9 @@ import json
 import logging
 import os
 import re
-import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -99,13 +98,13 @@ def generate_funnel_copy(step: int, niche: str, product: dict) -> dict:
     """
     step_contexts = {
         1: "free lead magnet — maximum perceived value, zero friction",
-        2: f"$9 upsell — momentum from free download, 'you just got X now get Y'",
-        3: f"$29 mid-ticket — problem deepened after $9, ready for more",
-        4: f"$99 high-ticket — committed buyer who wants comprehensive solution",
-        5: f"$19/month subscription — ongoing access, recurring value proof",
+        2: "$9 upsell — momentum from free download, 'you just got X now get Y'",
+        3: "$29 mid-ticket — problem deepened after $9, ready for more",
+        4: "$99 high-ticket — committed buyer who wants comprehensive solution",
+        5: "$19/month subscription — ongoing access, recurring value proof",
     }
     context = step_contexts.get(step, "product page")
-    price   = product.get("price", 0)
+    price = product.get("price", 0)
 
     prompt = f"""Write conversion copy for funnel step {step}: {context}
 
@@ -132,13 +131,13 @@ Return JSON:
 
     if not isinstance(result, dict) or not result.get("headline"):
         result = {
-            "headline":           f"Get {product.get('title', 'This Resource')} {'Free' if price == 0 else f'for ${price}'}",
-            "subheadline":        f"Everything you need to succeed in {niche}",
-            "body":               "Join thousands who are already using this system to build income online.",
-            "cta":                "Get Instant Access" if price == 0 else f"Get It Now — ${price}",
-            "upsell_line":        "Ready to go deeper? See what's next →",
-            "email_subject":      f"Your {product.get('title', 'resource')} is ready",
-            "email_preview":      f"Here's everything you need to get started with {niche}",
+            "headline": f"Get {product.get('title', 'This Resource')} {'Free' if price == 0 else f'for ${price}'}",
+            "subheadline": f"Everything you need to succeed in {niche}",
+            "body": "Join thousands who are already using this system to build income online.",
+            "cta": "Get Instant Access" if price == 0 else f"Get It Now — ${price}",
+            "upsell_line": "Ready to go deeper? See what's next →",
+            "email_subject": f"Your {product.get('title', 'resource')} is ready",
+            "email_preview": f"Here's everything you need to get started with {niche}",
             "email_body_opening": "Thank you for joining. Here's your resource below.",
         }
 
@@ -185,14 +184,14 @@ Return JSON:
     data = _claude_json(prompt, max_tokens=2000)
     if not isinstance(data, dict) or not data.get("title"):
         data = {
-            "title":              f"The {niche.title()} Quick-Start Checklist",
-            "subtitle":           f"The 10-step system to get started with {niche} today",
-            "format":             "checklist",
-            "page_count":         7,
-            "problem_solved":     f"Getting started with {niche} without overwhelm",
-            "content_outline":    ["Step 1: Foundation", "Step 2: Setup", "Step 3: First Results"],
-            "opt_in_reason":      "Free resource that saves hours of research",
-            "convertkit_tag":     niche.lower().replace(" ", "_").replace("/", "_")[:30],
+            "title": f"The {niche.title()} Quick-Start Checklist",
+            "subtitle": f"The 10-step system to get started with {niche} today",
+            "format": "checklist",
+            "page_count": 7,
+            "problem_solved": f"Getting started with {niche} without overwhelm",
+            "content_outline": ["Step 1: Foundation", "Step 2: Setup", "Step 3: First Results"],
+            "opt_in_reason": "Free resource that saves hours of research",
+            "convertkit_tag": niche.lower().replace(" ", "_").replace("/", "_")[:30],
             "convertkit_sequence": f"{niche.title()} Welcome Sequence",
         }
 
@@ -201,25 +200,25 @@ Return JSON:
     try:
         from core.shopify_client import create_product
         result = create_product({
-            "title":            data["title"],
-            "body_html":        f"<p>{data.get('subtitle', '')}</p>",
-            "vendor":           "WheellsVerse",
-            "product_type":     "Digital Download",
-            "tags":             "lead-magnet, free, digital",
+            "title": data["title"],
+            "body_html": f"<p>{data.get('subtitle', '')}</p>",
+            "vendor": "WheellsVerse",
+            "product_type": "Digital Download",
+            "tags": "lead-magnet, free, digital",
             "requires_shipping": False,
             "variants": [{
-                "price":               "0.00",
-                "requires_shipping":   False,
+                "price": "0.00",
+                "requires_shipping": False,
                 "inventory_management": None,
-                "inventory_policy":    "continue",
+                "inventory_policy": "continue",
             }],
         })
         shopify_product_id = result.get("product_id")
     except Exception as e:
         log.warning(f"[FunnelBuilder] Lead magnet Shopify create failed: {e}")
 
-    data["step"]              = 1
-    data["price"]             = 0
+    data["step"] = 1
+    data["price"] = 0
     data["shopify_product_id"] = shopify_product_id
     return data
 
@@ -256,39 +255,39 @@ Return JSON:
     data = _claude_json(prompt, max_tokens=2000)
     if not isinstance(data, dict) or not data.get("title"):
         data = {
-            "title":           f"The Complete {niche.title()} Playbook",
-            "subtitle":        f"From zero to results with {niche} — the full system",
-            "price":           9,
+            "title": f"The Complete {niche.title()} Playbook",
+            "subtitle": f"From zero to results with {niche} — the full system",
+            "price": 9,
             "compare_at_price": 27,
-            "page_count":      30,
-            "chapters":        ["Chapter 1: Foundation", "Chapter 2: Strategy", "Chapter 3: Execution", "Chapter 4: Scale"],
-            "main_promise":    f"Master {niche} in 30 days",
-            "upsell_bridge":   "Want the templates and tools to implement this faster?",
+            "page_count": 30,
+            "chapters": ["Chapter 1: Foundation", "Chapter 2: Strategy", "Chapter 3: Execution", "Chapter 4: Scale"],
+            "main_promise": f"Master {niche} in 30 days",
+            "upsell_bridge": "Want the templates and tools to implement this faster?",
         }
 
     shopify_product_id = None
     try:
         from core.shopify_client import create_product
         result = create_product({
-            "title":            data["title"],
-            "body_html":        f"<p>{data.get('subtitle', '')}</p><p><strong>{data.get('main_promise', '')}</strong></p>",
-            "vendor":           "WheellsVerse",
-            "product_type":     "Digital Download",
-            "tags":             f"ebook, {niche}, digital-product",
+            "title": data["title"],
+            "body_html": f"<p>{data.get('subtitle', '')}</p><p><strong>{data.get('main_promise', '')}</strong></p>",
+            "vendor": "WheellsVerse",
+            "product_type": "Digital Download",
+            "tags": f"ebook, {niche}, digital-product",
             "requires_shipping": False,
             "variants": [{
-                "price":               str(data["price"]),
-                "compare_at_price":    str(data.get("compare_at_price", 27)),
-                "requires_shipping":   False,
+                "price": str(data["price"]),
+                "compare_at_price": str(data.get("compare_at_price", 27)),
+                "requires_shipping": False,
                 "inventory_management": None,
-                "inventory_policy":    "continue",
+                "inventory_policy": "continue",
             }],
         })
         shopify_product_id = result.get("product_id")
     except Exception as e:
         log.warning(f"[FunnelBuilder] Low-ticket Shopify create failed: {e}")
 
-    data["step"]              = 2
+    data["step"] = 2
     data["shopify_product_id"] = shopify_product_id
     return data
 
@@ -323,40 +322,40 @@ Return JSON:
     data = _claude_json(prompt, max_tokens=2000)
     if not isinstance(data, dict) or not data.get("title"):
         data = {
-            "title":           f"{niche.title()} Template Toolkit",
-            "subtitle":        "Copy-paste templates to implement the system in hours, not weeks",
-            "price":           29,
+            "title": f"{niche.title()} Template Toolkit",
+            "subtitle": "Copy-paste templates to implement the system in hours, not weeks",
+            "price": 29,
             "compare_at_price": 67,
-            "format":          "Notion template + prompt pack",
-            "item_count":      25,
-            "includes":        ["Notion dashboard", "25 prompts", "Checklist PDF", "Swipe file", "Quick-start guide"],
-            "time_saved":      "10+ hours of setup time",
-            "upsell_bridge":   "Want the full course with step-by-step video walkthroughs?",
+            "format": "Notion template + prompt pack",
+            "item_count": 25,
+            "includes": ["Notion dashboard", "25 prompts", "Checklist PDF", "Swipe file", "Quick-start guide"],
+            "time_saved": "10+ hours of setup time",
+            "upsell_bridge": "Want the full course with step-by-step video walkthroughs?",
         }
 
     shopify_product_id = None
     try:
         from core.shopify_client import create_product
         result = create_product({
-            "title":            data["title"],
-            "body_html":        f"<p>{data.get('subtitle', '')}</p><ul>" + "".join(f"<li>{i}</li>" for i in data.get("includes", [])) + "</ul>",
-            "vendor":           "WheellsVerse",
-            "product_type":     "Digital Download",
-            "tags":             f"template, toolkit, {niche}, digital-product",
+            "title": data["title"],
+            "body_html": f"<p>{data.get('subtitle', '')}</p><ul>" + "".join(f"<li>{i}</li>" for i in data.get("includes", [])) + "</ul>",
+            "vendor": "WheellsVerse",
+            "product_type": "Digital Download",
+            "tags": f"template, toolkit, {niche}, digital-product",
             "requires_shipping": False,
             "variants": [{
-                "price":               str(data["price"]),
-                "compare_at_price":    str(data.get("compare_at_price", 67)),
-                "requires_shipping":   False,
+                "price": str(data["price"]),
+                "compare_at_price": str(data.get("compare_at_price", 67)),
+                "requires_shipping": False,
                 "inventory_management": None,
-                "inventory_policy":    "continue",
+                "inventory_policy": "continue",
             }],
         })
         shopify_product_id = result.get("product_id")
     except Exception as e:
         log.warning(f"[FunnelBuilder] Mid-ticket Shopify create failed: {e}")
 
-    data["step"]              = 3
+    data["step"] = 3
     data["shopify_product_id"] = shopify_product_id
     return data
 
@@ -396,15 +395,15 @@ Return JSON:
     data = _claude_json(prompt, max_tokens=2000)
     if not isinstance(data, dict) or not data.get("title"):
         data = {
-            "title":           f"The {niche.title()} Mastery Blueprint",
-            "subtitle":        f"The complete A-to-Z system for dominating {niche}",
-            "price":           99,
+            "title": f"The {niche.title()} Mastery Blueprint",
+            "subtitle": f"The complete A-to-Z system for dominating {niche}",
+            "price": 99,
             "compare_at_price": 197,
-            "format":          "PDF course",
-            "modules":         ["Module 1: Foundation", "Module 2: Strategy", "Module 3: Execution", "Module 4: Scale", "Module 5: Optimize"],
-            "bonuses":         ["Bonus 1: Private template vault", "Bonus 2: Swipe file library", "Bonus 3: Quick-start checklist"],
-            "total_value":     "$497 worth of resources",
-            "upsell_bridge":   "Get monthly updates and new resources — join the inner circle.",
+            "format": "PDF course",
+            "modules": ["Module 1: Foundation", "Module 2: Strategy", "Module 3: Execution", "Module 4: Scale", "Module 5: Optimize"],
+            "bonuses": ["Bonus 1: Private template vault", "Bonus 2: Swipe file library", "Bonus 3: Quick-start checklist"],
+            "total_value": "$497 worth of resources",
+            "upsell_bridge": "Get monthly updates and new resources — join the inner circle.",
         }
 
     shopify_product_id = None
@@ -413,25 +412,25 @@ Return JSON:
         modules_html = "".join(f"<li>{m}</li>" for m in data.get("modules", []))
         bonuses_html = "".join(f"<li>{b}</li>" for b in data.get("bonuses", []))
         result = create_product({
-            "title":            data["title"],
-            "body_html":        f"<p>{data.get('subtitle', '')}</p><h3>What's Inside</h3><ul>{modules_html}</ul><h3>Bonuses</h3><ul>{bonuses_html}</ul>",
-            "vendor":           "WheellsVerse",
-            "product_type":     "Digital Download",
-            "tags":             f"course, blueprint, {niche}, premium",
+            "title": data["title"],
+            "body_html": f"<p>{data.get('subtitle', '')}</p><h3>What's Inside</h3><ul>{modules_html}</ul><h3>Bonuses</h3><ul>{bonuses_html}</ul>",
+            "vendor": "WheellsVerse",
+            "product_type": "Digital Download",
+            "tags": f"course, blueprint, {niche}, premium",
             "requires_shipping": False,
             "variants": [{
-                "price":               str(data["price"]),
-                "compare_at_price":    str(data.get("compare_at_price", 197)),
-                "requires_shipping":   False,
+                "price": str(data["price"]),
+                "compare_at_price": str(data.get("compare_at_price", 197)),
+                "requires_shipping": False,
                 "inventory_management": None,
-                "inventory_policy":    "continue",
+                "inventory_policy": "continue",
             }],
         })
         shopify_product_id = result.get("product_id")
     except Exception as e:
         log.warning(f"[FunnelBuilder] High-ticket Shopify create failed: {e}")
 
-    data["step"]              = 4
+    data["step"] = 4
     data["shopify_product_id"] = shopify_product_id
     return data
 
@@ -470,16 +469,16 @@ Return JSON:
     data = _claude_json(prompt, max_tokens=1500)
     if not isinstance(data, dict) or not data.get("title"):
         data = {
-            "title":          f"{niche.title()} Inner Circle",
-            "subtitle":       "New AI tools, templates, and strategies delivered every month",
-            "price_monthly":  19,
-            "billing_cycle":  "monthly",
-            "deliverables":   ["Monthly resource pack", "New prompt collection", "Market intelligence report"],
+            "title": f"{niche.title()} Inner Circle",
+            "subtitle": "New AI tools, templates, and strategies delivered every month",
+            "price_monthly": 19,
+            "billing_cycle": "monthly",
+            "deliverables": ["Monthly resource pack", "New prompt collection", "Market intelligence report"],
             "retention_hook": "Fresh resources every month — stay ahead of the curve",
             "cancel_anytime": True,
         }
 
-    shopify_product_id    = None
+    shopify_product_id = None
     selling_plan_group_id = None
 
     try:
@@ -489,17 +488,17 @@ Return JSON:
         # Create product first
         from core.shopify_client import create_product
         result = create_product({
-            "title":            data["title"],
-            "body_html":        f"<p>{data.get('subtitle', '')}</p><ul>" + "".join(f"<li>{d}</li>" for d in data.get("deliverables", [])) + "</ul>",
-            "vendor":           "WheellsVerse",
-            "product_type":     "Subscription",
-            "tags":             f"subscription, monthly, {niche}, membership",
+            "title": data["title"],
+            "body_html": f"<p>{data.get('subtitle', '')}</p><ul>" + "".join(f"<li>{d}</li>" for d in data.get("deliverables", [])) + "</ul>",
+            "vendor": "WheellsVerse",
+            "product_type": "Subscription",
+            "tags": f"subscription, monthly, {niche}, membership",
             "requires_shipping": False,
             "variants": [{
-                "price":               str(data["price_monthly"]),
-                "requires_shipping":   False,
+                "price": str(data["price_monthly"]),
+                "requires_shipping": False,
                 "inventory_management": None,
-                "inventory_policy":    "continue",
+                "inventory_policy": "continue",
             }],
         })
         shopify_product_id = result.get("product_id")
@@ -521,29 +520,29 @@ mutation sellingPlanGroupCreate($input: SellingPlanGroupInput!, $resources: Sell
 }"""
             variables = {
                 "input": {
-                    "name":             data["title"],
-                    "merchantCode":     "narai-subscription",
-                    "options":          ["Billing Frequency"],
-                    "position":         1,
+                    "name": data["title"],
+                    "merchantCode": "narai-subscription",
+                    "options": ["Billing Frequency"],
+                    "position": 1,
                     "sellingPlansToCreate": [{
-                        "name":     "Monthly subscription",
-                        "options":  ["Monthly"],
+                        "name": "Monthly subscription",
+                        "options": ["Monthly"],
                         "position": 1,
                         "billingPolicy": {
                             "recurring": {
-                                "interval":      "MONTH",
+                                "interval": "MONTH",
                                 "intervalCount": 1,
                             }
                         },
                         "deliveryPolicy": {
                             "recurring": {
-                                "interval":      "MONTH",
+                                "interval": "MONTH",
                                 "intervalCount": 1,
                             }
                         },
                         "pricingPolicies": [{
                             "fixed": {
-                                "adjustmentType":  "PRICE",
+                                "adjustmentType": "PRICE",
                                 "adjustmentValue": {"fixedValue": str(data["price_monthly"])},
                             }
                         }],
@@ -560,9 +559,9 @@ mutation sellingPlanGroupCreate($input: SellingPlanGroupInput!, $resources: Sell
     except Exception as e:
         log.warning(f"[FunnelBuilder] Subscription Shopify create failed: {e}")
 
-    data["step"]                 = 5
-    data["price"]                = data.get("price_monthly", 19)
-    data["shopify_product_id"]   = shopify_product_id
+    data["step"] = 5
+    data["price"] = data.get("price_monthly", 19)
+    data["shopify_product_id"] = shopify_product_id
     data["selling_plan_group_id"] = selling_plan_group_id
     return data
 
@@ -626,13 +625,13 @@ def build_shopify_funnel(niche: str, market_intel: dict) -> dict:
     log.info(f"[FunnelBuilder] Building funnel for niche: {niche}")
 
     funnel: Dict[str, Any] = {
-        "niche":      niche,
-        "built_at":   datetime.now(timezone.utc).isoformat(),
-        "steps":      [],
+        "niche": niche,
+        "built_at": datetime.now(timezone.utc).isoformat(),
+        "steps": [],
         "stats": {
-            "steps_created":  0,
+            "steps_created": 0,
             "shopify_products": 0,
-            "email_sequences":  0,
+            "email_sequences": 0,
         },
     }
 
@@ -650,9 +649,9 @@ def build_shopify_funnel(niche: str, market_intel: dict) -> dict:
             return {}
 
     lead_magnet = _run_step("Step 1 — Free lead magnet", _build_lead_magnet, niche, market_intel)
-    _run_step("Step 2 — $9 ebook",         _build_low_ticket,  niche, lead_magnet)
-    _run_step("Step 3 — $29 toolkit",      _build_mid_ticket,  niche)
-    _run_step("Step 4 — $99 masterclass",  _build_high_ticket, niche)
+    _run_step("Step 2 — $9 ebook", _build_low_ticket, niche, lead_magnet)
+    _run_step("Step 3 — $29 toolkit", _build_mid_ticket, niche)
+    _run_step("Step 4 — $99 masterclass", _build_high_ticket, niche)
     _run_step("Step 5 — $19/mo subscription", _build_subscription, niche)
 
     # Wire email sequences

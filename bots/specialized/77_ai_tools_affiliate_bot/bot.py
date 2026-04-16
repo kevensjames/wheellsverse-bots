@@ -10,11 +10,11 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
 ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 AI_TOOL_TOPICS = [
     "Top 10 AI tools that replace an entire marketing team in 2025",
@@ -32,12 +32,12 @@ AI_TOOL_TOPICS = [
 ]
 
 TOOL_CATEGORIES = {
-    "writing":      "AI writing and content creation tools",
-    "automation":   "AI workflow automation tools",
-    "finance":      "AI tools for personal finance and investing",
+    "writing": "AI writing and content creation tools",
+    "automation": "AI workflow automation tools",
+    "finance": "AI tools for personal finance and investing",
     "productivity": "AI productivity and business tools",
-    "marketing":    "AI marketing and SEO tools",
-    "side_hustle":  "AI tools for side hustles and solopreneurs",
+    "marketing": "AI marketing and SEO tools",
+    "side_hustle": "AI tools for side hustles and solopreneurs",
 }
 
 
@@ -126,7 +126,7 @@ Be specific with tool names, features, and prices. Vague lists don't convert."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="AI Tools Affiliate Bot")
-    parser.add_argument("--topic",    type=str, default=None, help="AI tools topic to cover")
+    parser.add_argument("--topic", type=str, default=None, help="AI tools topic to cover")
     parser.add_argument("--category", type=str, default="automation",
                         choices=["writing", "automation", "finance", "productivity", "marketing", "side_hustle"])
     args = parser.parse_args()

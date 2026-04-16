@@ -18,8 +18,6 @@ import json
 import logging
 import os
 import re
-import urllib.error
-import urllib.request
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -380,14 +378,6 @@ def create_pod_product(
 
     # ── Upload design image (optional) ────────────────────────────────────────
     image_id = None
-    design_url = None
-    if design_image_path or True:  # Try URL fallback too
-        # Try to get a URL from the design (cover engine may return a URL)
-        try:
-            from core.cover_engine import generate_cover
-        except ImportError:
-            pass
-
     # Printify needs an image ID or URL for each print area
     # If we have no image, we use a placeholder text-based design
     print_areas = []

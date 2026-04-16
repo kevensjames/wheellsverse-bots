@@ -38,11 +38,11 @@ import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Optional
 
 log = logging.getLogger("narai_product_engine")
 
-ROOT     = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -65,9 +65,9 @@ PRODUCT_NICHES = [
 ]
 
 PLATFORM_PRODUCT_TYPES = {
-    "gumroad":    ["template_system", "mini_course", "playbook_toolkit", "creator_bundle", "prompt_pack"],
-    "etsy":       ["printable", "planner", "journal_template", "worksheet", "digital_art_pack", "tracker"],
-    "payhip":     ["ebook", "course_pdf", "membership_kit", "bundle", "toolkit", "resource_pack"],
+    "gumroad": ["template_system", "mini_course", "playbook_toolkit", "creator_bundle", "prompt_pack"],
+    "etsy": ["printable", "planner", "journal_template", "worksheet", "digital_art_pack", "tracker"],
+    "payhip": ["ebook", "course_pdf", "membership_kit", "bundle", "toolkit", "resource_pack"],
     "amazon_kdp": ["ebook", "low_content_book", "journal", "workbook", "planner_book"],
 }
 
@@ -243,13 +243,13 @@ def build_sales_page(strategy: dict, platform: str) -> str:
     Structured: Hook → Problem → Solution → Breakdown → Benefits →
                 Social Proof → Price Justification → CTA
     """
-    title       = strategy.get("title", "")
-    audience    = strategy.get("target_audience", "")
-    problem     = strategy.get("problem", "")
-    before      = strategy.get("transformation", {}).get("before", "")
-    after       = strategy.get("transformation", {}).get("after", "")
-    price       = strategy.get("price", 19.99)
-    unique      = strategy.get("unique_angle", "")
+    title = strategy.get("title", "")
+    audience = strategy.get("target_audience", "")
+    problem = strategy.get("problem", "")
+    before = strategy.get("transformation", {}).get("before", "")
+    after = strategy.get("transformation", {}).get("after", "")
+    price = strategy.get("price", 19.99)
+    unique = strategy.get("unique_angle", "")
     product_type = strategy.get("product_type", "ebook")
 
     sales_page = _claude(
@@ -306,13 +306,13 @@ def build_product_content(strategy: dict, platform: str) -> str:
     Generate the ACTUAL product content based on product type.
     Handles: ebook, course_pdf, template_pack, prompt_pack, printable, guide, etc.
     """
-    title        = strategy.get("title", "")
-    subtitle     = strategy.get("subtitle", "")
+    title = strategy.get("title", "")
+    subtitle = strategy.get("subtitle", "")
     product_type = strategy.get("product_type", "ebook")
-    audience     = strategy.get("target_audience", "")
-    problem      = strategy.get("problem", "")
-    after        = strategy.get("transformation", {}).get("after", "")
-    niche        = strategy.get("niche", "")
+    audience = strategy.get("target_audience", "")
+    problem = strategy.get("problem", "")
+    after = strategy.get("transformation", {}).get("after", "")
+    niche = strategy.get("niche", "")
 
     if product_type in ("ebook", "guide", "course_pdf"):
         content = _build_ebook_content(title, subtitle, audience, problem, after, niche)
@@ -402,11 +402,11 @@ def _build_ebook_content(
 
     # Chapters
     for ch in (outline.get("chapters") or [])[:8]:
-        ch_num   = ch.get("num", 1)
+        ch_num = ch.get("num", 1)
         ch_title = ch.get("title", f"Chapter {ch_num}")
-        summary  = ch.get("summary", "")
-        points   = ch.get("key_points", [])
-        action   = ch.get("action_step", "")
+        summary = ch.get("summary", "")
+        points = ch.get("key_points", [])
+        action = ch.get("action_step", "")
 
         log.info(f"[ProductEngine] Writing chapter {ch_num}: {ch_title}")
         chapter = _claude(
@@ -570,10 +570,10 @@ def _build_bundle_content(
 
 def build_bonus_materials(strategy: dict) -> dict:
     """Generate bonus materials: checklist, quick-start guide, templates."""
-    title    = strategy.get("title", "")
+    title = strategy.get("title", "")
     audience = strategy.get("target_audience", "")
-    after    = strategy.get("transformation", {}).get("after", "")
-    niche    = strategy.get("niche", "")
+    after = strategy.get("transformation", {}).get("after", "")
+    niche = strategy.get("niche", "")
 
     bonuses_raw = _claude(
         f"Create BONUS MATERIALS for the product: '{title}'\n"
@@ -596,13 +596,13 @@ def build_bonus_materials(strategy: dict) -> dict:
     # Parse into sections
     checklist = _extract_section(bonuses_raw, "QUICK-START CHECKLIST", "QUICK-START GUIDE")
     quickstart = _extract_section(bonuses_raw, "QUICK-START GUIDE", "TEMPLATE")
-    template   = _extract_section(bonuses_raw, "BONUS 3:", None)
+    template = _extract_section(bonuses_raw, "BONUS 3:", None)
 
     return {
-        "checklist":   checklist or bonuses_raw[:1000],
+        "checklist": checklist or bonuses_raw[:1000],
         "quick_start": quickstart or "",
-        "template":    template or "",
-        "raw":         bonuses_raw,
+        "template": template or "",
+        "raw": bonuses_raw,
     }
 
 
@@ -630,18 +630,18 @@ def build_cover_design_prompt(strategy: dict, platform: str) -> dict:
     Generate an AI image generation prompt for product cover.
     Returns prompts for Midjourney, DALL·E, and Leonardo AI.
     """
-    title        = strategy.get("title", "")
-    niche        = strategy.get("niche", "")
+    title = strategy.get("title", "")
+    niche = strategy.get("niche", "")
     product_type = strategy.get("product_type", "ebook")
-    price        = strategy.get("price", 19.99)
+    price = strategy.get("price", 19.99)
 
     # Determine style based on niche and platform
     style_map = {
-        "Trading / Finance":           "dark luxury, deep navy and gold, financial charts, premium minimal",
-        "AI tools / automation":       "futuristic, electric blue and white, circuit patterns, clean tech",
+        "Trading / Finance": "dark luxury, deep navy and gold, financial charts, premium minimal",
+        "AI tools / automation": "futuristic, electric blue and white, circuit patterns, clean tech",
         "Online income / side hustles": "modern bold, gradient orange-to-purple, clean sans-serif",
         "Productivity / self-improvement": "minimalist, soft neutrals, clean lines, premium journaling feel",
-        "Tech / data / programming":   "dark mode, neon accents, code-inspired, matrix-adjacent but premium",
+        "Tech / data / programming": "dark mode, neon accents, code-inspired, matrix-adjacent but premium",
     }
     niche_style = style_map.get(niche, "modern, clean, premium, bold typography")
 
@@ -672,11 +672,11 @@ def build_cover_design_prompt(strategy: dict, platform: str) -> dict:
     if not isinstance(cover_data, dict):
         cover_data = {
             "midjourney": f"Premium digital product cover for '{title}', {niche_style}, "
-                          "professional mockup, clean white background, high-end design --ar 2:3 --v 6",
+            "professional mockup, clean white background, high-end design --ar 2:3 --v 6",
             "dalle": f"A premium ebook cover for '{title}'. {niche_style} aesthetic. "
-                     "Professional typography, high-end design, suitable for digital product marketplace.",
+            "Professional typography, high-end design, suitable for digital product marketplace.",
             "leonardo": f"Digital product cover, {niche_style}, premium typography, "
-                        "professional quality, clean layout",
+            "professional quality, clean layout",
             "canva_search": "modern ebook cover template premium",
             "color_palette": ["#1a1a2e", "#e94560", "#f5f5f5"],
             "typography": {"title_font": "Montserrat Bold", "body_font": "Inter", "style": "modern sans-serif"},
@@ -697,9 +697,9 @@ def build_delivery_structure(strategy: dict, platform: str) -> dict:
     Define exactly how the product will be delivered:
     files, folder structure, naming conventions.
     """
-    title        = strategy.get("title", "")
+    title = strategy.get("title", "")
     product_type = strategy.get("product_type", "ebook")
-    safe_title   = re.sub(r"[^a-zA-Z0-9_]", "_", title[:30])
+    safe_title = re.sub(r"[^a-zA-Z0-9_]", "_", title[:30])
 
     structure = _claude_json(
         f"Define the product delivery structure for:\n"
@@ -760,9 +760,9 @@ def build_pricing_strategy(strategy: dict, platform: str) -> dict:
     """
     Generate tiered pricing with upsells and subscription options.
     """
-    title    = strategy.get("title", "")
-    price    = strategy.get("price", 19.99)
-    niche    = strategy.get("niche", "")
+    title = strategy.get("title", "")
+    price = strategy.get("price", 19.99)
+    niche = strategy.get("niche", "")
     audience = strategy.get("target_audience", "")
 
     pricing = _claude_json(
@@ -796,8 +796,8 @@ def build_pricing_strategy(strategy: dict, platform: str) -> dict:
     if not isinstance(pricing, dict):
         pricing = {
             "tiers": [
-                {"name": "Starter", "price": 7.00,  "includes": ["Main guide PDF"], "best_for": "Budget buyers"},
-                {"name": "Complete","price": price,  "includes": ["Main guide", "All bonuses"], "best_for": "Most buyers"},
+                {"name": "Starter", "price": 7.00, "includes": ["Main guide PDF"], "best_for": "Budget buyers"},
+                {"name": "Complete", "price": price, "includes": ["Main guide", "All bonuses"], "best_for": "Most buyers"},
                 {"name": "Premium", "price": price * 3, "includes": ["Everything + 1:1 Q&A"], "best_for": "Serious buyers"},
             ],
             "recommended_tier": "Complete",
@@ -870,12 +870,12 @@ def build_marketing_assets(strategy: dict, platform: str) -> dict:
     - 2 TikTok content ideas
     - 1 email promo
     """
-    title    = strategy.get("title", "")
+    title = strategy.get("title", "")
     audience = strategy.get("target_audience", "")
-    problem  = strategy.get("problem", "")
-    after    = strategy.get("transformation", {}).get("after", "")
-    price    = strategy.get("price", 19.99)
-    niche    = strategy.get("niche", "")
+    problem = strategy.get("problem", "")
+    after = strategy.get("transformation", {}).get("after", "")
+    price = strategy.get("price", 19.99)
+    niche = strategy.get("niche", "")
 
     assets_raw = _claude(
         f"Create marketing assets for this digital product:\n\n"
@@ -909,17 +909,17 @@ def build_marketing_assets(strategy: dict, platform: str) -> dict:
 
     return {
         "short_description": _extract_section(assets_raw, "SHORT DESCRIPTION", "TWITTER POST 1"),
-        "twitter_posts":     [
+        "twitter_posts": [
             _extract_section(assets_raw, "TWITTER POST 1", "TWITTER POST 2"),
             _extract_section(assets_raw, "TWITTER POST 2", "TWITTER POST 3"),
             _extract_section(assets_raw, "TWITTER POST 3", "TIKTOK IDEA"),
         ],
-        "tiktok_ideas":      [
+        "tiktok_ideas": [
             _extract_section(assets_raw, "TIKTOK IDEA 1", "TIKTOK IDEA 2"),
             _extract_section(assets_raw, "TIKTOK IDEA 2", "EMAIL PROMO"),
         ],
-        "email_promo":       _extract_section(assets_raw, "EMAIL PROMO", None),
-        "raw":               assets_raw,
+        "email_promo": _extract_section(assets_raw, "EMAIL PROMO", None),
+        "raw": assets_raw,
     }
 
 
@@ -951,7 +951,7 @@ def gumroad_viral_model(market_intel: dict) -> dict:
 
     Returns the viral model dict that drives all downstream steps.
     """
-    niche_list  = "\n".join(f"  • {n}" for n in GUMROAD_NICHES)
+    niche_list = "\n".join(f"  • {n}" for n in GUMROAD_NICHES)
     format_list = "\n".join(
         f"  • {k}: {v['label']} — {v['why_it_sells']}"
         for k, v in GUMROAD_FORMATS.items()
@@ -1017,7 +1017,7 @@ def gumroad_product_concept(viral_model: dict) -> dict:
     Step 1 — Define the specific product concept based on the viral model.
     Must feel like 'I need this NOW'.
     """
-    fmt_key  = viral_model.get("selected_format", "template_system")
+    fmt_key = viral_model.get("selected_format", "template_system")
     fmt_info = GUMROAD_FORMATS.get(fmt_key, GUMROAD_FORMATS["template_system"])
 
     concept = _claude_json(
@@ -1080,12 +1080,12 @@ def gumroad_build_product_content(concept: dict, viral_model: dict) -> dict:
     Returns {pdf_content, notion_structure, value_stack_content}.
     """
     product_name = concept.get("product_name", "")
-    audience     = concept.get("target_audience", "")
-    problem      = concept.get("problem", "")
-    outcome      = concept.get("outcome", "")
-    fmt_key      = concept.get("delivery_type", "template_system")
-    fmt_info     = GUMROAD_FORMATS.get(fmt_key, GUMROAD_FORMATS["template_system"])
-    value_stack  = concept.get("value_stack", [])
+    audience = concept.get("target_audience", "")
+    problem = concept.get("problem", "")
+    outcome = concept.get("outcome", "")
+    fmt_key = concept.get("delivery_type", "template_system")
+    fmt_info = GUMROAD_FORMATS.get(fmt_key, GUMROAD_FORMATS["template_system"])
+    value_stack = concept.get("value_stack", [])
 
     # ── PDF / Core Content ────────────────────────────────────────────────────
     pdf_content = _claude(
@@ -1154,7 +1154,7 @@ def gumroad_build_product_content(concept: dict, viral_model: dict) -> dict:
     time.sleep(THINK_PAUSE)
 
     # ── Value Stack Bonus Content ─────────────────────────────────────────────
-    bonus_items  = [v for v in value_stack if v.get("type") == "bonus"]
+    bonus_items = [v for v in value_stack if v.get("type") == "bonus"]
     bonus_content = _claude(
         f"Create the BONUS CONTENT for '{product_name}'.\n\n"
         f"Bonuses to build:\n{json.dumps(bonus_items, indent=2)}\n\n"
@@ -1171,9 +1171,9 @@ def gumroad_build_product_content(concept: dict, viral_model: dict) -> dict:
     )
 
     return {
-        "pdf_content":      pdf_content,
+        "pdf_content": pdf_content,
         "notion_structure": notion_structure if isinstance(notion_structure, dict) else {},
-        "bonus_content":    bonus_content,
+        "bonus_content": bonus_content,
     }
 
 
@@ -1184,16 +1184,16 @@ def gumroad_sales_page(concept: dict, viral_model: dict) -> str:
     Step 3 — Write a Gumroad-optimized high-conversion sales page.
     Tone: Clear, practical, no hype, easy to scan.
     """
-    product_name  = concept.get("product_name", "")
-    tagline       = concept.get("tagline", "")
-    audience      = concept.get("target_audience", "")
-    problem       = concept.get("problem", "")
-    outcome       = concept.get("outcome", "")
-    value_stack   = concept.get("value_stack", [])
-    price         = concept.get("price", 27.00)
-    total_value   = concept.get("total_value", "")
-    why_buy_now   = concept.get("why_buy_now", "")
-    viral_hook    = viral_model.get("viral_hook", "")
+    product_name = concept.get("product_name", "")
+    tagline = concept.get("tagline", "")
+    audience = concept.get("target_audience", "")
+    problem = concept.get("problem", "")
+    outcome = concept.get("outcome", "")
+    value_stack = concept.get("value_stack", [])
+    price = concept.get("price", 27.00)
+    total_value = concept.get("total_value", "")
+    why_buy_now = concept.get("why_buy_now", "")
+    viral_hook = viral_model.get("viral_hook", "")
     instant_value = viral_model.get("instant_value", "")
 
     stack_text = "\n".join(
@@ -1255,16 +1255,16 @@ def gumroad_cover_prompt(concept: dict, viral_model: dict) -> dict:
     Gumroad covers: 1280×720px (landscape) or square 1:1.
     """
     product_name = concept.get("product_name", "")
-    niche        = viral_model.get("selected_niche", "")
-    fmt_key      = concept.get("delivery_type", "template_system")
+    niche = viral_model.get("selected_niche", "")
+    fmt_key = concept.get("delivery_type", "template_system")
 
     niche_style_map = {
-        "Trading / Finance":          "dark navy + gold, financial data aesthetic, premium minimal, Bloomberg terminal vibes",
-        "AI / Automation":            "electric blue + white, circuit/neural network patterns, clean futuristic, tech premium",
+        "Trading / Finance": "dark navy + gold, financial data aesthetic, premium minimal, Bloomberg terminal vibes",
+        "AI / Automation": "electric blue + white, circuit/neural network patterns, clean futuristic, tech premium",
         "Online income / business systems": "bold gradient (orange to deep purple), clean sans-serif, wealth creation energy",
-        "Content creation systems":   "warm neutrals + coral accent, creator aesthetic, modern editorial, Canva-inspired",
-        "Tech / programming tools":   "dark mode, neon green accent, code elements, VSCode aesthetic, hacker premium",
-        "Design / assets":            "ultra-clean white, soft shadows, design-tool aesthetic, Figma-inspired premium",
+        "Content creation systems": "warm neutrals + coral accent, creator aesthetic, modern editorial, Canva-inspired",
+        "Tech / programming tools": "dark mode, neon green accent, code elements, VSCode aesthetic, hacker premium",
+        "Design / assets": "ultra-clean white, soft shadows, design-tool aesthetic, Figma-inspired premium",
     }
     style = niche_style_map.get(niche, "modern, clean, premium, dark background, bold typography")
 
@@ -1327,11 +1327,11 @@ def gumroad_upload_data(concept: dict, sales_page: str, cover_result: dict) -> d
     price is in CENTS (Gumroad API requirement).
     """
     product_name = concept.get("product_name", "")
-    price_usd    = float(concept.get("price", 27.00))
-    keywords     = concept.get("keywords", [])
-    tagline      = concept.get("tagline", "")
-    value_stack  = concept.get("value_stack", [])
-    why_buy_now  = concept.get("why_buy_now", "")
+    price_usd = float(concept.get("price", 27.00))
+    keywords = concept.get("keywords", [])
+    tagline = concept.get("tagline", "")
+    value_stack = concept.get("value_stack", [])
+    why_buy_now = concept.get("why_buy_now", "")
 
     # Short description (first 500 chars of sales page, clean)
     short_desc = re.sub(r"\*+", "", sales_page[:500]).strip()
@@ -1353,18 +1353,18 @@ def gumroad_upload_data(concept: dict, sales_page: str, cover_result: dict) -> d
         files = [f"{safe_name}_Main_Guide.pdf", f"{safe_name}_Bonuses.pdf"]
 
     return {
-        "title":        product_name,
-        "description":  sales_page,          # full sales page → Gumroad description
-        "short_pitch":  short_desc,
-        "price":        int(price_usd * 100), # cents — Gumroad API format
-        "price_usd":    price_usd,
-        "published":    True,
-        "tags":         keywords[:10],        # Gumroad supports up to 10 tags
-        "tagline":      tagline,
-        "file_list":    files,
-        "cover_local":  cover_result.get("local_path", ""),
-        "cover_url":    cover_result.get("url", ""),
-        "currency":     "usd",
+        "title": product_name,
+        "description": sales_page,          # full sales page → Gumroad description
+        "short_pitch": short_desc,
+        "price": int(price_usd * 100),  # cents — Gumroad API format
+        "price_usd": price_usd,
+        "published": True,
+        "tags": keywords[:10],        # Gumroad supports up to 10 tags
+        "tagline": tagline,
+        "file_list": files,
+        "cover_local": cover_result.get("local_path", ""),
+        "cover_url": cover_result.get("url", ""),
+        "currency": "usd",
         "custom_summary": why_buy_now,
         "suggested_price": int(price_usd * 1.5 * 100),  # "pay what you want" floor
     }
@@ -1376,9 +1376,9 @@ def gumroad_pricing(concept: dict) -> dict:
     """
     Step 6 — Gumroad-specific pricing: entry / premium / bundle.
     """
-    base_price   = float(concept.get("price", 27.00))
+    base_price = float(concept.get("price", 27.00))
     product_name = concept.get("product_name", "")
-    total_value  = concept.get("total_value", "")
+    total_value = concept.get("total_value", "")
 
     pricing = _claude_json(
         f"Create a Gumroad pricing strategy for: '{product_name}'\n"
@@ -1404,15 +1404,15 @@ def gumroad_pricing(concept: dict) -> dict:
 
     if not isinstance(pricing, dict):
         pricing = {
-            "entry":        {"price": 7.00, "name": "Starter", "includes": "Core guide only", "note": "budget buyers"},
-            "main":         {"price": base_price, "name": "Complete", "includes": "Full value stack", "note": "recommended"},
-            "premium":      {"price": base_price * 2.5, "name": "Premium", "includes": "Everything + bonus coaching", "note": "serious buyers"},
+            "entry": {"price": 7.00, "name": "Starter", "includes": "Core guide only", "note": "budget buyers"},
+            "main": {"price": base_price, "name": "Complete", "includes": "Full value stack", "note": "recommended"},
+            "premium": {"price": base_price * 2.5, "name": "Premium", "includes": "Everything + bonus coaching", "note": "serious buyers"},
             "launch_price": round(base_price * 0.6, 2),
-            "launch_end":   "48 hours after publish",
+            "launch_end": "48 hours after publish",
             "pay_what_you_want": False,
             "pwyw_minimum": None,
-            "upsell":       {"name": "1:1 Implementation Call", "price": 97.00, "pitch": "Skip the learning curve — I'll set it up with you live"},
-            "bundle":       {"name": "Creator Mega Bundle", "price": base_price * 1.8, "includes": "3 products", "savings": f"${base_price * 1.2:.0f}"},
+            "upsell": {"name": "1:1 Implementation Call", "price": 97.00, "pitch": "Skip the learning curve — I'll set it up with you live"},
+            "bundle": {"name": "Creator Mega Bundle", "price": base_price * 1.8, "includes": "3 products", "savings": f"${base_price * 1.2:.0f}"},
             "why_this_price": f"${base_price} is less than one hour of consulting for a complete system",
         }
 
@@ -1425,15 +1425,15 @@ def gumroad_marketing(concept: dict, viral_model: dict) -> dict:
     """
     Step 7 — Generate the full marketing pack for the Gumroad launch.
     """
-    product_name  = concept.get("product_name", "")
-    tagline       = concept.get("tagline", "")
-    audience      = concept.get("target_audience", "")
-    problem       = concept.get("problem", "")
-    outcome       = concept.get("outcome", "")
-    price         = concept.get("price", 27.00)
-    viral_hook    = viral_model.get("viral_hook", "")
+    product_name = concept.get("product_name", "")
+    tagline = concept.get("tagline", "")
+    audience = concept.get("target_audience", "")
+    problem = concept.get("problem", "")
+    outcome = concept.get("outcome", "")
+    price = concept.get("price", 27.00)
+    viral_hook = viral_model.get("viral_hook", "")
     instant_value = viral_model.get("instant_value", "")
-    niche         = viral_model.get("selected_niche", "")
+    niche = viral_model.get("selected_niche", "")
 
     assets = _claude(
         f"Create a launch marketing pack for this Gumroad product:\n\n"
@@ -1486,7 +1486,7 @@ def gumroad_marketing(concept: dict, viral_model: dict) -> dict:
             _extract_section(assets, "TIKTOK IDEA 2", "EMAIL"),
         ],
         "email": _extract_section(assets, "EMAIL", None),
-        "raw":   assets,
+        "raw": assets,
     }
 
 
@@ -1536,7 +1536,7 @@ def build_gumroad_product_package(
     # ── Step 1: Product Concept ───────────────────────────────────────────────
     _log("Step 1/11: Building viral product concept…", "gumroad")
     concept = gumroad_product_concept(viral_model)
-    title   = concept.get("product_name", "Untitled")
+    title = concept.get("product_name", "Untitled")
     _log(f"  → '{title}' @ ${concept.get('price')}", "gumroad")
     time.sleep(THINK_PAUSE)
 
@@ -1594,57 +1594,57 @@ def build_gumroad_product_package(
     _log("Step 10/11: Assembling full structured output…", "gumroad")
     package = {
         # Identity
-        "platform":     "gumroad",
-        "created_at":   _now(),
-        "status":       "complete",
-        "title":        title,
-        "price":        concept.get("price", 27.00),
+        "platform": "gumroad",
+        "created_at": _now(),
+        "status": "complete",
+        "title": title,
+        "price": concept.get("price", 27.00),
         "product_type": concept.get("delivery_type", "template_system"),
-        "niche":        viral_model.get("selected_niche", ""),
+        "niche": viral_model.get("selected_niche", ""),
 
         # Raw step outputs
-        "viral_model":        viral_model,
-        "concept":            concept,
-        "strategy":           concept,        # alias for compatibility with other systems
-        "product_content":    content.get("pdf_content", ""),
-        "notion_structure":   content.get("notion_structure", {}),
-        "bonus_content":      content.get("bonus_content", ""),
-        "sales_page":         sales_page,
-        "cover_prompts":      cover_prompts,
-        "cover_image":        cover_result,
+        "viral_model": viral_model,
+        "concept": concept,
+        "strategy": concept,        # alias for compatibility with other systems
+        "product_content": content.get("pdf_content", ""),
+        "notion_structure": content.get("notion_structure", {}),
+        "bonus_content": content.get("bonus_content", ""),
+        "sales_page": sales_page,
+        "cover_prompts": cover_prompts,
+        "cover_image": cover_result,
         "gumroad_upload_data": upload_data,
-        "pricing":            pricing,
-        "disclaimer":         disclaimer,
-        "marketing":          marketing,
+        "pricing": pricing,
+        "disclaimer": disclaimer,
+        "marketing": marketing,
 
         # Convenience fields used by publish helpers
-        "description":       upload_data.get("short_pitch", ""),
-        "listing_content":   sales_page,
-        "content":           sales_page,
+        "description": upload_data.get("short_pitch", ""),
+        "listing_content": sales_page,
+        "content": sales_page,
 
         # Structured JSON output (Step 11 format as requested)
         "structured_output": {
-            "product_name":    title,
-            "niche":           viral_model.get("selected_niche", ""),
+            "product_name": title,
+            "niche": viral_model.get("selected_niche", ""),
             "target_audience": concept.get("target_audience", ""),
-            "problem":         concept.get("problem", ""),
-            "solution":        concept.get("outcome", ""),
+            "problem": concept.get("problem", ""),
+            "solution": concept.get("outcome", ""),
             "product_structure": {
-                "format":      concept.get("delivery_type", ""),
+                "format": concept.get("delivery_type", ""),
                 "value_stack": concept.get("value_stack", []),
                 "total_value": concept.get("total_value", ""),
             },
-            "sales_page":      sales_page,
-            "cover_prompt":    cover_prompts.get("dalle", ""),
-            "pdf_content":     content.get("pdf_content", ""),
+            "sales_page": sales_page,
+            "cover_prompt": cover_prompts.get("dalle", ""),
+            "pdf_content": content.get("pdf_content", ""),
             "notion_structure": content.get("notion_structure", {}),
             "gumroad_upload_data": upload_data,
-            "pricing":         pricing,
-            "marketing":       {
+            "pricing": pricing,
+            "marketing": {
                 "short_description": marketing.get("short_description", ""),
-                "x_posts":           marketing.get("x_posts", []),
-                "tiktok_ideas":      marketing.get("tiktok_ideas", []),
-                "email":             marketing.get("email", ""),
+                "x_posts": marketing.get("x_posts", []),
+                "tiktok_ideas": marketing.get("tiktok_ideas", []),
+                "email": marketing.get("email", ""),
             },
         },
     }
@@ -1702,7 +1702,7 @@ def _generate_cover_image(
                 )
             else:
                 log_fn(
-                    f"  ⚠️  Cover generation failed ({result.get('error','')[:60]}) — "
+                    f"  ⚠️  Cover generation failed ({result.get('error', '')[:60]}) — "
                     f"Midjourney prompt saved for manual use.",
                     platform,
                 )
@@ -1820,45 +1820,45 @@ def build_complete_product_package(
 
     # ── Assemble final package ────────────────────────────────────────────────
     package = {
-        "platform":         platform,
-        "created_at":       _now(),
-        "status":           "complete",
+        "platform": platform,
+        "created_at": _now(),
+        "status": "complete",
 
         # Step 1
-        "strategy":         strategy,
-        "title":            title,
-        "price":            strategy.get("price", 19.99),
-        "product_type":     strategy.get("product_type", "ebook"),
-        "niche":            strategy.get("niche", ""),
+        "strategy": strategy,
+        "title": title,
+        "price": strategy.get("price", 19.99),
+        "product_type": strategy.get("product_type", "ebook"),
+        "niche": strategy.get("niche", ""),
 
         # Step 2
-        "sales_page":       sales_page,
+        "sales_page": sales_page,
 
         # Step 3
-        "product_content":  product_content,
+        "product_content": product_content,
 
         # Step 4
-        "bonuses":          bonuses,
+        "bonuses": bonuses,
 
         # Step 5
-        "cover_prompts":    cover_prompts,
-        "cover_image":      cover_result,   # {success, source, local_path, url, midjourney_prompt}
+        "cover_prompts": cover_prompts,
+        "cover_image": cover_result,   # {success, source, local_path, url, midjourney_prompt}
 
         # Step 6
-        "delivery":         delivery,
+        "delivery": delivery,
 
         # Step 7
-        "pricing":          pricing,
+        "pricing": pricing,
 
         # Step 8
-        "disclaimer":       disclaimer,
+        "disclaimer": disclaimer,
 
         # Step 9
-        "marketing":        marketing,
+        "marketing": marketing,
 
         # Convenience flattening for publish helpers
-        "description":      marketing.get("short_description", sales_page[:500]),
-        "listing_content":  _build_listing_content(strategy, sales_page, pricing, disclaimer, platform),
+        "description": marketing.get("short_description", sales_page[:500]),
+        "listing_content": _build_listing_content(strategy, sales_page, pricing, disclaimer, platform),
     }
 
     _log(f"✅ Complete package built for '{title}' on {platform.upper()}", platform)
@@ -1873,10 +1873,9 @@ def _build_listing_content(
     platform: str,
 ) -> str:
     """Assemble the final listing content to post to the platform."""
-    title     = strategy.get("title", "")
-    subtitle  = strategy.get("subtitle", "")
-    price     = strategy.get("price", 19.99)
-    keywords  = strategy.get("keywords", [])
+    title = strategy.get("title", "")
+    subtitle = strategy.get("subtitle", "")
+    keywords = strategy.get("keywords", [])
 
     tiers = pricing.get("tiers", [])
     tier_text = "\n".join(
@@ -1903,10 +1902,10 @@ def _build_listing_content(
 
 def save_product_package(package: dict) -> Path:
     """Save complete product package as JSON + human-readable markdown."""
-    platform  = package.get("platform", "unknown")
-    title     = package.get("title", "Untitled")
+    platform = package.get("platform", "unknown")
+    title = package.get("title", "Untitled")
     safe_name = re.sub(r"[^a-zA-Z0-9_]", "_", title[:40])
-    ts        = datetime.now().strftime("%Y%m%d_%H%M")
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
 
     platform_dir = PRODUCTS_DIR / platform
     platform_dir.mkdir(parents=True, exist_ok=True)
@@ -1926,12 +1925,12 @@ def save_product_package(package: dict) -> Path:
 
 def _render_markdown_export(package: dict) -> str:
     """Render a clean markdown export of the complete product package."""
-    strategy  = package.get("strategy", {})
-    pricing   = package.get("pricing", {})
-    cover     = package.get("cover_prompts", {})
-    delivery  = package.get("delivery", {})
+    strategy = package.get("strategy", {})
+    pricing = package.get("pricing", {})
+    cover = package.get("cover_prompts", {})
+    delivery = package.get("delivery", {})
     marketing = package.get("marketing", {})
-    bonuses   = package.get("bonuses", {})
+    bonuses = package.get("bonuses", {})
 
     tiers = pricing.get("tiers", [])
     tier_md = "\n".join(
@@ -1945,7 +1944,7 @@ def _render_markdown_export(package: dict) -> str:
     )
 
     twitter_posts = marketing.get("twitter_posts", [])
-    tiktok_ideas  = marketing.get("tiktok_ideas", [])
+    tiktok_ideas = marketing.get("tiktok_ideas", [])
 
     return f"""# {package.get('title', 'Product')}
 **Platform:** {package.get('platform', '').upper()}

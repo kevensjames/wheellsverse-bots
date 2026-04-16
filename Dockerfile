@@ -11,12 +11,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt .
+# Layer 1: torch (CPU-only, ~500 MB) — cached as its own layer, never re-runs
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
-# Copy application code (secrets stay out via .dockerignore)
+# Layer 2: app dependencies — only re-runs when requirements.txt changes
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Layer 3: app code — re-runs on every deploy (fast, no pip work)
 COPY . .
 
 # Create required directories

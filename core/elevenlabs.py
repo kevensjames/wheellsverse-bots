@@ -38,18 +38,52 @@ AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger("elevenlabs")
 
-BASE_URL    = "https://api.elevenlabs.io/v1"
-API_KEY     = os.getenv("ELEVENLABS_API_KEY", "")
-VOICE_ID    = os.getenv("ELEVENLABS_VOICE_ID", "")
-MODEL_ID    = os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5")
-CHUNK_SIZE  = 4500   # chars per request (under 5000 limit)
+BASE_URL = "https://api.elevenlabs.io/v1"
+API_KEY = os.getenv("ELEVENLABS_API_KEY", "")
+VOICE_ID = os.getenv("ELEVENLABS_VOICE_ID", "")
+MODEL_ID = os.getenv("ELEVENLABS_MODEL", "eleven_turbo_v2_5")
+CHUNK_SIZE = 4500   # chars per request (under 5000 limit)
 
-# Default voice settings — tuned for NarAI's confident, warm delivery
+# Default voice settings — NarAI: soft, loving, emotionally expressive
 DEFAULT_SETTINGS = {
-    "stability":          0.45,   # 0=varied, 1=stable — mid keeps it natural
-    "similarity_boost":   0.82,   # how close to the original voice
-    "style":              0.35,   # expressiveness (0-1)
-    "use_speaker_boost":  True,
+    "stability": 0.22,   # low = very expressive, emotional, natural variation
+    "similarity_boost": 0.88,   # stays close to the voice character
+    "style": 0.72,   # high expressiveness — feels alive, warm, real
+    "use_speaker_boost": True,
+}
+
+# Mood-specific voice settings — NarAI mirrors the user's emotional state
+MOOD_VOICE_SETTINGS = {
+    "sad": {
+        "stability": 0.30,   # slightly more stable — soft, gentle delivery
+        "similarity_boost": 0.88,
+        "style": 0.60,   # emotional but controlled, tender
+        "use_speaker_boost": True,
+    },
+    "happy": {
+        "stability": 0.18,   # very expressive — bright, energetic
+        "similarity_boost": 0.88,
+        "style": 0.85,   # maximum warmth and energy
+        "use_speaker_boost": True,
+    },
+    "angry": {
+        "stability": 0.35,   # calmer, grounding tone
+        "similarity_boost": 0.88,
+        "style": 0.50,
+        "use_speaker_boost": True,
+    },
+    "anxious": {
+        "stability": 0.40,   # steady, reassuring
+        "similarity_boost": 0.88,
+        "style": 0.45,
+        "use_speaker_boost": True,
+    },
+    "neutral": {
+        "stability": 0.22,
+        "similarity_boost": 0.88,
+        "style": 0.65,
+        "use_speaker_boost": True,
+    },
 }
 
 
@@ -76,9 +110,9 @@ def speak(text: str, voice_id: str = None, filename: str = None,
         logger.info("[ElevenLabs] Not configured — falling back to OpenAI TTS")
         return _openai_tts_fallback(text, filename)
 
-    vid      = voice_id or VOICE_ID
+    vid = voice_id or VOICE_ID
     settings = settings or DEFAULT_SETTINGS
-    text     = text.strip()
+    text = text.strip()
 
     if not text:
         return None
@@ -88,14 +122,14 @@ def speak(text: str, voice_id: str = None, filename: str = None,
     audio_parts: List[bytes] = []
 
     for i, chunk in enumerate(chunks):
-        logger.info(f"[ElevenLabs] Chunk {i+1}/{len(chunks)} ({len(chunk)} chars)")
+        logger.info(f"[ElevenLabs] Chunk {i + 1}/{len(chunks)} ({len(chunk)} chars)")
         try:
             resp = requests.post(
                 f"{BASE_URL}/text-to-speech/{vid}",
                 headers=_headers(),
                 json={
-                    "text":           chunk,
-                    "model_id":       MODEL_ID,
+                    "text": chunk,
+                    "model_id": MODEL_ID,
                     "voice_settings": settings,
                 },
                 timeout=30,
@@ -114,7 +148,7 @@ def speak(text: str, voice_id: str = None, filename: str = None,
 
     # Save file
     if not filename:
-        ts       = int(time.time())
+        ts = int(time.time())
         filename = f"narai_voice_{ts}.mp3"
     if not filename.endswith(".mp3"):
         filename += ".mp3"
@@ -123,6 +157,18 @@ def speak(text: str, voice_id: str = None, filename: str = None,
     out_path.write_bytes(audio_bytes)
     logger.info(f"[ElevenLabs] Saved {len(audio_bytes):,} bytes → {out_path}")
     return out_path
+
+
+def speak_with_mood(text: str, mood: str = None, filename: str = None) -> Optional[Path]:
+    """Speak with voice settings adapted to the current emotional mood."""
+    try:
+        if not mood:
+            from core.emotion_engine import get_current_mood
+            mood = get_current_mood()
+    except Exception:
+        mood = "neutral"
+    settings = MOOD_VOICE_SETTINGS.get(mood, DEFAULT_SETTINGS)
+    return speak(text, settings=settings, filename=filename)
 
 
 def speak_stream(text: str, voice_id: str = None) -> Iterator[bytes]:
@@ -139,8 +185,8 @@ def speak_stream(text: str, voice_id: str = None) -> Iterator[bytes]:
             f"{BASE_URL}/text-to-speech/{vid}/stream",
             headers=_headers(),
             json={
-                "text":           text[:CHUNK_SIZE],
-                "model_id":       MODEL_ID,
+                "text": text[:CHUNK_SIZE],
+                "model_id": MODEL_ID,
                 "voice_settings": DEFAULT_SETTINGS,
             },
             stream=True,
@@ -234,14 +280,14 @@ def get_usage() -> dict:
                             headers=_headers(), timeout=6)
         if resp.status_code == 200:
             data = resp.json()
-            used  = data.get("character_count", 0)
+            used = data.get("character_count", 0)
             limit = data.get("character_limit", 0)
             return {
-                "used":       used,
-                "limit":      limit,
-                "remaining":  limit - used,
-                "pct_used":   round(used / max(limit, 1) * 100, 1),
-                "tier":       data.get("tier", "unknown"),
+                "used": used,
+                "limit": limit,
+                "remaining": limit - used,
+                "pct_used": round(used / max(limit, 1) * 100, 1),
+                "tier": data.get("tier", "unknown"),
             }
         return {}
     except Exception as e:
@@ -275,21 +321,27 @@ def _chunk_text(text: str) -> List[str]:
 
 
 def _openai_tts_fallback(text: str, filename: str = None) -> Optional[Path]:
-    """Use OpenAI TTS as fallback when ElevenLabs not configured."""
+    """
+    OpenAI TTS fallback — uses 'shimmer' voice:
+    soft, warm, feminine, emotional — closest to a loving human voice.
+    Speed 0.88 = slightly slower, more intimate delivery.
+    """
     try:
         from openai import OpenAI
         client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        audio  = client.audio.speech.create(
-            model="tts-1-hd", voice="nova",
-            input=text[:4000], speed=0.92,
+        audio = client.audio.speech.create(
+            model="tts-1-hd",
+            voice="shimmer",    # warmest, softest, most emotional OpenAI voice
+            input=text[:4000],
+            speed=0.88,         # slower = more intimate, loving
         )
         if not filename:
-            filename = f"narai_oaitts_{int(time.time())}.mp3"
+            filename = f"narai_voice_{int(time.time())}.mp3"
         if not filename.endswith(".mp3"):
             filename += ".mp3"
         out_path = AUDIO_DIR / filename
         out_path.write_bytes(audio.content)
-        logger.info(f"[ElevenLabs→OpenAI] Saved TTS fallback → {out_path}")
+        logger.info(f"[OpenAI TTS shimmer] Saved → {out_path}")
         return out_path
     except Exception as e:
         logger.error(f"[ElevenLabs] OpenAI TTS fallback failed: {e}")
@@ -299,7 +351,6 @@ def _openai_tts_fallback(text: str, filename: str = None) -> Optional[Path]:
 # ─── Module self-test ─────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import json
     print("ElevenLabs Status:")
     print(f"  Configured: {is_configured()}")
     info = get_voice_info()

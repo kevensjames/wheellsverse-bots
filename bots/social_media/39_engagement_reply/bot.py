@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 COMMENT_TYPES = [
     "question about product/service",
@@ -36,9 +36,9 @@ class EngagementReplyBot(BaseBot):
 
         cfg = self.config
         comment_type = comment_type or cfg.get("comment_type", "question about product/service")
-        platform     = platform or cfg.get("platform", "instagram,twitter,linkedin")
-        niche        = niche or cfg.get("niche", "AI automation and entrepreneurship")
-        num_replies  = num_replies or cfg.get("num_replies", 5)
+        platform = platform or cfg.get("platform", "instagram,twitter,linkedin")
+        niche = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        num_replies = num_replies or cfg.get("num_replies", 5)
 
         platform_list = [p.strip() for p in platform.split(",")]
         self.logger.info(f"Generating engagement replies for: {comment_type} on {platform}")
@@ -154,9 +154,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Social Media Engagement Reply Generator")
     parser.add_argument("--comment-type", type=str, default=None)
-    parser.add_argument("--platform",     type=str, default="instagram,twitter,linkedin")
-    parser.add_argument("--niche",        type=str, default=None)
-    parser.add_argument("--replies",      type=int, default=5)
+    parser.add_argument("--platform", type=str, default="instagram,twitter,linkedin")
+    parser.add_argument("--niche", type=str, default=None)
+    parser.add_argument("--replies", type=int, default=5)
     args = parser.parse_args()
     bot = EngagementReplyBot()
     result = bot.execute(comment_type=args.comment_type, platform=args.platform,

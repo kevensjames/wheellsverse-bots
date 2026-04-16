@@ -10,9 +10,8 @@ Persists to JSON so data survives restarts.
 import json
 import logging
 import threading
-import time
 from collections import deque
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

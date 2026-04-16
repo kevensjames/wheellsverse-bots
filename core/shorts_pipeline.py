@@ -45,9 +45,9 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-logger    = logging.getLogger("shorts_pipeline")
-BRAND     = os.getenv("BRAND_NAME",  "WheellsVerse")
-CTA_URL   = os.getenv("CTA_URL",     "https://grateful-flexibility-production.up.railway.app/landing")
+logger = logging.getLogger("shorts_pipeline")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 RESULTS_DIR = ROOT / "outputs" / "shorts_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -59,33 +59,33 @@ EXTENDED_PLATFORMS = ["youtube", "tiktok", "instagram", "facebook",
 
 DEFAULT_TOPICS = [
     # Crypto
-    ("Bitcoin is about to change — here's what you need to know right now",    "crypto"),
-    ("3 crypto mistakes beginners make that wipe out their portfolio",          "crypto"),
-    ("How to earn passive income from crypto without trading",                  "crypto"),
-    ("Coinbase vs Binance — which one should you actually use in 2025?",       "crypto"),
+    ("Bitcoin is about to change — here's what you need to know right now", "crypto"),
+    ("3 crypto mistakes beginners make that wipe out their portfolio", "crypto"),
+    ("How to earn passive income from crypto without trading", "crypto"),
+    ("Coinbase vs Binance — which one should you actually use in 2025?", "crypto"),
     # Investing
-    ("I started investing with $100 — here's exactly what happened",           "investing"),
-    ("The dividend investing strategy that pays you every single month",        "investing"),
-    ("Why 99% of beginners lose money in the stock market (and how not to)",   "investing"),
-    ("Fractional shares explained — invest in Apple for $1",                   "investing"),
+    ("I started investing with $100 — here's exactly what happened", "investing"),
+    ("The dividend investing strategy that pays you every single month", "investing"),
+    ("Why 99% of beginners lose money in the stock market (and how not to)", "investing"),
+    ("Fractional shares explained — invest in Apple for $1", "investing"),
     # AI Tools
-    ("The 3 AI tools that pay for themselves in the first week",               "ai_tools"),
-    ("How I use AI to write 30 blog posts in one day",                        "ai_tools"),
-    ("AI tools that actually make money — not just save time",                 "ai_tools"),
-    ("Stop using ChatGPT wrong — this is how to make real money with AI",     "ai_tools"),
+    ("The 3 AI tools that pay for themselves in the first week", "ai_tools"),
+    ("How I use AI to write 30 blog posts in one day", "ai_tools"),
+    ("AI tools that actually make money — not just save time", "ai_tools"),
+    ("Stop using ChatGPT wrong — this is how to make real money with AI", "ai_tools"),
     # Passive Income
-    ("5 passive income streams I built with under $500",                       "passive_income"),
-    ("The affiliate marketing blueprint nobody shows beginners",               "passive_income"),
-    ("How I made my first $1,000 online without selling anything",             "passive_income"),
-    ("Side hustles that work in 2025 — ranked by actual earning potential",    "passive_income"),
+    ("5 passive income streams I built with under $500", "passive_income"),
+    ("The affiliate marketing blueprint nobody shows beginners", "passive_income"),
+    ("How I made my first $1,000 online without selling anything", "passive_income"),
+    ("Side hustles that work in 2025 — ranked by actual earning potential", "passive_income"),
 ]
 
 HASHTAGS = {
-    "crypto":         "#crypto #bitcoin #ethereum #investing #passiveincome",
-    "investing":      "#investing #stockmarket #passiveincome #money #wealth",
-    "ai_tools":       "#ai #aitools #chatgpt #automation #makemoneyonline",
+    "crypto": "#crypto #bitcoin #ethereum #investing #passiveincome",
+    "investing": "#investing #stockmarket #passiveincome #money #wealth",
+    "ai_tools": "#ai #aitools #chatgpt #automation #makemoneyonline",
     "passive_income": "#passiveincome #sidehustle #makemoney #financialfreedom",
-    "general":        "#AI #crypto #investing #passiveincome #WheellsVerse",
+    "general": "#AI #crypto #investing #passiveincome #WheellsVerse",
 }
 
 
@@ -98,7 +98,7 @@ class ShortsPipeline:
 
     def __init__(self):
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
-        self.model      = os.getenv("OPENAI_MODEL", "gpt-4o")
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4o")
 
     def run(
         self,
@@ -135,13 +135,13 @@ class ShortsPipeline:
 
         # ── Step 4: Generate HeyGen avatar video ──────────────────────────────
         video_path = None
-        video_url  = None
+        video_url = None
 
         if not skip_video:
             video_result = self._generate_video(script, topic, format)
             if video_result.get("status") == "completed":
                 video_path = video_result.get("download_path")
-                video_url  = video_result.get("video_url")
+                video_url = video_result.get("video_url")
                 logger.info(f"[ShortsPipeline] Video ready: {video_path}")
             else:
                 logger.warning(f"[ShortsPipeline] Video failed: {video_result.get('error')}")
@@ -150,7 +150,7 @@ class ShortsPipeline:
         caption = self._build_caption(topic, niche, script)
 
         # ── Step 6: Publish ───────────────────────────────────────────────────
-        platforms   = publish_to or ["youtube", "tiktok", "instagram", "facebook"]
+        platforms = publish_to or ["youtube", "tiktok", "instagram", "facebook"]
         pub_results = {}
 
         if not dry_run and (video_path or video_url):
@@ -183,22 +183,22 @@ class ShortsPipeline:
 
         # ── Step 8: Save result ───────────────────────────────────────────────
         elapsed = (datetime.now() - start).seconds
-        result  = {
-            "status":       "completed",
-            "topic":        topic,
-            "niche":        niche,
-            "format":       format,
+        result = {
+            "status": "completed",
+            "topic": topic,
+            "niche": niche,
+            "format": format,
             "script_chars": len(script),
-            "audio_path":   str(audio_path) if audio_path else None,
-            "video_path":   str(video_path) if video_path else None,
-            "video_url":    video_url,
-            "published":    pub_results,
-            "elapsed_s":    elapsed,
-            "timestamp":    start.isoformat(),
+            "audio_path": str(audio_path) if audio_path else None,
+            "video_path": str(video_path) if video_path else None,
+            "video_url": video_url,
+            "published": pub_results,
+            "elapsed_s": elapsed,
+            "timestamp": start.isoformat(),
         }
 
-        ts       = start.strftime("%Y%m%d_%H%M%S")
-        safe     = "".join(c if c.isalnum() else "_" for c in topic[:40])
+        ts = start.strftime("%Y%m%d_%H%M%S")
+        safe = "".join(c if c.isalnum() else "_" for c in topic[:40])
         out_file = RESULTS_DIR / f"short_{safe}_{ts}.json"
         out_file.write_text(json.dumps(result, indent=2, default=str))
 
@@ -232,8 +232,7 @@ class ShortsPipeline:
         """Generate a 55-60 second video script with GPT-4o."""
         try:
             import openai
-            client  = openai.OpenAI(api_key=self.openai_key)
-            hashtags = HASHTAGS.get(niche, HASHTAGS["general"])
+            client = openai.OpenAI(api_key=self.openai_key)
 
             prompt = f"""Write a 55-60 second YouTube Shorts / TikTok script on: "{topic}"
 
@@ -271,7 +270,7 @@ Rules:
         """Generate voice via ElevenLabs (or OpenAI TTS fallback)."""
         try:
             from core import elevenlabs as el
-            safe     = "".join(c if c.isalnum() else "_" for c in title[:30])
+            safe = "".join(c if c.isalnum() else "_" for c in title[:30])
             filename = f"short_{safe}_{int(time.time())}.mp3"
             return el.speak(script, filename=filename)
         except Exception as e:
@@ -298,7 +297,7 @@ Rules:
             f"{script[:120].strip()}...\n\n"
             f"Follow {BRAND} for daily AI + crypto + income signals!\n"
             f"🔗 {CTA_URL}\n\n"
-            f"{hashtags} #{BRAND.replace(' ','')}"
+            f"{hashtags} #{BRAND.replace(' ', '')}"
         )
 
     def _publish(self, video_path: Optional[Path], video_url: str,
@@ -307,7 +306,7 @@ Rules:
         """Publish to all requested platforms in parallel."""
         import threading
         results = {}
-        lock    = threading.Lock()
+        lock = threading.Lock()
 
         def _pub(platform: str):
             r = self._publish_one(
@@ -338,11 +337,11 @@ Rules:
             elif platform == "facebook":
                 return self._pub_facebook(video_path or video_url, caption)
             elif platform == "linkedin":
-                return self._pub_linkedin(title, caption, script if 'script' in dir() else caption)
+                return self._pub_linkedin(title, caption, caption)
             elif platform == "threads":
                 return self._pub_threads(caption)
             elif platform == "pinterest":
-                return self._pub_pinterest(title, caption, niche if 'niche' in dir() else "general")
+                return self._pub_pinterest(title, caption, "general")
             else:
                 return f"unknown platform: {platform}"
         except Exception as e:
@@ -360,7 +359,7 @@ Rules:
                 video_path=str(video_path) if video_path else None,
                 title=title[:100],
                 description=description[:5000],
-                tags=["AI","crypto","investing","passiveincome","WheellsVerse","Shorts"],
+                tags=["AI", "crypto", "investing", "passiveincome", "WheellsVerse", "Shorts"],
                 category_id="22",   # People & Blogs
             )
             pid = result.get("id") or result.get("video_id") or "uploaded"
@@ -413,7 +412,7 @@ Rules:
             if not li.is_configured():
                 return "skipped: LinkedIn not configured — visit /api/linkedin/auth"
             from core.linkedin import generate_post
-            text   = generate_post(title, niche="general")
+            text = generate_post(title, niche="general")
             result = li.post(text or caption[:1300])
             return result.get("post_id") or result.get("status") or "published"
         except Exception as e:
@@ -427,7 +426,7 @@ Rules:
                 return "skipped: Threads not configured — set THREADS_ACCESS_TOKEN or INSTAGRAM_PAGE_TOKEN"
             from core.threads import generate_post as th_gen
             # Threads has 500 char limit — use a fresh short post
-            text   = th_gen(caption[:200], niche="general") or caption[:480]
+            text = th_gen(caption[:200], niche="general") or caption[:480]
             result = th.post(text)
             return result.get("post_id") or result.get("status") or "published"
         except Exception as e:
@@ -446,7 +445,7 @@ Rules:
 
     def _send_alert(self, topic: str, pub_results: Dict, elapsed: int):
         try:
-            token   = os.getenv("TELEGRAM_BOT_TOKEN")
+            token = os.getenv("TELEGRAM_BOT_TOKEN")
             chat_id = os.getenv("TELEGRAM_CHAT_ID")
             if not (token and chat_id):
                 return
@@ -473,6 +472,7 @@ Rules:
 
 _pipeline: Optional[ShortsPipeline] = None
 
+
 def get_shorts_pipeline() -> ShortsPipeline:
     global _pipeline
     if _pipeline is None:
@@ -492,15 +492,15 @@ def run_short(topic: str = None, niche: str = None,
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="YouTube Shorts / TikTok / Reels Pipeline")
-    parser.add_argument("--topic",      type=str, default=None)
-    parser.add_argument("--niche",      type=str, default=None,
-                        choices=["crypto","investing","ai_tools","passive_income"])
-    parser.add_argument("--platforms",  type=str, default="youtube,tiktok,instagram,facebook")
-    parser.add_argument("--format",     type=str, default="shorts",
-                        choices=["shorts","landscape"])
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None,
+                        choices=["crypto", "investing", "ai_tools", "passive_income"])
+    parser.add_argument("--platforms", type=str, default="youtube,tiktok,instagram,facebook")
+    parser.add_argument("--format", type=str, default="shorts",
+                        choices=["shorts", "landscape"])
     parser.add_argument("--skip-video", action="store_true",
                         help="Generate script+audio only, skip HeyGen")
-    parser.add_argument("--dry-run",    action="store_true",
+    parser.add_argument("--dry-run", action="store_true",
                         help="Full pipeline but don't actually publish")
     args = parser.parse_args()
 

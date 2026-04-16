@@ -26,37 +26,37 @@ import threading
 from collections import defaultdict
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR   = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-LOOP_FILE  = DATA_DIR / "feedback_loop.json"
+LOOP_FILE = DATA_DIR / "feedback_loop.json"
 
 logger = logging.getLogger("feedback_loop")
 
 # ─── Scoring weights ──────────────────────────────────────────────────────────
 
 SCORE_WEIGHTS = {
-    "views":            1.0,
-    "likes":            3.0,
-    "comments":         5.0,
-    "shares":           8.0,
-    "clicks":           5.0,
+    "views": 1.0,
+    "likes": 3.0,
+    "comments": 5.0,
+    "shares": 8.0,
+    "clicks": 5.0,
     "affiliate_clicks": 15.0,
-    "leads":            20.0,
-    "revenue":          25.0,
+    "leads": 20.0,
+    "revenue": 25.0,
 }
 
 # A post is "viral" if its score is 3× the platform average
 VIRAL_MULTIPLIER = 3.0
 
 # Minimum posts needed before we trust the data
-MIN_DATA_POINTS  = 3
+MIN_DATA_POINTS = 3
 
 
 # ─── Post Record ──────────────────────────────────────────────────────────────
@@ -67,22 +67,22 @@ class PostRecord:
     def __init__(self, post_id: str, topic: str, niche: str,
                  bot_name: str, platform: str, content_type: str = "post",
                  hour: int = None):
-        self.post_id      = post_id
-        self.topic        = topic
-        self.niche        = niche
-        self.bot_name     = bot_name
-        self.platform     = platform
+        self.post_id = post_id
+        self.topic = topic
+        self.niche = niche
+        self.bot_name = bot_name
+        self.platform = platform
         self.content_type = content_type
-        self.hour         = hour if hour is not None else datetime.now().hour
-        self.created_at   = datetime.now().isoformat()
-        self.updated_at   = self.created_at
+        self.hour = hour if hour is not None else datetime.now().hour
+        self.created_at = datetime.now().isoformat()
+        self.updated_at = self.created_at
 
         self.engagement: Dict[str, float] = {
             "views": 0, "likes": 0, "comments": 0, "shares": 0,
             "clicks": 0, "affiliate_clicks": 0, "leads": 0, "revenue": 0.0,
         }
         self.score: float = 0.0
-        self.viral: bool  = False
+        self.viral: bool = False
 
     def update(self, **kwargs):
         for k, v in kwargs.items():
@@ -99,30 +99,30 @@ class PostRecord:
 
     def to_dict(self) -> Dict:
         return {
-            "post_id":      self.post_id,
-            "topic":        self.topic,
-            "niche":        self.niche,
-            "bot_name":     self.bot_name,
-            "platform":     self.platform,
+            "post_id": self.post_id,
+            "topic": self.topic,
+            "niche": self.niche,
+            "bot_name": self.bot_name,
+            "platform": self.platform,
             "content_type": self.content_type,
-            "hour":         self.hour,
-            "created_at":   self.created_at,
-            "updated_at":   self.updated_at,
-            "engagement":   self.engagement,
-            "score":        self.score,
-            "viral":        self.viral,
+            "hour": self.hour,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+            "engagement": self.engagement,
+            "score": self.score,
+            "viral": self.viral,
         }
 
     @classmethod
     def from_dict(cls, d: Dict) -> "PostRecord":
-        r = cls(d["post_id"], d["topic"], d.get("niche","general"),
-                d.get("bot_name","unknown"), d.get("platform","unknown"),
-                d.get("content_type","post"), d.get("hour",0))
-        r.created_at  = d.get("created_at", r.created_at)
-        r.updated_at  = d.get("updated_at", r.updated_at)
-        r.engagement  = d.get("engagement", r.engagement)
-        r.score       = d.get("score", 0.0)
-        r.viral       = d.get("viral", False)
+        r = cls(d["post_id"], d["topic"], d.get("niche", "general"),
+                d.get("bot_name", "unknown"), d.get("platform", "unknown"),
+                d.get("content_type", "post"), d.get("hour", 0))
+        r.created_at = d.get("created_at", r.created_at)
+        r.updated_at = d.get("updated_at", r.updated_at)
+        r.engagement = d.get("engagement", r.engagement)
+        r.score = d.get("score", 0.0)
+        r.viral = d.get("viral", False)
         return r
 
 
@@ -225,7 +225,7 @@ class FeedbackLoop:
             by_topic[r.topic].append(r.score)
 
         ranked = [
-            {"topic": t, "avg_score": sum(s)/len(s), "data_points": len(s)}
+            {"topic": t, "avg_score": sum(s) / len(s), "data_points": len(s)}
             for t, s in by_topic.items()
             if len(s) >= 1
         ]
@@ -248,7 +248,7 @@ class FeedbackLoop:
         if not hour_scores:
             return None
 
-        best_hour = max(hour_scores.items(), key=lambda x: sum(x[1])/len(x[1]))
+        best_hour = max(hour_scores.items(), key=lambda x: sum(x[1]) / len(x[1]))
         return best_hour[0]
 
     def get_best_bot(self, niche: str = None) -> Optional[str]:
@@ -265,7 +265,7 @@ class FeedbackLoop:
 
         if not bot_scores:
             return None
-        return max(bot_scores.items(), key=lambda x: sum(x[1])/len(x[1]))[0]
+        return max(bot_scores.items(), key=lambda x: sum(x[1]) / len(x[1]))[0]
 
     def get_viral_posts(self, hours: int = 24) -> List[PostRecord]:
         """Return all posts that went viral in the last N hours."""
@@ -289,7 +289,7 @@ class FeedbackLoop:
         if len(recent) < 2:
             return False
 
-        recent_avg  = sum(r.score for r in recent) / len(recent)
+        recent_avg = sum(r.score for r in recent) / len(recent)
         overall_avg = self._platform_avg_score(platform)
         if overall_avg == 0:
             return False
@@ -306,21 +306,21 @@ class FeedbackLoop:
         viral = [r for r in recent if r.viral]
 
         total_revenue = sum(r.engagement.get("revenue", 0) for r in recent)
-        total_leads   = sum(r.engagement.get("leads", 0) for r in recent)
-        total_clicks  = sum(r.engagement.get("affiliate_clicks", 0) for r in recent)
+        total_leads = sum(r.engagement.get("leads", 0) for r in recent)
+        total_clicks = sum(r.engagement.get("affiliate_clicks", 0) for r in recent)
 
         top = sorted(recent, key=lambda x: x.score, reverse=True)[:5]
 
         return {
-            "period_days":    days,
-            "total_posts":    len(recent),
-            "viral_posts":    len(viral),
-            "total_revenue":  round(total_revenue, 2),
-            "total_leads":    int(total_leads),
+            "period_days": days,
+            "total_posts": len(recent),
+            "viral_posts": len(viral),
+            "total_revenue": round(total_revenue, 2),
+            "total_leads": int(total_leads),
             "affiliate_clicks": int(total_clicks),
-            "top_posts":      [{"topic": r.topic, "platform": r.platform,
+            "top_posts": [{"topic": r.topic, "platform": r.platform,
                                  "score": round(r.score, 1)} for r in top],
-            "best_niches":    self._best_niches(recent),
+            "best_niches": self._best_niches(recent),
             "best_platforms": self._best_platforms(recent),
         }
 
@@ -338,7 +338,7 @@ class FeedbackLoop:
 
     def _best_niches(self, records: List[PostRecord]) -> List[str]:
         niche_scores: Dict[str, float] = defaultdict(float)
-        niche_counts: Dict[str, int]   = defaultdict(int)
+        niche_counts: Dict[str, int] = defaultdict(int)
         for r in records:
             niche_scores[r.niche] += r.score
             niche_counts[r.niche] += 1
@@ -352,7 +352,7 @@ class FeedbackLoop:
         for r in records:
             plat_scores[r.platform].append(r.score)
         ranked = sorted(plat_scores.items(),
-                        key=lambda x: sum(x[1])/len(x[1]),
+                        key=lambda x: sum(x[1]) / len(x[1]),
                         reverse=True)
         return [p for p, _ in ranked[:3]]
 

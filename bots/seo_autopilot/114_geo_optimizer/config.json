@@ -1,0 +1,5 @@
+{
+  "description": "GEO optimizer — adds FAQ, answer blocks, JSON-LD to improve AI engine visibility",
+  "ai_provider": "claude",
+  "enabled": true
+}

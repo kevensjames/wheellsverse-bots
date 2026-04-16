@@ -19,9 +19,9 @@ import logging
 import threading
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-ROOT        = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 REPORTS_DIR = ROOT / "outputs" / "reports"
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -37,7 +37,7 @@ class PlatformAnalytics:
     """
 
     def __init__(self):
-        self._lock:  threading.Lock = threading.Lock()
+        self._lock: threading.Lock = threading.Lock()
         self._daily: Dict[str, Dict] = {}
         self._load()
 
@@ -63,16 +63,16 @@ class PlatformAnalytics:
     def _ensure_day(self, day_key: str) -> Dict:
         if day_key not in self._daily:
             self._daily[day_key] = {
-                "date":             day_key,
-                "posts_created":    0,
-                "posts_published":  0,
-                "leads_captured":   0,
+                "date": day_key,
+                "posts_created": 0,
+                "posts_published": 0,
+                "leads_captured": 0,
                 "estimated_traffic": 0,
                 "affiliate_clicks": 0,
-                "conversion_rate":  0.0,
-                "topics":           [],
-                "platforms":        {},
-                "errors":           0,
+                "conversion_rate": 0.0,
+                "topics": [],
+                "platforms": {},
+                "errors": 0,
             }
         return self._daily[day_key]
 
@@ -116,7 +116,7 @@ class PlatformAnalytics:
 
     def _calc_conversion(self, day: Dict):
         traffic = day.get("estimated_traffic", 0)
-        leads   = day.get("leads_captured", 0)
+        leads = day.get("leads_captured", 0)
         # Only calculate rate when we have actual traffic data
         day["conversion_rate"] = round(leads / traffic * 100, 3) if traffic > 0 else 0.0
 
@@ -137,36 +137,36 @@ class PlatformAnalytics:
                 "total_traffic": 0, "avg_conversion": 0.0,
                 "best_day": None, "daily": [],
             }
-        total_posts   = sum(d.get("posts_created", 0) for d in recent)
-        total_leads   = sum(d.get("leads_captured", 0) for d in recent)
+        total_posts = sum(d.get("posts_created", 0) for d in recent)
+        total_leads = sum(d.get("leads_captured", 0) for d in recent)
         total_traffic = sum(d.get("estimated_traffic", 0) for d in recent)
-        avg_conv      = round(
+        avg_conv = round(
             sum(d.get("conversion_rate", 0) for d in recent) / len(recent), 3
         )
         best_day = max(recent, key=lambda d: d.get("leads_captured", 0))
         return {
-            "days":           days,
-            "total_posts":    total_posts,
-            "total_leads":    total_leads,
-            "total_traffic":  total_traffic,
+            "days": days,
+            "total_posts": total_posts,
+            "total_leads": total_leads,
+            "total_traffic": total_traffic,
             "avg_conversion": avg_conv,
-            "best_day":       best_day.get("date"),
-            "daily":          sorted(recent, key=lambda d: d["date"], reverse=True),
+            "best_day": best_day.get("date"),
+            "daily": sorted(recent, key=lambda d: d["date"], reverse=True),
         }
 
     def get_full_summary(self) -> Dict:
         """Comprehensive platform analytics combining all subsystems."""
-        today    = self.get_today()
-        last_7   = self.get_summary(7)
-        last_30  = self.get_summary(30)
-        content  = self._load_content_analytics()
-        leads    = self._load_lead_stats()
+        today = self.get_today()
+        last_7 = self.get_summary(7)
+        last_30 = self.get_summary(30)
+        content = self._load_content_analytics()
+        leads = self._load_lead_stats()
         return {
-            "today":        today,
-            "last_7_days":  last_7,
+            "today": today,
+            "last_7_days": last_7,
             "last_30_days": last_30,
-            "content":      content,
-            "leads":        leads,
+            "content": content,
+            "leads": leads,
             "generated_at": datetime.now().isoformat(),
         }
 
@@ -178,9 +178,9 @@ class PlatformAnalytics:
                 return {"total_runs": 0, "total_pieces": 0, "recent_runs": []}
             total_pieces = sum(a.get("pieces_created", 0) for a in analytics)
             return {
-                "total_runs":   len(analytics),
+                "total_runs": len(analytics),
                 "total_pieces": total_pieces,
-                "recent_runs":  analytics[:5],
+                "recent_runs": analytics[:5],
             }
         except Exception:
             return {"total_runs": 0, "total_pieces": 0, "recent_runs": []}
@@ -195,8 +195,8 @@ class PlatformAnalytics:
     def generate_daily_report(self) -> str:
         """Generate and save the daily analytics report as Markdown."""
         summary = self.get_full_summary()
-        today   = summary["today"]
-        report  = f"""# WheellsVerse Daily Analytics Report
+        today = summary["today"]
+        report = f"""# WheellsVerse Daily Analytics Report
 Date: {date.today().isoformat()}
 Generated: {datetime.now().strftime('%H:%M:%S')}
 

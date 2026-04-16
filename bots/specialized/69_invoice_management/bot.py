@@ -10,25 +10,25 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 INVOICE_TYPES = {
-    "service":      "Service invoice for consulting, agency, or freelance work",
-    "product":      "Product or digital goods invoice",
-    "recurring":    "Recurring subscription or retainer invoice",
-    "project":      "Milestone-based project invoice with payment schedule",
-    "advance":      "Deposit or advance payment invoice",
-    "final":        "Final balance invoice after project completion",
+    "service": "Service invoice for consulting, agency, or freelance work",
+    "product": "Product or digital goods invoice",
+    "recurring": "Recurring subscription or retainer invoice",
+    "project": "Milestone-based project invoice with payment schedule",
+    "advance": "Deposit or advance payment invoice",
+    "final": "Final balance invoice after project completion",
 }
 
 PAYMENT_TERMS = {
-    "immediate":   "Due on receipt",
-    "net_7":       "Due within 7 days",
-    "net_15":      "Due within 15 days",
-    "net_30":      "Due within 30 days",
-    "net_45":      "Due within 45 days",
-    "50_50":       "50% upfront, 50% on completion",
-    "milestone":   "Tied to project milestones",
+    "immediate": "Due on receipt",
+    "net_7": "Due within 7 days",
+    "net_15": "Due within 15 days",
+    "net_30": "Due within 30 days",
+    "net_45": "Due within 45 days",
+    "50_50": "50% upfront, 50% on completion",
+    "milestone": "Tied to project milestones",
 }
 
 
@@ -42,14 +42,14 @@ class InvoiceManagementBot(BaseBot):
             invoice_type: str = None, **kwargs):
 
         cfg = self.config
-        client_name   = client_name or cfg.get("client_name", "[Client Company Name]")
-        services      = services or cfg.get("services",
+        client_name = client_name or cfg.get("client_name", "[Client Company Name]")
+        services = services or cfg.get("services",
             "AI automation setup, custom bot development (5 bots), 30-day support")
-        amount        = amount or cfg.get("amount", "$4,997")
+        amount = amount or cfg.get("amount", "$4,997")
         payment_terms = payment_terms or cfg.get("payment_terms", "net_30")
-        invoice_type  = invoice_type or cfg.get("invoice_type", "service")
+        invoice_type = invoice_type or cfg.get("invoice_type", "service")
 
-        type_desc  = INVOICE_TYPES.get(invoice_type, invoice_type)
+        type_desc = INVOICE_TYPES.get(invoice_type, invoice_type)
         terms_desc = PAYMENT_TERMS.get(payment_terms, payment_terms)
 
         self.logger.info(f"Generating invoice system for: {client_name} — {amount}")
@@ -269,12 +269,12 @@ Add these to contracts/invoices to protect against non-payment:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Invoice & Billing Management System Builder")
-    parser.add_argument("--client",   type=str, default=None)
+    parser.add_argument("--client", type=str, default=None)
     parser.add_argument("--services", type=str, default=None)
-    parser.add_argument("--amount",   type=str, default=None)
-    parser.add_argument("--terms",    type=str, default="net_30",
+    parser.add_argument("--amount", type=str, default=None)
+    parser.add_argument("--terms", type=str, default="net_30",
                         choices=list(PAYMENT_TERMS.keys()))
-    parser.add_argument("--type",     type=str, default="service",
+    parser.add_argument("--type", type=str, default="service",
                         choices=list(INVOICE_TYPES.keys()))
     args = parser.parse_args()
     bot = InvoiceManagementBot()

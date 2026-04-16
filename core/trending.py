@@ -14,8 +14,13 @@ ready to inject into the content pipeline.
 """
 
 from __future__ import annotations
-import json, os, re, logging, threading, time
-from datetime import datetime, timezone, timedelta
+import json
+import os
+import re
+import logging
+import threading
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -31,10 +36,10 @@ BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools, crypto, and passive income")
 # ─── RSS news sources (no API key required) ───────────────────────────────────
 
 NEWS_FEEDS = {
-    "crypto":    "https://cointelegraph.com/rss",
+    "crypto": "https://cointelegraph.com/rss",
     "investing": "https://feeds.finance.yahoo.com/rss/2.0/headline",
-    "ai":        "https://techcrunch.com/feed/",
-    "business":  "https://feeds.bloomberg.com/markets/news.rss",
+    "ai": "https://techcrunch.com/feed/",
+    "business": "https://feeds.bloomberg.com/markets/news.rss",
 }
 
 # ─── Reddit subreddits to monitor ────────────────────────────────────────────
@@ -46,16 +51,17 @@ SUBREDDITS = [
 
 # ─── Trend record ─────────────────────────────────────────────────────────────
 
+
 class TrendItem:
     def __init__(self, topic: str, source: str, score: float,
                  headline: str = "", url: str = "", niche: str = "general"):
-        self.topic    = topic
-        self.source   = source   # twitter / news / reddit / crypto / google
-        self.score    = score    # relevance/heat score
+        self.topic = topic
+        self.source = source   # twitter / news / reddit / crypto / google
+        self.score = score    # relevance/heat score
         self.headline = headline
-        self.url      = url
-        self.niche    = niche
-        self.angle    = ""       # NarAI's content angle (GPT-generated)
+        self.url = url
+        self.niche = niche
+        self.angle = ""       # NarAI's content angle (GPT-generated)
         self.captured_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict:
@@ -68,9 +74,9 @@ class TrendItem:
     @classmethod
     def from_dict(cls, d: Dict) -> "TrendItem":
         t = cls(d["topic"], d["source"], d["score"],
-                d.get("headline",""), d.get("url",""), d.get("niche","general"))
-        t.angle = d.get("angle","")
-        t.captured_at = d.get("captured_at","")
+                d.get("headline", ""), d.get("url", ""), d.get("niche", "general"))
+        t.angle = d.get("angle", "")
+        t.captured_at = d.get("captured_at", "")
         return t
 
 
@@ -128,7 +134,7 @@ class TrendingEngine:
                 root = ET.fromstring(r.content)
                 for item in root.findall(".//item")[:5]:
                     title = item.findtext("title", "").strip()
-                    link  = item.findtext("link", "").strip()
+                    link = item.findtext("link", "").strip()
                     if title:
                         items.append(TrendItem(
                             topic=title[:80], source="news",
@@ -161,7 +167,7 @@ class TrendingEngine:
                         source="reddit",
                         score=min(100, score / 100),
                         headline=p.get("title", ""),
-                        url=f"https://reddit.com{p.get('permalink','')}",
+                        url=f"https://reddit.com{p.get('permalink', '')}",
                         niche=niche,
                     ))
             except Exception as e:
@@ -251,18 +257,18 @@ class TrendingEngine:
         try:
             from openai import OpenAI
             client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
-            topics_str = "\n".join(f"{i+1}. {t.topic}" for i, t in enumerate(top))
+            topics_str = "\n".join(f"{i + 1}. {t.topic}" for i, t in enumerate(top))
             resp = client.chat.completions.create(
                 model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
                 messages=[{
                     "role": "system",
                     "content": f"You are NarAI, a content creator focused on {BRAND_NICHE}. "
-                               f"For each trending topic, write a 1-sentence content angle that connects "
-                               f"it to making money, AI tools, or crypto investing. Be specific and punchy.",
+                    f"For each trending topic, write a 1-sentence content angle that connects "
+                    f"it to making money, AI tools, or crypto investing. Be specific and punchy.",
                 }, {
                     "role": "user",
                     "content": f"Generate content angles for these trends:\n{topics_str}\n\n"
-                               f"Return as JSON array of strings, one per trend.",
+                    f"Return as JSON array of strings, one per trend.",
                 }],
                 max_tokens=400, temperature=0.7,
             )
@@ -314,7 +320,7 @@ class TrendingEngine:
             fl = FeedbackLoop.get()
             for item in deduped[:5]:
                 fl.register_post(
-                    post_id=f"trend_{item.topic[:20].replace(' ','_')}",
+                    post_id=f"trend_{item.topic[:20].replace(' ', '_')}",
                     platform=item.source,
                     topic=item.topic,
                     content_type="trending",
@@ -327,8 +333,8 @@ class TrendingEngine:
             "status": "refreshed",
             "total": len(deduped),
             "sources": _count_by(deduped, "source"),
-            "niches":  _count_by(deduped, "niche"),
-            "top_5":   [t.to_dict() for t in deduped[:5]],
+            "niches": _count_by(deduped, "niche"),
+            "top_5": [t.to_dict() for t in deduped[:5]],
         }
 
     # ── Query methods ──────────────────────────────────────────────────────────
@@ -384,7 +390,7 @@ class TrendingEngine:
             "total_trends": len(self._trends),
             "last_refresh": self._last_refresh.isoformat() if self._last_refresh else "never",
             "by_source": _count_by(self._trends, "source"),
-            "by_niche":  _count_by(self._trends, "niche"),
+            "by_niche": _count_by(self._trends, "niche"),
             "viral_opportunities": len(self.get_viral_opportunities()),
             "top_topic": self._trends[0].topic if self._trends else None,
         }
@@ -401,6 +407,7 @@ def _sub_to_niche(sub: str) -> str:
     }
     return mapping.get(sub, "general")
 
+
 def _query_to_niche(q: str) -> str:
     if "crypto" in q.lower() or "bitcoin" in q.lower():
         return "crypto"
@@ -409,6 +416,7 @@ def _query_to_niche(q: str) -> str:
     if "passive" in q.lower():
         return "passive_income"
     return "general"
+
 
 def _count_by(items: list, field: str) -> Dict[str, int]:
     result: Dict[str, int] = {}
@@ -423,8 +431,10 @@ def _count_by(items: list, field: str) -> Dict[str, int]:
 def get_top(niche: str = "", limit: int = 10) -> List[Dict]:
     return TrendingEngine.get().get_top(niche, limit)
 
+
 def get_best_topic(platform: str = "", niche: str = "") -> Optional[Dict]:
     return TrendingEngine.get().get_best_for_content(platform, niche)
+
 
 def refresh() -> Dict:
     return TrendingEngine.get().refresh()

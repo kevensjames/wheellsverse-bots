@@ -10,17 +10,17 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 FOLDER_TYPES = {
-    "business":   "Complete business file system — clients, finance, legal, operations",
-    "content":    "Content creator system — videos, images, scripts, drafts, published",
-    "projects":   "Project management system — active, archived, templates, resources",
-    "downloads":  "Downloads folder organization — sort by type and recency",
-    "dev":        "Developer workspace — repos, snippets, docs, environments",
-    "marketing":  "Marketing assets — campaigns, ads, copy, analytics, brand",
-    "finance":    "Financial documents — invoices, receipts, taxes, contracts",
-    "media":      "Media library — photos, videos, audio, organized by date/project",
+    "business": "Complete business file system — clients, finance, legal, operations",
+    "content": "Content creator system — videos, images, scripts, drafts, published",
+    "projects": "Project management system — active, archived, templates, resources",
+    "downloads": "Downloads folder organization — sort by type and recency",
+    "dev": "Developer workspace — repos, snippets, docs, environments",
+    "marketing": "Marketing assets — campaigns, ads, copy, analytics, brand",
+    "finance": "Financial documents — invoices, receipts, taxes, contracts",
+    "media": "Media library — photos, videos, audio, organized by date/project",
 }
 
 OS_TYPES = ["mac", "windows", "linux", "cloud_drive"]
@@ -35,11 +35,11 @@ class FileOrganizerBot(BaseBot):
             current_chaos: str = None, file_types: str = None, **kwargs):
 
         cfg = self.config
-        folder_type  = folder_type or cfg.get("folder_type", "business")
-        os_type      = os_type or cfg.get("os_type", "mac")
+        folder_type = folder_type or cfg.get("folder_type", "business")
+        os_type = os_type or cfg.get("os_type", "mac")
         current_chaos = current_chaos or cfg.get("current_chaos",
             "files scattered across Desktop, Downloads, and random folders")
-        file_types   = file_types or cfg.get("file_types",
+        file_types = file_types or cfg.get("file_types",
             "PDFs, spreadsheets, images, Python scripts, markdown files, video files")
 
         type_desc = FOLDER_TYPES.get(folder_type, folder_type)
@@ -220,11 +220,11 @@ Find any file in under 10 seconds on {os_type}:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="File Organization System Builder")
-    parser.add_argument("--type",      type=str, default="business",
+    parser.add_argument("--type", type=str, default="business",
                         choices=list(FOLDER_TYPES.keys()))
-    parser.add_argument("--os",        type=str, default="mac",
+    parser.add_argument("--os", type=str, default="mac",
                         choices=OS_TYPES)
-    parser.add_argument("--chaos",     type=str, default=None)
+    parser.add_argument("--chaos", type=str, default=None)
     parser.add_argument("--filetypes", type=str, default=None)
     args = parser.parse_args()
     bot = FileOrganizerBot()

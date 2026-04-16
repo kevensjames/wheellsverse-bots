@@ -8,9 +8,7 @@ Supports: run one bot, run a category, run all, parallel execution.
 """
 
 import importlib.util
-import os
 import sys
-import time
 import json
 import concurrent.futures
 from datetime import datetime
@@ -20,7 +18,7 @@ from typing import Any, Dict, List, Optional
 from rich.console import Console
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich import print as rprint
+
 
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
@@ -295,6 +293,7 @@ class Orchestrator:
 # ─── Singleton access ──────────────────────────────────────────────────────────
 
 _orchestrator: Optional[Orchestrator] = None
+
 
 def get_orchestrator() -> Orchestrator:
     global _orchestrator

@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, Optional
 
 log = logging.getLogger("narai.chat")
 
@@ -53,6 +53,19 @@ When you learn something important about the user (their name, goals, projects, 
 - You do NOT have real-time internet access unless explicitly told you do
 
 Remember: You are NarAI, built by Jhon Kevens D Wheeler. This is your identity. Never deny it."""
+
+
+def _get_system_prompt() -> str:
+    """Return system prompt + any applied self-improvement overrides."""
+    try:
+        from core.narai_self_improve import load_prompt_overrides
+        overrides = load_prompt_overrides()
+        if overrides:
+            return NARAI_SYSTEM_PROMPT + "\n\n" + overrides
+    except Exception:
+        pass
+    return NARAI_SYSTEM_PROMPT
+
 
 # ─── Model routing ───────────────────────────────────────────────────────────
 
@@ -155,48 +168,119 @@ def build_messages(
 
     return full_system, messages
 
+# ─── Provider availability check ─────────────────────────────────────────────
+
+def _claude_available() -> bool:
+    key = os.getenv("ANTHROPIC_API_KEY", "")
+    return bool(key and not key.startswith("sk-placeholder"))
+
+
+def _openai_available() -> bool:
+    key = os.getenv("OPENAI_API_KEY", "")
+    return bool(key and not key.startswith("sk-placeholder"))
+
+
+def _is_credit_error(exc: Exception) -> bool:
+    msg = str(exc).lower()
+    return "credit balance" in msg or "insufficient_quota" in msg or "billing" in msg
+
+
 # ─── Claude streaming ────────────────────────────────────────────────────────
 
 async def stream_claude(system: str, messages: list, model: str) -> AsyncGenerator[str, None]:
     """Stream response from Claude (Anthropic API)."""
-    try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+    import anthropic
+    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+    with client.messages.stream(
+        model=model,
+        max_tokens=4096,
+        system=system,
+        messages=messages,
+    ) as stream:
+        for text in stream.text_stream:
+            yield text
 
-        with client.messages.stream(
-            model=model,
-            max_tokens=4096,
-            system=system,
-            messages=messages,
-        ) as stream:
-            for text in stream.text_stream:
-                yield text
-    except Exception as e:
-        log.error(f"Claude stream error: {e}")
-        yield f"\n\n*[NarAI encountered an error: {e}]*"
 
 # ─── OpenAI streaming ────────────────────────────────────────────────────────
 
-async def stream_openai(system: str, messages: list, model: str) -> AsyncGenerator[str, None]:
+async def stream_openai(system: str, messages: list, model: str = "gpt-4o-mini") -> AsyncGenerator[str, None]:
     """Stream response from OpenAI."""
-    try:
-        from openai import AsyncOpenAI
-        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+    from openai import AsyncOpenAI
+    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+    full_messages = [{"role": "system", "content": system}] + messages
+    async with client.chat.completions.stream(
+        model=model,
+        messages=full_messages,
+        max_tokens=4096,
+    ) as stream:
+        async for chunk in stream:
+            delta = chunk.choices[0].delta.content if chunk.choices else None
+            if delta:
+                yield delta
 
-        full_messages = [{"role": "system", "content": system}] + messages
 
-        async with client.chat.completions.stream(
-            model=model,
-            messages=full_messages,
-            max_tokens=4096,
-        ) as stream:
-            async for chunk in stream:
-                delta = chunk.choices[0].delta.content if chunk.choices else None
-                if delta:
-                    yield delta
-    except Exception as e:
-        log.error(f"OpenAI stream error: {e}")
-        yield f"\n\n*[NarAI encountered an error: {e}]*"
+# ─── Smart fallback chain ─────────────────────────────────────────────────────
+
+_NARAI_FALLBACK_REPLIES = [
+    "I'm online and thinking. My cloud API is temporarily unavailable — "
+    "add credits to ANTHROPIC_API_KEY or set OPENAI_API_KEY to restore full intelligence. "
+    "I can still help with anything stored locally.",
+
+    "I hear you. My external AI connections are down right now (API credits needed). "
+    "Once you top up the API balance, I'll be at full power. What can I help with locally?",
+
+    "NarAI here — running in limited mode. "
+    "To restore full AI reasoning, please add API credits (Anthropic or OpenAI). "
+    "I'm still monitoring your system and can answer basic questions.",
+]
+_fallback_idx = 0
+
+
+async def stream_smart(system: str, messages: list, model: str, tried_claude: bool = False) -> AsyncGenerator[str, None]:
+    """
+    Intelligent multi-provider streaming with auto-fallback:
+    1. Claude (if available and not already failed)
+    2. OpenAI GPT-4o-mini (if OPENAI_API_KEY set)
+    3. Informative fallback message
+    """
+    global _fallback_idx
+
+    # Try Claude first (unless we know it's unavailable)
+    if not tried_claude and _claude_available() and model.startswith("claude"):
+        try:
+            buffer = ""
+            async for token in stream_claude(system, messages, model):
+                buffer += token
+                yield token
+            if buffer:  # succeeded
+                return
+        except Exception as e:
+            if _is_credit_error(e):
+                log.warning("Claude credit error — falling back to OpenAI")
+            else:
+                log.error(f"Claude error: {e}")
+
+    # Try OpenAI fallback
+    openai_model = "gpt-4o-mini"
+    if _openai_available():
+        try:
+            buffer = ""
+            async for token in stream_openai(system, messages, openai_model):
+                buffer += token
+                yield token
+            if buffer:
+                return
+        except Exception as e:
+            log.error(f"OpenAI fallback error: {e}")
+
+    # Last resort: informative fallback
+    msg = _NARAI_FALLBACK_REPLIES[_fallback_idx % len(_NARAI_FALLBACK_REPLIES)]
+    _fallback_idx += 1
+    # Simulate streaming character by character for natural feel
+    import asyncio
+    for char in msg:
+        yield char
+        await asyncio.sleep(0.012)
 
 # ─── Main chat function ──────────────────────────────────────────────────────
 
@@ -224,34 +308,27 @@ async def chat_stream(
 
     # 2. Select model
     model = select_model(tier, requested_model)
-    use_claude = model.startswith("claude")
 
     # 3. Build messages
     system, messages = build_messages(
-        NARAI_SYSTEM_PROMPT,
+        _get_system_prompt(),
         history,
         user_message,
         memory,
     )
 
-    # 4. Stream response
+    # 4. Stream response — auto-fallback chain: Claude → OpenAI → graceful message
     full_reply = ""
+    actual_model = model
     try:
-        if use_claude:
-            generator = stream_claude(system, messages, model)
-        else:
-            generator = stream_openai(system, messages, model)
-
-        async for token in generator:
+        async for token in stream_smart(system, messages, model):
             full_reply += token
-            # Yield SSE chunk
-            payload = json.dumps({"token": token, "model": model})
+            payload = json.dumps({"token": token, "model": actual_model})
             yield f"data: {payload}\n\n"
-
     except Exception as e:
-        log.error(f"chat_stream error: {e}")
-        err_payload = json.dumps({"token": f"\n\n*Error: {e}*", "model": model})
-        yield f"data: {err_payload}\n\n"
+        log.error(f"chat_stream fatal error: {e}")
+        err_token = "\n\n*NarAI is temporarily offline. Please check your API keys and credits.*"
+        yield f"data: {json.dumps({'token': err_token, 'model': actual_model})}\n\n"
 
     # 5. Save messages
     try:

@@ -44,12 +44,12 @@ VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger("heygen")
 
-HEYGEN_API  = "https://api.heygen.com"
-API_KEY     = os.getenv("HEYGEN_API_KEY", "")
-AVATAR_ID   = os.getenv("HEYGEN_AVATAR_ID", "")
-VOICE_ID    = os.getenv("HEYGEN_VOICE_ID", "")
-POLL_SLEEP  = 15    # seconds between status polls
-MAX_WAIT    = 600   # 10 minutes max render time
+HEYGEN_API = "https://api.heygen.com"
+API_KEY = os.getenv("HEYGEN_API_KEY", "")
+AVATAR_ID = os.getenv("HEYGEN_AVATAR_ID", "")
+VOICE_ID = os.getenv("HEYGEN_VOICE_ID", "")
+POLL_SLEEP = 15    # seconds between status polls
+MAX_WAIT = 600   # 10 minutes max render time
 
 
 def _headers() -> dict:
@@ -116,8 +116,8 @@ def generate_video(
     if not is_configured():
         return {"error": "HEYGEN_API_KEY or HEYGEN_AVATAR_ID not set in .env"}
 
-    aid  = avatar_id or AVATAR_ID
-    vid  = voice_id  or VOICE_ID
+    aid = avatar_id or AVATAR_ID
+    vid = voice_id or VOICE_ID
     script = script.strip()[:1500]   # HeyGen per-segment limit
 
     # Dimensions
@@ -133,38 +133,38 @@ def generate_video(
 
     if audio_url:
         voice_config = {
-            "type":      "audio",
+            "type": "audio",
             "audio_url": audio_url,
         }
     elif vid:
         voice_config = {
-            "type":       "text",
+            "type": "text",
             "input_text": script,
-            "voice_id":   vid,
+            "voice_id": vid,
         }
     else:
         voice_config = {
-            "type":       "text",
+            "type": "text",
             "input_text": script,
-            "voice_id":   "en-US-BrianNeural",  # HeyGen default
+            "voice_id": "en-US-BrianNeural",  # HeyGen default
         }
 
     payload = {
         "video_inputs": [{
             "character": {
-                "type":         "avatar",
-                "avatar_id":    aid,
+                "type": "avatar",
+                "avatar_id": aid,
                 "avatar_style": "normal",
             },
-            "voice":      voice_config,
+            "voice": voice_config,
             "background": {
-                "type":  "color",
+                "type": "color",
                 "value": background_color,
             },
         }],
         "dimension": {"width": width, "height": height},
-        "caption":   caption,
-        "title":     title[:100] if title else "WheellsVerse Short",
+        "caption": caption,
+        "title": title[:100] if title else "WheellsVerse Short",
     }
 
     try:
@@ -209,19 +209,19 @@ def poll_until_ready(video_id: str, max_wait: int = MAX_WAIT) -> Dict:
                 headers=_headers(),
                 timeout=20,
             )
-            data   = resp.json().get("data", {})
+            data = resp.json().get("data", {})
             status = data.get("status", "")
 
             logger.info(f"[HeyGen] Poll #{attempt}: {video_id} → {status}")
 
             if status == "completed":
-                video_url     = data.get("video_url", "")
+                video_url = data.get("video_url", "")
                 thumbnail_url = data.get("thumbnail_url", "")
                 # Download the video locally
                 local_path = _download_video(video_url, video_id)
                 return {
-                    "status":        "completed",
-                    "video_url":     video_url,
+                    "status": "completed",
+                    "video_url": video_url,
                     "thumbnail_url": thumbnail_url,
                     "download_path": local_path,
                 }
@@ -254,10 +254,10 @@ def create_video_and_wait(
         return submit
 
     video_id = submit["video_id"]
-    result   = poll_until_ready(video_id)
+    result = poll_until_ready(video_id)
     result["video_id"] = video_id
-    result["title"]    = title
-    result["format"]   = format
+    result["title"] = title
+    result["format"] = format
     return result
 
 

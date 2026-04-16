@@ -1,0 +1,8 @@
+{
+  "description": "SEO content writer — generates full articles from keywords using Claude",
+  "default_keyword": "best passive income ideas 2025",
+  "word_count": 2000,
+  "tone": "authoritative, helpful, engaging",
+  "ai_provider": "claude",
+  "enabled": true
+}

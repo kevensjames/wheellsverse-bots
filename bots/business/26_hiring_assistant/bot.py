@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class HiringAssistantBot(BaseBot):
@@ -23,11 +23,11 @@ class HiringAssistantBot(BaseBot):
             salary_range: str = None, **kwargs):
 
         cfg = self.config
-        role              = role or cfg.get("role", "Content Creator / Social Media Manager")
-        employment_type   = employment_type or cfg.get("employment_type", "freelance / part-time")
-        company_stage     = company_stage or cfg.get("company_stage", "early-stage startup")
-        key_requirements  = key_requirements or cfg.get("key_requirements", "content creation, social media, AI tools")
-        salary_range      = salary_range or cfg.get("salary_range", "$20-35/hour")
+        role = role or cfg.get("role", "Content Creator / Social Media Manager")
+        employment_type = employment_type or cfg.get("employment_type", "freelance / part-time")
+        company_stage = company_stage or cfg.get("company_stage", "early-stage startup")
+        key_requirements = key_requirements or cfg.get("key_requirements", "content creation, social media, AI tools")
+        salary_range = salary_range or cfg.get("salary_range", "$20-35/hour")
 
         self.logger.info(f"Building hiring package: {role}")
 
@@ -143,11 +143,11 @@ Fill-in offer letter including:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Hiring Assistant")
-    parser.add_argument("--role",         type=str, default=None)
-    parser.add_argument("--type",         type=str, default="freelance", dest="emp_type")
-    parser.add_argument("--stage",        type=str, default="startup")
+    parser.add_argument("--role", type=str, default=None)
+    parser.add_argument("--type", type=str, default="freelance", dest="emp_type")
+    parser.add_argument("--stage", type=str, default="startup")
     parser.add_argument("--requirements", type=str, default=None)
-    parser.add_argument("--salary",       type=str, default="$25-40/hour")
+    parser.add_argument("--salary", type=str, default="$25-40/hour")
     args = parser.parse_args()
     bot = HiringAssistantBot()
     result = bot.execute(role=args.role, employment_type=args.emp_type,

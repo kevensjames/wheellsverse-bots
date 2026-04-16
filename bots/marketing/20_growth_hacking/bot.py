@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class GrowthHackingBot(BaseBot):
@@ -23,11 +23,11 @@ class GrowthHackingBot(BaseBot):
             timeframe: str = None, **kwargs):
 
         cfg = self.config
-        business_type   = business_type or cfg.get("business_type", "SaaS/digital product")
-        metric_to_grow  = metric_to_grow or cfg.get("metric_to_grow", "user signups")
-        current_number  = current_number or cfg.get("current_number", "50 users/month")
-        target          = target or cfg.get("target", "500 users/month")
-        timeframe       = timeframe or cfg.get("timeframe", "60 days")
+        business_type = business_type or cfg.get("business_type", "SaaS/digital product")
+        metric_to_grow = metric_to_grow or cfg.get("metric_to_grow", "user signups")
+        current_number = current_number or cfg.get("current_number", "50 users/month")
+        target = target or cfg.get("target", "500 users/month")
+        timeframe = timeframe or cfg.get("timeframe", "60 days")
 
         self.logger.info(f"Designing growth experiments: {metric_to_grow} from {current_number} to {target}")
 
@@ -131,10 +131,10 @@ Top 5 things currently killing your growth (before you add more tactics)"""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Growth Hacking Experiment Builder")
-    parser.add_argument("--business",  type=str, default=None)
-    parser.add_argument("--metric",    type=str, default="user signups")
-    parser.add_argument("--current",   type=str, default=None)
-    parser.add_argument("--target",    type=str, default=None)
+    parser.add_argument("--business", type=str, default=None)
+    parser.add_argument("--metric", type=str, default="user signups")
+    parser.add_argument("--current", type=str, default=None)
+    parser.add_argument("--target", type=str, default=None)
     parser.add_argument("--timeframe", type=str, default="60 days")
     args = parser.parse_args()
     bot = GrowthHackingBot()

@@ -1,0 +1,7 @@
+{
+  "description": "Community Agent — engagement posts, welcome messages, challenges, DM templates, WhatsApp broadcasts. Runs every 2 hours.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@every_2h",
+  "action": "engage"
+}

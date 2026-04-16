@@ -10,24 +10,24 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 REMINDER_TYPES = {
-    "project_deadline":   "Countdown reminders leading up to a project deadline",
-    "recurring_tasks":    "Regular recurring task reminders (daily/weekly/monthly)",
+    "project_deadline": "Countdown reminders leading up to a project deadline",
+    "recurring_tasks": "Regular recurring task reminders (daily/weekly/monthly)",
     "follow_up_sequence": "Follow-up reminders for sales, partnerships, or commitments",
-    "habit_tracker":      "Daily habit and routine reminder system",
-    "content_calendar":   "Content creation and publishing deadline reminders",
-    "financial":          "Bill payments, invoices, tax deadlines, subscriptions",
-    "review_checkpoint":  "Periodic review reminders (weekly review, quarterly planning)",
+    "habit_tracker": "Daily habit and routine reminder system",
+    "content_calendar": "Content creation and publishing deadline reminders",
+    "financial": "Bill payments, invoices, tax deadlines, subscriptions",
+    "review_checkpoint": "Periodic review reminders (weekly review, quarterly planning)",
 }
 
 CADENCE_OPTIONS = {
-    "daily":    "Every day at the same time",
-    "weekly":   "Once per week on a specified day",
+    "daily": "Every day at the same time",
+    "weekly": "Once per week on a specified day",
     "biweekly": "Every 2 weeks",
-    "monthly":  "Once per month on a specified date",
-    "custom":   "Custom schedule based on milestones or days before deadline",
+    "monthly": "Once per month on a specified date",
+    "custom": "Custom schedule based on milestones or days before deadline",
 }
 
 
@@ -41,14 +41,14 @@ class ReminderBot(BaseBot):
             milestone_count: int = None, **kwargs):
 
         cfg = self.config
-        project        = project or cfg.get("project",
+        project = project or cfg.get("project",
             "WheellsVerse product launch — 78 AI bots ready for customers")
-        deadline       = deadline or cfg.get("deadline", "30 days from today")
-        reminder_type  = reminder_type or cfg.get("reminder_type", "project_deadline")
-        cadence        = cadence or cfg.get("cadence", "custom")
+        deadline = deadline or cfg.get("deadline", "30 days from today")
+        reminder_type = reminder_type or cfg.get("reminder_type", "project_deadline")
+        cadence = cadence or cfg.get("cadence", "custom")
         milestone_count = milestone_count or cfg.get("milestone_count", 5)
 
-        type_desc    = REMINDER_TYPES.get(reminder_type, reminder_type)
+        type_desc = REMINDER_TYPES.get(reminder_type, reminder_type)
         cadence_desc = CADENCE_OPTIONS.get(cadence, cadence)
 
         self.logger.info(f"Building reminder system for: {project}")
@@ -199,11 +199,11 @@ Rules for this system to stay useful:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Smart Reminder System Builder")
-    parser.add_argument("--project",    type=str, default=None)
-    parser.add_argument("--deadline",   type=str, default="30 days from today")
-    parser.add_argument("--type",       type=str, default="project_deadline",
+    parser.add_argument("--project", type=str, default=None)
+    parser.add_argument("--deadline", type=str, default="30 days from today")
+    parser.add_argument("--type", type=str, default="project_deadline",
                         choices=list(REMINDER_TYPES.keys()))
-    parser.add_argument("--cadence",    type=str, default="custom",
+    parser.add_argument("--cadence", type=str, default="custom",
                         choices=list(CADENCE_OPTIONS.keys()))
     parser.add_argument("--milestones", type=int, default=5)
     args = parser.parse_args()

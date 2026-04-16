@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 TREND_NICHES = [
     "AI tools and automation",
@@ -26,12 +26,12 @@ TREND_NICHES = [
 ]
 
 PLATFORM_TREND_SOURCES = {
-    "tiktok":    "TikTok Creative Center, trending sounds, duet/stitch trends",
+    "tiktok": "TikTok Creative Center, trending sounds, duet/stitch trends",
     "instagram": "Explore page, Reels trending audio, Instagram Topics",
-    "twitter":   "Twitter Trending, Spaces, trending hashtags",
-    "linkedin":  "LinkedIn Trending Articles, newsletter growth topics",
-    "youtube":   "YouTube Trending, Search autocomplete, TubeBuddy",
-    "google":    "Google Trends, Search Console, Answer The Public",
+    "twitter": "Twitter Trending, Spaces, trending hashtags",
+    "linkedin": "LinkedIn Trending Articles, newsletter growth topics",
+    "youtube": "YouTube Trending, Search autocomplete, TubeBuddy",
+    "google": "Google Trends, Search Console, Answer The Public",
 }
 
 
@@ -44,9 +44,9 @@ class TrendScraperBot(BaseBot):
             timeframe: str = None, num_trends: int = None, **kwargs):
 
         cfg = self.config
-        niche      = niche or cfg.get("niche", "AI tools and automation")
-        platforms  = platforms or cfg.get("platforms", "tiktok,instagram,twitter,linkedin")
-        timeframe  = timeframe or cfg.get("timeframe", "next 30 days")
+        niche = niche or cfg.get("niche", "AI tools and automation")
+        platforms = platforms or cfg.get("platforms", "tiktok,instagram,twitter,linkedin")
+        timeframe = timeframe or cfg.get("timeframe", "next 30 days")
         num_trends = num_trends or cfg.get("num_trends", 15)
 
         platform_list = [p.strip() for p in platforms.split(",")]
@@ -198,10 +198,10 @@ For sustainable growth in {niche}:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Social Media Trend Research & Opportunity Finder")
-    parser.add_argument("--niche",     type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None)
     parser.add_argument("--platforms", type=str, default="tiktok,instagram,twitter,linkedin")
     parser.add_argument("--timeframe", type=str, default="next 30 days")
-    parser.add_argument("--count",     type=int, default=15)
+    parser.add_argument("--count", type=int, default=15)
     args = parser.parse_args()
     bot = TrendScraperBot()
     result = bot.execute(niche=args.niche, platforms=args.platforms,

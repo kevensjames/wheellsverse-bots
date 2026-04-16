@@ -26,7 +26,6 @@ import json
 import logging
 import os
 import re
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -45,13 +44,13 @@ log = logging.getLogger("viral_trend_engine")
 
 # ── Product type urgency ranking ──────────────────────────────────────────────
 PRODUCT_TYPES = [
-    {"type": "ai_prompt_pack",    "rank": 1, "format": "digital",  "aov_range": "$7-$27"},
-    {"type": "notion_template",   "rank": 2, "format": "digital",  "aov_range": "$9-$37"},
-    {"type": "trading_toolkit",   "rank": 3, "format": "digital",  "aov_range": "$27-$97"},
-    {"type": "mini_course_pdf",   "rank": 4, "format": "digital",  "aov_range": "$17-$47"},
-    {"type": "pod_product",       "rank": 5, "format": "pod",      "aov_range": "$19-$49"},
-    {"type": "service_package",   "rank": 6, "format": "service",  "aov_range": "$49-$499"},
-    {"type": "subscription",      "rank": 7, "format": "recurring","aov_range": "$9-$29/mo"},
+    {"type": "ai_prompt_pack", "rank": 1, "format": "digital", "aov_range": "$7-$27"},
+    {"type": "notion_template", "rank": 2, "format": "digital", "aov_range": "$9-$37"},
+    {"type": "trading_toolkit", "rank": 3, "format": "digital", "aov_range": "$27-$97"},
+    {"type": "mini_course_pdf", "rank": 4, "format": "digital", "aov_range": "$17-$47"},
+    {"type": "pod_product", "rank": 5, "format": "pod", "aov_range": "$19-$49"},
+    {"type": "service_package", "rank": 6, "format": "service", "aov_range": "$49-$499"},
+    {"type": "subscription", "rank": 7, "format": "recurring", "aov_range": "$9-$29/mo"},
 ]
 
 # ── Validated niches ──────────────────────────────────────────────────────────
@@ -195,19 +194,19 @@ Urgency scores must be varied (not all 90+). Be realistic."""
         if not isinstance(opp, dict):
             continue
         cleaned.append({
-            "rank":          opp.get("rank", len(cleaned) + 1),
-            "product_type":  opp.get("product_type", "ai_prompt_pack"),
-            "format":        opp.get("format", "digital"),
-            "niche":         opp.get("niche", "AI productivity & automation"),
+            "rank": opp.get("rank", len(cleaned) + 1),
+            "product_type": opp.get("product_type", "ai_prompt_pack"),
+            "format": opp.get("format", "digital"),
+            "niche": opp.get("niche", "AI productivity & automation"),
             "title_concept": opp.get("title_concept", ""),
-            "viral_hook":    opp.get("viral_hook", ""),
+            "viral_hook": opp.get("viral_hook", ""),
             "price_ceiling": float(opp.get("price_ceiling", 27)),
-            "price_floor":   float(opp.get("price_floor", 9)),
+            "price_floor": float(opp.get("price_floor", 9)),
             "urgency_score": int(opp.get("urgency_score", 70)),
-            "why_now":       opp.get("why_now", ""),
-            "target_buyer":  opp.get("target_buyer", ""),
-            "pod_niche":     opp.get("pod_niche"),
-            "scanned_at":    datetime.now(timezone.utc).isoformat(),
+            "why_now": opp.get("why_now", ""),
+            "target_buyer": opp.get("target_buyer", ""),
+            "pod_niche": opp.get("pod_niche"),
+            "scanned_at": datetime.now(timezone.utc).isoformat(),
         })
 
     # Sort by urgency descending
@@ -265,22 +264,22 @@ Return JSON:
     if not isinstance(result, dict) or not result.get("title"):
         # Fallback structure
         result = {
-            "title":            opportunity.get("title_concept", "AI Productivity Toolkit"),
-            "subtitle":         "The complete system for AI-powered income",
-            "format":           opportunity.get("format", "digital"),
-            "product_type":     opportunity.get("product_type", "ai_prompt_pack"),
-            "niche":            opportunity.get("niche", ""),
-            "price":            float(opportunity.get("price_floor", 17)),
+            "title": opportunity.get("title_concept", "AI Productivity Toolkit"),
+            "subtitle": "The complete system for AI-powered income",
+            "format": opportunity.get("format", "digital"),
+            "product_type": opportunity.get("product_type", "ai_prompt_pack"),
+            "niche": opportunity.get("niche", ""),
+            "price": float(opportunity.get("price_floor", 17)),
             "compare_at_price": float(opportunity.get("price_ceiling", 27)),
-            "value_stack":      ["Main product: complete toolkit", "Bonus: quick-start guide"],
-            "copy_angle":       "desire",
-            "headline":         opportunity.get("viral_hook", ""),
-            "cover_style":      "dark gradient with neon accent",
-            "cover_palette":    ["#0f0f0f", "#7c3aed", "#ffffff"],
-            "tags":             ["ai", "productivity", "digital", "tools", "2026"],
+            "value_stack": ["Main product: complete toolkit", "Bonus: quick-start guide"],
+            "copy_angle": "desire",
+            "headline": opportunity.get("viral_hook", ""),
+            "cover_style": "dark gradient with neon accent",
+            "cover_palette": ["#0f0f0f", "#7c3aed", "#ffffff"],
+            "tags": ["ai", "productivity", "digital", "tools", "2026"],
             "target_buyer_pain": opportunity.get("target_buyer", ""),
-            "viral_hook":       opportunity.get("viral_hook", ""),
-            "delivery_format":  "PDF",
+            "viral_hook": opportunity.get("viral_hook", ""),
+            "delivery_format": "PDF",
             "page_count_or_items": "30 pages",
         }
 
@@ -303,9 +302,9 @@ def select_session_opportunities(
     Returns:
         {"digital": [...], "pod": [...], "service": [...], "all": [...]}
     """
-    digital  = [o for o in opportunities if o.get("format") == "digital"][:digital_count]
-    pod      = [o for o in opportunities if o.get("format") == "pod"][:pod_count]
-    service  = [o for o in opportunities if o.get("format") == "service"][:1]
+    digital = [o for o in opportunities if o.get("format") == "digital"][:digital_count]
+    pod = [o for o in opportunities if o.get("format") == "pod"][:pod_count]
+    service = [o for o in opportunities if o.get("format") == "service"][:1]
     # Fill digital quota from non-pod if needed
     if len(digital) < digital_count:
         extras = [o for o in opportunities if o not in digital and o not in pod and o not in service]
@@ -313,9 +312,9 @@ def select_session_opportunities(
 
     return {
         "digital": digital,
-        "pod":     pod,
+        "pod": pod,
         "service": service,
-        "all":     opportunities,
+        "all": opportunities,
     }
 
 
@@ -349,8 +348,8 @@ def save_opportunities(opportunities: List[dict], market_intel: Optional[dict] =
     """Persist opportunities to data/viral_trends.json."""
     try:
         payload = {
-            "saved_at":     datetime.now(timezone.utc).isoformat(),
-            "count":        len(opportunities),
+            "saved_at": datetime.now(timezone.utc).isoformat(),
+            "count": len(opportunities),
             "opportunities": opportunities,
         }
         if market_intel:
@@ -379,12 +378,12 @@ def run_trend_scan(refresh: bool = False) -> List[dict]:
     try:
         from core.market_intelligence import get_narai_briefing, get_platform_data
         briefing = get_narai_briefing()
-        gumroad  = get_platform_data("gumroad") or {}
-        etsy     = get_platform_data("etsy")    or {}
+        gumroad = get_platform_data("gumroad") or {}
+        etsy = get_platform_data("etsy") or {}
         market_intel = {
             "briefing": briefing[:3000],
-            "gumroad":  gumroad,
-            "etsy":     etsy,
+            "gumroad": gumroad,
+            "etsy": etsy,
         }
     except Exception as e:
         log.warning(f"[ViralTrendEngine] Market intel unavailable: {e}")

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class ExpenseTrackerBot(BaseBot):
@@ -22,10 +22,10 @@ class ExpenseTrackerBot(BaseBot):
             monthly_expenses: float = None, cost_concern: str = None, **kwargs):
 
         cfg = self.config
-        business_type    = business_type or cfg.get("business_type", "online business / SaaS")
-        monthly_revenue  = monthly_revenue or cfg.get("monthly_revenue", 2000)
+        business_type = business_type or cfg.get("business_type", "online business / SaaS")
+        monthly_revenue = monthly_revenue or cfg.get("monthly_revenue", 2000)
         monthly_expenses = monthly_expenses or cfg.get("monthly_expenses", 800)
-        cost_concern     = cost_concern or cfg.get("cost_concern", "optimize for profitability")
+        cost_concern = cost_concern or cfg.get("cost_concern", "optimize for profitability")
 
         self.logger.info(f"Building expense tracker: {business_type} | Revenue: ${monthly_revenue}")
 
@@ -137,10 +137,10 @@ Best expense tracking tools for {business_type} (free and paid):
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Expense Tracker & Budget Optimizer")
-    parser.add_argument("--business",  type=str, default=None)
-    parser.add_argument("--revenue",   type=float, default=2000)
-    parser.add_argument("--expenses",  type=float, default=800)
-    parser.add_argument("--concern",   type=str, default="optimize for profitability")
+    parser.add_argument("--business", type=str, default=None)
+    parser.add_argument("--revenue", type=float, default=2000)
+    parser.add_argument("--expenses", type=float, default=800)
+    parser.add_argument("--concern", type=str, default="optimize for profitability")
     args = parser.parse_args()
     bot = ExpenseTrackerBot()
     result = bot.execute(business_type=args.business, monthly_revenue=args.revenue,

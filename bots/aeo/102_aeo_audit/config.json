@@ -1,0 +1,6 @@
+{
+  "description": "AEO audit — scores content for AI answer engine readiness (0-100)",
+  "default_url": "https://wheellsverse-bots.pages.dev",
+  "enabled": true,
+  "schedule": "@weekly mon 10:00"
+}

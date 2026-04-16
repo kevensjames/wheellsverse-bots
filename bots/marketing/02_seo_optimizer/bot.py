@@ -13,7 +13,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class SEOOptimizerBot(BaseBot):
@@ -110,7 +110,7 @@ Provide:
 
 Format each section clearly with headers."""
 
-        audit = self.ai(audit_prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST","gpt-4o-mini"), max_tokens=2000)
+        audit = self.ai(audit_prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"), max_tokens=2000)
 
         # ─── AI Content Rewrite
         rewrite_prompt = f"""Rewrite this content for maximum SEO performance:
@@ -130,7 +130,7 @@ Rules:
 
 Format as Markdown."""
 
-        optimized = self.ai(rewrite_prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST","gpt-4o-mini"), max_tokens=2500)
+        optimized = self.ai(rewrite_prompt, system=system, model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"), max_tokens=2500)
 
         # ─── Build report
         report = f"""# SEO Analysis Report
@@ -175,10 +175,10 @@ Format as Markdown."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="SEO Optimizer Bot")
-    parser.add_argument("--file",    type=str, default=None, help="Path to content file")
+    parser.add_argument("--file", type=str, default=None, help="Path to content file")
     parser.add_argument("--content", type=str, default=None, help="Raw content string")
     parser.add_argument("--keyword", type=str, default="AI automation")
-    parser.add_argument("--url",     type=str, default=None)
+    parser.add_argument("--url", type=str, default=None)
     args = parser.parse_args()
     bot = SEOOptimizerBot()
     result = bot.execute(file_path=args.file, content=args.content,

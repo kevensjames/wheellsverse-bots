@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class ColdEmailBot(BaseBot):
@@ -23,11 +23,11 @@ class ColdEmailBot(BaseBot):
             pain_point: str = None, **kwargs):
 
         cfg = self.config
-        prospect_type   = prospect_type or cfg.get("prospect_type", "founder of small SaaS company (10-50 employees)")
-        your_offer      = your_offer or cfg.get("your_offer", "AI automation tools that reduce manual work by 80%")
+        prospect_type = prospect_type or cfg.get("prospect_type", "founder of small SaaS company (10-50 employees)")
+        your_offer = your_offer or cfg.get("your_offer", "AI automation tools that reduce manual work by 80%")
         sequence_length = sequence_length or cfg.get("sequence_length", 5)
-        goal            = goal or cfg.get("goal", "book a 20-minute discovery call")
-        pain_point      = pain_point or cfg.get("pain_point", "spending too much time on repetitive tasks")
+        goal = goal or cfg.get("goal", "book a 20-minute discovery call")
+        pain_point = pain_point or cfg.get("pain_point", "spending too much time on repetitive tasks")
 
         self.logger.info(f"Building cold email sequence for: {prospect_type}")
 
@@ -142,10 +142,10 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Cold Email Sequence Builder")
     parser.add_argument("--prospect", type=str, default=None)
-    parser.add_argument("--offer",    type=str, default=None)
-    parser.add_argument("--emails",   type=int, default=5)
-    parser.add_argument("--goal",     type=str, default="book a call")
-    parser.add_argument("--pain",     type=str, default=None)
+    parser.add_argument("--offer", type=str, default=None)
+    parser.add_argument("--emails", type=int, default=5)
+    parser.add_argument("--goal", type=str, default="book a call")
+    parser.add_argument("--pain", type=str, default=None)
     args = parser.parse_args()
     bot = ColdEmailBot()
     result = bot.execute(prospect_type=args.prospect, your_offer=args.offer,

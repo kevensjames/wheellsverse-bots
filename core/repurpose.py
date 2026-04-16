@@ -37,9 +37,9 @@ logger = logging.getLogger("repurpose")
 
 REPURPOSE_DIR = ROOT / "outputs" / "repurposed"
 
-CTA_URL   = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-BRAND     = os.getenv("BRAND_NAME", "WheellsVerse")
-AUTHOR    = os.getenv("AUTHOR_NAME", "J.K. Blaze")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 
 
 # ── GPT helper ────────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ AUTHOR    = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 def _gpt(prompt: str, system: str = "", max_tokens: int = 800) -> str:
     from openai import OpenAI
     client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
-    model  = os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini")
+    model = os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini")
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
@@ -210,24 +210,24 @@ def _make_youtube_script(title: str, content: str) -> str:
 # ── Main repurpose function ───────────────────────────────────────────────────
 
 FORMATS = {
-    "twitter_thread":    _make_twitter_thread,
-    "tiktok_caption":    _make_tiktok_caption,
-    "email_subjects":    _make_email_subjects,
-    "reddit_post":       _make_reddit_post,
+    "twitter_thread": _make_twitter_thread,
+    "tiktok_caption": _make_tiktok_caption,
+    "email_subjects": _make_email_subjects,
+    "reddit_post": _make_reddit_post,
     "instagram_caption": _make_instagram_caption,
-    "linkedin_post":     _make_linkedin_post,
-    "threads_post":      _make_threads_post,
-    "facebook_post":     _make_facebook_post,
-    "pinterest_pin":     _make_pinterest_pin,
-    "youtube_script":    _make_youtube_script,
+    "linkedin_post": _make_linkedin_post,
+    "threads_post": _make_threads_post,
+    "facebook_post": _make_facebook_post,
+    "pinterest_pin": _make_pinterest_pin,
+    "youtube_script": _make_youtube_script,
 }
 
 
 def repurpose(
     content: str,
-    title:   str = "",
+    title: str = "",
     formats: Optional[List[str]] = None,
-    save:    bool = True,
+    save: bool = True,
 ) -> Dict[str, str]:
     """
     Repurpose markdown content into all platform formats simultaneously.
@@ -245,7 +245,7 @@ def repurpose(
     target_formats = formats or list(FORMATS.keys())
 
     results: Dict[str, str] = {}
-    errors:  Dict[str, str] = {}
+    errors: Dict[str, str] = {}
 
     def _run_format(fmt_name: str) -> tuple:
         fn = FORMATS[fmt_name]
@@ -273,9 +273,9 @@ def repurpose(
                 f"({len(errors)} errors)")
 
     return {
-        "title":   title,
+        "title": title,
         "formats": results,
-        "errors":  errors,
+        "errors": errors,
     }
 
 
@@ -284,7 +284,7 @@ def _save_repurposed(title: str, results: Dict[str, str]):
     import re as _re
     from datetime import datetime
     slug = _re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")[:50]
-    ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     out_dir = REPURPOSE_DIR / f"{ts}_{slug}"
     out_dir.mkdir(parents=True, exist_ok=True)
 

@@ -1,0 +1,7 @@
+{
+  "description": "YouTube Channel — generates 1 video script + metadata daily. Goal: 1,000 subs → monetize + affiliate income.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 06:30",
+  "action": "script"
+}

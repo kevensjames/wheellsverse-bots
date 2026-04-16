@@ -10,23 +10,23 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 SCRIPT_STYLES = {
-    "educational":   "teach one concept with clear steps and aha moments",
-    "storytelling":  "personal story arc with relatable struggle and resolution",
-    "listicle":      "numbered tips/tools/ideas with fast cuts",
-    "talking_head":  "direct-to-camera commentary or opinion piece",
-    "tutorial":      "step-by-step how-to with screen shares or demos",
-    "reaction":      "react to a trend, tool, or common belief in the niche",
-    "comparison":    "X vs Y breakdown to help audience make a decision",
+    "educational": "teach one concept with clear steps and aha moments",
+    "storytelling": "personal story arc with relatable struggle and resolution",
+    "listicle": "numbered tips/tools/ideas with fast cuts",
+    "talking_head": "direct-to-camera commentary or opinion piece",
+    "tutorial": "step-by-step how-to with screen shares or demos",
+    "reaction": "react to a trend, tool, or common belief in the niche",
+    "comparison": "X vs Y breakdown to help audience make a decision",
     "hook_challenge": "controversial opener that challenges a common belief",
 }
 
 PLATFORM_LENGTHS = {
-    "tiktok":          {"short": "15-30s", "medium": "45-60s", "long": "90-180s"},
+    "tiktok": {"short": "15-30s", "medium": "45-60s", "long": "90-180s"},
     "instagram_reels": {"short": "15-30s", "medium": "30-60s", "long": "60-90s"},
-    "youtube_shorts":  {"short": "30-45s", "medium": "45-60s", "long": "55-60s"},
+    "youtube_shorts": {"short": "30-45s", "medium": "45-60s", "long": "55-60s"},
 }
 
 
@@ -39,10 +39,10 @@ class VideoScriptBot(BaseBot):
             duration: str = None, style: str = None, **kwargs):
 
         cfg = self.config
-        topic    = topic or cfg.get("topic", "5 AI tools that replace an entire team")
+        topic = topic or cfg.get("topic", "5 AI tools that replace an entire team")
         platform = platform or cfg.get("platform", "tiktok")
         duration = duration or cfg.get("duration", "60s")
-        style    = style or cfg.get("style", "listicle")
+        style = style or cfg.get("style", "listicle")
 
         style_desc = SCRIPT_STYLES.get(style, style)
         self.logger.info(f"Writing video script: {topic} ({duration} {style} for {platform})")
@@ -209,11 +209,11 @@ How to adapt this {duration} script for other formats:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Short-Form Video Script Generator")
-    parser.add_argument("--topic",    type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--platform", type=str, default="tiktok",
                         choices=["tiktok", "instagram_reels", "youtube_shorts"])
     parser.add_argument("--duration", type=str, default="60s")
-    parser.add_argument("--style",    type=str, default="listicle",
+    parser.add_argument("--style", type=str, default="listicle",
                         choices=list(SCRIPT_STYLES.keys()))
     args = parser.parse_args()
     bot = VideoScriptBot()

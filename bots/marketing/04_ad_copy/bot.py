@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class AdCopyBot(BaseBot):
@@ -24,10 +24,10 @@ class AdCopyBot(BaseBot):
             num_variations: int = None, **kwargs):
 
         cfg = self.config
-        product       = product or cfg.get("product", "WheellsVerse AI Platform")
-        platforms     = platforms or cfg.get("platforms", ["facebook", "google", "instagram"])
-        objective     = objective or cfg.get("objective", "lead generation")
-        audience      = audience or cfg.get("audience", "entrepreneurs 25-45, interested in AI")
+        product = product or cfg.get("product", "WheellsVerse AI Platform")
+        platforms = platforms or cfg.get("platforms", ["facebook", "google", "instagram"])
+        objective = objective or cfg.get("objective", "lead generation")
+        audience = audience or cfg.get("audience", "entrepreneurs 25-45, interested in AI")
         num_variations = num_variations or cfg.get("num_variations", 3)
 
         self.logger.info(f"Generating ad copy for {product} on {platforms}")
@@ -144,11 +144,11 @@ curiosity, authority, reciprocity. Make CTAs action-oriented and specific."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Ad Copy Generator")
-    parser.add_argument("--product",   type=str, default=None)
+    parser.add_argument("--product", type=str, default=None)
     parser.add_argument("--platforms", type=str, default="facebook,google,instagram")
     parser.add_argument("--objective", type=str, default="lead generation")
-    parser.add_argument("--audience",  type=str, default=None)
-    parser.add_argument("--variations",type=int, default=3)
+    parser.add_argument("--audience", type=str, default=None)
+    parser.add_argument("--variations", type=int, default=3)
     args = parser.parse_args()
     platforms = [p.strip() for p in args.platforms.split(",")]
     bot = AdCopyBot()

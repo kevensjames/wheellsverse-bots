@@ -1,0 +1,7 @@
+{
+  "description": "Historical Fiction (.99 KDP). Writes 1 book/day.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 07:45",
+  "action": "write"
+}

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class KPITrackerBot(BaseBot):
@@ -22,10 +22,10 @@ class KPITrackerBot(BaseBot):
             focus_area: str = None, review_cadence: str = None, **kwargs):
 
         cfg = self.config
-        business_type   = business_type or cfg.get("business_type", "SaaS / digital business")
-        stage           = stage or cfg.get("stage", "early growth")
-        focus_area      = focus_area or cfg.get("focus_area", "all areas")
-        review_cadence  = review_cadence or cfg.get("review_cadence", "weekly + monthly")
+        business_type = business_type or cfg.get("business_type", "SaaS / digital business")
+        stage = stage or cfg.get("stage", "early growth")
+        focus_area = focus_area or cfg.get("focus_area", "all areas")
+        review_cadence = review_cadence or cfg.get("review_cadence", "weekly + monthly")
 
         self.logger.info(f"Building KPI dashboard: {business_type} | {stage}")
 
@@ -146,10 +146,10 @@ Specific numbers that should trigger immediate review:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="KPI Dashboard Builder")
-    parser.add_argument("--business",  type=str, default=None)
-    parser.add_argument("--stage",     type=str, default="early growth")
-    parser.add_argument("--focus",     type=str, default="all areas")
-    parser.add_argument("--cadence",   type=str, default="weekly + monthly")
+    parser.add_argument("--business", type=str, default=None)
+    parser.add_argument("--stage", type=str, default="early growth")
+    parser.add_argument("--focus", type=str, default="all areas")
+    parser.add_argument("--cadence", type=str, default="weekly + monthly")
     args = parser.parse_args()
     bot = KPITrackerBot()
     result = bot.execute(business_type=args.business, stage=args.stage,

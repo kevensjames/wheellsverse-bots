@@ -10,21 +10,21 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 CHRONOTYPES = {
-    "early_bird":  "Peak energy 6AM-12PM — morning is sacred for deep work",
-    "night_owl":   "Peak energy 8PM-2AM — mornings are low energy, evenings are peak",
-    "midday":      "Peak energy 10AM-2PM — ramp up slowly, peak at noon",
-    "bimodal":     "Two peak periods — morning and evening, midday dip",
+    "early_bird": "Peak energy 6AM-12PM — morning is sacred for deep work",
+    "night_owl": "Peak energy 8PM-2AM — mornings are low energy, evenings are peak",
+    "midday": "Peak energy 10AM-2PM — ramp up slowly, peak at noon",
+    "bimodal": "Two peak periods — morning and evening, midday dip",
 }
 
 SCHEDULE_TYPES = {
     "entrepreneur": "Build/create/market — creative work + admin + business growth",
-    "content":      "Content creator — batch creation, filming, editing, posting",
-    "hybrid_work":  "Mix of deep focus work and meetings/calls",
-    "side_hustle":  "Primary job + side business in limited hours",
-    "launch_mode":  "Pre-launch sprint — compressed deadlines, high output required",
+    "content": "Content creator — batch creation, filming, editing, posting",
+    "hybrid_work": "Mix of deep focus work and meetings/calls",
+    "side_hustle": "Primary job + side business in limited hours",
+    "launch_mode": "Pre-launch sprint — compressed deadlines, high output required",
 }
 
 
@@ -39,15 +39,15 @@ class ScheduleOptimizerBot(BaseBot):
 
         cfg = self.config
         available_hours = available_hours or cfg.get("available_hours", "8 hours, 9AM-5PM")
-        top_priorities  = top_priorities or cfg.get("top_priorities",
+        top_priorities = top_priorities or cfg.get("top_priorities",
             "1) content creation and bot development, 2) sales and marketing, 3) customer support")
-        chronotype      = chronotype or cfg.get("chronotype", "early_bird")
-        schedule_type   = schedule_type or cfg.get("schedule_type", "entrepreneur")
-        constraints     = constraints or cfg.get("constraints",
+        chronotype = chronotype or cfg.get("chronotype", "early_bird")
+        schedule_type = schedule_type or cfg.get("schedule_type", "entrepreneur")
+        constraints = constraints or cfg.get("constraints",
             "1 hour for meals/breaks, no meetings before 10AM, gym 3x per week")
 
         chrono_desc = CHRONOTYPES.get(chronotype, chronotype)
-        sched_desc  = SCHEDULE_TYPES.get(schedule_type, schedule_type)
+        sched_desc = SCHEDULE_TYPES.get(schedule_type, schedule_type)
 
         self.logger.info(f"Optimizing {schedule_type} schedule for {chronotype} chronotype")
 
@@ -216,11 +216,11 @@ Before accepting anything that takes time: [Decision framework for your situatio
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Daily Schedule Optimizer")
-    parser.add_argument("--hours",       type=str, default="8 hours, 9AM-5PM")
-    parser.add_argument("--priorities",  type=str, default=None)
-    parser.add_argument("--chronotype",  type=str, default="early_bird",
+    parser.add_argument("--hours", type=str, default="8 hours, 9AM-5PM")
+    parser.add_argument("--priorities", type=str, default=None)
+    parser.add_argument("--chronotype", type=str, default="early_bird",
                         choices=list(CHRONOTYPES.keys()))
-    parser.add_argument("--type",        type=str, default="entrepreneur",
+    parser.add_argument("--type", type=str, default="entrepreneur",
                         choices=list(SCHEDULE_TYPES.keys()))
     parser.add_argument("--constraints", type=str, default=None)
     args = parser.parse_args()

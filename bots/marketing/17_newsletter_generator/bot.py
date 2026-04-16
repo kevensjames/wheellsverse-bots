@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class NewsletterBot(BaseBot):
@@ -24,10 +24,10 @@ class NewsletterBot(BaseBot):
 
         cfg = self.config
         newsletter_name = newsletter_name or cfg.get("newsletter_name", "The WheellsVerse Dispatch")
-        topic           = topic or cfg.get("topic", "AI automation tools and entrepreneurship")
-        sections        = sections or cfg.get("sections", 4)
-        tone            = tone or cfg.get("tone", "conversational, insightful, actionable")
-        include_cta     = cfg.get("include_cta", include_cta)
+        topic = topic or cfg.get("topic", "AI automation tools and entrepreneurship")
+        sections = sections or cfg.get("sections", 4)
+        tone = tone or cfg.get("tone", "conversational, insightful, actionable")
+        include_cta = cfg.get("include_cta", include_cta)
 
         self.logger.info(f"Generating newsletter: {newsletter_name} — {topic}")
 
@@ -41,8 +41,6 @@ class NewsletterBot(BaseBot):
 
         from datetime import datetime as _dt
         current_date = _dt.now().strftime("%B %d, %Y")
-        issue_num = _dt.now().strftime("%Y%W")  # Year + week number as issue
-
         prompt = f"""Write a complete, ready-to-send newsletter issue:
 
 NEWSLETTER NAME: {newsletter_name}
@@ -120,10 +118,10 @@ Warm, on-brand closing with signature
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Newsletter Generator")
-    parser.add_argument("--name",     type=str, default=None)
-    parser.add_argument("--topic",    type=str, default=None)
+    parser.add_argument("--name", type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--sections", type=int, default=4)
-    parser.add_argument("--tone",     type=str, default="conversational, insightful")
+    parser.add_argument("--tone", type=str, default="conversational, insightful")
     args = parser.parse_args()
     bot = NewsletterBot()
     result = bot.execute(newsletter_name=args.name, topic=args.topic,

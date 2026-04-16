@@ -12,18 +12,18 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL   = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
-ROBINHOOD_URL  = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG     = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
-AMAZON_TAG2    = os.getenv("AFFILIATE_AMAZON_TAG_2",  "naraiinsights-20")
-CLICKBANK_URL  = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+AMAZON_TAG2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
+CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
 CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
-JASPER_URL     = os.getenv("AFFILIATE_JASPER_URL",    "https://www.jasper.ai/")
-APPSUMO_URL    = os.getenv("AFFILIATE_APPSUMO_URL",   "https://appsumo.com/")
-CTA_URL        = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-BRAND          = os.getenv("BRAND_NAME", "WheellsVerse")
+JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
+APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 
 HIGH_INTENT_ANGLES = [
     "How to start investing with $100 and actually grow it in 2025",
@@ -54,7 +54,7 @@ class AffiliateGrowthHackerBot(BaseBot):
 
     def run(self, topic: str = None, strategy: str = None, **kwargs):
         cfg = self.config
-        topic    = topic or cfg.get("default_topic") or random.choice(HIGH_INTENT_ANGLES)
+        topic = topic or cfg.get("default_topic") or random.choice(HIGH_INTENT_ANGLES)
         strategy = strategy or cfg.get("strategy") or random.choice(STRATEGIES)
         self.logger.info(f"Running affiliate growth hack: [{strategy}] → {topic}")
 
@@ -178,7 +178,7 @@ Structure:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Affiliate Growth Hacker Bot")
-    parser.add_argument("--topic",    type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--strategy", type=str, default=None,
                         choices=STRATEGIES)
     args = parser.parse_args()

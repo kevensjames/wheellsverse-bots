@@ -31,9 +31,9 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 from dotenv import load_dotenv
 
@@ -43,8 +43,8 @@ load_dotenv(ROOT / ".env")
 logger = logging.getLogger("performance")
 
 INTELLIGENCE_FILE = ROOT / "data" / "intelligence.json"
-PERF_FILE         = ROOT / "data" / "performance.json"
-PUBLISHED_LOG     = ROOT / "data" / "published_log.json"
+PERF_FILE = ROOT / "data" / "performance.json"
+PUBLISHED_LOG = ROOT / "data" / "published_log.json"
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -65,10 +65,10 @@ def _save_json(path: Path, data):
 
 def _engagement_score(metrics: Dict) -> float:
     return (
-        metrics.get("like_count", 0)      * 2
+        metrics.get("like_count", 0) * 2
         + metrics.get("retweet_count", 0) * 5
-        + metrics.get("reply_count", 0)   * 3
-        + metrics.get("bookmark_count", 0)* 4
+        + metrics.get("reply_count", 0) * 3
+        + metrics.get("bookmark_count", 0) * 4
         + metrics.get("impression_count", 0) * 0.01
     )
 
@@ -79,11 +79,11 @@ def _fetch_tweet_metrics(tweet_ids: List[str]) -> Dict[str, Dict]:
     """Fetch engagement metrics for a list of tweet IDs via Twitter API v2."""
     try:
         import tweepy
-        api_key       = os.getenv("TWITTER_API_KEY", "")
-        api_secret    = os.getenv("TWITTER_API_SECRET", "")
-        access_token  = os.getenv("TWITTER_ACCESS_TOKEN", "")
+        api_key = os.getenv("TWITTER_API_KEY", "")
+        api_secret = os.getenv("TWITTER_API_SECRET", "")
+        access_token = os.getenv("TWITTER_ACCESS_TOKEN", "")
         access_secret = os.getenv("TWITTER_ACCESS_SECRET", "")
-        bearer_token  = os.getenv("TWITTER_BEARER_TOKEN", "")
+        bearer_token = os.getenv("TWITTER_BEARER_TOKEN", "")
 
         if not bearer_token and not all([api_key, api_secret, access_token, access_secret]):
             logger.warning("Twitter credentials missing — skipping metrics fetch")
@@ -101,7 +101,7 @@ def _fetch_tweet_metrics(tweet_ids: List[str]) -> Dict[str, Dict]:
         results = {}
         # Twitter allows up to 100 IDs per request
         for i in range(0, len(tweet_ids), 100):
-            batch = tweet_ids[i:i+100]
+            batch = tweet_ids[i:i + 100]
             resp = client.get_tweets(
                 ids=batch,
                 tweet_fields=["public_metrics", "created_at", "text"],
@@ -110,12 +110,12 @@ def _fetch_tweet_metrics(tweet_ids: List[str]) -> Dict[str, Dict]:
                 for tweet in resp.data:
                     m = tweet.public_metrics or {}
                     results[str(tweet.id)] = {
-                        "text":             tweet.text[:100],
-                        "created_at":       str(tweet.created_at),
-                        "like_count":       m.get("like_count", 0),
-                        "retweet_count":    m.get("retweet_count", 0),
-                        "reply_count":      m.get("reply_count", 0),
-                        "bookmark_count":   m.get("bookmark_count", 0),
+                        "text": tweet.text[:100],
+                        "created_at": str(tweet.created_at),
+                        "like_count": m.get("like_count", 0),
+                        "retweet_count": m.get("retweet_count", 0),
+                        "reply_count": m.get("reply_count", 0),
+                        "bookmark_count": m.get("bookmark_count", 0),
                         "impression_count": m.get("impression_count", 0),
                     }
             time.sleep(1)
@@ -146,7 +146,6 @@ def refresh_performance() -> Dict:
     perf = _load_json(PERF_FILE, {"tweets": {}, "topics": {}, "updated_at": ""})
 
     # ── 1. Load previously logged tweet IDs ──────────────────────────────────
-    published = _load_json(PUBLISHED_LOG, [])
     stored_tweet_ids: List[str] = perf.get("tweet_ids", [])
 
     # ── 2. Fetch live metrics from Twitter ───────────────────────────────────
@@ -159,7 +158,7 @@ def refresh_performance() -> Dict:
     topic_scores: Dict[str, float] = {}
     for tweet_id, m in perf.get("tweets", {}).items():
         score = _engagement_score(m)
-        text  = m.get("text", "")
+        text = m.get("text", "")
         # Derive a short topic label from the first 6 words
         words = text.replace("#", "").split()[:6]
         topic = " ".join(words).lower()
@@ -172,13 +171,13 @@ def refresh_performance() -> Dict:
         topic_scores[key] = topic_scores.get(key, 0) + count * 10  # clicks = strong signal
 
     # ── 5. Save performance data ──────────────────────────────────────────────
-    perf["topics"]     = topic_scores
+    perf["topics"] = topic_scores
     perf["updated_at"] = datetime.utcnow().isoformat() + "Z"
     _save_json(PERF_FILE, perf)
 
     # ── 6. Update intelligence.json ──────────────────────────────────────────
     intel = _load_json(INTELLIGENCE_FILE, {})
-    intel["topic_scores"]    = {
+    intel["topic_scores"] = {
         **intel.get("topic_scores", {}),
         **{k: round(v, 2) for k, v in topic_scores.items()},
     }
@@ -192,10 +191,10 @@ def refresh_performance() -> Dict:
     # ── 7. Return summary ─────────────────────────────────────────────────────
     top5 = sorted(topic_scores.items(), key=lambda x: x[1], reverse=True)[:5]
     return {
-        "tweets_tracked":  len(perf.get("tweets", {})),
-        "topics_scored":   len(topic_scores),
-        "top_topics":      top5,
-        "updated_at":      perf["updated_at"],
+        "tweets_tracked": len(perf.get("tweets", {})),
+        "topics_scored": len(topic_scores),
+        "top_topics": top5,
+        "updated_at": perf["updated_at"],
         "affiliate_clicks": click_data,
     }
 
@@ -217,7 +216,7 @@ def register_tweet_ids(tweet_ids: List[str]):
 
 def _fetch_facebook_insights() -> Dict:
     """Pull Facebook Page insights (reach, impressions, followers)."""
-    token   = os.getenv("FACEBOOK_PAGE_TOKEN", "")
+    token = os.getenv("FACEBOOK_PAGE_TOKEN", "")
     page_id = os.getenv("FACEBOOK_PAGE_ID", "")
     if not token or not page_id:
         return {}
@@ -236,13 +235,13 @@ def _fetch_facebook_insights() -> Dict:
             "followers": d.get("followers_count", 0) or d.get("fan_count", 0),
         }
     except Exception as e:
-        log.warning(f"Facebook insights failed: {e}")
+        logger.warning(f"Facebook insights failed: {e}")
         return {}
 
 
 def _fetch_instagram_insights() -> Dict:
     """Pull Instagram account follower count via Graph API."""
-    token      = os.getenv("INSTAGRAM_PAGE_TOKEN", "")
+    token = os.getenv("INSTAGRAM_PAGE_TOKEN", "")
     account_id = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
     if not token or not account_id:
         return {}
@@ -262,7 +261,7 @@ def _fetch_instagram_insights() -> Dict:
             "media_count": d.get("media_count", 0),
         }
     except Exception as e:
-        log.warning(f"Instagram insights failed: {e}")
+        logger.warning(f"Instagram insights failed: {e}")
         return {}
 
 
@@ -280,7 +279,7 @@ def _fetch_twitter_followers() -> int:
         if user.data and user.data.public_metrics:
             return user.data.public_metrics.get("followers_count", 0)
     except Exception as e:
-        log.warning(f"Twitter followers fetch failed: {e}")
+        logger.warning(f"Twitter followers fetch failed: {e}")
     return 0
 
 
@@ -295,8 +294,8 @@ def get_dashboard() -> Dict:
     perf = _load_json(PERF_FILE, {"tweets": {}, "topics": {}, "updated_at": ""})
 
     # Platform metrics
-    fb    = _fetch_facebook_insights()
-    ig    = _fetch_instagram_insights()
+    fb = _fetch_facebook_insights()
+    ig = _fetch_instagram_insights()
     tw_followers = _fetch_twitter_followers()
 
     # Topic scores from existing performance data

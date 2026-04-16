@@ -1,0 +1,7 @@
+{
+  "description": "Content Factory — generates blogs, YouTube scripts, emails, social batches at scale. Runs every 3 hours.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@every_3h",
+  "action": "blog"
+}

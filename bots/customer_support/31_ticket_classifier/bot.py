@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class TicketClassifierBot(BaseBot):
@@ -22,11 +22,11 @@ class TicketClassifierBot(BaseBot):
             team_size: str = None, sla_target: str = None, **kwargs):
 
         cfg = self.config
-        product           = product or cfg.get("product", "WheellsVerse AI platform")
+        product = product or cfg.get("product", "WheellsVerse AI platform")
         ticket_categories = ticket_categories or cfg.get("ticket_categories",
             "billing, technical bug, feature request, how-to question, account issue, refund")
-        team_size         = team_size or cfg.get("team_size", "1-2 person support team")
-        sla_target        = sla_target or cfg.get("sla_target", "same-day response")
+        team_size = team_size or cfg.get("team_size", "1-2 person support team")
+        sla_target = sla_target or cfg.get("sla_target", "same-day response")
 
         categories = [c.strip() for c in ticket_categories.split(",")]
         self.logger.info(f"Building ticket classification system for: {product}")
@@ -173,10 +173,10 @@ For each high-volume category, how to deflect tickets with self-serve resources"
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Support Ticket Classifier")
-    parser.add_argument("--product",    type=str, default=None)
+    parser.add_argument("--product", type=str, default=None)
     parser.add_argument("--categories", type=str, default=None)
-    parser.add_argument("--team",       type=str, default="1-2 person team")
-    parser.add_argument("--sla",        type=str, default="same-day response")
+    parser.add_argument("--team", type=str, default="1-2 person team")
+    parser.add_argument("--sla", type=str, default="same-day response")
     args = parser.parse_args()
     bot = TicketClassifierBot()
     result = bot.execute(product=args.product, ticket_categories=args.categories,

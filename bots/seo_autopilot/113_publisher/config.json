@@ -1,0 +1,5 @@
+{
+  "description": "SEO publisher — posts articles to WordPress or local blog",
+  "default_platform": "local",
+  "enabled": true
+}

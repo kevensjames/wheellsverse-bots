@@ -10,11 +10,11 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
 ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 SIDE_HUSTLE_TOPICS = [
     "10 side hustles you can start this weekend with $0",
@@ -32,12 +32,12 @@ SIDE_HUSTLE_TOPICS = [
 ]
 
 HUSTLE_CATEGORIES = {
-    "freelance":    "service-based freelance work",
-    "content":      "content creation and monetization",
-    "investing":    "investing and financial side hustles",
-    "ecommerce":    "ecommerce and product-based hustles",
-    "digital":      "digital products and online businesses",
-    "gig":          "gig economy and platform-based work",
+    "freelance": "service-based freelance work",
+    "content": "content creation and monetization",
+    "investing": "investing and financial side hustles",
+    "ecommerce": "ecommerce and product-based hustles",
+    "digital": "digital products and online businesses",
+    "gig": "gig economy and platform-based work",
 }
 
 
@@ -132,7 +132,7 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Side Hustle Affiliate Bot")
     parser.add_argument("--topic", type=str, default=None, help="Side hustle topic")
-    parser.add_argument("--type",  type=str, default="digital",
+    parser.add_argument("--type", type=str, default="digital",
                         choices=["freelance", "content", "investing", "ecommerce", "digital", "gig"])
     args = parser.parse_args()
     bot = SideHustleAffiliateBotBot()

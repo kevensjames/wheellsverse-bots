@@ -11,15 +11,15 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL  = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
 ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG    = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
-CTA_URL       = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-BRAND         = os.getenv("BRAND_NAME", "WheellsVerse")
-AUTHOR        = os.getenv("AUTHOR_NAME", "J.K. Blaze")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 
 VIRAL_TOPICS = [
     "How I automated my entire content business with AI in 30 days",
@@ -37,14 +37,14 @@ VIRAL_TOPICS = [
 ]
 
 CONTENT_TYPES = {
-    "blog_post":     "comprehensive, SEO-dominant blog post (1,200+ words)",
-    "article":       "in-depth editorial article with expert authority",
-    "social_post":   "viral social media thread (Twitter/X + LinkedIn versions)",
-    "product_desc":  "high-converting product description with benefit stack",
-    "email":         "persuasive email sequence (3 parts: hook, value, CTA)",
-    "landing_page":  "complete landing page copy (headline, sub, bullets, social proof, CTA)",
+    "blog_post": "comprehensive, SEO-dominant blog post (1,200+ words)",
+    "article": "in-depth editorial article with expert authority",
+    "social_post": "viral social media thread (Twitter/X + LinkedIn versions)",
+    "product_desc": "high-converting product description with benefit stack",
+    "email": "persuasive email sequence (3 parts: hook, value, CTA)",
+    "landing_page": "complete landing page copy (headline, sub, bullets, social proof, CTA)",
     "press_release": "professional press release optimized for syndication",
-    "ad_copy":       "multi-variant ad copy (Google + Meta + TikTok versions)",
+    "ad_copy": "multi-variant ad copy (Google + Meta + TikTok versions)",
 }
 
 
@@ -59,11 +59,11 @@ class ContentGeneratorBot(BaseBot):
             keywords: str = None, **kwargs):
 
         cfg = self.config
-        topic        = topic or cfg.get("default_topic") or random.choice(VIRAL_TOPICS)
+        topic = topic or cfg.get("default_topic") or random.choice(VIRAL_TOPICS)
         content_type = content_type or cfg.get("default_type", "blog_post")
-        word_count   = word_count or cfg.get("word_count", 1200)
-        tone         = tone or cfg.get("tone", "bold, authoritative, conversational, action-oriented")
-        keywords     = keywords or cfg.get("keywords", "AI tools, passive income, affiliate marketing, automation")
+        word_count = word_count or cfg.get("word_count", 1200)
+        tone = tone or cfg.get("tone", "bold, authoritative, conversational, action-oriented")
+        keywords = keywords or cfg.get("keywords", "AI tools, passive income, affiliate marketing, automation")
 
         self.logger.info(f"Generating {content_type} on: {topic}")
 
@@ -155,11 +155,11 @@ keywords: {keywords}
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Content Generator Bot (Ultra)")
-    parser.add_argument("--topic",    type=str, default=None)
-    parser.add_argument("--type",     type=str, default="blog_post",
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--type", type=str, default="blog_post",
                         choices=list(CONTENT_TYPES.keys()))
-    parser.add_argument("--words",    type=int, default=1200)
-    parser.add_argument("--tone",     type=str, default=None)
+    parser.add_argument("--words", type=int, default=1200)
+    parser.add_argument("--tone", type=str, default=None)
     parser.add_argument("--keywords", type=str, default=None)
     args = parser.parse_args()
     bot = ContentGeneratorBot()

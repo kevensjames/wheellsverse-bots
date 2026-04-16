@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class FunnelBuilderBot(BaseBot):
@@ -25,11 +25,11 @@ class FunnelBuilderBot(BaseBot):
             brand_name: str = None, **kwargs):
 
         cfg = self.config
-        product     = product or cfg.get("product", "WheellsVerse AI Platform")
+        product = product or cfg.get("product", "WheellsVerse AI Platform")
         price_point = price_point or cfg.get("price_point", "$97/month")
-        audience    = audience or cfg.get("audience", "entrepreneurs and creators")
+        audience = audience or cfg.get("audience", "entrepreneurs and creators")
         funnel_type = funnel_type or cfg.get("funnel_type", "lead_generation")
-        brand_name  = brand_name or cfg.get("brand_name", "WheellsVerse")
+        brand_name = brand_name or cfg.get("brand_name", "WheellsVerse")
 
         self.logger.info(f"Building {funnel_type} funnel for: {product}")
 
@@ -51,7 +51,7 @@ class FunnelBuilderBot(BaseBot):
 
         structure = funnel_types.get(funnel_type, funnel_type)
 
-        prompt = f"""Build a complete {funnel_type.replace("_"," ")} funnel for:
+        prompt = f"""Build a complete {funnel_type.replace("_", " ")} funnel for:
 
 BRAND: {brand_name}
 PRODUCT/SERVICE: {product}
@@ -131,11 +131,11 @@ Tools to build this funnel (ClickFunnels, Kajabi, etc.)"""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Funnel Builder Bot")
-    parser.add_argument("--product",  type=str, default=None)
-    parser.add_argument("--price",    type=str, default="$97/month")
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--price", type=str, default="$97/month")
     parser.add_argument("--audience", type=str, default=None)
-    parser.add_argument("--type",     type=str, default="lead_generation")
-    parser.add_argument("--brand",    type=str, default=None)
+    parser.add_argument("--type", type=str, default="lead_generation")
+    parser.add_argument("--brand", type=str, default=None)
     args = parser.parse_args()
     bot = FunnelBuilderBot()
     result = bot.execute(product=args.product, price_point=args.price,

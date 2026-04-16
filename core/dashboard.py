@@ -10,7 +10,6 @@ WheellsVerse Bot Dashboard
 
 import os
 import sys
-import json
 import time
 import threading
 from datetime import datetime
@@ -22,7 +21,6 @@ from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
@@ -220,7 +218,7 @@ setInterval(fetchStatus, 5000);
 def create_web_dashboard(orchestrator=None):
     """Create and return a Flask app serving the dashboard."""
     try:
-        from flask import Flask, jsonify, request
+        from flask import Flask, jsonify
         from flask_cors import CORS
     except ImportError:
         console.print("[red]Flask not installed. Run: pip install flask flask-cors[/red]")

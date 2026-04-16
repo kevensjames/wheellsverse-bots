@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class FollowUpBot(BaseBot):
@@ -22,10 +22,10 @@ class FollowUpBot(BaseBot):
             goal: str = None, days_since_contact: int = None, **kwargs):
 
         cfg = self.config
-        context           = context or cfg.get("context",
+        context = context or cfg.get("context",
             "prospect attended a product demo but hasn't responded to the proposal")
         relationship_stage = relationship_stage or cfg.get("relationship_stage", "warm — had a demo call")
-        goal              = goal or cfg.get("goal", "close the deal or understand the objection")
+        goal = goal or cfg.get("goal", "close the deal or understand the objection")
         days_since_contact = days_since_contact or cfg.get("days_since_contact", 7)
 
         self.logger.info(f"Building follow-up sequence: {context}")
@@ -119,9 +119,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Sales Follow-Up Sequence Builder")
     parser.add_argument("--context", type=str, default=None)
-    parser.add_argument("--stage",   type=str, default="warm lead")
-    parser.add_argument("--goal",    type=str, default="close the deal")
-    parser.add_argument("--days",    type=int, default=7)
+    parser.add_argument("--stage", type=str, default="warm lead")
+    parser.add_argument("--goal", type=str, default="close the deal")
+    parser.add_argument("--days", type=int, default=7)
     args = parser.parse_args()
     bot = FollowUpBot()
     result = bot.execute(context=args.context, relationship_stage=args.stage,

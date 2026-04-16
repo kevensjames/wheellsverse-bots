@@ -8,11 +8,10 @@ Outputs: Complete email sequence as Markdown + JSON
 """
 
 import sys
-import json
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class EmailCampaignBot(BaseBot):
@@ -26,10 +25,10 @@ class EmailCampaignBot(BaseBot):
 
         cfg = self.config
         campaign_type = campaign_type or cfg.get("campaign_type", "welcome_series")
-        product       = product or cfg.get("product", "AI automation platform")
-        audience      = audience or cfg.get("audience", "entrepreneurs and small business owners")
-        num_emails    = num_emails or cfg.get("num_emails", 5)
-        brand_name    = brand_name or cfg.get("brand_name", "WheellsVerse")
+        product = product or cfg.get("product", "AI automation platform")
+        audience = audience or cfg.get("audience", "entrepreneurs and small business owners")
+        num_emails = num_emails or cfg.get("num_emails", 5)
+        brand_name = brand_name or cfg.get("brand_name", "WheellsVerse")
 
         self.logger.info(f"Building {campaign_type} campaign ({num_emails} emails) for {brand_name}")
 
@@ -100,11 +99,11 @@ Format clearly with === separators between emails."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Email Campaign Generator")
-    parser.add_argument("--type",    type=str, default="welcome_series")
+    parser.add_argument("--type", type=str, default="welcome_series")
     parser.add_argument("--product", type=str, default=None)
-    parser.add_argument("--audience",type=str, default=None)
-    parser.add_argument("--emails",  type=int, default=5)
-    parser.add_argument("--brand",   type=str, default=None)
+    parser.add_argument("--audience", type=str, default=None)
+    parser.add_argument("--emails", type=int, default=5)
+    parser.add_argument("--brand", type=str, default=None)
     args = parser.parse_args()
     bot = EmailCampaignBot()
     result = bot.execute(campaign_type=args.type, product=args.product,

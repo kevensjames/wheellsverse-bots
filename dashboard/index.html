@@ -562,6 +562,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <!-- Config -->
     <div class="nav-sec" style="color:rgba(100,120,150,.6);font-size:8px;letter-spacing:2.5px">CONFIG</div>
     <div class="nav-item" onclick="nav('sysreport')" id="nav-sysreport" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📊</span><span style="color:#00ff88;font-weight:700">System Report</span></div>
+    <div class="nav-item" onclick="nav('security')" id="nav-security" style="background:linear-gradient(90deg,rgba(68,255,136,.12),transparent);border-left:2px solid #44ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛡</span><span style="color:#44ff88;font-weight:700">Security Scan</span></div>
     <div class="nav-item" onclick="nav('connections')" id="nav-connections" style="background:linear-gradient(90deg,rgba(0,212,255,.12),transparent);border-left:2px solid #00d4ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🔌</span><span style="color:#00d4ff;font-weight:700">Connections</span></div>
     <div class="nav-item" onclick="nav('projects')" id="nav-projects" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🗂</span><span>Projects</span></div>
     <div class="nav-item" onclick="nav('settings')" id="nav-settings" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">⚙️</span><span>Settings</span></div>
@@ -814,9 +815,20 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <button class="nr-qbtn" onclick="naraiQuickFill('search the web for')" style="border-color:rgba(255,85,136,.3);color:#ff5588">🌐 Search</button>
         <button class="nr-qbtn" onclick="naraiQuickFill('send a whatsapp message to')" style="border-color:rgba(37,211,102,.3);color:#25d366">💬 WA</button>
         <button class="nr-qbtn" id="kdp-toggle-btn" onclick="kdpTogglePublish()" style="border-color:rgba(255,136,0,.4);color:#ff9933;font-weight:700;position:relative" title="Activate all KDP publications for today">📚 KDP <span id="kdp-toggle-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:#555;margin-left:3px;vertical-align:middle"></span></button>
-        <!-- mic + tts -->
-        <button id="narai-mic-btn" onclick="naraiToggleMic()" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:13px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🎙</button>
-        <button id="narai-tts-btn" onclick="naraiToggleTTS()" style="background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.3);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:12px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🔊</button>
+        <!-- mic + tts + always-listen + voice selector -->
+        <button id="narai-mic-btn" onclick="naraiToggleMic()" title="Voice input (mic)" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:13px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🎙</button>
+        <button id="narai-always-btn" onclick="naraiToggleAlwaysListen()" title="Always-listening mode — say 'Hey NarAI' to activate" style="background:rgba(136,68,255,.08);border:1px solid rgba(136,68,255,.25);color:#664488;border-radius:8px;width:28px;height:24px;font-size:12px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">👂</button>
+        <button id="narai-tts-btn" onclick="naraiToggleTTS()" title="Toggle NarAI voice output" style="background:rgba(136,68,255,.1);border:1px solid rgba(136,68,255,.3);color:#cc88ff;border-radius:8px;width:28px;height:24px;font-size:12px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center">🔊</button>
+        <select id="narai-voice-select" onchange="naraiSetVoice(this.value)" title="Choose NarAI's voice"
+          style="background:#0d0d1a;border:1px solid rgba(136,68,255,.3);color:#cc88ff;border-radius:6px;font-size:9px;padding:2px 4px;height:24px;max-width:90px;cursor:pointer;outline:none">
+          <option value="nova" selected>🌟 Nova</option>
+          <option value="shimmer">✨ Shimmer</option>
+          <option value="alloy">⚙️ Alloy</option>
+          <option value="echo">🔁 Echo</option>
+          <option value="fable">📖 Fable</option>
+          <option value="onyx">🖤 Onyx</option>
+          <option value="browser">🖥 Browser</option>
+        </select>
         <span id="narai-voice-status" style="font-size:8px;color:#555;background:rgba(0,0,0,.4);border:1px solid rgba(255,255,255,.07);border-radius:20px;padding:2px 8px;align-self:center">● IDLE</span>
       </div>
       <!-- Chat history -->
@@ -877,6 +889,20 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
     </div><!-- /right col -->
   </div><!-- /main grid -->
+
+  <!-- ══ NARAI SELF-IMPROVEMENT ══ -->
+  <div style="margin-top:12px" id="narai-self-improve-section">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:6px;height:6px;border-radius:50%;background:#ff88cc;box-shadow:0 0 8px #ff88cc;animation:nrPulse 2s infinite"></div>
+        <span style="font-size:12px;font-weight:800;color:#ff88cc;letter-spacing:.5px;text-transform:uppercase">NarAI Self-Improvement</span>
+      </div>
+      <button onclick="naraiAnalyse()" id="narai-analyse-btn" style="background:rgba(255,136,204,.12);border:1px solid rgba(255,136,204,.4);color:#ff88cc;border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-family:inherit;font-weight:700">🧠 Analyse &amp; Propose</button>
+    </div>
+    <div id="narai-proposals-list" style="display:flex;flex-direction:column;gap:6px;min-height:24px">
+      <div style="font-size:9px;color:var(--text3);text-align:center;padding:8px 0">No proposals yet — click Analyse &amp; Propose to start.</div>
+    </div>
+  </div>
 
   <!-- ══ NARAI ACTIVITY BOARD ══ -->
   <div style="margin-top:12px">
@@ -1622,6 +1648,27 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 <div class="page" id="page-settings">
   <div class="sh" style="margin-bottom:14px"><div><div class="st">Environment Settings</div><div class="ss">API keys and system configuration</div></div><button class="btn bc2 bsm" onclick="refreshSettings()">↺ Refresh</button></div>
   <div class="sg" id="settings-g"></div>
+</div>
+
+<!-- ══ SECURITY SCANNER ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-security">
+  <div class="sh" style="margin-bottom:14px">
+    <div><div class="st">🛡 Security Scanner</div><div class="ss">Defensive threat detection — scan files and directories for malware patterns</div></div>
+    <button class="btn bsm" onclick="secScan()" style="background:rgba(68,255,136,.12);border-color:rgba(68,255,136,.4);color:#44ff88">🔍 Scan</button>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <input id="sec-path" class="si2" placeholder="Path to scan (file or directory)" style="flex:1;min-width:220px"
+        value="">
+      <input id="sec-maxfiles" class="si2" placeholder="Max files" type="number" min="1" max="500" value="200" style="width:80px">
+    </div>
+    <div style="margin-top:8px;font-size:9px;color:var(--text3)">Allowed paths: project directory or /tmp. Scans code for obfuscation, reverse shells, hardcoded credentials, known malware hashes.</div>
+  </div>
+
+  <div id="sec-status" style="display:none;font-size:10px;color:#44ff88;margin-bottom:10px;padding:6px 10px;background:rgba(68,255,136,.06);border:1px solid rgba(68,255,136,.2);border-radius:6px"></div>
+
+  <div id="sec-results" style="display:flex;flex-direction:column;gap:8px"></div>
 </div>
 
 <!-- ══ CONNECTIONS ═══════════════════════════════════════════════════════════ -->
@@ -2861,6 +2908,66 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       Month 1: 300 books live. If 1% sell 1 copy/month = <b style="color:var(--green)">$6.27/month passive</b>.
       Month 3: 900 books. At 2% sell rate = <b style="color:var(--green)">$376/month growing</b>.
       Scales automatically — no extra work.
+    </div>
+  </div>
+
+  <!-- ═══ BOOK LIBRARY — READ & EDIT ═══════════════════════════════════════ -->
+  <div class="card" style="margin-top:20px" id="book-library-card">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+      <div>
+        <div class="st">📖 Book Library — Read & Edit</div>
+        <div class="ss" style="margin-top:2px">Every book written by NarAI. Click to read or edit the full manuscript.</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <input id="bl-search" class="si2" placeholder="Search title…" oninput="blFilter()" style="width:160px">
+        <select id="bl-genre-filter" class="si2" onchange="blFilter()" style="width:115px">
+          <option value="">All Genres</option>
+          <option>true_crime</option><option>mystery</option><option>fantasy</option>
+          <option>sci_fi</option><option>horror</option><option>romance</option>
+          <option>thriller</option><option>adventure</option><option>historical</option>
+          <option>self_help</option><option>childrens</option>
+          <option>bestseller_writer</option><option>memory_thief_vol2</option>
+        </select>
+        <span id="bl-count" class="ss"></span>
+        <button class="btn bgh bsm" onclick="blLoad()">↻ Refresh</button>
+      </div>
+    </div>
+
+    <!-- Book grid -->
+    <div id="bl-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px;min-height:80px">
+      <div style="color:var(--text3);font-size:11px;padding:16px">Loading library…</div>
+    </div>
+  </div>
+
+  <!-- Book Reader / Editor modal overlay -->
+  <div id="bl-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:9000;overflow:hidden">
+    <div style="display:flex;flex-direction:column;height:100%;max-width:960px;margin:0 auto;padding:16px;box-sizing:border-box">
+
+      <!-- Modal header -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">
+        <div style="flex:1;min-width:0">
+          <div id="bl-modal-title" style="font-size:16px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">—</div>
+          <div id="bl-modal-meta" class="ss" style="margin-top:2px">—</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-shrink:0">
+          <span id="bl-edit-badge" style="display:none;font-size:10px;background:rgba(255,170,0,.15);border:1px solid #ffaa00;color:#ffaa00;border-radius:4px;padding:2px 8px">EDITING</span>
+          <button id="bl-edit-btn" class="btn" onclick="blToggleEdit()" style="font-size:12px;padding:5px 14px;background:rgba(99,102,241,.15);border-color:#6366f1;color:#818cf8">✏️ Edit</button>
+          <button id="bl-save-btn" class="btn" onclick="blSave()" style="display:none;font-size:12px;padding:5px 14px;background:rgba(5,150,105,.2);border-color:#059669;color:#10b981">💾 Save</button>
+          <button class="btn" onclick="blCancelEdit()" id="bl-cancel-btn" style="display:none;font-size:12px;padding:5px 12px;background:transparent;border-color:#555;color:#999">✕ Cancel</button>
+          <button class="btn bgh bsm" onclick="blCloseModal()" style="font-size:18px;line-height:1;padding:3px 10px">✕</button>
+        </div>
+      </div>
+
+      <!-- Read view -->
+      <div id="bl-read-view" style="flex:1;overflow-y:auto;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:24px;font-size:13px;line-height:1.8;color:var(--text1)">
+        <div id="bl-rendered" style="max-width:720px;margin:0 auto"></div>
+      </div>
+
+      <!-- Edit view -->
+      <textarea id="bl-edit-view" style="display:none;flex:1;resize:none;background:#0d1117;border:1px solid #6366f1;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;line-height:1.7;color:#e2e8f0;outline:none;box-sizing:border-box;width:100%"></textarea>
+
+      <!-- Save status -->
+      <div id="bl-save-status" style="margin-top:8px;font-size:11px;color:var(--text3);min-height:18px"></div>
     </div>
   </div>
 
@@ -6117,6 +6224,7 @@ function nav(p){
   if(p==='settings') refreshSettings();
   if(p==='connections') connLoadAll();
   if(p==='sysreport') sysReportLoad();
+  if(p==='security'){ const el=document.getElementById('sec-path'); if(el&&!el.value) el.value=window.location.origin.includes('localhost')?'/tmp':''; }
   if(p==='logs'){startSSE();}
   if(p==='decisions') refreshDE();
   if(p==='health') refreshHealth();
@@ -6139,12 +6247,12 @@ function nav(p){
   if(p==='gsc') refreshGSC();
   if(p==='telegramalerts') refreshTelegram();
   if(p==='adsboard') loadAdsQueue();
-  if(p==='kdpbooks') refreshKDP();
+  if(p==='kdpbooks'){ refreshKDP(); blLoad(); }
   if(p==='publisherengine') peLoad();
   if(p==='money') refreshMoney();
   if(p==='nexora') refreshNexora();
   if(p==='pixelagents') initPixelAgents();
-  if(p==='narai') initNarAI();
+  if(p==='narai'){ initNarAI(); naraiLoadProposals(); }
   if(p==='whatsapp'){waRefresh();}
   if(p==='wordpress') wpLoad();
   if(p==='notion') notionLoad();
@@ -6761,6 +6869,49 @@ async function createProj(){
   const body={slug,name:document.getElementById('np-name').value,brand:document.getElementById('np-brand').value,niche:document.getElementById('np-niche').value,goal:document.getElementById('np-goal').value};
   try{await api('/api/projects','POST',body);toast(`✅ Project '${slug}' created`,'success');document.getElementById('new-proj-form').style.display='none';setTimeout(refreshProjects,500);}
   catch(e){toast('Failed: '+e.message,'error');}
+}
+
+// ── Security Scanner ──────────────────────────────────────────────────────────
+async function secScan(){
+  const path = (document.getElementById('sec-path')?.value||'').trim();
+  const maxFiles = parseInt(document.getElementById('sec-maxfiles')?.value||'200',10);
+  if(!path){ toast('Enter a path to scan','error'); return; }
+  const statusEl = document.getElementById('sec-status');
+  const resultsEl = document.getElementById('sec-results');
+  if(statusEl){ statusEl.style.display='block'; statusEl.textContent='🔍 Scanning…'; }
+  if(resultsEl) resultsEl.innerHTML = '';
+  try {
+    const data = await api('/api/security/scan','POST',{path, max_files: maxFiles});
+    const clean = data.clean !== false;
+    if(statusEl){
+      statusEl.textContent = clean
+        ? `✅ Clean — ${data.files_scanned||1} file(s) scanned, no threats found.`
+        : `⚠️ ${data.threats_found||0} threat(s) found in ${data.files_scanned||1} file(s).`;
+      statusEl.style.color = clean ? '#44ff88' : '#ff8844';
+      statusEl.style.background = clean ? 'rgba(68,255,136,.06)' : 'rgba(255,136,68,.06)';
+      statusEl.style.borderColor = clean ? 'rgba(68,255,136,.2)' : 'rgba(255,136,68,.2)';
+    }
+    const findings = data.findings || [];
+    if(!resultsEl) return;
+    if(!findings.length){
+      resultsEl.innerHTML = '<div style="font-size:9px;color:var(--text3);text-align:center;padding:12px">No threats detected.</div>';
+      return;
+    }
+    resultsEl.innerHTML = findings.map(f => {
+      const fArr = f.findings||[];
+      const sevColor = {'CRITICAL':'#ff4444','HIGH':'#ff8844','MEDIUM':'#ffcc44','LOW':'#88aaff','INFO':'#888'}
+      return `<div class="card" style="border-color:rgba(255,136,68,.3)">
+        <div style="font-size:10px;color:#ff8844;font-weight:700;margin-bottom:4px">${_escHtml(f.path||f.error||'')}</div>
+        ${fArr.map(ff=>`<div style="display:flex;gap:6px;align-items:flex-start;margin-top:4px">
+          <span style="font-size:8px;color:${sevColor[ff.severity]||'#888'};background:rgba(255,255,255,.06);border-radius:4px;padding:2px 5px;flex-shrink:0">${_escHtml(ff.severity||'?')}</span>
+          <span style="font-size:9px;color:var(--text2)">${_escHtml(ff.detail||ff.type||'')}</span>
+        </div>`).join('')}
+      </div>`;
+    }).join('');
+  } catch(e){
+    if(statusEl){ statusEl.textContent='Scan error: '+(e.message||e); statusEl.style.color='#ff4444'; }
+    toast('Scan failed: '+(e.message||e),'error');
+  }
 }
 
 // ── System Report ─────────────────────────────────────────────────────────────
@@ -9505,6 +9656,170 @@ async function nexoraRunStatus(){
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
+// 📖 BOOK LIBRARY — Read & Edit
+// ──────────────────────────────────────────────────────────────────────────────
+
+let _blAllBooks = [];
+let _blCurrentPath = '';
+let _blEditing = false;
+let _blOriginalContent = '';
+
+async function blLoad(){
+  const grid = document.getElementById('bl-grid');
+  if(!grid) return;
+  grid.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:16px">Loading…</div>';
+  try {
+    const d = await fetch('/api/kdp/all-books').then(r=>r.json());
+    _blAllBooks = d.books || [];
+    document.getElementById('bl-count').textContent = `${_blAllBooks.length} books`;
+    blFilter();
+  } catch(e) {
+    grid.innerHTML = `<div style="color:var(--red);font-size:11px;padding:16px">Error: ${e.message}</div>`;
+  }
+}
+
+function blFilter(){
+  const q   = (document.getElementById('bl-search')?.value||'').toLowerCase();
+  const gen = document.getElementById('bl-genre-filter')?.value||'';
+  const filtered = _blAllBooks.filter(b=>{
+    if(q && !b.title.toLowerCase().includes(q) && !b.genre.includes(q)) return false;
+    if(gen && b.genre !== gen) return false;
+    return true;
+  });
+  document.getElementById('bl-count').textContent = `${filtered.length} / ${_blAllBooks.length} books`;
+  const grid = document.getElementById('bl-grid');
+  if(!grid) return;
+  if(!filtered.length){
+    grid.innerHTML = '<div style="color:var(--text3);font-size:11px;padding:16px">No books found.</div>';
+    return;
+  }
+  grid.innerHTML = filtered.map(b=>`
+    <div onclick="blOpen('${b.file.replace(/'/g,"\\'")}','${b.title.replace(/'/g,"\\'")}')"
+         style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:12px;cursor:pointer;transition:.15s;position:relative"
+         onmouseover="this.style.borderColor='#6366f1'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="font-size:12px;font-weight:600;color:#e2e8f0;line-height:1.4;margin-bottom:6px;max-height:2.8em;overflow:hidden">${_esc(b.title)}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        <span style="font-size:9px;background:rgba(99,102,241,.15);border:1px solid rgba(99,102,241,.3);color:#818cf8;border-radius:3px;padding:1px 5px">${b.genre}</span>
+        <span style="font-size:9px;color:var(--text3)">${(b.words||0).toLocaleString()} words</span>
+        ${b.chapters?`<span style="font-size:9px;color:var(--text3)">${b.chapters} ch</span>`:''}
+      </div>
+      <div style="font-size:9px;color:var(--text3);margin-top:4px">${b.date||''}</div>
+    </div>`).join('');
+}
+
+async function blOpen(filePath, title){
+  const modal = document.getElementById('bl-modal');
+  const readView = document.getElementById('bl-read-view');
+  const rendered = document.getElementById('bl-rendered');
+  modal.style.display = 'flex';
+  readView.style.display = 'block';
+  document.getElementById('bl-edit-view').style.display = 'none';
+  document.getElementById('bl-modal-title').textContent = title || filePath;
+  document.getElementById('bl-modal-meta').textContent = 'Loading…';
+  rendered.innerHTML = '<div style="color:var(--text3)">Loading…</div>';
+  _blCurrentPath = filePath;
+  _blEditing = false;
+  document.getElementById('bl-edit-btn').style.display = '';
+  document.getElementById('bl-save-btn').style.display = 'none';
+  document.getElementById('bl-cancel-btn').style.display = 'none';
+  document.getElementById('bl-edit-badge').style.display = 'none';
+  document.getElementById('bl-save-status').textContent = '';
+  try {
+    const d = await fetch(`/api/kdp/book-content?path=${encodeURIComponent(filePath)}`).then(r=>{
+      if(!r.ok) throw new Error(r.statusText);
+      return r.json();
+    });
+    _blOriginalContent = d.content;
+    document.getElementById('bl-edit-view').value = d.content;
+    document.getElementById('bl-modal-meta').textContent =
+      `${(d.words||0).toLocaleString()} words · ${d.chapters||0} chapters · ${d.lines||0} lines · ${d.filename}`;
+    rendered.innerHTML = blMarkdownToHtml(d.content);
+  } catch(e) {
+    rendered.innerHTML = `<div style="color:var(--red)">Error loading book: ${e.message}</div>`;
+  }
+}
+
+function blMarkdownToHtml(md){
+  // Basic markdown renderer
+  return md
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^### (.+)$/gm,'<h3 style="color:#c084fc;margin:1em 0 .3em">$1</h3>')
+    .replace(/^## (.+)$/gm,'<h2 style="color:#818cf8;font-size:1.2em;margin:1.4em 0 .4em;border-bottom:1px solid #2d2d3d;padding-bottom:.3em">$1</h2>')
+    .replace(/^# (.+)$/gm,'<h1 style="color:#e2e8f0;font-size:1.5em;margin:1.5em 0 .5em;text-align:center">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g,'<em>$1</em>')
+    .replace(/\n\n/g,'</p><p style="margin:.5em 0">')
+    .replace(/^---$/gm,'<hr style="border:none;border-top:1px solid #2d2d3d;margin:1em 0">')
+    .replace(/\n/g,'<br>')
+    .replace(/^/,'<p style="margin:.5em 0">')
+    .replace(/$/,'</p>');
+}
+
+function blToggleEdit(){
+  _blEditing = true;
+  const readView = document.getElementById('bl-read-view');
+  const editView = document.getElementById('bl-edit-view');
+  readView.style.display = 'none';
+  editView.style.display = 'block';
+  editView.style.flex = '1';
+  editView.style.minHeight = '0';
+  editView.style.height = 'calc(100vh - 200px)';
+  document.getElementById('bl-edit-btn').style.display = 'none';
+  document.getElementById('bl-save-btn').style.display = '';
+  document.getElementById('bl-cancel-btn').style.display = '';
+  document.getElementById('bl-edit-badge').style.display = '';
+  editView.focus();
+}
+
+function blCancelEdit(){
+  _blEditing = false;
+  document.getElementById('bl-edit-view').value = _blOriginalContent;
+  document.getElementById('bl-read-view').style.display = 'block';
+  document.getElementById('bl-edit-view').style.display = 'none';
+  document.getElementById('bl-edit-btn').style.display = '';
+  document.getElementById('bl-save-btn').style.display = 'none';
+  document.getElementById('bl-cancel-btn').style.display = 'none';
+  document.getElementById('bl-edit-badge').style.display = 'none';
+  document.getElementById('bl-save-status').textContent = '';
+}
+
+async function blSave(){
+  const content = document.getElementById('bl-edit-view').value;
+  const statusEl = document.getElementById('bl-save-status');
+  const btn = document.getElementById('bl-save-btn');
+  btn.textContent = '⏳ Saving…';
+  btn.disabled = true;
+  statusEl.textContent = '';
+  try {
+    const d = await api('/api/kdp/book-save','POST',{path: _blCurrentPath, content});
+    _blOriginalContent = content;
+    document.getElementById('bl-rendered').innerHTML = blMarkdownToHtml(content);
+    statusEl.textContent = `✅ Saved — ${(d.words||0).toLocaleString()} words. Backup: ${d.backup||''}`;
+    statusEl.style.color = 'var(--green)';
+    blCancelEdit();
+    blLoad(); // refresh library counts
+  } catch(e) {
+    statusEl.textContent = `❌ Save failed: ${e.message}`;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btn.textContent = '💾 Save';
+    btn.disabled = false;
+  }
+}
+
+function blCloseModal(){
+  if(_blEditing){
+    const changed = document.getElementById('bl-edit-view').value !== _blOriginalContent;
+    if(changed && !confirm('You have unsaved changes. Close anyway?')) return;
+  }
+  document.getElementById('bl-modal').style.display = 'none';
+  _blEditing = false;
+}
+
+// Close on backdrop click
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') blCloseModal(); });
+
+// ──────────────────────────────────────────────────────────────────────────────
 // ✍️ NARAI PUBLISHER ENGINE
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -11576,12 +11891,95 @@ let _naraiCurrentQ = '';        // Humanity question pending answer
 let _naraiSpeaking = false;     // TTS playing
 let _naraiVoices = [];          // Cached synth voices
 let _naraiSendPending = false;  // Prevent double-send from mic
+let _naraiSelectedVoice = (()=>{ try{ return localStorage.getItem('narai_voice')||'nova'; }catch(e){ return 'nova'; } })();
 
 // Cache voices once they load (async in Chrome)
 if(window.speechSynthesis){
   const _loadVoices=()=>{ _naraiVoices=window.speechSynthesis.getVoices(); };
   _loadVoices();
   window.speechSynthesis.onvoiceschanged = _loadVoices;
+}
+
+// Restore persisted voice selection
+(function(){
+  const sel = document.getElementById('narai-voice-select');
+  if(sel) sel.value = _naraiSelectedVoice;
+})();
+
+function naraiSetVoice(v){
+  _naraiSelectedVoice = v;
+  try{ localStorage.setItem('narai_voice', v); }catch(e){}
+}
+
+// ── Always-listening mode ─────────────────────────────────────────────────────
+let _naraiAlwaysOn = false;
+let _naraiAlwaysRecog = null;
+let _naraiAlwaysActive = false; // true for 30s after wake word detected
+let _naraiAlwaysTimer = null;
+
+function naraiToggleAlwaysListen(){
+  if(_naraiAlwaysOn){
+    _naraiStopAlwaysListen();
+  } else {
+    _naraiStartAlwaysListen();
+  }
+}
+
+function _naraiStartAlwaysListen(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){ toast('Speech recognition not supported in this browser','error'); return; }
+  _naraiAlwaysOn = true;
+  const btn = document.getElementById('narai-always-btn');
+  if(btn){ btn.style.color='#ff4466'; btn.style.borderColor='rgba(255,68,102,.5)'; btn.style.background='rgba(255,68,102,.15)'; btn.title='Always-listening ON — say "Hey NarAI"'; }
+  _naraiSetVoiceStatus('👂 listening…','#ff88cc');
+  _naraiAlwaysRecog = new SR();
+  _naraiAlwaysRecog.lang = 'en-US';
+  _naraiAlwaysRecog.continuous = true;
+  _naraiAlwaysRecog.interimResults = true;
+  _naraiAlwaysRecog.maxAlternatives = 1;
+  _naraiAlwaysRecog.onresult = ev => {
+    let transcript = '';
+    for(let i=ev.resultIndex;i<ev.results.length;i++){
+      transcript += ev.results[i][0].transcript;
+    }
+    const lower = transcript.toLowerCase();
+    // Wake word detection
+    if(!_naraiAlwaysActive && (lower.includes('hey narai') || lower.includes('hey nara') || lower.includes('hey nerei'))){
+      _naraiAlwaysActive = true;
+      _naraiSetVoiceStatus('🟢 awake 30s','#44ff88');
+      clearTimeout(_naraiAlwaysTimer);
+      _naraiAlwaysTimer = setTimeout(()=>{ _naraiAlwaysActive=false; _naraiSetVoiceStatus('👂 listening…','#ff88cc'); }, 30000);
+    }
+    // If awake and final result, send it (strip wake word)
+    if(_naraiAlwaysActive && ev.results[ev.resultIndex].isFinal){
+      let cmd = transcript.replace(/hey\s+nar[ae]i?/gi,'').trim();
+      if(cmd.length > 2){
+        const input = document.getElementById('narai-voice-input');
+        if(input){ input.value = cmd; naraiSendVoice(); }
+        _naraiAlwaysActive = false;
+        clearTimeout(_naraiAlwaysTimer);
+        _naraiSetVoiceStatus('👂 listening…','#ff88cc');
+      }
+    }
+  };
+  _naraiAlwaysRecog.onerror = ev => {
+    if(ev.error==='no-speech' || ev.error==='audio-capture') return; // ignore
+    log.warn && log.warn('always-listen error:', ev.error);
+  };
+  _naraiAlwaysRecog.onend = () => {
+    if(_naraiAlwaysOn){ try{ _naraiAlwaysRecog.start(); }catch(e){} } // auto-restart
+  };
+  try { _naraiAlwaysRecog.start(); } catch(e){ _naraiAlwaysOn=false; toast('Could not start always-listen: '+e.message,'error'); }
+}
+
+function _naraiStopAlwaysListen(){
+  _naraiAlwaysOn = false;
+  _naraiAlwaysActive = false;
+  clearTimeout(_naraiAlwaysTimer);
+  if(_naraiAlwaysRecog){ try{ _naraiAlwaysRecog.abort(); }catch(e){} _naraiAlwaysRecog=null; }
+  const btn = document.getElementById('narai-always-btn');
+  if(btn){ btn.style.color='#664488'; btn.style.borderColor='rgba(136,68,255,.25)'; btn.style.background='rgba(136,68,255,.08)'; btn.title='Always-listening mode — say "Hey NarAI"'; }
+  _naraiSetVoiceStatus('ready','#44ff88');
 }
 
 function _naraiMicReset(){
@@ -11655,16 +12053,21 @@ async function naraiSpeak(text){
   if(!_naraiTTS) return;
   const clean = _naraiCleanForSpeech(text);
   if(!clean) return;
-  const aud = _naraiGetAudio();
-  aud.pause();
-  if(aud.src && aud.src.startsWith('blob:')) URL.revokeObjectURL(aud.src);
   if(window.speechSynthesis) window.speechSynthesis.cancel();
   _naraiSpeaking = true;
   _naraiSetVoiceStatus('speaking…','#aa66ff');
+  // 'browser' option → skip OpenAI TTS, use Web Speech API directly
+  if(_naraiSelectedVoice === 'browser'){
+    _naraiSpeakBrowser(clean);
+    return;
+  }
+  const aud = _naraiGetAudio();
+  aud.pause();
+  if(aud.src && aud.src.startsWith('blob:')) URL.revokeObjectURL(aud.src);
   try {
     const resp = await fetch('/api/narai/tts',{
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({text:clean, voice:'nova', speed:0.88})
+      body: JSON.stringify({text:clean, voice:_naraiSelectedVoice, speed:0.88})
     });
     if(!resp.ok) throw new Error(resp.status);
     const blob = await resp.blob();
@@ -11683,6 +12086,7 @@ function _naraiAddMessage(role, text, mood, actions){
   const isNarai = role==='narai';
   const emoji = (mood&&mood.emoji) ? mood.emoji : (isNarai?'🌟':'👤');
   const wrap = document.createElement('div');
+  wrap.className = isNarai ? 'nr-msg-narai' : 'nr-msg-user';
   wrap.style.cssText = 'display:flex;gap:9px;align-items:flex-start;animation:nrFadeUp .3s ease both;' + (isNarai?'':'flex-direction:row-reverse');
   const av = document.createElement('div');
   av.style.cssText = 'width:30px;height:30px;min-width:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;' + (isNarai?'background:radial-gradient(circle,#220044,#0a001a);border:1px solid rgba(136,68,255,.5);box-shadow:0 0 12px rgba(136,68,255,.3)':'background:rgba(0,40,80,.5);border:1px solid rgba(0,100,200,.3)');
@@ -11716,6 +12120,13 @@ async function naraiSendVoice(){
   const input = document.getElementById('narai-voice-input');
   const text = (input.value||'').trim();
   if(!text) return;
+  // Slash commands
+  if(/^\/image\s+/i.test(text)){
+    input.value = '';
+    _naraiSendPending = false;
+    naraiGenerateImage(text.replace(/^\/image\s+/i,'').trim());
+    return;
+  }
   _naraiSendPending = true;
   input.value = '';
   _naraiAddMessage('user', text);
@@ -11917,6 +12328,86 @@ async function naraiSubmitHumanity(){
 let _naraiAutoTalkTimer = null;
 function naraiScheduleAutoTalk(){
   // Auto-questioning disabled — NarAI no longer sends unsolicited questions
+}
+
+// ── NarAI Self-Improvement ────────────────────────────────────────────────────
+async function naraiAnalyse(){
+  const btn = document.getElementById('narai-analyse-btn');
+  const list = document.getElementById('narai-proposals-list');
+  if(btn){ btn.disabled=true; btn.textContent='🧠 Analysing…'; }
+  try {
+    await api('/api/narai/propose-improvement','POST',{user_id: null});
+    await naraiLoadProposals();
+  } catch(e){
+    toast('Analysis failed: '+(e.message||e),'error');
+  } finally {
+    if(btn){ btn.disabled=false; btn.textContent='🧠 Analyse & Propose'; }
+  }
+}
+
+async function naraiLoadProposals(){
+  const list = document.getElementById('narai-proposals-list');
+  if(!list) return;
+  try {
+    const data = await api('/api/narai/proposals?status=pending','GET');
+    const proposals = (data.proposals||[]);
+    if(!proposals.length){
+      list.innerHTML='<div style="font-size:9px;color:var(--text3);text-align:center;padding:8px 0">No pending proposals. Click Analyse & Propose.</div>';
+      return;
+    }
+    list.innerHTML = proposals.map(p=>`
+      <div style="background:rgba(255,136,204,.06);border:1px solid rgba(255,136,204,.25);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:10px;color:#ff88cc;font-weight:700">${_escHtml(p.proposal)}</div>
+        <div style="font-size:9px;color:var(--text2)">${_escHtml(p.rationale||'')}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:8px;color:var(--text3);background:rgba(255,255,255,.06);border-radius:4px;padding:2px 6px">${_escHtml(p.type||'system_prompt')}</span>
+          <span style="font-size:8px;color:var(--text3);margin-left:auto">${(p.created_at||'').substring(0,10)}</span>
+          <button onclick="naraiApplyProposal('${p.id}')" style="background:rgba(68,255,136,.12);border:1px solid rgba(68,255,136,.3);color:#44ff88;border-radius:5px;padding:3px 8px;font-size:9px;cursor:pointer;font-family:inherit">✅ Apply</button>
+          <button onclick="naraiRejectProposal('${p.id}')" style="background:rgba(255,80,80,.08);border:1px solid rgba(255,80,80,.25);color:#ff5555;border-radius:5px;padding:3px 8px;font-size:9px;cursor:pointer;font-family:inherit">❌ Reject</button>
+        </div>
+      </div>`).join('');
+  } catch(e){ /* silent */ }
+}
+
+async function naraiApplyProposal(id){
+  try {
+    await api('/api/narai/proposals/'+id+'/apply','POST',{});
+    toast('Improvement applied to NarAI ✓','success');
+    await naraiLoadProposals();
+  } catch(e){ toast('Apply failed: '+(e.message||e),'error'); }
+}
+
+async function naraiRejectProposal(id){
+  try {
+    await api('/api/narai/proposals/'+id+'/reject','POST',{});
+    await naraiLoadProposals();
+  } catch(e){ toast('Reject failed: '+(e.message||e),'error'); }
+}
+
+function _escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ── NarAI DALL-E Image Generation ─────────────────────────────────────────────
+async function naraiGenerateImage(prompt){
+  if(!prompt) prompt = (document.getElementById('narai-voice-input')?.value||'').replace(/^\/image\s*/i,'').trim();
+  if(!prompt){ toast('Enter a prompt after /image','error'); return; }
+  _naraiAddMessage('user', '🖼 Generate image: '+prompt, {});
+  _naraiAddMessage('narai', '🎨 Generating image…', {emoji:'🎨',mood:'creative'});
+  try {
+    const data = await api('/api/narai/generate-image','POST',{prompt, size:'1024x1024', quality:'standard'});
+    const imgHtml = `<div style="display:flex;flex-direction:column;gap:6px">
+      <img src="${data.url}" alt="${_escHtml(prompt)}" style="max-width:100%;border-radius:8px;border:1px solid rgba(136,68,255,.3)" loading="lazy" onerror="this.style.display='none'">
+      <div style="font-size:8px;color:var(--text3)">${_escHtml(data.revised_prompt||prompt)}</div>
+    </div>`;
+    // Replace the last narai message with the image
+    const history = document.getElementById('narai-chat-history');
+    if(history){
+      const msgs = history.querySelectorAll('.nr-msg-narai');
+      const last = msgs[msgs.length-1];
+      if(last){ const bubble = last.querySelector('.nr-bubble-ai'); if(bubble) bubble.innerHTML = imgHtml; }
+    }
+  } catch(e){
+    _naraiAddMessage('narai','Image generation failed: '+(e.message||e),{emoji:'⚠️',mood:'error'});
+  }
 }
 
 async function naraiCreateSkill(){

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class ProposalGeneratorBot(BaseBot):
@@ -23,13 +23,13 @@ class ProposalGeneratorBot(BaseBot):
             timeline: str = None, **kwargs):
 
         cfg = self.config
-        client_name      = client_name or cfg.get("client_name", "[Client Company]")
+        client_name = client_name or cfg.get("client_name", "[Client Company]")
         client_challenge = client_challenge or cfg.get("client_challenge",
             "manual processes taking too much time, unable to scale operations")
-        your_solution    = your_solution or cfg.get("your_solution",
+        your_solution = your_solution or cfg.get("your_solution",
             "WheellsVerse AI automation platform — custom bot setup and training")
-        investment       = investment or cfg.get("investment", "$497/month or $4,997/year")
-        timeline         = timeline or cfg.get("timeline", "30-day implementation")
+        investment = investment or cfg.get("investment", "$497/month or $4,997/year")
+        timeline = timeline or cfg.get("timeline", "30-day implementation")
 
         self.logger.info(f"Generating proposal for: {client_name}")
 
@@ -188,11 +188,11 @@ To get started:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Sales Proposal Generator")
-    parser.add_argument("--client",     type=str, default=None)
-    parser.add_argument("--challenge",  type=str, default=None)
-    parser.add_argument("--solution",   type=str, default=None)
+    parser.add_argument("--client", type=str, default=None)
+    parser.add_argument("--challenge", type=str, default=None)
+    parser.add_argument("--solution", type=str, default=None)
     parser.add_argument("--investment", type=str, default=None)
-    parser.add_argument("--timeline",   type=str, default="30 days")
+    parser.add_argument("--timeline", type=str, default="30 days")
     args = parser.parse_args()
     bot = ProposalGeneratorBot()
     result = bot.execute(client_name=args.client, client_challenge=args.challenge,

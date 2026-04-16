@@ -25,7 +25,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from dotenv import load_dotenv
 
@@ -60,20 +60,20 @@ def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
       AFFILIATE_CLICKBANK_URL   — your ClickBank hop link
       AFFILIATE_APPSUMO_URL     — your AppSumo affiliate link
     """
-    amz_tag        = _env("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-    amz_tag_2      = _env("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
-    amz_video_url  = _env("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amz_tag_2}")
-    coinbase_url   = _env("AFFILIATE_COINBASE_URL",   "https://coinbase.com/join/wheellsverse")
-    binance_url    = _env("AFFILIATE_BINANCE_URL",    "https://www.binance.com/en/activity/referral")
-    robinhood_url  = _env("AFFILIATE_ROBINHOOD_URL",  "https://join.robinhood.com/")
+    amz_tag = _env("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+    amz_tag_2 = _env("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
+    amz_video_url = _env("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amz_tag_2}")
+    coinbase_url = _env("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/wheellsverse")
+    binance_url = _env("AFFILIATE_BINANCE_URL", "https://www.binance.com/en/activity/referral")
+    robinhood_url = _env("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/")
     convertkit_url = _env("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/?lmref=wheellsverse")
-    jasper_url     = _env("AFFILIATE_JASPER_URL",     "https://www.jasper.ai/")
-    bluehost_url   = _env("AFFILIATE_BLUEHOST_URL",   "https://www.bluehost.com/track/wheellsverse/")
-    fiverr_url     = _env("AFFILIATE_FIVERR_URL",     "https://www.fiverr.com/")
-    clickbank_url  = _env("AFFILIATE_CLICKBANK_URL",  "https://www.clickbank.com/")
-    appsumo_url    = _env("AFFILIATE_APPSUMO_URL",    "https://appsumo.com/")
+    jasper_url = _env("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
+    bluehost_url = _env("AFFILIATE_BLUEHOST_URL", "https://www.bluehost.com/track/wheellsverse/")
+    fiverr_url = _env("AFFILIATE_FIVERR_URL", "https://www.fiverr.com/")
+    clickbank_url = _env("AFFILIATE_CLICKBANK_URL", "https://www.clickbank.com/")
+    appsumo_url = _env("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
 
-    amz_ai_url     = f"https://www.amazon.com/s?k=ai+tools+entrepreneurs+2025&tag={amz_tag}"
+    amz_ai_url = f"https://www.amazon.com/s?k=ai+tools+entrepreneurs+2025&tag={amz_tag}"
     amz_crypto_url = f"https://www.amazon.com/s?k=crypto+investing+books+2025&tag={amz_tag}"
 
     return [
@@ -281,10 +281,10 @@ on what's worth watching today.
 class MonetizationEngine:
 
     def __init__(self):
-        self.amazon_tag     = _env("AMAZON_AFFILIATE_TAG", "wheellsverse-20")
-        self.cta_url        = _env("CTA_URL", "https://wheellsverse.com")
-        self.brand          = _env("BRAND_NAME", "WheellsVerse")
-        self.lead_title     = _env("LEAD_MAGNET_TITLE", "The AI Entrepreneur Blueprint")
+        self.amazon_tag = _env("AMAZON_AFFILIATE_TAG", "wheellsverse-20")
+        self.cta_url = _env("CTA_URL", "https://wheellsverse.com")
+        self.brand = _env("BRAND_NAME", "WheellsVerse")
+        self.lead_title = _env("LEAD_MAGNET_TITLE", "The AI Entrepreneur Blueprint")
         self.affiliate_base = _env("AFFILIATE_BASE_URL", "")
         self._injections: List[Dict] = []  # revenue tracking
 
@@ -293,15 +293,15 @@ class MonetizationEngine:
     def find_affiliate_matches(self, content: str, topic: str = "") -> List[Dict]:
         """Find which affiliate products match this content/topic."""
         combined = (content + " " + topic).lower()
-        matches  = []
+        matches = []
         for kws, product, url, disclosure in AFFILIATE_RULES:
             if any(kw in combined for kw in kws):
                 final_url = url.format(tag=self.amazon_tag) if "{tag}" in url else url
                 matches.append({
-                    "product":    product,
-                    "url":        final_url,
+                    "product": product,
+                    "url": final_url,
                     "disclosure": disclosure,
-                    "keywords":   kws,
+                    "keywords": kws,
                 })
         return matches[:3]  # max 3 affiliate mentions per piece
 
@@ -318,7 +318,7 @@ class MonetizationEngine:
         resources += "*Disclosure: Some links below are affiliate links. "
         resources += "We earn a small commission at no extra cost to you.*\n\n"
         for m in matches:
-            resources += f"- **[{m['product']}]({m['url']})** — {'Recommended' if m['disclosure']=='affiliate' else 'Sponsored'}\n"
+            resources += f"- **[{m['product']}]({m['url']})** — {'Recommended' if m['disclosure'] == 'affiliate' else 'Sponsored'}\n"
 
         # Insert before FAQ section if it exists, else append
         if "## Frequently Asked Questions" in content:
@@ -330,9 +330,9 @@ class MonetizationEngine:
             content += resources
 
         self._injections.append({
-            "ts":       datetime.now().isoformat(),
-            "topic":    topic[:40],
-            "links":    len(matches),
+            "ts": datetime.now().isoformat(),
+            "topic": topic[:40],
+            "links": len(matches),
             "products": [m["product"] for m in matches],
         })
         return content
@@ -494,7 +494,7 @@ Format as JSON:
                 "subtitle": f"The Complete Guide to {topic}",
                 "tagline": "From Beginner to Profitable in 30 Days",
                 "chapters": [
-                    {"num": i, "title": f"Chapter {i}", "points": ["Key point 1","Key point 2","Key point 3"], "exercise": "Complete the worksheet"}
+                    {"num": i, "title": f"Chapter {i}", "points": ["Key point 1", "Key point 2", "Key point 3"], "exercise": "Complete the worksheet"}
                     for i in range(1, 6)
                 ],
             }
@@ -506,15 +506,15 @@ Format as JSON:
             from reportlab.lib import colors
             from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 
-            slug  = re.sub(r"[^\w-]", "-", topic.lower())[:40]
+            slug = re.sub(r"[^\w-]", "-", topic.lower())[:40]
             fname = f"lead_magnet_{slug}.pdf"
-            path  = output_dir / fname
+            path = output_dir / fname
 
-            doc    = SimpleDocTemplate(str(path), pagesize=letter,
+            doc = SimpleDocTemplate(str(path), pagesize=letter,
                                        leftMargin=inch, rightMargin=inch,
                                        topMargin=inch, bottomMargin=inch)
             styles = getSampleStyleSheet()
-            story  = []
+            story = []
 
             # Cover
             story.append(Paragraph(outline["title"], ParagraphStyle(
@@ -583,8 +583,8 @@ Format as JSON:
     def get_injection_stats(self) -> Dict:
         return {
             "total_injections": len(self._injections),
-            "total_links":      sum(i["links"] for i in self._injections),
-            "recent":           self._injections[-10:],
+            "total_links": sum(i["links"] for i in self._injections),
+            "recent": self._injections[-10:],
         }
 
 

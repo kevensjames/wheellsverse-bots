@@ -10,20 +10,20 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 LETTER_STYLES = {
-    "storytelling":    "Opens with a compelling personal story that connects to the role",
-    "achievement":     "Leads with a specific quantified achievement that proves fit",
-    "problem_solver":  "Opens by identifying a company challenge and positioning yourself as the solution",
-    "passion_driven":  "Leads with genuine enthusiasm for the company's mission",
-    "concise":         "Ultra-brief (200 words), every sentence earns its place",
+    "storytelling": "Opens with a compelling personal story that connects to the role",
+    "achievement": "Leads with a specific quantified achievement that proves fit",
+    "problem_solver": "Opens by identifying a company challenge and positioning yourself as the solution",
+    "passion_driven": "Leads with genuine enthusiasm for the company's mission",
+    "concise": "Ultra-brief (200 words), every sentence earns its place",
 }
 
 FRAMEWORKS = {
-    "STAR":   "Situation → Task → Action → Result",
+    "STAR": "Situation → Task → Action → Result",
     "Problem_Agitate_Solve": "State a problem they have → make it feel urgent → show how you solve it",
-    "They_You_Fit":          "Open with them (show you know the company) → bridge to you → show the fit",
+    "They_You_Fit": "Open with them (show you know the company) → bridge to you → show the fit",
 }
 
 
@@ -37,13 +37,13 @@ class CoverLetterBot(BaseBot):
             letter_style: str = None, **kwargs):
 
         cfg = self.config
-        role             = role or cfg.get("role", "AI Automation Specialist")
-        company          = company or cfg.get("company", "WheellsVerse")
-        your_background  = your_background or cfg.get("your_background",
+        role = role or cfg.get("role", "AI Automation Specialist")
+        company = company or cfg.get("company", "WheellsVerse")
+        your_background = your_background or cfg.get("your_background",
             "entrepreneur with 3 years building AI automation systems and 70+ production bots")
         key_achievements = key_achievements or cfg.get("key_achievements",
             "automated 80% of business operations, built social presence from 0 to 10K, earned $X in automated revenue")
-        letter_style     = letter_style or cfg.get("letter_style", "achievement")
+        letter_style = letter_style or cfg.get("letter_style", "achievement")
 
         style_desc = LETTER_STYLES.get(letter_style, letter_style)
         self.logger.info(f"Writing cover letter for: {role} at {company}")
@@ -149,7 +149,7 @@ One week after submitting — if no response:
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
         safe_role = "".join(c if c.isalnum() else "_" for c in role[:20])
-        safe_co   = "".join(c if c.isalnum() else "_" for c in company[:15])
+        safe_co = "".join(c if c.isalnum() else "_" for c in company[:15])
 
         output = f"""# Cover Letter: {role} at {company}
 **Style:** {letter_style}
@@ -170,11 +170,11 @@ One week after submitting — if no response:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Personalized Cover Letter Generator")
-    parser.add_argument("--role",         type=str, default=None)
-    parser.add_argument("--company",      type=str, default=None)
-    parser.add_argument("--background",   type=str, default=None)
+    parser.add_argument("--role", type=str, default=None)
+    parser.add_argument("--company", type=str, default=None)
+    parser.add_argument("--background", type=str, default=None)
     parser.add_argument("--achievements", type=str, default=None)
-    parser.add_argument("--style",        type=str, default="achievement",
+    parser.add_argument("--style", type=str, default="achievement",
                         choices=list(LETTER_STYLES.keys()))
     args = parser.parse_args()
     bot = CoverLetterBot()

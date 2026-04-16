@@ -10,23 +10,23 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 BLOG_TYPES = {
-    "how_to":       "Step-by-step tutorial with actionable instructions",
-    "listicle":     "Numbered or bulleted list article with depth per item",
-    "opinion":      "Thought leadership piece with a clear stance and argument",
-    "case_study":   "Real-world example with problem, approach, and results",
-    "comparison":   "X vs Y analysis to help readers make a decision",
+    "how_to": "Step-by-step tutorial with actionable instructions",
+    "listicle": "Numbered or bulleted list article with depth per item",
+    "opinion": "Thought leadership piece with a clear stance and argument",
+    "case_study": "Real-world example with problem, approach, and results",
+    "comparison": "X vs Y analysis to help readers make a decision",
     "ultimate_guide": "Comprehensive reference guide covering a topic in full",
     "news_analysis": "Current event or trend with expert commentary",
-    "interview":    "Q&A or curated expert insights format",
+    "interview": "Q&A or curated expert insights format",
 }
 
 WORD_COUNT_MAP = {
-    "short":  "800-1200",
+    "short": "800-1200",
     "medium": "1500-2000",
-    "long":   "2500-3500",
+    "long": "2500-3500",
     "pillar": "4000-6000",
 }
 
@@ -41,14 +41,14 @@ class BlogWriterBot(BaseBot):
             blog_type: str = None, **kwargs):
 
         cfg = self.config
-        topic          = topic or cfg.get("topic", "10 Ways AI Will Transform Small Business in 2025")
+        topic = topic or cfg.get("topic", "10 Ways AI Will Transform Small Business in 2025")
         target_keyword = target_keyword or cfg.get("target_keyword", "AI for small business")
-        word_count     = word_count or cfg.get("word_count", "medium")
-        audience       = audience or cfg.get("audience", "entrepreneurs and small business owners")
-        blog_type      = blog_type or cfg.get("blog_type", "listicle")
+        word_count = word_count or cfg.get("word_count", "medium")
+        audience = audience or cfg.get("audience", "entrepreneurs and small business owners")
+        blog_type = blog_type or cfg.get("blog_type", "listicle")
 
-        type_desc   = BLOG_TYPES.get(blog_type, blog_type)
-        wc_range    = WORD_COUNT_MAP.get(word_count, word_count)
+        type_desc = BLOG_TYPES.get(blog_type, blog_type)
+        wc_range = WORD_COUNT_MAP.get(word_count, word_count)
 
         self.logger.info(f"Writing {blog_type} blog post: {topic}")
 
@@ -167,12 +167,12 @@ Bonus content to offer readers for email capture:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Long-Form Blog Article Writer")
-    parser.add_argument("--topic",    type=str, default=None)
-    parser.add_argument("--keyword",  type=str, default=None)
-    parser.add_argument("--length",   type=str, default="medium",
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--keyword", type=str, default=None)
+    parser.add_argument("--length", type=str, default="medium",
                         choices=list(WORD_COUNT_MAP.keys()))
     parser.add_argument("--audience", type=str, default=None)
-    parser.add_argument("--type",     type=str, default="listicle",
+    parser.add_argument("--type", type=str, default="listicle",
                         choices=list(BLOG_TYPES.keys()))
     args = parser.parse_args()
     bot = BlogWriterBot()

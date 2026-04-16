@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class WorkflowAutomationBot(BaseBot):
@@ -22,10 +22,10 @@ class WorkflowAutomationBot(BaseBot):
             current_tools: str = None, pain_point: str = None, **kwargs):
 
         cfg = self.config
-        process       = process or cfg.get("process", "content creation and publishing")
+        process = process or cfg.get("process", "content creation and publishing")
         business_type = business_type or cfg.get("business_type", "online business / content creator")
         current_tools = current_tools or cfg.get("current_tools", "manual / Google Docs / email")
-        pain_point    = pain_point or cfg.get("pain_point", "too much manual work, not enough time")
+        pain_point = pain_point or cfg.get("pain_point", "too much manual work, not enough time")
 
         self.logger.info(f"Designing workflow automation: {process}")
 
@@ -149,9 +149,9 @@ Weekly automation health check process (5 minutes)"""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Workflow Automation Designer")
-    parser.add_argument("--process",   type=str, default=None)
-    parser.add_argument("--business",  type=str, default=None)
-    parser.add_argument("--tools",     type=str, default=None)
+    parser.add_argument("--process", type=str, default=None)
+    parser.add_argument("--business", type=str, default=None)
+    parser.add_argument("--tools", type=str, default=None)
     parser.add_argument("--painpoint", type=str, default=None)
     args = parser.parse_args()
     bot = WorkflowAutomationBot()

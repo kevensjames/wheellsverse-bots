@@ -7,10 +7,13 @@ every blog post is discoverable and ranking.
 """
 
 from __future__ import annotations
-import json, os, re, logging, threading
-from datetime import datetime, timezone, timedelta
+import json
+import os
+import re
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List
 
 from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
@@ -21,7 +24,7 @@ log = logging.getLogger(__name__)
 DATA_FILE = Path("data/seo_tracker.json")
 
 BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools for making money, stock insights, and crypto trends")
-CTA_URL     = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 
 # ─── Seed keywords by niche ──────────────────────────────────────────────────
 
@@ -68,6 +71,7 @@ def _gpt(prompt: str, system: str = "", max_tokens: int = 600) -> str:
                                         max_tokens=max_tokens, temperature=0.5)
     return r.choices[0].message.content.strip()
 
+
 def _gpt_json(prompt: str, system: str = "", max_tokens: int = 800) -> any:
     raw = _gpt(prompt, system, max_tokens)
     try:
@@ -92,11 +96,14 @@ def score_content(content: str, target_keyword: str = "") -> Dict:
     # Word count
     words = len(content.split())
     if words >= 1200:
-        score += 20; wins.append(f"Word count: {words} words (excellent)")
+        score += 20
+        wins.append(f"Word count: {words} words (excellent)")
     elif words >= 700:
-        score += 12; wins.append(f"Word count: {words} words (good)")
+        score += 12
+        wins.append(f"Word count: {words} words (good)")
     elif words >= 400:
-        score += 6; issues.append(f"Word count: {words} — aim for 800+")
+        score += 6
+        issues.append(f"Word count: {words} — aim for 800+")
     else:
         issues.append(f"Word count: {words} — too short, aim for 800+")
 
@@ -105,17 +112,20 @@ def score_content(content: str, target_keyword: str = "") -> Dict:
     h2 = len(re.findall(r"^## .+", content, re.MULTILINE))
     h3 = len(re.findall(r"^### .+", content, re.MULTILINE))
     if h1 == 1:
-        score += 10; wins.append("Has exactly 1 H1")
+        score += 10
+        wins.append("Has exactly 1 H1")
     elif h1 == 0:
         issues.append("Missing H1 heading")
     else:
         issues.append(f"Multiple H1s ({h1}) — use only one")
     if h2 >= 2:
-        score += 10; wins.append(f"Has {h2} H2 subheadings")
+        score += 10
+        wins.append(f"Has {h2} H2 subheadings")
     else:
         issues.append("Add at least 2 H2 subheadings")
     if h3 >= 1:
-        score += 5; wins.append(f"Has {h3} H3 subsections")
+        score += 5
+        wins.append(f"Has {h3} H3 subsections")
 
     # Keyword presence
     if kw:
@@ -126,23 +136,28 @@ def score_content(content: str, target_keyword: str = "") -> Dict:
         if kw_count >= 1 and re.search(r"^# .+", content, re.MULTILINE):
             h1_text = re.search(r"^# (.+)", content, re.MULTILINE)
             if h1_text and kw in h1_text.group(1).lower():
-                score += 15; wins.append("Keyword in H1")
+                score += 15
+                wins.append("Keyword in H1")
             else:
                 issues.append("Add keyword to H1")
 
         if 0.5 <= kw_density <= 2.5:
-            score += 15; wins.append(f"Keyword density: {kw_density}% (ideal 0.5-2.5%)")
+            score += 15
+            wins.append(f"Keyword density: {kw_density}% (ideal 0.5-2.5%)")
         elif kw_density > 2.5:
-            score += 5; issues.append(f"Keyword stuffing ({kw_density}%) — reduce usage")
+            score += 5
+            issues.append(f"Keyword stuffing ({kw_density}%) — reduce usage")
         elif kw_count > 0:
-            score += 5; issues.append(f"Keyword only appears {kw_count}x — add more naturally")
+            score += 5
+            issues.append(f"Keyword only appears {kw_count}x — add more naturally")
         else:
             issues.append(f"Keyword '{target_keyword}' not found in content")
 
         # Keyword in first paragraph
         first_para = content[:300].lower()
         if kw in first_para:
-            score += 10; wins.append("Keyword in first paragraph")
+            score += 10
+            wins.append("Keyword in first paragraph")
         else:
             issues.append("Add keyword to first paragraph")
     else:
@@ -151,15 +166,18 @@ def score_content(content: str, target_keyword: str = "") -> Dict:
     # Internal/external links
     links = re.findall(r"\[.+?\]\(https?://.+?\)", content)
     if len(links) >= 2:
-        score += 10; wins.append(f"{len(links)} outbound links found")
+        score += 10
+        wins.append(f"{len(links)} outbound links found")
     elif len(links) == 1:
-        score += 5; issues.append("Add 1-2 more outbound links")
+        score += 5
+        issues.append("Add 1-2 more outbound links")
     else:
         issues.append("No links found — add 2-3 relevant links")
 
     # CTA presence
     if CTA_URL in content or "sign up" in content.lower() or "free" in content.lower():
-        score += 5; wins.append("CTA present")
+        score += 5
+        wins.append("CTA present")
     else:
         issues.append("Add a CTA or link to lead magnet")
 
@@ -212,8 +230,8 @@ def optimize_content(content: str, target_keyword: str, title: str = "") -> Dict
             f"Issues to fix:\n{issues_str}\n\n"
             f"CONTENT:\n{content[:2000]}",
             system=f"You are an SEO expert rewriting content for {BRAND_NICHE}. "
-                   f"Keep the same information but improve structure, keyword placement, "
-                   f"and add CTA to {CTA_URL}",
+            f"Keep the same information but improve structure, keyword placement, "
+            f"and add CTA to {CTA_URL}",
             max_tokens=1200,
         )
 
@@ -340,15 +358,18 @@ def _load_tracker() -> Dict:
             pass
     return {"keywords": {}, "rankings": {}, "updated_at": ""}
 
+
 def _save_tracker(data: Dict):
     DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
     DATA_FILE.write_text(json.dumps(data, indent=2))
+
 
 def _track_keywords(topic: str, keywords: List):
     data = _load_tracker()
     data["keywords"][topic] = keywords
     data["updated_at"] = datetime.now(timezone.utc).isoformat()
     _save_tracker(data)
+
 
 def update_ranking(keyword: str, position: float, impressions: int = 0, clicks: int = 0):
     """Record a keyword's current search ranking for tracking over time."""

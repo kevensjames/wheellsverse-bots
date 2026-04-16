@@ -10,43 +10,43 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 COPY_TYPES = {
     "landing_page": {
-        "desc":      "Full landing page copy from headline to footer",
+        "desc": "Full landing page copy from headline to footer",
         "framework": "AIDA (Attention → Interest → Desire → Action)",
-        "sections":  "Headline, subheadline, hero, problem, solution, features/benefits, social proof, FAQ, CTA",
+        "sections": "Headline, subheadline, hero, problem, solution, features/benefits, social proof, FAQ, CTA",
     },
     "email_sequence": {
-        "desc":      "Sales email sequence (3-7 emails)",
+        "desc": "Sales email sequence (3-7 emails)",
         "framework": "Indoctrination → Problem → Solution → Proof → Offer → Urgency",
-        "sections":  "Subject, preview text, body, CTA — per email",
+        "sections": "Subject, preview text, body, CTA — per email",
     },
     "sales_letter": {
-        "desc":      "Long-form sales letter (VSL or direct mail format)",
+        "desc": "Long-form sales letter (VSL or direct mail format)",
         "framework": "Problem → Agitate → Solution → Proof → Offer → Guarantee → Close",
-        "sections":  "All sections of a complete sales letter",
+        "sections": "All sections of a complete sales letter",
     },
     "ad_copy": {
-        "desc":      "Paid ad copy (Facebook/Instagram/Google/TikTok)",
+        "desc": "Paid ad copy (Facebook/Instagram/Google/TikTok)",
         "framework": "Hook → Problem → Solution → CTA (short form)",
-        "sections":  "Headline variants, body copy, ad descriptions, CTAs",
+        "sections": "Headline variants, body copy, ad descriptions, CTAs",
     },
     "product_description": {
-        "desc":      "E-commerce or SaaS product description",
+        "desc": "E-commerce or SaaS product description",
         "framework": "Feature → Benefit → Transformation",
-        "sections":  "Headline, tagline, feature/benefit table, story, CTA",
+        "sections": "Headline, tagline, feature/benefit table, story, CTA",
     },
     "homepage_copy": {
-        "desc":      "Website homepage with clear value proposition",
+        "desc": "Website homepage with clear value proposition",
         "framework": "Who you are → What you do → Who it's for → Why it's different → Social proof → Next step",
-        "sections":  "Hero section, value props, features, testimonials, CTA",
+        "sections": "Hero section, value props, features, testimonials, CTA",
     },
     "webinar_invite": {
-        "desc":      "Webinar registration page and invite email",
+        "desc": "Webinar registration page and invite email",
         "framework": "Problem → Promise → Proof → Push (register now)",
-        "sections":  "Registration page copy + invite email",
+        "sections": "Registration page copy + invite email",
     },
 }
 
@@ -61,19 +61,19 @@ class CopywriterBot(BaseBot):
             key_benefit: str = None, **kwargs):
 
         cfg = self.config
-        copy_type   = copy_type or cfg.get("copy_type", "landing_page")
-        product     = product or cfg.get("product",
+        copy_type = copy_type or cfg.get("copy_type", "landing_page")
+        product = product or cfg.get("product",
             "WheellsVerse AI Bot Platform — 70+ pre-built automation bots for entrepreneurs")
-        audience    = audience or cfg.get("audience",
+        audience = audience or cfg.get("audience",
             "entrepreneurs and small business owners who want to automate operations")
-        goal        = goal or cfg.get("goal", "sign up for free trial / purchase subscription")
+        goal = goal or cfg.get("goal", "sign up for free trial / purchase subscription")
         key_benefit = key_benefit or cfg.get("key_benefit",
             "save 20+ hours per week by automating content, sales, and customer support")
 
         ct = COPY_TYPES.get(copy_type, COPY_TYPES["landing_page"])
-        ct_desc      = ct["desc"]
+        ct_desc = ct["desc"]
         ct_framework = ct["framework"]
-        ct_sections  = ct["sections"]
+        ct_sections = ct["sections"]
 
         self.logger.info(f"Writing {copy_type} copy for: {product}")
 
@@ -187,12 +187,12 @@ Rate this copy on:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Sales & Marketing Copywriter")
-    parser.add_argument("--type",     type=str, default="landing_page",
+    parser.add_argument("--type", type=str, default="landing_page",
                         choices=list(COPY_TYPES.keys()))
-    parser.add_argument("--product",  type=str, default=None)
+    parser.add_argument("--product", type=str, default=None)
     parser.add_argument("--audience", type=str, default=None)
-    parser.add_argument("--goal",     type=str, default=None)
-    parser.add_argument("--benefit",  type=str, default=None)
+    parser.add_argument("--goal", type=str, default=None)
+    parser.add_argument("--benefit", type=str, default=None)
     args = parser.parse_args()
     bot = CopywriterBot()
     result = bot.execute(copy_type=args.type, product=args.product,

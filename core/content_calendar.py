@@ -12,7 +12,10 @@ This is NarAI's brain for "what do I post today and when?"
 """
 
 from __future__ import annotations
-import json, os, threading, logging
+import json
+import os
+import threading
+import logging
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -23,36 +26,36 @@ load_dotenv(ROOT / ".env")
 
 log = logging.getLogger(__name__)
 
-QUEUE_FILE    = Path("data/content_queue.json")
+QUEUE_FILE = Path("data/content_queue.json")
 CALENDAR_FILE = Path("data/content_calendar.json")
 
 BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools, crypto, and passive income")
-CTA_URL     = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 
 # ─── Optimal posting times per platform ───────────────────────────────────────
 
 OPTIMAL_TIMES: Dict[str, List[str]] = {
-    "twitter":   ["08:00", "12:00", "17:00", "21:00"],
+    "twitter": ["08:00", "12:00", "17:00", "21:00"],
     "instagram": ["09:00", "15:00", "20:00"],
-    "tiktok":    ["07:00", "12:00", "19:00", "21:00"],
-    "linkedin":  ["08:00", "12:00", "17:30"],
-    "threads":   ["09:00", "14:00", "20:00"],
-    "facebook":  ["09:00", "13:00", "17:00"],
+    "tiktok": ["07:00", "12:00", "19:00", "21:00"],
+    "linkedin": ["08:00", "12:00", "17:30"],
+    "threads": ["09:00", "14:00", "20:00"],
+    "facebook": ["09:00", "13:00", "17:00"],
     "pinterest": ["20:00", "21:00", "23:00"],
-    "youtube":   ["09:00", "15:00"],
-    "telegram":  ["09:00", "18:00"],
+    "youtube": ["09:00", "15:00"],
+    "telegram": ["09:00", "18:00"],
 }
 
 # ─── Content themes per day of week ───────────────────────────────────────────
 
 WEEKLY_THEMES = {
-    0: {"theme": "Monday Motivation",  "type": "motivational",  "topics": ["passive income mindset", "wealth building"]},
-    1: {"theme": "Tutorial Tuesday",   "type": "educational",   "topics": ["AI tools tutorial", "crypto how-to"]},
-    2: {"theme": "Win Wednesday",      "type": "social_proof",  "topics": ["results", "success stories", "case studies"]},
-    3: {"theme": "Tip Thursday",       "type": "tips",          "topics": ["quick tips", "hacks", "shortcuts"]},
-    4: {"theme": "Finance Friday",     "type": "financial",     "topics": ["investing", "crypto", "income streams"]},
-    5: {"theme": "Strategy Saturday",  "type": "deep_dive",     "topics": ["affiliate strategy", "SEO", "content strategy"]},
-    6: {"theme": "Sunday Reflection",  "type": "reflective",    "topics": ["lessons learned", "what's working", "week ahead"]},
+    0: {"theme": "Monday Motivation", "type": "motivational", "topics": ["passive income mindset", "wealth building"]},
+    1: {"theme": "Tutorial Tuesday", "type": "educational", "topics": ["AI tools tutorial", "crypto how-to"]},
+    2: {"theme": "Win Wednesday", "type": "social_proof", "topics": ["results", "success stories", "case studies"]},
+    3: {"theme": "Tip Thursday", "type": "tips", "topics": ["quick tips", "hacks", "shortcuts"]},
+    4: {"theme": "Finance Friday", "type": "financial", "topics": ["investing", "crypto", "income streams"]},
+    5: {"theme": "Strategy Saturday", "type": "deep_dive", "topics": ["affiliate strategy", "SEO", "content strategy"]},
+    6: {"theme": "Sunday Reflection", "type": "reflective", "topics": ["lessons learned", "what's working", "week ahead"]},
 }
 
 
@@ -63,16 +66,16 @@ class QueueItem:
                  scheduled_time: str, content: str = "", status: str = "pending",
                  item_id: str = ""):
         import uuid
-        self.id             = item_id or str(uuid.uuid4())[:8]
-        self.platform       = platform
-        self.content_type   = content_type
-        self.topic          = topic
+        self.id = item_id or str(uuid.uuid4())[:8]
+        self.platform = platform
+        self.content_type = content_type
+        self.topic = topic
         self.scheduled_time = scheduled_time
-        self.content        = content
-        self.status         = status   # pending / published / failed / skipped
-        self.published_at   = ""
-        self.result         = {}
-        self.created_at     = datetime.now(timezone.utc).isoformat()
+        self.content = content
+        self.status = status   # pending / published / failed / skipped
+        self.published_at = ""
+        self.result = {}
+        self.created_at = datetime.now(timezone.utc).isoformat()
 
     def to_dict(self) -> Dict:
         return {
@@ -89,8 +92,8 @@ class QueueItem:
                    d["scheduled_time"], d.get("content", ""),
                    d.get("status", "pending"), d.get("id", ""))
         item.published_at = d.get("published_at", "")
-        item.result       = d.get("result", {})
-        item.created_at   = d.get("created_at", "")
+        item.result = d.get("result", {})
+        item.created_at = d.get("created_at", "")
         return item
 
 
@@ -338,8 +341,8 @@ class ContentCalendar:
             elif p == "telegram":
                 import requests
                 resp = requests.post(
-                    f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN','')}/sendMessage",
-                    json={"chat_id": os.getenv("TELEGRAM_CHAT_ID",""), "text": item.content},
+                    f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN', '')}/sendMessage",
+                    json={"chat_id": os.getenv("TELEGRAM_CHAT_ID", ""), "text": item.content},
                     timeout=10,
                 )
                 r = {"status": "published" if resp.ok else "failed"}
@@ -392,10 +395,10 @@ class ContentCalendar:
     # ── Summary ───────────────────────────────────────────────────────────────
 
     def summary(self) -> Dict:
-        pending   = [i for i in self._queue if i.status == "pending"]
+        pending = [i for i in self._queue if i.status == "pending"]
         published = [i for i in self._queue if i.status == "published"]
-        failed    = [i for i in self._queue if i.status == "failed"]
-        due_now   = self.get_due()
+        failed = [i for i in self._queue if i.status == "failed"]
+        due_now = self.get_due()
 
         by_platform: Dict[str, int] = {}
         for i in pending:
@@ -434,6 +437,7 @@ def _platform_format(platform: str) -> str:
 
 def get_summary() -> Dict:
     return ContentCalendar.get().summary()
+
 
 def queue_post(platform: str, topic: str, content: str = "",
                scheduled_time: str = "") -> Dict:

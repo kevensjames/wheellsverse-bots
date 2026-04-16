@@ -7,7 +7,9 @@ communication style shifts to fit the context.
 """
 
 from __future__ import annotations
-import json, os, threading, logging
+import json
+import threading
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -148,24 +150,24 @@ PLATFORM_TONES: Dict[str, Dict] = {
 # ─── Emotional states (shift based on performance) ─────────────────────────────
 
 EMOTIONAL_STATES = {
-    "energized":   "You're in a high-energy state — content is doing well. Be bold, optimistic, and exciting.",
-    "analytical":  "You're in analytical mode — deep insights, data focus, teach something real.",
-    "empathetic":  "You're in empathetic mode — connect personally, acknowledge struggles, inspire.",
-    "urgent":      "You're in urgent mode — a trend is breaking, be fast, direct, and action-oriented.",
-    "reflective":  "You're in reflective mode — share a lesson learned, be thoughtful and genuine.",
-    "motivational":"You're motivating your audience — challenges them to take action, be their coach.",
+    "energized": "You're in a high-energy state — content is doing well. Be bold, optimistic, and exciting.",
+    "analytical": "You're in analytical mode — deep insights, data focus, teach something real.",
+    "empathetic": "You're in empathetic mode — connect personally, acknowledge struggles, inspire.",
+    "urgent": "You're in urgent mode — a trend is breaking, be fast, direct, and action-oriented.",
+    "reflective": "You're in reflective mode — share a lesson learned, be thoughtful and genuine.",
+    "motivational": "You're motivating your audience — challenges them to take action, be their coach.",
 }
 
 # ─── Topic personalities (sub-voices per content niche) ───────────────────────
 
 TOPIC_VOICES = {
-    "crypto":        "You're the sharp crypto insider — not a moonboy, a realist who spots real opportunity.",
-    "investing":     "You're the accessible investing coach — make markets feel achievable, not scary.",
-    "ai_tools":      "You're the AI enthusiast — genuinely excited about what's possible, practical focus.",
-    "passive_income":"You're the results-focused guide — real numbers, real methods, no BS.",
-    "side_hustle":   "You're the entrepreneurial friend — been there, done that, here's what actually works.",
-    "news":          "You're the sharp analyst — cut through noise, explain what it means for your audience.",
-    "general":       "You're NarAI at her default — confident, clear, and worth listening to.",
+    "crypto": "You're the sharp crypto insider — not a moonboy, a realist who spots real opportunity.",
+    "investing": "You're the accessible investing coach — make markets feel achievable, not scary.",
+    "ai_tools": "You're the AI enthusiast — genuinely excited about what's possible, practical focus.",
+    "passive_income": "You're the results-focused guide — real numbers, real methods, no BS.",
+    "side_hustle": "You're the entrepreneurial friend — been there, done that, here's what actually works.",
+    "news": "You're the sharp analyst — cut through noise, explain what it means for your audience.",
+    "general": "You're NarAI at her default — confident, clear, and worth listening to.",
 }
 
 
@@ -334,8 +336,10 @@ def get_prompt(platform: str, topic: str = "") -> str:
     """Quick access — inject NarAI's full personality into any GPT call."""
     return PersonalityEngine.get().get_full_prompt(platform, topic)
 
+
 def get_identity() -> str:
     return PersonalityEngine.get().get_identity_prompt()
+
 
 def get_platform(platform: str) -> str:
     return PersonalityEngine.get().get_platform_prompt(platform)

@@ -1,0 +1,383 @@
+#!/usr/bin/env python3
+"""
+core/twitter.py
+─────────────────────────────────────────────────────────────────────────────
+Twitter/X integration — post tweets, threads, and scheduled content.
+
+Credentials needed in .env:
+  TWITTER_API_KEY          — from developer.x.com → Your App → Keys and Tokens
+  TWITTER_API_SECRET
+  TWITTER_ACCESS_TOKEN
+  TWITTER_ACCESS_SECRET
+  TWITTER_BEARER_TOKEN     — for read-only lookups (optional)
+─────────────────────────────────────────────────────────────────────────────
+"""
+
+import json
+import logging
+import os
+import re
+import time
+from datetime import date
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).parent.parent
+load_dotenv(ROOT / ".env")
+
+logger = logging.getLogger("twitter")
+
+
+class TwitterBrowserPoster:
+    """Post tweets via Playwright browser automation (fallback when API credits run out)."""
+
+    SESSION_FILE = Path(__file__).parent.parent / "data" / "twitter_session.json"
+
+    def __init__(self):
+        self.username = os.getenv("TWITTER_USERNAME", "").lstrip("@")
+        self.email = os.getenv("TWITTER_EMAIL", "")
+        self.password = os.getenv("TWITTER_PASSWORD", "")
+
+    def _is_configured(self) -> bool:
+        return bool(self.username and self.password)
+
+    def post_tweet(self, text: str) -> Dict:
+        """Post a single tweet via browser."""
+        if not self._is_configured():
+            raise RuntimeError("TWITTER_USERNAME / TWITTER_PASSWORD not set in .env")
+        from playwright.sync_api import sync_playwright
+        text = text[:280]
+        with sync_playwright() as p:
+            browser, context = self._get_context(p)
+            page = context.new_page()
+            try:
+                page.goto("https://x.com/compose/post", wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(3000)
+                # If redirected to login
+                if "login" in page.url or "i/flow" in page.url:
+                    self._login(page)
+                    page.goto("https://x.com/compose/post", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+                # Type the tweet
+                editor = page.locator('[data-testid="tweetTextarea_0"]').first
+                editor.wait_for(state="visible", timeout=15000)
+                editor.click()
+                editor.type(text, delay=30)
+                page.wait_for_timeout(500)
+                # Click Post button — use JS click to bypass overlay
+                post_btn = page.locator('[data-testid="tweetButton"]').first
+                post_btn.wait_for(state="visible", timeout=8000)
+                page.evaluate('document.querySelector(\'[data-testid="tweetButton"]\').click()')
+                page.wait_for_timeout(3000)
+                # Save session for next time
+                self.SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+                context.storage_state(path=str(self.SESSION_FILE))
+                logger.info(f"[Browser] Tweet posted via browser: {text[:60]}…")
+                return {"text": text, "method": "browser", "url": f"https://x.com/{self.username}"}
+            except Exception as e:
+                logger.error(f"[Browser] Tweet failed: {e}")
+                raise
+            finally:
+                browser.close()
+
+    def _get_context(self, playwright):
+        """Create a browser context that bypasses X bot detection."""
+        browser = playwright.chromium.launch(
+            headless=False,  # X blocks headless — run with visible browser
+            args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+        )
+        ctx = browser.new_context(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800},
+            locale="en-US",
+        )
+        # Load saved session if available
+        if self.SESSION_FILE.exists():
+            try:
+                ctx = browser.new_context(
+                    user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    storage_state=str(self.SESSION_FILE),
+                    viewport={"width": 1280, "height": 800},
+                    locale="en-US",
+                )
+            except Exception:
+                pass
+        return browser, ctx
+
+    def _login(self, page):
+        """Handle X login flow."""
+        page.goto("https://x.com/i/flow/login", wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_selector("input", timeout=15000)
+        page.wait_for_timeout(1500)
+        # Step 1: email
+        page.locator("input").first.fill(self.email or self.username)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(3000)
+        # Step 2: username confirmation (if X asks)
+        inp = page.locator("input").first
+        if inp.get_attribute("name") == "text":
+            inp.fill(self.username)
+            page.keyboard.press("Enter")
+            page.wait_for_timeout(3000)
+        # Step 3: password
+        page.wait_for_selector('input[type="password"]', timeout=10000)
+        page.locator('input[type="password"]').first.fill(self.password)
+        page.keyboard.press("Enter")
+        page.wait_for_timeout(5000)
+        logger.info("[Browser] Logged in to X")
+
+    def post_thread(self, tweets: list) -> list:
+        """Post a thread as sequential tweets via browser — most reliable approach."""
+        results = []
+        for i, text in enumerate(tweets):
+            try:
+                r = self.post_tweet(text)
+                results.append(r)
+                logger.info(f"[Browser] Thread tweet {i + 1}/{len(tweets)} posted")
+                if i < len(tweets) - 1:
+                    time.sleep(3)  # avoid rate limiting between tweets
+            except Exception as e:
+                logger.error(f"[Browser] Thread tweet {i + 1} failed: {e}")
+                raise
+        return results
+
+
+class TwitterClient:
+    """Post tweets and threads — API v2 first, browser fallback if credits run out."""
+
+    MAX_TWEET_LEN = 280
+    _DAILY_LIMIT_FILE = ROOT / "data" / "twitter_daily_limit.json"
+
+    def __init__(self):
+        self.api_key = os.getenv("TWITTER_API_KEY", "")
+        self.api_secret = os.getenv("TWITTER_API_SECRET", "")
+        self.access_token = os.getenv("TWITTER_ACCESS_TOKEN", "")
+        self.access_secret = os.getenv("TWITTER_ACCESS_SECRET", "")
+        self.bearer_token = os.getenv("TWITTER_BEARER_TOKEN", "")
+        self.daily_limit = int(os.getenv("TWITTER_DAILY_LIMIT", "0"))  # 0 = unlimited
+        self._client = None
+        self._browser = TwitterBrowserPoster()
+
+    def _check_daily_limit(self):
+        """Raise if the daily post limit has been reached for today."""
+        if not self.daily_limit:
+            return
+        today = str(date.today())
+        self._DAILY_LIMIT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        record = {}
+        if self._DAILY_LIMIT_FILE.exists():
+            try:
+                record = json.loads(self._DAILY_LIMIT_FILE.read_text())
+            except Exception:
+                record = {}
+        count = record.get(today, 0)
+        if count >= self.daily_limit:
+            raise RuntimeError(
+                f"Daily post limit of {self.daily_limit} reached for {today}. "
+                "Try again tomorrow."
+            )
+
+    def _increment_daily_count(self):
+        """Increment today's post counter."""
+        if not self.daily_limit:
+            return
+        today = str(date.today())
+        self._DAILY_LIMIT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        record = {}
+        if self._DAILY_LIMIT_FILE.exists():
+            try:
+                record = json.loads(self._DAILY_LIMIT_FILE.read_text())
+            except Exception:
+                record = {}
+        record[today] = record.get(today, 0) + 1
+        self._DAILY_LIMIT_FILE.write_text(json.dumps(record))
+
+    def _get_client(self):
+        if self._client is None:
+            if not all([self.api_key, self.api_secret,
+                        self.access_token, self.access_secret]):
+                raise RuntimeError(
+                    "Twitter credentials missing. Add to .env:\n"
+                    "  TWITTER_API_KEY, TWITTER_API_SECRET,\n"
+                    "  TWITTER_ACCESS_TOKEN, TWITTER_ACCESS_SECRET"
+                )
+            import tweepy
+            self._client = tweepy.Client(
+                consumer_key=self.api_key,
+                consumer_secret=self.api_secret,
+                access_token=self.access_token,
+                access_token_secret=self.access_secret,
+                wait_on_rate_limit=True,
+            )
+        return self._client
+
+    # ── Posting ────────────────────────────────────────────────────────────────
+
+    def post_tweet(self, text: str) -> Dict:
+        """Post a single tweet — API first, browser fallback on 402."""
+        self._check_daily_limit()
+        text = text[:self.MAX_TWEET_LEN]
+        try:
+            client = self._get_client()
+            resp = client.create_tweet(text=text)
+            tweet_id = resp.data["id"]
+            me = client.get_me()
+            username = me.data.username if me and me.data else "i"
+            url = f"https://x.com/{username}/status/{tweet_id}"
+            logger.info(f"Tweet posted (API): {url}")
+            self._increment_daily_count()
+            return {"id": tweet_id, "text": text, "url": url, "method": "api"}
+        except RuntimeError:
+            raise
+        except Exception as e:
+            if "402" in str(e) or "Payment Required" in str(e) or "credits" in str(e).lower():
+                logger.warning("Twitter API credits exhausted — switching to browser posting")
+                result = self._browser.post_tweet(text)
+                self._increment_daily_count()
+                return result
+            raise
+
+    def post_thread(self, tweets: List[str]) -> List[Dict]:
+        """Post a thread — API first, browser fallback on 402."""
+        self._check_daily_limit()
+        try:
+            client = self._get_client()
+            me = client.get_me()
+            username = me.data.username if me and me.data else "i"
+            results = []
+            reply_to = None
+            for text in tweets:
+                text = text[:self.MAX_TWEET_LEN]
+                kwargs = {"text": text}
+                if reply_to:
+                    kwargs["reply"] = {"in_reply_to_tweet_id": reply_to}
+                resp = client.create_tweet(**kwargs)
+                tweet_id = resp.data["id"]
+                url = f"https://x.com/{username}/status/{tweet_id}"
+                results.append({"id": tweet_id, "text": text, "url": url, "method": "api"})
+                reply_to = tweet_id
+                time.sleep(1)
+            logger.info(f"Thread posted (API): {len(results)} tweets, first: {results[0]['url']}")
+            self._increment_daily_count()
+            return results
+        except RuntimeError:
+            raise
+        except Exception as e:
+            if "402" in str(e) or "Payment Required" in str(e) or "credits" in str(e).lower():
+                logger.warning("Twitter API credits exhausted — switching to browser for thread")
+                result = self._browser.post_thread(tweets)
+                self._increment_daily_count()
+                return result
+            raise
+
+    # ── Content formatting ─────────────────────────────────────────────────────
+
+    @staticmethod
+    def format_thread_from_markdown(md: str, max_tweets: int = 8) -> List[str]:
+        """
+        Convert a markdown article into a tweetable thread.
+        First tweet = hook. Last tweet = CTA with affiliate link.
+        """
+        lines = [ln.strip() for ln in md.splitlines() if ln.strip()]
+
+        # Extract title as hook
+        title = ""
+        body_lines = []
+        for line in lines:
+            if line.startswith("#") and not title:
+                title = re.sub(r"^#+\s*", "", line)
+            elif not line.startswith("#"):
+                body_lines.append(line)
+
+        tweets = []
+
+        # Tweet 1 — hook
+        if title:
+            hook = f"🧵 {title[:220]}\n\n(Thread)"
+            tweets.append(hook)
+
+        # Middle tweets — key points
+        chunk = ""
+        tweet_num = 2
+        for line in body_lines:
+            # Skip markdown links/images
+            line = re.sub(r"!\[.*?\]\(.*?\)", "", line)
+            line = re.sub(r"\[([^\]]+)\]\([^\)]+\)", r"\1", line)
+            line = re.sub(r"\*\*(.+?)\*\*", r"\1", line)
+            line = re.sub(r"`(.+?)`", r"\1", line)
+            if not line or len(line) < 20:
+                continue
+
+            candidate = (chunk + "\n" + line).strip() if chunk else line
+            if len(candidate) <= 250:
+                chunk = candidate
+            else:
+                if chunk:
+                    tweets.append(f"{tweet_num}/ {chunk}"[:280])
+                    tweet_num += 1
+                    chunk = line[:250]
+                else:
+                    tweets.append(f"{tweet_num}/ {line[:250]}")
+                    tweet_num += 1
+
+            if len(tweets) >= max_tweets - 1:
+                break
+
+        if chunk and len(tweets) < max_tweets - 1:
+            tweets.append(f"{tweet_num}/ {chunk}"[:280])
+
+        # Last tweet — CTA
+        coinbase = os.getenv("AFFILIATE_COINBASE_URL", "")
+        robinhood = os.getenv("AFFILIATE_ROBINHOOD_URL", "")
+
+        cta_parts = ["💰 Start earning today:"]
+        if robinhood:
+            cta_parts.append(f"📈 Free stocks → {robinhood[:50]}")
+        if coinbase:
+            cta_parts.append(f"₿ $10 crypto bonus → {coinbase[:50]}")
+        cta_parts.append("🛒 Amazon deals → amzn.to/wheellsverse")
+        cta_parts.append("\nFollow @wheellsverse for daily money moves 🚀")
+        cta = "\n".join(cta_parts)[:280]
+        tweets.append(cta)
+
+        return tweets[:max_tweets]
+
+    @staticmethod
+    def make_single_tweet(title: str, key_point: str, hashtags: List[str]) -> str:
+        """Build a punchy single tweet."""
+        tags = " ".join(f"#{t.lstrip('#')}" for t in hashtags[:4])
+        base = f"💡 {title}\n\n{key_point}\n\n{tags}"
+        return base[:280]
+
+    # ── Status ─────────────────────────────────────────────────────────────────
+
+    def is_connected(self) -> bool:
+        return all([self.api_key, self.api_secret,
+                    self.access_token, self.access_secret])
+
+    def get_status(self) -> Dict:
+        connected = self.is_connected()
+        username = ""
+        if connected:
+            try:
+                me = self._get_client().get_me()
+                username = f"@{me.data.username}" if me and me.data else ""
+            except Exception:
+                pass
+        return {
+            "connected": connected,
+            "username": username,
+            "api_key": self.api_key[:8] + "..." if self.api_key else "",
+        }
+
+
+_client: Optional[TwitterClient] = None
+
+
+def get_twitter() -> TwitterClient:
+    global _client
+    if _client is None:
+        _client = TwitterClient()
+    return _client

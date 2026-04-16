@@ -954,6 +954,127 @@ async def narai_chat(request: Request, body: NaraiChatRequest):
     )
 
 
+# ─── Zoom AI Clone Routes ────────────────────────────────────────────────────
+
+class ZoomCloneStartRequest(BaseModel):
+    meeting_id: str
+    sdp_answer: Optional[str] = None
+    use_heygen_video: bool = True
+    clone_model: str = "claude-haiku-4-5-20251001"
+
+class ZoomCloneSayRequest(BaseModel):
+    meeting_id: str
+    text: str
+
+class ZoomMeetingCreateRequest(BaseModel):
+    topic: str
+    duration_minutes: int = 60
+    password: Optional[str] = None
+
+
+@app.post("/api/narai/clone/start")
+async def clone_start(body: ZoomCloneStartRequest, request: Request):
+    """Start the AI clone in a Zoom meeting."""
+    auth = request.headers.get("Authorization", "")
+    user, _ = _get_narai_user(auth)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    from core.zoom_clone import ZoomCloneSession, get_session, register_session
+    if get_session(body.meeting_id):
+        raise HTTPException(400, "Clone already active for this meeting")
+    session = ZoomCloneSession(
+        meeting_id=body.meeting_id,
+        user_id=user["id"],
+        use_heygen_video=body.use_heygen_video,
+        clone_model=body.clone_model,
+    )
+    register_session(session)
+    result = await session.start(sdp_answer=body.sdp_answer)
+    return result
+
+
+@app.post("/api/narai/clone/stop")
+async def clone_stop(meeting_id: str, request: Request):
+    """Stop the AI clone session."""
+    auth = request.headers.get("Authorization", "")
+    user, _ = _get_narai_user(auth)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    from core.zoom_clone import get_session, unregister_session
+    session = get_session(meeting_id)
+    if not session:
+        raise HTTPException(404, "No active clone for this meeting")
+    result = await session.stop()
+    unregister_session(meeting_id)
+    return result
+
+
+@app.post("/api/narai/clone/say")
+async def clone_say(body: ZoomCloneSayRequest, request: Request):
+    """Manually inject text — make the clone say something (test / hybrid control)."""
+    auth = request.headers.get("Authorization", "")
+    user, _ = _get_narai_user(auth)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    from core.zoom_clone import get_session
+    session = get_session(body.meeting_id)
+    if not session:
+        raise HTTPException(404, "No active clone for this meeting")
+    session.inject_message(body.text)
+    return {"status": "queued", "text": body.text[:100]}
+
+
+@app.get("/api/narai/clone/status/{meeting_id}")
+async def clone_status(meeting_id: str, request: Request):
+    """Check if the AI clone is active for a given meeting."""
+    auth = request.headers.get("Authorization", "")
+    user, _ = _get_narai_user(auth)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    from core.zoom_clone import get_session
+    session = get_session(meeting_id)
+    if not session:
+        return {"active": False, "meeting_id": meeting_id}
+    return {"active": session.is_active, "meeting_id": meeting_id, "model": session.clone_model}
+
+
+@app.post("/api/narai/clone/meeting/new")
+async def clone_new_meeting(body: ZoomMeetingCreateRequest, request: Request):
+    """Create a new Zoom meeting (uses Zoom Server-to-Server OAuth)."""
+    auth = request.headers.get("Authorization", "")
+    user, _ = _get_narai_user(auth)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    from core.zoom_clone import create_zoom_meeting
+    result = create_zoom_meeting(
+        topic=body.topic,
+        duration_minutes=body.duration_minutes,
+        password=body.password,
+    )
+    if "error" in result:
+        raise HTTPException(500, result["error"])
+    return {
+        "meeting_id": result.get("id"),
+        "topic": result.get("topic"),
+        "join_url": result.get("join_url"),
+        "start_url": result.get("start_url"),
+        "password": result.get("password"),
+    }
+
+
+@app.get("/api/narai/clone/meetings")
+async def clone_list_meetings(request: Request):
+    """List upcoming Zoom meetings for the authenticated user."""
+    auth = request.headers.get("Authorization", "")
+    user, _ = _get_narai_user(auth)
+    if not user:
+        raise HTTPException(401, "Unauthorized")
+    from core.zoom_clone import list_zoom_meetings
+    return {"meetings": list_zoom_meetings()}
+
+
+# ─── Homepage ─────────────────────────────────────────────────────────────────
+
 @app.get("/", response_class=HTMLResponse)
 async def serve_homepage():
     """Public homepage — WheellsVerse ecosystem."""
@@ -6727,6 +6848,98 @@ async def get_book_job(job_id: str):
     return job
 
 
+# ─── Book Library — Read / Edit ───────────────────────────────────────────────
+
+@app.get("/api/kdp/book-content")
+async def kdp_book_content(path: str):
+    """Return full markdown content of a book file."""
+    try:
+        target = (ROOT / path).resolve()
+        # Safety: must stay inside project root
+        if not str(target).startswith(str(ROOT)):
+            raise HTTPException(status_code=403, detail="Access denied")
+        if not target.exists() or not target.suffix == ".md":
+            raise HTTPException(status_code=404, detail="Book file not found")
+        content = target.read_text(encoding="utf-8", errors="replace")
+        words   = len(content.split())
+        lines   = content.count("\n")
+        chapters = content.count("\n## ") + content.count("\n# ")
+        return {
+            "path":     path,
+            "content":  content,
+            "words":    words,
+            "lines":    lines,
+            "chapters": chapters,
+            "filename": target.name,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class BookSaveRequest(BaseModel):
+    path: str
+    content: str
+
+
+@app.post("/api/kdp/book-save")
+async def kdp_book_save(req: BookSaveRequest):
+    """Save edited book content back to disk. Creates a backup before writing."""
+    import shutil
+    try:
+        target = (ROOT / req.path).resolve()
+        if not str(target).startswith(str(ROOT)):
+            raise HTTPException(status_code=403, detail="Access denied")
+        if not target.suffix == ".md":
+            raise HTTPException(status_code=400, detail="Only .md files allowed")
+        # Backup original
+        backup = target.with_suffix(f".bak_{int(__import__('time').time())}.md")
+        if target.exists():
+            shutil.copy2(target, backup)
+        target.write_text(req.content, encoding="utf-8")
+        words = len(req.content.split())
+        _add_log(f"Book saved: {target.name} ({words} words)", "INFO")
+        return {"status": "saved", "path": req.path, "words": words, "backup": str(backup.name)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/kdp/all-books")
+async def kdp_all_books():
+    """Return every .md book file found in outputs/books/**, with metadata."""
+    import datetime as _dt
+    books_root = ROOT / "outputs" / "books"
+    books = []
+    if not books_root.exists():
+        return {"books": []}
+    for f in sorted(books_root.rglob("*.md"), key=lambda x: x.stat().st_mtime, reverse=True):
+        try:
+            text = f.read_text(encoding="utf-8", errors="replace")
+            words = len(text.split())
+            # Try to extract title from first H1
+            import re as _re
+            m = _re.search(r"^#+\s+(.+)$", text, _re.MULTILINE)
+            title = m.group(1).strip() if m else f.stem.replace("_", " ").title()
+            genre = f.parent.name
+            mtime = _dt.datetime.fromtimestamp(f.stat().st_mtime)
+            chapters = text.count("\n## ")
+            books.append({
+                "title":    title[:120],
+                "genre":    genre,
+                "file":     str(f.relative_to(ROOT)),
+                "words":    words,
+                "chapters": chapters,
+                "date":     mtime.strftime("%Y-%m-%d %H:%M"),
+                "size_kb":  round(f.stat().st_size / 1024, 1),
+            })
+        except Exception:
+            continue
+    return {"books": books, "total": len(books)}
+
+
 # ─── NarAI — General Overseer AI ─────────────────────────────────────────────
 
 _narai = None
@@ -7034,6 +7247,133 @@ async def narai_learn_human(req: NarAILearnHumanRequest):
         raise HTTPException(status_code=503, detail="NarAI offline")
     try:
         return narai.learn_from_human(req.question, req.answer)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── NarAI Self-Improvement API ──────────────────────────────────────────────
+
+class NarAIImproveRequest(BaseModel):
+    user_id: Optional[str] = None
+
+
+class NarAIProposalActionRequest(BaseModel):
+    pass
+
+
+@app.post("/api/narai/propose-improvement")
+async def narai_propose_improvement(req: NarAIImproveRequest):
+    """Analyse recent conversations and generate one improvement proposal."""
+    try:
+        from core.narai_self_improve import generate_improvement_proposal
+        proposal = generate_improvement_proposal(req.user_id)
+        return proposal
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/narai/proposals")
+async def narai_list_proposals(status: Optional[str] = None):
+    """List all improvement proposals, optionally filtered by status."""
+    try:
+        from core.narai_self_improve import list_proposals
+        return {"proposals": list_proposals(status)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/proposals/{proposal_id}/apply")
+async def narai_apply_proposal(proposal_id: str):
+    """Apply an approved improvement proposal to the system prompt."""
+    try:
+        from core.narai_self_improve import apply_proposal
+        ok = apply_proposal(proposal_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Proposal not found or already processed")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/narai/proposals/{proposal_id}/reject")
+async def narai_reject_proposal(proposal_id: str):
+    """Reject an improvement proposal."""
+    try:
+        from core.narai_self_improve import reject_proposal
+        ok = reject_proposal(proposal_id)
+        if not ok:
+            raise HTTPException(status_code=404, detail="Proposal not found")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── NarAI Image Generation (DALL-E 3) ───────────────────────────────────────
+
+class NarAIImageRequest(BaseModel):
+    prompt: str
+    size: str = "1024x1024"
+    quality: str = "standard"
+
+
+@app.post("/api/narai/generate-image")
+async def narai_generate_image(req: NarAIImageRequest):
+    """Generate an image via DALL-E 3 and return the URL."""
+    prompt = req.prompt.strip()[:800]
+    if not prompt:
+        raise HTTPException(status_code=400, detail="Prompt required")
+    allowed_sizes = {"1024x1024", "1792x1024", "1024x1792"}
+    size = req.size if req.size in allowed_sizes else "1024x1024"
+    quality = req.quality if req.quality in {"standard", "hd"} else "standard"
+    try:
+        from openai import OpenAI as _OAI
+        client = _OAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+        resp = client.images.generate(
+            model="dall-e-3",
+            prompt=prompt,
+            size=size,
+            quality=quality,
+            n=1,
+        )
+        img = resp.data[0]
+        return {"url": img.url, "revised_prompt": getattr(img, "revised_prompt", prompt)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Image generation failed: {e}")
+
+
+# ─── Defensive Security Scanner API ─────────────────────────────────────────
+
+class SecurityScanRequest(BaseModel):
+    path: str
+    max_files: int = 200
+
+
+@app.post("/api/security/scan")
+async def security_scan(req: SecurityScanRequest):
+    """Scan a file or directory for threats (defensive/educational use)."""
+    import pathlib
+    target = pathlib.Path(req.path).resolve()
+    target_str = str(target)
+    # Safety: allow project dir, /tmp (and macOS /private/tmp), /var/folders, home Downloads
+    allowed_roots = [
+        pathlib.Path("/tmp").resolve(),
+        pathlib.Path("/private/tmp"),
+        pathlib.Path("/var/folders"),
+        pathlib.Path(os.path.expanduser("~/Downloads")),
+        pathlib.Path(os.path.expanduser("~/Desktop")),
+        pathlib.Path(os.getcwd()).resolve(),
+    ]
+    if not any(target_str.startswith(str(r)) for r in allowed_roots):
+        raise HTTPException(status_code=403, detail="Scan path not in allowed locations")
+    try:
+        from core.security_scanner import scan_directory, scan_file
+        if target.is_file():
+            return scan_file(str(target))
+        return scan_directory(str(target), max_files=min(req.max_files, 500))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

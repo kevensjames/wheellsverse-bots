@@ -46,31 +46,31 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR   = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 TOKEN_FILE = DATA_DIR / "pinterest_token.json"
 
-logger    = logging.getLogger("pinterest")
-API_BASE  = "https://api.pinterest.com/v5"
+logger = logging.getLogger("pinterest")
+API_BASE = "https://api.pinterest.com/v5"
 AUTH_BASE = "https://www.pinterest.com/oauth"
 
-APP_ID       = os.getenv("PINTEREST_APP_ID", "")
-APP_SECRET   = os.getenv("PINTEREST_APP_SECRET", "")
+APP_ID = os.getenv("PINTEREST_APP_ID", "")
+APP_SECRET = os.getenv("PINTEREST_APP_SECRET", "")
 REDIRECT_URI = os.getenv("PINTEREST_REDIRECT_URI",
                          "https://grateful-flexibility-production.up.railway.app/api/pinterest/callback")
-BOARD_ID     = os.getenv("PINTEREST_BOARD_ID", "")
-BRAND        = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL      = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BOARD_ID = os.getenv("PINTEREST_BOARD_ID", "")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 
 SCOPES = ["boards:read", "boards:write", "pins:read", "pins:write", "user_accounts:read"]
 
 # Niche → boards to auto-create
 NICHE_BOARDS = {
-    "crypto":         "Crypto Investing 2025",
-    "investing":      "Stock Market & Investing Tips",
-    "ai_tools":       "AI Tools That Make Money",
+    "crypto": "Crypto Investing 2025",
+    "investing": "Stock Market & Investing Tips",
+    "ai_tools": "AI Tools That Make Money",
     "passive_income": "Passive Income Ideas",
-    "affiliate":      "Affiliate Marketing Strategies",
+    "affiliate": "Affiliate Marketing Strategies",
 }
 
 
@@ -110,28 +110,28 @@ def _headers() -> dict:
 def get_auth_url() -> str:
     import urllib.parse
     params = {
-        "client_id":     APP_ID,
-        "redirect_uri":  REDIRECT_URI,
+        "client_id": APP_ID,
+        "redirect_uri": REDIRECT_URI,
         "response_type": "code",
-        "scope":         ",".join(SCOPES),
-        "state":         "wheellsverse_pinterest",
+        "scope": ",".join(SCOPES),
+        "state": "wheellsverse_pinterest",
     }
     return f"{AUTH_BASE}/?" + urllib.parse.urlencode(params)
 
 
 def exchange_code(code: str) -> dict:
     import base64
-    creds  = base64.b64encode(f"{APP_ID}:{APP_SECRET}".encode()).decode()
-    resp   = requests.post(
+    creds = base64.b64encode(f"{APP_ID}:{APP_SECRET}".encode()).decode()
+    resp = requests.post(
         f"{AUTH_BASE}/token",
         data={
-            "grant_type":   "authorization_code",
-            "code":         code,
+            "grant_type": "authorization_code",
+            "code": code,
             "redirect_uri": REDIRECT_URI,
         },
         headers={
             "Authorization": f"Basic {creds}",
-            "Content-Type":  "application/x-www-form-urlencoded",
+            "Content-Type": "application/x-www-form-urlencoded",
         },
         timeout=15,
     )
@@ -215,14 +215,14 @@ def create_pin(
         return {"error": "No image URL available"}
 
     payload = {
-        "board_id":   bid,
-        "title":      title[:100],
+        "board_id": bid,
+        "title": title[:100],
         "description": description[:500],
-        "link":        link,
-        "alt_text":    alt_text[:500] or title,
+        "link": link,
+        "alt_text": alt_text[:500] or title,
         "media_source": {
             "source_type": "image_url",
-            "url":         image_url,
+            "url": image_url,
         },
     }
 
@@ -234,7 +234,7 @@ def create_pin(
             timeout=20,
         )
         if resp.status_code in (200, 201):
-            data   = resp.json()
+            data = resp.json()
             pin_id = data.get("id", "")
             logger.info(f"[Pinterest] Pin created: {pin_id} | {title[:40]}")
             return {"status": "published", "pin_id": pin_id, "title": title}
@@ -254,7 +254,7 @@ def batch_pin(topic_links: List[Dict], board_id: str = None,
     """
     results = []
     for i, item in enumerate(topic_links):
-        logger.info(f"[Pinterest] Batch pin {i+1}/{len(topic_links)}: {item.get('title','')[:40]}")
+        logger.info(f"[Pinterest] Batch pin {i + 1}/{len(topic_links)}: {item.get('title', '')[:40]}")
         result = create_pin(
             title=item.get("title", ""),
             description=item.get("description", ""),
@@ -278,8 +278,8 @@ def auto_pin_topic(topic: str, niche: str = "general",
     """
     # Generate pin content with GPT
     title, description = _generate_pin_content(topic, niche)
-    link  = affiliate_link or _get_niche_affiliate(niche) or CTA_URL
-    bid   = _get_niche_board(niche)
+    link = affiliate_link or _get_niche_affiliate(niche) or CTA_URL
+    bid = _get_niche_board(niche)
 
     return create_pin(
         title=title,
@@ -293,11 +293,11 @@ def auto_pin_batch(topics: List[str], niche: str = "general",
                    affiliate_link: str = None) -> List[Dict]:
     """Create a batch of pins from a list of topics."""
     results = []
-    link    = affiliate_link or _get_niche_affiliate(niche) or CTA_URL
-    bid     = _get_niche_board(niche)
+    link = affiliate_link or _get_niche_affiliate(niche) or CTA_URL
+    bid = _get_niche_board(niche)
 
     for i, topic in enumerate(topics):
-        logger.info(f"[Pinterest] Auto-pin {i+1}/{len(topics)}: {topic[:50]}")
+        logger.info(f"[Pinterest] Auto-pin {i + 1}/{len(topics)}: {topic[:50]}")
         title, description = _generate_pin_content(topic, niche)
         result = create_pin(
             title=title, description=description,
@@ -317,9 +317,10 @@ def repurpose_blog_to_pins(blog_content: str, topic: str,
     One blog post → 5 evergreen pins.
     """
     try:
-        import openai, json as _json
+        import openai
+        import json as _json
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp   = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             messages=[{"role": "user", "content": (
                 f"Extract {count} Pinterest pin ideas from this blog post.\n"
@@ -332,18 +333,18 @@ def repurpose_blog_to_pins(blog_content: str, topic: str,
             max_tokens=800,
             temperature=0.75,
         )
-        raw  = resp.choices[0].message.content.strip()
-        pins = _json.loads(raw if raw.startswith("[") else raw[raw.find("["):raw.rfind("]")+1])
+        raw = resp.choices[0].message.content.strip()
+        pins = _json.loads(raw if raw.startswith("[") else raw[raw.find("["):raw.rfind("]") + 1])
 
-        link    = _get_niche_affiliate(niche) or CTA_URL
-        bid     = _get_niche_board(niche)
+        link = _get_niche_affiliate(niche) or CTA_URL
+        bid = _get_niche_board(niche)
         results = []
 
         for i, pin in enumerate(pins[:count]):
-            logger.info(f"[Pinterest] Blog→pin {i+1}/{count}: {pin.get('title','')[:40]}")
+            logger.info(f"[Pinterest] Blog→pin {i + 1}/{count}: {pin.get('title', '')[:40]}")
             result = create_pin(
-                title=pin.get("title",""),
-                description=pin.get("description",""),
+                title=pin.get("title", ""),
+                description=pin.get("description", ""),
                 link=link, board_id=bid,
             )
             results.append(result)
@@ -363,7 +364,7 @@ def _generate_pin_content(topic: str, niche: str) -> tuple:
     try:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp   = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             messages=[{"role": "user", "content": (
                 f"Create a Pinterest pin for: '{topic}' (niche: {niche})\n"
@@ -376,7 +377,7 @@ def _generate_pin_content(topic: str, niche: str) -> tuple:
             temperature=0.8,
         )
         import json as _j
-        data  = _j.loads(resp.choices[0].message.content.strip())
+        data = _j.loads(resp.choices[0].message.content.strip())
         return data.get("title", topic), data.get("description", topic)
     except Exception as e:
         logger.warning(f"[Pinterest] _generate_pin_content failed: {e}")
@@ -388,7 +389,7 @@ def _generate_pin_image(title: str, description: str) -> Optional[str]:
     try:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp   = client.images.generate(
+        resp = client.images.generate(
             model="dall-e-3",
             prompt=(
                 f"Pinterest pin image for: {title}. {description[:100]}. "
@@ -411,11 +412,11 @@ def _generate_pin_image(title: str, description: str) -> Optional[str]:
 def _get_niche_affiliate(niche: str) -> Optional[str]:
     """Return the best affiliate link for a niche."""
     mapping = {
-        "crypto":         os.getenv("AFFILIATE_COINBASE_URL"),
-        "investing":      os.getenv("AFFILIATE_ROBINHOOD_URL"),
-        "ai_tools":       os.getenv("AFFILIATE_JASPER_URL"),
+        "crypto": os.getenv("AFFILIATE_COINBASE_URL"),
+        "investing": os.getenv("AFFILIATE_ROBINHOOD_URL"),
+        "ai_tools": os.getenv("AFFILIATE_JASPER_URL"),
         "passive_income": os.getenv("AFFILIATE_CLICKBANK_URL"),
-        "affiliate":      os.getenv("AFFILIATE_CONVERTKIT_URL"),
+        "affiliate": os.getenv("AFFILIATE_CONVERTKIT_URL"),
     }
     return mapping.get(niche)
 

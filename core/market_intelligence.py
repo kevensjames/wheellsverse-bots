@@ -37,7 +37,7 @@ import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Any, List, Optional
 
 from dotenv import load_dotenv
 
@@ -47,9 +47,9 @@ load_dotenv(ROOT / ".env")
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-MI_FILE      = DATA_DIR / "market_intelligence.json"
-QC_FILE      = DATA_DIR / "qc_results.json"
-MI_LOG_FILE  = DATA_DIR / "market_intel_log.json"
+MI_FILE = DATA_DIR / "market_intelligence.json"
+QC_FILE = DATA_DIR / "qc_results.json"
+MI_LOG_FILE = DATA_DIR / "market_intel_log.json"
 
 log = logging.getLogger("market_intelligence")
 
@@ -60,6 +60,7 @@ log = logging.getLogger("market_intelligence")
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 3000) -> str:
     """Call Claude Haiku for intelligence analysis."""
@@ -77,6 +78,7 @@ def _claude(prompt: str, system: str = "", max_tokens: int = 3000) -> str:
     )
     return r.content[0].text.strip()
 
+
 def _claude_json(prompt: str, system: str = "", max_tokens: int = 3000) -> Any:
     """Call Claude and parse JSON response."""
     raw = _claude(prompt, system, max_tokens)
@@ -92,6 +94,7 @@ def _claude_json(prompt: str, system: str = "", max_tokens: int = 3000) -> Any:
             return json.loads(m.group(1))
         return {}
 
+
 def _fetch(url: str, timeout: int = 15) -> Optional[str]:
     """HTTP GET with graceful failure."""
     try:
@@ -105,6 +108,7 @@ def _fetch(url: str, timeout: int = 15) -> Optional[str]:
         log.warning(f"Fetch failed {url}: {e}")
         return None
 
+
 def _mi_log(msg: str, level: str = "INFO", platform: str = "", bot: str = ""):
     entry = {"ts": _now(), "level": level, "msg": msg, "platform": platform, "bot": bot}
     try:
@@ -115,6 +119,7 @@ def _mi_log(msg: str, level: str = "INFO", platform: str = "", bot: str = ""):
         pass
     log.info(f"[{bot or platform}] {msg}")
 
+
 def _mi_load_logs() -> list:
     try:
         if MI_LOG_FILE.exists():
@@ -122,6 +127,7 @@ def _mi_load_logs() -> list:
     except Exception:
         pass
     return []
+
 
 def _mi_load() -> dict:
     try:
@@ -137,11 +143,13 @@ def _mi_load() -> dict:
         "narai_briefing": "",
     }
 
+
 def _mi_save(data: dict):
     try:
         MI_FILE.write_text(json.dumps(data, indent=2, default=str))
     except Exception as e:
         log.error(f"MI save error: {e}")
+
 
 def _qc_load() -> list:
     try:
@@ -151,11 +159,13 @@ def _qc_load() -> list:
         pass
     return []
 
+
 def _qc_save(data: list):
     try:
         QC_FILE.write_text(json.dumps(data, indent=2, default=str))
     except Exception:
         pass
+
 
 def _save_to_narai_memory(key: str, content: str, tags: list):
     """Save market intelligence into NarAI's persistent memory."""
@@ -357,10 +367,10 @@ class BlogIntelBot:
 
     RSS_FEEDS = [
         ("entrepreneurship", "https://feeds.feedburner.com/entrepreneur/latest"),
-        ("marketing",        "https://feeds.feedblitz.com/marketingland"),
-        ("ai_tech",          "https://techcrunch.com/feed/"),
-        ("passive_income",   "https://feeds.feedburner.com/smartpassiveincome"),
-        ("business",         "https://hbr.org/feed"),
+        ("marketing", "https://feeds.feedblitz.com/marketingland"),
+        ("ai_tech", "https://techcrunch.com/feed/"),
+        ("passive_income", "https://feeds.feedburner.com/smartpassiveincome"),
+        ("business", "https://hbr.org/feed"),
     ]
 
     def analyze(self) -> dict:
@@ -497,7 +507,8 @@ class GumroadIntelBot:
         if not token:
             return []
         try:
-            import urllib.request, urllib.parse
+            import urllib.request
+            import urllib.parse
             req = urllib.request.Request(
                 "https://api.gumroad.com/v2/products",
                 headers={"Authorization": f"Bearer {token}"}
@@ -545,20 +556,19 @@ class EtsyIntelBot:
     def _fetch_trending_listings(self) -> list:
         try:
             token = os.getenv("ETSY_ACCESS_TOKEN", "")
-            shop_id = os.getenv("ETSY_SHOP_ID", "")
             api_key = os.getenv("ETSY_KEYSTRING", "")
             if not (token or api_key):
                 return []
             import urllib.request
-            url = f"https://openapi.etsy.com/v3/application/listings/active?limit=20&sort_on=score&keywords=digital+template"
+            url = "https://openapi.etsy.com/v3/application/listings/active?limit=20&sort_on=score&keywords=digital+template"
             headers = {"x-api-key": api_key} if api_key else {"Authorization": f"Bearer {token}"}
             req = urllib.request.Request(url, headers=headers)
             with urllib.request.urlopen(req, timeout=10) as r:
                 data = json.loads(r.read())
                 results = data.get("results", [])
-                return [{"title": l.get("title"), "price": l.get("price", {}).get("amount", 0) / 100,
-                         "views": l.get("views", 0), "num_favorers": l.get("num_favorers", 0)}
-                        for l in results[:20]]
+                return [{"title": ln.get("title"), "price": ln.get("price", {}).get("amount", 0) / 100,
+                         "views": ln.get("views", 0), "num_favorers": ln.get("num_favorers", 0)}
+                        for ln in results[:20]]
         except Exception:
             return []
 
@@ -890,30 +900,30 @@ class QualityControlBot:
 # ══════════════════════════════════════════════════════════════════════════════
 
 _mi_running = False
-_mi_thread  = None
+_mi_thread = None
 
 ALL_BOTS = {
     # Social
-    "facebook":         FacebookIntelBot,
-    "instagram":        InstagramIntelBot,
-    "twitter":          TwitterIntelBot,
-    "tiktok":           TikTokIntelBot,
-    "telegram":         TelegramIntelBot,
-    "blog":             BlogIntelBot,
+    "facebook": FacebookIntelBot,
+    "instagram": InstagramIntelBot,
+    "twitter": TwitterIntelBot,
+    "tiktok": TikTokIntelBot,
+    "telegram": TelegramIntelBot,
+    "blog": BlogIntelBot,
     # Marketplaces
-    "amazon_kdp":       AmazonKDPIntelBot,
-    "gumroad":          GumroadIntelBot,
-    "etsy":             EtsyIntelBot,
-    "payhip":           PayhipIntelBot,
-    "canva":            CanvaIntelBot,
-    "amazon_products":  AmazonProductIntelBot,
+    "amazon_kdp": AmazonKDPIntelBot,
+    "gumroad": GumroadIntelBot,
+    "etsy": EtsyIntelBot,
+    "payhip": PayhipIntelBot,
+    "canva": CanvaIntelBot,
+    "amazon_products": AmazonProductIntelBot,
 }
 
 BOT_GROUPS = {
-    "social":       ["facebook", "instagram", "twitter", "tiktok", "telegram", "blog"],
-    "marketplace":  ["amazon_kdp", "gumroad", "etsy", "payhip", "canva"],
-    "amazon":       ["amazon_products"],
-    "all":          list(ALL_BOTS.keys()),
+    "social": ["facebook", "instagram", "twitter", "tiktok", "telegram", "blog"],
+    "marketplace": ["amazon_kdp", "gumroad", "etsy", "payhip", "canva"],
+    "amazon": ["amazon_products"],
+    "all": list(ALL_BOTS.keys()),
 }
 
 
@@ -937,7 +947,7 @@ def run_market_scan(platforms: List[str] = None, session_id: str = None) -> dict
     _mi_save(mi)
 
     results = {}
-    errors  = {}
+    errors = {}
 
     for platform in platforms:
         if not _mi_running:
@@ -1036,7 +1046,7 @@ def _extract_top_insights(results: dict) -> list:
 
 def start_scan_background(platforms: List[str] = None) -> str:
     """Start a market scan in a background thread."""
-    global _mi_running, _mi_thread
+    global _mi_thread
     if _mi_running:
         return "already_running"
 
@@ -1062,17 +1072,17 @@ def stop_scan():
 def get_status() -> dict:
     mi = _mi_load()
     return {
-        "running":          _mi_running,
-        "last_scan":        mi.get("last_scan"),
-        "scans_total":      mi.get("scans_total", 0),
-        "platforms_data":   {p: {"scanned_at": mi["platforms"][p].get("scanned_at"), "has_data": True}
+        "running": _mi_running,
+        "last_scan": mi.get("last_scan"),
+        "scans_total": mi.get("scans_total", 0),
+        "platforms_data": {p: {"scanned_at": mi["platforms"][p].get("scanned_at"), "has_data": True}
                             for p in mi.get("platforms", {})},
         "current_platform": mi.get("current_platform", ""),
-        "current_session":  mi.get("current_session", ""),
-        "top_insights":     mi.get("top_insights", []),
-        "narai_briefing":   mi.get("narai_briefing", "")[:500] if mi.get("narai_briefing") else "",
+        "current_session": mi.get("current_session", ""),
+        "top_insights": mi.get("top_insights", []),
+        "narai_briefing": mi.get("narai_briefing", "")[:500] if mi.get("narai_briefing") else "",
         "platforms_available": list(ALL_BOTS.keys()),
-        "bot_groups":       BOT_GROUPS,
+        "bot_groups": BOT_GROUPS,
     }
 
 
@@ -1088,5 +1098,5 @@ def get_narai_briefing() -> str:
 
 def get_logs(limit: int = 200) -> list:
     logs = _mi_load_logs()[:limit]
-    return [f"[{e.get('ts','')[:19]}] [{e.get('level','INFO')}] [{e.get('bot') or e.get('platform','')}] {e.get('msg','')}"
+    return [f"[{e.get('ts', '')[:19]}] [{e.get('level', 'INFO')}] [{e.get('bot') or e.get('platform', '')}] {e.get('msg', '')}"
             for e in logs]

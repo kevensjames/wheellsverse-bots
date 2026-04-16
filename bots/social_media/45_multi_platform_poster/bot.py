@@ -10,56 +10,56 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 PLATFORM_SPECS = {
     "twitter": {
-        "format":     "Single tweet or thread",
-        "length":     "280 chars per tweet; threads up to 25 tweets",
-        "tone":       "Concise, punchy, direct -- conversational or bold takes",
-        "hashtags":   "1-2 max, only if trending or essential",
-        "cta":        "Reply, retweet, follow, click link",
-        "strength":   "Real-time conversation, thought leadership, viral threads",
+        "format": "Single tweet or thread",
+        "length": "280 chars per tweet; threads up to 25 tweets",
+        "tone": "Concise, punchy, direct -- conversational or bold takes",
+        "hashtags": "1-2 max, only if trending or essential",
+        "cta": "Reply, retweet, follow, click link",
+        "strength": "Real-time conversation, thought leadership, viral threads",
     },
     "linkedin": {
-        "format":     "Long-form text post or article",
-        "length":     "150-300 words for posts; 1,500+ for articles",
-        "tone":       "Professional but personal -- storytelling + data",
-        "hashtags":   "3-5 industry hashtags at end",
-        "cta":        "Comment your thoughts, connect, visit website",
-        "strength":   "B2B audience, professional authority, career/business topics",
+        "format": "Long-form text post or article",
+        "length": "150-300 words for posts; 1,500+ for articles",
+        "tone": "Professional but personal -- storytelling + data",
+        "hashtags": "3-5 industry hashtags at end",
+        "cta": "Comment your thoughts, connect, visit website",
+        "strength": "B2B audience, professional authority, career/business topics",
     },
     "instagram": {
-        "format":     "Caption + image/carousel/reel concept",
-        "length":     "125-150 chars before 'more' -- hook immediately",
-        "tone":       "Aspirational, visual-first, authentic voice",
-        "hashtags":   "20-30 highly targeted (first comment or end of caption)",
-        "cta":        "Save, share, follow, comment, link in bio",
-        "strength":   "Visual storytelling, lifestyle/brand building, DM conversion",
+        "format": "Caption + image/carousel/reel concept",
+        "length": "125-150 chars before 'more' -- hook immediately",
+        "tone": "Aspirational, visual-first, authentic voice",
+        "hashtags": "20-30 highly targeted (first comment or end of caption)",
+        "cta": "Save, share, follow, comment, link in bio",
+        "strength": "Visual storytelling, lifestyle/brand building, DM conversion",
     },
     "tiktok": {
-        "format":     "Video concept + caption",
-        "length":     "Caption under 150 chars; video 15-90s",
-        "tone":       "Entertaining, fast-paced, trend-aware, unpolished is OK",
-        "hashtags":   "3-5 niche + trending tags",
-        "cta":        "Follow, duet, stitch, comment, try this",
-        "strength":   "Discovery, mass reach, Gen Z/Millennial, fast virality",
+        "format": "Video concept + caption",
+        "length": "Caption under 150 chars; video 15-90s",
+        "tone": "Entertaining, fast-paced, trend-aware, unpolished is OK",
+        "hashtags": "3-5 niche + trending tags",
+        "cta": "Follow, duet, stitch, comment, try this",
+        "strength": "Discovery, mass reach, Gen Z/Millennial, fast virality",
     },
     "facebook": {
-        "format":     "Post or group content",
-        "length":     "40-80 words for best reach; can go longer for groups",
-        "tone":       "Warm, community-oriented, shareable",
-        "hashtags":   "1-3 hashtags",
-        "cta":        "Share, comment, tag a friend",
-        "strength":   "Groups, community building, ads ecosystem",
+        "format": "Post or group content",
+        "length": "40-80 words for best reach; can go longer for groups",
+        "tone": "Warm, community-oriented, shareable",
+        "hashtags": "1-3 hashtags",
+        "cta": "Share, comment, tag a friend",
+        "strength": "Groups, community building, ads ecosystem",
     },
     "youtube_shorts": {
-        "format":     "60-second video concept + description",
-        "length":     "Description 1-2 sentences; video max 60s",
-        "tone":       "Educational or entertaining -- hook in first 3 seconds",
-        "hashtags":   "#Shorts + 2-3 topic hashtags in title/description",
-        "cta":        "Subscribe, watch full video, leave a comment",
-        "strength":   "Search discovery, long-term SEO, YouTube ecosystem",
+        "format": "60-second video concept + description",
+        "length": "Description 1-2 sentences; video max 60s",
+        "tone": "Educational or entertaining -- hook in first 3 seconds",
+        "hashtags": "#Shorts + 2-3 topic hashtags in title/description",
+        "cta": "Subscribe, watch full video, leave a comment",
+        "strength": "Search discovery, long-term SEO, YouTube ecosystem",
     },
 }
 
@@ -75,9 +75,9 @@ class MultiPlatformPosterBot(BaseBot):
         cfg = self.config
         core_content = core_content or cfg.get("core_content",
             "AI bots can automate 80% of repetitive business tasks, freeing entrepreneurs to focus on growth")
-        platforms    = platforms or cfg.get("platforms", "twitter,linkedin,instagram,tiktok")
+        platforms = platforms or cfg.get("platforms", "twitter,linkedin,instagram,tiktok")
         content_type = content_type or cfg.get("content_type", "educational tip")
-        goal         = goal or cfg.get("goal", "drive traffic to WheellsVerse and grow followers")
+        goal = goal or cfg.get("goal", "drive traffic to WheellsVerse and grow followers")
 
         platform_list = [p.strip() for p in platforms.split(",")]
         self.logger.info(f"Adapting content for {len(platform_list)} platforms: {platforms}")
@@ -198,11 +198,11 @@ How to reuse this content batch over the next 30 days:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Multi-Platform Content Adapter")
-    parser.add_argument("--content",   type=str, default=None,
+    parser.add_argument("--content", type=str, default=None,
                         help="Core content idea or message to adapt")
     parser.add_argument("--platforms", type=str, default="twitter,linkedin,instagram,tiktok")
-    parser.add_argument("--type",      type=str, default="educational tip")
-    parser.add_argument("--goal",      type=str, default=None)
+    parser.add_argument("--type", type=str, default="educational tip")
+    parser.add_argument("--goal", type=str, default=None)
     args = parser.parse_args()
     bot = MultiPlatformPosterBot()
     result = bot.execute(core_content=args.content, platforms=args.platforms,

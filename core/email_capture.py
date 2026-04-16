@@ -20,12 +20,12 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-ROOT      = Path(__file__).parent.parent
+ROOT = Path(__file__).parent.parent
 LEADS_DIR = ROOT / "data" / "leads"
 LEADS_DIR.mkdir(parents=True, exist_ok=True)
 
 LEADS_JSON = LEADS_DIR / "leads.json"
-LEADS_CSV  = LEADS_DIR / "leads.csv"
+LEADS_CSV = LEADS_DIR / "leads.csv"
 
 logger = logging.getLogger("email_capture")
 
@@ -34,9 +34,9 @@ class EmailCapture:
     """Lead collection and management system."""
 
     def __init__(self):
-        self._lock:   threading.Lock = threading.Lock()
-        self._leads:  List[Dict]     = []
-        self._emails: set            = set()
+        self._lock: threading.Lock = threading.Lock()
+        self._leads: List[Dict] = []
+        self._emails: set = set()
         self._load()
 
     # ── Persistence ───────────────────────────────────────────────────────────
@@ -44,8 +44,8 @@ class EmailCapture:
     def _load(self):
         if LEADS_JSON.exists():
             try:
-                self._leads  = json.loads(LEADS_JSON.read_text(encoding="utf-8"))
-                self._emails = {l["email"].lower() for l in self._leads if "email" in l}
+                self._leads = json.loads(LEADS_JSON.read_text(encoding="utf-8"))
+                self._emails = {ln["email"].lower() for ln in self._leads if "email" in ln}
                 logger.info(f"Loaded {len(self._leads)} leads")
             except Exception as e:
                 logger.warning(f"Could not load leads: {e}")
@@ -61,10 +61,10 @@ class EmailCapture:
                 writer.writeheader()
                 for lead in self._leads:
                     writer.writerow({
-                        "email":       lead.get("email", ""),
-                        "name":        lead.get("name", ""),
-                        "source":      lead.get("source", ""),
-                        "topic":       lead.get("topic", ""),
+                        "email": lead.get("email", ""),
+                        "name": lead.get("name", ""),
+                        "source": lead.get("source", ""),
+                        "topic": lead.get("topic", ""),
                         "captured_at": lead.get("captured_at", ""),
                     })
         except Exception as e:
@@ -74,10 +74,10 @@ class EmailCapture:
 
     def capture(
         self,
-        email:    str,
-        name:     str = "",
-        source:   str = "landing_page",
-        topic:    str = "",
+        email: str,
+        name: str = "",
+        source: str = "landing_page",
+        topic: str = "",
         metadata: Optional[Dict] = None,
     ) -> Dict:
         """
@@ -93,12 +93,12 @@ class EmailCapture:
                 return {"status": "duplicate", "email": email}
 
             lead = {
-                "email":       email,
-                "name":        name.strip(),
-                "source":      source,
-                "topic":       topic[:80] if topic else "",
+                "email": email,
+                "name": name.strip(),
+                "source": source,
+                "topic": topic[:80] if topic else "",
                 "captured_at": datetime.now().isoformat(),
-                "metadata":    metadata or {},
+                "metadata": metadata or {},
             }
             self._leads.insert(0, lead)
             self._emails.add(email)
@@ -109,41 +109,41 @@ class EmailCapture:
     # ── Stats ─────────────────────────────────────────────────────────────────
 
     def get_stats(self) -> Dict:
-        today       = date.today().isoformat()
-        today_leads = [l for l in self._leads if l.get("captured_at", "").startswith(today)]
+        today = date.today().isoformat()
+        today_leads = [ln for ln in self._leads if ln.get("captured_at", "").startswith(today)]
         by_source: Dict[str, int] = {}
         for lead in self._leads:
             src = lead.get("source", "unknown")
             by_source[src] = by_source.get(src, 0) + 1
 
         return {
-            "total_leads":    len(self._leads),
-            "leads_today":    len(today_leads),
+            "total_leads": len(self._leads),
+            "leads_today": len(today_leads),
             "unique_sources": len(by_source),
-            "by_source":      by_source,
-            "most_recent":    self._leads[0] if self._leads else None,
+            "by_source": by_source,
+            "most_recent": self._leads[0] if self._leads else None,
             "files": {
                 "json": str(LEADS_JSON.relative_to(ROOT)),
-                "csv":  str(LEADS_CSV.relative_to(ROOT)),
+                "csv": str(LEADS_CSV.relative_to(ROOT)),
             },
         }
 
     def get_leads(self, limit: int = 100, source: str = "") -> List[Dict]:
         leads = self._leads
         if source:
-            leads = [l for l in leads if l.get("source") == source]
+            leads = [ln for ln in leads if ln.get("source") == source]
         return leads[:limit]
 
     def get_leads_today(self) -> List[Dict]:
         today = date.today().isoformat()
-        return [l for l in self._leads if l.get("captured_at", "").startswith(today)]
+        return [ln for ln in self._leads if ln.get("captured_at", "").startswith(today)]
 
     # ── Form HTML Snippet ─────────────────────────────────────────────────────
 
     def generate_form_snippet(
         self,
         action_url: str = "/api/lead",
-        cta_text:   str = "Get Free Daily Signals",
+        cta_text: str = "Get Free Daily Signals",
     ) -> str:
         """Return an embeddable HTML form that POSTs to /api/lead."""
         return f"""<form class="lead-form" onsubmit="submitLead(event)">

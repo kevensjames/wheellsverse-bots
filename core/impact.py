@@ -25,7 +25,7 @@ import logging
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import requests
 from dotenv import load_dotenv
@@ -47,7 +47,7 @@ def _get(endpoint: str, params: dict = None) -> dict:
     if base_ep in _BLOCKED_ENDPOINTS:
         return {"error": f"{base_ep} not permitted on this account", "status_code": 403, "skipped": True}
 
-    account_sid  = os.getenv("IMPACT_ACCOUNT_SID", "")
+    account_sid = os.getenv("IMPACT_ACCOUNT_SID", "")
     api_password = os.getenv("IMPACT_API_PASSWORD", "")
     if not account_sid or not api_password:
         return {"error": "IMPACT_ACCOUNT_SID / IMPACT_API_PASSWORD not set in .env"}
@@ -127,12 +127,12 @@ def get_programs() -> List[Dict]:
     programs = []
     for c in items:
         programs.append({
-            "id":           c.get("CampaignId"),
-            "name":         c.get("Name"),
-            "status":       c.get("MediaPartnerStatus"),
-            "category":     c.get("Category"),
-            "currency":     c.get("Currency"),
-            "description":  (c.get("Description") or "")[:120],
+            "id": c.get("CampaignId"),
+            "name": c.get("Name"),
+            "status": c.get("MediaPartnerStatus"),
+            "category": c.get("Category"),
+            "currency": c.get("Currency"),
+            "description": (c.get("Description") or "")[:120],
         })
     return programs
 
@@ -155,33 +155,33 @@ def get_programs_summary() -> Dict:
 
 def get_earnings(days: int = 30) -> Dict:
     """Pull commission earnings for the last N days (max 44)."""
-    days  = min(days, 44)
+    days = min(days, 44)
     start = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%dT00:00:00Z")
-    end   = datetime.now().strftime("%Y-%m-%dT23:59:59Z")
+    end = datetime.now().strftime("%Y-%m-%dT23:59:59Z")
 
     actions = _get_all_pages("Actions", "Actions", {
         "StartDate": start,
-        "EndDate":   end,
+        "EndDate": end,
     })
 
     if isinstance(actions, dict) and "error" in actions:
         return actions  # propagate error
 
-    total      = 0.0
+    total = 0.0
     by_program: Dict[str, float] = {}
-    by_day:     Dict[str, float] = {}
-    by_status:  Dict[str, float] = {}
+    by_day: Dict[str, float] = {}
+    by_status: Dict[str, float] = {}
     pending = locked = 0.0
 
     for action in actions:
-        payout   = float(action.get("Payout", 0) or 0)
-        program  = action.get("CampaignName", "Unknown")
+        payout = float(action.get("Payout", 0) or 0)
+        program = action.get("CampaignName", "Unknown")
         date_str = (action.get("EventDate", "") or "")[:10]
-        status   = action.get("LockingStatus", "Unknown")
+        status = action.get("LockingStatus", "Unknown")
 
         total += payout
         by_program[program] = by_program.get(program, 0.0) + payout
-        by_status[status]   = by_status.get(status, 0.0) + payout
+        by_status[status] = by_status.get(status, 0.0) + payout
         if date_str:
             by_day[date_str] = by_day.get(date_str, 0.0) + payout
         if status == "Pending":
@@ -190,17 +190,17 @@ def get_earnings(days: int = 30) -> Dict:
             locked += payout
 
     return {
-        "period_days":       days,
-        "start_date":        start,
-        "end_date":          end,
-        "total_earned":      round(total, 2),
-        "pending":           round(pending, 2),
-        "locked":            round(locked, 2),
-        "by_program":        {k: round(v, 2) for k, v in sorted(by_program.items(), key=lambda x: -x[1])},
-        "by_day":            dict(sorted(by_day.items())),
-        "by_status":         {k: round(v, 2) for k, v in by_status.items()},
-        "action_count":      len(actions),
-        "fetched_at":        datetime.now().isoformat(),
+        "period_days": days,
+        "start_date": start,
+        "end_date": end,
+        "total_earned": round(total, 2),
+        "pending": round(pending, 2),
+        "locked": round(locked, 2),
+        "by_program": {k: round(v, 2) for k, v in sorted(by_program.items(), key=lambda x: -x[1])},
+        "by_day": dict(sorted(by_day.items())),
+        "by_status": {k: round(v, 2) for k, v in by_status.items()},
+        "action_count": len(actions),
+        "fetched_at": datetime.now().isoformat(),
     }
 
 
@@ -223,15 +223,15 @@ def get_ads(campaign_id: str = None) -> List[Dict]:
     ads = []
     for a in items:
         ads.append({
-            "id":          a.get("AdId"),
-            "name":        a.get("Name"),
-            "type":        a.get("Type"),
-            "width":       a.get("Width"),
-            "height":      a.get("Height"),
-            "campaign":    a.get("CampaignName"),
+            "id": a.get("AdId"),
+            "name": a.get("Name"),
+            "type": a.get("Type"),
+            "width": a.get("Width"),
+            "height": a.get("Height"),
+            "campaign": a.get("CampaignName"),
             "campaign_id": a.get("CampaignId"),
             "landing_url": a.get("LandingPageUrl"),
-            "img_url":     a.get("ImgUrl"),
+            "img_url": a.get("ImgUrl"),
         })
     return ads
 
@@ -244,12 +244,12 @@ def get_invoices(limit: int = 20) -> List[Dict]:
     invoices = []
     for inv in items:
         invoices.append({
-            "id":         inv.get("Id"),
-            "date":       inv.get("InvoiceDate"),
-            "amount":     float(inv.get("Amount", 0) or 0),
-            "currency":   inv.get("Currency"),
-            "status":     inv.get("Status"),
-            "due_date":   inv.get("DueDate"),
+            "id": inv.get("Id"),
+            "date": inv.get("InvoiceDate"),
+            "amount": float(inv.get("Amount", 0) or 0),
+            "currency": inv.get("Currency"),
+            "status": inv.get("Status"),
+            "due_date": inv.get("DueDate"),
         })
     return invoices
 
@@ -257,13 +257,13 @@ def get_invoices(limit: int = 20) -> List[Dict]:
 def get_total_paid() -> Dict:
     """Sum all paid invoices."""
     invoices = get_invoices(limit=200)
-    paid   = sum(i["amount"] for i in invoices if i.get("status") == "Paid")
+    paid = sum(i["amount"] for i in invoices if i.get("status") == "Paid")
     unpaid = sum(i["amount"] for i in invoices if i.get("status") != "Paid")
     return {
         "total_invoices": len(invoices),
-        "total_paid":     round(paid, 2),
-        "total_unpaid":   round(unpaid, 2),
-        "invoices":       invoices[:10],
+        "total_paid": round(paid, 2),
+        "total_unpaid": round(unpaid, 2),
+        "invoices": invoices[:10],
     }
 
 
@@ -271,27 +271,27 @@ def get_total_paid() -> Dict:
 
 def get_summary() -> Dict:
     """Complete dashboard summary — earnings + programs + ads + invoices + health."""
-    account   = get_account_status()
-    earnings  = get_earnings(days=30) if account.get("connected") else {"error": "Not connected"}
-    earnings7 = get_earnings(days=7)  if account.get("connected") else {}
-    programs  = get_programs_summary()
-    paid      = get_total_paid()
-    ads       = get_ads()
+    account = get_account_status()
+    earnings = get_earnings(days=30) if account.get("connected") else {"error": "Not connected"}
+    earnings7 = get_earnings(days=7) if account.get("connected") else {}
+    programs = get_programs_summary()
+    paid = get_total_paid()
+    ads = get_ads()
 
     # Conversion rate (actions / programs, if any)
     action_count = earnings.get("action_count", 0) if isinstance(earnings, dict) else 0
-    conv_rate    = round(action_count / max(programs["total"], 1) * 100, 1)
+    conv_rate = round(action_count / max(programs["total"], 1) * 100, 1)
 
     return {
-        "account":        account,
-        "last_30_days":   earnings,
-        "last_7_days":    earnings7,
-        "programs":       programs,
-        "payments":       paid,
-        "ads_available":  len(ads),
+        "account": account,
+        "last_30_days": earnings,
+        "last_7_days": earnings7,
+        "programs": programs,
+        "payments": paid,
+        "ads_available": len(ads),
         "conversion_rate_pct": conv_rate,
-        "configured":     bool(os.getenv("IMPACT_ACCOUNT_SID") and os.getenv("IMPACT_API_PASSWORD")),
-        "fetched_at":     datetime.now().isoformat(),
+        "configured": bool(os.getenv("IMPACT_ACCOUNT_SID") and os.getenv("IMPACT_API_PASSWORD")),
+        "fetched_at": datetime.now().isoformat(),
     }
 
 
@@ -300,11 +300,11 @@ def get_summary() -> Dict:
 def get_clicks(days: int = 7) -> Dict:
     """Alias kept for api.py compatibility — clicks not available on this account."""
     return {
-        "period_days":  days,
+        "period_days": days,
         "total_clicks": 0,
-        "by_program":   {},
-        "fetched_at":   datetime.now().isoformat(),
-        "note":         "MediaPartnerClicks not permitted on this account",
+        "by_program": {},
+        "fetched_at": datetime.now().isoformat(),
+        "note": "MediaPartnerClicks not permitted on this account",
     }
 
 
@@ -317,15 +317,15 @@ def get_impact():
     global _impact
     if _impact is None:
         _impact = type("Impact", (), {
-            "get_earnings":         get_earnings,
-            "get_today":            get_today_earnings,
-            "get_lifetime":         get_lifetime_earnings,
-            "get_programs":         get_programs,
+            "get_earnings": get_earnings,
+            "get_today": get_today_earnings,
+            "get_lifetime": get_lifetime_earnings,
+            "get_programs": get_programs,
             "get_programs_summary": get_programs_summary,
-            "get_ads":              get_ads,
-            "get_invoices":         get_invoices,
-            "get_total_paid":       get_total_paid,
-            "get_account_status":   get_account_status,
-            "get_summary":          get_summary,
+            "get_ads": get_ads,
+            "get_invoices": get_invoices,
+            "get_total_paid": get_total_paid,
+            "get_account_status": get_account_status,
+            "get_summary": get_summary,
         })()
     return _impact

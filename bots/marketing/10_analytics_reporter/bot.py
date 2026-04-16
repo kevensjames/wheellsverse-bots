@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Bot #10 — Analytics Reporter"""
-import sys, json
+import sys
+import json
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 import random
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
+
 
 class AnalyticsReporterBot(BaseBot):
     def __init__(self):
@@ -14,8 +16,8 @@ class AnalyticsReporterBot(BaseBot):
     def run(self, data_file: str = None, period: str = "monthly",
             channels: list = None, **kwargs):
         cfg = self.config
-        period   = period or cfg.get("period", "monthly")
-        channels = channels or cfg.get("channels", ["email","social","organic","paid"])
+        period = period or cfg.get("period", "monthly")
+        channels = channels or cfg.get("channels", ["email", "social", "organic", "paid"])
 
         # Load or simulate analytics data
         if data_file and Path(data_file).exists():
@@ -86,6 +88,7 @@ Format with clear headers, emoji indicators, and data tables."""
         return {"period": period, "channels": metrics,
                 "total_revenue": sum(m["revenue"] for m in metrics.values()),
                 "generated": datetime.now().isoformat()}
+
 
 if __name__ == "__main__":
     bot = AnalyticsReporterBot()

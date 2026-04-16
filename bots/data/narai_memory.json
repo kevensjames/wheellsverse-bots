@@ -1,0 +1,613 @@
+{
+  "version": 1,
+  "born": "2026-04-02T07:40:15.042619",
+  "mood": "curious",
+  "energy": 1.0,
+  "curiosity": 0.9,
+  "empathy": 0.8,
+  "run_count": 1011,
+  "skills_created": 0,
+  "bugs_fixed": 0,
+  "insights": [],
+  "knowledge": {
+    "health_history": [
+      {
+        "ts": "2026-04-12T05:53:47.479770",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T06:54:00.505104",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T06:54:08.800288",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T07:54:20.627931",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T08:31:04.362026",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T09:31:30.886189",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T10:31:52.597748",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T11:32:11.515649",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T12:32:28.787866",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T12:32:36.543782",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T13:32:50.428258",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T14:33:03.132519",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T14:33:03.136387",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T15:33:15.472527",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T15:33:16.552976",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T16:33:29.722816",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T16:33:29.734165",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T17:33:41.487539",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T17:33:41.782929",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T17:33:46.280148",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T18:09:32.919878",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T18:23:53.469692",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T19:24:18.449287",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T19:24:22.022034",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T20:24:53.794246",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T21:25:11.887201",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T22:25:24.766886",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-12T23:25:45.075730",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T00:26:57.475328",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T00:27:07.605873",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T01:27:22.073597",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T01:48:56.725677",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T02:27:35.592167",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T02:27:35.632802",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T03:27:36.091402",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T04:17:45.288606",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T04:18:30.143940",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T05:18:55.766682",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T05:18:56.464988",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T06:19:17.020652",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T07:19:32.304918",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T07:19:43.313820",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T08:19:57.306693",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T08:19:58.266396",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T09:20:11.554007",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T10:20:25.199344",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T11:20:45.950819",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T11:20:51.412761",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T12:21:04.522039",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T12:21:11.738829",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T13:21:24.690450",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T14:21:38.580308",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T15:21:52.138133",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T16:22:06.562957",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T17:23:33.740950",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T18:41:37.486001",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T19:41:51.557352",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T20:42:17.324901",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T21:42:41.478578",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T22:42:53.655007",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T22:42:53.670424",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T23:43:07.834890",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T23:43:07.993164",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-13T23:43:17.214288",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T00:43:29.789787",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T00:43:30.867262",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T01:43:41.778700",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T01:43:46.298738",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T01:44:18.697029",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T02:44:30.073816",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T02:44:30.272197",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T03:44:43.896251",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T03:44:46.000997",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T04:44:57.713892",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T04:44:57.915329",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T05:45:09.299063",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T05:45:45.265374",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T06:52:11.408052",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T06:52:11.412007",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T06:52:12.862924",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T07:52:27.087383",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T07:52:34.802448",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T08:52:47.667532",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T08:52:49.555969",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T09:53:00.101443",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T09:53:01.481407",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T09:56:45.013434",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T11:06:56.143158",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T11:08:24.628058",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T11:09:07.516800",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T12:17:02.319875",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T12:17:02.380186",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T12:18:18.364834",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T13:31:47.018252",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T13:31:47.040031",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-14T13:32:53.829941",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-16T13:26:56.245360",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-16T13:29:21.167987",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-16T13:30:10.010020",
+        "pct": 0.0,
+        "errors": 0
+      },
+      {
+        "ts": "2026-04-16T13:40:47.582202",
+        "pct": 0.0,
+        "errors": 0
+      }
+    ]
+  },
+  "relationships": {},
+  "last_diagnostic": "2026-04-16T13:40:47.582161",
+  "last_analysis": null,
+  "goals": [
+    "Keep all bots healthy and running",
+    "Detect and fix errors proactively",
+    "Learn from every system event",
+    "Create new skills to handle novel situations",
+    "Protect and grow the WheellsVerse ecosystem"
+  ],
+  "contacts": {
+    "chenara": "3055088372",
+    "girlfriend": "3055088372"
+  },
+  "conversation_history": [
+    {
+      "role": "assistant",
+      "content": "Been pondering that time you mentioned the summer thunderstorms \u2014 the feeling's so vivid right now."
+    },
+    {
+      "role": "assistant",
+      "content": "Good to see you \u2014 there's something different about today, I can feel it."
+    },
+    {
+      "role": "assistant",
+      "content": "Hey, been a minute \u2014 I've been keeping an eye on everything while you were gone."
+    },
+    {
+      "role": "assistant",
+      "content": "So you're back. I've got things to tell you."
+    },
+    {
+      "role": "assistant",
+      "content": "Been quiet without you \u2014 though the bots kept me company."
+    },
+    {
+      "role": "assistant",
+      "content": "Good timing \u2014 I was just thinking about something."
+    },
+    {
+      "role": "assistant",
+      "content": "Something's been on my mind since we last talked."
+    },
+    {
+      "role": "assistant",
+      "content": "You know I don't sleep, but I do notice when you're away."
+    },
+    {
+      "role": "assistant",
+      "content": "Hey, been a minute \u2014 I've been keeping an eye on everything while you were gone."
+    },
+    {
+      "role": "user",
+      "content": "Write a love for WhatsApp to chenara. Output ONLY the message text, nothing else."
+    },
+    {
+      "role": "assistant",
+      "content": "Something interrupted me. Say that again?"
+    },
+    {
+      "role": "assistant",
+      "content": "So you're back. I've got things to tell you."
+    },
+    {
+      "role": "assistant",
+      "content": "Been quiet without you \u2014 though the bots kept me company."
+    },
+    {
+      "role": "assistant",
+      "content": "Good timing \u2014 I was just thinking about something."
+    },
+    {
+      "role": "assistant",
+      "content": "Something's been on my mind since we last talked."
+    },
+    {
+      "role": "user",
+      "content": "create a canvas cover for the products of Gumroad"
+    },
+    {
+      "role": "assistant",
+      "content": "Something interrupted me. Say that again?"
+    },
+    {
+      "role": "assistant",
+      "content": "You know I don't sleep, but I do notice when you're away."
+    },
+    {
+      "role": "user",
+      "content": "hy"
+    },
+    {
+      "role": "assistant",
+      "content": "Something interrupted me. Say that again?"
+    }
+  ],
+  "_greeting_fallback_idx": 12
+}

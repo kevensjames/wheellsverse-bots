@@ -18,17 +18,16 @@ from __future__ import annotations
 import json
 import logging
 import threading
-import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR       = ROOT / "data"
+DATA_DIR = ROOT / "data"
 SCHEDULES_FILE = DATA_DIR / "narai_schedules.json"
 
 log = logging.getLogger("narai_scheduler")
@@ -38,192 +37,192 @@ log = logging.getLogger("narai_scheduler")
 # `trigger_fn` is the dotted import path + function name to call.
 DEFAULT_SCHEDULES: List[Dict] = [
     {
-        "id":          "market_intel",
-        "name":        "Market Intelligence Scan",
+        "id": "market_intel",
+        "name": "Market Intelligence Scan",
         "description": "Full scan of 12 platforms (Gumroad, Etsy, TikTok, Reddit…) to gather product + content trends",
-        "frequency":   "weekly",
-        "day":         "monday",
-        "time":        "01:00",
-        "category":    "intelligence",
-        "icon":        "🔭",
-        "enabled":     True,
-        "trigger_fn":  "core.market_intelligence.start_scan_background",
+        "frequency": "weekly",
+        "day": "monday",
+        "time": "01:00",
+        "category": "intelligence",
+        "icon": "🔭",
+        "enabled": True,
+        "trigger_fn": "core.market_intelligence.start_scan_background",
     },
     {
-        "id":          "narai_autopilot",
-        "name":        "NarAI Daily Creation Session",
+        "id": "narai_autopilot",
+        "name": "NarAI Daily Creation Session",
         "description": "Full autonomous session: social posts + 2 products per platform (Gumroad, Etsy, Payhip, Shopify, KDP) + social promotion",
-        "frequency":   "daily",
-        "time":        "01:30",
-        "category":    "products",
-        "icon":        "🤖",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_autopilot.start_autopilot_background",
+        "frequency": "daily",
+        "time": "01:30",
+        "category": "products",
+        "icon": "🤖",
+        "enabled": True,
+        "trigger_fn": "core.narai_autopilot.start_autopilot_background",
     },
     {
-        "id":          "shopify_autopilot",
-        "name":        "Shopify Autopilot Session",
+        "id": "shopify_autopilot",
+        "name": "Shopify Autopilot Session",
         "description": "Viral trend scan → digital products → POD (Printful) → service packages → 5-step funnel → performance review",
-        "frequency":   "daily",
-        "time":        "02:30",
-        "category":    "products",
-        "icon":        "🛍️",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_shopify_autopilot.start_shopify_autopilot_background",
+        "frequency": "daily",
+        "time": "02:30",
+        "category": "products",
+        "icon": "🛍️",
+        "enabled": True,
+        "trigger_fn": "core.narai_shopify_autopilot.start_shopify_autopilot_background",
     },
     {
-        "id":          "social_blast_morning",
-        "name":        "Morning Social Blast",
+        "id": "social_blast_morning",
+        "name": "Morning Social Blast",
         "description": "NarAI posts to Facebook, Instagram, Twitter — passive income + AI tools content",
-        "frequency":   "daily",
-        "time":        "09:15",
-        "category":    "social",
-        "icon":        "📱",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_autopilot._narai_social_blast",
+        "frequency": "daily",
+        "time": "09:15",
+        "category": "social",
+        "icon": "📱",
+        "enabled": True,
+        "trigger_fn": "core.narai_autopilot._narai_social_blast",
     },
     {
-        "id":          "reel_morning",
-        "name":        "Morning Reel — Power of AI",
+        "id": "reel_morning",
+        "name": "Morning Reel — Power of AI",
         "description": "Inspiring/cinematic AI Reel posted to Instagram + Facebook",
-        "frequency":   "daily",
-        "time":        "10:00",
-        "category":    "video",
-        "icon":        "🎬",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_autopilot.start_reels_background:morning",
+        "frequency": "daily",
+        "time": "10:00",
+        "category": "video",
+        "icon": "🎬",
+        "enabled": True,
+        "trigger_fn": "core.narai_autopilot.start_reels_background:morning",
     },
     {
-        "id":          "reel_afternoon",
-        "name":        "Afternoon Reel — AI Tries to Be Human",
+        "id": "reel_afternoon",
+        "name": "Afternoon Reel — AI Tries to Be Human",
         "description": "Comedy/cartoon Reel posted to Instagram + Facebook",
-        "frequency":   "daily",
-        "time":        "15:00",
-        "category":    "video",
-        "icon":        "😂",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_autopilot.start_reels_background:afternoon",
+        "frequency": "daily",
+        "time": "15:00",
+        "category": "video",
+        "icon": "😂",
+        "enabled": True,
+        "trigger_fn": "core.narai_autopilot.start_reels_background:afternoon",
     },
     {
-        "id":          "reel_evening",
-        "name":        "Evening Reel — AI in Real Life Viral",
+        "id": "reel_evening",
+        "name": "Evening Reel — AI in Real Life Viral",
         "description": "Punchy viral Reel posted to Instagram + Facebook",
-        "frequency":   "daily",
-        "time":        "20:00",
-        "category":    "video",
-        "icon":        "🔥",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_autopilot.start_reels_background:evening",
+        "frequency": "daily",
+        "time": "20:00",
+        "category": "video",
+        "icon": "🔥",
+        "enabled": True,
+        "trigger_fn": "core.narai_autopilot.start_reels_background:evening",
     },
     {
-        "id":          "revenue_pipeline",
-        "name":        "Revenue Pipeline",
+        "id": "revenue_pipeline",
+        "name": "Revenue Pipeline",
         "description": "Full revenue bot run: affiliate, ads, product links, conversion optimization",
-        "frequency":   "daily",
-        "time":        "08:30",
-        "category":    "revenue",
-        "icon":        "💰",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:full_revenue_blast",
+        "frequency": "daily",
+        "time": "08:30",
+        "category": "revenue",
+        "icon": "💰",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:full_revenue_blast",
     },
     {
-        "id":          "seo_pipeline",
-        "name":        "SEO Daily Pipeline",
+        "id": "seo_pipeline",
+        "name": "SEO Daily Pipeline",
         "description": "SEO content creation, keyword optimization, blog publishing",
-        "frequency":   "daily",
-        "time":        "06:30",
-        "category":    "seo",
-        "icon":        "📈",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:seo_daily",
+        "frequency": "daily",
+        "time": "06:30",
+        "category": "seo",
+        "icon": "📈",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:seo_daily",
     },
     {
-        "id":          "social_domination_am",
-        "name":        "Social Domination — Morning",
+        "id": "social_domination_am",
+        "name": "Social Domination — Morning",
         "description": "High-engagement social posts batch — all platforms",
-        "frequency":   "daily",
-        "time":        "09:00",
-        "category":    "social",
-        "icon":        "⚡",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:social_domination",
+        "frequency": "daily",
+        "time": "09:00",
+        "category": "social",
+        "icon": "⚡",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:social_domination",
     },
     {
-        "id":          "social_domination_pm",
-        "name":        "Social Domination — Afternoon",
+        "id": "social_domination_pm",
+        "name": "Social Domination — Afternoon",
         "description": "High-engagement social posts batch — all platforms",
-        "frequency":   "daily",
-        "time":        "14:00",
-        "category":    "social",
-        "icon":        "⚡",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:social_domination",
+        "frequency": "daily",
+        "time": "14:00",
+        "category": "social",
+        "icon": "⚡",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:social_domination",
     },
     {
-        "id":          "social_domination_eve",
-        "name":        "Social Domination — Evening",
+        "id": "social_domination_eve",
+        "name": "Social Domination — Evening",
         "description": "High-engagement social posts batch — all platforms",
-        "frequency":   "daily",
-        "time":        "19:00",
-        "category":    "social",
-        "icon":        "⚡",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:social_domination",
+        "frequency": "daily",
+        "time": "19:00",
+        "category": "social",
+        "icon": "⚡",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:social_domination",
     },
     {
-        "id":          "affiliate_am",
-        "name":        "Affiliate Revenue — Morning",
+        "id": "affiliate_am",
+        "name": "Affiliate Revenue — Morning",
         "description": "Affiliate link posts, comparison content, signup promotions",
-        "frequency":   "daily",
-        "time":        "10:00",
-        "category":    "revenue",
-        "icon":        "🔗",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:affiliate_revenue",
+        "frequency": "daily",
+        "time": "10:00",
+        "category": "revenue",
+        "icon": "🔗",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:affiliate_revenue",
     },
     {
-        "id":          "affiliate_pm",
-        "name":        "Affiliate Revenue — Afternoon",
+        "id": "affiliate_pm",
+        "name": "Affiliate Revenue — Afternoon",
         "description": "Affiliate link posts, comparison content, signup promotions",
-        "frequency":   "daily",
-        "time":        "15:00",
-        "category":    "revenue",
-        "icon":        "🔗",
-        "enabled":     True,
-        "trigger_fn":  "core.pipeline_engine.run_pipeline:affiliate_revenue",
+        "frequency": "daily",
+        "time": "15:00",
+        "category": "revenue",
+        "icon": "🔗",
+        "enabled": True,
+        "trigger_fn": "core.pipeline_engine.run_pipeline:affiliate_revenue",
     },
     {
-        "id":          "telegram_summary",
-        "name":        "Telegram Daily Summary",
+        "id": "telegram_summary",
+        "name": "Telegram Daily Summary",
         "description": "Daily performance report sent to Telegram channel",
-        "frequency":   "daily",
-        "time":        "07:00",
-        "category":    "reporting",
-        "icon":        "📊",
-        "enabled":     True,
-        "trigger_fn":  "core.api.telegram_daily_alert",
+        "frequency": "daily",
+        "time": "07:00",
+        "category": "reporting",
+        "icon": "📊",
+        "enabled": True,
+        "trigger_fn": "core.api.telegram_daily_alert",
     },
     {
-        "id":          "inbox_handler",
-        "name":        "Inbox Handler",
+        "id": "inbox_handler",
+        "name": "Inbox Handler",
         "description": "NarAI replies to comments, DMs, and messages across all platforms",
-        "frequency":   "every_30min",
-        "time":        "*/30",
-        "category":    "social",
-        "icon":        "💬",
-        "enabled":     True,
-        "trigger_fn":  "core.narai_autopilot._narai_inbox_handler",
+        "frequency": "every_30min",
+        "time": "*/30",
+        "category": "social",
+        "icon": "💬",
+        "enabled": True,
+        "trigger_fn": "core.narai_autopilot._narai_inbox_handler",
     },
     {
-        "id":          "video_creator",
-        "name":        "Video Creator",
+        "id": "video_creator",
+        "name": "Video Creator",
         "description": "AI video creation session: scripts, Runway ML generation, posting",
-        "frequency":   "daily",
-        "time":        "11:00",
-        "category":    "video",
-        "icon":        "🎥",
-        "enabled":     True,
-        "trigger_fn":  "core.video_engine.run_video_session",
+        "frequency": "daily",
+        "time": "11:00",
+        "category": "video",
+        "icon": "🎥",
+        "enabled": True,
+        "trigger_fn": "core.video_engine.run_video_session",
     },
 ]
 
@@ -258,7 +257,7 @@ def _now_iso() -> str:
 def _next_run(schedule: Dict) -> str:
     """Calculate the next run time for a schedule."""
     freq = schedule.get("frequency", "daily")
-    t    = schedule.get("time", "00:00")
+    t = schedule.get("time", "00:00")
 
     now = datetime.now(timezone.utc)
     try:
@@ -273,7 +272,7 @@ def _next_run(schedule: Dict) -> str:
 
         if freq == "weekly":
             day_name = schedule.get("day", "monday").lower()
-            days_map  = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
+            days_map = {"monday": 0, "tuesday": 1, "wednesday": 2, "thursday": 3,
                          "friday": 4, "saturday": 5, "sunday": 6}
             target_dow = days_map.get(day_name, 0)
             days_ahead = (target_dow - now.weekday()) % 7
@@ -300,19 +299,19 @@ def get_schedules() -> List[Dict]:
     Always returns the full canonical list with runtime state overlaid.
     """
     persisted = _load()
-    result    = []
+    result = []
 
     for sched in DEFAULT_SCHEDULES:
-        sid   = sched["id"]
+        sid = sched["id"]
         saved = persisted.get(sid, {})
 
         merged = dict(sched)
         # Overlay persisted state
-        merged["enabled"]   = saved.get("enabled",  sched["enabled"])
-        merged["last_run"]  = saved.get("last_run",  None)
+        merged["enabled"] = saved.get("enabled", sched["enabled"])
+        merged["last_run"] = saved.get("last_run", None)
         merged["last_status"] = saved.get("last_status", "never")
         merged["run_count"] = saved.get("run_count", 0)
-        merged["next_run"]  = _next_run(merged) if merged["enabled"] else None
+        merged["next_run"] = _next_run(merged) if merged["enabled"] else None
 
         result.append(merged)
 
@@ -341,14 +340,14 @@ def update_schedule(schedule_id: str, enabled: Optional[bool] = None, time: Opti
 
     if schedule_id not in persisted:
         # Initialize from defaults
-        defaults  = {s["id"]: s for s in DEFAULT_SCHEDULES}
-        base      = defaults.get(schedule_id, {})
+        defaults = {s["id"]: s for s in DEFAULT_SCHEDULES}
+        base = defaults.get(schedule_id, {})
         persisted[schedule_id] = {
-            "id":          schedule_id,
-            "enabled":     base.get("enabled", True),
-            "last_run":    None,
+            "id": schedule_id,
+            "enabled": base.get("enabled", True),
+            "last_run": None,
             "last_status": "never",
-            "run_count":   0,
+            "run_count": 0,
         }
 
     if enabled is not None:
@@ -366,9 +365,9 @@ def mark_ran(schedule_id: str, status: str = "success"):
     if schedule_id not in persisted:
         persisted[schedule_id] = {"id": schedule_id, "enabled": True}
 
-    persisted[schedule_id]["last_run"]    = _now_iso()
+    persisted[schedule_id]["last_run"] = _now_iso()
     persisted[schedule_id]["last_status"] = status
-    persisted[schedule_id]["run_count"]   = persisted[schedule_id].get("run_count", 0) + 1
+    persisted[schedule_id]["run_count"] = persisted[schedule_id].get("run_count", 0) + 1
     _save(persisted)
 
 
@@ -401,8 +400,8 @@ def trigger_schedule(schedule_id: str) -> Dict:
     t.start()
 
     return {
-        "success":     True,
-        "message":     f"Schedule '{schedule['name']}' triggered",
+        "success": True,
+        "message": f"Schedule '{schedule['name']}' triggered",
         "schedule_id": schedule_id,
     }
 
@@ -416,7 +415,7 @@ def _dispatch_trigger(trigger_fn: str, schedule_id: str):
     if ":" in trigger_fn:
         trigger_fn, arg = trigger_fn.rsplit(":", 1)
 
-    parts   = trigger_fn.rsplit(".", 1)
+    parts = trigger_fn.rsplit(".", 1)
     if len(parts) != 2:
         raise ValueError(f"Invalid trigger_fn: {trigger_fn}")
 
@@ -424,7 +423,7 @@ def _dispatch_trigger(trigger_fn: str, schedule_id: str):
 
     import importlib
     mod = importlib.import_module(module_path)
-    fn  = getattr(mod, fn_name)
+    fn = getattr(mod, fn_name)
 
     if arg is not None:
         fn(arg)
@@ -435,15 +434,15 @@ def _dispatch_trigger(trigger_fn: str, schedule_id: str):
 def get_schedule_stats() -> Dict:
     """Return summary stats for the dashboard."""
     schedules = get_schedules()
-    enabled   = [s for s in schedules if s.get("enabled")]
+    enabled = [s for s in schedules if s.get("enabled")]
     ran_today = [
         s for s in schedules
         if s.get("last_run") and s["last_run"][:10] == datetime.now().strftime("%Y-%m-%d")
     ]
     return {
-        "total":      len(schedules),
-        "enabled":    len(enabled),
-        "disabled":   len(schedules) - len(enabled),
-        "ran_today":  len(ran_today),
+        "total": len(schedules),
+        "enabled": len(enabled),
+        "disabled": len(schedules) - len(enabled),
+        "ran_today": len(ran_today),
         "categories": list({s["category"] for s in schedules}),
     }

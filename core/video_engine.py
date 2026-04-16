@@ -20,43 +20,170 @@ After generation, video is auto-posted to:
 """
 from __future__ import annotations
 
-import json
 import logging
 import os
+import subprocess
 import time
 from pathlib import Path
 from typing import Optional
 
-import httpx
 import requests
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR   = ROOT / "data"
-VIDEO_DIR  = ROOT / "outputs" / "videos"
+DATA_DIR = ROOT / "data"
+VIDEO_DIR = ROOT / "outputs" / "videos"
 VIDEO_DIR.mkdir(parents=True, exist_ok=True)
 
 log = logging.getLogger("video_engine")
 
-RUNWAY_KEY  = os.getenv("RUNWAYML_API_KEY", "")
-PIKA_KEY    = os.getenv("PIKA_API_KEY", "")
-HEYGEN_KEY  = os.getenv("HEYGEN_API_KEY", "")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# AUDIO GUARD — detect silent video and add audio before publishing
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _has_audio(video_path: str) -> bool:
+    """Return True if the video file contains at least one audio stream."""
+    try:
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "error",
+                "-select_streams", "a",
+                "-show_entries", "stream=codec_type",
+                "-of", "csv=p=0",
+                str(video_path),
+            ],
+            capture_output=True, text=True, timeout=15,
+        )
+        return bool(result.stdout.strip())
+    except FileNotFoundError:
+        log.warning("ffprobe not found — skipping audio check (install ffmpeg)")
+        return True   # assume ok if we can't check
+    except Exception as e:
+        log.warning(f"Audio check failed: {e}")
+        return True
+
+
+def _add_audio_to_video(video_path: str, caption: str = "") -> str:
+    """
+    Add audio to a silent video.  Strategy (in order):
+      1. ElevenLabs TTS of the caption → overlay as voiceover
+      2. Royalty-free background music from a local file
+      3. Generate a simple sine-tone placeholder (so the file isn't rejected)
+
+    Returns path to the new video with audio (original untouched).
+    """
+    video_path = Path(video_path)
+    out_path = video_path.parent / f"{video_path.stem}_with_audio{video_path.suffix}"
+
+    audio_path: Optional[Path] = None
+
+    # ── Strategy 1: ElevenLabs TTS voiceover ──────────────────────────────────
+    if caption and os.getenv("ELEVENLABS_API_KEY"):
+        try:
+            from core.elevenlabs import text_to_speech
+            tts_text = caption[:500]   # keep it short
+            audio_bytes = text_to_speech(tts_text)
+            if audio_bytes:
+                audio_path = video_path.parent / f"{video_path.stem}_tts.mp3"
+                audio_path.write_bytes(audio_bytes)
+                log.info(f"TTS audio generated: {audio_path}")
+        except Exception as e:
+            log.warning(f"ElevenLabs TTS failed: {e}")
+
+    # ── Strategy 2: local background music file ────────────────────────────────
+    if audio_path is None:
+        bgm_candidates = [
+            ROOT / "data" / "background_music.mp3",
+            ROOT / "data" / "bgm.mp3",
+            ROOT / "assets" / "bgm.mp3",
+        ]
+        for f in bgm_candidates:
+            if f.exists():
+                audio_path = f
+                log.info(f"Using background music: {audio_path}")
+                break
+
+    # ── Strategy 3: generate 1kHz sine tone (silent fallback) ─────────────────
+    if audio_path is None:
+        try:
+            tone_path = video_path.parent / f"{video_path.stem}_tone.mp3"
+            subprocess.run(
+                [
+                    "ffmpeg", "-y",
+                    "-f", "lavfi", "-i", "sine=frequency=1000:duration=60",
+                    "-q:a", "9", str(tone_path),
+                ],
+                capture_output=True, timeout=30,
+            )
+            audio_path = tone_path
+            log.info("Generated sine tone fallback audio")
+        except Exception as e:
+            log.error(f"Sine tone generation failed: {e}")
+            return str(video_path)   # give up, return original
+
+    # ── Mix audio into video with ffmpeg ──────────────────────────────────────
+    try:
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-i", str(video_path),
+                "-i", str(audio_path),
+                "-map", "0:v:0",
+                "-map", "1:a:0",
+                "-shortest",
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                str(out_path),
+            ],
+            capture_output=True, timeout=120, check=True,
+        )
+        log.info(f"Audio added: {out_path}")
+        return str(out_path)
+    except subprocess.CalledProcessError as e:
+        log.error(f"ffmpeg mix failed: {e.stderr.decode()[:200]}")
+        return str(video_path)   # return original on failure
+
+
+def ensure_audio(video_path: str, caption: str = "") -> tuple[str, bool]:
+    """
+    Check if video has audio. If not, add it.
+    Returns (final_video_path, was_fixed) where was_fixed=True means audio was added.
+    """
+    if _has_audio(video_path):
+        return video_path, False
+
+    log.warning(f"Silent video detected: {video_path} — adding audio before publish")
+    fixed_path = _add_audio_to_video(video_path, caption=caption)
+    was_fixed = fixed_path != video_path
+    if was_fixed:
+        log.info(f"Audio fix applied → {fixed_path}")
+    else:
+        log.error(f"Could not add audio to {video_path} — publishing anyway")
+    return fixed_path, was_fixed
+
+
+RUNWAY_KEY = os.getenv("RUNWAYML_API_KEY", "")
+PIKA_KEY = os.getenv("PIKA_API_KEY", "")
+HEYGEN_KEY = os.getenv("HEYGEN_API_KEY", "")
 
 # Pika style presets
 PIKA_STYLES = {
-    "anime":      "anime",
-    "cartoon":    "cartoon",
-    "3d":         "3d_animation",
-    "cinematic":  "cinematic",
+    "anime": "anime",
+    "cartoon": "cartoon",
+    "3d": "3d_animation",
+    "cinematic": "cinematic",
     "watercolor": "watercolor",
-    "default":    "cinematic",
+    "default": "cinematic",
 }
 
 # ══════════════════════════════════════════════════════════════════════════════
 # RUNWAY ML
 # ══════════════════════════════════════════════════════════════════════════════
+
 
 def runway_generate(prompt: str, duration: int = 5, ratio: str = "1280:768") -> dict:
     """
@@ -73,11 +200,11 @@ def runway_generate(prompt: str, duration: int = 5, ratio: str = "1280:768") -> 
     }
 
     payload = {
-        "model":       "gen4.5",
-        "promptText":  prompt[:500],
-        "duration":    duration,    # 5 or 10 seconds
-        "ratio":       ratio,       # "1280:720" landscape | "720:1280" portrait (TikTok)
-        "watermark":   False,
+        "model": "gen4.5",
+        "promptText": prompt[:500],
+        "duration": duration,    # 5 or 10 seconds
+        "ratio": ratio,       # "1280:720" landscape | "720:1280" portrait (TikTok)
+        "watermark": False,
     }
 
     try:
@@ -217,7 +344,7 @@ def heygen_generate(script: str, avatar_id: str = "", voice_id: str = "") -> dic
 
     # Use defaults from env if not provided
     avatar_id = avatar_id or os.getenv("HEYGEN_AVATAR_ID", "")
-    voice_id  = voice_id  or os.getenv("HEYGEN_VOICE_ID", "")
+    voice_id = voice_id or os.getenv("HEYGEN_VOICE_ID", "")
 
     headers = {
         "X-Api-Key": HEYGEN_KEY,
@@ -307,10 +434,10 @@ def generate_video(prompt: str, style: str = "cinematic", platform: str = "tikto
 def get_available_engines() -> dict:
     """Return which video engines are configured."""
     return {
-        "runway":  bool(RUNWAY_KEY),
-        "pika":    bool(PIKA_KEY),
-        "heygen":  bool(HEYGEN_KEY),
-        "any":     bool(RUNWAY_KEY or PIKA_KEY or HEYGEN_KEY),
+        "runway": bool(RUNWAY_KEY),
+        "pika": bool(PIKA_KEY),
+        "heygen": bool(HEYGEN_KEY),
+        "any": bool(RUNWAY_KEY or PIKA_KEY or HEYGEN_KEY),
     }
 
 
@@ -330,12 +457,18 @@ def post_video_to_tiktok(video_path: str, caption: str) -> dict:
 
 
 def post_video_to_instagram(video_path: str, caption: str) -> dict:
-    """Upload video/reel to Instagram via Graph API (resumable upload for local file)."""
+    """Upload video/reel to Instagram via Graph API. Auto-adds audio if video is silent."""
+    video_path, audio_fixed = ensure_audio(video_path, caption=caption)
     try:
         from core.instagram import InstagramClient
         client = InstagramClient()
         result = client.post(caption, video_path=video_path)
-        return {"success": result.get("status") == "posted", "platform": "instagram", "result": result}
+        return {
+            "success": result.get("status") == "posted",
+            "platform": "instagram",
+            "result": result,
+            "audio_fixed": audio_fixed,
+        }
     except Exception as e:
         return {"success": False, "platform": "instagram", "error": str(e)}
 
@@ -357,15 +490,64 @@ def post_video_to_youtube(video_path: str, title: str, description: str,
 
 
 def post_video_to_facebook(video_path: str, title: str, description: str) -> dict:
-    """Upload video to Facebook Page via Graph API (multipart upload for local file)."""
+    """Upload video to Facebook Page via Graph API. Auto-adds audio if video is silent."""
+    caption = f"{title}\n\n{description}" if title else description
+    video_path, audio_fixed = ensure_audio(video_path, caption=caption)
     try:
         from core.facebook import FacebookClient
         client = FacebookClient()
-        caption = f"{title}\n\n{description}" if title else description
         result = client.post(caption, video_path=video_path)
-        return {"success": result.get("status") == "posted", "platform": "facebook", "result": result}
+        return {
+            "success": result.get("status") == "posted",
+            "platform": "facebook",
+            "result": result,
+            "audio_fixed": audio_fixed,
+        }
     except Exception as e:
         return {"success": False, "platform": "facebook", "error": str(e)}
+
+
+def repost_with_audio(video_path: str, caption: str, title: str = "",
+                      platforms: list = None) -> dict:
+    """
+    Detect a silent video, fix it, and repost to the specified platforms.
+    Use this when a previously published video had no sound.
+
+    Returns a report of what was fixed and what was reposted.
+    """
+    if not platforms:
+        platforms = ["instagram", "facebook"]
+
+    had_audio = _has_audio(video_path)
+    fixed_path, was_fixed = ensure_audio(video_path, caption=caption)
+
+    results = {
+        "original_path": video_path,
+        "fixed_path": fixed_path,
+        "had_audio": had_audio,
+        "audio_added": was_fixed,
+        "platforms": {},
+    }
+
+    for platform in platforms:
+        if platform == "instagram":
+            results["platforms"]["instagram"] = post_video_to_instagram(fixed_path, caption)
+        elif platform == "facebook":
+            results["platforms"]["facebook"] = post_video_to_facebook(fixed_path, title, caption)
+        elif platform == "tiktok":
+            results["platforms"]["tiktok"] = post_video_to_tiktok(fixed_path, caption)
+        elif platform == "youtube":
+            results["platforms"]["youtube"] = post_video_to_youtube(fixed_path, title, caption)
+
+    all_ok = all(v.get("success") for v in results["platforms"].values())
+    results["success"] = all_ok
+    results["summary"] = (
+        f"Audio {'added and ' if was_fixed else ''}reposted to "
+        f"{', '.join(p for p, r in results['platforms'].items() if r.get('success'))}."
+        if all_ok else
+        "Partial repost. Check platform errors."
+    )
+    return results
 
 
 def publish_video_everywhere(video_path: str, title: str, caption: str,
@@ -386,7 +568,7 @@ def publish_video_everywhere(video_path: str, title: str, caption: str,
             results[p] = post_video_to_facebook(video_path, title, caption)
 
     published = [p for p, r in results.items() if r.get("success")]
-    failed    = [p for p, r in results.items() if not r.get("success")]
+    failed = [p for p, r in results.items() if not r.get("success")]
     return {"published": published, "failed": failed, "details": results}
 
 

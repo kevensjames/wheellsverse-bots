@@ -1,0 +1,7 @@
+{
+  "description": "WhatsApp Inner Circle ($19/month) — sends daily tips, recruits members, manages 200-person paid community. Target: $3,800 MRR.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 08:30",
+  "action": "daily_tip"
+}

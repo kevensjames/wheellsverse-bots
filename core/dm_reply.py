@@ -33,23 +33,23 @@ import threading
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR   = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-CONV_FILE  = DATA_DIR / "dm_conversations.json"
+CONV_FILE = DATA_DIR / "dm_conversations.json"
 
 logger = logging.getLogger("dm_reply")
 
-BRAND        = os.getenv("BRAND_NAME", "WheellsVerse")
-AUTHOR       = os.getenv("AUTHOR_NAME", "J.K. Blaze")
-CTA_URL      = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-STRIPE_PRO   = os.getenv("STRIPE_PRO_URL", "")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+STRIPE_PRO = os.getenv("STRIPE_PRO_URL", "")
 POLL_SECONDS = 10    # fallback poll interval (webhook is primary)
 
 
@@ -59,11 +59,11 @@ class Person:
     """Stores everything we know about one person across all platforms."""
 
     def __init__(self, person_id: str, platform: str, name: str = ""):
-        self.person_id    = person_id
-        self.platform     = platform
-        self.name         = name
-        self.first_seen   = datetime.now().isoformat()
-        self.last_seen    = self.first_seen
+        self.person_id = person_id
+        self.platform = platform
+        self.name = name
+        self.first_seen = datetime.now().isoformat()
+        self.last_seen = self.first_seen
         self.message_count = 0
         self.intents_seen: List[str] = []
         self.added_to_list = False
@@ -88,7 +88,7 @@ class Person:
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Person":
-        p = cls(d["person_id"], d.get("platform",""), d.get("name",""))
+        p = cls(d["person_id"], d.get("platform", ""), d.get("name", ""))
         for k, v in d.items():
             setattr(p, k, v)
         return p
@@ -107,7 +107,7 @@ class DMReplyEngine:
 
     def __init__(self):
         self._people: Dict[str, Person] = {}
-        self._running  = False
+        self._running = False
         self._thread: Optional[threading.Thread] = None
         self._seen_dm_ids: set = set()
         self._file_lock = threading.Lock()
@@ -140,7 +140,7 @@ class DMReplyEngine:
         with self._file_lock:
             try:
                 CONV_FILE.write_text(json.dumps({
-                    "people":   {pid: p.to_dict() for pid, p in self._people.items()},
+                    "people": {pid: p.to_dict() for pid, p in self._people.items()},
                     "seen_ids": list(self._seen_dm_ids)[-5000:],
                 }, indent=2), encoding="utf-8")
             except Exception as e:
@@ -162,7 +162,7 @@ class DMReplyEngine:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(
+        self._thread = threading.Thread(
             target=self._run, daemon=True, name="DMReplyEngine"
         )
         self._thread.start()
@@ -210,12 +210,12 @@ class DMReplyEngine:
                     self._seen_dm_ids.add(dm_id)
 
                     sender_id = str(dm.sender_id)
-                    text      = dm.text or ""
+                    text = dm.text or ""
                     if not text.strip():
                         continue
 
                     person = self._get_person(sender_id, "twitter")
-                    reply  = self.handle_message(person, text, "twitter")
+                    reply = self.handle_message(person, text, "twitter")
 
                     if reply:
                         try:
@@ -234,7 +234,7 @@ class DMReplyEngine:
 
     def _poll_facebook_inbox(self):
         """Read Facebook Page messages and reply."""
-        token   = os.getenv("FACEBOOK_PAGE_TOKEN")
+        token = os.getenv("FACEBOOK_PAGE_TOKEN")
         page_id = os.getenv("FACEBOOK_PAGE_ID")
         if not (token and page_id):
             return
@@ -256,21 +256,21 @@ class DMReplyEngine:
                         continue
                     self._seen_dm_ids.add(msg_id)
 
-                    sender   = msg.get("from", {})
+                    sender = msg.get("from", {})
                     sender_id = sender.get("id", "")
-                    name      = sender.get("name", "")
-                    text      = msg.get("message", "")
+                    name = sender.get("name", "")
+                    text = msg.get("message", "")
 
                     if not text or sender_id == page_id:
                         continue  # skip our own messages
 
                     person = self._get_person(sender_id, "facebook", name)
-                    reply  = self.handle_message(person, text, "facebook")
+                    reply = self.handle_message(person, text, "facebook")
 
                     if reply:
                         try:
                             _req.post(
-                                f"https://graph.facebook.com/v19.0/me/messages",
+                                "https://graph.facebook.com/v19.0/me/messages",
                                 params={"access_token": token},
                                 json={"recipient": {"id": sender_id}, "message": {"text": reply}},
                                 timeout=10,
@@ -283,7 +283,7 @@ class DMReplyEngine:
 
     def _poll_instagram_comments(self):
         """Read recent Instagram comments and reply."""
-        token      = os.getenv("INSTAGRAM_PAGE_TOKEN")
+        token = os.getenv("INSTAGRAM_PAGE_TOKEN")
         account_id = os.getenv("INSTAGRAM_ACCOUNT_ID")
         if not (token and account_id):
             return
@@ -308,18 +308,18 @@ class DMReplyEngine:
                 if comments_resp.status_code != 200:
                     continue
                 for comment in comments_resp.json().get("data", [])[:5]:
-                    cid  = comment.get("id", "")
+                    cid = comment.get("id", "")
                     if cid in self._seen_dm_ids:
                         continue
                     self._seen_dm_ids.add(cid)
 
                     username = comment.get("username", "")
-                    text     = comment.get("text", "")
+                    text = comment.get("text", "")
                     if not text:
                         continue
 
                     person = self._get_person(username, "instagram", username)
-                    reply  = self.handle_message(person, text, "instagram")
+                    reply = self.handle_message(person, text, "instagram")
 
                     if reply:
                         try:
@@ -367,20 +367,20 @@ class DMReplyEngine:
                 if text.startswith("/"):
                     continue
 
-                chat      = msg.get("chat", {})
-                chat_id   = str(chat.get("id", ""))
+                chat = msg.get("chat", {})
+                chat_id = str(chat.get("id", ""))
                 chat_type = chat.get("type", "")
-                name      = (chat.get("first_name", "") + " " +
+                name = (chat.get("first_name", "") + " " +
                              chat.get("last_name", "")).strip() or chat.get("title", "Owner")
 
                 # Route to NarAI: owner's private channel OR anyone DMing the bot directly
                 is_owner_channel = (chat_id == owner_chat_id)
-                is_private_dm    = (chat_type == "private")
+                is_private_dm = (chat_type == "private")
                 if is_owner_channel or is_private_dm:
                     reply = self._narai_owner_reply(text)
                 else:
                     person = self._get_person(chat_id, "telegram", name)
-                    reply  = self.handle_message(person, text, "telegram")
+                    reply = self.handle_message(person, text, "telegram")
                     self._save()
 
                 if reply:
@@ -422,7 +422,7 @@ class DMReplyEngine:
         Returns the reply text (caller sends it).
         """
         person = self._get_person(sender_id, "whatsapp", name)
-        reply  = self.handle_message(person, text, "whatsapp")
+        reply = self.handle_message(person, text, "whatsapp")
         self._save()
         return reply
 
@@ -515,11 +515,11 @@ class DMReplyEngine:
 
             # Intent-specific instruction
             intent_hint = {
-                "question":  "Answer thoroughly but concisely. Be the expert.",
+                "question": "Answer thoroughly but concisely. Be the expert.",
                 "complaint": "Empathize first, then offer a real solution. Never defensive.",
-                "interest":  "Build excitement, give them one compelling reason to take action.",
-                "purchase":  "Help them understand the value clearly. Be direct about next step.",
-                "general":   "Be friendly and engaging. Ask a question back.",
+                "interest": "Build excitement, give them one compelling reason to take action.",
+                "purchase": "Help them understand the value clearly. Be direct about next step.",
+                "general": "Be friendly and engaging. Ask a question back.",
             }.get(intent, "Be helpful and on-brand.")
 
             # Platform-specific length limit
@@ -557,8 +557,6 @@ Never mention you're an AI unless they ask directly."""
     def _add_to_email_list(self, person: Person):
         """Add interested person to ConvertKit list."""
         try:
-            from core.convertkit import ConvertKitClient
-            ck = ConvertKitClient()
             # We don't have their email from a DM — flag for follow-up instead
             person.added_to_list = True
             logger.info(f"[DMReply] Flagged {person.name or person.person_id} for email follow-up")
@@ -586,15 +584,15 @@ Never mention you're an AI unless they ask directly."""
                 intents[i] = intents.get(i, 0) + 1
 
         return {
-            "total_people":    len(people),
-            "active_today":    len(active_today),
-            "total_messages":  sum(p.message_count for p in people),
-            "added_to_list":   sum(1 for p in people if p.added_to_list),
+            "total_people": len(people),
+            "active_today": len(active_today),
+            "total_messages": sum(p.message_count for p in people),
+            "added_to_list": sum(1 for p in people if p.added_to_list),
             "purchase_intent": sum(1 for p in people if "purchase" in p.intents_seen),
             "intent_breakdown": intents,
             "platforms": {
                 plat: sum(1 for p in people if p.platform == plat)
-                for plat in ["twitter","facebook","instagram","telegram","whatsapp"]
+                for plat in ["twitter", "facebook", "instagram", "telegram", "whatsapp"]
             }
         }
 

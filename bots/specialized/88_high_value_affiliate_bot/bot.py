@@ -12,22 +12,22 @@ import random
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL   = os.getenv("AFFILIATE_COINBASE_URL",  "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
-ROBINHOOD_URL  = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
-AMAZON_TAG     = os.getenv("AFFILIATE_AMAZON_TAG",    "wheellsverse-20")
-AMAZON_TAG2    = os.getenv("AFFILIATE_AMAZON_TAG_2",  "naraiinsights-20")
-AMAZON_VIDEO   = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", "https://www.amazon.com/gp/video/storefront?tag=naraiinsights-20")
-CLICKBANK_URL  = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+AMAZON_TAG2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
+AMAZON_VIDEO = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", "https://www.amazon.com/gp/video/storefront?tag=naraiinsights-20")
+CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
 CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
-JASPER_URL     = os.getenv("AFFILIATE_JASPER_URL",    "https://www.jasper.ai/")
-APPSUMO_URL    = os.getenv("AFFILIATE_APPSUMO_URL",   "https://appsumo.com/")
-FIVERR_URL     = os.getenv("AFFILIATE_FIVERR_URL",    "https://www.fiverr.com/")
-BLUEHOST_URL   = os.getenv("AFFILIATE_BLUEHOST_URL",  "https://www.bluehost.com/")
-CTA_URL        = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-BRAND          = os.getenv("BRAND_NAME", "WheellsVerse")
-AUTHOR         = os.getenv("AUTHOR_NAME", "J.K. Blaze")
+JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
+APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
+FIVERR_URL = os.getenv("AFFILIATE_FIVERR_URL", "https://www.fiverr.com/")
+BLUEHOST_URL = os.getenv("AFFILIATE_BLUEHOST_URL", "https://www.bluehost.com/")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 
 HIGH_VALUE_ANGLES = [
     # AI Tools niche — $25-75 recurring commissions

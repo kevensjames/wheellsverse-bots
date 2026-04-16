@@ -31,7 +31,6 @@ Auth (Meta Graph API — same token as Instagram):
 ─────────────────────────────────────────────────────────────────────────────
 """
 
-import json
 import logging
 import os
 import time
@@ -44,10 +43,10 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-logger   = logging.getLogger("threads")
+logger = logging.getLogger("threads")
 API_BASE = "https://graph.threads.net/v1.0"
-BRAND    = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL  = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 
 # Threads posts: max 500 chars
 MAX_CHARS = 500
@@ -97,7 +96,7 @@ def post_text(text: str) -> Dict:
     Post a text thread (up to 500 chars).
     Threads API: create container → publish.
     """
-    token   = _get_token()
+    token = _get_token()
     user_id = _get_user_id()
 
     if not (token and user_id):
@@ -110,8 +109,8 @@ def post_text(text: str) -> Dict:
         container_resp = requests.post(
             f"{API_BASE}/{user_id}/threads",
             params={
-                "media_type":   "TEXT",
-                "text":         text,
+                "media_type": "TEXT",
+                "text": text,
                 "access_token": token,
             },
             timeout=20,
@@ -130,7 +129,7 @@ def post_text(text: str) -> Dict:
         pub_resp = requests.post(
             f"{API_BASE}/{user_id}/threads_publish",
             params={
-                "creation_id":  container_id,
+                "creation_id": container_id,
                 "access_token": token,
             },
             timeout=20,
@@ -150,7 +149,7 @@ def post_text(text: str) -> Dict:
 
 def post_with_image(text: str, image_url: str = None) -> Dict:
     """Post a thread with an image."""
-    token   = _get_token()
+    token = _get_token()
     user_id = _get_user_id()
 
     if not (token and user_id):
@@ -169,16 +168,16 @@ def post_with_image(text: str, image_url: str = None) -> Dict:
         container_resp = requests.post(
             f"{API_BASE}/{user_id}/threads",
             params={
-                "media_type":   "IMAGE",
-                "image_url":    image_url,
-                "text":         text,
+                "media_type": "IMAGE",
+                "image_url": image_url,
+                "text": text,
                 "access_token": token,
             },
             timeout=20,
         )
 
         if container_resp.status_code not in (200, 201):
-            logger.warning(f"[Threads] Image container failed, falling back to text")
+            logger.warning("[Threads] Image container failed, falling back to text")
             return post_text(text)
 
         container_id = container_resp.json().get("id", "")
@@ -204,7 +203,7 @@ def post_with_image(text: str, image_url: str = None) -> Dict:
 
 def reply_to_thread(thread_id: str, text: str) -> Dict:
     """Reply to an existing thread."""
-    token   = _get_token()
+    token = _get_token()
     user_id = _get_user_id()
     if not (token and user_id):
         return {"error": "Threads not configured"}
@@ -214,10 +213,10 @@ def reply_to_thread(thread_id: str, text: str) -> Dict:
         container_resp = requests.post(
             f"{API_BASE}/{user_id}/threads",
             params={
-                "media_type":      "TEXT",
-                "text":            text,
-                "reply_to_id":    thread_id,
-                "access_token":    token,
+                "media_type": "TEXT",
+                "text": text,
+                "reply_to_id": thread_id,
+                "access_token": token,
             },
             timeout=20,
         )
@@ -256,9 +255,9 @@ def generate_post(topic: str, niche: str = "general",
 
         style_guide = {
             "conversational": "Casual, relatable, like texting a smart friend. Ask a question.",
-            "insight":        "Share a non-obvious insight. Start with a bold claim.",
-            "story":          "Mini personal story. 3 sentences max. What happened, what I learned.",
-            "list":           "Quick list: 3 things most people don't know about this topic.",
+            "insight": "Share a non-obvious insight. Start with a bold claim.",
+            "story": "Mini personal story. 3 sentences max. What happened, what I learned.",
+            "list": "Quick list: 3 things most people don't know about this topic.",
         }.get(style, "Casual and punchy.")
 
         resp = client.chat.completions.create(
@@ -291,7 +290,7 @@ def repurpose_from_twitter(tweet_thread: str, topic: str = "") -> str:
     try:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp   = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             messages=[{"role": "user", "content": (
                 f"Convert this Twitter thread into a single Threads post (max 480 chars).\n"
@@ -313,7 +312,7 @@ def repurpose_from_instagram(caption: str, topic: str = "") -> str:
     try:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp   = client.chat.completions.create(
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             messages=[{"role": "user", "content": (
                 f"Convert this Instagram caption into a Threads post (max 480 chars).\n"
@@ -335,10 +334,10 @@ def post_series(topics: List[str], niche: str = "general",
     """Post a series of Threads posts on multiple topics."""
     results = []
     for i, topic in enumerate(topics):
-        text   = generate_post(topic, niche=niche)
+        text = generate_post(topic, niche=niche)
         result = post_text(text) if text else {"error": "generation failed"}
         results.append({"topic": topic, **result})
-        logger.info(f"[Threads] Series {i+1}/{len(topics)}: {result.get('status','error')}")
+        logger.info(f"[Threads] Series {i + 1}/{len(topics)}: {result.get('status', 'error')}")
         if i < len(topics) - 1:
             time.sleep(delay_seconds)
     return results
@@ -353,7 +352,7 @@ def get_thread_stats(thread_id: str) -> Dict:
         resp = requests.get(
             f"{API_BASE}/{thread_id}/insights",
             params={
-                "metric":       "views,likes,replies,reposts,quotes",
+                "metric": "views,likes,replies,reposts,quotes",
                 "access_token": token,
             },
             timeout=10,
@@ -369,10 +368,10 @@ def _generate_image(prompt: str) -> Optional[str]:
     try:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp   = client.images.generate(
+        resp = client.images.generate(
             model="dall-e-3",
             prompt=f"Social media image for Threads post: {prompt}. "
-                   "Clean, modern, dark background, purple/cyan tech aesthetic.",
+            "Clean, modern, dark background, purple/cyan tech aesthetic.",
             size="1024x1024",
             quality="standard",
             n=1,

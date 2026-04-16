@@ -13,11 +13,11 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
-AMAZON_TAG     = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-COINBASE_URL   = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
-ROBINHOOD_URL  = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
+AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
+COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1")
+ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1")
 
 # TikTok topics that drive affiliate clicks
 TRENDING_TOPICS = [
@@ -40,7 +40,6 @@ class TiktokAffiliateBotBot(BaseBot):
 
     def run(self, topic: str = None, video_url: str = None,
             privacy: str = "SELF_ONLY", **kwargs):
-        cfg = self.config
 
         # Rotate topics automatically
         import random
@@ -95,11 +94,11 @@ Goal: maximum affiliate clicks + follows"""
                 "cta": f"Sign up for free: {ROBINHOOD_URL}",
             }
 
-        caption   = content.get("caption", "")
-        script    = content.get("script", "")
-        hook      = content.get("hook", "")
-        hashtags  = " ".join(content.get("hashtags", []))
-        cta       = content.get("cta", "")
+        caption = content.get("caption", "")
+        script = content.get("script", "")
+        hook = content.get("hook", "")
+        hashtags = " ".join(content.get("hashtags", []))
+        cta = content.get("cta", "")
 
         # Full caption for TikTok post
         full_caption = f"{caption}\n\n{hashtags}"
@@ -130,12 +129,12 @@ Goal: maximum affiliate clicks + follows"""
         self.logger.info(f"Saved: {path}")
 
         result = {
-            "file":     str(path),
-            "topic":    topic,
-            "bot":      self.name,
-            "caption":  full_caption,
-            "script":   script,
-            "posted":   False,
+            "file": str(path),
+            "topic": topic,
+            "bot": self.name,
+            "caption": full_caption,
+            "script": script,
+            "posted": False,
             "publish_id": None,
         }
 
@@ -150,7 +149,7 @@ Goal: maximum affiliate clicks + follows"""
                     caption=full_caption,
                     privacy=privacy,
                 )
-                result["posted"]     = True
+                result["posted"] = True
                 result["publish_id"] = post_result.get("publish_id")
                 self.logger.info(f"Posted to TikTok — publish_id: {result['publish_id']}")
             except Exception as e:

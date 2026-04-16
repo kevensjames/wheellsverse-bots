@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class HashtagGeneratorBot(BaseBot):
@@ -22,9 +22,9 @@ class HashtagGeneratorBot(BaseBot):
             niche: str = None, num_sets: int = None, **kwargs):
 
         cfg = self.config
-        topic    = topic or cfg.get("topic", "AI automation for entrepreneurs")
+        topic = topic or cfg.get("topic", "AI automation for entrepreneurs")
         platforms = platforms or cfg.get("platforms", "instagram,tiktok,twitter,linkedin")
-        niche    = niche or cfg.get("niche", "AI and entrepreneurship")
+        niche = niche or cfg.get("niche", "AI and entrepreneurship")
         num_sets = num_sets or cfg.get("num_sets", 5)
 
         platform_list = [p.strip() for p in platforms.split(",")]
@@ -41,10 +41,10 @@ class HashtagGeneratorBot(BaseBot):
 
         platform_rules = {
             "instagram": "Mix of 3-5 large (1M+), 5-8 medium (100K-1M), and 5-7 niche (<100K). Max 30 total.",
-            "tiktok":    "Use 3-5 highly relevant tags only. Include 1-2 trending sounds-related tags. TikTok penalizes hashtag stuffing.",
-            "twitter":   "1-3 hashtags max. Use current trending tags when relevant. Short, memorable.",
-            "linkedin":  "3-5 professional hashtags. Mix of broad industry + specific niche. No trending chasing.",
-            "youtube":   "15-20 in description. Mix of broad (100K+ searches) and specific. Include 3-5 exact-match keywords.",
+            "tiktok": "Use 3-5 highly relevant tags only. Include 1-2 trending sounds-related tags. TikTok penalizes hashtag stuffing.",
+            "twitter": "1-3 hashtags max. Use current trending tags when relevant. Short, memorable.",
+            "linkedin": "3-5 professional hashtags. Mix of broad industry + specific niche. No trending chasing.",
+            "youtube": "15-20 in description. Mix of broad (100K+ searches) and specific. Include 3-5 exact-match keywords.",
             "pinterest": "Keyword-rich phrases as hashtags. 2-5 per pin. Focus on searchability.",
         }
 
@@ -126,10 +126,10 @@ Top 5 errors that kill reach and how to avoid them
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Hashtag Strategy Generator")
-    parser.add_argument("--topic",     type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--platforms", type=str, default="instagram,tiktok,twitter")
-    parser.add_argument("--niche",     type=str, default=None)
-    parser.add_argument("--sets",      type=int, default=5)
+    parser.add_argument("--niche", type=str, default=None)
+    parser.add_argument("--sets", type=int, default=5)
     args = parser.parse_args()
     bot = HashtagGeneratorBot()
     result = bot.execute(topic=args.topic, platforms=args.platforms,

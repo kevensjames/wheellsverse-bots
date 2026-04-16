@@ -8,7 +8,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class CryptoInvestingAffiliateBotBot(BaseBot):
@@ -30,11 +30,6 @@ class CryptoInvestingAffiliateBotBot(BaseBot):
         )
 
         topic = "Crypto Investing"
-        affiliate_links = {
-            "Amazon": "https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20",
-            "Coinbase": "https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1",
-            "Robinhood": "https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1"
-        }
 
         prompt = (
             f"Generate a detailed, engaging article about {topic}. The content should be SEO-optimized "

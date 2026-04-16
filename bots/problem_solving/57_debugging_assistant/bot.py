@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 LANGUAGES = [
     "python", "javascript", "typescript", "bash", "sql",
@@ -18,13 +18,13 @@ LANGUAGES = [
 ]
 
 ERROR_CATEGORIES = {
-    "syntax":      "SyntaxError, IndentationError, ParseError — code won't run",
-    "runtime":     "Exception raised during execution — TypeError, ValueError, AttributeError",
-    "logic":       "Code runs but produces wrong output — off-by-one, wrong condition",
+    "syntax": "SyntaxError, IndentationError, ParseError — code won't run",
+    "runtime": "Exception raised during execution — TypeError, ValueError, AttributeError",
+    "logic": "Code runs but produces wrong output — off-by-one, wrong condition",
     "performance": "Code runs but is too slow or uses too much memory",
-    "import":      "ModuleNotFoundError, ImportError, dependency issues",
-    "api":         "API calls failing — 4xx/5xx errors, auth issues, rate limits",
-    "async":       "Async/await issues, event loop errors, race conditions",
+    "import": "ModuleNotFoundError, ImportError, dependency issues",
+    "api": "API calls failing — 4xx/5xx errors, auth issues, rate limits",
+    "async": "Async/await issues, event loop errors, race conditions",
     "environment": "Works locally but not in production — env vars, paths, permissions",
 }
 
@@ -40,10 +40,10 @@ class DebuggingAssistantBot(BaseBot):
         cfg = self.config
         error_message = error_message or cfg.get("error_message",
             "TypeError: 'NoneType' object is not subscriptable")
-        language      = language or cfg.get("language", "python")
-        code_snippet  = code_snippet or cfg.get("code_snippet",
+        language = language or cfg.get("language", "python")
+        code_snippet = code_snippet or cfg.get("code_snippet",
             "# Paste your problematic code here")
-        context       = context or cfg.get("context",
+        context = context or cfg.get("context",
             "WheellsVerse bot automation — Python bot calling OpenAI API")
 
         # Detect error category from message
@@ -208,13 +208,13 @@ In code similar to this, these related bugs commonly appear:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Code Debugging Assistant")
-    parser.add_argument("--error",    type=str, default=None,
+    parser.add_argument("--error", type=str, default=None,
                         help="The error message")
     parser.add_argument("--language", type=str, default="python",
                         choices=LANGUAGES)
-    parser.add_argument("--code",     type=str, default=None,
+    parser.add_argument("--code", type=str, default=None,
                         help="The problematic code snippet")
-    parser.add_argument("--context",  type=str, default=None)
+    parser.add_argument("--context", type=str, default=None)
     args = parser.parse_args()
     bot = DebuggingAssistantBot()
     result = bot.execute(error_message=args.error, language=args.language,

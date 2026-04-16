@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class ABTestingBot(BaseBot):
@@ -22,10 +22,10 @@ class ABTestingBot(BaseBot):
             num_variations: int = None, goal: str = None, **kwargs):
 
         cfg = self.config
-        element        = element or cfg.get("element", "headline")
-        context        = context or cfg.get("context", "WheellsVerse AI automation platform landing page")
+        element = element or cfg.get("element", "headline")
+        context = context or cfg.get("context", "WheellsVerse AI automation platform landing page")
         num_variations = num_variations or cfg.get("num_variations", 5)
-        goal           = goal or cfg.get("goal", "increase click-through rate")
+        goal = goal or cfg.get("goal", "increase click-through rate")
 
         self.logger.info(f"Generating A/B test for {element}: {context}")
 
@@ -38,12 +38,12 @@ class ABTestingBot(BaseBot):
         )
 
         element_guides = {
-            "headline":     "Test different value propositions, emotional hooks, specificity levels, question vs statement formats",
-            "cta_button":   "Test button text, urgency, benefit-focused vs action-focused copy, first vs second person",
-            "email_subject":"Test curiosity gaps, personalization, length, emojis, numbers, questions vs statements",
-            "ad_copy":      "Test pain-point vs aspiration angles, social proof, specificity, tone",
+            "headline": "Test different value propositions, emotional hooks, specificity levels, question vs statement formats",
+            "cta_button": "Test button text, urgency, benefit-focused vs action-focused copy, first vs second person",
+            "email_subject": "Test curiosity gaps, personalization, length, emojis, numbers, questions vs statements",
+            "ad_copy": "Test pain-point vs aspiration angles, social proof, specificity, tone",
             "landing_page": "Test hero sections, social proof placement, pricing presentation, form length",
-            "pricing":      "Test price anchoring, plan names, feature emphasis, discount framing",
+            "pricing": "Test price anchoring, plan names, feature emphasis, discount framing",
         }
 
         guidance = element_guides.get(element.lower(), "Test copy angles, tone, specificity, and emotional triggers")
@@ -124,11 +124,11 @@ A fill-in template to document results after the test completes.
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="A/B Testing Generator")
-    parser.add_argument("--element",    type=str, default="headline",
+    parser.add_argument("--element", type=str, default="headline",
                         choices=["headline", "cta_button", "email_subject", "ad_copy", "landing_page", "pricing"])
-    parser.add_argument("--context",    type=str, default=None)
+    parser.add_argument("--context", type=str, default=None)
     parser.add_argument("--variations", type=int, default=5)
-    parser.add_argument("--goal",       type=str, default="increase click-through rate")
+    parser.add_argument("--goal", type=str, default="increase click-through rate")
     args = parser.parse_args()
     bot = ABTestingBot()
     result = bot.execute(element=args.element, context=args.context,

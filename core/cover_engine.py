@@ -28,28 +28,27 @@ import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 log = logging.getLogger("cover_engine")
 
-ROOT       = Path(__file__).parent.parent
-DATA_DIR   = ROOT / "data"
+ROOT = Path(__file__).parent.parent
+DATA_DIR = ROOT / "data"
 COVERS_DIR = ROOT / "outputs" / "covers"
 COVERS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Keys ──────────────────────────────────────────────────────────────────────
-OPENAI_KEY    = os.getenv("OPENAI_API_KEY", "")
-LEONARDO_KEY  = os.getenv("LEONARDO_API_KEY", "")
+OPENAI_KEY = os.getenv("OPENAI_API_KEY", "")
+LEONARDO_KEY = os.getenv("LEONARDO_API_KEY", "")
 
 # Leonardo model IDs (updated April 2026)
 LEONARDO_MODELS = {
-    "default":    "b24e16ff-06e3-43eb-8d33-4416c2d75876",  # Leonardo Diffusion XL
-    "photoreal":  "5c232a9e-9061-4777-980a-ddc8e65647c6",  # PhotoReal v2
-    "creative":   "6bef9f1b-29cb-40c7-b9df-32b51c1f67d3",  # Leonardo Creative
+    "default": "b24e16ff-06e3-43eb-8d33-4416c2d75876",  # Leonardo Diffusion XL
+    "photoreal": "5c232a9e-9061-4777-980a-ddc8e65647c6",  # PhotoReal v2
+    "creative": "6bef9f1b-29cb-40c7-b9df-32b51c1f67d3",  # Leonardo Creative
 }
 
 POLL_INTERVAL = 5   # seconds between Leonardo status polls
-POLL_MAX      = 60  # max polls (~5 minutes)
+POLL_MAX = 60  # max polls (~5 minutes)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -93,9 +92,9 @@ def dalle_generate(
             style=style,
             n=1,
         )
-        image_url      = response.data[0].url
+        image_url = response.data[0].url
         revised_prompt = getattr(response.data[0], "revised_prompt", prompt)
-        local_path     = _download_image(image_url, prefix="dalle")
+        local_path = _download_image(image_url, prefix="dalle")
 
         log.info(f"[CoverEngine] DALL·E 3 ✅ → {local_path.name}")
         return {
@@ -135,9 +134,9 @@ def _dalle_raw_http(prompt: str, size: str, quality: str, style: str) -> dict:
         with urllib.request.urlopen(req, timeout=60) as r:
             data = json.loads(r.read())
 
-        image_url      = data["data"][0]["url"]
+        image_url = data["data"][0]["url"]
         revised_prompt = data["data"][0].get("revised_prompt", prompt)
-        local_path     = _download_image(image_url, prefix="dalle")
+        local_path = _download_image(image_url, prefix="dalle")
 
         log.info(f"[CoverEngine] DALL·E 3 (raw HTTP) ✅ → {local_path.name}")
         return {
@@ -184,7 +183,7 @@ def leonardo_generate(
         return {"success": False, "error": "LEONARDO_API_KEY not set", "source": "leonardo"}
 
     model_id = LEONARDO_MODELS.get(model_key, LEONARDO_MODELS["default"])
-    headers  = {
+    headers = {
         "Authorization": f"Bearer {LEONARDO_KEY}",
         "Content-Type": "application/json",
         "Accept": "application/json",
@@ -193,16 +192,16 @@ def leonardo_generate(
     # ── Submit generation ─────────────────────────────────────────────────────
     try:
         payload = {
-            "prompt":              prompt[:1500],
-            "negative_prompt":     negative_prompt,
-            "modelId":             model_id,
-            "width":               width,
-            "height":              height,
-            "num_images":          num_images,
-            "guidance_scale":      guidance_scale,
+            "prompt": prompt[:1500],
+            "negative_prompt": negative_prompt,
+            "modelId": model_id,
+            "width": width,
+            "height": height,
+            "num_images": num_images,
+            "guidance_scale": guidance_scale,
             "num_inference_steps": num_inference_steps,
-            "presetStyle":         "LEONARDO",
-            "public":              False,
+            "presetStyle": "LEONARDO",
+            "public": False,
         }
 
         req = urllib.request.Request(
@@ -242,7 +241,7 @@ def leonardo_generate(
                 poll_data = json.loads(r.read())
 
             gen_info = poll_data.get("generations_by_pk", {})
-            status   = gen_info.get("status", "")
+            status = gen_info.get("status", "")
 
             if status == "COMPLETE":
                 images = gen_info.get("generated_images", [])
@@ -252,7 +251,7 @@ def leonardo_generate(
                         "error": "Leonardo: generation complete but no images",
                         "source": "leonardo",
                     }
-                image_url  = images[0].get("url", "")
+                image_url = images[0].get("url", "")
                 local_path = _download_image(image_url, prefix="leonardo")
                 log.info(f"[CoverEngine] Leonardo ✅ ({attempt + 1} polls) → {local_path.name}")
                 return {
@@ -314,10 +313,10 @@ def generate_cover(
           error
         }
     """
-    dalle_prompt    = cover_prompts.get("dalle", "")
-    leo_prompt      = cover_prompts.get("leonardo", "")
-    mj_prompt       = cover_prompts.get("midjourney", "")
-    canva_search    = cover_prompts.get("canva_search", "")
+    dalle_prompt = cover_prompts.get("dalle", "")
+    leo_prompt = cover_prompts.get("leonardo", "")
+    mj_prompt = cover_prompts.get("midjourney", "")
+    canva_search = cover_prompts.get("canva_search", "")
 
     # Choose dimensions based on platform/type
     size_dalle, leo_w, leo_h = _get_dimensions(platform, product_type)
@@ -363,7 +362,7 @@ def generate_cover(
         log.warning(f"[CoverEngine] Leonardo failed → manual mode: {result.get('error')}")
 
     # ── No API available — return prompts for manual generation ───────────────
-    log.info(f"[CoverEngine] No image API available — prompts saved for manual use")
+    log.info("[CoverEngine] No image API available — prompts saved for manual use")
     return {
         **result_base,
         "success": False,
@@ -405,9 +404,9 @@ def _enrich_prompt(prompt: str, title: str, platform: str) -> str:
     DALL·E 3 does better with explicit quality descriptors.
     """
     platform_notes = {
-        "gumroad":    "digital product cover, professional design, clean white space for text overlay",
-        "etsy":       "digital product mockup, clean background, Etsy marketplace style",
-        "payhip":     "digital download cover, professional, clean typography space",
+        "gumroad": "digital product cover, professional design, clean white space for text overlay",
+        "etsy": "digital product mockup, clean background, Etsy marketplace style",
+        "payhip": "digital download cover, professional, clean typography space",
         "amazon_kdp": "book cover, Amazon Kindle, professional publishing, bestseller quality",
     }
     note = platform_notes.get(platform, "digital product cover, professional design")
@@ -419,9 +418,9 @@ def _enrich_prompt(prompt: str, title: str, platform: str) -> str:
 
 def _download_image(url: str, prefix: str = "cover") -> Path:
     """Download an image URL and save to COVERS_DIR. Returns Path."""
-    ts        = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename  = f"{prefix}_{ts}.png"
-    dest      = COVERS_DIR / filename
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"{prefix}_{ts}.png"
+    dest = COVERS_DIR / filename
 
     try:
         with urllib.request.urlopen(url, timeout=60) as r:
@@ -444,10 +443,10 @@ def _move_to_platform_dir(result: dict, platform: str, title: str):
 
     import re
     safe_title = re.sub(r"[^a-zA-Z0-9_]", "_", title[:35])
-    ts         = datetime.now().strftime("%Y%m%d_%H%M")
-    dest_dir   = COVERS_DIR / platform
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    dest_dir = COVERS_DIR / platform
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest_path  = dest_dir / f"{safe_title}_{ts}.png"
+    dest_path = dest_dir / f"{safe_title}_{ts}.png"
 
     try:
         src_path.rename(dest_path)
@@ -463,7 +462,7 @@ def _move_to_platform_dir(result: dict, platform: str, title: str):
 def get_available_engines() -> dict:
     """Return which image engines are configured."""
     return {
-        "dalle":     bool(OPENAI_KEY),
-        "leonardo":  bool(LEONARDO_KEY),
-        "any":       bool(OPENAI_KEY or LEONARDO_KEY),
+        "dalle": bool(OPENAI_KEY),
+        "leonardo": bool(LEONARDO_KEY),
+        "any": bool(OPENAI_KEY or LEONARDO_KEY),
     }

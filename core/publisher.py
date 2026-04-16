@@ -56,7 +56,7 @@ class WordPressPublisher:
 
     def __init__(self):
         self.base_url = _env("WORDPRESS_URL", "").rstrip("/")
-        self.user     = _env("WORDPRESS_USER") or _env("WORDPRESS_USERNAME", "")
+        self.user = _env("WORDPRESS_USER") or _env("WORDPRESS_USERNAME", "")
         self.app_pass = _env("WORDPRESS_APP_PASS") or _env("WORDPRESS_PASSWORD", "")
 
     @property
@@ -68,8 +68,8 @@ class WordPressPublisher:
             return {"status": "skipped", "reason": "WordPress not configured",
                     "platform": "wordpress"}
 
-        blog  = piece.get("blog", {})
-        seo   = piece.get("seo", {})
+        blog = piece.get("blog", {})
+        seo = piece.get("seo", {})
         title = blog.get("title", piece.get("topic", "Untitled"))
         # Use HTML version if available, else convert markdown
         content = blog.get("content", "")
@@ -77,13 +77,13 @@ class WordPressPublisher:
             content = self._md_to_html(content)
 
         payload = {
-            "title":   title,
+            "title": title,
             "content": content,
-            "status":  "publish",
-            "slug":    seo.get("slug", ""),
+            "status": "publish",
+            "slug": seo.get("slug", ""),
             "excerpt": seo.get("meta_description", ""),
             "meta": {
-                "_yoast_wpseo_title":    seo.get("meta_title", title),
+                "_yoast_wpseo_title": seo.get("meta_title", title),
                 "_yoast_wpseo_metadesc": seo.get("meta_description", ""),
             },
         }
@@ -97,13 +97,13 @@ class WordPressPublisher:
             )
             resp.raise_for_status()
             data = resp.json()
-            url  = data.get("link", "")
+            url = data.get("link", "")
             logger.info(f"WordPress published: {url}")
             return {
-                "status":    "published",
-                "platform":  "wordpress",
-                "url":       url,
-                "post_id":   data.get("id"),
+                "status": "published",
+                "platform": "wordpress",
+                "url": url,
+                "post_id": data.get("id"),
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -114,10 +114,10 @@ class WordPressPublisher:
         """Minimal markdown → WordPress-compatible HTML."""
         import re
         html = md
-        html = re.sub(r"^## (.+)$",  r"<!-- wp:heading --><h2>\1</h2><!-- /wp:heading -->", html, flags=re.M)
+        html = re.sub(r"^## (.+)$", r"<!-- wp:heading --><h2>\1</h2><!-- /wp:heading -->", html, flags=re.M)
         html = re.sub(r"^### (.+)$", r"<!-- wp:heading {\"level\":3} --><h3>\1</h3><!-- /wp:heading -->", html, flags=re.M)
         html = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html)
-        html = re.sub(r"\*(.+?)\*",     r"<em>\1</em>",         html)
+        html = re.sub(r"\*(.+?)\*", r"<em>\1</em>", html)
         paras = []
         for line in html.split("\n"):
             line = line.strip()
@@ -143,12 +143,12 @@ class MediumPublisher:
     API_BASE = "https://api.medium.com/v1"
 
     def __init__(self):
-        self.token   = _env("MEDIUM_TOKEN")
+        self.token = _env("MEDIUM_TOKEN")
         self.user_id = _env("MEDIUM_USER_ID")
         self._headers = {
-            "Authorization":  f"Bearer {self.token}",
-            "Content-Type":   "application/json",
-            "Accept":         "application/json",
+            "Authorization": f"Bearer {self.token}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
         }
 
     @property
@@ -178,19 +178,19 @@ class MediumPublisher:
             return {"status": "error", "platform": "medium",
                     "reason": "Could not retrieve Medium user ID"}
 
-        blog  = piece.get("blog", {})
-        seo   = piece.get("seo", {})
+        blog = piece.get("blog", {})
+        seo = piece.get("seo", {})
         title = blog.get("title", piece.get("topic", "Untitled"))
         content = blog.get("content", "")
-        tags  = seo.get("keywords", [piece.get("topic", "")])[:5]
+        tags = seo.get("keywords", [piece.get("topic", "")])[:5]
 
         payload = {
-            "title":         title,
+            "title": title,
             "contentFormat": "markdown",
-            "content":       content,
-            "tags":          tags,
+            "content": content,
+            "tags": tags,
             "publishStatus": status,  # "public", "draft", "unlisted"
-            "canonicalUrl":  "",
+            "canonicalUrl": "",
         }
 
         try:
@@ -202,13 +202,13 @@ class MediumPublisher:
             )
             resp.raise_for_status()
             data = resp.json().get("data", {})
-            url  = data.get("url", "")
+            url = data.get("url", "")
             logger.info(f"Medium published: {url}")
             return {
-                "status":    "published",
-                "platform":  "medium",
-                "url":       url,
-                "post_id":   data.get("id"),
+                "status": "published",
+                "platform": "medium",
+                "url": url,
+                "post_id": data.get("id"),
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -238,7 +238,7 @@ class GhostPublisher:
         import base64
         key_id, secret = self.admin_key.split(":", 1)
         now = int(time.time())
-        header  = base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT","kid":"' + key_id.encode() + b'"}').rstrip(b"=")
+        header = base64.urlsafe_b64encode(b'{"alg":"HS256","typ":"JWT","kid":"' + key_id.encode() + b'"}').rstrip(b"=")
         payload = base64.urlsafe_b64encode(
             json.dumps({"iat": now, "exp": now + 300, "aud": "/admin/"}).encode()
         ).rstrip(b"=")
@@ -252,23 +252,23 @@ class GhostPublisher:
         if not self.is_configured:
             return {"status": "skipped", "reason": "Ghost not configured",
                     "platform": "ghost"}
-        blog  = piece.get("blog", {})
-        seo   = piece.get("seo", {})
+        blog = piece.get("blog", {})
+        seo = piece.get("seo", {})
         title = blog.get("title", piece.get("topic", "Untitled"))
 
         try:
             headers = {
                 "Authorization": f"Ghost {self._get_jwt()}",
-                "Content-Type":  "application/json",
+                "Content-Type": "application/json",
             }
             payload = {
                 "posts": [{
-                    "title":             title,
-                    "markdown":          blog.get("content", ""),
-                    "status":            "published",
-                    "slug":              seo.get("slug", ""),
-                    "meta_title":        seo.get("meta_title", title),
-                    "meta_description":  seo.get("meta_description", ""),
+                    "title": title,
+                    "markdown": blog.get("content", ""),
+                    "status": "published",
+                    "slug": seo.get("slug", ""),
+                    "meta_title": seo.get("meta_title", title),
+                    "meta_description": seo.get("meta_description", ""),
                     "tags": [{"name": kw} for kw in seo.get("keywords", [])[:5]],
                 }]
             }
@@ -280,13 +280,13 @@ class GhostPublisher:
             )
             resp.raise_for_status()
             post = resp.json().get("posts", [{}])[0]
-            url  = post.get("url", "")
+            url = post.get("url", "")
             logger.info(f"Ghost published: {url}")
             return {
-                "status":   "published",
+                "status": "published",
                 "platform": "ghost",
-                "url":      url,
-                "post_id":  post.get("id"),
+                "url": url,
+                "post_id": post.get("id"),
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -308,14 +308,14 @@ class StaticPublisher:
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
     def publish(self, piece: Dict) -> Dict:
-        blog  = piece.get("blog", {})
-        seo   = piece.get("seo", {})
+        blog = piece.get("blog", {})
+        seo = piece.get("seo", {})
         title = blog.get("title", piece.get("topic", "Untitled"))
-        slug  = seo.get("slug") or self._slugify(title)
+        slug = seo.get("slug") or self._slugify(title)
 
         # Find the pre-generated HTML file if exists
         output_dir = piece.get("output_dir")
-        html_path  = None
+        html_path = None
         if output_dir:
             html_file = Path(output_dir) / "blog_post.html"
             if html_file.exists():
@@ -337,10 +337,10 @@ class StaticPublisher:
             url = f"/published/{slug}.html"
             logger.info(f"Static published: {dest.name}")
             return {
-                "status":    "published",
-                "platform":  "static",
-                "url":       url,
-                "file":      str(dest),
+                "status": "published",
+                "platform": "static",
+                "url": url,
+                "file": str(dest),
                 "timestamp": datetime.now().isoformat(),
             }
         except Exception as e:
@@ -354,7 +354,7 @@ class StaticPublisher:
         posts = [p for p in posts if p.name != "index.html"]
 
         items = "\n".join(
-            f'<li><a href="{p.name}">{p.stem.replace("-"," ").title()}</a>'
+            f'<li><a href="{p.name}">{p.stem.replace("-", " ").title()}</a>'
             f' <span class="date">{datetime.fromtimestamp(p.stat().st_mtime).strftime("%b %d, %Y")}</span></li>'
             for p in posts[:50]
         )
@@ -411,7 +411,7 @@ class TrafficEngine:
                     first_tweet = tw_content[0] if tw_content else ""
                     msg = (
                         f"📝 *New Content Published*\n\n"
-                        f"*{piece.get('blog', {}).get('title', piece.get('topic',''))}*\n\n"
+                        f"*{piece.get('blog', {}).get('title', piece.get('topic', ''))}*\n\n"
                         f"{first_tweet[:500]}"
                     )
                     results["slack"] = auto.slack.send(msg)
@@ -426,29 +426,29 @@ class TrafficEngine:
 
     def _generate_hashtags(self, piece: Dict) -> List[str]:
         """Extract relevant hashtags from the content."""
-        seo     = piece.get("seo", {})
+        seo = piece.get("seo", {})
         keywords = seo.get("keywords", [])
-        topic   = piece.get("topic", "")
+        topic = piece.get("topic", "")
         base_tags = ["#AIAutomation", "#Entrepreneurship", "#WheellsVerse",
                      "#PassiveIncome", "#ContentMarketing", "#AITools"]
-        kw_tags = [f"#{kw.replace(' ','')}" for kw in keywords[:3] if kw]
+        kw_tags = [f"#{kw.replace(' ', '')}" for kw in keywords[:3] if kw]
         topic_tags = [f"#{w.capitalize()}" for w in topic.split()[:2] if len(w) > 3]
         return list(dict.fromkeys(base_tags + kw_tags + topic_tags))[:10]
 
     def _generate_schedule(self, piece: Dict) -> Dict:
         """Generate optimal posting times."""
-        from datetime import datetime, timedelta
-        now   = datetime.now()
+        from datetime import datetime
+        now = datetime.now()
         slots = [
-            now.replace(hour=9,  minute=0,  second=0, microsecond=0),
+            now.replace(hour=9, minute=0, second=0, microsecond=0),
             now.replace(hour=12, minute=30, second=0, microsecond=0),
-            now.replace(hour=17, minute=0,  second=0, microsecond=0),
-            now.replace(hour=20, minute=0,  second=0, microsecond=0),
+            now.replace(hour=17, minute=0, second=0, microsecond=0),
+            now.replace(hour=20, minute=0, second=0, microsecond=0),
         ]
         return {
-            "twitter_times":  [s.isoformat() for s in slots[:2]],
+            "twitter_times": [s.isoformat() for s in slots[:2]],
             "linkedin_times": [s.isoformat() for s in slots[2:3]],
-            "next_post":      slots[0].isoformat(),
+            "next_post": slots[0].isoformat(),
         }
 
 
@@ -461,10 +461,10 @@ class Publisher:
 
     def __init__(self):
         self.wordpress = WordPressPublisher()
-        self.medium    = MediumPublisher()
-        self.ghost     = GhostPublisher()
-        self.static    = StaticPublisher()
-        self.traffic   = TrafficEngine()
+        self.medium = MediumPublisher()
+        self.ghost = GhostPublisher()
+        self.static = StaticPublisher()
+        self.traffic = TrafficEngine()
 
     def publish_content(
         self,
@@ -488,9 +488,9 @@ class Publisher:
         results: Dict[str, Any] = {}
         platform_map = {
             "wordpress": self.wordpress.publish,
-            "medium":    self.medium.publish,
-            "ghost":     self.ghost.publish,
-            "static":    self.static.publish,
+            "medium": self.medium.publish,
+            "ghost": self.ghost.publish,
+            "static": self.static.publish,
         }
 
         for platform in platforms:
@@ -512,23 +512,26 @@ class Publisher:
         )
 
         logger.info(
-            f"Published '{piece.get('topic','')[:40]}' — "
+            f"Published '{piece.get('topic', '')[:40]}' — "
             f"{success_count}/{len(platforms)} platforms"
         )
 
         return {
             "success_count": success_count,
             "total_platforms": len(platforms),
-            "results":   results,
-            "traffic":   traffic_result,
+            "results": results,
+            "traffic": traffic_result,
             "timestamp": datetime.now().isoformat(),
         }
 
     def get_configured_platforms(self) -> List[str]:
         configured = ["static"]  # always available
-        if self.wordpress.is_configured: configured.append("wordpress")
-        if self.medium.is_configured:    configured.append("medium")
-        if self.ghost.is_configured:     configured.append("ghost")
+        if self.wordpress.is_configured:
+            configured.append("wordpress")
+        if self.medium.is_configured:
+            configured.append("medium")
+        if self.ghost.is_configured:
+            configured.append("ghost")
         return configured
 
 

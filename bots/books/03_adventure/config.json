@@ -1,0 +1,7 @@
+{
+  "description": "Adventure books (.99 KDP). Writes 1 book/day.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 07:30",
+  "action": "write"
+}

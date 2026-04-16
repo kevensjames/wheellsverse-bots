@@ -17,16 +17,18 @@ from typing import Dict, Optional
 
 from core.nexora_db import get_conn, init_db
 
-_TOKEN_BYTES   = 32
-_SESSION_DAYS  = 30
-_SALT_HEX_LEN  = 32   # 16 bytes → 32 hex chars
+_TOKEN_BYTES = 32
+_SESSION_DAYS = 30
+_SALT_HEX_LEN = 32   # 16 bytes → 32 hex chars
 
 # ── Password helpers ───────────────────────────────────────────────────────────
 
+
 def hash_password(password: str) -> str:
     salt = secrets.token_hex(_SALT_HEX_LEN)
-    h    = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    h = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
     return f"{salt}${h}"
+
 
 def verify_password(password: str, stored_hash: str) -> bool:
     try:
@@ -39,8 +41,9 @@ def verify_password(password: str, stored_hash: str) -> bool:
 
 # ── Token helpers ──────────────────────────────────────────────────────────────
 
+
 def _create_session(creator_id: int) -> str:
-    token      = secrets.token_urlsafe(_TOKEN_BYTES)
+    token = secrets.token_urlsafe(_TOKEN_BYTES)
     expires_at = time.time() + _SESSION_DAYS * 86400
     conn = get_conn()
     # Prune expired sessions for this creator
@@ -55,6 +58,7 @@ def _create_session(creator_id: int) -> str:
     conn.commit()
     conn.close()
     return token
+
 
 def verify_token(token: str) -> Optional[Dict]:
     """Return creator dict if token is valid, else None."""
@@ -72,6 +76,7 @@ def verify_token(token: str) -> Optional[Dict]:
     conn.close()
     return dict(row) if row else None
 
+
 def revoke_token(token: str) -> None:
     conn = get_conn()
     conn.execute("DELETE FROM nx_sessions WHERE token=?", (token,))
@@ -80,8 +85,9 @@ def revoke_token(token: str) -> None:
 
 # ── Handle generator ───────────────────────────────────────────────────────────
 
+
 def _unique_handle(conn, base: str) -> str:
-    handle  = re.sub(r"[^a-z0-9_]", "", base.lower())[:24] or "creator"
+    handle = re.sub(r"[^a-z0-9_]", "", base.lower())[:24] or "creator"
     attempt = handle
     counter = 1
     while conn.execute("SELECT 1 FROM nx_creators WHERE handle=?", (attempt,)).fetchone():
@@ -90,6 +96,7 @@ def _unique_handle(conn, base: str) -> str:
     return attempt
 
 # ── Public API ─────────────────────────────────────────────────────────────────
+
 
 def register_creator(email: str, password: str, name: str) -> Dict:
     """
@@ -113,7 +120,7 @@ def register_creator(email: str, password: str, name: str) -> Dict:
         return {"error": "An account with that email already exists"}
 
     handle = _unique_handle(conn, name)
-    now    = time.time()
+    now = time.time()
 
     cur = conn.execute(
         "INSERT INTO nx_creators (email,name,handle,founding,created_at) VALUES (?,?,?,1,?)",
@@ -140,8 +147,8 @@ def login_creator(email: str, password: str) -> Dict:
     init_db()
 
     email = email.strip().lower()
-    conn  = get_conn()
-    row   = conn.execute(
+    conn = get_conn()
+    row = conn.execute(
         """SELECT c.id, c.active, p.hash
            FROM nx_creators c JOIN nx_passwords p ON c.id = p.creator_id
            WHERE c.email = ?""",
@@ -156,7 +163,7 @@ def login_creator(email: str, password: str) -> Dict:
     if not verify_password(password, row["hash"]):
         return {"error": "Invalid email or password"}
 
-    token   = _create_session(row["id"])
+    token = _create_session(row["id"])
     creator = verify_token(token)
     return {"token": token, "creator": creator}
 
@@ -165,7 +172,7 @@ def login_creator(email: str, password: str) -> Dict:
 
 def _create_fan_session(fan_email: str) -> str:
     from core.nexora_db import create_fan_session
-    token      = secrets.token_urlsafe(_TOKEN_BYTES)
+    token = secrets.token_urlsafe(_TOKEN_BYTES)
     expires_at = time.time() + _SESSION_DAYS * 86400
     create_fan_session(fan_email, token, expires_at)
     return token
@@ -202,5 +209,5 @@ def login_fan(email: str, password: str) -> Dict:
     if not stored or not verify_password(password, stored):
         return {"error": "Invalid email or password"}
     token = _create_fan_session(email)
-    subs  = get_fan_subscriptions(email)
+    subs = get_fan_subscriptions(email)
     return {"token": token, "fan_email": email, "subscriptions": subs}

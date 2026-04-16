@@ -1,0 +1,54 @@
+{
+  "qa_pairs": [],
+  "conversations": [
+    {
+      "id": "15f1dc9aba5e",
+      "type": "conversation",
+      "user": "Do you hear me",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-09T06:22:54.296442"
+    },
+    {
+      "id": "89c98c4496fc",
+      "type": "conversation",
+      "user": "Who create you",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-09T06:23:27.095491"
+    },
+    {
+      "id": "544df13a8d41",
+      "type": "conversation",
+      "user": "HI",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-09T08:01:27.944253"
+    },
+    {
+      "id": "6f53e57bf4aa",
+      "type": "conversation",
+      "user": "tell me",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-09T08:01:54.705078"
+    },
+    {
+      "id": "891630f50ff7",
+      "type": "conversation",
+      "user": "Write a love for WhatsApp to chenara. Output ONLY the message text, nothing else.",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-12T14:16:41.006257"
+    },
+    {
+      "id": "b02042dda1bb",
+      "type": "conversation",
+      "user": "create a canvas cover for the products of Gumroad",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-13T01:48:43.249374"
+    },
+    {
+      "id": "43f5eaaba813",
+      "type": "conversation",
+      "user": "hy",
+      "narai": "Something interrupted me. Say that again?",
+      "ts": "2026-04-13T02:46:29.769949"
+    }
+  ]
+}

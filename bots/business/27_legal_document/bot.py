@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class LegalDocumentBot(BaseBot):
@@ -25,10 +25,10 @@ class LegalDocumentBot(BaseBot):
             jurisdiction: str = None, **kwargs):
 
         cfg = self.config
-        doc_type     = doc_type or cfg.get("doc_type", "freelance_service_agreement")
-        party_a      = party_a or cfg.get("party_a", "WheellsVerse (Service Provider)")
-        party_b      = party_b or cfg.get("party_b", "Client (Business Owner)")
-        key_terms    = key_terms or cfg.get("key_terms", "monthly retainer, content creation, AI automation services")
+        doc_type = doc_type or cfg.get("doc_type", "freelance_service_agreement")
+        party_a = party_a or cfg.get("party_a", "WheellsVerse (Service Provider)")
+        party_b = party_b or cfg.get("party_b", "Client (Business Owner)")
+        key_terms = key_terms or cfg.get("key_terms", "monthly retainer, content creation, AI automation services")
         jurisdiction = jurisdiction or cfg.get("jurisdiction", "State of [Your State], USA")
 
         self.logger.info(f"Generating {doc_type}: {party_a} ↔ {party_b}")
@@ -44,14 +44,14 @@ class LegalDocumentBot(BaseBot):
 
         doc_types = {
             "freelance_service_agreement": "Freelance / Independent Contractor Service Agreement",
-            "nda":                         "Non-Disclosure Agreement (NDA)",
-            "partnership_agreement":       "Business Partnership Agreement",
-            "client_contract":             "Client Service Contract",
-            "affiliate_agreement":         "Affiliate Marketing Agreement",
-            "terms_of_service":            "Website Terms of Service",
-            "privacy_policy":              "Privacy Policy",
-            "content_license":             "Content License Agreement",
-            "ip_assignment":               "Intellectual Property Assignment Agreement",
+            "nda": "Non-Disclosure Agreement (NDA)",
+            "partnership_agreement": "Business Partnership Agreement",
+            "client_contract": "Client Service Contract",
+            "affiliate_agreement": "Affiliate Marketing Agreement",
+            "terms_of_service": "Website Terms of Service",
+            "privacy_policy": "Privacy Policy",
+            "content_license": "Content License Agreement",
+            "ip_assignment": "Intellectual Property Assignment Agreement",
         }
 
         doc_label = doc_types.get(doc_type, doc_type.replace("_", " ").title())
@@ -131,13 +131,13 @@ After the document, include:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Legal Document Generator")
-    parser.add_argument("--type",         type=str, default="freelance_service_agreement",
+    parser.add_argument("--type", type=str, default="freelance_service_agreement",
                         choices=["freelance_service_agreement", "nda", "partnership_agreement",
                                  "client_contract", "affiliate_agreement", "terms_of_service",
                                  "privacy_policy", "content_license", "ip_assignment"])
-    parser.add_argument("--party-a",      type=str, default=None)
-    parser.add_argument("--party-b",      type=str, default=None)
-    parser.add_argument("--terms",        type=str, default=None)
+    parser.add_argument("--party-a", type=str, default=None)
+    parser.add_argument("--party-b", type=str, default=None)
+    parser.add_argument("--terms", type=str, default=None)
     parser.add_argument("--jurisdiction", type=str, default="USA")
     args = parser.parse_args()
     bot = LegalDocumentBot()

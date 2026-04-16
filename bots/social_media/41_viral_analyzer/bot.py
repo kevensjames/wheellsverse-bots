@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 VIRAL_NICHES = [
     "AI tools and automation",
@@ -26,11 +26,11 @@ VIRAL_NICHES = [
 ]
 
 PLATFORM_ALGORITHMS = {
-    "tiktok":    "watch time, completion rate, shares -- first 3 seconds are everything",
+    "tiktok": "watch time, completion rate, shares -- first 3 seconds are everything",
     "instagram": "saves and shares outweigh likes -- content that makes people stop-and-save wins",
-    "twitter":   "replies and retweets dominate -- controversial takes and utility threads spread fastest",
-    "linkedin":  "comments in first hour are critical -- professional storytelling with data performs best",
-    "youtube":   "CTR + watch time -- thumbnails and hooks determine 90% of success",
+    "twitter": "replies and retweets dominate -- controversial takes and utility threads spread fastest",
+    "linkedin": "comments in first hour are critical -- professional storytelling with data performs best",
+    "youtube": "CTR + watch time -- thumbnails and hooks determine 90% of success",
 }
 
 
@@ -43,10 +43,10 @@ class ViralAnalyzerBot(BaseBot):
             content_type: str = None, goal: str = None, **kwargs):
 
         cfg = self.config
-        niche        = niche or cfg.get("niche", "AI tools and automation")
-        platform     = platform or cfg.get("platform", "tiktok,instagram,twitter")
+        niche = niche or cfg.get("niche", "AI tools and automation")
+        platform = platform or cfg.get("platform", "tiktok,instagram,twitter")
         content_type = content_type or cfg.get("content_type", "short-form video, carousel, text post")
-        goal         = goal or cfg.get("goal", "grow followers and drive traffic to WheellsVerse")
+        goal = goal or cfg.get("goal", "grow followers and drive traffic to WheellsVerse")
 
         platform_list = [p.strip() for p in platform.split(",")]
         alg_notes = " | ".join([f"{p.upper()}: {PLATFORM_ALGORITHMS.get(p, 'engagement-driven')}"
@@ -206,10 +206,10 @@ Top 5 reasons content in {niche} fails to spread:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Viral Content Analyzer & Formula Builder")
-    parser.add_argument("--niche",    type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None)
     parser.add_argument("--platform", type=str, default="tiktok,instagram,twitter")
-    parser.add_argument("--type",     type=str, default="short-form video, carousel, text post")
-    parser.add_argument("--goal",     type=str, default=None)
+    parser.add_argument("--type", type=str, default="short-form video, carousel, text post")
+    parser.add_argument("--goal", type=str, default=None)
     args = parser.parse_args()
     bot = ViralAnalyzerBot()
     result = bot.execute(niche=args.niche, platform=args.platform,

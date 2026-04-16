@@ -39,9 +39,8 @@ Alternative — direct token:
 import json
 import logging
 import os
-import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -49,21 +48,21 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR   = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 TOKEN_FILE = DATA_DIR / "linkedin_token.json"
 
 logger = logging.getLogger("linkedin")
 
-API_BASE   = "https://api.linkedin.com/v2"
-AUTH_BASE  = "https://www.linkedin.com/oauth/v2"
+API_BASE = "https://api.linkedin.com/v2"
+AUTH_BASE = "https://www.linkedin.com/oauth/v2"
 
-CLIENT_ID     = os.getenv("LINKEDIN_CLIENT_ID", "")
+CLIENT_ID = os.getenv("LINKEDIN_CLIENT_ID", "")
 CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
-REDIRECT_URI  = os.getenv("LINKEDIN_REDIRECT_URI",
+REDIRECT_URI = os.getenv("LINKEDIN_REDIRECT_URI",
                           "https://grateful-flexibility-production.up.railway.app/api/linkedin/callback")
-BRAND         = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL       = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
 
 SCOPES = ["openid", "profile", "email", "w_member_social"]
 
@@ -113,7 +112,7 @@ def get_person_urn() -> Optional[str]:
         )
         if resp.status_code == 200:
             data = resp.json()
-            sub  = data.get("sub", "")
+            sub = data.get("sub", "")
             if sub:
                 urn = f"urn:li:person:{sub}"
                 logger.info(f"[LinkedIn] Person URN: {urn}")
@@ -130,10 +129,10 @@ def get_auth_url() -> str:
     import urllib.parse
     params = {
         "response_type": "code",
-        "client_id":     CLIENT_ID,
-        "redirect_uri":  REDIRECT_URI,
-        "scope":         " ".join(SCOPES),
-        "state":         "wheellsverse_linkedin",
+        "client_id": CLIENT_ID,
+        "redirect_uri": REDIRECT_URI,
+        "scope": " ".join(SCOPES),
+        "state": "wheellsverse_linkedin",
     }
     return f"{AUTH_BASE}/authorization?" + urllib.parse.urlencode(params)
 
@@ -143,10 +142,10 @@ def exchange_code(code: str) -> dict:
     resp = requests.post(
         f"{AUTH_BASE}/accessToken",
         data={
-            "grant_type":    "authorization_code",
-            "code":          code,
-            "redirect_uri":  REDIRECT_URI,
-            "client_id":     CLIENT_ID,
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "client_id": CLIENT_ID,
             "client_secret": CLIENT_SECRET,
         },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -175,7 +174,7 @@ def post_text(text: str, author_urn: str = None) -> Dict:
         return {"error": "Could not determine LinkedIn author URN"}
 
     payload = {
-        "author":     author,
+        "author": author,
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": {
@@ -193,8 +192,8 @@ def post_text(text: str, author_urn: str = None) -> Dict:
             f"{API_BASE}/ugcPosts",
             json=payload,
             headers={
-                "Authorization":  f"Bearer {token}",
-                "Content-Type":   "application/json",
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
                 "X-Restli-Protocol-Version": "2.0.0",
             },
             timeout=20,
@@ -213,7 +212,7 @@ def post_text(text: str, author_urn: str = None) -> Dict:
 def post_with_image(text: str, image_url: str = None,
                     image_title: str = "", author_urn: str = None) -> Dict:
     """Post a LinkedIn update with an image link preview."""
-    token  = get_access_token()
+    token = get_access_token()
     if not token:
         return {"error": "LinkedIn not authenticated"}
 
@@ -232,14 +231,14 @@ def post_with_image(text: str, image_url: str = None,
 
     if image_url:
         media_content["media"] = [{
-            "status":       "READY",
-            "description":  {"text": text[:200]},
-            "originalUrl":  image_url,
-            "title":        {"text": image_title[:200] or BRAND},
+            "status": "READY",
+            "description": {"text": text[:200]},
+            "originalUrl": image_url,
+            "title": {"text": image_title[:200] or BRAND},
         }]
 
     payload = {
-        "author":         author,
+        "author": author,
         "lifecycleState": "PUBLISHED",
         "specificContent": {
             "com.linkedin.ugc.ShareContent": media_content
@@ -254,8 +253,8 @@ def post_with_image(text: str, image_url: str = None,
             f"{API_BASE}/ugcPosts",
             json=payload,
             headers={
-                "Authorization":  f"Bearer {token}",
-                "Content-Type":   "application/json",
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
                 "X-Restli-Protocol-Version": "2.0.0",
             },
             timeout=20,
@@ -353,7 +352,7 @@ def _generate_dalle_image(prompt: str) -> Optional[str]:
         resp = client.images.generate(
             model="dall-e-3",
             prompt=f"Professional LinkedIn cover image for: {prompt[:200]}. "
-                   "Modern, clean, dark theme, data visualization aesthetic.",
+            "Modern, clean, dark theme, data visualization aesthetic.",
             size="1792x1024",
             quality="standard",
             n=1,

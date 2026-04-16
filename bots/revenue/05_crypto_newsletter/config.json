@@ -1,0 +1,7 @@
+{
+  "description": "Crypto Signals Newsletter ($9/month) — auto-generates and sends weekly issues via ConvertKit. Target: 200 subs = $1,800/month.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@weekly monday 08:00",
+  "action": "send"
+}

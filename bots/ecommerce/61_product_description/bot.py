@@ -10,24 +10,25 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 PRODUCT_CATEGORIES = {
-    "digital_product":  "Downloadable software, templates, courses, or tools",
-    "saas_product":     "Software as a Service — subscription-based tool or platform",
+    "digital_product": "Downloadable software, templates, courses, or tools",
+    "saas_product": "Software as a Service — subscription-based tool or platform",
     "physical_product": "Physical goods shipped to customers",
-    "service":          "Done-for-you service or consulting offering",
-    "info_product":     "Ebook, guide, framework, or knowledge product",
-    "membership":       "Recurring access subscription — community, content, or tools",
+    "service": "Done-for-you service or consulting offering",
+    "info_product": "Ebook, guide, framework, or knowledge product",
+    "membership": "Recurring access subscription — community, content, or tools",
 }
 
 DESCRIPTION_TYPES = {
-    "full_listing":     "Complete product page with all sections",
-    "short_teaser":     "1-2 sentence elevator pitch for ads or snippets",
-    "email_pitch":      "Email product introduction for existing audience",
-    "marketplace":      "Gumroad / AppSumo / Product Hunt listing format",
-    "amazon_style":     "Bullet-point feature list with short/long descriptions",
+    "full_listing": "Complete product page with all sections",
+    "short_teaser": "1-2 sentence elevator pitch for ads or snippets",
+    "email_pitch": "Email product introduction for existing audience",
+    "marketplace": "Gumroad / AppSumo / Product Hunt listing format",
+    "amazon_style": "Bullet-point feature list with short/long descriptions",
 }
+
 
 class ProductDescriptionBot(BaseBot):
 
@@ -44,17 +45,17 @@ class ProductDescriptionBot(BaseBot):
             price_point: str = None, description_type: str = None, **kwargs):
 
         cfg = self.config
-        product_name    = product_name or cfg.get("product_name",
+        product_name = product_name or cfg.get("product_name",
             "WheellsVerse AI Bot Platform")
         product_category = product_category or cfg.get("product_category", "saas_product")
         target_audience = target_audience or cfg.get("target_audience",
             "entrepreneurs and small business owners who want to automate operations")
-        key_features    = key_features or cfg.get("key_features",
+        key_features = key_features or cfg.get("key_features",
             "70+ pre-built automation bots, content creation, sales, customer support, affiliate marketing, one-click execution")
-        price_point     = price_point or cfg.get("price_point", "$497/month or $4,997/year")
+        price_point = price_point or cfg.get("price_point", "$497/month or $4,997/year")
         description_type = description_type or cfg.get("description_type", "full_listing")
 
-        cat_desc  = PRODUCT_CATEGORIES.get(product_category, product_category)
+        cat_desc = PRODUCT_CATEGORIES.get(product_category, product_category)
         desc_type = DESCRIPTION_TYPES.get(description_type, description_type)
 
         self.logger.info(f"Writing {description_type} description for: {product_name}")
@@ -219,13 +220,13 @@ A: [Answer]
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="E-Commerce Product Description Writer")
-    parser.add_argument("--product",   type=str, default=None)
-    parser.add_argument("--category",  type=str, default="saas_product",
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--category", type=str, default="saas_product",
                         choices=list(PRODUCT_CATEGORIES.keys()))
-    parser.add_argument("--audience",  type=str, default=None)
-    parser.add_argument("--features",  type=str, default=None)
-    parser.add_argument("--price",     type=str, default=None)
-    parser.add_argument("--type",      type=str, default="full_listing",
+    parser.add_argument("--audience", type=str, default=None)
+    parser.add_argument("--features", type=str, default=None)
+    parser.add_argument("--price", type=str, default=None)
+    parser.add_argument("--type", type=str, default="full_listing",
                         choices=list(DESCRIPTION_TYPES.keys()))
     args = parser.parse_args()
     bot = ProductDescriptionBot()

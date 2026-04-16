@@ -1,0 +1,7 @@
+{
+  "description": "Romance (.99 KDP). Highest volume genre. Writes 1 book/day.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 08:15",
+  "action": "write"
+}

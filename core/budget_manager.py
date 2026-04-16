@@ -32,7 +32,7 @@ import logging
 import os
 import threading
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -42,18 +42,18 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR     = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-LEDGER_FILE  = DATA_DIR / "budget_ledger.json"
+LEDGER_FILE = DATA_DIR / "budget_ledger.json"
 
 logger = logging.getLogger("budget_manager")
 
-DAILY_BUDGET    = float(os.getenv("DAILY_AD_BUDGET", "10.0"))
+DAILY_BUDGET = float(os.getenv("DAILY_AD_BUDGET", "10.0"))
 SCORE_THRESHOLD = float(os.getenv("BOOST_SCORE_THRESHOLD", "500"))
-MIN_BOOST       = 1.0    # minimum spend per boost
-MAX_BOOST       = 20.0   # maximum spend per boost
-MIN_CTR         = 0.01   # 1% CTR minimum to keep running
-BOOST_COOLDOWN  = 7200   # 2h between boosts
+MIN_BOOST = 1.0    # minimum spend per boost
+MAX_BOOST = 20.0   # maximum spend per boost
+MIN_CTR = 0.01   # 1% CTR minimum to keep running
+BOOST_COOLDOWN = 7200   # 2h between boosts
 
 
 # ─── Spend record ─────────────────────────────────────────────────────────────
@@ -61,17 +61,17 @@ BOOST_COOLDOWN  = 7200   # 2h between boosts
 class SpendRecord:
     def __init__(self, post_id: str, platform: str, amount: float,
                  campaign_id: str = "", topic: str = ""):
-        self.post_id     = post_id
-        self.platform    = platform
-        self.amount      = amount
+        self.post_id = post_id
+        self.platform = platform
+        self.amount = amount
         self.campaign_id = campaign_id
-        self.topic       = topic
-        self.spent_at    = datetime.now().isoformat()
-        self.status      = "active"   # active / paused / completed
+        self.topic = topic
+        self.spent_at = datetime.now().isoformat()
+        self.status = "active"   # active / paused / completed
         self.impressions = 0
-        self.clicks      = 0
+        self.clicks = 0
         self.conversions = 0
-        self.revenue     = 0.0
+        self.revenue = 0.0
 
     @property
     def ctr(self) -> float:
@@ -87,9 +87,9 @@ class SpendRecord:
     @classmethod
     def from_dict(cls, d: Dict) -> "SpendRecord":
         r = cls(d["post_id"], d["platform"], d["amount"],
-                d.get("campaign_id",""), d.get("topic",""))
+                d.get("campaign_id", ""), d.get("topic", ""))
         for k, v in d.items():
-            if k not in ("ctr","roi") and hasattr(r, k):
+            if k not in ("ctr", "roi") and hasattr(r, k):
                 setattr(r, k, v)
         return r
 
@@ -108,7 +108,7 @@ class BudgetManager:
     def __init__(self):
         self._ledger: List[SpendRecord] = []
         self._last_boost_time = 0.0
-        self._running  = False
+        self._running = False
         self._thread: Optional[threading.Thread] = None
         self._file_lock = threading.Lock()
         self._load()
@@ -159,7 +159,7 @@ class BudgetManager:
         return sum(r.revenue for r in self._ledger if r.spent_at[:10] == today)
 
     def today_roi(self) -> float:
-        spent   = self.today_spent()
+        spent = self.today_spent()
         revenue = self.today_revenue()
         return (revenue - spent) / max(spent, 0.01)
 
@@ -169,7 +169,7 @@ class BudgetManager:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(
+        self._thread = threading.Thread(
             target=self._run, daemon=True, name="BudgetManager"
         )
         self._thread.start()
@@ -202,8 +202,8 @@ class BudgetManager:
         # Find best qualifying post
         try:
             from core.feedback_loop import FeedbackLoop
-            fl      = FeedbackLoop.get()
-            posts   = sorted(fl._posts.values(), key=lambda p: p.score, reverse=True)
+            fl = FeedbackLoop.get()
+            posts = sorted(fl._posts.values(), key=lambda p: p.score, reverse=True)
             already = {r.post_id for r in self._ledger}
 
             for post in posts:
@@ -278,7 +278,7 @@ class BudgetManager:
                 post_id=post_id,
                 platform=platform,
                 amount=amount,
-                campaign_id=result.get("campaign_id",""),
+                campaign_id=result.get("campaign_id", ""),
                 topic=topic,
             )
             self._ledger.append(record)
@@ -301,9 +301,8 @@ class BudgetManager:
 
     def _boost_facebook(self, post_id: str, amount: float) -> Dict:
         """Boost a Facebook post via Graph API Ads."""
-        token      = os.getenv("FACEBOOK_PAGE_TOKEN")
+        token = os.getenv("FACEBOOK_PAGE_TOKEN")
         account_id = os.getenv("FB_AD_ACCOUNT_ID")  # act_XXXXXXX
-        page_id    = os.getenv("FACEBOOK_PAGE_ID")
 
         if not (token and account_id):
             return {"status": "simulated", "campaign_id": f"sim_{post_id[:8]}",
@@ -316,16 +315,16 @@ class BudgetManager:
                 f"https://graph.facebook.com/v19.0/{account_id}/campaigns",
                 params={"access_token": token},
                 json={
-                    "name":       f"WheellsVerse Boost {fb_post_id[:8]}",
-                    "objective":  "LINK_CLICKS",
-                    "status":     "ACTIVE",
+                    "name": f"WheellsVerse Boost {fb_post_id[:8]}",
+                    "objective": "LINK_CLICKS",
+                    "status": "ACTIVE",
                     "special_ad_categories": [],
                     "daily_budget": int(amount * 100),  # cents
                 },
                 timeout=20,
             )
             if resp.status_code in (200, 201):
-                campaign_id = resp.json().get("id","")
+                campaign_id = resp.json().get("id", "")
                 logger.info(f"[Budget] FB campaign created: {campaign_id}")
                 return {"status": "boosted", "campaign_id": campaign_id}
             return {"error": f"FB Ads error {resp.status_code}: {resp.text[:200]}"}
@@ -335,7 +334,7 @@ class BudgetManager:
     def _boost_tiktok(self, post_id: str, amount: float) -> Dict:
         """Boost a TikTok post via TikTok Ads API."""
         advertiser_id = os.getenv("TIKTOK_ADVERTISER_ID")
-        access_token  = os.getenv("TIKTOK_ACCESS_TOKEN")
+        access_token = os.getenv("TIKTOK_ACCESS_TOKEN")
 
         if not (advertiser_id and access_token):
             return {"status": "simulated", "campaign_id": f"sim_{post_id[:8]}",
@@ -347,17 +346,17 @@ class BudgetManager:
                 headers={"Access-Token": access_token,
                          "Content-Type": "application/json"},
                 json={
-                    "advertiser_id":   advertiser_id,
-                    "campaign_name":   f"WheellsVerse {post_id[:8]}",
-                    "campaign_type":   "REGULAR_CAMPAIGN",
-                    "objective_type":  "TRAFFIC",
-                    "budget_mode":     "BUDGET_MODE_DAY",
-                    "budget":          amount,
+                    "advertiser_id": advertiser_id,
+                    "campaign_name": f"WheellsVerse {post_id[:8]}",
+                    "campaign_type": "REGULAR_CAMPAIGN",
+                    "objective_type": "TRAFFIC",
+                    "budget_mode": "BUDGET_MODE_DAY",
+                    "budget": amount,
                 },
                 timeout=20,
             )
             if resp.status_code == 200:
-                campaign_id = resp.json().get("data",{}).get("campaign_id","")
+                campaign_id = resp.json().get("data", {}).get("campaign_id", "")
                 return {"status": "boosted", "campaign_id": str(campaign_id)}
             return {"error": resp.text[:200]}
         except Exception as e:
@@ -373,7 +372,7 @@ class BudgetManager:
                 resp = requests.get(
                     f"https://graph.facebook.com/v19.0/{record.campaign_id}/insights",
                     params={
-                        "fields":       "impressions,clicks,ctr",
+                        "fields": "impressions,clicks,ctr",
                         "access_token": token,
                     },
                     timeout=10,
@@ -381,7 +380,7 @@ class BudgetManager:
                 if resp.status_code == 200:
                     data = resp.json().get("data", [{}])[0]
                     record.impressions = int(data.get("impressions", 0))
-                    record.clicks      = int(data.get("clicks", 0))
+                    record.clicks = int(data.get("clicks", 0))
         except Exception:
             pass
 
@@ -403,38 +402,38 @@ class BudgetManager:
     # ── Reporting ─────────────────────────────────────────────────────────────
 
     def daily_report(self) -> Dict:
-        today     = datetime.now().date().isoformat()
+        today = datetime.now().date().isoformat()
         today_rec = [r for r in self._ledger if r.spent_at[:10] == today]
         return {
-            "date":           today,
-            "daily_budget":   DAILY_BUDGET,
-            "spent":          round(self.today_spent(), 2),
-            "remaining":      round(self.today_remaining(), 2),
-            "revenue":        round(self.today_revenue(), 2),
-            "roi":            round(self.today_roi() * 100, 1),
-            "boosts_today":   len(today_rec),
-            "active_boosts":  sum(1 for r in today_rec if r.status == "active"),
-            "campaigns":      [r.to_dict() for r in today_rec],
+            "date": today,
+            "daily_budget": DAILY_BUDGET,
+            "spent": round(self.today_spent(), 2),
+            "remaining": round(self.today_remaining(), 2),
+            "revenue": round(self.today_revenue(), 2),
+            "roi": round(self.today_roi() * 100, 1),
+            "boosts_today": len(today_rec),
+            "active_boosts": sum(1 for r in today_rec if r.status == "active"),
+            "campaigns": [r.to_dict() for r in today_rec],
         }
 
     def summary(self) -> Dict:
-        all_spent   = sum(r.amount for r in self._ledger)
+        all_spent = sum(r.amount for r in self._ledger)
         all_revenue = sum(r.revenue for r in self._ledger)
         return {
-            "daily_budget":    DAILY_BUDGET,
-            "today_spent":     round(self.today_spent(), 2),
+            "daily_budget": DAILY_BUDGET,
+            "today_spent": round(self.today_spent(), 2),
             "today_remaining": round(self.today_remaining(), 2),
-            "today_roi_pct":   round(self.today_roi() * 100, 1),
-            "all_time_spent":  round(all_spent, 2),
-            "all_time_revenue":round(all_revenue, 2),
-            "all_time_roi_pct":round((all_revenue - all_spent) / max(all_spent, 0.01) * 100, 1),
-            "total_boosts":    len(self._ledger),
-            "active_boosts":   sum(1 for r in self._ledger if r.status == "active"),
+            "today_roi_pct": round(self.today_roi() * 100, 1),
+            "all_time_spent": round(all_spent, 2),
+            "all_time_revenue": round(all_revenue, 2),
+            "all_time_roi_pct": round((all_revenue - all_spent) / max(all_spent, 0.01) * 100, 1),
+            "total_boosts": len(self._ledger),
+            "active_boosts": sum(1 for r in self._ledger if r.status == "active"),
         }
 
     def _notify(self, message: str):
         try:
-            token   = os.getenv("TELEGRAM_BOT_TOKEN")
+            token = os.getenv("TELEGRAM_BOT_TOKEN")
             chat_id = os.getenv("TELEGRAM_CHAT_ID")
             if token and chat_id:
                 requests.post(

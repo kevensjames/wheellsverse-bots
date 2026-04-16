@@ -117,7 +117,7 @@ def _leonardo(prompt: str, style_uuid: str = None, width: int = 1024, height: in
             data = json.loads(resp.read())
         gen_id = data.get("sdGenerationJob", {}).get("generationId")
         if not gen_id:
-            log.warning(f"[MediaEngine] Leonardo: no generationId in response")
+            log.warning("[MediaEngine] Leonardo: no generationId in response")
             return None
 
         # Poll for result
@@ -452,7 +452,7 @@ def upload_media_pack_to_shopify(product_id: int, media_pack: dict) -> dict:
         try:
             if mtype == "image":
                 r = _shopify_request("POST", f"products/{product_id}/images.json", {
-                    "image": {"src": url, "alt": f"Product image"}
+                    "image": {"src": url, "alt": "Product image"}
                 })
                 img_id = r.get("image", {}).get("id")
                 if img_id:

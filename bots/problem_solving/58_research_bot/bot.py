@@ -10,24 +10,24 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 RESEARCH_TYPES = {
-    "market_analysis":    "Market size, trends, growth drivers, key players, opportunities",
+    "market_analysis": "Market size, trends, growth drivers, key players, opportunities",
     "competitor_research": "Deep competitive intelligence on specific companies or products",
-    "technology_eval":    "Technical assessment of tools, frameworks, or platforms",
-    "investment_thesis":  "Due diligence on investment opportunities",
-    "trend_report":       "Emerging trends, signals, and future implications",
-    "problem_research":   "Systematic analysis of a specific problem or challenge",
-    "literature_review":  "Survey of existing knowledge, frameworks, and best practices",
-    "feasibility_study":  "Assess viability of an idea, project, or strategy",
+    "technology_eval": "Technical assessment of tools, frameworks, or platforms",
+    "investment_thesis": "Due diligence on investment opportunities",
+    "trend_report": "Emerging trends, signals, and future implications",
+    "problem_research": "Systematic analysis of a specific problem or challenge",
+    "literature_review": "Survey of existing knowledge, frameworks, and best practices",
+    "feasibility_study": "Assess viability of an idea, project, or strategy",
 }
 
 DEPTH_LEVELS = {
-    "overview":     "High-level summary — 500-800 words, key points only",
-    "standard":     "Comprehensive report — 1,500-2,500 words with analysis",
-    "deep_dive":    "Exhaustive analysis — 3,000+ words with frameworks and models",
-    "executive":    "Executive summary format — decision-focused, under 500 words",
+    "overview": "High-level summary — 500-800 words, key points only",
+    "standard": "Comprehensive report — 1,500-2,500 words with analysis",
+    "deep_dive": "Exhaustive analysis — 3,000+ words with frameworks and models",
+    "executive": "Executive summary format — decision-focused, under 500 words",
 }
 
 
@@ -41,16 +41,16 @@ class ResearchBot(BaseBot):
             decision_needed: str = None, **kwargs):
 
         cfg = self.config
-        research_topic  = research_topic or cfg.get("research_topic",
+        research_topic = research_topic or cfg.get("research_topic",
             "AI agents landscape 2025 — autonomous AI systems for business automation")
-        research_type   = research_type or cfg.get("research_type", "market_analysis")
-        depth           = depth or cfg.get("depth", "standard")
-        focus_area      = focus_area or cfg.get("focus_area",
+        research_type = research_type or cfg.get("research_type", "market_analysis")
+        depth = depth or cfg.get("depth", "standard")
+        focus_area = focus_area or cfg.get("focus_area",
             "opportunities for WheellsVerse to position in the AI automation market")
         decision_needed = decision_needed or cfg.get("decision_needed",
             "which AI agent frameworks to build integrations for")
 
-        type_desc  = RESEARCH_TYPES.get(research_type, research_type)
+        type_desc = RESEARCH_TYPES.get(research_type, research_type)
         depth_desc = DEPTH_LEVELS.get(depth, depth)
 
         self.logger.info(f"Researching: {research_topic} ({research_type})")
@@ -206,12 +206,12 @@ Based on this research, the recommended actions for WheellsVerse:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Deep Research & Analysis Report Generator")
-    parser.add_argument("--topic",    type=str, default=None)
-    parser.add_argument("--type",     type=str, default="market_analysis",
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--type", type=str, default="market_analysis",
                         choices=list(RESEARCH_TYPES.keys()))
-    parser.add_argument("--depth",    type=str, default="standard",
+    parser.add_argument("--depth", type=str, default="standard",
                         choices=list(DEPTH_LEVELS.keys()))
-    parser.add_argument("--focus",    type=str, default=None)
+    parser.add_argument("--focus", type=str, default=None)
     parser.add_argument("--decision", type=str, default=None)
     args = parser.parse_args()
     bot = ResearchBot()

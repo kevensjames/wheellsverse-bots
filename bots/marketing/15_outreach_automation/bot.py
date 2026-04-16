@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class OutreachBot(BaseBot):
@@ -23,11 +23,11 @@ class OutreachBot(BaseBot):
             channel: str = None, **kwargs):
 
         cfg = self.config
-        outreach_type   = outreach_type or cfg.get("outreach_type", "partnership")
-        target_role     = target_role or cfg.get("target_role", "marketing director at SaaS company")
-        your_offer      = your_offer or cfg.get("your_offer", "AI automation tools that save 10+ hours/week")
+        outreach_type = outreach_type or cfg.get("outreach_type", "partnership")
+        target_role = target_role or cfg.get("target_role", "marketing director at SaaS company")
+        your_offer = your_offer or cfg.get("your_offer", "AI automation tools that save 10+ hours/week")
         num_touchpoints = num_touchpoints or cfg.get("num_touchpoints", 4)
-        channel         = channel or cfg.get("channel", "email")
+        channel = channel or cfg.get("channel", "email")
 
         self.logger.info(f"Building {channel} outreach sequence for {outreach_type}: {target_role}")
 
@@ -40,13 +40,13 @@ class OutreachBot(BaseBot):
         )
 
         outreach_types = {
-            "partnership":  "co-promotion, affiliate, or joint venture partnership",
-            "sales":        "B2B sales outreach to book a demo or discovery call",
-            "pr":           "media/press outreach for coverage or feature",
-            "guest_post":   "guest blogging or content collaboration request",
-            "influencer":   "influencer collaboration or sponsored content",
-            "job":          "job application or freelance opportunity outreach",
-            "investor":     "fundraising or investor introduction",
+            "partnership": "co-promotion, affiliate, or joint venture partnership",
+            "sales": "B2B sales outreach to book a demo or discovery call",
+            "pr": "media/press outreach for coverage or feature",
+            "guest_post": "guest blogging or content collaboration request",
+            "influencer": "influencer collaboration or sponsored content",
+            "job": "job application or freelance opportunity outreach",
+            "investor": "fundraising or investor introduction",
         }
 
         outreach_label = outreach_types.get(outreach_type, outreach_type)
@@ -135,12 +135,12 @@ What reply rate and booking rate to expect + when to pause a sequence"""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Outreach Automation Builder")
-    parser.add_argument("--type",        type=str, default="partnership",
+    parser.add_argument("--type", type=str, default="partnership",
                         choices=["partnership", "sales", "pr", "guest_post", "influencer", "job", "investor"])
-    parser.add_argument("--target",      type=str, default=None)
-    parser.add_argument("--offer",       type=str, default=None)
+    parser.add_argument("--target", type=str, default=None)
+    parser.add_argument("--offer", type=str, default=None)
     parser.add_argument("--touchpoints", type=int, default=4)
-    parser.add_argument("--channel",     type=str, default="email", choices=["email", "linkedin", "twitter"])
+    parser.add_argument("--channel", type=str, default="email", choices=["email", "linkedin", "twitter"])
     args = parser.parse_args()
     bot = OutreachBot()
     result = bot.execute(outreach_type=args.type, target_role=args.target,

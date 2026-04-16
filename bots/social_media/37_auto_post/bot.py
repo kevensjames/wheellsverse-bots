@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class AutoPostBot(BaseBot):
@@ -22,19 +22,19 @@ class AutoPostBot(BaseBot):
             num_days: int = None, posting_frequency: str = None, **kwargs):
 
         cfg = self.config
-        niche             = niche or cfg.get("niche", "AI automation and entrepreneurship")
-        platforms         = platforms or cfg.get("platforms", "twitter,linkedin,instagram")
-        num_days          = num_days or cfg.get("num_days", 14)
+        niche = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        platforms = platforms or cfg.get("platforms", "twitter,linkedin,instagram")
+        num_days = num_days or cfg.get("num_days", 14)
         posting_frequency = posting_frequency or cfg.get("posting_frequency", "1x daily per platform")
 
         platform_list = [p.strip() for p in platforms.split(",")]
         self.logger.info(f"Generating {num_days}-day content calendar for {niche}")
 
         content_mix = {
-            "twitter":   "Threads, single tweets, polls, replies to trending topics",
-            "linkedin":  "Long-form posts, carousels (listed as bullet points), professional insights",
+            "twitter": "Threads, single tweets, polls, replies to trending topics",
+            "linkedin": "Long-form posts, carousels (listed as bullet points), professional insights",
             "instagram": "Reels concepts, carousels, single image posts, Stories",
-            "tiktok":    "60-90 second video scripts, trending audio hooks, educational series",
+            "tiktok": "60-90 second video scripts, trending audio hooks, educational series",
         }
 
         mix_desc = " | ".join([f"{p.upper()}: {content_mix.get(p, 'mixed content')}" for p in platform_list])
@@ -130,9 +130,9 @@ Weekly metrics to track for this calendar:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Social Media Auto Post Calendar")
-    parser.add_argument("--niche",     type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None)
     parser.add_argument("--platforms", type=str, default="twitter,linkedin,instagram")
-    parser.add_argument("--days",      type=int, default=14)
+    parser.add_argument("--days", type=int, default=14)
     parser.add_argument("--frequency", type=str, default="1x daily per platform")
     args = parser.parse_args()
     bot = AutoPostBot()

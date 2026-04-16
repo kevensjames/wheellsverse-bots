@@ -1,0 +1,6 @@
+{
+  "description": "AEO tracker — monitors answer-engine optimization scores over time",
+  "default_domain": "wheellsverse-bots.pages.dev",
+  "enabled": true,
+  "schedule": "@weekly wed 10:00"
+}

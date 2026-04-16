@@ -1,0 +1,7 @@
+{
+  "description": "Mini-Course 'Make Your First $500 With AI' — $97 course builder and daily promoter.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 10:00",
+  "action": "promote"
+}

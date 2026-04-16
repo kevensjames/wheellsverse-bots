@@ -10,28 +10,28 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 PRESENTATION_TYPES = {
-    "investor_pitch":  "Startup pitch deck — problem/solution/market/traction/ask",
-    "sales_deck":      "Customer-facing sales presentation — value prop and ROI",
-    "keynote_talk":    "Conference keynote or main stage presentation",
-    "product_demo":    "Product walkthrough and feature demonstration",
-    "educational":     "Training or workshop presentation for skill-building",
-    "webinar_deck":    "Webinar slides — value-first + soft pitch at the end",
-    "case_study":      "Client success story or before/after presentation",
-    "board_update":    "Quarterly business review for stakeholders or investors",
+    "investor_pitch": "Startup pitch deck — problem/solution/market/traction/ask",
+    "sales_deck": "Customer-facing sales presentation — value prop and ROI",
+    "keynote_talk": "Conference keynote or main stage presentation",
+    "product_demo": "Product walkthrough and feature demonstration",
+    "educational": "Training or workshop presentation for skill-building",
+    "webinar_deck": "Webinar slides — value-first + soft pitch at the end",
+    "case_study": "Client success story or before/after presentation",
+    "board_update": "Quarterly business review for stakeholders or investors",
 }
 
 SLIDE_COUNT_GUIDE = {
-    "investor_pitch":  12,
-    "sales_deck":      15,
-    "keynote_talk":    25,
-    "product_demo":    10,
-    "educational":     20,
-    "webinar_deck":    30,
-    "case_study":      10,
-    "board_update":    15,
+    "investor_pitch": 12,
+    "sales_deck": 15,
+    "keynote_talk": 25,
+    "product_demo": 10,
+    "educational": 20,
+    "webinar_deck": 30,
+    "case_study": 10,
+    "board_update": 15,
 }
 
 
@@ -45,14 +45,14 @@ class PresentationGeneratorBot(BaseBot):
             key_message: str = None, **kwargs):
 
         cfg = self.config
-        topic             = topic or cfg.get("topic",
+        topic = topic or cfg.get("topic",
             "WheellsVerse: The AI automation platform for entrepreneurs")
         presentation_type = presentation_type or cfg.get("presentation_type", "investor_pitch")
-        audience          = audience or cfg.get("audience",
+        audience = audience or cfg.get("audience",
             "angel investors and early-stage VCs")
-        num_slides        = num_slides or cfg.get("num_slides",
+        num_slides = num_slides or cfg.get("num_slides",
             SLIDE_COUNT_GUIDE.get(presentation_type, 15))
-        key_message       = key_message or cfg.get("key_message",
+        key_message = key_message or cfg.get("key_message",
             "WheellsVerse gives entrepreneurs the power of a 10-person team through AI automation")
 
         type_desc = PRESENTATION_TYPES.get(presentation_type, presentation_type)
@@ -191,12 +191,12 @@ For each slide:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Presentation & Pitch Deck Generator")
-    parser.add_argument("--topic",    type=str, default=None)
-    parser.add_argument("--type",     type=str, default="investor_pitch",
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--type", type=str, default="investor_pitch",
                         choices=list(PRESENTATION_TYPES.keys()))
     parser.add_argument("--audience", type=str, default=None)
-    parser.add_argument("--slides",   type=int, default=None)
-    parser.add_argument("--message",  type=str, default=None)
+    parser.add_argument("--slides", type=int, default=None)
+    parser.add_argument("--message", type=str, default=None)
     args = parser.parse_args()
     bot = PresentationGeneratorBot()
     result = bot.execute(topic=args.topic, presentation_type=args.type,

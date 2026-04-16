@@ -1,0 +1,7 @@
+{
+  "description": "Product Agent — creates digital products, sales pages, email sequences, and launch campaigns. Runs daily.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 07:00",
+  "action": "create"
+}

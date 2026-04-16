@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class TrendAnalyzerBot(BaseBot):
@@ -22,10 +22,10 @@ class TrendAnalyzerBot(BaseBot):
             platforms: str = None, goal: str = None, **kwargs):
 
         cfg = self.config
-        niche     = niche or cfg.get("niche", "AI automation for entrepreneurs")
+        niche = niche or cfg.get("niche", "AI automation for entrepreneurs")
         timeframe = timeframe or cfg.get("timeframe", "2025 Q1-Q2")
         platforms = platforms or cfg.get("platforms", "TikTok, YouTube, Twitter/X, LinkedIn")
-        goal      = goal or cfg.get("goal", "content strategy and product ideas")
+        goal = goal or cfg.get("goal", "content strategy and product ideas")
 
         self.logger.info(f"Analyzing trends for: {niche} | {timeframe}")
 
@@ -120,10 +120,10 @@ Prioritized steps to capitalize on the top trend identified."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Market Trend Analyzer")
-    parser.add_argument("--niche",     type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None)
     parser.add_argument("--timeframe", type=str, default="2025 Q2")
     parser.add_argument("--platforms", type=str, default="TikTok, YouTube, Twitter/X")
-    parser.add_argument("--goal",      type=str, default="content strategy")
+    parser.add_argument("--goal", type=str, default="content strategy")
     args = parser.parse_args()
     bot = TrendAnalyzerBot()
     result = bot.execute(niche=args.niche, timeframe=args.timeframe,

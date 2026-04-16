@@ -1,0 +1,27 @@
+{
+  "ts": "2026-04-16T13:40:47.582161",
+  "duration_s": 0.01,
+  "severity": "green",
+  "summary": {
+    "total_bots": 0,
+    "healthy_bots": 0,
+    "health_pct": 0.0,
+    "errors_in_logs": 0,
+    "warnings_in_logs": 0,
+    "config_issues": 0,
+    "token_spend_24h": 0,
+    "output_files": 0
+  },
+  "errors": [],
+  "warnings": [],
+  "config_issues": [],
+  "hot_bots": [],
+  "large_files": [],
+  "categories": {},
+  "mood": {
+    "mood": "excited",
+    "emoji": "\u2728",
+    "energy": 1.0,
+    "curiosity": 0.9
+  }
+}

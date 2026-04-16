@@ -20,8 +20,7 @@ All methods return clean Python dicts/lists — never raise, instead return
 import logging
 import os
 import time
-from datetime import datetime, timedelta
-from functools import lru_cache
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 

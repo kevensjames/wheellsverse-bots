@@ -40,9 +40,9 @@ COOKIES_DIR = ROOT / "data" / "cookies"
 COOKIES_DIR.mkdir(parents=True, exist_ok=True)
 TWITTER_COOKIES_FILE = COOKIES_DIR / "twitter_session.json"
 
-HEADLESS    = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
-SLOW_MO     = int(os.getenv("BROWSER_SLOW_MO", "0"))       # ms between actions
-TIMEOUT     = int(os.getenv("BROWSER_TIMEOUT", "30000"))    # ms page load timeout
+HEADLESS = os.getenv("BROWSER_HEADLESS", "true").lower() != "false"
+SLOW_MO = int(os.getenv("BROWSER_SLOW_MO", "0"))       # ms between actions
+TIMEOUT = int(os.getenv("BROWSER_TIMEOUT", "30000"))    # ms page load timeout
 
 
 # ─── Base Browser Context ─────────────────────────────────────────────────────
@@ -57,8 +57,8 @@ class BrowserSession:
 
     def __init__(self, browser_type: str = "chromium"):
         self.browser_type = browser_type
-        self._playwright  = None
-        self._browser     = None
+        self._playwright = None
+        self._browser = None
 
     async def __aenter__(self):
         from playwright.async_api import async_playwright
@@ -118,7 +118,7 @@ async def _screenshot_async(url: str, filename: str = "") -> Path:
         page = await b.new_page()
         await page.goto(url, wait_until="networkidle")
         fname = filename or f"screenshot_{int(time.time())}.png"
-        path  = SCREENSHOTS_DIR / fname
+        path = SCREENSHOTS_DIR / fname
         await page.screenshot(path=str(path), full_page=True)
         logger.info(f"Screenshot saved: {path.name}")
         return path
@@ -137,13 +137,13 @@ async def _scrape_async(url: str, selector: str = "", wait_for: str = "") -> Dic
         await page.goto(url, wait_until="domcontentloaded")
         if wait_for:
             await page.wait_for_selector(wait_for, timeout=TIMEOUT)
-        title   = await page.title()
+        title = await page.title()
         content = await page.inner_text("body") if not selector else await page.inner_text(selector)
-        html    = await page.content()
+        html = await page.content()
         return {
-            "url":     url,
-            "title":   title,
-            "text":    content[:5000],
+            "url": url,
+            "title": title,
+            "text": content[:5000],
             "html_len": len(html),
             "scraped_at": datetime.now().isoformat(),
         }
@@ -159,7 +159,7 @@ def scrape_page(url: str, selector: str = "", wait_for: str = "") -> Dict:
 async def _twitter_login_and_save(page) -> bool:
     """Login to X and save cookies. Returns True on success."""
     import json
-    email    = os.getenv("TWITTER_EMAIL", "")
+    email = os.getenv("TWITTER_EMAIL", "")
     password = os.getenv("TWITTER_PASSWORD", "")
     await page.goto("https://x.com/i/flow/login")
     await page.wait_for_selector('input[autocomplete="username"]', timeout=20000)
@@ -261,7 +261,7 @@ async def _post_twitter_async(tweets: List[str]) -> Dict:
                 await page.click('[data-testid="addButton"]')
                 await page.wait_for_timeout(800)
                 boxes = page.locator('[data-testid^="tweetTextarea_"]')
-                box   = boxes.last
+                box = boxes.last
 
             await box.click()
             await page.keyboard.type(tweet[:280], delay=30)
@@ -275,15 +275,15 @@ async def _post_twitter_async(tweets: List[str]) -> Dict:
         await page.wait_for_timeout(4000)
 
         # Screenshot confirmation
-        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = SCREENSHOTS_DIR / f"twitter_post_{ts}.png"
         await page.screenshot(path=str(path))
 
         logger.info(f"Twitter thread posted: {len(tweets)} tweets")
         return {
-            "status":   "posted",
-            "tweets":   len(tweets),
-            "results":  results,
+            "status": "posted",
+            "tweets": len(tweets),
+            "results": results,
             "screenshot": str(path),
         }
 
@@ -301,7 +301,7 @@ async def _post_linkedin_async(content: str) -> Dict:
       LINKEDIN_EMAIL    — your LinkedIn email
       LINKEDIN_PASSWORD — your LinkedIn password
     """
-    email    = os.getenv("LINKEDIN_EMAIL", "")
+    email = os.getenv("LINKEDIN_EMAIL", "")
     password = os.getenv("LINKEDIN_PASSWORD", "")
     if not email or not password:
         return {"status": "skipped", "reason": "LINKEDIN_EMAIL / LINKEDIN_PASSWORD not set in .env"}
@@ -327,14 +327,14 @@ async def _post_linkedin_async(content: str) -> Dict:
         await page.click('[data-control-name="share.post"]')
         await page.wait_for_timeout(3000)
 
-        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = SCREENSHOTS_DIR / f"linkedin_post_{ts}.png"
         await page.screenshot(path=str(path))
 
         logger.info("LinkedIn post published")
         return {
-            "status":     "posted",
-            "chars":      len(content),
+            "status": "posted",
+            "chars": len(content),
             "screenshot": str(path),
         }
 
@@ -360,8 +360,8 @@ async def _scrape_crypto_async(coins: List[str] = None) -> Dict:
                 cells = await row.query_selector_all("td")
                 if len(cells) < 7:
                     continue
-                name   = (await cells[2].inner_text()).strip().split("\n")[0]
-                price  = (await cells[3].inner_text()).strip()
+                name = (await cells[2].inner_text()).strip().split("\n")[0]
+                price = (await cells[3].inner_text()).strip()
                 change = (await cells[5].inner_text()).strip()
                 prices.append({"name": name, "price": price, "change_24h": change})
             except Exception:
@@ -369,8 +369,8 @@ async def _scrape_crypto_async(coins: List[str] = None) -> Dict:
 
         logger.info(f"Scraped {len(prices)} coins from CoinMarketCap")
         return {
-            "source":     "coinmarketcap",
-            "prices":     prices,
+            "source": "coinmarketcap",
+            "prices": prices,
             "scraped_at": datetime.now().isoformat(),
         }
 
@@ -385,8 +385,8 @@ def scrape_crypto_prices(coins: List[str] = None) -> Dict:
 async def _scrape_trends_async(keywords: List[str] = None) -> Dict:
     """Scrape Google Trends for real-time trending searches."""
     async with BrowserSession() as b:
-        page  = await b.new_page()
-        url   = "https://trends.google.com/trending?geo=US&hours=24"
+        page = await b.new_page()
+        url = "https://trends.google.com/trending?geo=US&hours=24"
         await page.goto(url, wait_until="networkidle")
         await page.wait_for_timeout(3000)
 
@@ -402,8 +402,8 @@ async def _scrape_trends_async(keywords: List[str] = None) -> Dict:
 
         logger.info(f"Scraped {len(trending)} trending topics from Google Trends")
         return {
-            "source":     "google_trends_browser",
-            "trending":   trending,
+            "source": "google_trends_browser",
+            "trending": trending,
             "scraped_at": datetime.now().isoformat(),
         }
 
@@ -425,7 +425,7 @@ async def _submit_form_async(url: str, fields: Dict[str, str], submit_selector: 
             await page.wait_for_timeout(300)
         await page.click(submit_selector)
         await page.wait_for_timeout(2000)
-        ts   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         path = SCREENSHOTS_DIR / f"form_submit_{ts}.png"
         await page.screenshot(path=str(path))
         return {"status": "submitted", "url": url, "screenshot": str(path)}

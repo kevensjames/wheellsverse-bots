@@ -10,32 +10,32 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 SCRIPT_FORMATS = {
     "youtube_video": {
-        "desc":     "YouTube educational/entertainment video with retention tactics",
-        "length":   "8-15 minutes (~1,500-2,500 words of spoken script)",
+        "desc": "YouTube educational/entertainment video with retention tactics",
+        "length": "8-15 minutes (~1,500-2,500 words of spoken script)",
         "structure": "Hook → Context → Promise → Main Content (5-7 segments) → CTA → Outro",
     },
     "podcast_episode": {
-        "desc":     "Podcast episode — solo or interview format",
-        "length":   "20-45 minutes (~3,000-6,000 words)",
+        "desc": "Podcast episode — solo or interview format",
+        "length": "20-45 minutes (~3,000-6,000 words)",
         "structure": "Intro → Topic intro → Main discussion (4-6 segments) → Key takeaways → CTA → Outro",
     },
     "webinar": {
-        "desc":     "Live or recorded webinar for lead generation or sales",
-        "length":   "45-90 minutes (~6,000-12,000 words)",
+        "desc": "Live or recorded webinar for lead generation or sales",
+        "length": "45-90 minutes (~6,000-12,000 words)",
         "structure": "Welcome → Problem agitation → Content (5-7 sections) → Offer reveal → Q&A → Close",
     },
     "sales_video": {
-        "desc":     "VSL (Video Sales Letter) for product or service promotion",
-        "length":   "10-20 minutes (~2,000-3,500 words)",
+        "desc": "VSL (Video Sales Letter) for product or service promotion",
+        "length": "10-20 minutes (~2,000-3,500 words)",
         "structure": "Attention → Problem → Agitation → Solution → Proof → Offer → Urgency → CTA",
     },
     "explainer_video": {
-        "desc":     "Short explainer or product demo video",
-        "length":   "2-5 minutes (~400-900 words)",
+        "desc": "Short explainer or product demo video",
+        "length": "2-5 minutes (~400-900 words)",
         "structure": "Hook → Problem → Solution → How it works → Social proof → CTA",
     },
 }
@@ -50,14 +50,14 @@ class ScriptWriterBot(BaseBot):
             duration: str = None, audience: str = None, **kwargs):
 
         cfg = self.config
-        topic       = topic or cfg.get("topic", "How I automated my business with 70 AI bots")
+        topic = topic or cfg.get("topic", "How I automated my business with 70 AI bots")
         format_type = format_type or cfg.get("format_type", "youtube_video")
-        duration    = duration or cfg.get("duration", None)
-        audience    = audience or cfg.get("audience", "entrepreneurs and business owners")
+        duration = duration or cfg.get("duration", None)
+        audience = audience or cfg.get("audience", "entrepreneurs and business owners")
 
         fmt = SCRIPT_FORMATS.get(format_type, SCRIPT_FORMATS["youtube_video"])
-        fmt_desc     = fmt["desc"]
-        fmt_length   = duration or fmt["length"]
+        fmt_desc = fmt["desc"]
+        fmt_length = duration or fmt["length"]
         fmt_structure = fmt["structure"]
 
         self.logger.info(f"Writing {format_type} script: {topic}")
@@ -206,8 +206,8 @@ For {format_type} — suggested chapter markers:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Long-Form Script Writer")
-    parser.add_argument("--topic",    type=str, default=None)
-    parser.add_argument("--format",   type=str, default="youtube_video",
+    parser.add_argument("--topic", type=str, default=None)
+    parser.add_argument("--format", type=str, default="youtube_video",
                         choices=list(SCRIPT_FORMATS.keys()))
     parser.add_argument("--duration", type=str, default=None)
     parser.add_argument("--audience", type=str, default=None)

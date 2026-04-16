@@ -7,10 +7,12 @@ like a stranger, and never misses a warm lead.
 """
 
 from __future__ import annotations
-import json, threading, logging
-from datetime import datetime, timezone, timedelta
+import json
+import threading
+import logging
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 
 log = logging.getLogger(__name__)
 
@@ -52,10 +54,14 @@ class PersonRecord:
         score += self.sentiment_score * 20.0
         score += len(self.affiliate_clicks) * 10.0
         score += (50.0 if self.converted else 0.0)
-        if self.purchase_stage == "vip":     score += 100.0
-        elif self.purchase_stage == "customer": score += 50.0
-        elif self.purchase_stage == "hot":   score += 25.0
-        elif self.purchase_stage == "warm":  score += 10.0
+        if self.purchase_stage == "vip":
+            score += 100.0
+        elif self.purchase_stage == "customer":
+            score += 50.0
+        elif self.purchase_stage == "hot":
+            score += 25.0
+        elif self.purchase_stage == "warm":
+            score += 10.0
         return round(score, 1)
 
     @property
@@ -263,7 +269,7 @@ class PeopleMemory:
             self._save()
 
     def add_tag(self, platform: str, user_id: str, tag: str):
-        uid = self._uid(platform, user_id)
+        self._uid(platform, user_id)
         p = self.get_or_create(platform, user_id)
         if tag not in p.tags:
             p.tags.append(tag)
@@ -396,6 +402,7 @@ class PeopleMemory:
 
 def remember(platform: str, user_id: str, message: str, **kwargs) -> PersonRecord:
     return PeopleMemory.get().remember(platform, user_id, message, **kwargs)
+
 
 def get_context(platform: str, user_id: str) -> str:
     return PeopleMemory.get().get_relationship_prompt(platform, user_id)

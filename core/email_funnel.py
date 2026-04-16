@@ -38,7 +38,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -48,19 +48,19 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR     = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
-FUNNEL_FILE  = DATA_DIR / "email_funnels.json"
+FUNNEL_FILE = DATA_DIR / "email_funnels.json"
 
-logger    = logging.getenv = os.getenv
-logger    = logging.getLogger("email_funnel")
+logger = logging.getenv = os.getenv
+logger = logging.getLogger("email_funnel")
 
-BRAND     = os.getenv("BRAND_NAME",  "WheellsVerse")
-AUTHOR    = os.getenv("AUTHOR_NAME", "J.K. Blaze")
-CTA_URL   = os.getenv("CTA_URL",     "https://grateful-flexibility-production.up.railway.app/landing")
-CK_KEY    = os.getenv("CONVERTKIT_API_KEY",    "")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CK_KEY = os.getenv("CONVERTKIT_API_KEY", "")
 CK_SECRET = os.getenv("CONVERTKIT_API_SECRET", "")
-CK_BASE   = "https://api.convertkit.com/v3"
+CK_BASE = "https://api.convertkit.com/v3"
 
 
 # ─── ConvertKit helpers ───────────────────────────────────────────────────────
@@ -105,7 +105,7 @@ def add_subscriber(email: str, first_name: str = "", tags: List[str] = None,
         return {"error": "No ConvertKit forms found — create at least one form"}
 
     form_id = forms[0]["id"]
-    body    = {"email": email, "first_name": first_name}
+    body = {"email": email, "first_name": first_name}
     if tags:
         body["tags"] = tags
 
@@ -139,7 +139,7 @@ def _apply_tags(email: str, tags: List[str]) -> Dict:
     for tag_name in tags:
         # Create tag if not exists
         tag_result = _ck_post("/tags", {"tag": {"name": tag_name}})
-        tag_id     = (tag_result.get("id") or
+        tag_id = (tag_result.get("id") or
                       tag_result.get("tag", {}).get("id"))
         if tag_id:
             result = _ck_post(f"/tags/{tag_id}/subscribe",
@@ -151,7 +151,7 @@ def _apply_tags(email: str, tags: List[str]) -> Dict:
 def get_subscriber(email: str) -> Optional[Dict]:
     """Get subscriber details."""
     result = _ck_get("/subscribers", {"email_address": email})
-    subs   = result.get("subscribers", [])
+    subs = result.get("subscribers", [])
     return subs[0] if subs else None
 
 
@@ -177,28 +177,28 @@ def build_sequence(niche: str, sequence_type: str = "nurture") -> List[Dict]:
 
         best_link = get_best_link(niche)
         aff_label = best_link.get("label", "our top recommendation")
-        aff_url   = best_link.get("url", CTA_URL)
+        aff_url = best_link.get("url", CTA_URL)
 
         sequence_specs = {
             "welcome": {
                 "count": 5,
                 "theme": "welcome the subscriber, set expectations, deliver first value",
-                "flow":  "Welcome → Your Story → Free Resource → Core Insight → First Offer",
+                "flow": "Welcome → Your Story → Free Resource → Core Insight → First Offer",
             },
             "nurture": {
                 "count": 7,
                 "theme": f"educate on {niche}, build trust, convert to affiliate offer",
-                "flow":  "Hook → Problem → Insight 1 → Insight 2 → Social Proof → Deep Dive → Offer",
+                "flow": "Hook → Problem → Insight 1 → Insight 2 → Social Proof → Deep Dive → Offer",
             },
             "re_engagement": {
                 "count": 3,
                 "theme": "win back inactive subscribers with urgency and value",
-                "flow":  "We miss you → Best content recap → Final chance offer",
+                "flow": "We miss you → Best content recap → Final chance offer",
             },
             "buyer": {
                 "count": 4,
                 "theme": "thank buyer, deliver value, upsell to next product",
-                "flow":  "Thank you → How to get results → Advanced tip → Upgrade offer",
+                "flow": "Thank you → How to get results → Advanced tip → Upgrade offer",
             },
         }
         spec = sequence_specs.get(sequence_type, sequence_specs["nurture"])
@@ -231,11 +231,11 @@ def build_sequence(niche: str, sequence_type: str = "nurture") -> List[Dict]:
             temperature=0.75,
         )
 
-        raw     = resp.choices[0].message.content.strip()
+        raw = resp.choices[0].message.content.strip()
         # Extract JSON array
-        start   = raw.find("[")
-        end     = raw.rfind("]") + 1
-        emails  = json.loads(raw[start:end])
+        start = raw.find("[")
+        end = raw.rfind("]") + 1
+        emails = json.loads(raw[start:end])
 
         logger.info(f"[EmailFunnel] Generated {len(emails)}-email {sequence_type} sequence for {niche}")
         return emails
@@ -255,13 +255,13 @@ def create_sequence_in_convertkit(name: str, emails: List[Dict]) -> Dict:
 
     # ConvertKit API v3 doesn't have sequence creation — save locally instead
     # and use broadcasts for direct sending
-    seq_id = f"seq_{name.replace(' ','_').lower()}_{int(time.time())}"
+    seq_id = f"seq_{name.replace(' ', '_').lower()}_{int(time.time())}"
 
     # Save sequence to disk for reference / manual import
     sequences = _load_sequences()
     sequences[seq_id] = {
-        "name":    name,
-        "emails":  emails,
+        "name": name,
+        "emails": emails,
         "created": datetime.now().isoformat(),
         "sent_count": 0,
     }
@@ -287,8 +287,8 @@ def send_broadcast(subject: str, body: str,
         return {"error": "ConvertKit not configured"}
 
     payload: Dict = {
-        "subject":    subject,
-        "content":    body,
+        "subject": subject,
+        "content": body,
         "description": f"Broadcast: {subject[:50]}",
     }
 
@@ -326,22 +326,22 @@ def generate_broadcast(topic: str, niche: str = "general") -> Dict:
                 {"role": "user", "content": (
                     f"Write a broadcast email on: '{topic}'\n"
                     f"Niche: {niche}\n"
-                    f"Affiliate CTA: {best_link.get('label','')} — {best_link.get('url','')}\n"
+                    f"Affiliate CTA: {best_link.get('label', '')} — {best_link.get('url', '')}\n"
                     f"Return JSON: {{\"subject\": \"...\", \"preview\": \"...\", \"body\": \"...\"}}"
                 )},
             ],
             max_tokens=600,
             temperature=0.75,
         )
-        raw  = resp.choices[0].message.content.strip()
-        data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+        raw = resp.choices[0].message.content.strip()
+        data = json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
 
         result = send_broadcast(
             subject=data.get("subject", topic),
             body=data.get("body", ""),
         )
-        result["subject"]  = data.get("subject", "")
-        result["preview"]  = data.get("preview", "")
+        result["subject"] = data.get("subject", "")
+        result["preview"] = data.get("preview", "")
         return result
 
     except Exception as e:
@@ -354,18 +354,18 @@ def get_stats() -> Dict:
     if not is_configured():
         return {"error": "not configured"}
 
-    subs    = _ck_get("/subscribers")
-    seqs    = _load_sequences()
-    forms   = _ck_get("/forms").get("forms", [])
+    subs = _ck_get("/subscribers")
+    seqs = _load_sequences()
+    forms = _ck_get("/forms").get("forms", [])
     broadcasts = _ck_get("/broadcasts").get("broadcasts", [])
 
     return {
-        "configured":        True,
+        "configured": True,
         "total_subscribers": subs.get("total_subscribers", 0),
-        "sequences_built":   len(seqs),
-        "forms":             len(forms),
-        "broadcasts_sent":   len(broadcasts),
-        "open_rate":         "pull from ConvertKit dashboard",
+        "sequences_built": len(seqs),
+        "forms": len(forms),
+        "broadcasts_sent": len(broadcasts),
+        "open_rate": "pull from ConvertKit dashboard",
     }
 
 
@@ -382,19 +382,19 @@ def send_weekly_newsletter() -> Dict:
         from core.integrations import IntegrationsHub
 
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        fl     = FeedbackLoop.get()
+        fl = FeedbackLoop.get()
 
         # Get top content
-        top_crypto    = fl.get_best_topics("crypto", limit=2)
-        top_ai        = fl.get_best_topics("ai_tools", limit=2)
+        top_crypto = fl.get_best_topics("crypto", limit=2)
+        top_ai = fl.get_best_topics("ai_tools", limit=2)
         top_investing = fl.get_best_topics("investing", limit=2)
 
         # Get market data
         try:
-            hub    = IntegrationsHub()
+            hub = IntegrationsHub()
             crypto = hub.get_crypto()
-            btc    = next((c for c in crypto if "bitcoin" in c.get("name","").lower()), {})
-            btc_price = f"${btc.get('current_price',0):,.0f}" if btc else "N/A"
+            btc = next((c for c in crypto if "bitcoin" in c.get("name", "").lower()), {})
+            btc_price = f"${btc.get('current_price', 0):,.0f}" if btc else "N/A"
         except Exception:
             btc_price = "N/A"
 
@@ -411,7 +411,7 @@ def send_weekly_newsletter() -> Dict:
                 f"Top crypto topics: {[t['topic'] for t in top_crypto]}\n"
                 f"Top AI topics: {[t['topic'] for t in top_ai]}\n"
                 f"Top investing topics: {[t['topic'] for t in top_investing]}\n"
-                f"Featured affiliate: {best.get('label','')} — {best.get('url','')}\n\n"
+                f"Featured affiliate: {best.get('label', '')} — {best.get('url', '')}\n\n"
                 "Newsletter format:\n"
                 "- Subject line (specific, data-driven, <60 chars)\n"
                 "- Opening: 2 sentences on biggest insight this week\n"
@@ -425,15 +425,15 @@ def send_weekly_newsletter() -> Dict:
             max_tokens=1000,
             temperature=0.72,
         )
-        raw  = resp.choices[0].message.content.strip()
-        data = json.loads(raw[raw.find("{"):raw.rfind("}")+1])
+        raw = resp.choices[0].message.content.strip()
+        data = json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
 
         result = send_broadcast(
             subject=data.get("subject", f"{BRAND} Weekly — {week_str}"),
             body=data.get("body", ""),
         )
-        logger.info(f"[EmailFunnel] Weekly newsletter sent: {data.get('subject','')}")
-        return {**result, "subject": data.get("subject",""), "week": week_str}
+        logger.info(f"[EmailFunnel] Weekly newsletter sent: {data.get('subject', '')}")
+        return {**result, "subject": data.get("subject", ""), "week": week_str}
 
     except Exception as e:
         logger.error(f"[EmailFunnel] Weekly newsletter failed: {e}")
@@ -457,11 +457,11 @@ def _save_sequences(data: Dict):
 
 def summary() -> Dict:
     seqs = _load_sequences()
-    ck   = get_stats()
+    ck = get_stats()
     return {
-        "configured":        is_configured(),
+        "configured": is_configured(),
         "total_subscribers": ck.get("total_subscribers", 0),
-        "sequences_built":   len(seqs),
-        "broadcasts_sent":   ck.get("broadcasts_sent", 0),
-        "sequences":         list(seqs.keys()),
+        "sequences_built": len(seqs),
+        "broadcasts_sent": ck.get("broadcasts_sent", 0),
+        "sequences": list(seqs.keys()),
     }

@@ -1,0 +1,7 @@
+{
+  "description": "True Crime narrative (.99 KDP). Writes 1 book/day.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 09:15",
+  "action": "write"
+}

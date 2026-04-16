@@ -13,7 +13,7 @@ import os
 import sqlite3
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 
 ROOT = Path(__file__).parent.parent
 
@@ -27,6 +27,7 @@ else:
 
 # ── Connection ─────────────────────────────────────────────────────────────────
 
+
 def get_conn() -> sqlite3.Connection:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
@@ -36,6 +37,7 @@ def get_conn() -> sqlite3.Connection:
     return conn
 
 # ── Schema ─────────────────────────────────────────────────────────────────────
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS nx_creators (
@@ -144,6 +146,7 @@ CREATE TABLE IF NOT EXISTS nx_fan_sessions (
 );
 """
 
+
 def init_db() -> None:
     conn = get_conn()
     conn.executescript(_SCHEMA)
@@ -151,6 +154,7 @@ def init_db() -> None:
     conn.close()
 
 # ── Creators ───────────────────────────────────────────────────────────────────
+
 
 def get_creator_by_id(creator_id: int) -> Optional[Dict]:
     conn = get_conn()
@@ -161,6 +165,7 @@ def get_creator_by_id(creator_id: int) -> Optional[Dict]:
     conn.close()
     return dict(row) if row else None
 
+
 def get_creator_by_handle(handle: str) -> Optional[Dict]:
     conn = get_conn()
     row = conn.execute(
@@ -170,6 +175,7 @@ def get_creator_by_handle(handle: str) -> Optional[Dict]:
     conn.close()
     return dict(row) if row else None
 
+
 def get_creator_by_email(email: str) -> Optional[Dict]:
     conn = get_conn()
     row = conn.execute(
@@ -178,6 +184,7 @@ def get_creator_by_email(email: str) -> Optional[Dict]:
     ).fetchone()
     conn.close()
     return dict(row) if row else None
+
 
 def update_creator_profile(creator_id: int, fields: Dict) -> bool:
     allowed = {"name", "bio", "avatar", "price", "payout_method", "stripe_link"}
@@ -194,6 +201,7 @@ def update_creator_profile(creator_id: int, fields: Dict) -> bool:
 
 # ── Posts ──────────────────────────────────────────────────────────────────────
 
+
 def create_post(creator_id: int, title: str, body: str,
                 access: str = "subscribers", media_urls: List[str] = None) -> int:
     conn = get_conn()
@@ -205,6 +213,7 @@ def create_post(creator_id: int, title: str, body: str,
     conn.commit()
     conn.close()
     return post_id
+
 
 def list_posts(creator_id: int, limit: int = 50) -> List[Dict]:
     conn = get_conn()
@@ -223,6 +232,7 @@ def list_posts(creator_id: int, limit: int = 50) -> List[Dict]:
         out.append(d)
     return out
 
+
 def delete_post(post_id: int, creator_id: int) -> bool:
     conn = get_conn()
     conn.execute("DELETE FROM nx_posts WHERE id=? AND creator_id=?", (post_id, creator_id))
@@ -231,6 +241,7 @@ def delete_post(post_id: int, creator_id: int) -> bool:
     return True
 
 # ── Subscribers ────────────────────────────────────────────────────────────────
+
 
 def add_subscriber(creator_id: int, fan_email: str, fan_name: str = "",
                    price_paid: float = 0, stripe_cust: str = "") -> Dict:
@@ -248,6 +259,7 @@ def add_subscriber(creator_id: int, fan_email: str, fan_name: str = "",
     conn.close()
     return {"creator_id": creator_id, "fan_email": fan_email, "status": "active"}
 
+
 def list_subscribers(creator_id: int) -> List[Dict]:
     conn = get_conn()
     rows = conn.execute(
@@ -257,6 +269,7 @@ def list_subscribers(creator_id: int) -> List[Dict]:
     conn.close()
     return [dict(r) for r in rows]
 
+
 def get_active_subscriber_count(creator_id: int) -> int:
     conn = get_conn()
     row = conn.execute(
@@ -265,6 +278,7 @@ def get_active_subscriber_count(creator_id: int) -> int:
     ).fetchone()
     conn.close()
     return row["cnt"] if row else 0
+
 
 def cancel_subscriber(creator_id: int, fan_email: str) -> bool:
     conn = get_conn()
@@ -278,10 +292,11 @@ def cancel_subscriber(creator_id: int, fan_email: str) -> bool:
 
 # ── Transactions ───────────────────────────────────────────────────────────────
 
+
 def record_transaction(creator_id: int, amount: float, tx_type: str = "subscription",
                        fan_email: str = "", stripe_id: str = "", status: str = "succeeded") -> int:
     platform_cut = round(amount * 0.10, 4)
-    creator_cut  = round(amount * 0.90, 4)
+    creator_cut = round(amount * 0.90, 4)
     conn = get_conn()
     cur = conn.execute(
         """INSERT INTO nx_transactions
@@ -295,6 +310,7 @@ def record_transaction(creator_id: int, amount: float, tx_type: str = "subscript
     conn.close()
     return tx_id
 
+
 def get_earnings(creator_id: int) -> Dict:
     conn = get_conn()
     rows = conn.execute(
@@ -305,19 +321,20 @@ def get_earnings(creator_id: int) -> Dict:
     txs = [dict(r) for r in rows]
     now = time.time()
     month_start = now - 30 * 86400
-    total        = sum(t["creator_cut"] for t in txs)
-    this_month   = sum(t["creator_cut"] for t in txs if t["created_at"] >= month_start)
+    total = sum(t["creator_cut"] for t in txs)
+    this_month = sum(t["creator_cut"] for t in txs if t["created_at"] >= month_start)
     by_type: Dict[str, float] = {}
     for t in txs:
         by_type[t["type"]] = round(by_type.get(t["type"], 0) + t["creator_cut"], 2)
     return {
-        "total":      round(total, 2),
+        "total": round(total, 2),
         "this_month": round(this_month, 2),
-        "by_type":    by_type,
+        "by_type": by_type,
         "transactions": txs[:50],
     }
 
 # ── Payouts ────────────────────────────────────────────────────────────────────
+
 
 def request_payout(creator_id: int, amount: float, method: str = "bank") -> Dict:
     conn = get_conn()
@@ -330,6 +347,7 @@ def request_payout(creator_id: int, amount: float, method: str = "bank") -> Dict
     conn.close()
     return {"id": payout_id, "amount": amount, "method": method, "status": "requested"}
 
+
 def list_payouts(creator_id: int) -> List[Dict]:
     conn = get_conn()
     rows = conn.execute(
@@ -338,6 +356,7 @@ def list_payouts(creator_id: int) -> List[Dict]:
     ).fetchall()
     conn.close()
     return [dict(r) for r in rows]
+
 
 def get_pending_payout_amount(creator_id: int) -> float:
     conn = get_conn()
@@ -350,6 +369,7 @@ def get_pending_payout_amount(creator_id: int) -> float:
 
 # ── Messages ───────────────────────────────────────────────────────────────────
 
+
 def send_message(creator_id: int, fan_email: str, sender: str, body: str) -> int:
     conn = get_conn()
     cur = conn.execute(
@@ -360,6 +380,7 @@ def send_message(creator_id: int, fan_email: str, sender: str, body: str) -> int
     conn.commit()
     conn.close()
     return msg_id
+
 
 def list_messages(creator_id: int, fan_email: str = "") -> List[Dict]:
     conn = get_conn()
@@ -376,11 +397,13 @@ def list_messages(creator_id: int, fan_email: str = "") -> List[Dict]:
     conn.close()
     return [dict(r) for r in rows]
 
+
 def mark_messages_read(creator_id: int) -> None:
     conn = get_conn()
     conn.execute("UPDATE nx_messages SET read=1 WHERE creator_id=?", (creator_id,))
     conn.commit()
     conn.close()
+
 
 def unread_message_count(creator_id: int) -> int:
     conn = get_conn()
@@ -393,31 +416,34 @@ def unread_message_count(creator_id: int) -> int:
 
 # ── Stats summary ──────────────────────────────────────────────────────────────
 
+
 def get_creator_stats(creator_id: int) -> Dict:
-    earnings     = get_earnings(creator_id)
-    sub_count    = get_active_subscriber_count(creator_id)
-    post_count   = len(list_posts(creator_id, limit=9999))
-    pending_pay  = get_pending_payout_amount(creator_id)
-    unread_msgs  = unread_message_count(creator_id)
-    mrr          = round(sub_count * (get_creator_by_id(creator_id) or {}).get("price", 9.99), 2)
+    earnings = get_earnings(creator_id)
+    sub_count = get_active_subscriber_count(creator_id)
+    post_count = len(list_posts(creator_id, limit=9999))
+    pending_pay = get_pending_payout_amount(creator_id)
+    unread_msgs = unread_message_count(creator_id)
+    mrr = round(sub_count * (get_creator_by_id(creator_id) or {}).get("price", 9.99), 2)
     return {
-        "subscribers":    sub_count,
-        "posts":          post_count,
+        "subscribers": sub_count,
+        "posts": post_count,
         "earnings_total": earnings["total"],
         "earnings_month": earnings["this_month"],
-        "earnings_type":  earnings["by_type"],
+        "earnings_type": earnings["by_type"],
         "pending_payout": pending_pay,
-        "mrr":            mrr,
+        "mrr": mrr,
         "unread_messages": unread_msgs,
     }
 
 # ── Fan auth ───────────────────────────────────────────────────────────────────
+
 
 def get_fan_password_hash(fan_email: str) -> Optional[str]:
     conn = get_conn()
     row = conn.execute("SELECT hash FROM nx_fan_passwords WHERE fan_email=?", (fan_email,)).fetchone()
     conn.close()
     return row["hash"] if row else None
+
 
 def set_fan_password(fan_email: str, hash_: str) -> None:
     conn = get_conn()
@@ -429,6 +455,7 @@ def set_fan_password(fan_email: str, hash_: str) -> None:
     conn.commit()
     conn.close()
 
+
 def create_fan_session(fan_email: str, token: str, expires_at: float) -> None:
     conn = get_conn()
     conn.execute("DELETE FROM nx_fan_sessions WHERE fan_email=? AND expires_at < ?", (fan_email, time.time()))
@@ -438,6 +465,7 @@ def create_fan_session(fan_email: str, token: str, expires_at: float) -> None:
     )
     conn.commit()
     conn.close()
+
 
 def verify_fan_token(token: str) -> Optional[str]:
     """Return fan_email if token valid, else None."""
@@ -451,11 +479,13 @@ def verify_fan_token(token: str) -> Optional[str]:
     conn.close()
     return row["fan_email"] if row else None
 
+
 def revoke_fan_token(token: str) -> None:
     conn = get_conn()
     conn.execute("DELETE FROM nx_fan_sessions WHERE token=?", (token,))
     conn.commit()
     conn.close()
+
 
 def get_fan_subscriptions(fan_email: str) -> List[Dict]:
     """All active subscriptions for a fan across all creators."""

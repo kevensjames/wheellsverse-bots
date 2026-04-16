@@ -1,0 +1,405 @@
+#!/usr/bin/env python3
+"""
+core/instagram.py
+─────────────────────────────────────────────────────────────────────────────
+Instagram integration — Graph API first, Playwright browser fallback.
+
+Credentials (at least one method must be set):
+
+  Method A — Graph API (recommended for Reels + scheduled):
+    INSTAGRAM_PAGE_TOKEN   — Facebook Page Access Token (linked IG account)
+    INSTAGRAM_ACCOUNT_ID   — Instagram Business Account ID
+    OPENAI_API_KEY         — for auto-generating DALL-E images when needed
+
+  Method B — Browser automation (text + image posts via login):
+    INSTAGRAM_USERNAME     — Instagram username (without @)
+    INSTAGRAM_PASSWORD     — Instagram account password
+─────────────────────────────────────────────────────────────────────────────
+"""
+
+import logging
+import os
+import time
+import tempfile
+from pathlib import Path
+from typing import Optional
+
+from dotenv import load_dotenv
+
+ROOT = Path(__file__).parent.parent
+load_dotenv(ROOT / ".env")
+
+logger = logging.getLogger("instagram")
+
+SESSION_FILE = ROOT / "data" / "instagram_session.json"
+
+
+# ── Graph API poster ──────────────────────────────────────────────────────────
+
+class InstagramGraphPoster:
+    """Post to Instagram via Graph API (requires Business account linked to FB Page)."""
+
+    def __init__(self):
+        self.token = os.getenv("INSTAGRAM_PAGE_TOKEN", "") or os.getenv("FACEBOOK_PAGE_TOKEN", "")
+        self.account_id = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
+        self.openai_key = os.getenv("OPENAI_API_KEY", "")
+
+    def is_configured(self) -> bool:
+        return bool(self.token and self.account_id)
+
+    def _generate_image(self, caption: str) -> Optional[str]:
+        """Generate a DALL-E image URL for the post."""
+        if not self.openai_key:
+            return None
+        try:
+            from openai import OpenAI
+            client = OpenAI(api_key=self.openai_key)
+            resp = client.images.generate(
+                model="dall-e-3",
+                prompt=(
+                    f"Professional social media post image for: {caption[:200]}. "
+                    "Dark futuristic tech aesthetic, cyan and gold accents, "
+                    "bold text overlay with key message. WheellsVerse AI brand style."
+                ),
+                size="1024x1024", quality="standard", n=1,
+            )
+            return resp.data[0].url
+        except Exception as e:
+            logger.warning("DALL-E image generation failed: %s", e)
+            return None
+
+    def post_photo(self, caption: str, image_url: Optional[str] = None) -> dict:
+        """Post a photo to Instagram. Auto-generates DALL-E image if none provided."""
+        import requests as _req
+        if not image_url:
+            image_url = self._generate_image(caption)
+        if not image_url:
+            return {"status": "error", "error": "No image_url and OPENAI_API_KEY not set"}
+
+        # Step 1: Create media container
+        container = _req.post(
+            f"https://graph.facebook.com/v19.0/{self.account_id}/media",
+            data={"image_url": image_url, "caption": caption,
+                  "access_token": self.token},
+            timeout=30,
+        ).json()
+        if "id" not in container:
+            return {"status": "error",
+                    "error": container.get("error", {}).get("message", str(container))}
+
+        # Step 2: Publish
+        time.sleep(2)
+        publish = _req.post(
+            f"https://graph.facebook.com/v19.0/{self.account_id}/media_publish",
+            data={"creation_id": container["id"], "access_token": self.token},
+            timeout=30,
+        ).json()
+        if "id" in publish:
+            return {"status": "posted", "post_id": publish["id"], "method": "graph_api"}
+        return {"status": "error",
+                "error": publish.get("error", {}).get("message", str(publish))}
+
+    def post_reel(self, caption: str, video_url: str) -> dict:
+        """Post a Reel to Instagram via public video URL."""
+        import requests as _req
+        # Step 1: Create Reel container
+        container = _req.post(
+            f"https://graph.facebook.com/v19.0/{self.account_id}/media",
+            data={"video_url": video_url, "caption": caption,
+                  "media_type": "REELS", "access_token": self.token},
+            timeout=30,
+        ).json()
+        if "id" not in container:
+            return {"status": "error",
+                    "error": container.get("error", {}).get("message", str(container))}
+
+        # Step 2: Wait for IG to process video, then publish
+        logger.info("Waiting for Instagram to process Reel...")
+        time.sleep(30)
+        publish = _req.post(
+            f"https://graph.facebook.com/v19.0/{self.account_id}/media_publish",
+            data={"creation_id": container["id"], "access_token": self.token},
+            timeout=30,
+        ).json()
+        if "id" in publish:
+            return {"status": "posted", "post_id": publish["id"], "method": "graph_api"}
+        return {"status": "error",
+                "error": publish.get("error", {}).get("message", str(publish))}
+
+    def post_reel_file(self, caption: str, video_path: str) -> dict:
+        """Post a Reel to Instagram using resumable upload (no public URL needed)."""
+        import requests as _req
+        video_path = str(video_path)
+        file_size = Path(video_path).stat().st_size
+        logger.info(f"Uploading {file_size / 1024 / 1024:.1f}MB reel to Instagram (resumable)...")
+
+        # Step 1: Initialize resumable upload session
+        init = _req.post(
+            f"https://graph.facebook.com/v19.0/{self.account_id}/media",
+            data={
+                "media_type": "REELS",
+                "upload_type": "resumable",
+                "caption": caption,
+                "access_token": self.token,
+            },
+            timeout=30,
+        ).json()
+        if "id" not in init or "uri" not in init:
+            return {"status": "error",
+                    "error": init.get("error", {}).get("message", str(init))}
+
+        container_id = init["id"]
+        upload_uri = init["uri"]
+        logger.info(f"Instagram resumable upload URI: {upload_uri}")
+
+        # Step 2: Upload video bytes
+        with open(video_path, "rb") as f:
+            upload_resp = _req.post(
+                upload_uri,
+                headers={
+                    "Authorization": f"OAuth {self.token}",
+                    "offset": "0",
+                    "file_size": str(file_size),
+                },
+                data=f,
+                timeout=600,
+            )
+        if upload_resp.status_code not in (200, 201):
+            return {"status": "error", "error": f"Upload failed: {upload_resp.status_code} {upload_resp.text[:200]}"}
+
+        # Step 3: Wait for processing + publish
+        logger.info("Waiting for Instagram to process Reel...")
+        for _ in range(24):  # up to 2 min
+            time.sleep(5)
+            status = _req.get(
+                f"https://graph.facebook.com/v19.0/{container_id}",
+                params={"fields": "status_code", "access_token": self.token},
+                timeout=15,
+            ).json()
+            sc = status.get("status_code", "")
+            if sc == "FINISHED":
+                break
+            if sc in ("ERROR", "EXPIRED"):
+                return {"status": "error", "error": f"IG processing failed: {status}"}
+
+        publish = _req.post(
+            f"https://graph.facebook.com/v19.0/{self.account_id}/media_publish",
+            data={"creation_id": container_id, "access_token": self.token},
+            timeout=30,
+        ).json()
+        if "id" in publish:
+            return {"status": "posted", "post_id": publish["id"], "method": "graph_api_resumable"}
+        return {"status": "error",
+                "error": publish.get("error", {}).get("message", str(publish))}
+
+
+# ── Browser poster ────────────────────────────────────────────────────────────
+
+class InstagramBrowserPoster:
+    """Post to Instagram via Playwright browser automation."""
+
+    def __init__(self):
+        self.username = os.getenv("INSTAGRAM_USERNAME", "")
+        self.password = os.getenv("INSTAGRAM_PASSWORD", "")
+
+    def is_configured(self) -> bool:
+        return bool(self.username and self.password)
+
+    def _get_context(self, playwright):
+        browser = playwright.chromium.launch(
+            headless=False,
+            args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
+        )
+        ctx_args = dict(
+            user_agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            viewport={"width": 1280, "height": 800},
+            locale="en-US",
+        )
+        if SESSION_FILE.exists():
+            try:
+                ctx = browser.new_context(storage_state=str(SESSION_FILE), **ctx_args)
+                return browser, ctx
+            except Exception:
+                pass
+        return browser, browser.new_context(**ctx_args)
+
+    def _login(self, page):
+        page.goto("https://www.instagram.com/accounts/login/",
+                  wait_until="domcontentloaded", timeout=30000)
+        page.wait_for_timeout(3000)
+        page.locator('input[name="username"]').fill(self.username)
+        page.locator('input[name="password"]').fill(self.password)
+        page.locator('button[type="submit"]').click()
+        page.wait_for_timeout(6000)
+        # Dismiss "Save login info?" and notifications prompts
+        for label in ["Not Now", "Not now", "Skip"]:
+            try:
+                btn = page.locator(f'button:has-text("{label}")').first
+                if btn.is_visible():
+                    btn.click()
+                    page.wait_for_timeout(1500)
+            except Exception:
+                pass
+        logger.info("[Browser] Logged into Instagram")
+
+    def _save_session(self, context):
+        SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
+        context.storage_state(path=str(SESSION_FILE))
+
+    def _is_logged_in(self, page) -> bool:
+        return "login" not in page.url and "accounts" not in page.url
+
+    def post_photo(self, caption: str, image_url: str) -> dict:
+        """Post a photo to Instagram by downloading and uploading via browser."""
+        if not self.is_configured():
+            raise RuntimeError("INSTAGRAM_USERNAME / INSTAGRAM_PASSWORD not set in .env")
+        import requests as _req
+
+        # Download image
+        r = _req.get(image_url, timeout=30)
+        r.raise_for_status()
+        suffix = ".jpg"
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
+            f.write(r.content)
+            img_path = f.name
+
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser, context = self._get_context(p)
+            page = context.new_page()
+            try:
+                page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+                page.wait_for_timeout(3000)
+                if not self._is_logged_in(page):
+                    self._login(page)
+                    page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+                    page.wait_for_timeout(3000)
+
+                # Click the Create (+) button
+                create_btn = page.locator('svg[aria-label="New post"]').first
+                if not create_btn.is_visible():
+                    create_btn = page.locator('[aria-label="New post"]').first
+                create_btn.click()
+                page.wait_for_timeout(2000)
+
+                # Select from computer
+                select_btn = page.locator('button:has-text("Select from computer")').first
+                if select_btn.is_visible():
+                    # Use file input instead
+                    file_input = page.locator('input[type="file"]').first
+                    file_input.set_input_files(img_path)
+                else:
+                    file_input = page.locator('input[type="file"]').first
+                    file_input.set_input_files(img_path)
+                page.wait_for_timeout(3000)
+
+                # Click Next through crop and filters
+                for _ in range(2):
+                    next_btn = page.locator('button:has-text("Next")').last
+                    if next_btn.is_visible():
+                        next_btn.click()
+                        page.wait_for_timeout(2000)
+
+                # Write caption
+                caption_box = page.locator('div[aria-label="Write a caption..."]').first
+                if caption_box.is_visible():
+                    caption_box.click()
+                    page.keyboard.type(caption[:2200], delay=10)
+                    page.wait_for_timeout(1000)
+
+                # Share
+                share_btn = page.locator('button:has-text("Share")').last
+                share_btn.click()
+                page.wait_for_timeout(6000)
+
+                self._save_session(context)
+                logger.info("[Browser] Instagram photo posted: %s...", caption[:50])
+                return {"status": "posted", "method": "browser",
+                        "url": f"https://www.instagram.com/{self.username}/"}
+            except Exception as e:
+                logger.error("[Browser] Instagram post failed: %s", e)
+                raise
+            finally:
+                browser.close()
+                Path(img_path).unlink(missing_ok=True)
+
+    def post_text_as_image(self, caption: str) -> dict:
+        """Generate a DALL-E image and post it (Instagram requires images)."""
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+        if not openai_key:
+            return {"status": "error",
+                    "error": "Instagram requires an image. Add OPENAI_API_KEY to auto-generate."}
+        from openai import OpenAI
+        client = OpenAI(api_key=openai_key)
+        resp = client.images.generate(
+            model="dall-e-3",
+            prompt=(
+                f"Professional social media post image for: {caption[:200]}. "
+                "Dark futuristic tech aesthetic, cyan and gold accents, "
+                "bold text overlay with key message. WheellsVerse brand style."
+            ),
+            size="1024x1024", quality="standard", n=1,
+        )
+        image_url = resp.data[0].url
+        return self.post_photo(caption, image_url)
+
+
+# ── Unified client ────────────────────────────────────────────────────────────
+
+class InstagramClient:
+    """Graph API first, browser fallback."""
+
+    def __init__(self):
+        self._graph = InstagramGraphPoster()
+        self._browser = InstagramBrowserPoster()
+
+    def is_configured(self) -> bool:
+        return self._graph.is_configured() or self._browser.is_configured()
+
+    def post(self, caption: str, image_url: Optional[str] = None,
+             video_url: Optional[str] = None,
+             video_path: Optional[str] = None) -> dict:
+        """Post to Instagram. Graph API first, browser fallback.
+        video_path: local file path (resumable upload, no public URL needed)
+        video_url: public URL for Reel
+        """
+        # ── Graph API ─────────────────────────────────────────────────────────
+        if self._graph.is_configured():
+            try:
+                if video_path:
+                    return self._graph.post_reel_file(caption, video_path)
+                if video_url:
+                    return self._graph.post_reel(caption, video_url)
+                return self._graph.post_photo(caption, image_url)
+            except Exception as e:
+                logger.warning("[Graph] Failed (%s) — falling back to browser", e)
+
+        # ── Browser fallback ──────────────────────────────────────────────────
+        if self._browser.is_configured():
+            try:
+                if image_url:
+                    return self._browser.post_photo(caption, image_url)
+                # Instagram needs an image — generate one with DALL-E
+                return self._browser.post_text_as_image(caption)
+            except Exception as e:
+                return {"status": "error", "error": str(e), "method": "browser"}
+
+        return {
+            "status": "skipped",
+            "reason": (
+                "No Instagram credentials configured. Add to .env:\n"
+                "  INSTAGRAM_PAGE_TOKEN + INSTAGRAM_ACCOUNT_ID  (Graph API)\n"
+                "  OR\n"
+                "  INSTAGRAM_USERNAME + INSTAGRAM_PASSWORD  (browser)"
+            ),
+        }
+
+
+_client: Optional[InstagramClient] = None
+
+
+def get_instagram() -> InstagramClient:
+    global _client
+    if _client is None:
+        _client = InstagramClient()
+    return _client

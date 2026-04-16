@@ -13,7 +13,10 @@ it's coming from, so she can double down on what's working.
 """
 
 from __future__ import annotations
-import json, os, logging, threading
+import json
+import os
+import logging
+import threading
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -24,20 +27,21 @@ load_dotenv(ROOT / ".env")
 
 log = logging.getLogger(__name__)
 
-DATA_FILE   = Path("data/revenue.json")
-STRIPE_KEY  = os.getenv("STRIPE_SECRET_KEY", "")
+DATA_FILE = Path("data/revenue.json")
+STRIPE_KEY = os.getenv("STRIPE_SECRET_KEY", "")
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT  = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ─── Revenue record ───────────────────────────────────────────────────────────
+
 
 class RevenueRecord:
     def __init__(self, amount: float, source: str, label: str,
                  ts: str = "", metadata: Dict = None):
-        self.amount   = amount
-        self.source   = source   # stripe / affiliate / ad_attribution / manual
-        self.label    = label    # product name, affiliate program, etc.
-        self.ts       = ts or datetime.now(timezone.utc).isoformat()
+        self.amount = amount
+        self.source = source   # stripe / affiliate / ad_attribution / manual
+        self.label = label    # product name, affiliate program, etc.
+        self.ts = ts or datetime.now(timezone.utc).isoformat()
         self.metadata = metadata or {}
 
     def to_dict(self) -> Dict:
@@ -228,40 +232,40 @@ class RevenueEngine:
 
     def dashboard(self, refresh_live: bool = True) -> Dict:
         """Full revenue dashboard — optionally pulls live data from Stripe + Affiliate."""
-        stripe_data    = self.pull_stripe(30) if refresh_live else {}
+        stripe_data = self.pull_stripe(30) if refresh_live else {}
         affiliate_data = self.pull_affiliate(30) if refresh_live else {}
-        ad_roi         = self.pull_ad_roi()
+        ad_roi = self.pull_ad_roi()
 
-        today   = self._total(days=1)
-        week    = self._total(days=7)
-        month   = self._total(days=30)
+        today = self._total(days=1)
+        week = self._total(days=7)
+        month = self._total(days=30)
         alltime = self._total()
 
         by_source_30d = self._by_source(30)
-        top_earners   = self._top_earners(30)
+        top_earners = self._top_earners(30)
 
         # Live data overrides/supplements local records
-        stripe_total    = stripe_data.get("total_revenue", 0)
+        stripe_total = stripe_data.get("total_revenue", 0)
         affiliate_total = affiliate_data.get("total_earned", 0)
-        live_total_30d  = stripe_total + affiliate_total
+        live_total_30d = stripe_total + affiliate_total
 
         return {
             "updated_at": datetime.now(timezone.utc).isoformat(),
             "period": {
-                "today":   today,
-                "week":    week,
-                "month":   max(month, live_total_30d),
+                "today": today,
+                "week": week,
+                "month": max(month, live_total_30d),
                 "all_time": alltime,
             },
             "by_source": {
-                "stripe":    stripe_total or by_source_30d.get("stripe", 0),
+                "stripe": stripe_total or by_source_30d.get("stripe", 0),
                 "affiliate": affiliate_total or by_source_30d.get("affiliate", 0),
                 "ad_attributed": by_source_30d.get("ad_attribution", 0),
-                "manual":    by_source_30d.get("manual", 0),
+                "manual": by_source_30d.get("manual", 0),
             },
-            "stripe":    stripe_data,
+            "stripe": stripe_data,
             "affiliate": affiliate_data,
-            "ad_roi":    ad_roi,
+            "ad_roi": ad_roi,
             "top_earners_30d": top_earners,
             "total_records": len(self._records),
             "mrr": stripe_data.get("mrr", 0),
@@ -298,7 +302,7 @@ class RevenueEngine:
         s = self.summary()
         lines = [
             f"💰 NarAI Revenue Report — {datetime.now().strftime('%b %d')}",
-            f"",
+            "",
             f"Today:    ${s['today']:.2f}",
             f"This week: ${s['week']:.2f}",
             f"This month: ${s['month']:.2f}",
@@ -335,8 +339,10 @@ class RevenueEngine:
 def record_revenue(amount: float, source: str, label: str, metadata: Dict = None):
     RevenueEngine.get().record(amount, source, label, metadata)
 
+
 def get_dashboard(refresh_live: bool = True) -> Dict:
     return RevenueEngine.get().dashboard(refresh_live)
+
 
 def get_summary() -> Dict:
     return RevenueEngine.get().summary()

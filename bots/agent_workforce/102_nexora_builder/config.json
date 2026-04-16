@@ -1,0 +1,8 @@
+{
+  "description": "NEXORA platform builder — builds creator monetization pages, dashboards, and growth strategies autonomously",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 06:00",
+  "action": "build",
+  "component": "landing"
+}

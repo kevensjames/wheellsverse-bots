@@ -6,7 +6,7 @@ Generates complete, conversion-optimized landing page HTML + copy.
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class LandingPageBot(BaseBot):
@@ -19,12 +19,12 @@ class LandingPageBot(BaseBot):
             color_scheme: str = None, cta: str = None, **kwargs):
 
         cfg = self.config
-        product      = product or cfg.get("product", "WheellsVerse AI Platform")
-        headline     = headline or cfg.get("headline", None)
-        offer        = offer or cfg.get("offer", "Free 14-day trial")
-        audience     = audience or cfg.get("audience", "entrepreneurs and creators")
+        product = product or cfg.get("product", "WheellsVerse AI Platform")
+        headline = headline or cfg.get("headline", None)
+        offer = offer or cfg.get("offer", "Free 14-day trial")
+        audience = audience or cfg.get("audience", "entrepreneurs and creators")
         color_scheme = color_scheme or cfg.get("color_scheme", "dark: #0d1117 bg, #58a6ff accent")
-        cta          = cta or cfg.get("cta", "Get Started Free")
+        cta = cta or cfg.get("cta", "Get Started Free")
 
         self.logger.info(f"Generating landing page for: {product}")
 
@@ -104,10 +104,10 @@ Return ONLY the complete HTML code starting with <!DOCTYPE html>"""
 if __name__ == "__main__":
     import argparse
     p = argparse.ArgumentParser(description="Landing Page Generator")
-    p.add_argument("--product",  default=None)
-    p.add_argument("--offer",    default="Free 14-day trial")
+    p.add_argument("--product", default=None)
+    p.add_argument("--offer", default="Free 14-day trial")
     p.add_argument("--audience", default=None)
-    p.add_argument("--cta",      default="Get Started Free")
+    p.add_argument("--cta", default="Get Started Free")
     a = p.parse_args()
     bot = LandingPageBot()
     result = bot.execute(product=a.product, offer=a.offer,

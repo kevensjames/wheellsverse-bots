@@ -10,22 +10,22 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 COURSE_TYPES = {
-    "masterclass":   "Premium comprehensive course -- full transformation, high ticket",
-    "mini_course":   "Focused quick-win course -- one specific outcome, lower price",
-    "bootcamp":      "Intensive cohort-based program with live support",
-    "workshop":      "Single-session deep dive -- 2-4 hours, one skill",
+    "masterclass": "Premium comprehensive course -- full transformation, high ticket",
+    "mini_course": "Focused quick-win course -- one specific outcome, lower price",
+    "bootcamp": "Intensive cohort-based program with live support",
+    "workshop": "Single-session deep dive -- 2-4 hours, one skill",
     "certification": "Curriculum leading to a certification or credential",
-    "self_paced":    "Evergreen self-paced course with no live component",
+    "self_paced": "Evergreen self-paced course with no live component",
 }
 
 SKILL_LEVELS = {
-    "beginner":    "No prior knowledge required -- start from zero",
+    "beginner": "No prior knowledge required -- start from zero",
     "intermediate": "Working knowledge of the subject -- level up",
-    "advanced":    "Expert practitioners looking for mastery",
-    "all_levels":  "Mix of beginner-friendly and advanced content",
+    "advanced": "Expert practitioners looking for mastery",
+    "all_levels": "Mix of beginner-friendly and advanced content",
 }
 
 
@@ -39,15 +39,15 @@ class CourseCreatorBot(BaseBot):
             course_type: str = None, **kwargs):
 
         cfg = self.config
-        course_topic    = course_topic or cfg.get("course_topic",
+        course_topic = course_topic or cfg.get("course_topic",
             "AI Automation for Entrepreneurs: Build 10 Income-Generating Bots")
         target_audience = target_audience or cfg.get("target_audience",
             "entrepreneurs and small business owners with no coding background")
-        skill_level     = skill_level or cfg.get("skill_level", "beginner")
-        num_modules     = num_modules or cfg.get("num_modules", 6)
-        course_type     = course_type or cfg.get("course_type", "self_paced")
+        skill_level = skill_level or cfg.get("skill_level", "beginner")
+        num_modules = num_modules or cfg.get("num_modules", 6)
+        course_type = course_type or cfg.get("course_type", "self_paced")
 
-        type_desc  = COURSE_TYPES.get(course_type, course_type)
+        type_desc = COURSE_TYPES.get(course_type, course_type)
         level_desc = SKILL_LEVELS.get(skill_level, skill_level)
 
         self.logger.info(f"Designing course curriculum: {course_topic}")
@@ -211,12 +211,12 @@ How to measure if the course is working:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Online Course Curriculum Designer")
-    parser.add_argument("--topic",    type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--audience", type=str, default=None)
-    parser.add_argument("--level",    type=str, default="beginner",
+    parser.add_argument("--level", type=str, default="beginner",
                         choices=list(SKILL_LEVELS.keys()))
-    parser.add_argument("--modules",  type=int, default=6)
-    parser.add_argument("--type",     type=str, default="self_paced",
+    parser.add_argument("--modules", type=int, default=6)
+    parser.add_argument("--type", type=str, default="self_paced",
                         choices=list(COURSE_TYPES.keys()))
     args = parser.parse_args()
     bot = CourseCreatorBot()

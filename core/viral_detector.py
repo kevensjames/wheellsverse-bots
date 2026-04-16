@@ -34,16 +34,16 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
-DATA_DIR    = ROOT / "data"
+DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 EVENTS_FILE = DATA_DIR / "viral_events.json"
 
 logger = logging.getLogger("viral_detector")
 
 CHECK_INTERVAL_SECONDS = 600   # 10 minutes
-VIRAL_MULTIPLIER       = 3.0   # 3× platform avg = viral
-MAX_VARIATIONS         = 5     # how many spin-off posts to create
-COOLDOWN_HOURS         = 4     # don't re-trigger same post for 4h
+VIRAL_MULTIPLIER = 3.0   # 3× platform avg = viral
+MAX_VARIATIONS = 5     # how many spin-off posts to create
+COOLDOWN_HOURS = 4     # don't re-trigger same post for 4h
 
 
 class ViralEvent:
@@ -51,11 +51,11 @@ class ViralEvent:
 
     def __init__(self, post_id: str, topic: str, platform: str,
                  score: float, avg_score: float):
-        self.post_id    = post_id
-        self.topic      = topic
-        self.platform   = platform
-        self.score      = score
-        self.avg_score  = avg_score
+        self.post_id = post_id
+        self.topic = topic
+        self.platform = platform
+        self.score = score
+        self.avg_score = avg_score
         self.multiplier = round(score / max(avg_score, 1), 2)
         self.detected_at = datetime.now().isoformat()
         self.variations_created = 0
@@ -68,9 +68,9 @@ class ViralEvent:
     def from_dict(cls, d: Dict) -> "ViralEvent":
         e = cls(d["post_id"], d["topic"], d["platform"],
                 d.get("score", 0), d.get("avg_score", 0))
-        e.detected_at         = d.get("detected_at", e.detected_at)
-        e.variations_created  = d.get("variations_created", 0)
-        e.alert_sent          = d.get("alert_sent", False)
+        e.detected_at = d.get("detected_at", e.detected_at)
+        e.variations_created = d.get("variations_created", 0)
+        e.alert_sent = d.get("alert_sent", False)
         return e
 
 
@@ -86,7 +86,7 @@ class ViralDetector:
     def __init__(self):
         self._events: Dict[str, ViralEvent] = {}
         self._triggered: Set[str] = set()
-        self._running   = False
+        self._running = False
         self._thread: Optional[threading.Thread] = None
         self._load()
 
@@ -116,7 +116,7 @@ class ViralDetector:
     def _save(self):
         try:
             EVENTS_FILE.write_text(json.dumps({
-                "events":    {eid: e.to_dict() for eid, e in self._events.items()},
+                "events": {eid: e.to_dict() for eid, e in self._events.items()},
                 "triggered": list(self._triggered),
             }, indent=2), encoding="utf-8")
         except Exception as e:
@@ -128,7 +128,7 @@ class ViralDetector:
         if self._running:
             return
         self._running = True
-        self._thread  = threading.Thread(
+        self._thread = threading.Thread(
             target=self._run, daemon=True, name="ViralDetector"
         )
         self._thread.start()
@@ -149,8 +149,8 @@ class ViralDetector:
 
     def _check_for_viral(self):
         from core.feedback_loop import FeedbackLoop
-        loop   = FeedbackLoop.get()
-        viral  = loop.get_viral_posts(hours=24)
+        loop = FeedbackLoop.get()
+        viral = loop.get_viral_posts(hours=24)
 
         for record in viral:
             if record.post_id in self._triggered:
@@ -194,13 +194,11 @@ class ViralDetector:
             orch = Orchestrator()
 
             # Determine best bot for this niche
-            from core.feedback_loop import FeedbackLoop
-            best_bot = FeedbackLoop.get().get_best_bot(niche) or "01_content_generator"
 
             logger.info(f"[ViralDetector] Multiplying '{topic[:40]}' × {MAX_VARIATIONS}")
 
             angles = self._generate_angles(topic)
-            count  = 0
+            count = 0
 
             for angle in angles[:MAX_VARIATIONS]:
                 try:
@@ -273,7 +271,7 @@ class ViralDetector:
         # Telegram
         try:
             import requests as _req
-            token   = os.getenv("TELEGRAM_BOT_TOKEN")
+            token = os.getenv("TELEGRAM_BOT_TOKEN")
             chat_id = os.getenv("TELEGRAM_CHAT_ID")
             if token and chat_id:
                 _req.post(
@@ -313,9 +311,9 @@ class ViralDetector:
     def summary(self) -> Dict:
         events = list(self._events.values())
         return {
-            "total_viral_events":     len(events),
-            "last_24h":               len(self.get_events(24)),
-            "total_variations_made":  sum(e.variations_created for e in events),
+            "total_viral_events": len(events),
+            "last_24h": len(self.get_events(24)),
+            "total_variations_made": sum(e.variations_created for e in events),
             "recent": [
                 {"topic": e.topic, "platform": e.platform,
                  "multiplier": e.multiplier, "detected_at": e.detected_at[:16]}

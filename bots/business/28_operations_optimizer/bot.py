@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class OperationsOptimizerBot(BaseBot):
@@ -22,9 +22,9 @@ class OperationsOptimizerBot(BaseBot):
             team_size: str = None, current_process: str = None, **kwargs):
 
         cfg = self.config
-        department      = department or cfg.get("department", "content creation and publishing")
-        bottleneck      = bottleneck or cfg.get("bottleneck", "too much time on repetitive tasks")
-        team_size       = team_size or cfg.get("team_size", "solo founder")
+        department = department or cfg.get("department", "content creation and publishing")
+        bottleneck = bottleneck or cfg.get("bottleneck", "too much time on repetitive tasks")
+        team_size = team_size or cfg.get("team_size", "solo founder")
         current_process = current_process or cfg.get("current_process", "mostly manual, some tools")
 
         self.logger.info(f"Optimizing operations: {department}")
@@ -142,10 +142,10 @@ Annual value: $[Z]/year"""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Operations Optimizer")
-    parser.add_argument("--department",  type=str, default=None)
-    parser.add_argument("--bottleneck",  type=str, default=None)
-    parser.add_argument("--team",        type=str, default="solo founder")
-    parser.add_argument("--process",     type=str, default=None)
+    parser.add_argument("--department", type=str, default=None)
+    parser.add_argument("--bottleneck", type=str, default=None)
+    parser.add_argument("--team", type=str, default="solo founder")
+    parser.add_argument("--process", type=str, default=None)
     args = parser.parse_args()
     bot = OperationsOptimizerBot()
     result = bot.execute(department=args.department, bottleneck=args.bottleneck,

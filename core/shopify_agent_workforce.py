@@ -29,7 +29,7 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Optional
 
 from dotenv import load_dotenv
 
@@ -234,7 +234,7 @@ class ThemeAgent(BaseShopifyAgent):
                 before = existing[:existing.index(marker)]
                 new_css = f"{before}{marker}\n{premium_css}"
 
-            result = self.shopify("PUT", f"themes/{theme_id}/assets.json", {
+            self.shopify("PUT", f"themes/{theme_id}/assets.json", {
                 "asset": {"key": "assets/custom.css", "value": new_css}
             })
             self.log(f"Premium CSS injected into theme {theme_id}")
@@ -259,7 +259,7 @@ class ThemeAgent(BaseShopifyAgent):
             for key, val in payload.get("updates", {}).items():
                 settings.setdefault("current", {})[key] = val
 
-            result = self.shopify("PUT", f"themes/{theme_id}/assets.json", {
+            self.shopify("PUT", f"themes/{theme_id}/assets.json", {
                 "asset": {"key": "config/settings_data.json", "value": json.dumps(settings)}
             })
             self.log(f"Theme settings updated: {list(payload.get('updates',{}).keys())}")
@@ -866,7 +866,7 @@ class OrchestratorAgent:
         """Worker thread for one agent type — processes its dedicated task sub-queue."""
         agent = self._instances[agent_name]
         q     = self._per_agent_queues[agent_name]
-        _agent_log(agent_name, f"Worker thread started")
+        _agent_log(agent_name, "Worker thread started")
         _agent_status[agent_name] = {"status": "idle", "tasks_done": 0, "last_task": None}
 
         while self.running:

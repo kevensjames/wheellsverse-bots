@@ -7,17 +7,21 @@ is informed by where she stands relative to her targets.
 """
 
 from __future__ import annotations
-import json, os, threading, logging, requests
-from datetime import datetime, timezone, timedelta
+import json
+import os
+import threading
+import logging
+import requests
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 log = logging.getLogger(__name__)
 
 DATA_FILE = Path("data/goals.json")
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT   = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ─── Goal definitions ──────────────────────────────────────────────────────────
 
@@ -501,8 +505,10 @@ class GoalTracker:
 def get_goal_prompt() -> str:
     return GoalTracker.get().get_goal_prompt()
 
+
 def increment(goal_key: str, amount: int = 1):
     GoalTracker.get().increment(goal_key, amount)
+
 
 def update_goal(goal_key: str, value):
     GoalTracker.get().update(goal_key, value)

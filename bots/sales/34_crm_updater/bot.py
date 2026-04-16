@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class CRMUpdaterBot(BaseBot):
@@ -22,10 +22,10 @@ class CRMUpdaterBot(BaseBot):
             deal_type: str = None, team_size: str = None, **kwargs):
 
         cfg = self.config
-        crm_tool   = crm_tool or cfg.get("crm_tool", "HubSpot / Notion / Airtable")
+        crm_tool = crm_tool or cfg.get("crm_tool", "HubSpot / Notion / Airtable")
         sales_cycle = sales_cycle or cfg.get("sales_cycle", "30-60 days")
-        deal_type  = deal_type or cfg.get("deal_type", "B2B SaaS monthly subscription")
-        team_size  = team_size or cfg.get("team_size", "solo founder")
+        deal_type = deal_type or cfg.get("deal_type", "B2B SaaS monthly subscription")
+        team_size = team_size or cfg.get("team_size", "solo founder")
 
         self.logger.info(f"Building CRM system: {crm_tool} | {deal_type}")
 
@@ -154,10 +154,10 @@ Target pipeline multiple: [X]x monthly revenue goal"""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="CRM Updater & Sales Process Builder")
-    parser.add_argument("--crm",     type=str, default=None)
-    parser.add_argument("--cycle",   type=str, default="30-60 days")
-    parser.add_argument("--deal",    type=str, default=None)
-    parser.add_argument("--team",    type=str, default="solo founder")
+    parser.add_argument("--crm", type=str, default=None)
+    parser.add_argument("--cycle", type=str, default="30-60 days")
+    parser.add_argument("--deal", type=str, default=None)
+    parser.add_argument("--team", type=str, default="solo founder")
     args = parser.parse_args()
     bot = CRMUpdaterBot()
     result = bot.execute(crm_tool=args.crm, sales_cycle=args.cycle,

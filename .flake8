@@ -1,0 +1,25 @@
+[flake8]
+max-line-length = 200
+extend-ignore =
+    # Continuation line indentation
+    E127,E128,
+    # Line too long — handled by max-line-length above
+    E501,
+    # Alignment / spacing style — cosmetic only
+    E221,E225,E226,E231,E241,E261,E272,
+    # Blank line rules — cosmetic
+    E302,E303,E305,E306,
+    # Import ordering / multiple imports — cosmetic
+    E401,E402,
+    # Statement style — cosmetic
+    E701,E702,E704,
+    # Comparison / boolean style — cosmetic
+    E711,E712,
+    # Bare except — acceptable in legacy code
+    E722,
+    # Ambiguous variable name — acceptable (l, O, I)
+    E741,
+    # Whitespace warnings — not bugs
+    W291,W292,W293,W391
+exclude =
+    .venv,venv,bots_backup,.git,wheelsverse,__pycache__

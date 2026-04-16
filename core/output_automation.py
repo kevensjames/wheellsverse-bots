@@ -30,7 +30,6 @@ import logging
 import os
 import smtplib
 import threading
-import time
 from collections import deque
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
@@ -161,9 +160,9 @@ class EmailSender:
         for sec in sections:
             sections_html += f"""
             <div style="margin-bottom:24px;padding:16px;background:#f9f9f9;border-radius:6px;border-left:4px solid #00ffcc">
-              <h3 style="color:#333;margin:0 0 8px">{sec.get('title','')}</h3>
-              <p style="color:#666;font-size:12px;margin:0 0 8px">Source: {sec.get('bot','WheellsVerse')}</p>
-              <div style="white-space:pre-wrap;color:#444">{sec.get('content','')[:2000]}</div>
+              <h3 style="color:#333;margin:0 0 8px">{sec.get('title', '')}</h3>
+              <p style="color:#666;font-size:12px;margin:0 0 8px">Source: {sec.get('bot', 'WheellsVerse')}</p>
+              <div style="white-space:pre-wrap;color:#444">{sec.get('content', '')[:2000]}</div>
             </div>
             """
         html_body = f"""
@@ -209,7 +208,6 @@ class SlackSender:
 
     def send_bot_result(self, bot_name: str, summary: str, status: str = "success") -> Dict:
         emoji = "✅" if status == "success" else "❌"
-        color = "#00ffcc" if status == "success" else "#ff4444"
         blocks = [
             {
                 "type": "header",

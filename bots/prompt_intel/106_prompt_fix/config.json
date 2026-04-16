@@ -1,0 +1,6 @@
+{
+  "description": "Prompt fix — generates content plans to improve brand visibility in AI responses",
+  "default_brand": "WheellsVerse",
+  "ai_provider": "claude",
+  "enabled": true
+}

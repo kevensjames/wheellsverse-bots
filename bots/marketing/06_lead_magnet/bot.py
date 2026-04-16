@@ -3,7 +3,8 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
+
 
 class LeadMagnetBot(BaseBot):
     def __init__(self):
@@ -12,8 +13,8 @@ class LeadMagnetBot(BaseBot):
     def run(self, niche: str = None, audience: str = None,
             format_type: str = None, **kwargs):
         cfg = self.config
-        niche       = niche or cfg.get("niche", "AI automation")
-        audience    = audience or cfg.get("audience", "entrepreneurs")
+        niche = niche or cfg.get("niche", "AI automation")
+        audience = audience or cfg.get("audience", "entrepreneurs")
         format_type = format_type or cfg.get("format", "checklist")
 
         self.logger.info(f"Creating {format_type} lead magnet for {niche}")
@@ -53,8 +54,9 @@ Make the content genuinely valuable — it should make them think "this is bette
 """
         result = self.ai(prompt, system=system, max_tokens=3000)
         out = f"# Lead Magnet: {format_type.title()} for {niche}\n**Audience:** {audience}\n\n---\n\n{result}\n\n---\n*WheellsVerse Lead Magnet Bot*"
-        path = self.save_output(out, f"lead_magnet_{format_type}_{niche.replace(' ','_')[:20]}.md", ext="md")
+        path = self.save_output(out, f"lead_magnet_{format_type}_{niche.replace(' ', '_')[:20]}.md", ext="md")
         return {"file": str(path)}
+
 
 if __name__ == "__main__":
     import argparse

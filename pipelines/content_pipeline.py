@@ -28,8 +28,8 @@ load_dotenv(ROOT / ".env")
 
 logger = logging.getLogger("content_pipeline")
 
-OUTPUTS_DIR  = ROOT / "outputs" / "content"
-REPORTS_DIR  = ROOT / "outputs" / "reports"
+OUTPUTS_DIR = ROOT / "outputs" / "content"
+REPORTS_DIR = ROOT / "outputs" / "reports"
 OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -78,8 +78,8 @@ class TopicScorer:
                 continue
             seen.add(text.lower())
             age_hours = (now - item.get("ts", now)) / 3600
-            recency  = max(0.3, 1.0 - age_hours / 48)  # decay over 48h
-            score    = self.score(text, item.get("sources", []), recency)
+            recency = max(0.3, 1.0 - age_hours / 48)  # decay over 48h
+            score = self.score(text, item.get("sources", []), recency)
             scored.append({**item, "score": round(score, 3)})
         return sorted(scored, key=lambda x: x["score"], reverse=True)
 
@@ -94,17 +94,17 @@ class ContentGenerator:
 
     def __init__(self, model: str = "gpt-4o-mini"):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model  = model
-        self.brand  = os.getenv("BRAND_NAME", "WheellsVerse")
+        self.model = model
+        self.brand = os.getenv("BRAND_NAME", "WheellsVerse")
         self.author = os.getenv("AUTHOR_NAME", "J.K. Blaze")
-        self.niche  = os.getenv("BRAND_NICHE", "AI tools for making money, stock insights, and crypto trends")
+        self.niche = os.getenv("BRAND_NICHE", "AI tools for making money, stock insights, and crypto trends")
 
     def _call(self, system: str, user: str, max_tokens: int = 2000) -> str:
         resp = self.client.chat.completions.create(
             model=self.model,
             messages=[
                 {"role": "system", "content": system},
-                {"role": "user",   "content": user},
+                {"role": "user", "content": user},
             ],
             max_tokens=max_tokens,
             temperature=0.75,
@@ -156,10 +156,10 @@ Return the full article in Markdown format."""
                 break
 
         return {
-            "type":     "blog_post",
-            "topic":    topic,
-            "title":    title,
-            "content":  content,
+            "type": "blog_post",
+            "topic": topic,
+            "title": title,
+            "content": content,
             "word_count": len(content.split()),
             "keywords": keywords or [topic],
         }
@@ -191,14 +191,14 @@ TWEET 2:
 ...etc"""
 
         content = self._call(system, user, max_tokens=800)
-        tweets  = self._parse_tweets(content)
+        tweets = self._parse_tweets(content)
 
         return {
-            "type":    "twitter_thread",
-            "topic":   topic,
+            "type": "twitter_thread",
+            "topic": topic,
             "content": content,
-            "tweets":  tweets,
-            "count":   len(tweets),
+            "tweets": tweets,
+            "count": len(tweets),
         }
 
     def _parse_tweets(self, raw: str) -> List[str]:
@@ -239,9 +239,9 @@ Write the full post text only."""
 
         content = self._call(system, user, max_tokens=400)
         return {
-            "type":      "linkedin_post",
-            "topic":     topic,
-            "content":   content,
+            "type": "linkedin_post",
+            "topic": topic,
+            "content": content,
             "char_count": len(content),
         }
 
@@ -273,15 +273,15 @@ Return ONLY valid JSON:
             logger.warning(f"SEO meta generation failed: {e}")
             slug = topic.lower().replace(" ", "-")[:50]
             return {
-                "meta_title":           title[:60],
-                "meta_description":     f"Learn about {topic}. Practical guide by {self.author}.",
-                "keywords":             [topic],
-                "slug":                 slug,
-                "h1":                   title,
-                "h2_suggestions":       [],
-                "schema_type":          "Article",
+                "meta_title": title[:60],
+                "meta_description": f"Learn about {topic}. Practical guide by {self.author}.",
+                "keywords": [topic],
+                "slug": slug,
+                "h1": title,
+                "h2_suggestions": [],
+                "schema_type": "Article",
                 "estimated_reading_time": "5 min read",
-                "target_audience":      "entrepreneurs and marketers",
+                "target_audience": "entrepreneurs and marketers",
             }
 
 
@@ -302,9 +302,9 @@ class ContentPipeline:
     """
 
     def __init__(self, memory=None, intelligence=None):
-        self.generator  = ContentGenerator()
-        self.scorer     = TopicScorer()
-        self.memory     = memory
+        self.generator = ContentGenerator()
+        self.scorer = TopicScorer()
+        self.memory = memory
         self.intelligence = intelligence
         self._run_history: List[Dict] = []
 
@@ -318,7 +318,7 @@ class ContentPipeline:
         # Google Trends
         try:
             from core.integrations import get_integrations
-            hub  = get_integrations()
+            hub = get_integrations()
             data = hub.get_google_trends()
             for t in data.get("trending_now", [])[:20]:
                 raw_topics.append({"text": t, "sources": ["google_trends"], "ts": now})
@@ -328,13 +328,13 @@ class ContentPipeline:
         # Reddit
         try:
             from core.integrations import get_integrations
-            hub  = get_integrations()
+            hub = get_integrations()
             feed = hub.get_entrepreneurship_feed()
             for post in feed.get("posts", [])[:15]:
                 raw_topics.append({
-                    "text":    post.get("title", "")[:80],
+                    "text": post.get("title", "")[:80],
                     "sources": ["reddit"],
-                    "ts":      now,
+                    "ts": now,
                     "score_raw": post.get("score", 0),
                 })
         except Exception as e:
@@ -343,13 +343,13 @@ class ContentPipeline:
         # News headlines
         try:
             from core.integrations import get_integrations
-            hub  = get_integrations()
+            hub = get_integrations()
             news = hub.get_business_news()
             for a in news.get("articles", [])[:10]:
                 raw_topics.append({
-                    "text":    a.get("title", "")[:80],
+                    "text": a.get("title", "")[:80],
                     "sources": ["news"],
-                    "ts":      now,
+                    "ts": now,
                 })
         except Exception as e:
             logger.warning(f"News fetch failed: {e}")
@@ -388,7 +388,7 @@ class ContentPipeline:
         """
         logger.info(f"Generating content for: {topic[:60]}")
         piece: Dict[str, Any] = {
-            "topic":      topic,
+            "topic": topic,
             "generated_at": datetime.now().isoformat(),
         }
 
@@ -429,9 +429,9 @@ class ContentPipeline:
 
             # Generate affiliate summary
             piece["monetization"] = {
-                "cta_injected":         True,
-                "affiliate_links":      True,
-                "lead_magnet_created":  True,
+                "cta_injected": True,
+                "affiliate_links": True,
+                "lead_magnet_created": True,
             }
         except Exception as e:
             logger.warning(f"Monetization injection failed (non-fatal): {e}")
@@ -443,8 +443,8 @@ class ContentPipeline:
 
     def save_outputs(self, piece: Dict) -> Dict[str, Path]:
         """Save all content formats to /outputs/content/."""
-        slug     = piece.get("seo", {}).get("slug") or _slugify(piece["topic"])
-        ts_str   = datetime.now().strftime("%Y%m%d_%H%M%S")
+        slug = piece.get("seo", {}).get("slug") or _slugify(piece["topic"])
+        ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_dir = OUTPUTS_DIR / f"{ts_str}_{slug[:40]}"
         base_dir.mkdir(parents=True, exist_ok=True)
         saved: Dict[str, Path] = {}
@@ -452,7 +452,7 @@ class ContentPipeline:
         # Blog post markdown
         if "blog" in piece:
             blog = piece["blog"]
-            seo  = piece.get("seo", {})
+            seo = piece.get("seo", {})
             md_content = (
                 f"---\n"
                 f"title: \"{blog['title']}\"\n"
@@ -501,7 +501,7 @@ class ContentPipeline:
         path.write_text(json.dumps(safe_piece, indent=2, ensure_ascii=False), encoding="utf-8")
         saved["json"] = path
 
-        piece["output_dir"]  = str(base_dir)
+        piece["output_dir"] = str(base_dir)
         piece["saved_files"] = {k: str(v) for k, v in saved.items()}
         logger.info(f"Saved {len(saved)} files → {base_dir.name}")
         return saved
@@ -519,14 +519,14 @@ class ContentPipeline:
                 pass
 
         entry = {
-            "run_at":         datetime.now().isoformat(),
+            "run_at": datetime.now().isoformat(),
             "topics_fetched": run_result.get("topics_fetched", 0),
             "pieces_created": run_result.get("pieces_created", 0),
             "pieces_published": run_result.get("pieces_published", 0),
-            "topics":         [p.get("topic", "")[:60] for p in run_result.get("pieces", [])],
-            "word_counts":    [p.get("blog", {}).get("word_count", 0) for p in run_result.get("pieces", [])],
+            "topics": [p.get("topic", "")[:60] for p in run_result.get("pieces", [])],
+            "word_counts": [p.get("blog", {}).get("word_count", 0) for p in run_result.get("pieces", [])],
             "estimated_reach": run_result.get("estimated_reach", 0),
-            "errors":         run_result.get("errors", []),
+            "errors": run_result.get("errors", []),
         }
         records.insert(0, entry)
         records = records[:500]  # keep last 500 runs
@@ -568,10 +568,10 @@ class ContentPipeline:
         """
         start = time.time()
         result: Dict[str, Any] = {
-            "run_at":       datetime.now().isoformat(),
-            "pieces":       [],
-            "errors":       [],
-            "published":    [],
+            "run_at": datetime.now().isoformat(),
+            "pieces": [],
+            "errors": [],
+            "published": [],
             "topics_fetched": 0,
             "pieces_created": 0,
             "pieces_published": 0,
@@ -613,7 +613,7 @@ class ContentPipeline:
                             content=piece.get("blog", {}).get("title", topic),
                             source="content_pipeline",
                             tags=["content", "blog", topic_item.get("sources", [""])[0]],
-                            metadata={"topic": topic, "word_count": piece.get("blog",{}).get("word_count",0)},
+                            metadata={"topic": topic, "word_count": piece.get("blog", {}).get("word_count", 0)},
                         )
                     except Exception:
                         pass
@@ -647,7 +647,7 @@ class ContentPipeline:
                 result["errors"].append(f"publish: {e}")
 
         # ── 7. Analytics
-        result["duration_s"]      = round(time.time() - start, 2)
+        result["duration_s"] = round(time.time() - start, 2)
         result["estimated_reach"] = result["pieces_created"] * 1500  # rough estimate
         self.track_analytics(result)
 
@@ -656,12 +656,12 @@ class ContentPipeline:
 
         # Store run history (last 50)
         self._run_history.insert(0, {
-            "run_at":       result["run_at"],
-            "pieces":       result["pieces_created"],
-            "published":    result["pieces_published"],
-            "errors":       len(result["errors"]),
-            "duration_s":   result["duration_s"],
-            "topics":       [t["text"][:50] for t in selected_topics],
+            "run_at": result["run_at"],
+            "pieces": result["pieces_created"],
+            "published": result["pieces_published"],
+            "errors": len(result["errors"]),
+            "duration_s": result["duration_s"],
+            "topics": [t["text"][:50] for t in selected_topics],
         })
         self._run_history = self._run_history[:50]
 
@@ -762,12 +762,12 @@ def _blog_to_html(title: str, content: str, seo: Dict, author: str, brand: str) 
     import re
     # Basic markdown → HTML
     html_body = content
-    html_body = re.sub(r"^# (.+)$",   r"<h1>\1</h1>",  html_body, flags=re.M)
-    html_body = re.sub(r"^## (.+)$",  r"<h2>\1</h2>",  html_body, flags=re.M)
-    html_body = re.sub(r"^### (.+)$", r"<h3>\1</h3>",  html_body, flags=re.M)
+    html_body = re.sub(r"^# (.+)$", r"<h1>\1</h1>", html_body, flags=re.M)
+    html_body = re.sub(r"^## (.+)$", r"<h2>\1</h2>", html_body, flags=re.M)
+    html_body = re.sub(r"^### (.+)$", r"<h3>\1</h3>", html_body, flags=re.M)
     html_body = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", html_body)
-    html_body = re.sub(r"\*(.+?)\*",     r"<em>\1</em>",         html_body)
-    html_body = re.sub(r"^- (.+)$",   r"<li>\1</li>",  html_body, flags=re.M)
+    html_body = re.sub(r"\*(.+?)\*", r"<em>\1</em>", html_body)
+    html_body = re.sub(r"^- (.+)$", r"<li>\1</li>", html_body, flags=re.M)
     html_body = re.sub(r"(<li>.*</li>)", r"<ul>\1</ul>", html_body, flags=re.S)
     html_body = "\n".join(
         f"<p>{line}</p>" if line and not line.startswith("<") else line
@@ -802,7 +802,7 @@ def _blog_to_html(title: str, content: str, seo: Dict, author: str, brand: str) 
 </head>
 <body>
 <h1>{title}</h1>
-<div class="meta">By {author} · {brand} · {datetime.now().strftime('%B %d, %Y')} · {seo.get('estimated_reading_time','5 min read')}</div>
+<div class="meta">By {author} · {brand} · {datetime.now().strftime('%B %d, %Y')} · {seo.get('estimated_reading_time', '5 min read')}</div>
 {html_body}
 <footer>{brand} · Generated with AI · {datetime.now().strftime('%Y')}</footer>
 </body>

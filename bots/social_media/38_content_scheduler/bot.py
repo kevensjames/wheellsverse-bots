@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class ContentSchedulerBot(BaseBot):
@@ -22,10 +22,10 @@ class ContentSchedulerBot(BaseBot):
             content_types: str = None, weekly_capacity: str = None, **kwargs):
 
         cfg = self.config
-        platforms        = platforms or cfg.get("platforms", "twitter,linkedin,instagram,tiktok")
+        platforms = platforms or cfg.get("platforms", "twitter,linkedin,instagram,tiktok")
         audience_timezone = audience_timezone or cfg.get("audience_timezone", "US Eastern Time")
-        content_types    = content_types or cfg.get("content_types", "text posts, carousels, short videos, stories")
-        weekly_capacity  = weekly_capacity or cfg.get("weekly_capacity", "5-10 hours/week for content")
+        content_types = content_types or cfg.get("content_types", "text posts, carousels, short videos, stories")
+        weekly_capacity = weekly_capacity or cfg.get("weekly_capacity", "5-10 hours/week for content")
 
         platform_list = [p.strip() for p in platforms.split(",")]
         self.logger.info(f"Building scheduling strategy for: {platforms}")
@@ -134,9 +134,9 @@ if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Content Scheduling Strategy Builder")
     parser.add_argument("--platforms", type=str, default="twitter,linkedin,instagram")
-    parser.add_argument("--timezone",  type=str, default="US Eastern")
-    parser.add_argument("--types",     type=str, default="posts, videos, stories")
-    parser.add_argument("--capacity",  type=str, default="5-10 hours/week")
+    parser.add_argument("--timezone", type=str, default="US Eastern")
+    parser.add_argument("--types", type=str, default="posts, videos, stories")
+    parser.add_argument("--capacity", type=str, default="5-10 hours/week")
     args = parser.parse_args()
     bot = ContentSchedulerBot()
     result = bot.execute(platforms=args.platforms, audience_timezone=args.timezone,

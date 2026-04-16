@@ -14,20 +14,19 @@ Storage: JSON (data/intelligence.json)
 
 import json
 import logging
-import os
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 ROOT = Path(__file__).parent.parent
 DATA_DIR = ROOT / "data"
 DATA_DIR.mkdir(exist_ok=True)
 
-INTEL_FILE     = DATA_DIR / "intelligence.json"
-STRATEGY_FILE  = DATA_DIR / "strategy.json"
+INTEL_FILE = DATA_DIR / "intelligence.json"
+STRATEGY_FILE = DATA_DIR / "strategy.json"
 
 logger = logging.getLogger("intelligence")
 
@@ -38,14 +37,14 @@ class ContentRecord:
     """Tracks a single piece of content's lifecycle."""
 
     def __init__(self, content_id: str, topic: str, content_type: str = "blog"):
-        self.content_id   = content_id
-        self.topic        = topic
+        self.content_id = content_id
+        self.topic = topic
         self.content_type = content_type
-        self.created_at   = datetime.now().isoformat()
+        self.created_at = datetime.now().isoformat()
         self.published_to: List[str] = []
-        self.word_count:   int  = 0
+        self.word_count: int = 0
         self.published_at: Optional[str] = None
-        self.engagement:   Dict[str, int] = {
+        self.engagement: Dict[str, int] = {
             "views": 0, "clicks": 0, "shares": 0, "comments": 0,
         }
         self.revenue_signals: Dict[str, float] = {
@@ -55,9 +54,9 @@ class ContentRecord:
 
     def update_engagement(self, views: int = 0, clicks: int = 0,
                           shares: int = 0, comments: int = 0):
-        self.engagement["views"]    += views
-        self.engagement["clicks"]   += clicks
-        self.engagement["shares"]   += shares
+        self.engagement["views"] += views
+        self.engagement["clicks"] += clicks
+        self.engagement["shares"] += shares
         self.engagement["comments"] += comments
         self._recalc_score()
 
@@ -65,35 +64,35 @@ class ContentRecord:
         e = self.engagement
         # Weighted engagement score (0-100)
         raw = (
-            e["views"]    * 0.1 +
-            e["clicks"]   * 1.5 +
-            e["shares"]   * 3.0 +
+            e["views"] * 0.1 +
+            e["clicks"] * 1.5 +
+            e["shares"] * 3.0 +
             e["comments"] * 2.0
         )
         self.performance_score = min(100, raw)
 
     def to_dict(self) -> Dict:
         return {
-            "content_id":     self.content_id,
-            "topic":          self.topic,
-            "content_type":   self.content_type,
-            "created_at":     self.created_at,
-            "published_to":   self.published_to,
-            "word_count":     self.word_count,
-            "published_at":   self.published_at,
-            "engagement":     self.engagement,
+            "content_id": self.content_id,
+            "topic": self.topic,
+            "content_type": self.content_type,
+            "created_at": self.created_at,
+            "published_to": self.published_to,
+            "word_count": self.word_count,
+            "published_at": self.published_at,
+            "engagement": self.engagement,
             "revenue_signals": self.revenue_signals,
             "performance_score": self.performance_score,
         }
 
     @staticmethod
     def from_dict(d: Dict) -> "ContentRecord":
-        rec = ContentRecord(d["content_id"], d["topic"], d.get("content_type","blog"))
-        rec.created_at      = d.get("created_at", rec.created_at)
-        rec.published_to    = d.get("published_to", [])
-        rec.word_count      = d.get("word_count", 0)
-        rec.published_at    = d.get("published_at")
-        rec.engagement      = d.get("engagement", rec.engagement)
+        rec = ContentRecord(d["content_id"], d["topic"], d.get("content_type", "blog"))
+        rec.created_at = d.get("created_at", rec.created_at)
+        rec.published_to = d.get("published_to", [])
+        rec.word_count = d.get("word_count", 0)
+        rec.published_at = d.get("published_at")
+        rec.engagement = d.get("engagement", rec.engagement)
         rec.revenue_signals = d.get("revenue_signals", rec.revenue_signals)
         rec.performance_score = d.get("performance_score", 0.0)
         return rec
@@ -123,9 +122,9 @@ class StrategyAdvisor:
 
         ranked = [
             {
-                "topic":     topic,
+                "topic": topic,
                 "avg_score": round(sum(scores) / len(scores), 2),
-                "count":     len(scores),
+                "count": len(scores),
             }
             for topic, scores in topic_scores.items()
         ]
@@ -138,7 +137,7 @@ class StrategyAdvisor:
             by_type[rec.content_type].append(rec.performance_score)
         return {
             ctype: {
-                "avg_score": round(sum(scores)/len(scores), 2) if scores else 0,
+                "avg_score": round(sum(scores) / len(scores), 2) if scores else 0,
                 "total_pieces": len(scores),
                 "total_engagement": sum(scores),
             }
@@ -156,19 +155,19 @@ class StrategyAdvisor:
                 "recommendations": ["Create more content to build baseline data"],
             }
 
-        top_topics     = self.get_top_topics(5)
-        type_perf      = self.get_content_type_performance()
+        top_topics = self.get_top_topics(5)
+        type_perf = self.get_content_type_performance()
         recent_records = sorted(self.records, key=lambda r: r.created_at, reverse=True)[:10]
-        recent_scores  = [r.performance_score for r in recent_records]
-        avg_recent     = sum(recent_scores) / len(recent_scores) if recent_scores else 0
+        recent_scores = [r.performance_score for r in recent_records]
+        avg_recent = sum(recent_scores) / len(recent_scores) if recent_scores else 0
 
         recommendations = []
         strategy_adjustments = {}
 
         # Determine if performance is trending up/down
         if len(recent_scores) >= 4:
-            first_half  = sum(recent_scores[len(recent_scores)//2:]) / max(1, len(recent_scores)//2)
-            second_half = sum(recent_scores[:len(recent_scores)//2]) / max(1, len(recent_scores)//2)
+            first_half = sum(recent_scores[len(recent_scores) // 2:]) / max(1, len(recent_scores) // 2)
+            second_half = sum(recent_scores[:len(recent_scores) // 2]) / max(1, len(recent_scores) // 2)
             trend = "improving" if second_half > first_half else "declining"
         else:
             trend = "neutral"
@@ -210,14 +209,14 @@ class StrategyAdvisor:
             strategy_adjustments["action"] = "test_new_topics"
 
         return {
-            "status":          "ready",
+            "status": "ready",
             "avg_recent_score": round(avg_recent, 2),
-            "trend":           trend,
-            "top_topics":      top_topics[:3],
+            "trend": trend,
+            "top_topics": top_topics[:3],
             "type_performance": type_perf,
             "recommendations": recommendations,
             "strategy_adjustments": strategy_adjustments,
-            "generated_at":    datetime.now().isoformat(),
+            "generated_at": datetime.now().isoformat(),
         }
 
 
@@ -233,11 +232,11 @@ class IntelligenceSystem:
 
     def __init__(self):
         self._records: Dict[str, ContentRecord] = {}
-        self._pipeline_stats: Dict[str, Dict]   = defaultdict(lambda: {
+        self._pipeline_stats: Dict[str, Dict] = defaultdict(lambda: {
             "runs": 0, "successes": 0, "failures": 0,
             "avg_duration": 0.0, "last_run": None,
         })
-        self._topic_scores: Dict[str, float]    = {}
+        self._topic_scores: Dict[str, float] = {}
         self._lock = threading.Lock()
         self._load()
 
@@ -251,7 +250,7 @@ class IntelligenceSystem:
                     rec = ContentRecord.from_dict(rec_data)
                     self._records[rec.content_id] = rec
                 self._pipeline_stats = defaultdict(
-                    lambda: {"runs":0,"successes":0,"failures":0,"avg_duration":0.0,"last_run":None},
+                    lambda: {"runs": 0, "successes": 0, "failures": 0, "avg_duration": 0.0, "last_run": None},
                     data.get("pipeline_stats", {})
                 )
                 self._topic_scores = data.get("topic_scores", {})
@@ -263,11 +262,11 @@ class IntelligenceSystem:
         try:
             records_list = [r.to_dict() for r in list(self._records.values())[-self.MAX_RECORDS:]]
             data = {
-                "records":        records_list,
+                "records": records_list,
                 "pipeline_stats": dict(self._pipeline_stats),
-                "topic_scores":   self._topic_scores,
-                "saved_at":       datetime.now().isoformat(),
-                "total_records":  len(records_list),
+                "topic_scores": self._topic_scores,
+                "saved_at": datetime.now().isoformat(),
+                "total_records": len(records_list),
             }
             INTEL_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
         except Exception as e:
@@ -280,7 +279,7 @@ class IntelligenceSystem:
         with self._lock:
             content_id = f"c_{int(time.time())}_{len(self._records)}"
             rec = ContentRecord(content_id, topic, "blog")
-            rec.word_count  = piece.get("blog", {}).get("word_count", 0)
+            rec.word_count = piece.get("blog", {}).get("word_count", 0)
             self._records[content_id] = rec
             # Bump topic creation count
             key = topic.lower()[:40]
@@ -295,8 +294,8 @@ class IntelligenceSystem:
         with self._lock:
             rec = self._records.get(content_id)
             if rec:
-                rec.published_to   = platforms
-                rec.published_at   = datetime.now().isoformat()
+                rec.published_to = platforms
+                rec.published_at = datetime.now().isoformat()
                 self._save()
             return rec
 
@@ -332,8 +331,8 @@ class IntelligenceSystem:
             # Rolling average duration
             if duration_s > 0:
                 prev = stats.get("avg_duration", 0) or 0
-                n    = stats["runs"]
-                stats["avg_duration"] = round((prev * (n-1) + duration_s) / n, 2)
+                n = stats["runs"]
+                stats["avg_duration"] = round((prev * (n - 1) + duration_s) / n, 2)
             stats["last_run"] = datetime.now().isoformat()
             self._save()
 
@@ -360,27 +359,27 @@ class IntelligenceSystem:
             runs = stats.get("runs", 0)
             result[name] = {
                 **stats,
-                "success_rate": round(stats.get("successes",0) / max(runs,1) * 100, 1),
+                "success_rate": round(stats.get("successes", 0) / max(runs, 1) * 100, 1),
             }
         return result
 
     def get_summary(self) -> Dict:
         """High-level system intelligence summary."""
         records = list(self._records.values())
-        scores  = [r.performance_score for r in records if r.performance_score > 0]
+        scores = [r.performance_score for r in records if r.performance_score > 0]
         return {
             "total_content_pieces": len(records),
-            "published_pieces":     sum(1 for r in records if r.published_at),
-            "avg_performance_score": round(sum(scores)/len(scores), 2) if scores else 0,
-            "top_topics":           StrategyAdvisor(records).get_top_topics(3),
-            "pipeline_stats":       self.get_pipeline_performance(),
-            "total_topic_scores":   len(self._topic_scores),
-            "last_updated":         datetime.now().isoformat(),
+            "published_pieces": sum(1 for r in records if r.published_at),
+            "avg_performance_score": round(sum(scores) / len(scores), 2) if scores else 0,
+            "top_topics": StrategyAdvisor(records).get_top_topics(3),
+            "pipeline_stats": self.get_pipeline_performance(),
+            "total_topic_scores": len(self._topic_scores),
+            "last_updated": datetime.now().isoformat(),
         }
 
     def generate_improvement_report(self) -> str:
         """Generate a text report with system insights."""
-        summary  = self.get_summary()
+        summary = self.get_summary()
         strategy = self.get_strategy()
 
         report = f"""# WheellsVerse Intelligence Report
@@ -392,12 +391,12 @@ Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}
 - Average performance score: {summary['avg_performance_score']}/100
 
 ## Top Performing Topics
-{chr(10).join(f"  {i+1}. {t['topic']} (score: {t['avg_score']}, {t['count']} pieces)"
+{chr(10).join(f"  {i + 1}. {t['topic']} (score: {t['avg_score']}, {t['count']} pieces)"
               for i, t in enumerate(summary.get('top_topics', [])))}
 
 ## Pipeline Performance
 {chr(10).join(f"  • {name}: {stats['runs']} runs, {stats['success_rate']}% success"
-              for name, stats in summary.get('pipeline_stats', {}).items())}
+                  for name, stats in summary.get('pipeline_stats', {}).items())}
 
 ## Strategy Recommendations
 Status: {strategy.get('status', 'unknown')}
@@ -438,7 +437,7 @@ Trend: {strategy.get('trend', 'neutral')}
         total_views = sum(r.engagement.get("views", 0) for r in records)
         total_clicks = sum(r.engagement.get("clicks", 0) for r in records)
         conversion_rate = round(total_leads / max(total_views, 1) * 100, 3)
-        click_rate      = round(total_clicks / max(total_views, 1) * 100, 2)
+        click_rate = round(total_clicks / max(total_views, 1) * 100, 2)
 
         # Top converting topics
         topic_leads: Dict[str, float] = defaultdict(float)
@@ -450,11 +449,11 @@ Trend: {strategy.get('trend', 'neutral')}
         )[:5]
 
         return {
-            "total_leads":       total_leads,
-            "total_views":       total_views,
-            "total_clicks":      total_clicks,
-            "conversion_rate":   conversion_rate,
-            "click_rate":        click_rate,
+            "total_leads": total_leads,
+            "total_views": total_views,
+            "total_clicks": total_clicks,
+            "conversion_rate": conversion_rate,
+            "click_rate": click_rate,
             "top_converting_topics": top_converting,
         }
 

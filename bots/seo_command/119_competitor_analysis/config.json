@@ -1,0 +1,9 @@
+{
+  "description": "Competitor analysis — compares domains for keyword overlap and content gaps",
+  "default_competitors": "nerdwallet.com,investopedia.com,bankrate.com",
+  "default_domain": "wheellsverse-bots.pages.dev",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@weekly fri 10:00"
+}
+

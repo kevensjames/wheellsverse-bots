@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class NegotiationAssistantBot(BaseBot):
@@ -25,12 +25,12 @@ class NegotiationAssistantBot(BaseBot):
         cfg = self.config
         negotiation_context = negotiation_context or cfg.get("negotiation_context",
             "Client wants 40% discount on WheellsVerse annual plan")
-        your_goals          = your_goals or cfg.get("your_goals",
+        your_goals = your_goals or cfg.get("your_goals",
             "maintain pricing integrity, close the deal, get a 12-month commitment")
-        their_likely_goals  = their_likely_goals or cfg.get("their_likely_goals",
+        their_likely_goals = their_likely_goals or cfg.get("their_likely_goals",
             "reduce budget impact, minimize risk, get flexibility to cancel")
-        deal_value          = deal_value or cfg.get("deal_value", "$4,997/year")
-        your_leverage       = your_leverage or cfg.get("your_leverage",
+        deal_value = deal_value or cfg.get("deal_value", "$4,997/year")
+        your_leverage = your_leverage or cfg.get("your_leverage",
             "uniquely solves their stated problem, competitors are more expensive")
 
         self.logger.info(f"Building negotiation strategy: {negotiation_context}")
@@ -154,11 +154,11 @@ If you must concede on price, here's how:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Negotiation Strategy Assistant")
-    parser.add_argument("--context",   type=str, default=None)
-    parser.add_argument("--goals",     type=str, default=None)
-    parser.add_argument("--theirs",    type=str, default=None)
-    parser.add_argument("--value",     type=str, default=None)
-    parser.add_argument("--leverage",  type=str, default=None)
+    parser.add_argument("--context", type=str, default=None)
+    parser.add_argument("--goals", type=str, default=None)
+    parser.add_argument("--theirs", type=str, default=None)
+    parser.add_argument("--value", type=str, default=None)
+    parser.add_argument("--leverage", type=str, default=None)
     args = parser.parse_args()
     bot = NegotiationAssistantBot()
     result = bot.execute(negotiation_context=args.context, your_goals=args.goals,

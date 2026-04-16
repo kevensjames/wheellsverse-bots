@@ -595,7 +595,6 @@ def publish_digital_product(product_data: dict) -> dict:
 
     # ── Price A/B optimization (upgrade #9) ──────────────────────────────────
     # Nudge price to proven psychological price points
-    import random
     anchors = [9, 17, 19, 27, 29, 37, 47, 49, 67, 79, 97, 127, 147, 197, 247, 297, 497]
     best = min(anchors, key=lambda x: abs(x - price_raw))
     price = str(float(best))

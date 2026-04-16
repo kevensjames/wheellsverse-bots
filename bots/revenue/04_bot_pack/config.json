@@ -1,0 +1,7 @@
+{
+  "description": "Bot Pack ($197) — daily promotions + buyer onboarding. Target: 10 sales/month = $1,970.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 14:00",
+  "action": "promote"
+}

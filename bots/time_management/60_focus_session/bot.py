@@ -10,31 +10,31 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 SESSION_TYPES = {
-    "pomodoro":     "Classic 25/5 or 50/10 sprint intervals",
-    "deep_work":    "Single long block (2-4 hours) of uninterrupted focus",
-    "creative":     "Open-ended creative exploration — no timer pressure",
-    "sprint":       "Compressed high-output session — max 90 minutes",
-    "flow_state":   "Extended session designed to enter and maintain flow",
-    "batch_tasks":  "Group similar tasks into a timed batch window",
-    "review":       "Analysis, reflection, and planning session",
+    "pomodoro": "Classic 25/5 or 50/10 sprint intervals",
+    "deep_work": "Single long block (2-4 hours) of uninterrupted focus",
+    "creative": "Open-ended creative exploration — no timer pressure",
+    "sprint": "Compressed high-output session — max 90 minutes",
+    "flow_state": "Extended session designed to enter and maintain flow",
+    "batch_tasks": "Group similar tasks into a timed batch window",
+    "review": "Analysis, reflection, and planning session",
 }
 
 DISTRACTION_PROFILES = {
     "social_media": "Phone + social platforms are the primary distraction",
-    "email":        "Email and messaging apps break focus",
-    "noise":        "Environmental noise is the main issue",
+    "email": "Email and messaging apps break focus",
+    "noise": "Environmental noise is the main issue",
     "multitasking": "Tendency to switch tasks mid-session",
     "perfectionism": "Getting stuck perfecting instead of progressing",
 }
 
 ENERGY_LEVELS = {
-    "peak":    "High energy — schedule hardest, most creative work",
-    "medium":  "Moderate energy — good for structured analytical work",
-    "low":     "Low energy — batch light tasks, avoid major decisions",
-    "varied":  "Unknown — include energy ramp-up strategy",
+    "peak": "High energy — schedule hardest, most creative work",
+    "medium": "Moderate energy — good for structured analytical work",
+    "low": "Low energy — batch light tasks, avoid major decisions",
+    "varied": "Unknown — include energy ramp-up strategy",
 }
 
 
@@ -48,13 +48,13 @@ class FocusSessionBot(BaseBot):
             distractions: str = None, **kwargs):
 
         cfg = self.config
-        task         = task or cfg.get("task", "build new WheellsVerse bot — research + code + test")
+        task = task or cfg.get("task", "build new WheellsVerse bot — research + code + test")
         session_type = session_type or cfg.get("session_type", "deep_work")
-        duration     = duration or cfg.get("duration", "2 hours")
+        duration = duration or cfg.get("duration", "2 hours")
         energy_level = energy_level or cfg.get("energy_level", "peak")
         distractions = distractions or cfg.get("distractions", "social_media")
 
-        type_desc   = SESSION_TYPES.get(session_type, session_type)
+        type_desc = SESSION_TYPES.get(session_type, session_type)
         energy_desc = ENERGY_LEVELS.get(energy_level, energy_level)
         distract_desc = DISTRACTION_PROFILES.get(distractions, distractions)
 
@@ -222,11 +222,11 @@ Weekly focus metrics to improve your sessions:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Deep Work Focus Session Planner")
-    parser.add_argument("--task",        type=str, default=None)
-    parser.add_argument("--type",        type=str, default="deep_work",
+    parser.add_argument("--task", type=str, default=None)
+    parser.add_argument("--type", type=str, default="deep_work",
                         choices=list(SESSION_TYPES.keys()))
-    parser.add_argument("--duration",    type=str, default="2 hours")
-    parser.add_argument("--energy",      type=str, default="peak",
+    parser.add_argument("--duration", type=str, default="2 hours")
+    parser.add_argument("--energy", type=str, default="peak",
                         choices=list(ENERGY_LEVELS.keys()))
     parser.add_argument("--distraction", type=str, default="social_media",
                         choices=list(DISTRACTION_PROFILES.keys()))

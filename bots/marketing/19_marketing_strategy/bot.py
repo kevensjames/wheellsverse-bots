@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class MarketingStrategyBot(BaseBot):
@@ -23,10 +23,10 @@ class MarketingStrategyBot(BaseBot):
             timeframe: str = None, **kwargs):
 
         cfg = self.config
-        product   = product or cfg.get("product", "WheellsVerse AI automation platform")
-        stage     = stage or cfg.get("stage", "early_traction")
-        budget    = budget or cfg.get("budget", "$500/month")
-        goal      = goal or cfg.get("goal", "reach 1,000 paid users")
+        product = product or cfg.get("product", "WheellsVerse AI automation platform")
+        stage = stage or cfg.get("stage", "early_traction")
+        budget = budget or cfg.get("budget", "$500/month")
+        goal = goal or cfg.get("goal", "reach 1,000 paid users")
         timeframe = timeframe or cfg.get("timeframe", "90 days")
 
         self.logger.info(f"Building marketing strategy: {product} | {stage} | {budget}")
@@ -40,11 +40,11 @@ class MarketingStrategyBot(BaseBot):
         )
 
         stage_context = {
-            "pre_launch":    "No product yet — building waitlist and initial buzz",
-            "early_traction":"Product launched, <100 users, finding product-market fit",
-            "growth":        "100-1,000 users, repeatable acquisition channels emerging",
-            "scale":         "1,000+ users, doubling down on proven channels",
-            "enterprise":    "Moving upmarket, longer sales cycles, larger deals",
+            "pre_launch": "No product yet — building waitlist and initial buzz",
+            "early_traction": "Product launched, <100 users, finding product-market fit",
+            "growth": "100-1,000 users, repeatable acquisition channels emerging",
+            "scale": "1,000+ users, doubling down on proven channels",
+            "enterprise": "Moving upmarket, longer sales cycles, larger deals",
         }
 
         stage_label = stage_context.get(stage, stage)
@@ -156,11 +156,11 @@ Top 3 things that could derail this strategy + mitigation plans
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Marketing Strategy Planner")
-    parser.add_argument("--product",   type=str, default=None)
-    parser.add_argument("--stage",     type=str, default="early_traction",
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--stage", type=str, default="early_traction",
                         choices=["pre_launch", "early_traction", "growth", "scale", "enterprise"])
-    parser.add_argument("--budget",    type=str, default="$500/month")
-    parser.add_argument("--goal",      type=str, default=None)
+    parser.add_argument("--budget", type=str, default="$500/month")
+    parser.add_argument("--goal", type=str, default=None)
     parser.add_argument("--timeframe", type=str, default="90 days")
     args = parser.parse_args()
     bot = MarketingStrategyBot()

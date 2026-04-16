@@ -16,7 +16,10 @@ Also handles:
 """
 
 from __future__ import annotations
-import json, os, re, logging, threading
+import json
+import os
+import logging
+import threading
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -30,12 +33,12 @@ log = logging.getLogger(__name__)
 DATA_FILE = Path("data/leads.json")
 
 LEAD_MAGNET_TITLE = os.getenv("LEAD_MAGNET_TITLE", "The AI Entrepreneur Blueprint")
-CTA_URL           = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
-BRAND             = os.getenv("BRAND_NAME", "WheellsVerse")
-AUTHOR            = os.getenv("AUTHOR_NAME", "J.K. Blaze")
-EMAIL_FROM        = os.getenv("EMAIL_FROM_NAME", "WheellsVerse Bot")
-TELEGRAM_TOKEN    = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHAT     = os.getenv("TELEGRAM_CHAT_ID", "")
+CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
+AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
+EMAIL_FROM = os.getenv("EMAIL_FROM_NAME", "WheellsVerse Bot")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT = os.getenv("TELEGRAM_CHAT_ID", "")
 
 # ─── Keywords that trigger lead magnet delivery ───────────────────────────────
 
@@ -48,15 +51,16 @@ OPT_IN_KEYWORDS = [
 
 # ─── Lead record ──────────────────────────────────────────────────────────────
 
+
 class Lead:
     def __init__(self, source: str, contact: str, name: str = "",
                  platform: str = "", user_id: str = ""):
-        self.source    = source     # landing_page / whatsapp / telegram / dm / manual
-        self.contact   = contact    # email or phone
-        self.name      = name
-        self.platform  = platform
-        self.user_id   = user_id
-        self.stage     = "new"      # new / delivered / subscribed / customer
+        self.source = source     # landing_page / whatsapp / telegram / dm / manual
+        self.contact = contact    # email or phone
+        self.name = name
+        self.platform = platform
+        self.user_id = user_id
+        self.stage = "new"      # new / delivered / subscribed / customer
         self.tags: List[str] = []
         self.captured_at = datetime.now(timezone.utc).isoformat()
         self.delivered_at = ""
@@ -74,15 +78,15 @@ class Lead:
 
     @classmethod
     def from_dict(cls, d: Dict) -> "Lead":
-        l = cls(d["source"], d["contact"], d.get("name",""),
-                d.get("platform",""), d.get("user_id",""))
-        l.stage         = d.get("stage", "new")
-        l.tags          = d.get("tags", [])
-        l.captured_at   = d.get("captured_at", "")
-        l.delivered_at  = d.get("delivered_at", "")
-        l.convertkit_id = d.get("convertkit_id", "")
-        l.notes         = d.get("notes", "")
-        return l
+        ln = cls(d["source"], d["contact"], d.get("name", ""),
+                d.get("platform", ""), d.get("user_id", ""))
+        ln.stage = d.get("stage", "new")
+        ln.tags = d.get("tags", [])
+        ln.captured_at = d.get("captured_at", "")
+        ln.delivered_at = d.get("delivered_at", "")
+        ln.convertkit_id = d.get("convertkit_id", "")
+        ln.notes = d.get("notes", "")
+        return ln
 
 
 # ─── Lead Capture Engine ──────────────────────────────────────────────────────
@@ -110,12 +114,12 @@ class LeadCaptureEngine:
         if DATA_FILE.exists():
             try:
                 raw = json.loads(DATA_FILE.read_text())
-                self._leads = [Lead.from_dict(l) for l in raw]
+                self._leads = [Lead.from_dict(ln) for ln in raw]
             except Exception as e:
                 log.error(f"Lead load error: {e}")
 
     def _save(self):
-        DATA_FILE.write_text(json.dumps([l.to_dict() for l in self._leads], indent=2))
+        DATA_FILE.write_text(json.dumps([ln.to_dict() for ln in self._leads], indent=2))
 
     # ── Core capture flow ──────────────────────────────────────────────────────
 
@@ -133,7 +137,7 @@ class LeadCaptureEngine:
         """
         with self._lock:
             # Check for duplicate
-            existing = [l for l in self._leads if l.contact == contact]
+            existing = [ln for ln in self._leads if ln.contact == contact]
             if existing:
                 lead = existing[0]
                 lead.notes += f" | Re-captured {datetime.now().strftime('%Y-%m-%d')}"
@@ -278,7 +282,7 @@ class LeadCaptureEngine:
             host = os.getenv("EMAIL_HOST", "smtp.gmail.com")
             port = int(os.getenv("EMAIL_PORT", 587))
             user = os.getenv("EMAIL_USER", "")
-            pwd  = os.getenv("EMAIL_PASSWORD", "")
+            pwd = os.getenv("EMAIL_PASSWORD", "")
             if not user or not pwd:
                 return {"sent": False, "error": "Email not configured"}
 
@@ -307,8 +311,8 @@ To your financial freedom,
 P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlook.
 """
             msg = MIMEMultipart()
-            msg["From"]    = f"{EMAIL_FROM} <{user}>"
-            msg["To"]      = to_email
+            msg["From"] = f"{EMAIL_FROM} <{user}>"
+            msg["To"] = to_email
             msg["Subject"] = f'🎁 Your "{LEAD_MAGNET_TITLE}" is here, {first_name}!'
             msg.attach(MIMEText(body, "plain"))
 
@@ -324,7 +328,7 @@ P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlo
             return {"sent": False, "error": str(e)}
 
     def _send_whatsapp_blueprint(self, phone: str, first_name: str) -> Dict:
-        token   = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
+        token = os.getenv("WHATSAPP_ACCESS_TOKEN", "")
         phone_id = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
         if not token or not phone_id:
             return {"sent": False, "error": "WhatsApp not configured"}
@@ -458,8 +462,8 @@ P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlo
 
     def re_engage_cold_leads(self) -> Dict:
         """Send re-engagement message to leads who haven't converted."""
-        cold = [l for l in self._leads
-                if l.stage in ("delivered", "subscribed") and not l.convertkit_id]
+        cold = [ln for ln in self._leads
+                if ln.stage in ("delivered", "subscribed") and not ln.convertkit_id]
         count = 0
         for lead in cold[:20]:  # max 20 per run
             if "@" in lead.contact:
@@ -476,7 +480,7 @@ P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlo
             host = os.getenv("EMAIL_HOST", "smtp.gmail.com")
             port = int(os.getenv("EMAIL_PORT", 587))
             user = os.getenv("EMAIL_USER", "")
-            pwd  = os.getenv("EMAIL_PASSWORD", "")
+            pwd = os.getenv("EMAIL_PASSWORD", "")
             if not user or not pwd:
                 return
             body = (
@@ -488,8 +492,8 @@ P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlo
                 f"{AUTHOR}\n{BRAND}"
             )
             msg = MIMEMultipart()
-            msg["From"]    = f"{EMAIL_FROM} <{user}>"
-            msg["To"]      = to_email
+            msg["From"] = f"{EMAIL_FROM} <{user}>"
+            msg["To"] = to_email
             msg["Subject"] = f"Did you see this, {first}?"
             msg.attach(MIMEText(body, "plain"))
             with smtplib.SMTP(host, port) as server:
@@ -503,10 +507,10 @@ P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlo
 
     def summary(self) -> Dict:
         by_source: Dict[str, int] = {}
-        by_stage: Dict[str, int]  = {}
-        for l in self._leads:
-            by_source[l.source] = by_source.get(l.source, 0) + 1
-            by_stage[l.stage]   = by_stage.get(l.stage, 0) + 1
+        by_stage: Dict[str, int] = {}
+        for ln in self._leads:
+            by_source[ln.source] = by_source.get(ln.source, 0) + 1
+            by_stage[ln.stage] = by_stage.get(ln.stage, 0) + 1
 
         return {
             "total_leads": len(self._leads),
@@ -515,12 +519,12 @@ P.S. Tomorrow I'll send you my #1 AI tool recommendation that most people overlo
             "subscribed": by_stage.get("subscribed", 0),
             "delivered": by_stage.get("delivered", 0) + by_stage.get("subscribed", 0),
             "convertkit_configured": bool(os.getenv("CONVERTKIT_API_KEY")),
-            "whatsapp_configured":   bool(os.getenv("WHATSAPP_ACCESS_TOKEN")),
-            "email_configured":      bool(os.getenv("EMAIL_USER")),
+            "whatsapp_configured": bool(os.getenv("WHATSAPP_ACCESS_TOKEN")),
+            "email_configured": bool(os.getenv("EMAIL_USER")),
         }
 
     def get_all(self, limit: int = 50) -> List[Dict]:
-        return [l.to_dict() for l in self._leads[-limit:]]
+        return [ln.to_dict() for ln in self._leads[-limit:]]
 
 
 # ─── Module-level convenience ─────────────────────────────────────────────────
@@ -530,8 +534,10 @@ def capture_lead(contact: str, name: str = "", source: str = "landing_page",
                  niche: str = "general") -> Dict:
     return LeadCaptureEngine.get().capture(contact, name, source, platform, user_id, niche=niche)
 
+
 def detect_optin(message: str) -> bool:
     return LeadCaptureEngine.get().detect_optin(message)
+
 
 def handle_optin(platform: str, user_id: str, message: str, handle: str = "") -> Dict:
     return LeadCaptureEngine.get().handle_optin_message(platform, user_id, message, handle)

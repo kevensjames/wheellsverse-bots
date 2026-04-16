@@ -101,7 +101,7 @@ class Settings:
 
         if missing:
             raise EnvironmentError(
-                f"\n\n❌ CRITICAL — Missing required environment variables:\n"
+                "\n\n❌ CRITICAL — Missing required environment variables:\n"
                 + "\n".join(f"  • {k}" for k in missing)
                 + "\n\nSet these in Railway → Variables (or your .env file) "
                 "before starting NarAI.\n"

@@ -10,24 +10,24 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 BUSINESS_TYPES = {
-    "saas":           "Software subscription product",
-    "agency":         "Done-for-you service business",
-    "coaching":       "1-on-1 or group coaching/consulting",
-    "ecommerce":      "Product sales (physical or digital)",
-    "course":         "Online education / info product",
-    "freelance":      "Freelancer or independent contractor",
-    "marketplace":    "Two-sided marketplace or platform",
+    "saas": "Software subscription product",
+    "agency": "Done-for-you service business",
+    "coaching": "1-on-1 or group coaching/consulting",
+    "ecommerce": "Product sales (physical or digital)",
+    "course": "Online education / info product",
+    "freelance": "Freelancer or independent contractor",
+    "marketplace": "Two-sided marketplace or platform",
 }
 
 PRICING_OBJECTIVES = {
     "maximize_revenue": "Extract maximum revenue from existing demand",
     "acquire_customers": "Lower entry barriers to grow user base",
-    "move_upmarket":    "Position for premium buyers, raise average deal size",
-    "reduce_churn":     "Increase retention and lifetime value",
-    "launch_new":       "Set pricing for a new product from scratch",
+    "move_upmarket": "Position for premium buyers, raise average deal size",
+    "reduce_churn": "Increase retention and lifetime value",
+    "launch_new": "Set pricing for a new product from scratch",
 }
 
 
@@ -42,15 +42,15 @@ class PricingStrategyBot(BaseBot):
 
         cfg = self.config
         business_type = business_type or cfg.get("business_type", "saas")
-        product_name  = product_name or cfg.get("product_name",
+        product_name = product_name or cfg.get("product_name",
             "WheellsVerse AI Bot Platform")
         target_market = target_market or cfg.get("target_market",
             "entrepreneurs and small business owners, $10K-$500K annual revenue")
-        objective     = objective or cfg.get("objective", "maximize_revenue")
-        revenue_goal  = revenue_goal or cfg.get("revenue_goal", "$10K MRR")
+        objective = objective or cfg.get("objective", "maximize_revenue")
+        revenue_goal = revenue_goal or cfg.get("revenue_goal", "$10K MRR")
 
         type_desc = BUSINESS_TYPES.get(business_type, business_type)
-        obj_desc  = PRICING_OBJECTIVES.get(objective, objective)
+        obj_desc = PRICING_OBJECTIVES.get(objective, objective)
 
         self.logger.info(f"Building pricing strategy for: {product_name} ({objective})")
 
@@ -221,13 +221,13 @@ What are customers really paying for (not what the product is, but what it does 
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Business Pricing Strategy Builder")
-    parser.add_argument("--type",     type=str, default="saas",
+    parser.add_argument("--type", type=str, default="saas",
                         choices=list(BUSINESS_TYPES.keys()))
-    parser.add_argument("--product",  type=str, default=None)
-    parser.add_argument("--market",   type=str, default=None)
-    parser.add_argument("--goal",     type=str, default="maximize_revenue",
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--market", type=str, default=None)
+    parser.add_argument("--goal", type=str, default="maximize_revenue",
                         choices=list(PRICING_OBJECTIVES.keys()))
-    parser.add_argument("--revenue",  type=str, default="$10K MRR")
+    parser.add_argument("--revenue", type=str, default="$10K MRR")
     args = parser.parse_args()
     bot = PricingStrategyBot()
     result = bot.execute(business_type=args.type, product_name=args.product,

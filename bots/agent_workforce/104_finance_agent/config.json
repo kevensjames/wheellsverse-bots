@@ -1,0 +1,7 @@
+{
+  "description": "Finance & Crypto Agent — crypto signals, stock analysis, DeFi yields, market reports. Publishes to FB + IG every 4 hours.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@every_4h",
+  "action": "signal"
+}

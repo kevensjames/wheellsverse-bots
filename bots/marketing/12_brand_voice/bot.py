@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class BrandVoiceBot(BaseBot):
@@ -23,11 +23,11 @@ class BrandVoiceBot(BaseBot):
             values: str = None, **kwargs):
 
         cfg = self.config
-        brand_name      = brand_name or cfg.get("brand_name", "WheellsVerse")
-        niche           = niche or cfg.get("niche", "AI automation and entrepreneurship")
+        brand_name = brand_name or cfg.get("brand_name", "WheellsVerse")
+        niche = niche or cfg.get("niche", "AI automation and entrepreneurship")
         target_audience = target_audience or cfg.get("target_audience", "ambitious entrepreneurs and creators")
-        tone_words      = tone_words or cfg.get("tone_words", "bold, direct, knowledgeable, inspiring")
-        values          = values or cfg.get("values", "automation, freedom, results, innovation")
+        tone_words = tone_words or cfg.get("tone_words", "bold, direct, knowledgeable, inspiring")
+        values = values or cfg.get("values", "automation, freedom, results, innovation")
 
         self.logger.info(f"Building brand voice guide for: {brand_name}")
 
@@ -121,11 +121,11 @@ A 10-item checklist writers use before publishing any content."""
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Brand Voice Guide Creator")
-    parser.add_argument("--brand",    type=str, default=None)
-    parser.add_argument("--niche",    type=str, default=None)
+    parser.add_argument("--brand", type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None)
     parser.add_argument("--audience", type=str, default=None)
-    parser.add_argument("--tone",     type=str, default="bold, direct, knowledgeable")
-    parser.add_argument("--values",   type=str, default=None)
+    parser.add_argument("--tone", type=str, default="bold, direct, knowledgeable")
+    parser.add_argument("--values", type=str, default=None)
     args = parser.parse_args()
     bot = BrandVoiceBot()
     result = bot.execute(brand_name=args.brand, niche=args.niche,

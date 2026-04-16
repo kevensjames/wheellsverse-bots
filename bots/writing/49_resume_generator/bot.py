@@ -10,13 +10,13 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 EXPERIENCE_LEVELS = {
-    "entry":      "0-2 years — recent graduate or career starter",
-    "mid":        "3-6 years — experienced individual contributor",
-    "senior":     "7-12 years — senior specialist or team lead",
-    "director":   "12+ years — director, VP, or executive level",
+    "entry": "0-2 years — recent graduate or career starter",
+    "mid": "3-6 years — experienced individual contributor",
+    "senior": "7-12 years — senior specialist or team lead",
+    "director": "12+ years — director, VP, or executive level",
     "career_change": "Pivoting industries or roles — transferable skills focus",
 }
 
@@ -44,12 +44,12 @@ class ResumeGeneratorBot(BaseBot):
             achievements: str = None, **kwargs):
 
         cfg = self.config
-        target_role     = target_role or cfg.get("target_role", "AI Automation Specialist")
+        target_role = target_role or cfg.get("target_role", "AI Automation Specialist")
         experience_level = experience_level or cfg.get("experience_level", "mid")
-        industry        = industry or cfg.get("industry", "technology / software")
-        key_skills      = key_skills or cfg.get("key_skills",
+        industry = industry or cfg.get("industry", "technology / software")
+        key_skills = key_skills or cfg.get("key_skills",
             "Python, AI/ML, automation workflows, n8n, Zapier, API integrations")
-        achievements    = achievements or cfg.get("achievements",
+        achievements = achievements or cfg.get("achievements",
             "built 70 AI bots, automated 80% of business operations, grew social presence to 10K+")
 
         level_desc = EXPERIENCE_LEVELS.get(experience_level, experience_level)
@@ -203,12 +203,12 @@ First paragraph of a cover letter for {target_role}:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="ATS-Optimized Resume Generator")
-    parser.add_argument("--role",     type=str, default=None)
-    parser.add_argument("--level",    type=str, default="mid",
+    parser.add_argument("--role", type=str, default=None)
+    parser.add_argument("--level", type=str, default="mid",
                         choices=list(EXPERIENCE_LEVELS.keys()))
     parser.add_argument("--industry", type=str, default=None)
-    parser.add_argument("--skills",   type=str, default=None)
-    parser.add_argument("--wins",     type=str, default=None,
+    parser.add_argument("--skills", type=str, default=None)
+    parser.add_argument("--wins", type=str, default=None,
                         help="Key achievements to highlight")
     args = parser.parse_args()
     bot = ResumeGeneratorBot()

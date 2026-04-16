@@ -1,0 +1,7 @@
+{
+  "description": "Coinbase Daily — posts crypto education content with affiliate link every day at 11am. Target: 100 signups/month = $1,000.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 11:00",
+  "action": "post"
+}

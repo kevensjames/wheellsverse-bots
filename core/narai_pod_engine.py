@@ -286,7 +286,7 @@ def _dalle(prompt: str) -> Optional[str]:
         with urllib.request.urlopen(req, timeout=90) as r:
             data = json.loads(r.read().decode())
             url = data["data"][0]["url"]
-            log.info(f"[NarAI] DALL-E 3 ✅ image generated")
+            log.info("[NarAI] DALL-E 3 ✅ image generated")
             return url
     except Exception as e:
         log.warning(f"[NarAI] DALL-E 3 failed: {e}")
@@ -465,7 +465,7 @@ Return this exact JSON structure:
         f"Text reads: '{concept.get('tagline', 'Make Your Mark')}'. "
         f"Ultra-detailed, 300 DPI, transparent background, print-ready artwork.")
     concept.setdefault("design_negative_prompt", "blurry, watermark, low quality, pixelated, bad text")
-    concept.setdefault("description_hook", f"Made for the ones who dare to be different.")
+    concept.setdefault("description_hook", "Made for the ones who dare to be different.")
     concept.setdefault("tags", ["graphic tee", "unisex", "gift idea", "trendy", "unique design",
                                   niche_default.replace(" ", "-"), product_type_slug.replace("_", "-"),
                                   "premium quality", "fast shipping", "limited edition",
@@ -1169,7 +1169,7 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
             _log(f"Concept: \"{concept['title']}\" | niche: {concept['niche']} | style: {concept['design_style']}")
 
             # Step 3: Generate + upload design
-            _log(f"Generating design with DALL-E 3...")
+            _log("Generating design with DALL-E 3...")
             image_id = generate_and_upload_design(concept)
             if image_id:
                 _log(f"Design uploaded: {image_id}")
@@ -1177,7 +1177,7 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
                 _log("No design image — product will be created without artwork", "WARNING")
 
             # Step 4: Build Printify product
-            _log(f"Building Printify product...")
+            _log("Building Printify product...")
             printify_id = build_printify_product(shop_id, concept, ptype, image_id)
             if not printify_id:
                 _log(f"Failed to create Printify product for {ptype} — skipping", "ERROR")
@@ -1186,7 +1186,7 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
                 continue
 
             # Step 5: Publish + enrich Shopify
-            _log(f"Publishing to Shopify and enriching all fields...")
+            _log("Publishing to Shopify and enriching all fields...")
             shopify_id = publish_and_enrich(shop_id, printify_id, concept, ptype)
             if not shopify_id:
                 _log(f"Shopify publish/enrich failed for {printify_id}", "WARNING")
@@ -1262,7 +1262,7 @@ def run_pod_session(target: int = 10, product_types: Optional[List[str]] = None)
     total_errors    = len(_session_state["error_log"])
     auto_fixed      = sum(1 for e in _session_state["error_log"] if e.get("fixed"))
     unresolved      = total_errors - auto_fixed
-    _log(f"━━━ SESSION COMPLETE ━━━")
+    _log("━━━ SESSION COMPLETE ━━━")
     _log(f"  Products created : {_session_state['products_created']}/{target}")
     _log(f"  Verification issues: {total_errors} total | {auto_fixed} auto-fixed | {unresolved} unresolved")
     if _session_state["errors"]:

@@ -10,25 +10,25 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 CAPTION_STYLES = {
-    "storytelling":    "Personal story or journey narrative -- relatable and emotional",
-    "educational":     "Teach something valuable -- tips, how-to, facts, frameworks",
-    "controversial":   "Bold opinion or contrarian take -- sparks debate and comments",
-    "inspirational":   "Motivating and uplifting -- quotes, mindset, success stories",
-    "behind_scenes":   "Transparency and authenticity -- process, failures, daily reality",
-    "promotional":     "Product/service focused -- benefits, social proof, CTA-driven",
-    "question":        "Engagement-first -- asks audience a question to drive comments",
-    "listicle":        "Numbered tips or ranked items -- easy to consume, highly shareable",
+    "storytelling": "Personal story or journey narrative -- relatable and emotional",
+    "educational": "Teach something valuable -- tips, how-to, facts, frameworks",
+    "controversial": "Bold opinion or contrarian take -- sparks debate and comments",
+    "inspirational": "Motivating and uplifting -- quotes, mindset, success stories",
+    "behind_scenes": "Transparency and authenticity -- process, failures, daily reality",
+    "promotional": "Product/service focused -- benefits, social proof, CTA-driven",
+    "question": "Engagement-first -- asks audience a question to drive comments",
+    "listicle": "Numbered tips or ranked items -- easy to consume, highly shareable",
 }
 
 PLATFORM_RULES = {
     "instagram": {"max_chars": 2200, "hashtags": "20-30", "line_breaks": "frequent"},
-    "tiktok":    {"max_chars": 150,  "hashtags": "3-5",   "line_breaks": "minimal"},
-    "twitter":   {"max_chars": 280,  "hashtags": "1-2",   "line_breaks": "minimal"},
-    "linkedin":  {"max_chars": 3000, "hashtags": "3-5",   "line_breaks": "strategic"},
-    "facebook":  {"max_chars": 500,  "hashtags": "1-3",   "line_breaks": "moderate"},
+    "tiktok": {"max_chars": 150, "hashtags": "3-5", "line_breaks": "minimal"},
+    "twitter": {"max_chars": 280, "hashtags": "1-2", "line_breaks": "minimal"},
+    "linkedin": {"max_chars": 3000, "hashtags": "3-5", "line_breaks": "strategic"},
+    "facebook": {"max_chars": 500, "hashtags": "1-3", "line_breaks": "moderate"},
 }
 
 
@@ -41,13 +41,13 @@ class CaptionGeneratorBot(BaseBot):
             num_captions: int = None, style: str = None, **kwargs):
 
         cfg = self.config
-        topic       = topic or cfg.get("topic", "How AI automation saves entrepreneurs 10+ hours per week")
-        platforms   = platforms or cfg.get("platforms", "instagram,tiktok,twitter,linkedin")
+        topic = topic or cfg.get("topic", "How AI automation saves entrepreneurs 10+ hours per week")
+        platforms = platforms or cfg.get("platforms", "instagram,tiktok,twitter,linkedin")
         num_captions = num_captions or cfg.get("num_captions", 3)
-        style       = style or cfg.get("style", "storytelling")
+        style = style or cfg.get("style", "storytelling")
 
         platform_list = [p.strip() for p in platforms.split(",")]
-        style_desc    = CAPTION_STYLES.get(style, style)
+        style_desc = CAPTION_STYLES.get(style, style)
 
         platform_specs = "\n".join([
             f"- **{p.upper()}**: max {PLATFORM_RULES.get(p, {}).get('max_chars', 'varies')} chars, "
@@ -76,7 +76,7 @@ class CaptionGeneratorBot(BaseBot):
             )
 
         caption_sets = "".join(
-            f"## CAPTION SET {i+1} - [Angle/Hook]\n\n"
+            f"## CAPTION SET {i + 1} - [Angle/Hook]\n\n"
             "**Core angle:** [What unique take/hook this caption leads with]\n"
             "**Emotional trigger:** [Curiosity / Aspiration / Fear of missing out / Relatability / etc.]\n\n"
             + "".join(_platform_version(p) for p in platform_list)
@@ -164,10 +164,10 @@ Platform specifications:
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Social Media Caption Generator")
-    parser.add_argument("--topic",    type=str, default=None)
+    parser.add_argument("--topic", type=str, default=None)
     parser.add_argument("--platform", type=str, default="instagram,tiktok,twitter,linkedin")
-    parser.add_argument("--count",    type=int, default=3)
-    parser.add_argument("--style",    type=str, default="storytelling",
+    parser.add_argument("--count", type=int, default=3)
+    parser.add_argument("--style", type=str, default="storytelling",
                         choices=list(CAPTION_STYLES.keys()))
     args = parser.parse_args()
     bot = CaptionGeneratorBot()

@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class ConversionOptimizerBot(BaseBot):
@@ -22,11 +22,11 @@ class ConversionOptimizerBot(BaseBot):
             page_description: str = None, goal: str = None, **kwargs):
 
         cfg = self.config
-        page_type          = page_type or cfg.get("page_type", "landing_page")
+        page_type = page_type or cfg.get("page_type", "landing_page")
         current_conversion = current_conversion or cfg.get("current_conversion", 2.5)
-        page_description   = page_description or cfg.get("page_description",
+        page_description = page_description or cfg.get("page_description",
             "WheellsVerse AI platform landing page — sells monthly subscription, cold traffic from social ads")
-        goal               = goal or cfg.get("goal", "increase signups by 50%")
+        goal = goal or cfg.get("goal", "increase signups by 50%")
 
         self.logger.info(f"CRO audit for {page_type}: current CVR {current_conversion}%")
 
@@ -40,12 +40,12 @@ class ConversionOptimizerBot(BaseBot):
 
         page_type_context = {
             "landing_page": "Homepage or campaign landing page focused on lead capture or sales",
-            "sales_page":   "Long-form sales page for a product or service",
-            "checkout":     "Shopping cart or checkout flow",
-            "opt_in":       "Email opt-in or lead magnet page",
-            "pricing":      "Pricing page with plan tiers",
-            "product":      "E-commerce product page",
-            "webinar":      "Webinar registration page",
+            "sales_page": "Long-form sales page for a product or service",
+            "checkout": "Shopping cart or checkout flow",
+            "opt_in": "Email opt-in or lead magnet page",
+            "pricing": "Pricing page with plan tiers",
+            "product": "E-commerce product page",
+            "webinar": "Webinar registration page",
         }
 
         context_label = page_type_context.get(page_type, page_type)
@@ -146,11 +146,11 @@ If top recommendations are implemented, estimated CVR improvement to [X]% and wh
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Conversion Rate Optimizer")
-    parser.add_argument("--page",        type=str, default="landing_page",
+    parser.add_argument("--page", type=str, default="landing_page",
                         choices=["landing_page", "sales_page", "checkout", "opt_in", "pricing", "product", "webinar"])
-    parser.add_argument("--cvr",         type=float, default=2.5, help="Current conversion rate %")
+    parser.add_argument("--cvr", type=float, default=2.5, help="Current conversion rate %")
     parser.add_argument("--description", type=str, default=None)
-    parser.add_argument("--goal",        type=str, default="increase conversions by 50%")
+    parser.add_argument("--goal", type=str, default="increase conversions by 50%")
     args = parser.parse_args()
     bot = ConversionOptimizerBot()
     result = bot.execute(page_type=args.page, current_conversion=args.cvr,

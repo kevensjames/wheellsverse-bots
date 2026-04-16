@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 
 class BusinessPlanBot(BaseBot):
@@ -23,11 +23,11 @@ class BusinessPlanBot(BaseBot):
             stage: str = None, **kwargs):
 
         cfg = self.config
-        business_name  = business_name or cfg.get("business_name", "WheellsVerse")
-        niche          = niche or cfg.get("niche", "AI automation tools for entrepreneurs")
+        business_name = business_name or cfg.get("business_name", "WheellsVerse")
+        niche = niche or cfg.get("niche", "AI automation tools for entrepreneurs")
         business_model = business_model or cfg.get("business_model", "SaaS subscription + affiliate revenue")
-        target_market  = target_market or cfg.get("target_market", "solopreneurs and small business owners")
-        stage          = stage or cfg.get("stage", "pre-revenue / MVP")
+        target_market = target_market or cfg.get("target_market", "solopreneurs and small business owners")
+        stage = stage or cfg.get("stage", "pre-revenue / MVP")
 
         self.logger.info(f"Generating business plan: {business_name}")
 
@@ -152,11 +152,11 @@ CURRENT STAGE: {stage}
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Business Plan Generator")
-    parser.add_argument("--name",    type=str, default=None)
-    parser.add_argument("--niche",   type=str, default=None)
-    parser.add_argument("--model",   type=str, default=None, dest="biz_model")
-    parser.add_argument("--market",  type=str, default=None)
-    parser.add_argument("--stage",   type=str, default="pre-revenue")
+    parser.add_argument("--name", type=str, default=None)
+    parser.add_argument("--niche", type=str, default=None)
+    parser.add_argument("--model", type=str, default=None, dest="biz_model")
+    parser.add_argument("--market", type=str, default=None)
+    parser.add_argument("--stage", type=str, default="pre-revenue")
     args = parser.parse_args()
     bot = BusinessPlanBot()
     result = bot.execute(business_name=args.name, niche=args.niche,

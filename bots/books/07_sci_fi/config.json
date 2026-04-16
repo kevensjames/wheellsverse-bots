@@ -1,0 +1,7 @@
+{
+  "description": "Science Fiction (.99 KDP). Writes 1 book/day.",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 08:30",
+  "action": "write"
+}

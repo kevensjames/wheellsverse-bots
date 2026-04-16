@@ -10,26 +10,26 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from core.base_bot import BaseBot
+from core.base_bot import BaseBot  # noqa: E402
 
 BUSINESS_MODELS = {
-    "saas":           "Software subscription — monthly/annual recurring revenue",
-    "ecommerce":      "Physical or digital products — one-time purchases",
-    "service":        "Consulting, agency, or done-for-you services",
-    "course":         "Online course or education product",
-    "marketplace":    "Platform connecting buyers and sellers",
-    "freemium":       "Free tier with paid upgrades",
-    "membership":     "Recurring community or content subscription",
+    "saas": "Software subscription — monthly/annual recurring revenue",
+    "ecommerce": "Physical or digital products — one-time purchases",
+    "service": "Consulting, agency, or done-for-you services",
+    "course": "Online course or education product",
+    "marketplace": "Platform connecting buyers and sellers",
+    "freemium": "Free tier with paid upgrades",
+    "membership": "Recurring community or content subscription",
 }
 
 PRICING_STRATEGIES = {
-    "value_based":     "Price based on the value delivered to the customer",
-    "competitive":     "Price relative to competitors in the market",
-    "cost_plus":       "Price = cost + target margin",
-    "penetration":     "Low price to capture market share, raise later",
-    "premium":         "High price to signal quality and exclusivity",
-    "psychological":   "Use pricing psychology ($97 vs $100, anchoring, tiers)",
-    "usage_based":     "Price tied to consumption or usage metrics",
+    "value_based": "Price based on the value delivered to the customer",
+    "competitive": "Price relative to competitors in the market",
+    "cost_plus": "Price = cost + target margin",
+    "penetration": "Low price to capture market share, raise later",
+    "premium": "High price to signal quality and exclusivity",
+    "psychological": "Use pricing psychology ($97 vs $100, anchoring, tiers)",
+    "usage_based": "Price tied to consumption or usage metrics",
 }
 
 
@@ -43,13 +43,13 @@ class PricingOptimizationBot(BaseBot):
             target_margin: str = None, **kwargs):
 
         cfg = self.config
-        product          = product or cfg.get("product",
+        product = product or cfg.get("product",
             "WheellsVerse AI Bot Platform — 70+ automation bots for entrepreneurs")
-        business_model   = business_model or cfg.get("business_model", "saas")
-        current_price    = current_price or cfg.get("current_price", "$497/month")
+        business_model = business_model or cfg.get("business_model", "saas")
+        current_price = current_price or cfg.get("current_price", "$497/month")
         competitor_prices = competitor_prices or cfg.get("competitor_prices",
             "Zapier: $69-$799/month, Make: $9-$299/month, Jasper: $49-$125/month")
-        target_margin    = target_margin or cfg.get("target_margin", "70%+ gross margin")
+        target_margin = target_margin or cfg.get("target_margin", "70%+ gross margin")
 
         model_desc = BUSINESS_MODELS.get(business_model, business_model)
         self.logger.info(f"Optimizing pricing for: {product}")
@@ -235,12 +235,12 @@ Subject: Important: WheellsVerse pricing update
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Pricing Optimization Analyzer")
-    parser.add_argument("--product",     type=str, default=None)
-    parser.add_argument("--model",       type=str, default="saas",
+    parser.add_argument("--product", type=str, default=None)
+    parser.add_argument("--model", type=str, default="saas",
                         choices=list(BUSINESS_MODELS.keys()))
-    parser.add_argument("--current",     type=str, default=None)
+    parser.add_argument("--current", type=str, default=None)
     parser.add_argument("--competitors", type=str, default=None)
-    parser.add_argument("--margin",      type=str, default="70%")
+    parser.add_argument("--margin", type=str, default="70%")
     args = parser.parse_args()
     bot = PricingOptimizationBot()
     result = bot.execute(product=args.product, business_model=args.model,

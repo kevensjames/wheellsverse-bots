@@ -1,0 +1,8 @@
+{
+  "description": "SEO keyword research — discovers high-value long-tail keywords",
+  "default_seeds": "passive income, crypto investing, side hustle, AI tools",
+  "default_niche": "finance",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 07:00"
+}
