@@ -245,6 +245,10 @@ def main():
         return
 
     if args.dashboard:
+        import sys as _sys
+        print(f"[STARTUP] Python {_sys.version}", flush=True)
+        print(f"[STARTUP] sys.path = {_sys.path[:3]}", flush=True)
+        print(f"[STARTUP] PORT env = {os.getenv('PORT', '(not set)')}", flush=True)
         print(f"[STARTUP] Starting dashboard on port {args.port}", flush=True)
         try:
             from core.api import launch
@@ -253,7 +257,8 @@ def main():
         except Exception as _startup_err:
             import traceback
             print(f"[STARTUP ERROR] {_startup_err}", flush=True)
-            traceback.print_exc()
+            traceback.print_exc(file=_sys.stdout)
+            _sys.stdout.flush()
             raise
         return
 

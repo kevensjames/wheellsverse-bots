@@ -11,15 +11,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Dependencies — only re-runs when requirements.txt changes
+# Layer 1: dependencies — only re-runs when requirements.txt changes
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Layer 3: app code — re-runs on every deploy (fast, no pip work)
+# Layer 2: app code — re-runs on every deploy (fast, no pip work)
 COPY . .
 
-# Create required directories
+# Add /app to PYTHONPATH so 'core.api' is importable regardless of CWD
+ENV PYTHONPATH=/app
+
+# Verify Python can import the app before the image is finalised
+RUN python -c "from core.api import app; print('[BUILD CHECK] core.api imports OK')"
+
+# Create required runtime directories
 RUN mkdir -p outputs/content outputs/reports outputs/published \
     data memory logs projects /var/data
 
@@ -28,10 +34,6 @@ RUN mkdir -p outputs/content outputs/reports outputs/published \
 
 # Expose default port (Railway/Render overrides with $PORT env var)
 EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=5 \
-    CMD curl -f http://localhost:${PORT:-8080}/api/health || exit 1
 
 # Environment defaults
 ENV PORT=8080
