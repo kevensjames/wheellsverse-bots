@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WheellsVerse Store — AI Tools, Courses & Resources</title>
+<meta name="description" content="Everything you need to make money with AI. Prompts, courses, crypto guides, and automation toolkits from WheellsVerse.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #080b11;
+    --surface: #0d1219;
+    --surface2: #131b26;
+    --cyan: #00d4ff;
+    --gold: #ffd700;
+    --green: #00ff88;
+    --text: #e8edf5;
+    --muted: #7a8ba0;
+    --border: rgba(0,212,255,0.15);
+  }
+  body { font-family: 'Space Grotesk', sans-serif; background: var(--bg); color: var(--text); }
+  a { color: var(--cyan); text-decoration: none; }
+
+  /* HEADER */
+  header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(8,11,17,0.95); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 5%;
+    display: flex; align-items: center; justify-content: space-between; height: 64px;
+  }
+  .logo { font-size: 1.3rem; font-weight: 700; color: var(--cyan); letter-spacing: -0.5px; }
+  .logo span { color: var(--gold); }
+  nav a { color: var(--muted); margin-left: 2rem; font-size: 0.9rem; transition: color .2s; }
+  nav a:hover { color: var(--cyan); }
+  .nav-cta {
+    background: var(--cyan); color: var(--bg); padding: 0.5rem 1.2rem;
+    border-radius: 6px; font-weight: 600; font-size: 0.85rem; margin-left: 2rem;
+    transition: opacity .2s;
+  }
+  .nav-cta:hover { opacity: 0.9; color: var(--bg); }
+
+  /* HERO */
+  .hero {
+    text-align: center; padding: 100px 5% 80px;
+    background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(0,212,255,0.06) 0%, transparent 70%);
+  }
+  .hero-badge {
+    display: inline-block; background: rgba(0,212,255,0.1); border: 1px solid var(--border);
+    color: var(--cyan); padding: 0.3rem 1rem; border-radius: 20px; font-size: 0.8rem;
+    font-weight: 600; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 1.5rem;
+  }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 700; line-height: 1.15; margin-bottom: 1.5rem; }
+  .hero h1 span { color: var(--cyan); }
+  .hero p { font-size: 1.1rem; color: var(--muted); max-width: 600px; margin: 0 auto 2.5rem; line-height: 1.7; }
+  .hero-stats {
+    display: flex; justify-content: center; gap: 3rem; margin-top: 3rem;
+    flex-wrap: wrap;
+  }
+  .stat { text-align: center; }
+  .stat-num { font-size: 2rem; font-weight: 700; color: var(--cyan); }
+  .stat-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.3rem; }
+
+  /* FEATURED BUNDLE */
+  .bundle-section {
+    padding: 80px 5%; background: var(--surface);
+    border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    text-align: center; font-size: 0.8rem; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--gold); font-weight: 600; margin-bottom: 1rem;
+  }
+  .section-title { text-align: center; font-size: clamp(1.6rem, 3vw, 2.5rem); font-weight: 700; margin-bottom: 1rem; }
+  .section-sub { text-align: center; color: var(--muted); max-width: 600px; margin: 0 auto 3rem; line-height: 1.7; }
+
+  .bundle-card {
+    max-width: 900px; margin: 0 auto;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 16px;
+    padding: 3rem; display: grid; grid-template-columns: 1fr 1fr; gap: 3rem;
+    position: relative; overflow: hidden;
+  }
+  .bundle-card::before {
+    content: ''; position: absolute; top: -1px; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, var(--cyan), var(--gold));
+  }
+  .bundle-badge {
+    position: absolute; top: 1.5rem; right: 1.5rem;
+    background: var(--gold); color: #000; padding: 0.3rem 0.8rem;
+    border-radius: 20px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase;
+  }
+  .bundle-products { list-style: none; }
+  .bundle-products li {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.8rem 0; border-bottom: 1px solid var(--border); font-size: 0.95rem;
+  }
+  .bundle-products li:last-child { border-bottom: none; }
+  .bundle-products li .product-name { display: flex; align-items: center; gap: 0.6rem; }
+  .bundle-products li .check { color: var(--green); font-size: 1.1rem; }
+  .bundle-products li .orig-price { color: var(--muted); font-size: 0.85rem; text-decoration: line-through; }
+  .bundle-right { display: flex; flex-direction: column; justify-content: center; }
+  .value-stack { margin-bottom: 2rem; }
+  .value-row {
+    display: flex; justify-content: space-between; padding: 0.4rem 0;
+    font-size: 0.9rem; color: var(--muted);
+  }
+  .value-total {
+    display: flex; justify-content: space-between; padding: 1rem 0; margin-top: 0.5rem;
+    border-top: 1px solid var(--border); font-weight: 700;
+    color: var(--muted); text-decoration: line-through;
+  }
+  .bundle-price { text-align: center; margin-bottom: 1.5rem; }
+  .price-label { font-size: 0.8rem; color: var(--green); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.3rem; }
+  .price-big { font-size: 3.5rem; font-weight: 700; color: var(--gold); line-height: 1; }
+  .price-note { font-size: 0.8rem; color: var(--muted); margin-top: 0.5rem; }
+  .btn-primary {
+    display: block; width: 100%; background: linear-gradient(135deg, var(--cyan), #0099cc);
+    color: #000; padding: 1rem; border-radius: 10px; font-weight: 700; font-size: 1rem;
+    text-align: center; transition: transform .2s, opacity .2s; cursor: pointer;
+    border: none;
+  }
+  .btn-primary:hover { transform: translateY(-2px); opacity: 0.95; color: #000; }
+  .guarantee-note {
+    text-align: center; font-size: 0.75rem; color: var(--muted); margin-top: 0.8rem;
+  }
+
+  /* PRODUCT GRID */
+  .products-section { padding: 80px 5%; }
+  .product-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.5rem; max-width: 1200px; margin: 0 auto;
+  }
+  .product-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 1.8rem; transition: border-color .2s, transform .2s;
+    display: flex; flex-direction: column;
+  }
+  .product-card:hover { border-color: var(--cyan); transform: translateY(-3px); }
+  .product-icon { font-size: 2.5rem; margin-bottom: 1rem; }
+  .product-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 0.5rem; }
+  .product-desc { font-size: 0.85rem; color: var(--muted); line-height: 1.6; margin-bottom: 1.5rem; flex-grow: 1; }
+  .product-footer { display: flex; align-items: center; justify-content: space-between; }
+  .product-price { font-size: 1.4rem; font-weight: 700; color: var(--gold); }
+  .btn-buy {
+    background: rgba(0,212,255,0.1); border: 1px solid var(--border); color: var(--cyan);
+    padding: 0.5rem 1.2rem; border-radius: 6px; font-weight: 600; font-size: 0.85rem;
+    transition: background .2s, border-color .2s; cursor: pointer;
+  }
+  .btn-buy:hover { background: rgba(0,212,255,0.2); border-color: var(--cyan); color: var(--cyan); }
+
+  /* MEMBERSHIP SECTION */
+  .memberships { padding: 80px 5%; background: var(--surface); border-top: 1px solid var(--border); }
+  .membership-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; max-width: 1000px; margin: 0 auto; }
+  .membership-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 2rem; text-align: center; position: relative;
+  }
+  .membership-card.featured { border-color: var(--cyan); }
+  .membership-card.featured::before {
+    content: 'MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--cyan); color: #000; padding: 0.2rem 1rem; border-radius: 20px;
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 1px;
+  }
+  .membership-name { font-size: 1.2rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .membership-price { font-size: 2.5rem; font-weight: 700; color: var(--cyan); margin: 1rem 0; }
+  .membership-price span { font-size: 1rem; color: var(--muted); font-weight: 400; }
+  .membership-features { list-style: none; text-align: left; margin: 1.5rem 0; }
+  .membership-features li { padding: 0.4rem 0; font-size: 0.9rem; color: var(--muted); }
+  .membership-features li::before { content: '✓ '; color: var(--green); font-weight: 700; }
+
+  /* SOCIAL PROOF */
+  .social-proof { padding: 80px 5%; }
+  .proof-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; max-width: 1100px; margin: 0 auto; }
+  .proof-card {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem;
+  }
+  .proof-text { font-size: 0.95rem; line-height: 1.6; margin-bottom: 1rem; font-style: italic; color: var(--text); }
+  .proof-author { display: flex; align-items: center; gap: 0.8rem; }
+  .proof-avatar {
+    width: 40px; height: 40px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--cyan), var(--gold));
+    display: flex; align-items: center; justify-content: center; font-weight: 700; color: #000; font-size: 0.9rem;
+  }
+  .proof-name { font-weight: 600; font-size: 0.9rem; }
+  .proof-role { font-size: 0.8rem; color: var(--muted); }
+  .stars { color: var(--gold); font-size: 0.9rem; margin-bottom: 0.5rem; }
+
+  /* GUARANTEE */
+  .guarantee {
+    padding: 80px 5%; text-align: center;
+    background: linear-gradient(135deg, rgba(0,212,255,0.03) 0%, rgba(255,215,0,0.03) 100%);
+    border-top: 1px solid var(--border);
+  }
+  .guarantee-icon { font-size: 4rem; margin-bottom: 1rem; }
+  .guarantee h2 { font-size: 2rem; font-weight: 700; margin-bottom: 1rem; }
+  .guarantee p { color: var(--muted); max-width: 500px; margin: 0 auto; line-height: 1.7; }
+
+  /* FOOTER */
+  footer {
+    padding: 3rem 5%; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;
+  }
+  footer p { color: var(--muted); font-size: 0.85rem; }
+
+  @media (max-width: 768px) {
+    .bundle-card { grid-template-columns: 1fr; }
+    nav { display: none; }
+    .hero-stats { gap: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">Wheells<span>Verse</span></div>
+  <nav>
+    <a href="#products">Products</a>
+    <a href="#memberships">Memberships</a>
+    <a href="#bundle">Bundle</a>
+    <a href="https://nexora.wheellsverse.com" target="_blank">NEXORA</a>
+  </nav>
+  <a href="#bundle" class="nav-cta">Get the Bundle</a>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">🤖 AI Income Ecosystem</div>
+  <h1>Everything You Need to <span>Make Money With AI</span> — In One Place</h1>
+  <p>Prompts, courses, crypto guides, and automation toolkits from WheellsVerse. Built for entrepreneurs who want real results, not hype.</p>
+  <a href="#bundle" class="btn-primary" style="display:inline-block;width:auto;padding:1rem 2.5rem;font-size:1.05rem;">View the AI Income Kit →</a>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-num">10,000+</div><div class="stat-label">Prompts Available</div></div>
+    <div class="stat"><div class="stat-num">113</div><div class="stat-label">AI Bots Running</div></div>
+    <div class="stat"><div class="stat-num">$47</div><div class="stat-label">Starting Price</div></div>
+    <div class="stat"><div class="stat-num">30-Day</div><div class="stat-label">Money-Back Guarantee</div></div>
+  </div>
+</section>
+
+<!-- BUNDLE -->
+<section class="bundle-section" id="bundle">
+  <div class="section-label">⭐ Best Value</div>
+  <div class="section-title">The AI Income Kit Bundle</div>
+  <div class="section-sub">Everything bundled at a fraction of the individual price. One purchase. Lifetime access to all included products.</div>
+
+  <div class="bundle-card">
+    <div class="bundle-badge">SAVE $${295 - 1}</div>
+    <ul class="bundle-products">
+      <li><div class="product-name"><span class="check">✓</span> Prompt Bible (10,000 ChatGPT Prompts)</div><span class="orig-price">$47</span></li>
+      <li><div class="product-name"><span class="check">✓</span> AI Income Blueprint (5-Module Course)</div><span class="orig-price">$97</span></li>
+      <li><div class="product-name"><span class="check">✓</span> Social Media Template Pack</div><span class="orig-price">$37</span></li>
+      <li><div class="product-name"><span class="check">✓</span> Crypto Starter Toolkit</div><span class="orig-price">$47</span></li>
+      <li><div class="product-name"><span class="check">✓</span> AI Business Automation Guide</div><span class="orig-price">$67</span></li>
+      <li><div class="product-name"><span class="check">✓</span> BONUS: WheellsVerse Resource Vault</div><span class="orig-price" style="color:var(--gold)">FREE</span></li>
+    </ul>
+
+    <div class="bundle-right">
+      <div class="value-stack">
+        <div class="value-row"><span>Prompt Bible</span><span>$47</span></div>
+        <div class="value-row"><span>AI Income Course</span><span>$97</span></div>
+        <div class="value-row"><span>Social Templates</span><span>$37</span></div>
+        <div class="value-row"><span>Crypto Toolkit</span><span>$47</span></div>
+        <div class="value-row"><span>Automation Guide</span><span>$67</span></div>
+        <div class="value-total"><span>Individual Total</span><span>$295</span></div>
+      </div>
+      <div class="bundle-price">
+        <div class="price-label">🔥 Bundle Price</div>
+        <div class="price-big">$299</div>
+        <div class="price-note">One-time payment — instant download</div>
+      </div>
+      <a href="https://gum.co/wheellsverse-ai-kit" target="_blank" class="btn-primary">Get the Bundle Now →</a>
+      <p class="guarantee-note">🔒 30-day money-back guarantee. No questions asked.</p>
+    </div>
+  </div>
+</section>
+
+<!-- INDIVIDUAL PRODUCTS -->
+<section class="products-section" id="products">
+  <div class="section-label">📦 Individual Products</div>
+  <div class="section-title">Or Pick What You Need</div>
+  <div class="section-sub">Each product available individually. All deliver real, actionable value from day one.</div>
+
+  <div class="product-grid">
+    <div class="product-card">
+      <div class="product-icon">📚</div>
+      <div class="product-title">The Prompt Bible</div>
+      <div class="product-desc">10,000 ChatGPT prompts across 20 categories — business, marketing, crypto, productivity, and more. Copy-paste ready.</div>
+      <div class="product-footer">
+        <div class="product-price">$47</div>
+        <a href="https://gum.co/wheellsverse-prompts" target="_blank" class="btn-buy">Buy Now</a>
+      </div>
+    </div>
+
+    <div class="product-card">
+      <div class="product-icon">🎓</div>
+      <div class="product-title">AI Income Blueprint</div>
+      <div class="product-desc">5-module course: Make Your First $500 With AI. Step-by-step for complete beginners. Includes workbook + video scripts.</div>
+      <div class="product-footer">
+        <div class="product-price">$97</div>
+        <a href="https://gum.co/wheellsverse-course" target="_blank" class="btn-buy">Buy Now</a>
+      </div>
+    </div>
+
+    <div class="product-card">
+      <div class="product-icon">📱</div>
+      <div class="product-title">Social Media Template Pack</div>
+      <div class="product-desc">365 days of pre-written social media posts for Facebook and Instagram. AI/income/crypto niches. Ready to post.</div>
+      <div class="product-footer">
+        <div class="product-price">$37</div>
+        <a href="https://gum.co/wheellsverse-templates" target="_blank" class="btn-buy">Buy Now</a>
+      </div>
+    </div>
+
+    <div class="product-card">
+      <div class="product-icon">₿</div>
+      <div class="product-title">Crypto Starter Toolkit</div>
+      <div class="product-desc">Everything a beginner needs: exchange comparison, safe investing guide, DeFi yields, and portfolio tracker template.</div>
+      <div class="product-footer">
+        <div class="product-price">$47</div>
+        <a href="https://gum.co/wheellsverse-crypto" target="_blank" class="btn-buy">Buy Now</a>
+      </div>
+    </div>
+
+    <div class="product-card">
+      <div class="product-icon">⚡</div>
+      <div class="product-title">AI Automation Guide</div>
+      <div class="product-desc">10 automation workflows that save 20+ hours per week. No coding required. Zapier, Make, and AI-native tools.</div>
+      <div class="product-footer">
+        <div class="product-price">$67</div>
+        <a href="https://gum.co/wheellsverse-automation" target="_blank" class="btn-buy">Buy Now</a>
+      </div>
+    </div>
+
+    <div class="product-card" style="border-color: var(--gold);">
+      <div class="product-icon">🤖</div>
+      <div class="product-title">WheellsVerse Bot Pack</div>
+      <div class="product-desc">6-month access to 110+ AI bots running 24/7. Auto-posts content, generates signals, builds your brand on autopilot.</div>
+      <div class="product-footer">
+        <div class="product-price" style="color:var(--gold)">$197</div>
+        <a href="https://buy.stripe.com/wheellsverse-botpack" target="_blank" class="btn-buy" style="border-color:var(--gold);color:var(--gold)">Buy Now</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- MEMBERSHIPS -->
+<section class="memberships" id="memberships">
+  <div class="section-label">💬 Recurring</div>
+  <div class="section-title">Monthly Memberships</div>
+  <div class="section-sub">Recurring value. Cancel anytime. Every membership includes more than it costs.</div>
+
+  <div class="membership-grid">
+    <div class="membership-card">
+      <div class="membership-name">Crypto Newsletter</div>
+      <div class="membership-price">$9<span>/month</span></div>
+      <ul class="membership-features">
+        <li>Weekly crypto signals</li>
+        <li>DeFi yield opportunities</li>
+        <li>Market analysis every Monday</li>
+        <li>Cancel anytime</li>
+      </ul>
+      <a href="https://wheellsverse.ck.page/crypto-insider" target="_blank" class="btn-primary">Subscribe Now</a>
+    </div>
+
+    <div class="membership-card featured">
+      <div class="membership-name">WhatsApp Inner Circle</div>
+      <div class="membership-price">$19<span>/month</span></div>
+      <ul class="membership-features">
+        <li>Daily AI income tips (private)</li>
+        <li>Weekly crypto signal</li>
+        <li>20-50% off all products</li>
+        <li>Direct WhatsApp access</li>
+        <li>Monthly live Q&A</li>
+        <li>Max 200 members — exclusive</li>
+      </ul>
+      <a href="https://buy.stripe.com/wheellsverse-circle" target="_blank" class="btn-primary">Join Inner Circle</a>
+    </div>
+
+    <div class="membership-card" style="border-color:var(--gold)">
+      <div class="membership-name">NEXORA (Creator Platform)</div>
+      <div class="membership-price" style="color:var(--gold)">$29<span>/month</span></div>
+      <ul class="membership-features">
+        <li>90% revenue share (vs 80% OnlyFans)</li>
+        <li>Live video streaming</li>
+        <li>Fan subscriptions</li>
+        <li>Instant payouts</li>
+        <li>AI content tools</li>
+        <li>Founding price — limited spots</li>
+      </ul>
+      <a href="https://nexora.wheellsverse.com/beta" target="_blank" class="btn-primary" style="background:linear-gradient(135deg,var(--gold),#cc9900);color:#000">Apply for Beta</a>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIALS -->
+<section class="social-proof">
+  <div class="section-label">⭐ Reviews</div>
+  <div class="section-title">What Our Members Say</div>
+  <div class="proof-grid">
+    <div class="proof-card">
+      <div class="stars">★★★★★</div>
+      <div class="proof-text">"The Prompt Bible alone saved me 10 hours this week. I used the email marketing prompts to write a full campaign in 45 minutes that used to take me 3 days. Worth every penny of $47."</div>
+      <div class="proof-author">
+        <div class="proof-avatar">MK</div>
+        <div><div class="proof-name">Marcus K.</div><div class="proof-role">Digital Marketer, Paris</div></div>
+      </div>
+    </div>
+    <div class="proof-card">
+      <div class="stars">★★★★★</div>
+      <div class="proof-text">"I was skeptical about the AI Income course but I made my first $347 in 3 weeks following module 4. The step-by-step format is perfect for beginners who feel overwhelmed by AI."</div>
+      <div class="proof-author">
+        <div class="proof-avatar">SL</div>
+        <div><div class="proof-name">Sophie L.</div><div class="proof-role">Freelancer → AI Earner</div></div>
+      </div>
+    </div>
+    <div class="proof-card">
+      <div class="stars">★★★★★</div>
+      <div class="proof-text">"The WhatsApp Inner Circle pays for itself every week. Last week's crypto signal returned 18% in 4 days. The daily tips alone are worth 10x the $19/month price."</div>
+      <div class="proof-author">
+        <div class="proof-avatar">JR</div>
+        <div><div class="proof-name">Jean-René M.</div><div class="proof-role">Inner Circle Member</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- GUARANTEE -->
+<section class="guarantee">
+  <div class="guarantee-icon">🛡️</div>
+  <h2>30-Day Money-Back Guarantee</h2>
+  <p>Every WheellsVerse product comes with a full 30-day refund guarantee. If you don't find value within 30 days, email us and we'll refund every cent. No questions, no drama.</p>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <p>© 2026 WheellsVerse by J.K. Blaze. All rights reserved.</p>
+  <p style="margin-top:8px">
+    <a href="/terms">Terms of Use</a> &nbsp;·&nbsp;
+    <a href="/privacy">Privacy Policy</a> &nbsp;·&nbsp;
+    <a href="/disclaimer">Disclaimer</a>
+  </p>
+  <p style="margin-top:8px;font-size:11px;opacity:.5">Not financial advice. Products are for educational purposes.</p>
+</footer>
+
+</body>
+</html>

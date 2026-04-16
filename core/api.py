@@ -82,6 +82,8 @@ _API_KEY = os.getenv("API_KEY", "").strip()
 
 # Public paths that never require auth
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
+                 # Legal pages — publicly accessible, no auth required
+                 "/terms", "/terms.html", "/privacy", "/privacy.html", "/disclaimer", "/store",
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
                  "/api/stripe/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
@@ -703,6 +705,42 @@ async def serve_landing():
             status_code=500,
         )
     return HTMLResponse(lp_path.read_text(encoding="utf-8"))
+
+
+# ─── Legal Pages ──────────────────────────────────────────────────────────────
+
+def _serve_frontend(filename: str) -> HTMLResponse:
+    """Read and serve an HTML file from the frontend/ directory."""
+    path = ROOT / "frontend" / filename
+    if not path.exists():
+        return HTMLResponse(f"<h1>{filename} not found</h1>", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/terms", response_class=HTMLResponse)
+@app.get("/terms.html", response_class=HTMLResponse)
+async def serve_terms():
+    """Terms of Use — publicly accessible."""
+    return _serve_frontend("terms.html")
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+@app.get("/privacy.html", response_class=HTMLResponse)
+async def serve_privacy():
+    """Privacy Policy — publicly accessible."""
+    return _serve_frontend("privacy.html")
+
+
+@app.get("/disclaimer", response_class=HTMLResponse)
+async def serve_disclaimer():
+    """Disclaimer — publicly accessible."""
+    return _serve_frontend("disclaimer.html")
+
+
+@app.get("/store", response_class=HTMLResponse)
+async def serve_store():
+    """Store page — publicly accessible."""
+    return _serve_frontend("store/index.html")
 
 
 @app.get("/", response_class=HTMLResponse)
