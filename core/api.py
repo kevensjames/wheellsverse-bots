@@ -2041,6 +2041,14 @@ class ContentRunRequest(BaseModel):
     publish_platforms: List[str] = ["static"]
 
 
+class PublishRequest(BaseModel):
+    content: str
+    title: str = ""
+    platforms: Optional[List[str]] = None   # None = all
+    video_url: Optional[str] = None
+    hashtags: Optional[List[str]] = None
+    slug: str = ""
+
 
 @app.post("/api/content/run")
 async def run_content_pipeline(req: ContentRunRequest, background_tasks: BackgroundTasks):
@@ -4123,15 +4131,6 @@ def _get_publisher():
 async def pipeline_status():
     """Which social/email platforms are connected and ready."""
     return _get_publisher().get_status()
-
-
-class PublishRequest(BaseModel):
-    content: str
-    title: str = ""
-    platforms: Optional[List[str]] = None   # None = all
-    video_url: Optional[str] = None
-    hashtags: Optional[List[str]] = None
-    slug: str = ""
 
 
 @app.post("/api/pipeline/publish")
