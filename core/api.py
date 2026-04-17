@@ -800,6 +800,18 @@ async def serve_blog():
     return _serve_frontend("blog/index.html")
 
 
+@app.get("/blog/{slug}", response_class=HTMLResponse)
+async def serve_blog_post(slug: str):
+    """Serve individual blog post HTML files."""
+    # Accept both with and without .html extension
+    filename = slug if slug.endswith(".html") else f"{slug}.html"
+    path = ROOT / "frontend" / "blog" / filename
+    if not path.exists():
+        return HTMLResponse(f"<h1>Article not found</h1>", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
 # ─── NarAI User API ───────────────────────────────────────────────────────────
 
 from fastapi import Header
