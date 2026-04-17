@@ -2050,6 +2050,14 @@ class PublishRequest(BaseModel):
     slug: str = ""
 
 
+class LinkedInPostRequest(BaseModel):
+    topic: str = ""
+    text: str = ""
+    niche: str = "general"
+    image_url: str = ""
+    generate: bool = True
+
+
 @app.post("/api/content/run")
 async def run_content_pipeline(req: ContentRunRequest, background_tasks: BackgroundTasks):
     """
@@ -7564,13 +7572,6 @@ async def linkedin_callback(code: str = None, error: str = None, state: str = No
     _add_log("LinkedIn OAuth completed — access token saved", "INFO")
     return {"status": "connected", "expires_in": result.get("expires_in"),
             "message": "LinkedIn connected! You can now post to LinkedIn."}
-
-class LinkedInPostRequest(BaseModel):
-    topic: str = ""
-    text: str = ""
-    niche: str = "general"
-    image_url: str = ""
-    generate: bool = True
 
 @app.post("/api/linkedin/post")
 async def linkedin_post(req: LinkedInPostRequest, background_tasks: BackgroundTasks):
