@@ -36,3 +36,11 @@ jobs:
             ghcr.io/kevensjames/wheellsverse-bots:latest
             ghcr.io/kevensjames/wheellsverse-bots:${{ github.sha }}
           no-cache: true
+
+      - name: Make package public
+        run: |
+          curl -s -X PATCH \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/user/packages/container/wheellsverse-bots" \
+            -d '{"visibility":"public"}' | jq '.visibility // "done"'
