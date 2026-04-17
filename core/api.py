@@ -212,20 +212,18 @@ async def _lifespan(application: FastAPI):
     import threading as _ls_th
     import time as _ls_time
 
+    # Job queue MUST start on uvicorn's event loop — not a new one in a thread.
+    # Creating a new loop and closing it kills the workers (RuntimeError: loop closed).
+    try:
+        from core.job_queue import get_queue
+        await get_queue().start()
+        _add_log("Async job queue started", "INFO")
+    except Exception as _jq_err:
+        _add_log(f"Job queue start failed: {_jq_err}", "WARNING")
+
     def _lifespan_bg():
         _ls_time.sleep(3)  # brief pause, then start loading
         _add_log("Background startup: loading bots and schedulers...", "INFO")
-
-        # Start job queue
-        try:
-            import asyncio as _lsq
-            loop = _lsq.new_event_loop()
-            from core.job_queue import get_queue
-            loop.run_until_complete(get_queue().start())
-            loop.close()
-            _add_log("Async job queue started", "INFO")
-        except Exception as _e:
-            _add_log(f"Job queue start failed: {_e}", "WARNING")
 
         # Auto-start scheduler so bots run on their cron schedules
         try:
