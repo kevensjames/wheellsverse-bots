@@ -1078,17 +1078,12 @@ async def clone_list_meetings(request: Request):
 
 @app.get("/", response_class=HTMLResponse)
 async def serve_homepage():
-    """Root — public user homepage on Railway, admin dashboard locally."""
-    # RAILWAY_ENVIRONMENT is set automatically by Railway on all deployments
-    is_railway = bool(os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("RAILWAY_SERVICE_ID"))
-    if not is_railway:
-        # Local dev — show the admin command center
-        return await _serve_old_dashboard()
+    """Root — always serve the public user homepage."""
     hp = ROOT / "frontend" / "index.html"
     if hp.exists():
         return HTMLResponse(hp.read_text(encoding="utf-8"),
                             headers={"Cache-Control": "no-store, no-cache"})
-    # Fallback: redirect to login
+    # Fallback: redirect to login if homepage missing
     from fastapi.responses import RedirectResponse
     return RedirectResponse(url="/login")
 
