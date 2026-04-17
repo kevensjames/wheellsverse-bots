@@ -40,5 +40,4 @@ ENV PORT=8080
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
-# main.py reads $PORT automatically via argparse default
-CMD ["python", "main.py", "--dashboard"]
+CMD ["sh", "-c", "uvicorn core.api:app --host 0.0.0.0 --port $PORT"]
