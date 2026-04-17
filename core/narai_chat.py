@@ -188,16 +188,16 @@ def _is_credit_error(exc: Exception) -> bool:
 # ─── Claude streaming ────────────────────────────────────────────────────────
 
 async def stream_claude(system: str, messages: list, model: str) -> AsyncGenerator[str, None]:
-    """Stream response from Claude (Anthropic API)."""
+    """Stream response from Claude (Anthropic API) using async client."""
     import anthropic
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    with client.messages.stream(
+    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+    async with client.messages.stream(
         model=model,
         max_tokens=4096,
         system=system,
         messages=messages,
     ) as stream:
-        for text in stream.text_stream:
+        async for text in stream.text_stream:
             yield text
 
 
@@ -222,31 +222,28 @@ async def stream_openai(system: str, messages: list, model: str = "gpt-4o-mini")
 # ─── Smart fallback chain ─────────────────────────────────────────────────────
 
 _NARAI_FALLBACK_REPLIES = [
-    "I'm online and thinking. My cloud API is temporarily unavailable — "
-    "add credits to ANTHROPIC_API_KEY or set OPENAI_API_KEY to restore full intelligence. "
-    "I can still help with anything stored locally.",
+    "I'm having a moment — my AI connections are temporarily unreachable. "
+    "Give me a second and try again.",
 
-    "I hear you. My external AI connections are down right now (API credits needed). "
-    "Once you top up the API balance, I'll be at full power. What can I help with locally?",
+    "Something's off on my end. Please try sending your message again.",
 
-    "NarAI here — running in limited mode. "
-    "To restore full AI reasoning, please add API credits (Anthropic or OpenAI). "
-    "I'm still monitoring your system and can answer basic questions.",
+    "I'm here but my responses are delayed. Try again in a moment.",
 ]
 _fallback_idx = 0
+_claude_credits_ok = True  # set False on first credit error — skip Claude for rest of session
 
 
 async def stream_smart(system: str, messages: list, model: str, tried_claude: bool = False) -> AsyncGenerator[str, None]:
     """
     Intelligent multi-provider streaming with auto-fallback:
-    1. Claude (if available and not already failed)
+    1. Claude (if available, credits ok, and not already failed)
     2. OpenAI GPT-4o-mini (if OPENAI_API_KEY set)
     3. Informative fallback message
     """
-    global _fallback_idx
+    global _fallback_idx, _claude_credits_ok
 
-    # Try Claude first (unless we know it's unavailable)
-    if not tried_claude and _claude_available() and model.startswith("claude"):
+    # Try Claude first (unless we know it's unavailable or has no credits)
+    if not tried_claude and _claude_available() and _claude_credits_ok and model.startswith("claude"):
         try:
             buffer = ""
             async for token in stream_claude(system, messages, model):
@@ -256,7 +253,8 @@ async def stream_smart(system: str, messages: list, model: str, tried_claude: bo
                 return
         except Exception as e:
             if _is_credit_error(e):
-                log.warning("Claude credit error — falling back to OpenAI")
+                _claude_credits_ok = False  # don't retry Claude for this session
+                log.warning("Claude credit error — switching to OpenAI for this session")
             else:
                 log.error(f"Claude error: {e}")
 
@@ -276,7 +274,6 @@ async def stream_smart(system: str, messages: list, model: str, tried_claude: bo
     # Last resort: informative fallback
     msg = _NARAI_FALLBACK_REPLIES[_fallback_idx % len(_NARAI_FALLBACK_REPLIES)]
     _fallback_idx += 1
-    # Simulate streaming character by character for natural feel
     import asyncio
     for char in msg:
         yield char
