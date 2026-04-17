@@ -170,7 +170,7 @@
     <div class="tier-name">Pro</div>
     <div class="tier-price" id="proPrice"><sup>$</sup>9.99<span class="period">/mo</span></div>
     <p class="tier-desc">For power users who need more conversations and smarter AI.</p>
-    <a href="/signup?plan=pro" class="btn-tier">Get Pro</a>
+    <button type="button" class="btn-tier" onclick="startCheckout('pro')">Get Pro</button>
     <div class="divider-line"></div>
     <div class="features-label">Everything in Free, plus</div>
     <div class="feature"><span class="check">✓</span><span class="text active">100 messages / day</span></div>
@@ -188,7 +188,7 @@
     <div class="tier-name">Max</div>
     <div class="tier-price" id="maxPrice"><sup>$</sup>19.99<span class="period">/mo</span></div>
     <p class="tier-desc">Unlimited history, code mode, and all models unlocked.</p>
-    <a href="/signup?plan=max" class="btn-tier">Get Max</a>
+    <button type="button" class="btn-tier" onclick="startCheckout('max')">Get Max</button>
     <div class="divider-line"></div>
     <div class="features-label">Everything in Pro, plus</div>
     <div class="feature"><span class="check">✓</span><span class="text active">500 messages / day</span></div>
@@ -205,7 +205,7 @@
     <div class="tier-name">Ultra</div>
     <div class="tier-price" id="ultraPrice"><sup>$</sup>50<span class="period">/mo</span></div>
     <p class="tier-desc">Unlimited everything. Priority access. Built for professionals.</p>
-    <a href="/signup?plan=ultra" class="btn-tier">Get Ultra</a>
+    <button type="button" class="btn-tier" onclick="startCheckout('ultra')">Get Ultra</button>
     <div class="divider-line"></div>
     <div class="features-label">Everything in Max, plus</div>
     <div class="feature"><span class="check">✓</span><span class="text active">Unlimited messages</span></div>
@@ -261,6 +261,37 @@
   }
 
   function toggleFaq(el){el.classList.toggle('open')}
+
+  async function startCheckout(plan) {
+    const btn = document.querySelector(`.${plan} .btn-tier`);
+    if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
+    try {
+      // Get user email from Supabase session if logged in
+      let email = '';
+      try {
+        const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
+        const sb = createClient('%%SUPABASE_URL%%', '%%SUPABASE_ANON_KEY%%');
+        const { data: { session } } = await sb.auth.getSession();
+        if (session?.user?.email) email = session.user.email;
+      } catch(e) {}
+
+      const res = await fetch('/api/narai/checkout', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ plan, email })
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        alert('Could not start checkout. Please try again.');
+        if (btn) { btn.textContent = plan === 'pro' ? 'Get Pro' : plan === 'max' ? 'Get Max' : 'Get Ultra'; btn.disabled = false; }
+      }
+    } catch(e) {
+      alert('Something went wrong. Please try again.');
+      if (btn) { btn.textContent = plan === 'pro' ? 'Get Pro' : plan === 'max' ? 'Get Max' : 'Get Ultra'; btn.disabled = false; }
+    }
+  }
 </script>
 </body>
 </html>

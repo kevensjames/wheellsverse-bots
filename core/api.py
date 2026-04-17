@@ -834,6 +834,41 @@ def _get_narai_user(authorization: str = None):
         raise HTTPException(status_code=401, detail=str(e))
 
 
+@app.post("/api/narai/checkout")
+async def narai_checkout(request: Request):
+    """Create a Stripe checkout session for a NarAI subscription plan."""
+    try:
+        body = await request.json()
+        plan = body.get("plan", "").lower()
+        user_email = body.get("email", "")
+
+        price_map = {
+            "pro":   os.getenv("STRIPE_PRICE_PRO", ""),
+            "max":   os.getenv("STRIPE_PRICE_MAX", ""),
+            "ultra": os.getenv("STRIPE_PRICE_ULTRA", ""),
+        }
+        price_id = price_map.get(plan)
+        if not price_id:
+            raise HTTPException(400, f"Unknown plan: {plan}")
+
+        import stripe
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
+        session = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": price_id, "quantity": 1}],
+            customer_email=user_email or None,
+            success_url="https://app.wheellsverse.com/chat?upgraded=" + plan,
+            cancel_url="https://app.wheellsverse.com/pricing",
+            metadata={"narai_plan": plan, "user_email": user_email},
+        )
+        return {"url": session.url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+
 class NaraiChatRequest(BaseModel):
     conversation_id: str
     message: str
@@ -8058,6 +8093,21 @@ async def stripe_webhook(request: Request):
             enroll_in_drip(email=record["email"], first_name="", source=f"stripe_{etype}")
         except Exception:
             pass
+
+    # Upgrade NarAI user tier after successful NarAI plan purchase
+    if etype == "checkout.session.completed":
+        meta = data.get("metadata", {})
+        narai_plan = meta.get("narai_plan", "")
+        user_email = meta.get("user_email", "") or record["email"]
+        if narai_plan in ("pro", "max", "ultra") and user_email:
+            try:
+                from core.narai_user import get_supabase
+                sb = get_supabase()
+                # Find user by email and upgrade their tier
+                res = sb.table("profiles").update({"tier": narai_plan}).eq("email", user_email).execute()
+                _add_log(f"NarAI tier upgraded: {user_email} → {narai_plan}", "INFO")
+            except Exception as _e:
+                _add_log(f"NarAI tier upgrade failed: {_e}", "WARNING")
 
     return {"received": True}
 
