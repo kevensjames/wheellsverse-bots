@@ -1,6 +1,6 @@
-FROM python:3.11-slim
+FROM --platform=linux/amd64 python:3.11-slim
 
-# cache-bust v3 — change this RUN to force a clean rebuild on Railway
+# cache-bust v4 — platform flag changes FROM layer hash, invalidates all cached layers
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
