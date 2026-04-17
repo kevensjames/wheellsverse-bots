@@ -586,9 +586,12 @@ async def _lifespan(application: FastAPI):
     _add_log("WheellsVerse API started — background init running", "INFO")
 
     yield
-    # Shutdown
-    from core.job_queue import get_queue
-    await get_queue().stop()
+    # Shutdown — must not raise; any exception here causes "Application shutdown failed"
+    try:
+        from core.job_queue import get_queue
+        await get_queue().stop()
+    except Exception as _stop_err:
+        _add_log(f"JobQueue stop error (non-fatal): {_stop_err}", "WARNING")
     if _scheduler:
         try:
             _scheduler.stop()

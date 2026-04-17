@@ -108,12 +108,24 @@ class JobQueue:
         logger.info(f"JobQueue started — {self._max_workers} workers")
 
     async def stop(self):
-        """Graceful shutdown — wait for all pending jobs."""
+        """Graceful shutdown — wait up to 5 s for workers, then cancel."""
         self._running = False
         for _ in self._workers:
-            await self._queue.put(None)  # poison pill
+            try:
+                self._queue.put_nowait(None)  # poison pill (non-blocking)
+            except asyncio.QueueFull:
+                pass
         if self._workers:
-            await asyncio.gather(*self._workers, return_exceptions=True)
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(*self._workers, return_exceptions=True),
+                    timeout=5.0,
+                )
+            except asyncio.TimeoutError:
+                for w in self._workers:
+                    w.cancel()
+                await asyncio.gather(*self._workers, return_exceptions=True)
+        self._workers.clear()
         logger.info("JobQueue stopped")
 
     async def _worker(self):

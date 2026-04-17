@@ -1,6 +1,6 @@
 FROM python:3.11-slim
-# cache-bust: 2026-04-16-v2
 
+# cache-bust v3 — change this RUN to force a clean rebuild on Railway
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libcurl4-openssl-dev \
     curl \
+    wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
