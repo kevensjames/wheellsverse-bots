@@ -1,7 +1,7 @@
 {
-  "description": "Daily viral post campaign — generates 5 posts x 3 platforms with rotating niches and auto-publishes to Facebook, Instagram, and Twitter",
+  "description": "Daily viral post campaign \u2014 generates 5 posts x 3 platforms with rotating niches and auto-publishes to Facebook, Instagram, and Twitter",
   "enabled": true,
-  "schedule": "@daily 08:00",
+  "schedule": "",
   "posts_per_platform": 5,
   "platforms": "facebook,instagram",
   "auto_publish": true

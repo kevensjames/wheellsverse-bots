@@ -2,6 +2,6 @@
   "description": "Self-Help / Non-Fiction (.99 KDP). Writes 1 book/day.",
   "ai_provider": "claude",
   "enabled": true,
-  "schedule": "@daily 08:00",
+  "schedule": "@weekly fri 07:00",
   "action": "write"
 }

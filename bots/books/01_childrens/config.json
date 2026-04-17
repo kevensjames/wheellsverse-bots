@@ -2,6 +2,6 @@
   "description": "Children's books (.99 KDP). Writes 1 book/day, promotes daily.",
   "ai_provider": "claude",
   "enabled": true,
-  "schedule": "@daily 07:00",
+  "schedule": "@weekly mon 07:00",
   "action": "promote"
 }
