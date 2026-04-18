@@ -1,45 +1,65 @@
 """RAG pipeline — ingest PDF/MD/CSV/JSON/trade logs → chunk → embed → query.
 Documents are stored in the same ChromaDB instance as memories, separate collection."""
+from __future__ import annotations
+
 import asyncio
 import csv
-import io
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import chromadb
 from chromadb.utils import embedding_functions
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 ROOT = Path(__file__).parent.parent
-_CHROMA_PATH = os.getenv("NARAI_CHROMA_PATH", str(ROOT / "data" / "chroma"))
-_EMBED_MODEL = os.getenv("NARAI_EMBED_MODEL", "all-MiniLM-L6-v2")
+_DEFAULT_CHROMA_PATH = str(ROOT / "data" / "chroma")
 _CHUNK_SIZE = int(os.getenv("NARAI_CHUNK_SIZE", "512"))
 _CHUNK_OVERLAP = int(os.getenv("NARAI_CHUNK_OVERLAP", "64"))
 
-_rag_collection: chromadb.Collection | None = None
+_rag_collection: Optional[Any] = None
+_current_rag_path: Optional[str] = None
 
 
-def _get_rag_collection() -> chromadb.Collection:
-    global _rag_collection
-    if _rag_collection is None:
-        client = chromadb.PersistentClient(path=_CHROMA_PATH)
-        ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=_EMBED_MODEL
-        )
+def _split_text(text: str, chunk_size: int = _CHUNK_SIZE, overlap: int = _CHUNK_OVERLAP) -> list[str]:
+    """Simple sliding-window text splitter — no external dependency."""
+    if len(text) <= chunk_size:
+        return [text]
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        # Try to break at a sentence boundary within the last 20% of the chunk
+        boundary = text.rfind(". ", start + int(chunk_size * 0.8), end)
+        if boundary != -1:
+            end = boundary + 1
+        chunks.append(text[start:end].strip())
+        start = end - overlap
+    return [c for c in chunks if c]
+
+
+def _make_ef() -> Any:
+    model = os.getenv("NARAI_EMBED_MODEL", "all-MiniLM-L6-v2")
+    try:
+        return embedding_functions.SentenceTransformerEmbeddingFunction(model_name=model)
+    except Exception:
+        return embedding_functions.DefaultEmbeddingFunction()
+
+
+def _get_rag_collection() -> Any:
+    global _rag_collection, _current_rag_path
+    path = os.getenv("NARAI_CHROMA_PATH", _DEFAULT_CHROMA_PATH)
+    if _rag_collection is None or path != _current_rag_path:
+        _current_rag_path = path
+        client = chromadb.PersistentClient(path=path)
         _rag_collection = client.get_or_create_collection(
             name="narai_rag",
-            embedding_function=ef,
+            embedding_function=_make_ef(),
             metadata={"hnsw:space": "cosine"},
         )
     return _rag_collection
 
 
-_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=_CHUNK_SIZE,
-    chunk_overlap=_CHUNK_OVERLAP,
-)
 
 
 # ── Loaders ───────────────────────────────────────────────────────────────────
@@ -93,7 +113,7 @@ def ingest(path: str | Path, source_label: str | None = None) -> int:
     path = Path(path)
     label = source_label or path.name
     raw = _load_file(path)
-    chunks = _splitter.split_text(raw)
+    chunks = _split_text(raw)
 
     col = _get_rag_collection()
     ids = [f"{label}::chunk::{i}" for i in range(len(chunks))]
@@ -112,7 +132,7 @@ def ingest(path: str | Path, source_label: str | None = None) -> int:
 
 def ingest_text(text: str, source_label: str, file_type: str = "text") -> int:
     """Ingest raw text directly (e.g., trade log string)."""
-    chunks = _splitter.split_text(text)
+    chunks = _split_text(text)
     col = _get_rag_collection()
     ids = [f"{source_label}::chunk::{i}" for i in range(len(chunks))]
     metadatas = [{"source": source_label, "chunk": i, "file_type": file_type}

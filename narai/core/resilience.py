@@ -5,7 +5,6 @@ from collections import deque
 from functools import wraps
 from typing import Any, Callable, Type
 
-import pybreaker
 from tenacity import (
     retry,
     retry_if_exception_type,
@@ -13,25 +12,82 @@ from tenacity import (
     wait_exponential,
 )
 
-# ── Circuit breakers per service ─────────────────────────────────────────────
 
-_breakers: dict[str, pybreaker.CircuitBreaker] = {}
+# ── Minimal async-safe circuit breaker ───────────────────────────────────────
+
+class CircuitBreakerError(Exception):
+    pass
 
 
-def _breaker(service: str) -> pybreaker.CircuitBreaker:
+class CircuitBreaker:
+    """Fail-fast circuit breaker: open after `fail_max` errors, reset after `timeout` s."""
+
+    _CLOSED = "closed"
+    _OPEN = "open"
+    _HALF_OPEN = "half_open"
+
+    def __init__(self, fail_max: int = 5, reset_timeout: float = 60.0, name: str = ""):
+        self.fail_max = fail_max
+        self.reset_timeout = reset_timeout
+        self.name = name
+        self._failures = 0
+        self._opened_at: float | None = None
+        self._state = self._CLOSED
+
+    @property
+    def current_state(self) -> str:
+        if self._state == self._OPEN:
+            if time.monotonic() - (self._opened_at or 0) >= self.reset_timeout:
+                self._state = self._HALF_OPEN
+        return self._state
+
+    def _on_success(self) -> None:
+        self._failures = 0
+        self._state = self._CLOSED
+        self._opened_at = None
+
+    def _on_failure(self) -> None:
+        self._failures += 1
+        if self._failures >= self.fail_max:
+            self._state = self._OPEN
+            self._opened_at = time.monotonic()
+
+    def call(self, fn: Callable, *args: Any, **kwargs: Any) -> Any:
+        if self.current_state == self._OPEN:
+            raise CircuitBreakerError(f"Circuit open for service '{self.name}'")
+        try:
+            result = fn(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception:
+            self._on_failure()
+            raise
+
+    async def call_async(self, fn: Callable, *args: Any, **kwargs: Any) -> Any:
+        if self.current_state == self._OPEN:
+            raise CircuitBreakerError(f"Circuit open for service '{self.name}'")
+        try:
+            result = await fn(*args, **kwargs)
+            self._on_success()
+            return result
+        except Exception:
+            self._on_failure()
+            raise
+
+
+_breakers: dict[str, CircuitBreaker] = {}
+
+
+def _breaker(service: str) -> CircuitBreaker:
     if service not in _breakers:
-        _breakers[service] = pybreaker.CircuitBreaker(
-            fail_max=5,
-            reset_timeout=60,
-            name=service,
-        )
+        _breakers[service] = CircuitBreaker(fail_max=5, reset_timeout=60, name=service)
     return _breakers[service]
 
 
 # ── Token-bucket rate limiter ─────────────────────────────────────────────────
 
 class RateLimiter:
-    """Simple token-bucket: max `calls` per `period` seconds."""
+    """Simple sliding-window rate limiter: max `calls` per `period` seconds."""
 
     def __init__(self, calls: int, period: float):
         self._calls = calls
@@ -68,15 +124,15 @@ def get_rate_limiter(service: str, calls: int = 60, period: float = 60.0) -> Rat
     return _rate_limiters[service]
 
 
-# ── Decorator: wrap any external call ────────────────────────────────────────
+# ── Decorator ─────────────────────────────────────────────────────────────────
 
 def guarded(
     service: str,
     retries: int = 3,
     exceptions: tuple[Type[Exception], ...] = (Exception,),
     calls_per_minute: int = 60,
-):
-    """Decorator that applies retry + rate-limit + circuit breaker to a function."""
+) -> Callable:
+    """Apply retry + rate-limit + circuit breaker to any function."""
 
     def decorator(fn: Callable) -> Callable:
         limiter = get_rate_limiter(service, calls=calls_per_minute)
@@ -102,7 +158,7 @@ def guarded(
         @wraps(fn)
         async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
             await limiter.async_acquire()
-            return breaker.call(fn, *args, **kwargs)
+            return await breaker.call_async(fn, *args, **kwargs)
 
         return async_wrapper if asyncio.iscoroutinefunction(fn) else sync_wrapper
 
@@ -110,4 +166,4 @@ def guarded(
 
 
 def breaker_status() -> dict[str, str]:
-    return {name: str(cb.current_state) for name, cb in _breakers.items()}
+    return {name: cb.current_state for name, cb in _breakers.items()}

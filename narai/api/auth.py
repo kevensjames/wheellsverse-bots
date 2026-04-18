@@ -2,12 +2,13 @@
 To generate: python -c "from passlib.hash import bcrypt; print(bcrypt.hash('yourpassword'))"
 """
 import os
+
+import bcrypt as _bcrypt
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.hash import bcrypt
 
 _SECRET = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
 _ALGORITHM = "HS256"
@@ -20,7 +21,7 @@ _bearer = HTTPBearer(auto_error=True)
 def verify_password(plain: str) -> bool:
     if not _PASSWORD_HASH:
         raise EnvironmentError("NARAI_PASSWORD_HASH not set")
-    return bcrypt.verify(plain, _PASSWORD_HASH)
+    return _bcrypt.checkpw(plain.encode(), _PASSWORD_HASH.encode())
 
 
 def create_token() -> str:

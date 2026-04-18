@@ -1,37 +1,43 @@
 """Long-term vector memory backed by ChromaDB (local, no server needed).
 Each memory entry is embedded and stored; recall uses semantic similarity."""
+from __future__ import annotations
+
 import asyncio
 import hashlib
 import os
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import chromadb
 from chromadb.utils import embedding_functions
 
 ROOT = Path(__file__).parent.parent
-_CHROMA_PATH = os.getenv("NARAI_CHROMA_PATH", str(ROOT / "data" / "chroma"))
+_DEFAULT_CHROMA_PATH = str(ROOT / "data" / "chroma")
 
-_EMBED_MODEL = os.getenv(
-    "NARAI_EMBED_MODEL",
-    "all-MiniLM-L6-v2",  # local, fast, Apple Silicon friendly
-)
-
-_client: chromadb.PersistentClient | None = None
-_collection: chromadb.Collection | None = None
+_client: Optional[Any] = None
+_collection: Optional[Any] = None
+_current_path: Optional[str] = None
 
 
-def _get_collection() -> chromadb.Collection:
-    global _client, _collection
-    if _collection is None:
-        _client = chromadb.PersistentClient(path=_CHROMA_PATH)
-        ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name=_EMBED_MODEL
-        )
+def _make_ef() -> Any:
+    model = os.getenv("NARAI_EMBED_MODEL", "all-MiniLM-L6-v2")
+    try:
+        return embedding_functions.SentenceTransformerEmbeddingFunction(model_name=model)
+    except Exception:
+        return embedding_functions.DefaultEmbeddingFunction()
+
+
+def _get_collection() -> Any:
+    global _client, _collection, _current_path
+    # Re-init when path changes (supports test isolation via monkeypatch)
+    path = os.getenv("NARAI_CHROMA_PATH", _DEFAULT_CHROMA_PATH)
+    if _collection is None or path != _current_path:
+        _current_path = path
+        _client = chromadb.PersistentClient(path=path)
         _collection = _client.get_or_create_collection(
             name="narai_memory",
-            embedding_function=ef,
+            embedding_function=_make_ef(),
             metadata={"hnsw:space": "cosine"},
         )
     return _collection
