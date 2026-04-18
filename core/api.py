@@ -1607,7 +1607,7 @@ async def auth_login(req: LoginRequest):
 
 @app.get("/api/health")
 async def health():
-    import platform, psutil as _ps
+    import platform
     browser_ok = False
     try:
         from core.browser import is_available
@@ -1619,6 +1619,7 @@ async def health():
     cpu_pct = None
     mem_pct = None
     try:
+        import psutil as _ps
         cpu_pct = _ps.cpu_percent(interval=0.1)
         mem = _ps.virtual_memory()
         mem_pct = mem.percent
