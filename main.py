@@ -74,6 +74,7 @@ MENU = """
   [bold cyan]8[/bold cyan]  → Natural Language Command
   [bold cyan]9[/bold cyan]  → List all bots
   [bold cyan]0[/bold cyan]  → Check .env & setup
+  [bold cyan]m[/bold cyan]  → 💰 Money Center  [dim](assets · revenue · dashboard)[/dim]
   [bold cyan]q[/bold cyan]  → Quit
 
 """
@@ -204,6 +205,9 @@ def interactive_menu(orchestrator, pipeline_engine, scheduler):
         elif choice == "0":
             check_env()
 
+        elif choice in ("m", "money", "money_center"):
+            _launch_money_center()
+
         elif choice in ("q", "quit", "exit"):
             console.print("[bold yellow]👋 Goodbye — WheellsVerse[/bold yellow]")
             break
@@ -231,7 +235,75 @@ def parse_args():
     p.add_argument("--port", type=int, default=int(os.getenv("PORT", "5050")), help="Dashboard port (default: $PORT or 5050)")
     p.add_argument("--check", action="store_true", help="Check setup & .env")
     p.add_argument("--command", type=str, metavar="CMD", help="Execute a natural language command")
+    # Money Center
+    p.add_argument("--money", action="store_true", help="Launch Money Center dashboard (http://localhost:7777)")
+    p.add_argument("--money-cli", nargs=argparse.REMAINDER, metavar="CMD",
+                   help="Run Money Center CLI command (e.g. --money-cli list)")
     return p.parse_args()
+
+
+# ─── Money Center ─────────────────────────────────────────────────────────────
+
+def _launch_money_center():
+    """Interactive sub-menu for the Money Center."""
+    try:
+        from money_center import registry as mc_reg
+    except ImportError as e:
+        console.print(f"[red]✗ Money Center import failed: {e}[/red]")
+        return
+
+    if not mc_reg.check_ssd():
+        ssd = mc_reg._cfg.get("ssd_volume", "/Volumes/Wheellsverse")
+        console.print(f"[red]✗ SSD not mounted: '{ssd}'. Connect the drive first.[/red]")
+        return
+
+    from money_center.cli import cmd_list, cmd_report, cmd_status, cmd_show, cmd_logs
+    from rich.prompt import Prompt as _Prompt
+
+    MONEY_MENU = """
+[bold cyan]═══════════════════════════════════════════[/bold cyan]
+[bold white]  💰 MONEY CENTER[/bold white]
+[bold cyan]═══════════════════════════════════════════[/bold cyan]
+
+  [bold cyan]1[/bold cyan]  → List all assets
+  [bold cyan]2[/bold cyan]  → Revenue forecast (report)
+  [bold cyan]3[/bold cyan]  → Status of all assets
+  [bold cyan]4[/bold cyan]  → Show asset detail
+  [bold cyan]5[/bold cyan]  → View asset logs
+  [bold cyan]6[/bold cyan]  → Launch web dashboard [dim](http://localhost:7777)[/dim]
+  [bold cyan]b[/bold cyan]  → Back to main menu
+
+"""
+    while True:
+        console.print(MONEY_MENU)
+        choice = _Prompt.ask("[bold cyan]Money Center[/bold cyan]", default="1").strip().lower()
+
+        if choice == "1":
+            cmd_list()
+        elif choice == "2":
+            cmd_report()
+        elif choice == "3":
+            cmd_status()
+        elif choice == "4":
+            aid = _Prompt.ask("Asset ID")
+            cmd_show(aid)
+        elif choice == "5":
+            aid = _Prompt.ask("Asset ID")
+            cmd_logs(aid)
+        elif choice == "6":
+            port = mc_reg._cfg.get("dashboard_port", 7777)
+            console.print(f"\n[bold green]💰 Money Center dashboard → http://localhost:{port}[/bold green]")
+            console.print("[dim]Press Ctrl+C to stop and return to menu[/dim]\n")
+            try:
+                import subprocess as _sp
+                _sp.run([sys.executable, str(ROOT / "money_center" / "dashboard.py"),
+                         "--port", str(port)])
+            except KeyboardInterrupt:
+                pass
+        elif choice in ("b", "back", "q"):
+            break
+        else:
+            console.print("[red]Invalid choice[/red]")
 
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
@@ -242,6 +314,17 @@ def main():
 
     if args.check:
         check_env()
+        return
+
+    if args.money:
+        _launch_money_center()
+        return
+
+    if args.money_cli:
+        import sys as _sys
+        _sys.argv = ["cli.py"] + list(args.money_cli)
+        from money_center.cli import main as _mc_main
+        _mc_main()
         return
 
     if args.dashboard:
