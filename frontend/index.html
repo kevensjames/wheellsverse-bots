@@ -151,7 +151,7 @@ h1 .grad{background:linear-gradient(135deg,var(--cyan) 0%,var(--purple) 50%,var(
 @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
 
 /* ── SECTIONS GRID ── */
-.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:60px}
+.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin-top:60px}
 @media(max-width:768px){.pillars{grid-template-columns:1fr}}
 .pillar{
   background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:32px;
@@ -162,12 +162,14 @@ h1 .grad{background:linear-gradient(135deg,var(--cyan) 0%,var(--purple) 50%,var(
 .pillar.narai .pillar-icon{background:rgba(0,212,255,0.1)}
 .pillar.nexora .pillar-icon{background:rgba(168,85,247,0.1)}
 .pillar.blog .pillar-icon{background:rgba(0,255,136,0.1)}
+.pillar.sol .pillar-icon{background:rgba(255,215,0,0.1)}
 .pillar h3{font-size:20px;font-weight:700;margin-bottom:8px;color:var(--text)}
 .pillar p{font-size:14px;color:var(--muted);line-height:1.6;margin-bottom:20px}
 .pillar-link{font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px}
 .pillar.narai .pillar-link{color:var(--cyan)}
 .pillar.nexora .pillar-link{color:var(--purple)}
 .pillar.blog .pillar-link{color:var(--green)}
+.pillar.sol .pillar-link{color:#ffd700}
 
 /* ── STATS STRIP ── */
 .stats-strip{
@@ -217,6 +219,7 @@ footer{
     <a href="/narai" class="nav-a">NarAI</a>
     <a href="/nexora" class="nav-a">Nexora</a>
     <a href="/blog" class="nav-a">Blog</a>
+    <a href="/sol" class="nav-a" style="color:#ffd700;font-weight:600;">Sol Savings</a>
     <a href="/store" class="nav-a">Store</a>
     <a href="/pricing" class="nav-a">Pricing</a>
   </div>
@@ -270,7 +273,7 @@ footer{
   <div style="max-width:1100px;margin:0 auto">
     <div class="section-label">✦ Platform</div>
     <h2 class="section-title">Everything you need,<br>under one roof</h2>
-    <p class="section-sub">Three powerful products built by Jhon Kevens D Wheeler — working together to help you grow.</p>
+    <p class="section-sub">Four powerful products built by Jhon Kevens D Wheeler — working together to help you grow.</p>
 
     <div class="pillars">
       <a href="/narai" class="pillar narai">
@@ -290,6 +293,12 @@ footer{
         <h3>Blog</h3>
         <p>100+ articles on AI, crypto, passive income, and wealth building. Written by NarAI + curated by the WheellsVerse team. Free access, always.</p>
         <span class="pillar-link">Read articles <span>→</span></span>
+      </a>
+      <a href="/sol" class="pillar sol">
+        <div class="pillar-icon">💰</div>
+        <h3>Sol Savings</h3>
+        <p>ROSCA savings circles — 20 members, $200/month, $3,600 payout. Build wealth together with your community through structured group savings.</p>
+        <span class="pillar-link">Join a circle <span>→</span></span>
       </a>
     </div>
   </div>
@@ -350,6 +359,7 @@ footer{
       <a href="/nexora">Nexora</a>
       <a href="/store">Store</a>
       <a href="/blog">Blog</a>
+      <a href="/sol" style="color:#ffd700;">Sol Savings</a>
       <a href="/pricing">Pricing</a>
     </div>
     <div class="footer-col">
