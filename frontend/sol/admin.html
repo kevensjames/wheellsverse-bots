@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sol Admin Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#05070d;--surface:#0d1117;--border:#1a2035;--cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;--red:#f87171;--text:#e2e8f0;--muted:#64748b}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;display:flex;min-height:100vh}
+.sidebar{width:230px;min-height:100vh;border-right:1px solid var(--border);background:var(--surface);padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
+.logo{padding:.5rem .75rem;margin-bottom:.25rem}
+.logo-main{font-size:1.2rem;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo-sub{font-size:.7rem;color:var(--red);font-weight:600;letter-spacing:.06em}
+.section-title{font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);padding:.75rem .75rem .25rem;margin-top:.5rem}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-radius:.5rem;cursor:pointer;font-size:.875rem;color:var(--muted);border:none;background:none;width:100%;text-align:left;font-family:inherit;transition:.15s}
+.nav-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav-item.active{background:rgba(0,212,255,.08);color:var(--cyan)}
+.logout{margin-top:auto;color:var(--muted)}
+.main{flex:1;padding:2rem;overflow-y:auto;min-width:0}
+.page{display:none}.page.active{display:block}
+h1{font-size:1.5rem;font-weight:700;margin-bottom:.25rem}
+.sub{color:var(--muted);font-size:.875rem;margin-bottom:2rem}
+/* Stats grid */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2.5rem}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem}
+.stat-val{font-size:1.75rem;font-weight:700;margin-bottom:.2rem}
+.stat-label{font-size:.72rem;color:var(--muted)}
+/* Table */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;overflow:hidden;margin-bottom:1.5rem}
+table{width:100%;border-collapse:collapse;font-size:.83rem}
+th{background:rgba(255,255,255,.03);padding:.75rem 1rem;text-align:left;font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+td{padding:.7rem 1rem;border-top:1px solid var(--border)}
+tr:hover td{background:rgba(255,255,255,.02)}
+/* Cards */
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:500}
+.badge-green{background:rgba(0,255,136,.1);color:var(--green)}
+.badge-yellow{background:rgba(255,215,0,.1);color:var(--gold)}
+.badge-cyan{background:rgba(0,212,255,.1);color:var(--cyan)}
+.badge-red{background:rgba(239,68,68,.1);color:var(--red)}
+.badge-gray{background:rgba(100,116,139,.12);color:var(--muted)}
+.badge-purple{background:rgba(168,85,247,.1);color:var(--purple)}
+/* Action button */
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem 1rem;border-radius:.5rem;font-size:.8rem;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-sm{padding:.3rem .7rem;font-size:.75rem}
+.btn-primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000}
+.btn-primary:hover{opacity:.85}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-danger{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);color:var(--red)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--cyan)}
+.spinner{border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;width:24px;height:24px;animation:spin 1s linear infinite;margin:3rem auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:2.5rem;color:var(--muted);font-size:.85rem}
+.alert{border-radius:.6rem;padding:.75rem 1rem;font-size:.8rem;margin-bottom:1rem}
+.alert-ok{background:rgba(0,255,136,.08);border:1px solid rgba(0,255,136,.2);color:var(--green)}
+.alert-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:var(--red)}
+/* Admin login */
+.login-wrap{display:flex;min-height:100vh;align-items:center;justify-content:center;width:100%}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:1.25rem;padding:2rem;width:100%;max-width:360px}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.35rem}
+.field input{width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.6rem .85rem;color:var(--text);font-size:.875rem;font-family:inherit;outline:none}
+.field input:focus{border-color:var(--cyan)}
+.tab-row{display:flex;gap:.5rem;margin-bottom:1rem}
+.filter-tab{padding:.35rem .75rem;border-radius:.4rem;border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:.8rem;font-family:inherit}
+.filter-tab.active{background:rgba(0,212,255,.08);border-color:var(--cyan);color:var(--cyan)}
+@media(max-width:640px){.sidebar{display:none}.main{padding:1rem}}
+</style>
+</head>
+<body>
+
+<!-- Admin login gate -->
+<div id="loginGate" class="login-wrap">
+  <div class="login-box">
+    <div style="margin-bottom:1.5rem">
+      <div style="font-size:1.3rem;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent">Sol</div>
+      <div style="font-size:.75rem;color:var(--red);font-weight:600;letter-spacing:.05em">ADMIN PORTAL</div>
+    </div>
+    <div class="field"><label>Admin email</label>
+      <input type="email" id="aEmail" placeholder="admin@wheellsverse.com"></div>
+    <div class="field"><label>Password</label>
+      <input type="password" id="aPassword" placeholder="••••••••"></div>
+    <p style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem" id="loginHint"></p>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn" onclick="adminLogin()">Sign in</button>
+  </div>
+</div>
+
+<!-- Dashboard shell (hidden until logged in) -->
+<div id="appShell" style="display:none;width:100%;display:none;flex:1">
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-main">Sol</div>
+    <div class="logo-sub">Admin Portal</div>
+  </div>
+
+  <div class="section-title">Overview</div>
+  <button class="nav-item active" data-page="overview" onclick="nav('overview')">◈ Overview</button>
+  <button class="nav-item" data-page="users" onclick="nav('users')">◉ Users</button>
+  <button class="nav-item" data-page="groups" onclick="nav('groups')">◎ Circles</button>
+
+  <div class="section-title">Operations</div>
+  <button class="nav-item" data-page="payments" onclick="nav('payments')">◇ Payments</button>
+  <button class="nav-item" data-page="cycles" onclick="nav('cycles')">⊙ Cycles</button>
+  <button class="nav-item" data-page="kyc" onclick="nav('kyc')">✦ KYC Queue</button>
+
+  <div class="section-title">Tools</div>
+  <button class="nav-item" data-page="reconcile" onclick="nav('reconcile')">⚡ Reconcile</button>
+
+  <button class="nav-item logout" style="margin-top:auto" onclick="adminLogout()">→ Sign out</button>
+</aside>
+
+<main class="main">
+  <!-- Overview -->
+  <div class="page active" id="page-overview">
+    <h1>Overview</h1><p class="sub">Platform health at a glance</p>
+    <div class="stats" id="overviewStats"><div class="spinner"></div></div>
+    <h2 style="font-size:1.1rem;margin-bottom:.75rem">Recent activity</h2>
+    <div class="table-wrap"><div id="recentActivity"><div class="spinner"></div></div></div>
+  </div>
+
+  <!-- Users -->
+  <div class="page" id="page-users">
+    <h1>Users</h1><p class="sub">All registered accounts</p>
+    <div class="tab-row" id="userFilters">
+      <button class="filter-tab active" onclick="filterUsers(null,this)">All</button>
+      <button class="filter-tab" onclick="filterUsers('ACTIVE',this)">Active</button>
+      <button class="filter-tab" onclick="filterUsers('DELINQUENT',this)">Delinquent</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Email</th><th>Name</th><th>Account</th><th>KYC</th><th>Payments</th><th>Joined</th></tr></thead>
+        <tbody id="userTable"><tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Circles -->
+  <div class="page" id="page-groups">
+    <h1>Savings circles</h1><p class="sub">All groups on the platform</p>
+    <div class="tab-row">
+      <button class="filter-tab active" onclick="filterGroups(null,this)">All</button>
+      <button class="filter-tab" onclick="filterGroups('FORMING',this)">Forming</button>
+      <button class="filter-tab" onclick="filterGroups('ACTIVE',this)">Active</button>
+      <button class="filter-tab" onclick="filterGroups('COMPLETED',this)">Completed</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Name</th><th>Status</th><th>Members</th><th>Contribution</th><th>Cycle</th><th>Actions</th></tr></thead>
+        <tbody id="groupTable"><tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Payments -->
+  <div class="page" id="page-payments">
+    <h1>Payments</h1><p class="sub">Trigger ACH processing manually</p>
+    <div class="alert alert-ok" id="payMsg" style="display:none"></div>
+    <div class="alert alert-err" id="payErr" style="display:none"></div>
+    <div class="form-box" style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem;max-width:480px;margin-bottom:1.5rem">
+      <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Process a payment manually</div>
+      <div class="field"><label>Payment ID (UUID)</label>
+        <input type="text" id="paymentId" placeholder="xxxxxxxx-xxxx-…"></div>
+      <button class="btn btn-primary" onclick="processPayment()">⚡ Process</button>
+    </div>
+    <h3 style="font-size:.95rem;margin-bottom:.75rem">Pending retries</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Group</th><th>Amount</th><th>Attempts</th><th>Next retry</th><th>Action</th></tr></thead>
+        <tbody id="retryTable"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Cycles -->
+  <div class="page" id="page-cycles">
+    <h1>Cycles</h1><p class="sub">Initiate collections and check completion</p>
+    <div class="alert alert-ok" id="cycleMsg" style="display:none"></div>
+    <div class="alert alert-err" id="cycleErr" style="display:none"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;max-width:680px;margin-bottom:1.5rem">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem">
+        <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Initiate cycle payments</div>
+        <div class="field"><label>Cycle ID</label>
+          <input type="text" id="initiateCycleId" placeholder="UUID"></div>
+        <button class="btn btn-primary" onclick="initiateCycle()">Initiate</button>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem">
+        <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Check cycle completion</div>
+        <div class="field"><label>Cycle ID</label>
+          <input type="text" id="checkCycleId" placeholder="UUID"></div>
+        <button class="btn btn-primary" onclick="checkCycle()">Check</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KYC Queue -->
+  <div class="page" id="page-kyc">
+    <h1>KYC Queue</h1><p class="sub">Users pending identity verification</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Email</th><th>Name</th><th>KYC Status</th><th>Account</th><th>Joined</th></tr></thead>
+        <tbody id="kycTable"><tr><td colspan="5" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Reconcile -->
+  <div class="page" id="page-reconcile">
+    <h1>Reconcile</h1><p class="sub">Trigger a full ledger reconciliation</p>
+    <div class="alert alert-ok" id="reconMsg" style="display:none"></div>
+    <div class="alert alert-err" id="reconErr" style="display:none"></div>
+    <p style="color:var(--muted);font-size:.875rem;max-width:480px;margin-bottom:1.5rem">
+      Reconciliation checks all cycle payments and syncs ledger totals. Run this if you suspect a discrepancy.
+    </p>
+    <button class="btn btn-primary" id="reconBtn" onclick="runReconcile()">⚡ Run reconciliation now</button>
+  </div>
+</main>
+</div>
+
+<script>
+const API = 'https://sol-api-production.up.railway.app';
+let adminToken = sessionStorage.getItem('sol_admin_token');
+let allUsers = [], allGroups = [];
+
+// ── Login gate ────────────────────────────────────────────────────────────────
+function showApp() {
+  document.getElementById('loginGate').style.display = 'none';
+  const shell = document.getElementById('appShell');
+  shell.style.display = 'flex';
+  loadOverview();
+  loadUsers();
+  loadGroupsData();
+}
+
+if (adminToken) showApp();
+
+async function adminLogin() {
+  const btn = document.getElementById('loginBtn');
+  const hint = document.getElementById('loginHint');
+  hint.textContent = '';
+  btn.disabled = true; btn.textContent = 'Signing in…';
+  try {
+    const r = await fetch(API + '/auth/login', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        email: document.getElementById('aEmail').value,
+        password: document.getElementById('aPassword').value
+      })
+    });
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail || r.statusText);
+    // Verify admin role via /admin/reconcile check
+    const chk = await fetch(API + '/admin/reconcile', {
+      headers:{'Authorization':'Bearer ' + d.access_token}
+    });
+    if (chk.status === 403) throw new Error('Not an admin account');
+    sessionStorage.setItem('sol_admin_token', d.access_token);
+    adminToken = d.access_token;
+    showApp();
+  } catch(e) {
+    hint.textContent = e.message;
+    hint.style.color = 'var(--red)';
+  }
+  btn.disabled = false; btn.textContent = 'Sign in';
+}
+
+function adminLogout() {
+  sessionStorage.removeItem('sol_admin_token');
+  adminToken = null;
+  document.getElementById('loginGate').style.display = 'flex';
+  document.getElementById('appShell').style.display = 'none';
+}
+
+// ── Nav ───────────────────────────────────────────────────────────────────────
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  if (page === 'payments') loadRetries();
+  if (page === 'kyc') renderKYC();
+}
+
+// ── API ───────────────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: {
+      'Content-Type':'application/json',
+      'Authorization':'Bearer ' + adminToken,
+      ...(opts.headers||{})
+    }
+  });
+  if (r.status === 204) return null;
+  const d = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error(d.detail || r.statusText);
+  return d;
+}
+
+function badge(s) {
+  const map = {ACTIVE:'badge-green',VERIFIED:'badge-green',SUCCESS:'badge-green',
+    FORMING:'badge-yellow',PENDING:'badge-yellow',COLLECTING:'badge-cyan',
+    SETTLING:'badge-purple',COMPLETED:'badge-gray',
+    FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-gray'};
+  return `<span class="badge ${map[s]||'badge-gray'}">${s}</span>`;
+}
+function fmt$(c) { return '$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
+function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'; }
+
+// ── Overview ──────────────────────────────────────────────────────────────────
+async function loadOverview() {
+  const el = document.getElementById('overviewStats');
+  const ra = document.getElementById('recentActivity');
+  try {
+    // Use existing data if loaded
+    if (!allUsers.length) await loadUsers();
+    if (!allGroups.length) await loadGroupsData();
+
+    const activeUsers = allUsers.filter(u=>u.account_status==='ACTIVE').length;
+    const delinquent = allUsers.filter(u=>u.account_status==='DELINQUENT').length;
+    const formingGroups = allGroups.filter(g=>g.status==='FORMING').length;
+    const activeGroups = allGroups.filter(g=>g.status==='ACTIVE').length;
+
+    el.innerHTML = `
+      <div class="stat"><div class="stat-val" style="color:var(--cyan)">${allUsers.length}</div><div class="stat-label">Total users</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--green)">${activeUsers}</div><div class="stat-label">Active accounts</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--red)">${delinquent}</div><div class="stat-label">Delinquent</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--gold)">${formingGroups}</div><div class="stat-label">Forming circles</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--purple)">${activeGroups}</div><div class="stat-label">Active circles</div></div>
+      <div class="stat"><div class="stat-val">${allGroups.length}</div><div class="stat-label">Total circles</div></div>
+    `;
+
+    // Recent users table
+    const recent = [...allUsers].sort((a,b)=>new Date(b.created_at)-new Date(a.created_at)).slice(0,8);
+    ra.innerHTML = `<table>
+      <thead><tr><th>User</th><th>Account</th><th>KYC</th><th>Joined</th></tr></thead>
+      <tbody>${recent.map(u=>`
+        <tr><td>${u.email}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
+      `).join('')}</tbody>
+    </table>`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty">Could not load: ${e.message}</div>`;
+  }
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  try {
+    allUsers = await api('/admin/users') || [];
+    renderUsers(null);
+  } catch(e) {
+    document.getElementById('userTable').innerHTML =
+      `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+  }
+}
+
+function filterUsers(status, btn) {
+  document.querySelectorAll('#userFilters .filter-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  renderUsers(status);
+}
+
+function renderUsers(statusFilter) {
+  const rows = allUsers
+    .filter(u => !statusFilter || u.account_status === statusFilter)
+    .map(u=>`<tr>
+      <td>${u.email}</td>
+      <td>${u.full_name||'—'}</td>
+      <td>${badge(u.account_status)}</td>
+      <td>${badge(u.kyc_status)}</td>
+      <td><span style="color:var(--green)">${u.successful_payments}</span> / <span style="color:var(--red)">${u.failed_payments}</span></td>
+      <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
+    </tr>`).join('');
+  document.getElementById('userTable').innerHTML = rows ||
+    '<tr><td colspan="6" class="empty">No users match</td></tr>';
+}
+
+// ── Groups ────────────────────────────────────────────────────────────────────
+async function loadGroupsData() {
+  try {
+    allGroups = await api('/groups') || [];
+    renderGroups(null);
+  } catch(e) {
+    document.getElementById('groupTable').innerHTML =
+      `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+  }
+}
+
+function filterGroups(status, btn) {
+  document.querySelectorAll('#page-groups .filter-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  renderGroups(status);
+}
+
+function renderGroups(statusFilter) {
+  const rows = allGroups
+    .filter(g => !statusFilter || g.status === statusFilter)
+    .map(g=>`<tr>
+      <td style="font-weight:500">${g.name}</td>
+      <td>${badge(g.status)}</td>
+      <td>${g.max_members}</td>
+      <td>${fmt$(g.contribution_cents)}</td>
+      <td>${g.current_cycle_number}</td>
+      <td><button class="btn btn-sm btn-ghost" onclick="initiateCycleFor('${g.id}')">Initiate →</button></td>
+    </tr>`).join('');
+  document.getElementById('groupTable').innerHTML = rows ||
+    '<tr><td colspan="6" class="empty">No circles match</td></tr>';
+}
+
+// ── Payments ──────────────────────────────────────────────────────────────────
+async function loadRetries() {
+  const tb = document.getElementById('retryTable');
+  tb.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+  try {
+    const retries = await api('/admin/payments/retries') || [];
+    if (!retries.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No pending retries</td></tr>'; return; }
+    tb.innerHTML = retries.map(p=>`<tr>
+      <td style="font-family:monospace;font-size:.75rem">${p.id.slice(0,8)}…</td>
+      <td style="font-family:monospace;font-size:.75rem">${p.group_id.slice(0,8)}…</td>
+      <td>${fmt$(p.amount_cents)}</td>
+      <td>${p.attempt_count}</td>
+      <td style="color:var(--gold)">${p.next_retry_at ? fmtDate(p.next_retry_at) : '—'}</td>
+      <td><button class="btn btn-sm btn-primary" onclick="triggerPayment('${p.id}')">Process</button></td>
+    </tr>`).join('');
+  } catch(e) { tb.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`; }
+}
+
+async function processPayment() {
+  const id = document.getElementById('paymentId').value.trim();
+  if (!id) return;
+  showPayMsg('');
+  try {
+    await api(`/admin/payments/${id}/process`, { method:'POST' });
+    showPayMsg('✓ Payment processed', true);
+    loadRetries();
+  } catch(e) { showPayMsg(e.message, false); }
+}
+
+async function triggerPayment(id) {
+  try {
+    await api(`/admin/payments/${id}/process`, { method:'POST' });
+    showPayMsg('✓ Payment processed', true);
+    loadRetries();
+  } catch(e) { showPayMsg(e.message, false); }
+}
+
+function showPayMsg(msg, ok=true) {
+  const el = document.getElementById(ok?'payMsg':'payErr');
+  const other = document.getElementById(ok?'payErr':'payMsg');
+  other.style.display = 'none';
+  if (!msg) { el.style.display='none'; return; }
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ── Cycles ────────────────────────────────────────────────────────────────────
+async function initiateCycle() {
+  const id = document.getElementById('initiateCycleId').value.trim();
+  if (!id) return;
+  try {
+    await api(`/admin/cycles/${id}/initiate`, { method:'POST' });
+    showCycleMsg('✓ Cycle initiated', true);
+  } catch(e) { showCycleMsg(e.message, false); }
+}
+
+async function initiateCycleFor(groupId) {
+  nav('cycles');
+  document.getElementById('initiateCycleId').value = groupId;
+}
+
+async function checkCycle() {
+  const id = document.getElementById('checkCycleId').value.trim();
+  if (!id) return;
+  try {
+    const r = await api(`/admin/cycles/${id}/check-completion`, { method:'POST' });
+    showCycleMsg(`✓ Result: ${JSON.stringify(r)}`, true);
+  } catch(e) { showCycleMsg(e.message, false); }
+}
+
+function showCycleMsg(msg, ok=true) {
+  const el = document.getElementById(ok?'cycleMsg':'cycleErr');
+  const other = document.getElementById(ok?'cycleErr':'cycleMsg');
+  other.style.display = 'none';
+  el.textContent = msg; el.style.display = 'block';
+}
+
+// ── KYC ───────────────────────────────────────────────────────────────────────
+function renderKYC() {
+  const pending = allUsers.filter(u=>u.kyc_status==='PENDING'||u.kyc_status==='UNVERIFIED');
+  const rows = pending.map(u=>`<tr>
+    <td>${u.email}</td>
+    <td>${u.full_name||'—'}</td>
+    <td>${badge(u.kyc_status)}</td>
+    <td>${badge(u.account_status)}</td>
+    <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
+  </tr>`).join('');
+  document.getElementById('kycTable').innerHTML = rows ||
+    '<tr><td colspan="5" class="empty">No pending KYC submissions</td></tr>';
+}
+
+// ── Reconcile ─────────────────────────────────────────────────────────────────
+async function runReconcile() {
+  const btn = document.getElementById('reconBtn');
+  const ok = document.getElementById('reconMsg');
+  const err = document.getElementById('reconErr');
+  ok.style.display='none'; err.style.display='none';
+  btn.disabled=true; btn.textContent='Running…';
+  try {
+    const r = await api('/admin/reconcile');
+    ok.textContent = '✓ Reconciliation complete — ' + JSON.stringify(r);
+    ok.style.display = 'block';
+  } catch(e) {
+    err.textContent = e.message; err.style.display = 'block';
+  }
+  btn.disabled=false; btn.textContent='⚡ Run reconciliation now';
+}
+</script>
+</body>
+</html>

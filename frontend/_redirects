@@ -2,6 +2,11 @@
 # Root → landing page
 /                           /landing_page.html          200
 
+# Sol — ROSCA savings platform
+/sol                        /sol/index.html             200
+/sol/app                    /sol/app.html               200
+/sol/admin                  /sol/admin.html             200
+
 # TikTok domain verification
 /terms.html/tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt   /tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt   200
 /privacy.html/tiktoknwcXTU3Nm4se6bEg1d3uBx1856QZojZp.txt /tiktoknwcXTU3Nm4se6bEg1d3uBx1856QZojZp.txt   200

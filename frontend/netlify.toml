@@ -32,6 +32,22 @@
   status = 200
   force  = true
 
+# Sol — ROSCA savings platform (static pages served directly)
+[[redirects]]
+  from   = "/sol"
+  to     = "/sol/index.html"
+  status = 200
+
+[[redirects]]
+  from   = "/sol/app"
+  to     = "/sol/app.html"
+  status = 200
+
+[[redirects]]
+  from   = "/sol/admin"
+  to     = "/sol/admin.html"
+  status = 200
+
 # TikTok domain verification — serve files under nested paths
 [[redirects]]
   from   = "/terms.html/tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt"

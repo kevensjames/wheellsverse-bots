@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sol — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#05070d;--surface:#0d1117;--border:#1a2035;--cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;--text:#e2e8f0;--muted:#64748b}
+body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;display:flex;min-height:100vh}
+/* Sidebar */
+.sidebar{width:220px;min-height:100vh;border-right:1px solid var(--border);background:var(--surface);padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
+.logo{font-size:1.3rem;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;padding:.5rem .75rem;margin-bottom:1rem}
+.user-info{padding:.5rem .75rem;margin-bottom:.5rem}
+.user-email{font-size:.7rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-item{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-radius:.5rem;cursor:pointer;font-size:.875rem;color:var(--muted);border:none;background:none;width:100%;text-align:left;font-family:inherit;text-decoration:none;transition:.15s}
+.nav-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
+.nav-item.active{background:rgba(0,212,255,.08);color:var(--cyan)}
+.nav-icon{width:16px;text-align:center}
+.logout{margin-top:auto;color:var(--muted)}
+/* Main */
+.main{flex:1;padding:2rem;overflow-y:auto;min-width:0}
+.page{display:none}.page.active{display:block}
+h1{font-size:1.5rem;font-weight:700;margin-bottom:.25rem}
+.sub{color:var(--muted);font-size:.875rem;margin-bottom:2rem}
+/* Cards */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem}
+.card-label{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem}
+.card-val{font-size:1.5rem;font-weight:700}
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:500}
+.badge-green{background:rgba(0,255,136,.1);color:var(--green)}
+.badge-yellow{background:rgba(255,215,0,.1);color:var(--gold)}
+.badge-cyan{background:rgba(0,212,255,.1);color:var(--cyan)}
+.badge-red{background:rgba(239,68,68,.1);color:#f87171}
+.badge-gray{background:rgba(100,116,139,.12);color:var(--muted)}
+/* Groups */
+.group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
+.group-card{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem;cursor:pointer;transition:.2s;text-decoration:none;color:var(--text);display:block}
+.group-card:hover{border-color:var(--cyan);transform:translateY(-2px)}
+.group-name{font-weight:600;margin-bottom:.4rem}
+.group-meta{font-size:.8rem;color:var(--muted)}
+/* Forms */
+.form-box{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.5rem;max-width:480px}
+.field{margin-bottom:1rem}
+.field label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.35rem}
+.field input,.field select{width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.6rem .85rem;color:var(--text);font-size:.875rem;font-family:inherit;outline:none}
+.field input:focus,.field select:focus{border-color:var(--cyan)}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;border-radius:.6rem;font-size:.875rem;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:.15s}
+.btn-primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000}
+.btn-primary:hover{opacity:.85}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
+.btn-ghost:hover{border-color:var(--cyan)}
+.err{color:#f87171;font-size:.8rem;margin:.5rem 0}
+.ok{color:var(--green);font-size:.8rem;margin:.5rem 0}
+/* Table */
+.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:.85rem}
+th{background:rgba(255,255,255,.03);padding:.75rem 1rem;text-align:left;font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
+td{padding:.75rem 1rem;border-top:1px solid var(--border)}
+.spinner{border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;width:28px;height:28px;animation:spin 1s linear infinite;margin:3rem auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:3rem;color:var(--muted);font-size:.875rem}
+@media(max-width:640px){.sidebar{display:none}.main{padding:1rem}}
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">Sol</div>
+  <div class="user-info"><div class="user-email" id="userEmail">Loading…</div></div>
+  <a class="nav-item active" data-page="dashboard" onclick="nav('dashboard')">
+    <span class="nav-icon">◈</span> Dashboard
+  </a>
+  <a class="nav-item" data-page="groups" onclick="nav('groups')">
+    <span class="nav-icon">◎</span> Circles
+  </a>
+  <a class="nav-item" data-page="kyc" onclick="nav('kyc')">
+    <span class="nav-icon">✦</span> Verify ID
+  </a>
+  <a class="nav-item" data-page="bank" onclick="nav('bank')">
+    <span class="nav-icon">◇</span> Bank
+  </a>
+  <button class="nav-item logout" onclick="logout()">
+    <span class="nav-icon">→</span> Sign out
+  </button>
+</aside>
+
+<main class="main">
+  <!-- Dashboard -->
+  <div class="page active" id="page-dashboard">
+    <h1 id="welcomeMsg">Welcome back</h1>
+    <p class="sub">Your savings overview</p>
+    <div class="cards">
+      <div class="card"><div class="card-label">Account</div><div class="card-val" id="dAcct">—</div></div>
+      <div class="card"><div class="card-label">KYC Status</div><div class="card-val" id="dKyc">—</div></div>
+      <div class="card"><div class="card-label">Paid on time</div><div class="card-val" id="dSuccess" style="color:var(--green)">—</div></div>
+      <div class="card"><div class="card-label">Failed payments</div><div class="card-val" id="dFailed" style="color:#f87171">—</div></div>
+    </div>
+    <h2 style="font-size:1.1rem;margin-bottom:1rem">Your circles</h2>
+    <div id="dashGroups"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Circles -->
+  <div class="page" id="page-groups">
+    <h1>Savings circles</h1>
+    <p class="sub">Browse open circles or create your own</p>
+    <div style="margin-bottom:1.5rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="toggleCreateForm()">+ New circle</button>
+    </div>
+    <div id="createForm" style="display:none;margin-bottom:1.5rem">
+      <div class="form-box">
+        <div style="font-weight:600;margin-bottom:1rem">Create a circle</div>
+        <div class="field"><label>Circle name</label>
+          <input type="text" id="cName" placeholder="My savings group"></div>
+        <p class="err" id="cErr" style="display:none"></p>
+        <div style="display:flex;gap:.5rem">
+          <button class="btn btn-primary" id="cBtn" onclick="createGroup()">Create</button>
+          <button class="btn btn-ghost" onclick="toggleCreateForm()">Cancel</button>
+        </div>
+      </div>
+    </div>
+    <div id="groupList"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Group Detail (injected dynamically) -->
+  <div class="page" id="page-group-detail">
+    <button class="btn btn-ghost" style="margin-bottom:1.5rem" onclick="nav('groups')">← Back</button>
+    <div id="groupDetail"></div>
+  </div>
+
+  <!-- KYC -->
+  <div class="page" id="page-kyc">
+    <h1>Identity verification</h1>
+    <p class="sub">Required before joining a circle</p>
+    <div id="kycContent"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Bank -->
+  <div class="page" id="page-bank">
+    <h1>Linked bank accounts</h1>
+    <p class="sub">Managed via Plaid — contact support to add accounts</p>
+    <div id="bankList"><div class="spinner"></div></div>
+  </div>
+</main>
+
+<script>
+const API = 'https://sol-api-production.up.railway.app';
+let token = localStorage.getItem('sol_token');
+let me = null;
+
+if (!token) { window.location.href = '/sol/'; }
+
+// ── Nav ───────────────────────────────────────────────────────────────────────
+function nav(page) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + page)?.classList.add('active');
+  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  if (page === 'groups') loadGroups();
+  if (page === 'kyc') loadKYC();
+  if (page === 'bank') loadBank();
+}
+
+function logout() {
+  localStorage.removeItem('sol_token');
+  window.location.href = '/sol/';
+}
+
+// ── API helpers ───────────────────────────────────────────────────────────────
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + token,
+      ...(opts.headers || {})
+    }
+  });
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.detail || r.statusText);
+  return d;
+}
+
+function badge(status) {
+  const map = {
+    ACTIVE:'badge-green',VERIFIED:'badge-green',SUCCESS:'badge-green',
+    FORMING:'badge-yellow',PENDING:'badge-yellow',COLLECTING:'badge-cyan',
+    FAILED:'badge-red',DELINQUENT:'badge-red',CLOSED:'badge-red',
+  };
+  return `<span class="badge ${map[status]||'badge-gray'}">${status}</span>`;
+}
+function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    me = await api('/auth/me');
+    document.getElementById('userEmail').textContent = me.email;
+    document.getElementById('welcomeMsg').textContent =
+      'Welcome back, ' + (me.full_name || me.email).split(' ')[0];
+    document.getElementById('dAcct').innerHTML = badge(me.account_status);
+    document.getElementById('dKyc').innerHTML = badge(me.kyc_status);
+    document.getElementById('dSuccess').textContent = me.successful_payments;
+    document.getElementById('dFailed').textContent = me.failed_payments;
+    loadDashGroups();
+  } catch {
+    localStorage.removeItem('sol_token');
+    window.location.href = '/sol/';
+  }
+}
+
+// ── Dashboard groups ──────────────────────────────────────────────────────────
+async function loadDashGroups() {
+  const el = document.getElementById('dashGroups');
+  try {
+    const gs = await api('/groups');
+    if (!gs.length) {
+      el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--cyan)">Browse circles →</a></div>`;
+      return;
+    }
+    el.innerHTML = `<div class="group-grid">${gs.map(groupCard).join('')}</div>`;
+  } catch { el.innerHTML = '<div class="empty">Could not load circles</div>'; }
+}
+
+function groupCard(g) {
+  return `<div class="group-card" onclick="showGroup('${g.id}')">
+    <div style="display:flex;justify-content:space-between;align-items:start;gap:.5rem;margin-bottom:.5rem">
+      <div class="group-name">${g.name}</div>${badge(g.status)}
+    </div>
+    <div class="group-meta">Cycle ${g.current_cycle_number} · ${fmt$(g.contribution_cents)}/member · ${g.max_members} slots</div>
+  </div>`;
+}
+
+// ── Groups list ───────────────────────────────────────────────────────────────
+async function loadGroups() {
+  const el = document.getElementById('groupList');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const gs = await api('/groups');
+    if (!gs.length) {
+      el.innerHTML = '<div class="empty">No circles found. Create the first one!</div>';
+      return;
+    }
+    el.innerHTML = `<div class="group-grid">${gs.map(groupCard).join('')}</div>`;
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+function toggleCreateForm() {
+  const f = document.getElementById('createForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+}
+
+async function createGroup() {
+  const name = document.getElementById('cName').value.trim();
+  if (!name) return;
+  const btn = document.getElementById('cBtn');
+  const err = document.getElementById('cErr');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Creating…';
+  try {
+    await api('/groups', { method:'POST', body: JSON.stringify({ name }) });
+    document.getElementById('cName').value = '';
+    toggleCreateForm();
+    loadGroups();
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+  finally { btn.disabled = false; btn.textContent = 'Create'; }
+}
+
+// ── Group detail ──────────────────────────────────────────────────────────────
+async function showGroup(id) {
+  nav('group-detail');
+  const el = document.getElementById('groupDetail');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const [g, members] = await Promise.all([api(`/groups/${id}`), api(`/groups/${id}/members`)]);
+    const isMember = members.some(m => m.user_id === me.id);
+    const canJoin = g.status === 'FORMING' && !isMember;
+    el.innerHTML = `
+      <div class="card" style="max-width:none;margin-bottom:1.5rem">
+        <div style="display:flex;align-items:start;justify-content:space-between;gap:.5rem;margin-bottom:1rem">
+          <h2 style="font-size:1.25rem">${g.name}</h2>${badge(g.status)}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:${canJoin?'1.5rem':'0'}">
+          <div><div style="font-size:.72rem;color:var(--muted)">Contribution</div><div style="font-weight:600">${fmt$(g.contribution_cents)}</div></div>
+          <div><div style="font-size:.72rem;color:var(--muted)">Payout pool</div><div style="font-weight:600">${fmt$(g.contribution_cents * g.max_members)}</div></div>
+          <div><div style="font-size:.72rem;color:var(--muted)">Members</div><div style="font-weight:600">${members.length} / ${g.max_members}</div></div>
+          <div><div style="font-size:.72rem;color:var(--muted)">Cycle</div><div style="font-weight:600">${g.current_cycle_number}</div></div>
+          <div><div style="font-size:.72rem;color:var(--muted)">Fee</div><div style="font-weight:600">${g.fee_bps/100}%</div></div>
+        </div>
+        ${canJoin ? `<button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${g.id}')">Join this circle</button>
+        <p class="err" id="joinErr" style="display:none"></p>` : ''}
+      </div>
+      <h3 style="margin-bottom:.75rem">Members</h3>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Position</th><th>User</th><th>Status</th><th>Joined</th></tr></thead>
+          <tbody>
+            ${members.length ? members.map(m => `
+              <tr style="${m.user_id===me.id?'background:rgba(0,212,255,.04)':''}">
+                <td>${m.position ?? '—'}</td>
+                <td>${m.user_id===me.id?'<span style="color:var(--cyan)">You</span>':m.user_id.slice(0,8)+'…'}</td>
+                <td>${badge(m.status)}</td>
+                <td style="color:var(--muted)">${new Date(m.joined_at).toLocaleDateString()}</td>
+              </tr>`) .join('') : '<tr><td colspan="4" class="empty">No members yet</td></tr>'}
+          </tbody>
+        </table>
+      </div>`;
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+async function joinGroup(id) {
+  const btn = document.getElementById('joinBtn');
+  const err = document.getElementById('joinErr');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Joining…';
+  try {
+    await api(`/groups/${id}/join`, { method:'POST' });
+    showGroup(id);
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; btn.disabled = false; btn.textContent = 'Join this circle'; }
+}
+
+// ── KYC ───────────────────────────────────────────────────────────────────────
+async function loadKYC() {
+  const el = document.getElementById('kycContent');
+  if (me?.kyc_status === 'VERIFIED') {
+    el.innerHTML = `<div class="form-box" style="color:var(--green);border-color:rgba(0,255,136,.2)">
+      ✓ Your identity is verified. You can join circles.
+    </div>`;
+    return;
+  }
+  el.innerHTML = `<div class="form-box">
+    <p style="font-size:.875rem;color:var(--muted);margin-bottom:1.25rem">
+      We verify your identity to protect every circle member.
+    </p>
+    <div class="field"><label>Full legal name</label>
+      <input type="text" id="kName" placeholder="Jane Doe" required></div>
+    <div class="field"><label>Date of birth</label>
+      <input type="date" id="kDob"></div>
+    <div class="field"><label>Last 4 digits of SSN</label>
+      <input type="text" id="kSsn" placeholder="1234" maxlength="4" pattern="\\d{4}"></div>
+    <p class="err" id="kErr" style="display:none"></p>
+    <p class="ok" id="kOk" style="display:none"></p>
+    <button class="btn btn-primary" id="kBtn" onclick="submitKyc()">Submit for verification</button>
+  </div>`;
+}
+
+async function submitKyc() {
+  const btn = document.getElementById('kBtn');
+  const err = document.getElementById('kErr');
+  const ok = document.getElementById('kOk');
+  err.style.display = 'none'; ok.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  try {
+    await api('/kyc/submit', { method:'POST', body: JSON.stringify({
+      full_name: document.getElementById('kName').value,
+      date_of_birth: document.getElementById('kDob').value,
+      ssn_last4: document.getElementById('kSsn').value
+    })});
+    ok.textContent = '✓ Submitted! Status updated.'; ok.style.display = 'block';
+    me = await api('/auth/me');
+    document.getElementById('dKyc').innerHTML = badge(me.kyc_status);
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+  finally { btn.disabled = false; btn.textContent = 'Submit for verification'; }
+}
+
+// ── Bank ──────────────────────────────────────────────────────────────────────
+async function loadBank() {
+  const el = document.getElementById('bankList');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const accounts = await api('/bank/list');
+    if (!accounts.length) {
+      el.innerHTML = '<div class="empty">No bank accounts linked yet.<br>Contact support to connect your bank via Plaid.</div>';
+      return;
+    }
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:.75rem;max-width:600px">
+      ${accounts.map(a => `
+        <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+          <div>
+            <div style="font-weight:600">${a.institution_name}</div>
+            <div style="font-size:.8rem;color:var(--muted)">${a.account_type} ···· ${a.last4}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:.75rem">
+            ${badge(a.status)}
+            ${a.is_primary ? '<span style="color:var(--gold);font-size:.8rem">★ Primary</span>' :
+              `<button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem" onclick="setPrimary('${a.id}')">Set primary</button>`}
+          </div>
+        </div>`).join('')}
+    </div>`;
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+async function setPrimary(id) {
+  try {
+    await api(`/bank/${id}`, { method:'PATCH' });
+    loadBank();
+  } catch(e) { alert(e.message); }
+}
+
+init();
+</script>
+</body>
+</html>
