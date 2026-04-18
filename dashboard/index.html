@@ -839,9 +839,27 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         <div id="narai-contacts-list" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding:6px;background:rgba(0,0,0,.3);border-radius:7px"><span style="font-size:9px;color:var(--text3)">No contacts.</span></div>
       </details>
       <!-- Input -->
-      <div style="display:flex;gap:6px;align-items:flex-end;flex-shrink:0">
-        <textarea id="narai-voice-input" class="nr-input" placeholder="Command NarAI — send WhatsApp, blast social, search crypto, fix bugs…" style="flex:1;resize:none;height:54px;line-height:1.5;font-size:10px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendVoice();}"></textarea>
-        <button onclick="naraiSendVoice()" class="nr-send-btn" style="padding:8px 14px;font-size:13px">↵</button>
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+        <!-- v2 toolbar -->
+        <div style="display:flex;align-items:center;gap:6px">
+          <button id="narai-v2-toggle" onclick="naraiV2Toggle()" title="NarAI v2 — Claude/GPT/Ollama · memory · RAG · skill packs"
+            style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:7px;padding:3px 10px;font-size:9px;font-weight:800;letter-spacing:.5px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s">
+            v2
+          </button>
+          <select id="narai-v2-skill" onchange="localStorage.setItem('narai_v2_skill',this.value)"
+            style="display:none;background:#13161d;border:1px solid rgba(136,68,255,.35);color:#cc88ff;border-radius:7px;padding:2px 7px;font-size:9px;font-family:inherit;cursor:pointer">
+            <option value="">🧠 Auto</option>
+            <option value="trader">📈 Trader</option>
+            <option value="coder">💻 Coder</option>
+            <option value="writer">✍️ Writer</option>
+          </select>
+          <span id="narai-v2-status" style="display:none;font-size:8px;color:#cc88ff;background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.25);border-radius:10px;padding:2px 8px">● v2 active</span>
+        </div>
+        <!-- input row -->
+        <div style="display:flex;gap:6px;align-items:flex-end">
+          <textarea id="narai-voice-input" class="nr-input" placeholder="Command NarAI — send WhatsApp, blast social, search crypto, fix bugs…" style="flex:1;resize:none;height:54px;line-height:1.5;font-size:10px" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();naraiSendVoice();}"></textarea>
+          <button onclick="naraiSendVoice()" class="nr-send-btn" style="padding:8px 14px;font-size:13px">↵</button>
+        </div>
       </div>
     </div>
 
@@ -2179,6 +2197,40 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:14px">📈 Daily Earnings Timeline</div>
   <div id="rv-daily-chart" style="display:flex;align-items:flex-end;gap:4px;height:80px"></div>
   <div style="display:none"><table><tbody id="rv-daily-tb"></tbody></table></div>
+</div>
+
+<!-- ── Income Assets (Money Center registry) ── -->
+<div style="background:rgba(8,10,18,.8);border:1px solid rgba(68,255,136,.2);border-radius:14px;padding:20px 22px;margin-bottom:18px;position:relative;overflow:hidden">
+  <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(68,255,136,.5),transparent)"></div>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+    <div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#44ff88">💼 Income Assets</div>
+      <div style="font-size:9px;color:rgba(148,163,184,.5);margin-top:2px">All revenue-generating assets — status · monthly estimate · ETA to first $</div>
+    </div>
+    <button onclick="loadIncomeAssetsMB()" style="background:rgba(68,255,136,.1);border:1px solid rgba(68,255,136,.3);color:#44ff88;padding:5px 12px;border-radius:6px;font-size:10px;cursor:pointer">↺ Refresh</button>
+  </div>
+  <!-- Summary totals -->
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px" id="ia-mb-totals">
+    <div style="background:rgba(255,100,0,.07);border:1px solid rgba(255,100,0,.2);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5)">Monthly Low</div>
+      <div style="font-size:22px;font-weight:900;color:#ff6600;margin:4px 0" id="ia-mb-low">—</div>
+      <div style="font-size:8px;color:rgba(148,163,184,.4)">conservative</div>
+    </div>
+    <div style="background:rgba(68,255,136,.06);border:1px solid rgba(68,255,136,.2);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5)">Monthly Mid</div>
+      <div style="font-size:22px;font-weight:900;color:#44ff88;margin:4px 0" id="ia-mb-mid">—</div>
+      <div style="font-size:8px;color:rgba(148,163,184,.4)">realistic target</div>
+    </div>
+    <div style="background:rgba(0,204,255,.06);border:1px solid rgba(0,204,255,.2);border-radius:8px;padding:12px;text-align:center">
+      <div style="font-size:8px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5)">Monthly High</div>
+      <div style="font-size:22px;font-weight:900;color:#00ccff;margin:4px 0" id="ia-mb-high">—</div>
+      <div style="font-size:8px;color:rgba(148,163,184,.4)">upside potential</div>
+    </div>
+  </div>
+  <!-- Assets table -->
+  <div id="ia-mb-table" style="overflow-x:auto">
+    <div style="text-align:center;padding:20px;color:rgba(148,163,184,.4);font-size:11px">Loading income assets…</div>
+  </div>
 </div>
 
 </div>
@@ -8107,6 +8159,49 @@ async function refreshRevenue(){
         </div>`;
       }).join('');
     }
+  }
+  loadIncomeAssetsMB();
+}
+
+// ── Income Assets (Money Board) ──────────────────────────────────────────────
+async function loadIncomeAssetsMB(){
+  const DOT={running:'🟢',idle:'⚪',stopped:'🟡',error:'🔴'};
+  const COL={running:'#44ff88',idle:'rgba(148,163,184,.5)',stopped:'#ff9800',error:'#ff5050'};
+  const $=id=>document.getElementById(id);
+  const fmtK=v=>'$'+(v||0).toLocaleString(undefined,{maximumFractionDigits:0});
+  const tbl=$('ia-mb-table');
+  if(!tbl) return;
+  try{
+    const d=await api('/api/money/assets');
+    const assets=d.assets||[];
+    const s=d.summary||{};
+    // totals
+    const low=$('ia-mb-low'),mid=$('ia-mb-mid'),high=$('ia-mb-high');
+    if(low) low.textContent=fmtK(s.total_low||0);
+    if(mid) mid.textContent=fmtK(s.total_mid||0);
+    if(high) high.textContent=fmtK(s.total_high||0);
+    if(!assets.length){tbl.innerHTML='<div style="text-align:center;padding:20px;color:rgba(148,163,184,.4);font-size:11px">No assets found — check money_center/assets.json</div>';return;}
+    tbl.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:10px">
+      <thead><tr style="color:rgba(148,163,184,.45);border-bottom:1px solid rgba(255,255,255,.06)">
+        <th style="text-align:left;padding:6px 8px;font-weight:600">Asset</th>
+        <th style="text-align:left;padding:6px 8px;font-weight:600">Model</th>
+        <th style="text-align:center;padding:6px 8px;font-weight:600">Status</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600">Mid/mo</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600">High/mo</th>
+        <th style="text-align:right;padding:6px 8px;font-weight:600">ETA</th>
+      </tr></thead><tbody>
+      ${assets.map(a=>`<tr style="border-bottom:1px solid rgba(255,255,255,.04);transition:background .15s" onmouseover="this.style.background='rgba(68,255,136,.04)'" onmouseout="this.style.background=''">
+        <td style="padding:7px 8px"><span style="font-weight:600;color:#e2e8f0">${esc(a.name)}</span></td>
+        <td style="padding:7px 8px;color:rgba(148,163,184,.6)">${esc(a.revenue_model||'—')}</td>
+        <td style="padding:7px 8px;text-align:center"><span style="color:${COL[a.status]||COL.idle}">${DOT[a.status]||'⚪'} ${a.status||'idle'}</span></td>
+        <td style="padding:7px 8px;text-align:right;color:#44ff88;font-weight:700">${fmtK(a.monthly_mid)}</td>
+        <td style="padding:7px 8px;text-align:right;color:#00ccff;font-weight:700">${fmtK(a.monthly_high)}</td>
+        <td style="padding:7px 8px;text-align:right;color:rgba(148,163,184,.5)">${a.eta_days?a.eta_days+'d':'—'}</td>
+      </tr>`).join('')}
+      </tbody>
+    </table>`;
+  }catch(e){
+    if(tbl) tbl.innerHTML=`<div style="text-align:center;padding:16px;color:#ff5050;font-size:10px">Failed to load assets: ${esc(String(e))}</div>`;
   }
 }
 
@@ -17930,154 +18025,120 @@ async function blPortal() {
   } catch(e){toast('Error: '+e.message,'error');}
 }
 
-// ── NarAI v2 — routes to new production API on port 5051 ─────────────────────
-(function(){
-  const V2_BASE = (window.NARAI_V2_BASE || 'http://localhost:5051') + '/api/v2/narai';
-  let _v2Token = localStorage.getItem('narai_v2_token') || '';
-  let _v2Active = localStorage.getItem('narai_v2_active') === '1';
-  let _v2Skill = localStorage.getItem('narai_v2_skill') || '';
+// ── NarAI v2 ─────────────────────────────────────────────────────────────────
+const NARAI_V2_BASE = 'http://localhost:5051/api/v2/narai';
+let _v2Active = localStorage.getItem('narai_v2_active') === '1';
+let _v2Token  = localStorage.getItem('narai_v2_token') || '';
 
-  function _injectV2Controls() {
-    const toolbar = document.querySelector('#page-narai .nr-toolbar') ||
-      document.querySelector('#page-narai [style*="nr-send-btn"]')?.closest('div') ||
-      document.getElementById('narai-voice-input')?.parentElement;
-    if (!toolbar || document.getElementById('narai-v2-toggle')) return;
-
-    // v2 toggle button
-    const toggle = document.createElement('button');
-    toggle.id = 'narai-v2-toggle';
-    toggle.title = 'NarAI v2 — production AI with Claude/GPT/Ollama, memory, RAG';
-    toggle.style.cssText = 'background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;padding:4px 9px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.5px;white-space:nowrap;transition:all .2s;flex-shrink:0';
-    toggle.textContent = 'v2';
-    toggle.onclick = _toggleV2;
-    toolbar.insertBefore(toggle, toolbar.firstChild);
-
-    // skill selector
-    const sel = document.createElement('select');
-    sel.id = 'narai-v2-skill';
-    sel.title = 'Active skill pack';
-    sel.style.cssText = 'background:#13161d;border:1px solid rgba(136,68,255,.35);color:#cc88ff;border-radius:8px;padding:3px 7px;font-size:9px;font-family:inherit;cursor:pointer;flex-shrink:0;display:none';
-    sel.innerHTML = '<option value="">🧠 Auto</option><option value="trader">📈 Trader</option><option value="coder">💻 Coder</option><option value="writer">✍️ Writer</option>';
-    sel.value = _v2Skill;
-    sel.onchange = () => { _v2Skill = sel.value; localStorage.setItem('narai_v2_skill', _v2Skill); };
-    toolbar.insertBefore(sel, toggle.nextSibling);
-
-    _applyV2State();
-  }
-
-  function _applyV2State() {
-    const btn = document.getElementById('narai-v2-toggle');
-    const sel = document.getElementById('narai-v2-skill');
-    if (!btn) return;
-    if (_v2Active) {
-      btn.style.background = 'rgba(136,68,255,.5)';
-      btn.style.color = '#fff';
-      btn.textContent = 'v2 ●';
-      if (sel) sel.style.display = '';
-    } else {
-      btn.style.background = 'rgba(136,68,255,.15)';
-      btn.style.color = '#cc88ff';
-      btn.textContent = 'v2';
-      if (sel) sel.style.display = 'none';
-    }
-  }
-
-  async function _toggleV2() {
-    _v2Active = !_v2Active;
-    localStorage.setItem('narai_v2_active', _v2Active ? '1' : '0');
-    if (_v2Active && !_v2Token) await _v2Login();
-    _applyV2State();
-    if (typeof toast === 'function') toast(_v2Active ? 'NarAI v2 active' : 'NarAI v1 restored', _v2Active ? 'success' : 'info');
-  }
-
-  async function _v2Login() {
-    const pw = prompt('NarAI v2 password:');
-    if (!pw) { _v2Active = false; return; }
-    try {
-      const r = await fetch(V2_BASE + '/auth/login', {
-        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw})
-      });
-      if (!r.ok) throw new Error('Wrong password');
-      const d = await r.json();
-      _v2Token = d.token;
-      localStorage.setItem('narai_v2_token', _v2Token);
-    } catch(e) {
-      _v2Active = false;
-      localStorage.setItem('narai_v2_active', '0');
-      if (typeof toast === 'function') toast('v2 login failed: ' + e.message, 'error');
-    }
-  }
-
-  // Intercept naraiSendVoice when v2 is active
-  const _origSend = window.naraiSendVoice;
-  window.naraiSendVoice = async function() {
-    if (!_v2Active) return _origSend.apply(this, arguments);
-
-    if (!_v2Token) { await _v2Login(); if (!_v2Token) return; }
-
-    const input = document.getElementById('narai-voice-input');
-    const text = (input?.value || '').trim();
-    if (!text) return;
-    input.value = '';
-
-    // Show user bubble
-    if (typeof _naraiAddMessage === 'function') _naraiAddMessage('user', text);
-    if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('v2 thinking…', '#cc88ff');
-
-    const typingId = 'narai-typing-' + Date.now();
-    const history = document.getElementById('narai-chat-history');
-    if (history) {
-      const ti = document.createElement('div');
-      ti.id = typingId;
-      ti.style.cssText = 'display:flex;gap:8px;align-items:center;padding:4px 0;opacity:0.65';
-      ti.innerHTML = '<div style="width:26px;height:26px;min-width:26px;border-radius:50%;background:radial-gradient(circle,#330066,#0a001a);border:1px solid #bb44ff55;display:flex;align-items:center;justify-content:center;font-size:13px">🌟</div><div style="padding:6px 10px;background:rgba(136,68,255,.1);border:1px solid #8844ff22;border-radius:8px;font-size:11px;color:#8855aa;letter-spacing:2px">• • •</div>';
-      history.appendChild(ti); history.scrollTop = history.scrollHeight;
-    }
-
-    try {
-      const skill = document.getElementById('narai-v2-skill')?.value || '';
-      const body = { message: text };
-      if (skill) body.skill = skill;
-
-      const r = await fetch(V2_BASE + '/chat', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + _v2Token},
-        body: JSON.stringify(body),
-      });
-
-      document.getElementById(typingId)?.remove();
-
-      if (r.status === 401) { _v2Token = ''; localStorage.removeItem('narai_v2_token'); throw new Error('Token expired — toggle v2 to re-login'); }
-      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || r.status); }
-
-      const d = await r.json();
-      const badge = d.skill ? ` [${d.skill}·${d.tier}·${d.model.split('/').pop()}]` : ` [${d.tier}·${d.model.split('/').pop()}]`;
-
-      if (typeof _naraiAddMessage === 'function') _naraiAddMessage('narai', d.reply + '\n\n' + badge);
-      if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('ready', '#44ff88');
-      if (typeof _naraiSpeakBrowser === 'function') _naraiSpeakBrowser(d.reply);
-    } catch(e) {
-      document.getElementById(typingId)?.remove();
-      if (typeof _naraiAddMessage === 'function') _naraiAddMessage('narai', 'v2 error: ' + e.message);
-      if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('error', '#ff4444');
-    }
-  };
-
-  // Inject controls once DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _injectV2Controls);
+function _v2ApplyState() {
+  const btn = document.getElementById('narai-v2-toggle');
+  const sel = document.getElementById('narai-v2-skill');
+  const sta = document.getElementById('narai-v2-status');
+  if (!btn) return;
+  if (_v2Active) {
+    btn.style.background = 'rgba(136,68,255,.55)';
+    btn.style.color = '#fff';
+    btn.style.borderColor = '#cc88ff';
+    btn.textContent = 'v2 ●';
+    if (sel) { sel.style.display = ''; sel.value = localStorage.getItem('narai_v2_skill') || ''; }
+    if (sta) sta.style.display = '';
   } else {
-    setTimeout(_injectV2Controls, 500);
+    btn.style.background = 'rgba(136,68,255,.15)';
+    btn.style.color = '#cc88ff';
+    btn.style.borderColor = 'rgba(136,68,255,.4)';
+    btn.textContent = 'v2';
+    if (sel) sel.style.display = 'none';
+    if (sta) sta.style.display = 'none';
   }
-  // Re-inject if nav switches to NarAI page
-  const _origNav = window.nav;
-  if (typeof _origNav === 'function') {
-    window.nav = function(page) {
-      _origNav.apply(this, arguments);
-      if (page === 'narai') setTimeout(_injectV2Controls, 200);
-    };
+}
+
+async function naraiV2Toggle() {
+  if (!_v2Active) {
+    // turning on — need token
+    if (!_v2Token) {
+      const pw = prompt('NarAI v2 password:');
+      if (!pw) return;
+      try {
+        const r = await fetch(NARAI_V2_BASE + '/auth/login', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({password: pw})
+        });
+        if (!r.ok) throw new Error('Wrong password');
+        _v2Token = (await r.json()).token;
+        localStorage.setItem('narai_v2_token', _v2Token);
+      } catch(e) {
+        if (typeof toast==='function') toast('v2 login failed: '+e.message,'error');
+        return;
+      }
+    }
+    _v2Active = true;
+    if (typeof toast==='function') toast('NarAI v2 active — Claude Sonnet 4.6','success');
+  } else {
+    _v2Active = false;
+    if (typeof toast==='function') toast('Back to NarAI v1','info');
   }
-})();
+  localStorage.setItem('narai_v2_active', _v2Active ? '1' : '0');
+  _v2ApplyState();
+}
+
+// Patch naraiSendVoice to intercept when v2 is on
+const _naraiSendVoice_orig = naraiSendVoice;
+async function naraiSendVoice() {
+  if (!_v2Active) return _naraiSendVoice_orig.apply(this, arguments);
+
+  if (!_v2Token) { await naraiV2Toggle(); if (!_v2Token) return; }
+
+  const input = document.getElementById('narai-voice-input');
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  input.value = '';
+
+  if (typeof _naraiAddMessage === 'function') _naraiAddMessage('user', text);
+  if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('v2 thinking…','#cc88ff');
+
+  const typingId = 'nt-' + Date.now();
+  const hist = document.getElementById('narai-chat-history');
+  if (hist) {
+    const ti = document.createElement('div');
+    ti.id = typingId;
+    ti.style.cssText = 'display:flex;gap:8px;align-items:center;padding:4px 0;opacity:.65';
+    ti.innerHTML = '<div style="width:26px;height:26px;min-width:26px;border-radius:50%;background:radial-gradient(circle,#330066,#0a001a);border:1px solid #bb44ff55;display:flex;align-items:center;justify-content:center;font-size:13px">🌟</div><div style="padding:6px 10px;background:rgba(136,68,255,.1);border:1px solid #8844ff22;border-radius:8px;font-size:11px;color:#8855aa;letter-spacing:2px">• • •</div>';
+    hist.appendChild(ti); hist.scrollTop = hist.scrollHeight;
+  }
+
+  try {
+    const skill = document.getElementById('narai-v2-skill')?.value || '';
+    const body = {message: text};
+    if (skill) body.skill = skill;
+
+    const r = await fetch(NARAI_V2_BASE + '/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_v2Token},
+      body: JSON.stringify(body),
+    });
+    document.getElementById(typingId)?.remove();
+
+    if (r.status === 401) {
+      _v2Token = ''; localStorage.removeItem('narai_v2_token'); _v2Active = false;
+      localStorage.setItem('narai_v2_active','0'); _v2ApplyState();
+      throw new Error('Session expired — click v2 to re-login');
+    }
+    if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || r.status); }
+
+    const d = await r.json();
+    const tag = `[${d.skill||'auto'} · ${d.tier} · ${d.model.split('/').pop()}]`;
+    if (typeof _naraiAddMessage==='function') _naraiAddMessage('narai', d.reply + '\n\n' + tag);
+    if (typeof _naraiSetVoiceStatus==='function') _naraiSetVoiceStatus('ready','#44ff88');
+    if (typeof _naraiSpeakBrowser==='function') _naraiSpeakBrowser(d.reply);
+  } catch(e) {
+    document.getElementById(typingId)?.remove();
+    if (typeof _naraiAddMessage==='function') _naraiAddMessage('narai','v2 error: '+e.message);
+    if (typeof _naraiSetVoiceStatus==='function') _naraiSetVoiceStatus('error','#ff4444');
+  }
+}
+
+// Restore state on load
+window.addEventListener('load', _v2ApplyState);
 </script>
 
 </body>
