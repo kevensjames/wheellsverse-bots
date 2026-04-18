@@ -3248,6 +3248,41 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
   </div>
 
+  <!-- ── Income Assets (Money Center registry) ───────────────────────────── -->
+  <div class="card" style="margin-bottom:18px">
+    <div class="sh" style="margin-bottom:12px">
+      <div>
+        <div class="st" style="font-size:12px">💼 Income Assets</div>
+        <div class="ss">All revenue-generating assets — status, monthly estimate, ETA</div>
+      </div>
+      <button class="btn bc2 bsm" onclick="loadIncomeAssets()">↺ Refresh</button>
+    </div>
+
+    <!-- Summary totals row -->
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px">
+      <div class="csm" style="text-align:center">
+        <div class="ct">Monthly Low</div>
+        <div class="cv" style="color:var(--orange)" id="ia-total-low">—</div>
+        <div class="csb">conservative</div>
+      </div>
+      <div class="csm" style="text-align:center">
+        <div class="ct">Monthly Mid</div>
+        <div class="cv gr" id="ia-total-mid">—</div>
+        <div class="csb">realistic target</div>
+      </div>
+      <div class="csm" style="text-align:center">
+        <div class="ct">Monthly High</div>
+        <div class="cv cy" id="ia-total-high">—</div>
+        <div class="csb">upside potential</div>
+      </div>
+    </div>
+
+    <!-- Assets table -->
+    <div id="ia-table" style="overflow-x:auto">
+      <div style="text-align:center;padding:20px;color:var(--text3);font-size:11px">Loading income assets…</div>
+    </div>
+  </div>
+
   <!-- Revenue goal progress -->
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -10174,6 +10209,63 @@ async function refreshMoney(){
     document.getElementById('money-goal-lbl').textContent = `$${(d.stripe?.total||0).toFixed(2)} / $${goal.toLocaleString()}`;
 
   } catch(e){ console.error('Money refresh failed',e); }
+  // Also reload income assets panel every time money refreshes
+  loadIncomeAssets();
+}
+
+async function loadIncomeAssets(){
+  const STATUS_DOT = {running:'🟢',idle:'⚪',stopped:'🟡',error:'🔴'};
+  const STATUS_COL = {running:'#00ff88',idle:'#888',stopped:'#ff9800',error:'#ff5050'};
+  const fmtUSD = v => '$'+(+v||0).toLocaleString(undefined,{minimumFractionDigits:0,maximumFractionDigits:0});
+  const el = document.getElementById('ia-table');
+  if(!el) return;
+  try {
+    const d = await fetch('/api/money/assets').then(r=>r.json());
+    if(d.error){ el.innerHTML=`<div style="color:#ff5050;font-size:11px;padding:12px">${d.error}</div>`; return; }
+
+    // Summary totals
+    const s = d.summary?.total || {};
+    const lo=document.getElementById('ia-total-low');
+    const mi=document.getElementById('ia-total-mid');
+    const hi=document.getElementById('ia-total-high');
+    if(lo) lo.textContent = fmtUSD(s.low||0);
+    if(mi) mi.textContent = fmtUSD(s.mid||0);
+    if(hi) hi.textContent = fmtUSD(s.high||0);
+
+    if(!d.assets?.length){ el.innerHTML='<div style="color:var(--text3);font-size:11px;padding:12px">No assets found.</div>'; return; }
+
+    el.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead><tr style="color:var(--text3);border-bottom:1px solid rgba(255,255,255,.08)">
+        <th style="text-align:left;padding:6px 8px">Asset</th>
+        <th style="text-align:left;padding:6px 8px">Category</th>
+        <th style="text-align:left;padding:6px 8px">Status</th>
+        <th style="text-align:right;padding:6px 8px">Mid/mo</th>
+        <th style="text-align:right;padding:6px 8px">High/mo</th>
+        <th style="text-align:right;padding:6px 8px">ETA</th>
+        <th style="text-align:left;padding:6px 8px">Model</th>
+      </tr></thead>
+      <tbody>${d.assets.map(a=>{
+        const dot = STATUS_DOT[a.status]||'⚪';
+        const col = STATUS_COL[a.status]||'#888';
+        const eta = a.eta_days ? a.eta_days+'d' : '—';
+        return `<tr style="border-bottom:1px solid rgba(255,255,255,.04)">
+          <td style="padding:6px 8px;font-weight:600;color:var(--text)">${a.name}</td>
+          <td style="padding:6px 8px;color:var(--cyan2)">${a.category}</td>
+          <td style="padding:6px 8px"><span style="color:${col}">${dot} ${a.status}</span></td>
+          <td style="padding:6px 8px;text-align:right;color:#00ff88;font-weight:700">${fmtUSD(a.monthly_mid)}</td>
+          <td style="padding:6px 8px;text-align:right;color:#e0c040">${fmtUSD(a.monthly_high)}</td>
+          <td style="padding:6px 8px;text-align:right;color:var(--text3)">${eta}</td>
+          <td style="padding:6px 8px;color:var(--text3)">${a.revenue_model}</td>
+        </tr>`;
+      }).join('')}</tbody>
+      <tfoot><tr style="border-top:1px solid rgba(0,255,136,.25)">
+        <td colspan="3" style="padding:8px;font-weight:700;color:var(--text)">TOTAL</td>
+        <td style="padding:8px;text-align:right;color:#00ff88;font-weight:700">${fmtUSD(s.mid||0)}</td>
+        <td style="padding:8px;text-align:right;color:#e0c040;font-weight:700">${fmtUSD(s.high||0)}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>
+    </table>`;
+  } catch(e){ el.innerHTML=`<div style="color:#ff5050;font-size:11px;padding:12px">Load failed: ${e.message}</div>`; }
 }
 
 async function moneyRecordManual(){
@@ -17837,6 +17929,155 @@ async function blPortal() {
     else toast('No portal URL returned','error');
   } catch(e){toast('Error: '+e.message,'error');}
 }
+
+// ── NarAI v2 — routes to new production API on port 5051 ─────────────────────
+(function(){
+  const V2_BASE = (window.NARAI_V2_BASE || 'http://localhost:5051') + '/api/v2/narai';
+  let _v2Token = localStorage.getItem('narai_v2_token') || '';
+  let _v2Active = localStorage.getItem('narai_v2_active') === '1';
+  let _v2Skill = localStorage.getItem('narai_v2_skill') || '';
+
+  function _injectV2Controls() {
+    const toolbar = document.querySelector('#page-narai .nr-toolbar') ||
+      document.querySelector('#page-narai [style*="nr-send-btn"]')?.closest('div') ||
+      document.getElementById('narai-voice-input')?.parentElement;
+    if (!toolbar || document.getElementById('narai-v2-toggle')) return;
+
+    // v2 toggle button
+    const toggle = document.createElement('button');
+    toggle.id = 'narai-v2-toggle';
+    toggle.title = 'NarAI v2 — production AI with Claude/GPT/Ollama, memory, RAG';
+    toggle.style.cssText = 'background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.4);color:#cc88ff;border-radius:8px;padding:4px 9px;font-size:9px;font-weight:800;cursor:pointer;font-family:inherit;letter-spacing:.5px;white-space:nowrap;transition:all .2s;flex-shrink:0';
+    toggle.textContent = 'v2';
+    toggle.onclick = _toggleV2;
+    toolbar.insertBefore(toggle, toolbar.firstChild);
+
+    // skill selector
+    const sel = document.createElement('select');
+    sel.id = 'narai-v2-skill';
+    sel.title = 'Active skill pack';
+    sel.style.cssText = 'background:#13161d;border:1px solid rgba(136,68,255,.35);color:#cc88ff;border-radius:8px;padding:3px 7px;font-size:9px;font-family:inherit;cursor:pointer;flex-shrink:0;display:none';
+    sel.innerHTML = '<option value="">🧠 Auto</option><option value="trader">📈 Trader</option><option value="coder">💻 Coder</option><option value="writer">✍️ Writer</option>';
+    sel.value = _v2Skill;
+    sel.onchange = () => { _v2Skill = sel.value; localStorage.setItem('narai_v2_skill', _v2Skill); };
+    toolbar.insertBefore(sel, toggle.nextSibling);
+
+    _applyV2State();
+  }
+
+  function _applyV2State() {
+    const btn = document.getElementById('narai-v2-toggle');
+    const sel = document.getElementById('narai-v2-skill');
+    if (!btn) return;
+    if (_v2Active) {
+      btn.style.background = 'rgba(136,68,255,.5)';
+      btn.style.color = '#fff';
+      btn.textContent = 'v2 ●';
+      if (sel) sel.style.display = '';
+    } else {
+      btn.style.background = 'rgba(136,68,255,.15)';
+      btn.style.color = '#cc88ff';
+      btn.textContent = 'v2';
+      if (sel) sel.style.display = 'none';
+    }
+  }
+
+  async function _toggleV2() {
+    _v2Active = !_v2Active;
+    localStorage.setItem('narai_v2_active', _v2Active ? '1' : '0');
+    if (_v2Active && !_v2Token) await _v2Login();
+    _applyV2State();
+    if (typeof toast === 'function') toast(_v2Active ? 'NarAI v2 active' : 'NarAI v1 restored', _v2Active ? 'success' : 'info');
+  }
+
+  async function _v2Login() {
+    const pw = prompt('NarAI v2 password:');
+    if (!pw) { _v2Active = false; return; }
+    try {
+      const r = await fetch(V2_BASE + '/auth/login', {
+        method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({password: pw})
+      });
+      if (!r.ok) throw new Error('Wrong password');
+      const d = await r.json();
+      _v2Token = d.token;
+      localStorage.setItem('narai_v2_token', _v2Token);
+    } catch(e) {
+      _v2Active = false;
+      localStorage.setItem('narai_v2_active', '0');
+      if (typeof toast === 'function') toast('v2 login failed: ' + e.message, 'error');
+    }
+  }
+
+  // Intercept naraiSendVoice when v2 is active
+  const _origSend = window.naraiSendVoice;
+  window.naraiSendVoice = async function() {
+    if (!_v2Active) return _origSend.apply(this, arguments);
+
+    if (!_v2Token) { await _v2Login(); if (!_v2Token) return; }
+
+    const input = document.getElementById('narai-voice-input');
+    const text = (input?.value || '').trim();
+    if (!text) return;
+    input.value = '';
+
+    // Show user bubble
+    if (typeof _naraiAddMessage === 'function') _naraiAddMessage('user', text);
+    if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('v2 thinking…', '#cc88ff');
+
+    const typingId = 'narai-typing-' + Date.now();
+    const history = document.getElementById('narai-chat-history');
+    if (history) {
+      const ti = document.createElement('div');
+      ti.id = typingId;
+      ti.style.cssText = 'display:flex;gap:8px;align-items:center;padding:4px 0;opacity:0.65';
+      ti.innerHTML = '<div style="width:26px;height:26px;min-width:26px;border-radius:50%;background:radial-gradient(circle,#330066,#0a001a);border:1px solid #bb44ff55;display:flex;align-items:center;justify-content:center;font-size:13px">🌟</div><div style="padding:6px 10px;background:rgba(136,68,255,.1);border:1px solid #8844ff22;border-radius:8px;font-size:11px;color:#8855aa;letter-spacing:2px">• • •</div>';
+      history.appendChild(ti); history.scrollTop = history.scrollHeight;
+    }
+
+    try {
+      const skill = document.getElementById('narai-v2-skill')?.value || '';
+      const body = { message: text };
+      if (skill) body.skill = skill;
+
+      const r = await fetch(V2_BASE + '/chat', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json', 'Authorization': 'Bearer ' + _v2Token},
+        body: JSON.stringify(body),
+      });
+
+      document.getElementById(typingId)?.remove();
+
+      if (r.status === 401) { _v2Token = ''; localStorage.removeItem('narai_v2_token'); throw new Error('Token expired — toggle v2 to re-login'); }
+      if (!r.ok) { const e = await r.json().catch(()=>{}); throw new Error(e?.detail || r.status); }
+
+      const d = await r.json();
+      const badge = d.skill ? ` [${d.skill}·${d.tier}·${d.model.split('/').pop()}]` : ` [${d.tier}·${d.model.split('/').pop()}]`;
+
+      if (typeof _naraiAddMessage === 'function') _naraiAddMessage('narai', d.reply + '\n\n' + badge);
+      if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('ready', '#44ff88');
+      if (typeof _naraiSpeakBrowser === 'function') _naraiSpeakBrowser(d.reply);
+    } catch(e) {
+      document.getElementById(typingId)?.remove();
+      if (typeof _naraiAddMessage === 'function') _naraiAddMessage('narai', 'v2 error: ' + e.message);
+      if (typeof _naraiSetVoiceStatus === 'function') _naraiSetVoiceStatus('error', '#ff4444');
+    }
+  };
+
+  // Inject controls once DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _injectV2Controls);
+  } else {
+    setTimeout(_injectV2Controls, 500);
+  }
+  // Re-inject if nav switches to NarAI page
+  const _origNav = window.nav;
+  if (typeof _origNav === 'function') {
+    window.nav = function(page) {
+      _origNav.apply(this, arguments);
+      if (page === 'narai') setTimeout(_injectV2Controls, 200);
+    };
+  }
+})();
 </script>
 
 </body>

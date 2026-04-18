@@ -8259,6 +8259,39 @@ async def money_record_manual(source: str, amount: float, note: str = ""):
     return {"status": "recorded", "amount": amount}
 
 
+# ─── Money Center: Income Assets ─────────────────────────────────────────────
+
+@app.get("/api/money/assets")
+async def money_assets():
+    """Return all income assets from the money_center registry."""
+    try:
+        from money_center.registry import load, revenue_summary, check_ssd
+        if not check_ssd():
+            return {"error": "SSD not mounted", "assets": [], "summary": {}}
+        assets = load()
+        summary = revenue_summary(assets)
+        # Strip internal-only fields for the dashboard
+        clean = []
+        for a in assets:
+            clean.append({
+                "id":          a["id"],
+                "name":        a["name"],
+                "category":    a.get("category", ""),
+                "status":      a.get("status", "idle"),
+                "monthly_low":  a.get("monthly_estimate_usd", {}).get("low", 0),
+                "monthly_mid":  a.get("monthly_estimate_usd", {}).get("mid", 0),
+                "monthly_high": a.get("monthly_estimate_usd", {}).get("high", 0),
+                "eta_days":    a.get("time_to_first_revenue_days", 0),
+                "last_run":    a.get("last_run"),
+                "revenue_model": a.get("revenue_model", ""),
+                "notes":       a.get("notes", ""),
+            })
+        return {"assets": clean, "summary": summary}
+    except Exception as e:
+        logger.warning(f"money/assets failed: {e}")
+        return {"error": str(e), "assets": [], "summary": {}}
+
+
 # ─── NEXORA Platform API ──────────────────────────────────────────────────────
 
 _nexora_outputs_dir = ROOT / "outputs" / "agent_workforce" / "102_nexora_builder"
