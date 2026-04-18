@@ -1,0 +1,5 @@
+root_path: /Volumes/Wheellsverse/wheellsverse_bots
+dashboard_port: 7777
+ssd_volume: /Volumes/Wheellsverse
+auto_backup: true
+log_level: INFO
