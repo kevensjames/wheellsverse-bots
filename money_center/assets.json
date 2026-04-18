@@ -5,20 +5,29 @@
     "category": "bot",
     "description": "140 autonomous Python bots across 11 categories for marketing, SEO, content, ecommerce, and more.",
     "revenue_model": "ads+affiliate",
-    "monthly_estimate_usd": { "low": 200, "mid": 800, "high": 3000 },
+    "monthly_estimate_usd": {
+      "low": 200,
+      "mid": 800,
+      "high": 3000
+    },
     "time_to_first_revenue_days": 30,
-    "status": "idle",
-    "last_run": null,
+    "status": "running",
+    "last_run": "2026-04-18T05:19:39.444312+00:00",
     "last_stop": null,
     "last_revenue_check": null,
     "total_revenue_usd": 0,
     "run_command": "python /Volumes/Wheellsverse/wheellsverse_bots/main.py --schedule",
     "stop_command": "pkill -f 'main.py --schedule'",
     "working_dir": "/Volumes/Wheellsverse/wheellsverse_bots",
-    "tags": ["automation", "bots", "ai", "marketing"],
+    "tags": [
+      "automation",
+      "bots",
+      "ai",
+      "marketing"
+    ],
     "notes": "Master orchestrator runs all bots on schedule. Each bot targets a specific monetization channel.",
     "created_at": "2026-04-18T00:00:00",
-    "updated_at": "2026-04-18T00:00:00"
+    "updated_at": "2026-04-18T05:19:39.444312+00:00"
   },
   {
     "id": "narai",
@@ -26,20 +35,29 @@
     "category": "platform",
     "description": "AI assistant platform with freemium and premium subscription tiers, Telegram + web interface.",
     "revenue_model": "subscription",
-    "monthly_estimate_usd": { "low": 100, "mid": 500, "high": 2000 },
+    "monthly_estimate_usd": {
+      "low": 100,
+      "mid": 500,
+      "high": 2000
+    },
     "time_to_first_revenue_days": 14,
-    "status": "idle",
-    "last_run": null,
+    "status": "running",
+    "last_run": "2026-04-18T05:19:47.470289+00:00",
     "last_stop": null,
     "last_revenue_check": null,
     "total_revenue_usd": 0,
     "run_command": "python /Volumes/Wheellsverse/wheellsverse_bots/core/api.py",
     "stop_command": "pkill -f 'core/api.py'",
     "working_dir": "/Volumes/Wheellsverse/wheellsverse_bots",
-    "tags": ["ai", "subscription", "saas", "freemium"],
+    "tags": [
+      "ai",
+      "subscription",
+      "saas",
+      "freemium"
+    ],
     "notes": "Freemium: 10 messages/day free. Pro: $9/mo. Elite: $29/mo.",
     "created_at": "2026-04-18T00:00:00",
-    "updated_at": "2026-04-18T00:00:00"
+    "updated_at": "2026-04-18T05:19:47.470289+00:00"
   },
   {
     "id": "nexora",
@@ -47,7 +65,11 @@
     "category": "platform",
     "description": "Creator subscription platform with Stripe billing, analytics, and digital product delivery.",
     "revenue_model": "subscription",
-    "monthly_estimate_usd": { "low": 150, "mid": 600, "high": 2500 },
+    "monthly_estimate_usd": {
+      "low": 150,
+      "mid": 600,
+      "high": 2500
+    },
     "time_to_first_revenue_days": 21,
     "status": "idle",
     "last_run": null,
@@ -57,7 +79,12 @@
     "run_command": "python /Volumes/Wheellsverse/wheellsverse_bots/core/api.py",
     "stop_command": "pkill -f 'core/api.py'",
     "working_dir": "/Volumes/Wheellsverse/wheellsverse_bots",
-    "tags": ["creator", "subscription", "stripe", "saas"],
+    "tags": [
+      "creator",
+      "subscription",
+      "stripe",
+      "saas"
+    ],
     "notes": "Nexora powers creator monetization. Stripe handles billing. Revenue share model available.",
     "created_at": "2026-04-18T00:00:00",
     "updated_at": "2026-04-18T00:00:00"
@@ -68,20 +95,30 @@
     "category": "content",
     "description": "Self-published ebooks and print-on-demand books on Amazon KDP including AI for Traders & Creators.",
     "revenue_model": "royalty",
-    "monthly_estimate_usd": { "low": 50, "mid": 300, "high": 1500 },
+    "monthly_estimate_usd": {
+      "low": 50,
+      "mid": 300,
+      "high": 1500
+    },
     "time_to_first_revenue_days": 60,
-    "status": "idle",
-    "last_run": null,
+    "status": "running",
+    "last_run": "2026-04-18T05:20:25.879047+00:00",
     "last_stop": null,
     "last_revenue_check": null,
     "total_revenue_usd": 0,
     "run_command": "python /Volumes/Wheellsverse/wheellsverse_bots/narai/marketing/marketing_autopilot.py run",
     "stop_command": "pkill -f 'marketing_autopilot.py'",
     "working_dir": "/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing",
-    "tags": ["kdp", "ebook", "publishing", "royalty", "passive"],
+    "tags": [
+      "kdp",
+      "ebook",
+      "publishing",
+      "royalty",
+      "passive"
+    ],
     "notes": "Current titles: AI for Traders & Creators. 30-day launch autopilot active. 70% royalty on ebooks.",
     "created_at": "2026-04-18T00:00:00",
-    "updated_at": "2026-04-18T00:00:00"
+    "updated_at": "2026-04-18T05:20:25.879047+00:00"
   },
   {
     "id": "digital_products",
@@ -89,7 +126,11 @@
     "category": "content",
     "description": "Blog content, Prompt Bible, online courses, and niche tools sold on Gumroad, Payhip, and Etsy.",
     "revenue_model": "sales",
-    "monthly_estimate_usd": { "low": 75, "mid": 400, "high": 2000 },
+    "monthly_estimate_usd": {
+      "low": 75,
+      "mid": 400,
+      "high": 2000
+    },
     "time_to_first_revenue_days": 45,
     "status": "idle",
     "last_run": null,
@@ -99,7 +140,14 @@
     "run_command": "python /Volumes/Wheellsverse/wheellsverse_bots/bots/marketing/01_content_generator/bot.py",
     "stop_command": "pkill -f '01_content_generator'",
     "working_dir": "/Volumes/Wheellsverse/wheellsverse_bots",
-    "tags": ["gumroad", "payhip", "etsy", "course", "blog", "digital"],
+    "tags": [
+      "gumroad",
+      "payhip",
+      "etsy",
+      "course",
+      "blog",
+      "digital"
+    ],
     "notes": "Products: Prompt Bible ($27), AI Trading Course ($97), niche blog posts, prompt packs. Gumroad + Payhip storefronts.",
     "created_at": "2026-04-18T00:00:00",
     "updated_at": "2026-04-18T00:00:00"
@@ -110,7 +158,11 @@
     "category": "content",
     "description": "Music, lyrics, merch, and brand content for J.K. Blaze — royalties, streaming, and merchandise sales.",
     "revenue_model": "royalty+sales",
-    "monthly_estimate_usd": { "low": 25, "mid": 150, "high": 800 },
+    "monthly_estimate_usd": {
+      "low": 25,
+      "mid": 150,
+      "high": 800
+    },
     "time_to_first_revenue_days": 90,
     "status": "idle",
     "last_run": null,
@@ -120,7 +172,13 @@
     "run_command": "echo 'J.K. Blaze: upload track to DistroKid / Merch to Printify'",
     "stop_command": "echo 'J.K. Blaze: no stop needed'",
     "working_dir": "/Volumes/Wheellsverse",
-    "tags": ["music", "merch", "brand", "royalty", "streaming"],
+    "tags": [
+      "music",
+      "merch",
+      "brand",
+      "royalty",
+      "streaming"
+    ],
     "notes": "Distribution via DistroKid (Spotify, Apple Music, etc). Merch via Printify/Shopify. Lyrics licensing potential.",
     "created_at": "2026-04-18T00:00:00",
     "updated_at": "2026-04-18T00:00:00"
@@ -131,7 +189,11 @@
     "category": "service",
     "description": "Freelance data science and AI consulting — model building, automation pipelines, strategy.",
     "revenue_model": "consulting",
-    "monthly_estimate_usd": { "low": 500, "mid": 1500, "high": 5000 },
+    "monthly_estimate_usd": {
+      "low": 500,
+      "mid": 1500,
+      "high": 5000
+    },
     "time_to_first_revenue_days": 7,
     "status": "idle",
     "last_run": null,
@@ -141,7 +203,13 @@
     "run_command": "echo 'Consulting: send proposal to client'",
     "stop_command": "echo 'Consulting: mark engagement complete'",
     "working_dir": "/Volumes/Wheellsverse",
-    "tags": ["consulting", "freelance", "data", "ai", "high-ticket"],
+    "tags": [
+      "consulting",
+      "freelance",
+      "data",
+      "ai",
+      "high-ticket"
+    ],
     "notes": "Rate: $75-150/hr or project-based. Platforms: Upwork, direct referral. Focus: AI automation, trading systems, content pipelines.",
     "created_at": "2026-04-18T00:00:00",
     "updated_at": "2026-04-18T00:00:00"

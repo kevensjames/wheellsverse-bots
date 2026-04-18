@@ -8264,28 +8264,37 @@ async def money_record_manual(source: str, amount: float, note: str = ""):
 @app.get("/api/money/assets")
 async def money_assets():
     """Return all income assets from the money_center registry."""
+    import json as _json
     try:
-        from money_center.registry import load, revenue_summary, check_ssd
-        if not check_ssd():
-            return {"error": "SSD not mounted", "assets": [], "summary": {}}
-        assets = load()
-        summary = revenue_summary(assets)
-        # Strip internal-only fields for the dashboard
+        # Read directly from the JSON file — no SSD check needed on Railway
+        assets_path = ROOT / "money_center" / "assets.json"
+        if not assets_path.exists():
+            return {"error": "assets.json not found", "assets": [], "summary": {}}
+        assets = _json.loads(assets_path.read_text(encoding="utf-8"))
         clean = []
+        total_low = total_mid = total_high = 0
         for a in assets:
+            est = a.get("monthly_estimate_usd", {})
+            low  = est.get("low", 0)
+            mid  = est.get("mid", 0)
+            high = est.get("high", 0)
+            total_low  += low
+            total_mid  += mid
+            total_high += high
             clean.append({
-                "id":          a["id"],
-                "name":        a["name"],
-                "category":    a.get("category", ""),
-                "status":      a.get("status", "idle"),
-                "monthly_low":  a.get("monthly_estimate_usd", {}).get("low", 0),
-                "monthly_mid":  a.get("monthly_estimate_usd", {}).get("mid", 0),
-                "monthly_high": a.get("monthly_estimate_usd", {}).get("high", 0),
-                "eta_days":    a.get("time_to_first_revenue_days", 0),
-                "last_run":    a.get("last_run"),
+                "id":            a["id"],
+                "name":          a["name"],
+                "category":      a.get("category", ""),
+                "status":        a.get("status", "idle"),
+                "monthly_low":   low,
+                "monthly_mid":   mid,
+                "monthly_high":  high,
+                "eta_days":      a.get("time_to_first_revenue_days", 0),
+                "last_run":      a.get("last_run"),
                 "revenue_model": a.get("revenue_model", ""),
-                "notes":       a.get("notes", ""),
+                "notes":         a.get("notes", ""),
             })
+        summary = {"total_low": total_low, "total_mid": total_mid, "total_high": total_high, "asset_count": len(clean)}
         return {"assets": clean, "summary": summary}
     except Exception as e:
         logger.warning(f"money/assets failed: {e}")
