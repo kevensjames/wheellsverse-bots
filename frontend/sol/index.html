@@ -90,7 +90,7 @@ footer a:hover{color:var(--cyan)}
 <nav>
   <span class="logo">Sol</span>
   <div class="nav-links">
-    <a href="/sol/admin.html" class="btn btn-ghost">Admin</a>
+    <a href="/sol/admin" class="btn btn-ghost">Admin</a>
     <button class="btn btn-primary" onclick="openModal('login')">Sign in</button>
   </div>
 </nav>
@@ -234,7 +234,7 @@ async function handleLogin(e) {
       password: document.getElementById('loginPassword').value
     });
     localStorage.setItem('sol_token', data.access_token);
-    window.location.href = '/sol/app.html';
+    window.location.href = '/sol/app';
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Sign in'; btn.disabled = false; }
@@ -253,7 +253,7 @@ async function handleRegister(e) {
       full_name: document.getElementById('regName').value
     });
     localStorage.setItem('sol_token', data.access_token);
-    window.location.href = '/sol/app.html';
+    window.location.href = '/sol/app';
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Create account'; btn.disabled = false; }
