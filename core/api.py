@@ -104,7 +104,9 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/narai/memory/context",
                  # NEXORA platform — auth + public creator endpoints are their own auth
                  "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook",
-                 "/api/nx/fan/register", "/api/nx/fan/login", "/api/nx/fan/logout"}
+                 "/api/nx/fan/register", "/api/nx/fan/login", "/api/nx/fan/logout",
+                 # Sol ROSCA platform — public pages
+                 "/sol", "/sol/app", "/sol/admin"}
 
 # Shopify dashboard endpoints — all served by the same-origin dashboard, no extra auth
 for _p in [
@@ -821,6 +823,21 @@ async def serve_blog_post(slug: str):
         return HTMLResponse(f"<h1>Article not found</h1>", status_code=404)
     return HTMLResponse(path.read_text(encoding="utf-8"),
                         headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/sol", response_class=HTMLResponse)
+async def serve_sol():
+    return _serve_frontend("sol/index.html")
+
+
+@app.get("/sol/app", response_class=HTMLResponse)
+async def serve_sol_app():
+    return _serve_frontend("sol/app.html")
+
+
+@app.get("/sol/admin", response_class=HTMLResponse)
+async def serve_sol_admin():
+    return _serve_frontend("sol/admin.html")
 
 
 # ─── NarAI User API ───────────────────────────────────────────────────────────
