@@ -47,19 +47,28 @@ class BotScheduler:
         self._stop_event = threading.Event()
         self._thread: Optional[threading.Thread] = None
         self._running = False
+        self._consecutive_failures: Dict[str, int] = {}  # bot → failure count
 
     # ─── Setup ─────────────────────────────────────────────────────────────────
 
+    def _is_registered(self, full_name: str) -> bool:
+        """Return True if this bot already has a scheduled job."""
+        return any(j["bot"] == full_name for j in self.jobs)
+
     def register_all(self):
-        """Register every bot that has a schedule defined."""
+        """Register every bot that has a schedule defined (idempotent)."""
         if self.orchestrator is None:
             from core.orchestrator import get_orchestrator
             self.orchestrator = get_orchestrator()
 
         count = 0
+        skipped = 0
         for full_name, meta in self.orchestrator.registry.items():
             sched = meta.get("schedule")
             if not sched:
+                continue
+            if self._is_registered(full_name):
+                skipped += 1
                 continue
             try:
                 self._register(full_name, sched)
@@ -67,7 +76,8 @@ class BotScheduler:
             except Exception as e:
                 logger.warning(f"Could not schedule {full_name}: {e}")
 
-        console.print(f"[green]📅 {count} bots scheduled[/green]")
+        console.print(f"[green]📅 {count} bots scheduled[/green]"
+                      + (f" [dim]({skipped} already registered)[/dim]" if skipped else ""))
 
     def register_one(self, full_name: str, schedule_str: str,
                      kwargs: Optional[Dict] = None):
@@ -139,13 +149,38 @@ class BotScheduler:
         })
         logger.info(f"📅 Scheduled [{full_name}] → {schedule_str}")
 
+    def _alert_failure(self, full_name: str, error: str):
+        """Send Telegram alert when a bot fails 3 consecutive times."""
+        try:
+            import requests as _req
+            token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+            chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+            if not token or not chat_id:
+                return
+            msg = (f"🚨 *WheellsVerse Bot Failure*\n"
+                   f"Bot: `{full_name}`\n"
+                   f"3 consecutive failures. Last error:\n`{error[:200]}`")
+            _req.post(
+                f"https://api.telegram.org/bot{token}/sendMessage",
+                json={"chat_id": chat_id, "text": msg, "parse_mode": "Markdown"},
+                timeout=10,
+            )
+        except Exception:
+            pass  # alerts are best-effort
+
     def _make_job(self, full_name: str, kwargs: Dict) -> Callable:
         def job():
             logger.info(f"⏰ Scheduled trigger: {full_name}")
             try:
                 self.orchestrator.run_bot(full_name, **kwargs)
+                self._consecutive_failures[full_name] = 0  # reset on success
             except Exception as e:
                 logger.error(f"Scheduled job failed [{full_name}]: {e}")
+                count = self._consecutive_failures.get(full_name, 0) + 1
+                self._consecutive_failures[full_name] = count
+                if count >= 3:
+                    logger.error(f"Bot {full_name} has failed {count} consecutive times — alerting")
+                    self._alert_failure(full_name, str(e))
         return job
 
     # ─── Run Loop ──────────────────────────────────────────────────────────────

@@ -1,6 +1,11 @@
 # Secrets — never bake into the image (pass via Railway/Render env vars)
 .env
+.env.*
 *.env.local
+*.pem
+*.key
+*_secret*
+*credentials*
 
 # Virtual environment (rebuilt inside container)
 venv/

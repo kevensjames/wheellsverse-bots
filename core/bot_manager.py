@@ -109,17 +109,20 @@ def start_bot(bot_name: str, category: str = "") -> Dict[str, Any]:
 
     log_path = LOG_DIR / f"{bot_name}.log"
     log_fd = open(log_path, "a", encoding="utf-8")
+    try:
+        log_fd.write(f"\n{'=' * 60}\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting {bot_name}\n{'=' * 60}\n")
+        log_fd.flush()
 
-    log_fd.write(f"\n{'=' * 60}\n[{time.strftime('%Y-%m-%d %H:%M:%S')}] Starting {bot_name}\n{'=' * 60}\n")
-    log_fd.flush()
-
-    popen = subprocess.Popen(
-        [str(PYTHON), str(bot_path)],
-        stdout=log_fd,
-        stderr=log_fd,
-        cwd=str(ROOT),
-        env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
-    )
+        popen = subprocess.Popen(
+            [str(PYTHON), str(bot_path)],
+            stdout=log_fd,
+            stderr=log_fd,
+            cwd=str(ROOT),
+            env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
+        )
+    except Exception:
+        log_fd.close()
+        raise
 
     entry = {
         "popen": popen,
@@ -209,6 +212,31 @@ def get_log(bot_name: str, lines: int = 100) -> str:
         return "\n".join(tail)
     except Exception as e:
         return f"Error reading log: {e}"
+
+
+def revive_crashed(max_restarts: int = 3) -> List[Dict[str, Any]]:
+    """
+    Restart bots that have crashed. Respects a per-bot restart counter so
+    a hard-crashing bot does not restart more than `max_restarts` times.
+    Returns a list of revived bot entries.
+    """
+    revived = []
+    for name, entry in list(_procs.items()):
+        if _refresh_status(entry) == "crashed":
+            restart_count = entry.get("_restart_count", 0)
+            if restart_count >= max_restarts:
+                logger.warning(f"[bot_manager] {name} has crashed {restart_count}x — not restarting")
+                continue
+            try:
+                old_category = entry.get("category", "")
+                stop_bot(name)
+                new_entry = start_bot(name, old_category)
+                _procs[name]["_restart_count"] = restart_count + 1
+                revived.append(new_entry)
+                logger.info(f"[bot_manager] Auto-restarted {name} (restart #{restart_count + 1})")
+            except Exception as e:
+                logger.error(f"[bot_manager] Failed to revive {name}: {e}")
+    return revived
 
 
 def discover_bots() -> List[Dict[str, Any]]:

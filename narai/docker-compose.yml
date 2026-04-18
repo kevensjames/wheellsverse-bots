@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+  # Postgres for prod (SQLite is used in dev by default)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: narai
+      POSTGRES_USER: narai
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-narai_dev_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - prod
+
+volumes:
+  redis_data:
+  pg_data:

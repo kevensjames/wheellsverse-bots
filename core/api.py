@@ -605,9 +605,15 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+_cors_origins_env = os.getenv("CORS_ORIGINS", "")
+_cors_origins = (
+    [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
+    if _cors_origins_env
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -635,10 +641,15 @@ async def rate_limit_middleware(request: Request, call_next):
     now = _time.time()
     window_start = now - _RATE_LIMIT_WINDOW
 
-    # Clean old entries
-    _rate_limit_store[client_ip] = [t for t in _rate_limit_store[client_ip] if t > window_start]
+    # Clean old entries; remove IP entirely when empty to prevent unbounded growth
+    hits = [t for t in _rate_limit_store[client_ip] if t > window_start]
+    if hits:
+        _rate_limit_store[client_ip] = hits
+    else:
+        _rate_limit_store.pop(client_ip, None)
+        hits = []
 
-    if len(_rate_limit_store[client_ip]) >= _RATE_LIMIT_REQUESTS:
+    if len(hits) >= _RATE_LIMIT_REQUESTS:
         return JSONResponse({"error": "Rate limit exceeded. Try again later."}, status_code=429)
 
     _rate_limit_store[client_ip].append(now)
@@ -1579,19 +1590,39 @@ async def auth_login(req: LoginRequest):
 
 @app.get("/api/health")
 async def health():
+    import platform, psutil as _ps
     browser_ok = False
     try:
         from core.browser import is_available
         browser_ok = is_available()
     except Exception:
         pass
+
+    memory_ok = True
+    cpu_pct = None
+    mem_pct = None
+    try:
+        cpu_pct = _ps.cpu_percent(interval=0.1)
+        mem = _ps.virtual_memory()
+        mem_pct = mem.percent
+        memory_ok = mem.percent < 90
+    except Exception:
+        pass
+
+    uptime = int(time.time() - _server_start)
     return {
-        "status":   "ok",
-        "uptime":   int(time.time() - _server_start),
+        "status":   "ok" if memory_ok else "degraded",
+        "uptime":   uptime,
+        "uptime_human": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
         "browser":  browser_ok,
         "version":  "nexora-v6-agent-workforce",
         "nx_routes": True,
         "narai_autopilot": True,
+        "system": {
+            "cpu_pct": cpu_pct,
+            "mem_pct": mem_pct,
+            "platform": platform.system(),
+        },
     }
 
 
@@ -4849,13 +4880,15 @@ async def system_report():
     try:
         ak = os.getenv("ANTHROPIC_API_KEY","")
         report["services"].append({"name":"Anthropic (Claude AI)","icon":"🤖","ok":bool(ak),"note":"API key set" if ak else "Missing ANTHROPIC_API_KEY","docs":"console.anthropic.com"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"Anthropic status check failed: {e}")
 
     # OpenAI
     try:
         ak = os.getenv("OPENAI_API_KEY","")
         report["services"].append({"name":"OpenAI (GPT)","icon":"🟢","ok":bool(ak),"note":"API key set" if ak else "Missing OPENAI_API_KEY","docs":"platform.openai.com"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"OpenAI status check failed: {e}")
 
     # Telegram
     try:
@@ -4895,7 +4928,8 @@ async def system_report():
     try:
         ak = os.getenv("ELEVENLABS_API_KEY","")
         report["services"].append({"name":"ElevenLabs (Voice)","icon":"🎙","ok":bool(ak),"note":"API key set" if ak else "Missing key","docs":"elevenlabs.io"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"ElevenLabs status check failed: {e}")
 
     # Facebook/Instagram
     try:
@@ -4903,7 +4937,8 @@ async def system_report():
         pid = os.getenv("FACEBOOK_PAGE_ID","")
         ok = bool(tok and pid)
         report["services"].append({"name":"Facebook / Instagram","icon":"📘","ok":ok,"note":f"page_id={pid}" if ok else "Missing PAGE_TOKEN or PAGE_ID","docs":"developers.facebook.com"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"Facebook/Instagram status check failed: {e}")
 
     # Twitter
     try:
@@ -4929,25 +4964,29 @@ async def system_report():
         pid = os.getenv("WHATSAPP_PHONE_NUMBER_ID","")
         ok = bool(tok and pid)
         report["services"].append({"name":"WhatsApp","icon":"📱","ok":ok,"note":f"phone_id={pid}" if ok else "Missing token or phone ID","docs":"developers.facebook.com/docs/whatsapp"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"WhatsApp status check failed: {e}")
 
     # Reddit
     try:
         cid = os.getenv("REDDIT_CLIENT_ID","")
         report["services"].append({"name":"Reddit","icon":"🔴","ok":bool(cid),"note":"Configured" if cid else "Missing CLIENT_ID","docs":"reddit.com/prefs/apps"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"Reddit status check failed: {e}")
 
     # WordPress
     try:
         wp_url = os.getenv("WORDPRESS_URL","")
         report["services"].append({"name":"WordPress","icon":"🌐","ok":bool(wp_url),"note":wp_url[:40] if wp_url else "Missing WORDPRESS_URL","docs":"wordpress.org"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"WordPress status check failed: {e}")
 
     # Serper (Google Search)
     try:
         ak = os.getenv("SERPER_API_KEY","")
         report["services"].append({"name":"Serper (Google Search)","icon":"🔍","ok":bool(ak),"note":"API key set" if ak else "Missing key","docs":"serper.dev"})
-    except: pass
+    except Exception as e:
+        logger.warning(f"Serper status check failed: {e}")
 
     # ── Budget / Credits ──────────────────────────────────────────────────────
     report["budget"] = {
@@ -4972,7 +5011,8 @@ async def system_report():
         from core.impact import get_earnings
         earnings = get_earnings()
         report["revenue"] = earnings
-    except:
+    except Exception as e:
+        logger.warning(f"Revenue fetch failed: {e}")
         report["revenue"] = {"today": 0, "week": 0, "month": 0, "all_time": 0}
 
     # ── System ────────────────────────────────────────────────────────────────
@@ -9506,13 +9546,18 @@ _ETSY_TOKEN_FILE    = Path(os.getenv("RAILWAY_VOLUME_PATH", "/var/data")) / "ets
 _etsy_pkce_store: dict = {}
 
 def _etsy_save_token(data: dict):
-    try: _ETSY_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True); _ETSY_TOKEN_FILE.write_text(json.dumps(data))
-    except Exception: pass
+    try:
+        _ETSY_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _ETSY_TOKEN_FILE.write_text(json.dumps(data))
+    except Exception as e:
+        logger.warning(f"Failed to save Etsy token: {e}")
 
 def _etsy_load_token() -> dict:
     try:
-        if _ETSY_TOKEN_FILE.exists(): return json.loads(_ETSY_TOKEN_FILE.read_text())
-    except Exception: pass
+        if _ETSY_TOKEN_FILE.exists():
+            return json.loads(_ETSY_TOKEN_FILE.read_text())
+    except Exception as e:
+        logger.warning(f"Failed to load Etsy token: {e}")
     return {}
 
 def _etsy_access_token() -> str:
@@ -9538,7 +9583,8 @@ def _etsy_access_token() -> str:
                     new_data.setdefault("refresh_token", rt)
                     _etsy_save_token(new_data)
                     return new_data["access_token"]
-            except Exception: pass
+            except Exception as e:
+                logger.warning(f"Etsy token refresh failed: {e}")
     return tok_data.get("access_token", os.getenv("ETSY_ACCESS_TOKEN", ""))
 
 def _etsy_headers() -> dict:
@@ -12605,3 +12651,55 @@ async def email_subscribe(req: SubscribeRequest):
         logger.warning(f"ConvertKit subscribe failed for {req.email}: {e}")
         # Don't expose internal errors — return success to user regardless
         return {"subscribed": True, "email": req.email}
+
+
+# ── NarAI Marketing Autopilot ─────────────────────────────────────────────────
+try:
+    from narai.marketing.api import router as _marketing_router
+    app.include_router(_marketing_router)
+    logger.info("Marketing autopilot router loaded at /marketing")
+except Exception as _e:
+    logger.warning(f"Marketing autopilot not loaded: {_e}")
+
+
+# ── Bug Hunter API ───────────────────────────────────────────────────��────────
+
+@app.get("/api/bug-hunter/status")
+async def bug_hunter_status():
+    """Return the latest bug-hunter scan summary."""
+    from pathlib import Path as _Path
+    import json as _json
+    report_dir = ROOT / "logs" / "bug_hunter"
+    latest = report_dir / "latest.md"
+    if not latest.exists():
+        return {"status": "no_scan", "message": "Run a scan first: python -m bots.core.bug_hunter scan"}
+    real = latest.resolve()
+    # Return metadata from most recent JSON report
+    json_report = real.with_suffix(".json")
+    if json_report.exists():
+        try:
+            data = _json.loads(json_report.read_text())
+            return {
+                "status": "ok",
+                "run_id": data.get("run_id"),
+                "timestamp": data.get("timestamp"),
+                "summary": data.get("summary", {}),
+                "report_md": str(real.name),
+            }
+        except Exception as e:
+            logger.warning(f"Bug hunter report parse failed: {e}")
+    return {"status": "ok", "report": str(real)}
+
+
+@app.post("/api/bug-hunter/scan")
+async def bug_hunter_scan(background_tasks: BackgroundTasks):
+    """Trigger a full bug-hunter scan in the background."""
+    def _scan():
+        try:
+            from bots.core.bug_hunter.scheduler import _do_scan
+            _do_scan()
+        except Exception as e:
+            logger.error(f"Bug hunter scan failed: {e}")
+
+    background_tasks.add_task(_scan)
+    return {"status": "started", "message": "Bug hunter scan started in background"}

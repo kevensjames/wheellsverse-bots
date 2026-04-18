@@ -162,6 +162,7 @@ _ANXIOUS_WORDS = {
 def _init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
+    conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS mood_log (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -293,7 +294,7 @@ Return only valid JSON, no markdown."""
         """Persist a mood reading to the SQLite history."""
         ts = datetime.now().isoformat()
         with _db_lock:
-            conn = sqlite3.connect(str(DB_PATH))
+            conn = sqlite3.connect(str(DB_PATH)); conn.execute("PRAGMA journal_mode=WAL")
             try:
                 conn.execute(
                     "INSERT INTO mood_log (ts, mood, score, source, raw_text, context) VALUES (?,?,?,?,?,?)",
@@ -321,7 +322,7 @@ Return only valid JSON, no markdown."""
     def get_current_mood(self) -> str:
         """Return the most recent detected mood."""
         with _db_lock:
-            conn = sqlite3.connect(str(DB_PATH))
+            conn = sqlite3.connect(str(DB_PATH)); conn.execute("PRAGMA journal_mode=WAL")
             try:
                 row = conn.execute(
                     "SELECT mood FROM mood_log ORDER BY ts DESC LIMIT 1"
@@ -334,7 +335,7 @@ Return only valid JSON, no markdown."""
         """Return mood readings from the past N hours."""
         since = (datetime.now() - timedelta(hours=hours)).isoformat()
         with _db_lock:
-            conn = sqlite3.connect(str(DB_PATH))
+            conn = sqlite3.connect(str(DB_PATH)); conn.execute("PRAGMA journal_mode=WAL")
             try:
                 rows = conn.execute(
                     "SELECT ts, mood, score, source FROM mood_log WHERE ts > ? ORDER BY ts DESC",

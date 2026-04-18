@@ -10,10 +10,14 @@ Supports: run one bot, run a category, run all, parallel execution.
 import importlib.util
 import sys
 import json
+import logging
 import concurrent.futures
+from collections import deque
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+_log = logging.getLogger("orchestrator")
 
 from rich.console import Console
 from rich.table import Table
@@ -35,8 +39,16 @@ class Orchestrator:
     def __init__(self):
         self.bots: Dict[str, Any] = {}          # name → bot instance
         self.registry: Dict[str, Dict] = {}      # name → metadata
-        self.run_history: List[Dict] = []
+        self.run_history: deque = deque(maxlen=1000)  # capped — prevents OOM
+        self._validate_env()
         self._load_all_bots()
+
+    def _validate_env(self):
+        """Warn at startup if critical env vars are missing."""
+        import os as _os
+        missing = [k for k in ("ANTHROPIC_API_KEY", "OPENAI_API_KEY") if not _os.getenv(k)]
+        if missing:
+            _log.warning(f"Missing env vars (bots may fail): {', '.join(missing)}")
 
     # ─── Discovery ─────────────────────────────────────────────────────────────
 
@@ -184,8 +196,12 @@ class Orchestrator:
                 for fut in concurrent.futures.as_completed(futures):
                     name = futures[fut]
                     try:
-                        results[name] = fut.result()
+                        results[name] = fut.result(timeout=300)
                         self._record(name, "success")
+                    except concurrent.futures.TimeoutError:
+                        results[name] = "ERROR: timeout after 300s"
+                        self._record(name, "error", "timeout")
+                        _log.error(f"Bot timed out (300s): {name}")
                     except Exception as e:
                         results[name] = f"ERROR: {e}"
                         self._record(name, "error", str(e))
@@ -214,8 +230,12 @@ class Orchestrator:
                 for fut in concurrent.futures.as_completed(futures):
                     name = futures[fut]
                     try:
-                        results[name] = fut.result()
+                        results[name] = fut.result(timeout=300)
                         self._record(name, "success")
+                    except concurrent.futures.TimeoutError:
+                        results[name] = "ERROR: timeout after 300s"
+                        self._record(name, "error", "timeout")
+                        _log.error(f"Bot timed out (300s): {name}")
                     except Exception as e:
                         results[name] = f"ERROR: {e}"
                         self._record(name, "error", str(e))

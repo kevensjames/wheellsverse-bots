@@ -1,0 +1,1 @@
+"""NarAI FastAPI application."""

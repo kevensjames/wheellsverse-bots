@@ -1,0 +1,8 @@
+{
+  "description": "Autonomous bug scanner, detector, fixer, and watchdog for the WheellsVerse bot ecosystem",
+  "schedule": "@daily 03:00",
+  "enabled": true,
+  "auto_fix": false,
+  "scan_paths": ["bots", "core"],
+  "report_dir": "logs/bug_hunter"
+}

@@ -1,0 +1,41 @@
+"""Single-user JWT auth. Password stored as bcrypt hash in .env (NARAI_PASSWORD_HASH).
+To generate: python -c "from passlib.hash import bcrypt; print(bcrypt.hash('yourpassword'))"
+"""
+import os
+from datetime import datetime, timedelta, timezone
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from jose import JWTError, jwt
+from passlib.hash import bcrypt
+
+_SECRET = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
+_ALGORITHM = "HS256"
+_TTL_HOURS = int(os.getenv("NARAI_JWT_TTL_HOURS", "72"))
+_PASSWORD_HASH = os.getenv("NARAI_PASSWORD_HASH", "")
+
+_bearer = HTTPBearer(auto_error=True)
+
+
+def verify_password(plain: str) -> bool:
+    if not _PASSWORD_HASH:
+        raise EnvironmentError("NARAI_PASSWORD_HASH not set")
+    return bcrypt.verify(plain, _PASSWORD_HASH)
+
+
+def create_token() -> str:
+    expire = datetime.now(timezone.utc) + timedelta(hours=_TTL_HOURS)
+    return jwt.encode({"sub": "owner", "exp": expire}, _SECRET, algorithm=_ALGORITHM)
+
+
+def require_auth(
+    creds: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> str:
+    try:
+        payload = jwt.decode(creds.credentials, _SECRET, algorithms=[_ALGORITHM])
+        return payload["sub"]
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired token",
+        )

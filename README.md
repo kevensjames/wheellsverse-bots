@@ -41,9 +41,28 @@ wheellsverse_bots/
 │   ├── problem_solving/           ← 2 bots (#57-58)
 │   ├── time_management/           ← 2 bots (#59-60)
 │   ├── ecommerce/                 ← 2 bots (#61-62)
-│   └── specialized/               ← 8 bots (#63-70)
+│   ├── specialized/               ← 8 bots (#63-70)
+│   └── core/
+│       └── bug_hunter/            ← Autonomous static bug scanner
+│           ├── bot.py             ← BaseBot + argparse CLI
+│           ├── scanner.py         ← Static source scanner
+│           ├── detector.py        ← Finding classifier
+│           ├── fixer.py           ← Safe auto-fixer
+│           ├── reporter.py        ← Markdown/JSON report generator
+│           ├── watchdog.py        ← Real-time file watchdog
+│           └── scheduler.py      ← Daily cron integration
+│
+├── narai/marketing/               ← 30-day KDP ebook launch autopilot
+│   ├── marketing_autopilot.py    ← Core engine + CLI
+│   ├── api.py                     ← FastAPI router (GET/POST /marketing/*)
+│   └── schedule.yaml             ← 59 tasks across 30 days
+│
+├── AUDIT_REPORT.md               ← Static audit findings
+├── UPGRADES.md                   ← 10 implemented upgrades
+├── CHANGELOG.md                  ← All changes
 │
 ├── logs/                          ← Auto-created log files
+│   └── bug_hunter/               ← Bug scanner reports (Markdown + JSON)
 ├── outputs/                       ← All bot outputs saved here
 │   ├── marketing/
 │   ├── business/

@@ -14,9 +14,10 @@ import json
 import logging
 import time
 from abc import ABC, abstractmethod
+from collections import deque
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Deque, Dict, List, Optional
 
 from dotenv import load_dotenv
 
@@ -56,17 +57,40 @@ def _log_token_usage(provider: str, model: str, prompt_tokens: int,
         pass  # Token logging is best-effort
 
 
+_RETRYABLE = (
+    ConnectionError, TimeoutError, OSError,
+    # httpx / requests transient errors (checked by name to avoid hard dep)
+)
+_RETRYABLE_NAMES = {"ConnectError", "ConnectTimeout", "ReadTimeout",
+                    "RemoteDisconnected", "ConnectionResetError"}
+
+
+def _is_retryable(e: Exception) -> bool:
+    if isinstance(e, _RETRYABLE):
+        return True
+    return type(e).__name__ in _RETRYABLE_NAMES
+
+
 def _retry(fn, retries: int = 3, delay: float = 2.0, logger=None):
-    """Retry a callable up to `retries` times with exponential backoff."""
+    """Retry a callable up to `retries` times with exponential backoff.
+    Retries on transient network errors in addition to quota/rate-limit errors.
+    """
     for attempt in range(retries):
         try:
             return fn()
         except Exception as e:
-            if attempt < retries - 1:
-                wait = delay * (attempt + 1)
+            err_str = str(e).lower()
+            transient = _is_retryable(e) or any(
+                x in err_str for x in ("connection", "timeout", "reset", "network")
+            )
+            if attempt < retries - 1 and transient:
+                wait = delay * (2 ** attempt)
                 if logger:
-                    logger.warning(f"Retry {attempt + 1}/{retries} after {wait}s: {e}")
+                    logger.warning(f"Retry {attempt + 1}/{retries} after {wait:.1f}s: {e}")
                 time.sleep(wait)
+            elif attempt < retries - 1 and not transient:
+                # Non-transient — don't retry, fail fast
+                raise
             else:
                 raise
 
@@ -85,6 +109,7 @@ class BaseBot(ABC):
         self.status = "idle"          # idle | running | done | error
         self.last_run: Optional[datetime] = None
         self.run_count = 0
+        self._errors: Deque[str] = deque(maxlen=50)
 
         # Paths
         self.root_dir = ROOT
@@ -154,15 +179,29 @@ class BaseBot(ABC):
     def _ai_claude(self, prompt: str, system: str = None,
                    model: str = None, max_tokens: int = 2000,
                    temperature: float = 0.7) -> str:
-        """Call Claude (Anthropic) directly — used as fallback when OpenAI quota is exceeded."""
+        """Call Claude (Anthropic) directly — used as fallback when OpenAI quota is exceeded.
+        Includes retry logic (3 attempts) matching the OpenAI path.
+        """
         import anthropic
         claude_model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
         msgs = [{"role": "user", "content": prompt}]
-        kwargs: dict = {"model": claude_model, "max_tokens": max_tokens, "messages": msgs}
+        kw: dict = {"model": claude_model, "max_tokens": max_tokens, "messages": msgs}
         if system:
-            kwargs["system"] = system
-        resp = client.messages.create(**kwargs)
+            kw["system"] = system
+
+        def _call():
+            return client.messages.create(**kw)
+
+        resp = _retry(_call, retries=3, delay=2.0, logger=self.logger)
+        usage = resp.usage
+        if usage:
+            _log_token_usage(
+                "anthropic", claude_model,
+                getattr(usage, "input_tokens", 0),
+                getattr(usage, "output_tokens", 0),
+                self.name,
+            )
         return resp.content[0].text.strip()
 
     def _get_personality_system(self, platform: str = "", topic: str = "") -> str:
@@ -204,9 +243,12 @@ class BaseBot(ABC):
             resp = _retry(_call, retries=3, delay=2.0, logger=self.logger)
             usage = resp.usage
             if usage:
-                _log_token_usage("openai", model,
-                                 usage.prompt_tokens, usage.completion_tokens,
-                                 self.name)
+                _log_token_usage(
+                    "openai", model,
+                    getattr(usage, "prompt_tokens", None) or getattr(usage, "input_tokens", 0),
+                    getattr(usage, "completion_tokens", None) or getattr(usage, "output_tokens", 0),
+                    self.name,
+                )
             return resp.choices[0].message.content.strip()
         except Exception as e:
             err_str = str(e).lower()
@@ -291,6 +333,26 @@ class BaseBot(ABC):
         except json.JSONDecodeError:
             self.logger.warning("Claude response was not valid JSON, returning raw string")
             return {"raw": text}
+
+    # ─── HTTP Helpers ─────────────────────────────────────────────────────────
+
+    _DEFAULT_HTTP_TIMEOUT = int(os.getenv("BOT_HTTP_TIMEOUT", "30"))
+
+    def http_get(self, url: str, **kwargs) -> "requests.Response":
+        """GET with default timeout. Raises on HTTP errors."""
+        import requests as _req
+        kwargs.setdefault("timeout", self._DEFAULT_HTTP_TIMEOUT)
+        r = _req.get(url, **kwargs)
+        r.raise_for_status()
+        return r
+
+    def http_post(self, url: str, **kwargs) -> "requests.Response":
+        """POST with default timeout. Raises on HTTP errors."""
+        import requests as _req
+        kwargs.setdefault("timeout", self._DEFAULT_HTTP_TIMEOUT)
+        r = _req.post(url, **kwargs)
+        r.raise_for_status()
+        return r
 
     # ─── Output Helpers ────────────────────────────────────────────────────────
 
@@ -379,6 +441,7 @@ class BaseBot(ABC):
         except Exception as e:
             elapsed = time.time() - self.start_time
             self.status = "error"
+            self._errors.append(f"{datetime.now().isoformat()} {type(e).__name__}: {e}")
             self.logger.error(f"❌ {self.name} failed after {elapsed:.2f}s — {e}", exc_info=True)
             raise
 
@@ -391,6 +454,7 @@ class BaseBot(ABC):
             "status": self.status,
             "run_count": self.run_count,
             "last_run": self.last_run.isoformat() if self.last_run else None,
+            "recent_errors": list(self._errors)[-5:],
         }
 
     def __repr__(self):

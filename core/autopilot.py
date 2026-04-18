@@ -109,6 +109,7 @@ class AutopilotEngine:
         STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
         self._state = AutopilotState()
         self._thread: Optional[threading.Thread] = None
+        self._stop_event = threading.Event()
         self._load()
 
     @classmethod
@@ -456,13 +457,21 @@ class AutopilotEngine:
 
     def start(self):
         """Start the loop regardless of enabled state — will check internally."""
+        self._stop_event.clear()
         self._start_loop()
+
+    def stop(self):
+        """Gracefully stop the autopilot background loop."""
+        self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=5)
+        log.info("AutopilotEngine: loop stopped")
 
     def _run(self):
         last_hourly_minute = -1
         last_daily_day = -1
 
-        while True:
+        while not self._stop_event.is_set():
             try:
                 now = datetime.now()
 
@@ -480,7 +489,7 @@ class AutopilotEngine:
 
             except Exception as e:
                 log.error(f"Autopilot loop error: {e}")
-            time.sleep(60)  # check every minute
+            self._stop_event.wait(60)  # interruptible sleep
 
     # ── Status & summary ──────────────────────────────────────────────────────
 

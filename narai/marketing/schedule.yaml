@@ -1,0 +1,425 @@
+tasks:
+  # ─── Week 1: Foundation (Days 1–7) ───────────────────────────────────────
+
+  - day: 1
+    type: amazon_keywords
+    slug: kdp-keywords-initial
+    payload:
+      title: "AI for Traders & Creators"
+      niche: "algorithmic trading, AI tools, digital business, passive income"
+
+  - day: 1
+    type: reel
+    slug: reel-why-traders-lose
+    payload:
+      topic: "Why most traders lose money while AI-powered traders win"
+      hook: "You're not bad at trading. You're just using the wrong tools."
+
+  - day: 2
+    type: reel
+    slug: reel-bloodline-teaser
+    payload:
+      topic: "Teaser for Bloodline — the dark fiction side of AI and power"
+      hook: "Some books don't just tell a story. They show you who's pulling the strings."
+
+  - day: 2
+    type: carousel
+    slug: carousel-ai-tools-overview
+    payload:
+      topic: "5 AI tools every trader and creator needs in 2025"
+      slides: 6
+
+  - day: 3
+    type: email
+    slug: email-list-warm-up
+    payload:
+      purpose: "warm up cold email list before the book launch"
+      context: "AI for Traders & Creators launches in 2 weeks. Audience is traders, creators, side-hustlers interested in AI automation and passive income."
+
+  - day: 3
+    type: ad_copy
+    slug: ad-cover-reveal
+    payload:
+      product: "AI for Traders & Creators — ebook cover reveal"
+      angle: "curiosity and pattern interrupt"
+
+  - day: 4
+    type: reel
+    slug: reel-ai-for-creators-hook
+    payload:
+      topic: "How AI lets one person do the work of a full marketing team"
+      hook: "I run 70 bots. I write books. I post every day. It's just me."
+
+  - day: 4
+    type: carousel
+    slug: carousel-trading-mistakes
+    payload:
+      topic: "3 trading mistakes that AI would never make"
+      slides: 5
+
+  - day: 5
+    type: amazon_keywords
+    slug: kdp-keywords-refined
+    payload:
+      title: "AI for Traders & Creators"
+      niche: "passive income AI, automated trading strategies, content monetization, digital products"
+
+  - day: 5
+    type: reel
+    slug: reel-narai-intro
+    payload:
+      topic: "Introducing NarAI — my AI assistant that runs my entire business"
+      hook: "I built an AI that works while I sleep. Here's what she does in a day."
+
+  - day: 6
+    type: carousel
+    slug: carousel-book-toc-sneak
+    payload:
+      topic: "Sneak peek inside AI for Traders & Creators — table of contents"
+      slides: 7
+
+  - day: 6
+    type: email
+    slug: email-early-access
+    payload:
+      purpose: "offer early access / waitlist signup before launch"
+      context: "Book drops on Amazon KDP and Gumroad. Price will increase after launch week. Readers who sign up now get notified first and may get a discount."
+
+  - day: 7
+    type: analytics_pull
+    slug: analytics-week1
+    payload:
+      sources: [gumroad, convertkit]
+
+  - day: 7
+    type: reminder
+    slug: reminder-bio-rewrite
+    payload:
+      text: "Rewrite your IG and Amazon Author bio to mention the book launch. Add the pre-order/waitlist link to your link-in-bio."
+
+  # ─── Week 2: Pre-launch (Days 8–14) ──────────────────────────────────────
+
+  - day: 8
+    type: reel
+    slug: reel-behind-the-build
+    payload:
+      topic: "Behind the build — how I wrote this book using AI as a co-author"
+      hook: "I didn't write this book alone. I had 70 AI agents helping me."
+
+  - day: 8
+    type: carousel
+    slug: carousel-lead-magnet-offer
+    payload:
+      topic: "Free lead magnet offer — AI trading cheat sheet"
+      slides: 5
+
+  - day: 9
+    type: email
+    slug: email-lead-magnet-delivery
+    payload:
+      purpose: "deliver the free lead magnet and build trust before the launch"
+      context: "Attaching or linking the free AI trading cheat sheet. Warm them up for the full book. Mention the launch is in 6 days."
+
+  - day: 9
+    type: ad_copy
+    slug: ad-gumroad-presell
+    payload:
+      product: "AI for Traders & Creators — Gumroad pre-sell"
+      angle: "early bird scarcity — limited discount before launch day"
+
+  - day: 10
+    type: reel
+    slug: reel-narai-demo
+    payload:
+      topic: "Live demo — NarAI writes a social post, an email, and a product description in 60 seconds"
+      hook: "Watch an AI build a full content calendar while I drink coffee."
+
+  - day: 10
+    type: reminder
+    slug: reminder-podcast-outreach
+    payload:
+      text: "Send podcast pitch emails today. Target: trading podcasts, creator economy podcasts, AI business shows. Use the book launch as the hook. Aim for 5 pitches."
+
+  - day: 11
+    type: carousel
+    slug: carousel-chapter-preview
+    payload:
+      topic: "Chapter preview — The AI Trading System inside the book"
+      slides: 6
+
+  - day: 11
+    type: email
+    slug: email-countdown-5days
+    payload:
+      purpose: "5-day countdown to launch — build urgency"
+      context: "Book launches in 5 days on Amazon KDP and Gumroad. This email reminds subscribers what they're getting and why they need it now."
+
+  - day: 12
+    type: ad_copy
+    slug: ad-retargeting-draft
+    payload:
+      product: "AI for Traders & Creators"
+      angle: "retargeting — people who clicked but didn't buy"
+
+  - day: 12
+    type: reel
+    slug: reel-readers-problem-statement
+    payload:
+      topic: "The real reason you're not making money with trading or content creation"
+      hook: "Most people fail at this for the same reason. And it's not what you think."
+
+  - day: 13
+    type: email
+    slug: email-countdown-2days
+    payload:
+      purpose: "2-day countdown — final push before launch, create FOMO"
+      context: "Launch in 2 days. This is the last reminder. After launch, the pre-order price goes away. Includes link to Gumroad pre-order and Amazon pre-order if live."
+
+  - day: 13
+    type: carousel
+    slug: carousel-testimonial-placeholder
+    payload:
+      topic: "Why early readers are already calling this the AI playbook they needed"
+      slides: 5
+
+  - day: 14
+    type: analytics_pull
+    slug: analytics-week2
+    payload:
+      sources: [gumroad, convertkit]
+
+  - day: 14
+    type: reel
+    slug: reel-final-countdown
+    payload:
+      topic: "Launch day is tomorrow — final countdown reel"
+      hook: "Tomorrow it's live. If you've been waiting, this is the last warning."
+
+  # ─── Week 3: Launch (Days 15–21) ─────────────────────────────────────────
+
+  - day: 15
+    type: email
+    slug: email-launch-day
+    payload:
+      purpose: "launch day announcement — book is live, drive clicks and purchases"
+      context: "AI for Traders & Creators is live on Amazon KDP and Gumroad. Link to both. Urgency: launch week pricing ends Sunday. Ask them to buy, leave a review, and share."
+
+  - day: 15
+    type: reel
+    slug: reel-launch-announcement
+    payload:
+      topic: "It's live — AI for Traders & Creators is now available"
+      hook: "The book is out. 30 days of work. Every trading and AI system I use. It's yours."
+
+  - day: 15
+    type: amazon_keywords
+    slug: kdp-keywords-launch
+    payload:
+      title: "AI for Traders & Creators"
+      niche: "launch week — high-volume Amazon search terms for trading books and AI books"
+
+  - day: 16
+    type: carousel
+    slug: carousel-whats-inside
+    payload:
+      topic: "What's inside AI for Traders & Creators — full breakdown"
+      slides: 8
+
+  - day: 16
+    type: ad_copy
+    slug: ad-launch-facebook
+    payload:
+      product: "AI for Traders & Creators"
+      angle: "Facebook launch ad — social proof and transformation promise"
+
+  - day: 17
+    type: reel
+    slug: reel-first-buyer-reaction
+    payload:
+      topic: "First readers are in — what they're saying after reading AI for Traders & Creators"
+      hook: "People are already DMing me about chapter 3. Here's why."
+
+  - day: 17
+    type: email
+    slug: email-social-proof-ask
+    payload:
+      purpose: "ask buyers to leave an Amazon review and share on social"
+      context: "Sent to people who already bought. Short, casual, grateful. Ask for an honest review on Amazon. Give them a copy-paste review starter they can edit. Thank them."
+
+  - day: 18
+    type: ad_copy
+    slug: ad-launch-instagram
+    payload:
+      product: "AI for Traders & Creators"
+      angle: "Instagram launch ad — visual hook targeting creators who want passive income"
+
+  - day: 18
+    type: carousel
+    slug: carousel-ai-trading-strategy
+    payload:
+      topic: "The exact AI trading strategy from Chapter 4 of the book"
+      slides: 7
+
+  - day: 19
+    type: email
+    slug: email-bundle-upsell
+    payload:
+      purpose: "upsell a bundle — ebook + NarAI access or digital toolkit"
+      context: "Buyers get an offer to upgrade to a bundle including the ebook plus either NarAI access or a digital toolkit. Limited time. Sold on Gumroad or Payhip."
+
+  - day: 19
+    type: reel
+    slug: reel-bundle-offer
+    payload:
+      topic: "Bundle offer — get the book plus NarAI tools for one price"
+      hook: "The book is just the start. Here's what happens when you add the AI on top."
+
+  - day: 20
+    type: carousel
+    slug: carousel-review-highlights
+    payload:
+      topic: "Readers are talking — early review highlights from AI for Traders & Creators"
+      slides: 5
+
+  - day: 20
+    type: reminder
+    slug: reminder-review-asks
+    payload:
+      text: "Manually DM your top 10 engaged followers and ask them to check out the book. Personalized message, not a copy-paste blast. Offer a free bonus if they review it."
+
+  - day: 21
+    type: analytics_pull
+    slug: analytics-week3
+    payload:
+      sources: [gumroad, convertkit]
+
+  - day: 21
+    type: email
+    slug: email-week3-recap
+    payload:
+      purpose: "week 3 recap — celebrate wins, share numbers, keep momentum"
+      context: "Share rough launch week numbers (downloads, reviews, revenue). Thank the community. Hint at what's coming next — more content, more tools, next book."
+
+  # ─── Week 4: Scale (Days 22–30) ──────────────────────────────────────────
+
+  - day: 22
+    type: reel
+    slug: reel-repost-top1
+    payload:
+      topic: "Repost of the top-performing reel from Week 1 — why traders lose while AI wins"
+      hook: "This one keeps getting reshared. Posting it again for new followers."
+
+  - day: 22
+    type: carousel
+    slug: carousel-community-cta
+    payload:
+      topic: "Join the community — where traders and creators using AI hang out"
+      slides: 5
+
+  - day: 23
+    type: email
+    slug: email-weekly-newsletter-1
+    payload:
+      purpose: "first weekly newsletter — AI tools, trading tips, book update"
+      context: "This is the start of a recurring newsletter. Mix of: 1 AI tool they can use today, 1 insight from the book, 1 market or creator economy observation. Short. No fluff."
+
+  - day: 23
+    type: ad_copy
+    slug: ad-amazon-ads-draft
+    payload:
+      product: "AI for Traders & Creators on Amazon KDP"
+      angle: "Amazon Sponsored Products ad — keyword-targeted, low-bid, high-intent buyers"
+
+  - day: 24
+    type: reel
+    slug: reel-tiktok-crosspost
+    payload:
+      topic: "Cross-posting the best reel to TikTok — AI trading and creator income"
+      hook: "TikTok version: The one AI move that separates profitable traders from the rest."
+
+  - day: 24
+    type: reminder
+    slug: reminder-amazon-ads-activate
+    payload:
+      text: "Set up Amazon Sponsored Products ads today. Budget $5/day. Target your own book keywords from kdp-keywords-launch.json. Bid $0.35–$0.50 per click to start."
+
+  - day: 25
+    type: carousel
+    slug: carousel-creator-workflow
+    payload:
+      topic: "My full AI creator workflow — from idea to published content in under an hour"
+      slides: 7
+
+  - day: 25
+    type: email
+    slug: email-mid-month-push
+    payload:
+      purpose: "mid-month push — remind subscribers the book is still available, share a new insight"
+      context: "Some people saw the launch and didn't buy yet. Soft reminder. Share one new takeaway or use case from the book that they haven't heard before."
+
+  - day: 26
+    type: reel
+    slug: reel-narai-behind-scenes
+    payload:
+      topic: "Behind the scenes of NarAI — the system running my entire digital business"
+      hook: "This is what 6 months of building looks like when you let AI do the heavy lifting."
+
+  - day: 26
+    type: ad_copy
+    slug: ad-payhip-bundle
+    payload:
+      product: "AI Toolkit Bundle on Payhip — ebook plus templates plus NarAI guide"
+      angle: "value stack — show everything in the bundle vs. the price"
+
+  - day: 27
+    type: email
+    slug: email-final-week-push
+    payload:
+      purpose: "final week push — last chance messaging before the 30-day campaign closes"
+      context: "This is the last major send. The launch pricing and bundle deals end soon. Drive urgency. Recap the transformation: from struggling trader or creator to AI-powered."
+
+  - day: 27
+    type: carousel
+    slug: carousel-results-so-far
+    payload:
+      topic: "30 days of launching — real results and what I learned"
+      slides: 6
+
+  - day: 28
+    type: analytics_pull
+    slug: analytics-week4
+    payload:
+      sources: [gumroad, convertkit]
+
+  - day: 28
+    type: reel
+    slug: reel-lessons-learned
+    payload:
+      topic: "What I learned launching an AI book in 30 days"
+      hook: "30 days. One book. A lot of data. Here's what actually moved the needle."
+
+  - day: 29
+    type: email
+    slug: email-30day-finale
+    payload:
+      purpose: "30-day campaign finale — close the loop, thank the audience, tease what's next"
+      context: "Final campaign email. Thank everyone who bought, shared, reviewed. Share a real number or two. Tease the next project or next book. Keep the relationship warm."
+
+  - day: 29
+    type: carousel
+    slug: carousel-next-product-tease
+    payload:
+      topic: "What's coming next from Jhon Wheeler — teasing the next product or book"
+      slides: 4
+
+  - day: 30
+    type: analytics_pull
+    slug: analytics-final
+    payload:
+      sources: [gumroad, convertkit]
+
+  - day: 30
+    type: reminder
+    slug: reminder-final-retro
+    payload:
+      text: "Run your final 30-day retro. Compare: Gumroad sales, ConvertKit subscriber growth, Instagram follower delta, top-performing content, Amazon KDP rank and reviews. Document in a doc for next launch."
