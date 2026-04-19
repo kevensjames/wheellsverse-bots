@@ -1,3 +1,4 @@
+# cache-bust: 2026-04-19
 [phases.setup]
 nixPkgs = ["python311", "gcc", "libffi", "openssl"]
 
