@@ -527,6 +527,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
     <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
     <div class="nav-item" onclick="nav('toodle')" id="nav-toodle" style="background:linear-gradient(90deg,rgba(255,64,129,.18),transparent);border-left:2px solid #ff4081;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎯</span><span style="color:#ff6eb4;font-weight:700">Toodle</span></div>
+    <div class="nav-item" onclick="nav('sol')" id="nav-sol" style="background:linear-gradient(90deg,rgba(255,215,0,.15),transparent);border-left:2px solid #ffd700;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#ffd700;font-weight:700">Sol</span></div>
     <!-- Intelligence -->
     <div class="nav-sec" style="color:rgba(0,200,255,.6);font-size:8px;letter-spacing:2.5px">INTELLIGENCE</div>
     <div class="nav-item" onclick="nav('autopilot')" id="nav-autopilot" style="background:linear-gradient(90deg,rgba(0,255,170,.15),transparent);border-left:2px solid #00ffaa;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#00ffaa;font-weight:700">Autopilot</span></div>
@@ -3595,6 +3596,21 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 </div>
 
+<!-- ══ SOL ADMIN PAGE ═══════════════════════════════════════════════════════ -->
+<div class="page" id="page-sol" style="height:calc(100vh - 90px);overflow:hidden;position:relative">
+  <div class="sh" style="margin-bottom:12px">
+    <div>
+      <div class="st">💰 Sol — ROSCA Admin</div>
+      <div class="ss">Savings circles · Payments · Payouts · Reconciliation</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <a href="/sol/admin" target="_blank" class="btn bg2 bsm">↗ Open in new tab</a>
+      <a href="/sol" target="_blank" class="btn bg2 bsm">👤 User app</a>
+    </div>
+  </div>
+  <iframe id="sol-admin-frame" src="about:blank" style="width:100%;height:calc(100% - 70px);border:1px solid rgba(255,215,0,.15);border-radius:10px;background:#05070d" loading="lazy"></iframe>
+</div>
+
 <!-- ══ WORDPRESS PAGE ══════════════════════════════════════════════════════ -->
 <div class="page" id="page-wordpress">
   <!-- Header -->
@@ -6408,7 +6424,7 @@ curl -X POST /v1/bots/run \
 const API=window.location.origin;
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System'};
+const TITLES={aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -6451,6 +6467,7 @@ function nav(p){
   if(p==='publisherengine') peLoad();
   if(p==='money') refreshMoney();
   if(p==='nexora') refreshNexora();
+  if(p==='sol'){ const f=document.getElementById('sol-admin-frame'); if(f && (!f.src || f.src==='about:blank')) f.src='/sol/admin'; }
   if(p==='toodle') toodleRefresh();
   if(p==='pixelagents') initPixelAgents();
   if(p==='narai'){ initNarAI(); naraiLoadProposals(); }
