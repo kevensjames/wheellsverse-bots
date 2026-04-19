@@ -82,7 +82,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="field"><label>Admin email</label>
       <input type="email" id="aEmail" placeholder="admin@wheellsverse.com"></div>
     <div class="field"><label>Password</label>
-      <input type="password" id="aPassword" placeholder="••••••••"></div>
+      <div style="position:relative">
+        <input type="password" id="aPassword" placeholder="••••••••" style="padding-right:3rem" autocomplete="current-password">
+        <button type="button" id="pwToggle" onclick="togglePw()" style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);font-size:.75rem;cursor:pointer;padding:.25rem .5rem">show</button>
+      </div></div>
     <p style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem" id="loginHint"></p>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn" onclick="adminLogin()">Sign in</button>
   </div>
@@ -265,6 +268,13 @@ async function adminLogin() {
     hint.style.color = 'var(--red)';
   }
   btn.disabled = false; btn.textContent = 'Sign in';
+}
+
+function togglePw() {
+  const i = document.getElementById('aPassword');
+  const b = document.getElementById('pwToggle');
+  if (i.type === 'password') { i.type = 'text'; b.textContent = 'hide'; }
+  else { i.type = 'password'; b.textContent = 'show'; }
 }
 
 function adminLogout() {
