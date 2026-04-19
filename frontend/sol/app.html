@@ -141,8 +141,36 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <!-- Bank -->
   <div class="page" id="page-bank">
     <h1>Linked bank accounts</h1>
-    <p class="sub">Managed via Plaid — contact support to add accounts</p>
+    <p class="sub">Connect your bank account to receive payouts and make contributions.</p>
+
     <div id="bankList"><div class="spinner"></div></div>
+
+    <div style="margin-top:2rem;max-width:480px">
+      <h2 style="font-size:1.1rem;margin-bottom:1rem">Add bank account</h2>
+      <form id="bankForm" onsubmit="handleAddBank(event)" style="display:flex;flex-direction:column;gap:.85rem">
+        <div>
+          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Bank name</label>
+          <input id="bankName" class="input" type="text" placeholder="e.g. Chase, Wells Fargo" required>
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Routing number (9 digits)</label>
+          <input id="routingNumber" class="input" type="text" inputmode="numeric" maxlength="9" minlength="9" pattern="[0-9]{9}" placeholder="021000021" required>
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Account number</label>
+          <input id="accountNumber" class="input" type="text" inputmode="numeric" placeholder="Your checking/savings account number" required>
+        </div>
+        <div>
+          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Account type</label>
+          <select id="accountType" class="input">
+            <option value="checking">Checking</option>
+            <option value="savings">Savings</option>
+          </select>
+        </div>
+        <div id="bankErr" style="color:#f87171;font-size:.85rem;display:none"></div>
+        <button id="bankBtn" class="btn btn-primary" type="submit">Connect account</button>
+      </form>
+    </div>
   </div>
 </main>
 
@@ -374,20 +402,21 @@ async function loadBank() {
   try {
     const accounts = await api('/bank/list');
     if (!accounts.length) {
-      el.innerHTML = '<div class="empty">No bank accounts linked yet.<br>Contact support to connect your bank via Plaid.</div>';
+      el.innerHTML = '<div class="empty" style="margin-bottom:1.5rem">No bank accounts linked yet. Add one below.</div>';
       return;
     }
-    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:.75rem;max-width:600px">
+    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:.75rem;max-width:600px;margin-bottom:1.5rem">
       ${accounts.map(a => `
         <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
           <div>
-            <div style="font-weight:600">${a.institution_name}</div>
-            <div style="font-size:.8rem;color:var(--muted)">${a.account_type} ···· ${a.last4}</div>
+            <div style="font-weight:600">${a.institution_name || 'Bank'}</div>
+            <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
           </div>
           <div style="display:flex;align-items:center;gap:.75rem">
             ${badge(a.status)}
             ${a.is_primary ? '<span style="color:var(--gold);font-size:.8rem">★ Primary</span>' :
               `<button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem" onclick="setPrimary('${a.id}')">Set primary</button>`}
+            <button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem;color:#f87171" onclick="removeBank('${a.id}')">Remove</button>
           </div>
         </div>`).join('')}
     </div>`;
@@ -396,9 +425,40 @@ async function loadBank() {
 
 async function setPrimary(id) {
   try {
-    await api(`/bank/${id}`, { method:'PATCH' });
+    await api(`/bank/${id}/primary`, { method:'PATCH' });
     loadBank();
   } catch(e) { alert(e.message); }
+}
+
+async function removeBank(id) {
+  if (!confirm('Remove this bank account?')) return;
+  try {
+    await api(`/bank/${id}`, { method:'DELETE' });
+    loadBank();
+  } catch(e) { alert(e.message); }
+}
+
+async function handleAddBank(e) {
+  e.preventDefault();
+  const btn = document.getElementById('bankBtn');
+  const err = document.getElementById('bankErr');
+  err.style.display = 'none';
+  btn.textContent = 'Connecting…'; btn.disabled = true;
+  try {
+    await api('/bank/manual', {
+      method: 'POST',
+      body: JSON.stringify({
+        institution_name: document.getElementById('bankName').value.trim(),
+        routing_number:   document.getElementById('routingNumber').value.trim(),
+        account_number:   document.getElementById('accountNumber').value.trim(),
+        account_type:     document.getElementById('accountType').value,
+      }),
+    });
+    document.getElementById('bankForm').reset();
+    loadBank();
+  } catch(ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+  } finally { btn.textContent = 'Connect account'; btn.disabled = false; }
 }
 
 init();
