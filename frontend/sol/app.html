@@ -83,6 +83,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <a class="nav-item" data-page="bank" onclick="nav('bank')">
     <span class="nav-icon">◇</span> Bank
   </a>
+  <a class="nav-item" data-page="payments" onclick="nav('payments')">
+    <span class="nav-icon">⟳</span> Payments
+  </a>
   <button class="nav-item logout" onclick="logout()">
     <span class="nav-icon">→</span> Sign out
   </button>
@@ -138,6 +141,13 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     <div id="kycContent"><div class="spinner"></div></div>
   </div>
 
+  <!-- Payments -->
+  <div class="page" id="page-payments">
+    <h1>My payments</h1>
+    <p class="sub">All contributions across your circles</p>
+    <div id="paymentsList"><div class="spinner"></div></div>
+  </div>
+
   <!-- Bank -->
   <div class="page" id="page-bank">
     <h1>Linked bank accounts</h1>
@@ -190,6 +200,7 @@ function nav(page) {
   if (page === 'groups') loadGroups();
   if (page === 'kyc') loadKYC();
   if (page === 'bank') loadBank();
+  if (page === 'payments') loadMyPayments();
 }
 
 function logout() {
@@ -304,9 +315,45 @@ async function showGroup(id) {
   const el = document.getElementById('groupDetail');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    const [g, members] = await Promise.all([api(`/groups/${id}`), api(`/groups/${id}/members`)]);
+    // members embedded in group response — no separate /members call needed
+    const [g, myPayments] = await Promise.all([
+      api(`/groups/${id}`),
+      api(`/groups/${id}/my-payments`).catch(() => []),
+    ]);
+    const members = g.members || [];
     const isMember = members.some(m => m.user_id === me.id);
     const canJoin = g.status === 'FORMING' && !isMember;
+    const cycle = g.current_cycle;
+    const myLatestPayment = myPayments[0] || null;
+
+    // Cycle status card (shown when group is active and has a cycle)
+    let cycleSection = '';
+    if (cycle && ['COLLECTING','SETTLING','ACTIVE'].includes(g.status)) {
+      const paid = cycle.total_collected_cents / g.contribution_cents;
+      const pct = Math.min(100, Math.round(paid / g.max_members * 100));
+      const isRecipient = cycle.recipient_id === me?.id;
+      const myPaymentHtml = myLatestPayment
+        ? `<div style="margin-top:.75rem;display:flex;align-items:center;gap:.75rem">
+            <span style="font-size:.8rem;color:var(--muted)">My contribution:</span>
+            ${badge(myLatestPayment.status)} <span style="font-size:.8rem">${fmt$(myLatestPayment.amount_cents)}</span>
+            ${myLatestPayment.next_retry_at ? `<span style="font-size:.75rem;color:var(--gold)">retry ${new Date(myLatestPayment.next_retry_at).toLocaleString()}</span>` : ''}
+          </div>`
+        : '';
+      const recipientBanner = isRecipient
+        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You are this cycle's payout recipient — ${fmt$(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000))} net will be sent to your bank.</div>`
+        : '';
+      cycleSection = `<div class="card" style="max-width:none;margin-bottom:1.5rem">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
+          <div style="font-weight:600">Cycle ${cycle.cycle_number}</div>${badge(cycle.status)}
+        </div>
+        <div style="background:#0a0e1a;border-radius:.5rem;height:8px;overflow:hidden;margin-bottom:.4rem">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--cyan),var(--green));transition:.4s"></div>
+        </div>
+        <div style="font-size:.75rem;color:var(--muted)">${Math.round(paid)} of ${g.max_members} contributions collected</div>
+        ${myPaymentHtml}${recipientBanner}
+      </div>`;
+    }
+
     el.innerHTML = `
       <div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:start;justify-content:space-between;gap:.5rem;margin-bottom:1rem">
@@ -322,18 +369,19 @@ async function showGroup(id) {
         ${canJoin ? `<button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${g.id}')">Join this circle</button>
         <p class="err" id="joinErr" style="display:none"></p>` : ''}
       </div>
+      ${cycleSection}
       <h3 style="margin-bottom:.75rem">Members</h3>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Position</th><th>User</th><th>Status</th><th>Joined</th></tr></thead>
+          <thead><tr><th>Position</th><th>User</th><th>Status</th><th>Payout received</th></tr></thead>
           <tbody>
             ${members.length ? members.map(m => `
               <tr style="${m.user_id===me.id?'background:rgba(0,212,255,.04)':''}">
                 <td>${m.position ?? '—'}</td>
                 <td>${m.user_id===me.id?'<span style="color:var(--cyan)">You</span>':m.user_id.slice(0,8)+'…'}</td>
                 <td>${badge(m.status)}</td>
-                <td style="color:var(--muted)">${new Date(m.joined_at).toLocaleDateString()}</td>
-              </tr>`) .join('') : '<tr><td colspan="4" class="empty">No members yet</td></tr>'}
+                <td style="color:${m.has_received_payout?'var(--green)':'var(--muted)'}">${m.has_received_payout?'✓ Yes':'—'}</td>
+              </tr>`).join('') : '<tr><td colspan="4" class="empty">No members yet</td></tr>'}
           </tbody>
         </table>
       </div>`;
@@ -420,6 +468,35 @@ async function loadBank() {
           </div>
         </div>`).join('')}
     </div>`;
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+// ── Payments page ─────────────────────────────────────────────────────────────
+async function loadMyPayments() {
+  const el = document.getElementById('paymentsList');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const ps = await api('/payments/my');
+    if (!ps.length) {
+      el.innerHTML = '<div class="empty">No payments yet.</div>';
+      return;
+    }
+    // Group label lookup from groups we loaded earlier; fall back to cycle_id slice
+    const groupsResp = await api('/groups').catch(() => []);
+    const gMap = {};
+    groupsResp.forEach(g => gMap[g.id] = g.name);
+    el.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Amount</th><th>Status</th><th>Attempt</th><th>Next Retry</th></tr></thead>
+      <tbody>
+        ${ps.map(p => `<tr>
+          <td style="color:var(--muted)">${new Date(p.created_at).toLocaleDateString()}</td>
+          <td>${fmt$(p.amount_cents)}</td>
+          <td>${badge(p.status)}</td>
+          <td style="color:var(--muted);text-align:center">${p.attempt_count}</td>
+          <td style="color:var(--muted)">${p.next_retry_at ? new Date(p.next_retry_at).toLocaleString() : '—'}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
 }
 
