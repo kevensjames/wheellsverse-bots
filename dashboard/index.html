@@ -526,6 +526,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('factory')" id="nav-factory" style="background:linear-gradient(90deg,rgba(180,0,255,.15),transparent);border-left:2px solid #b400ff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🏭</span><span style="color:#cc66ff;font-weight:700">Product Factory</span></div>
     <div class="nav-item" onclick="nav('money')" id="nav-money" style="background:linear-gradient(90deg,rgba(0,255,136,.12),transparent);border-left:2px solid #00ff88;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">💰</span><span style="color:#00ff88;font-weight:700">Money Center</span></div>
     <div class="nav-item" onclick="nav('nexora')" id="nav-nexora" style="background:linear-gradient(90deg,rgba(168,85,247,.12),transparent);border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🌐</span><span style="color:#c084fc;font-weight:700">NEXORA</span></div>
+    <div class="nav-item" onclick="nav('toodle')" id="nav-toodle" style="margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎯</span><span>Toodle</span></div>
     <!-- Intelligence -->
     <div class="nav-sec" style="color:rgba(0,200,255,.6);font-size:8px;letter-spacing:2.5px">INTELLIGENCE</div>
     <div class="nav-item" onclick="nav('autopilot')" id="nav-autopilot" style="background:linear-gradient(90deg,rgba(0,255,170,.15),transparent);border-left:2px solid #00ffaa;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#00ffaa;font-weight:700">Autopilot</span></div>
@@ -3482,6 +3483,118 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 </div>
 
 
+<!-- ══ TOODLE — AI Marketing OS ══════════════════════════════════════════════ -->
+<div class="page" id="page-toodle">
+  <div class="sh" style="margin-bottom:16px">
+    <div>
+      <div class="st">🎯 Toodle — AI Marketing OS</div>
+      <div class="ss">One operator. The output of a 10-person agency. Meta · Google · TikTok · LinkedIn</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn bc2 bsm" onclick="toodleRefresh()">↺ Refresh</button>
+      <a href="http://localhost:8000/docs" target="_blank" class="btn bg2 bsm">📖 API Docs</a>
+    </div>
+  </div>
+
+  <!-- Phase progress -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(255,200,0,.2);border-radius:14px;padding:18px 22px;margin-bottom:18px;position:relative;overflow:hidden">
+    <div style="position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,200,0,.5),transparent)"></div>
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,200,0,.7);margin-bottom:14px;font-weight:700">📋 BUILD ROADMAP</div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+      <div style="background:rgba(68,255,136,.12);border:1px solid rgba(68,255,136,.3);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:18px">✅</div>
+        <div style="font-size:9px;font-weight:700;color:#44ff88;margin-top:4px">Phase 0</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);margin-top:2px">Foundations</div>
+      </div>
+      <div style="background:rgba(255,200,0,.06);border:1px solid rgba(255,200,0,.2);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:18px">🔨</div>
+        <div style="font-size:9px;font-weight:700;color:#ffcc00;margin-top:4px">Phase 1</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.5);margin-top:2px">Safety + Meta</div>
+      </div>
+      <div style="background:rgba(0,204,255,.04);border:1px solid rgba(0,204,255,.1);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:18px">⏳</div>
+        <div style="font-size:9px;font-weight:700;color:rgba(0,204,255,.4);margin-top:4px">Phase 2</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.3);margin-top:2px">Intelligence</div>
+      </div>
+      <div style="background:rgba(0,204,255,.04);border:1px solid rgba(0,204,255,.08);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:18px">⏳</div>
+        <div style="font-size:9px;font-weight:700;color:rgba(0,204,255,.3);margin-top:4px">Phase 3</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.3);margin-top:2px">Multi-Agent</div>
+      </div>
+      <div style="background:rgba(0,204,255,.04);border:1px solid rgba(0,204,255,.08);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:18px">⏳</div>
+        <div style="font-size:9px;font-weight:700;color:rgba(0,204,255,.3);margin-top:4px">Phase 4-5</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.3);margin-top:2px">Predictive</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- API Health + Stack -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
+    <!-- API health -->
+    <div style="background:rgba(8,10,18,.8);border:1px solid rgba(68,255,136,.15);border-radius:12px;padding:18px">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:12px">API Status</div>
+      <div id="toodle-health" style="display:flex;align-items:center;gap:10px">
+        <div id="toodle-health-dot" style="width:10px;height:10px;border-radius:50%;background:rgba(148,163,184,.3)"></div>
+        <div id="toodle-health-text" style="font-size:12px;color:rgba(148,163,184,.6)">Checking…</div>
+      </div>
+      <div id="toodle-uptime" style="font-size:9px;color:rgba(148,163,184,.4);margin-top:8px"></div>
+    </div>
+
+    <!-- Target pricing -->
+    <div style="background:rgba(8,10,18,.8);border:1px solid rgba(255,200,0,.15);border-radius:12px;padding:18px">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(255,200,0,.5);margin-bottom:12px">Revenue Target</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">
+        <div style="text-align:center">
+          <div style="font-size:16px;font-weight:900;color:#44ff88">$15k</div>
+          <div style="font-size:8px;color:rgba(148,163,184,.4)">MRR Month 6</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:16px;font-weight:900;color:#00ccff">$80k</div>
+          <div style="font-size:8px;color:rgba(148,163,184,.4)">MRR Month 12</div>
+        </div>
+        <div style="text-align:center">
+          <div style="font-size:16px;font-weight:900;color:#ff6600">$200k</div>
+          <div style="font-size:8px;color:rgba(148,163,184,.4)">MRR Month 18</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tech stack -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:18px;margin-bottom:18px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:12px">Tech Stack</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px" id="toodle-stack"></div>
+  </div>
+
+  <!-- Platform agents status -->
+  <div style="background:rgba(8,10,18,.8);border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:18px">
+    <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:rgba(148,163,184,.5);margin-bottom:12px">Platform Agents</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+      <div style="background:rgba(68,255,136,.06);border:1px solid rgba(68,255,136,.15);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px">📘</div>
+        <div style="font-size:10px;font-weight:700;color:#44ff88;margin-top:4px">Meta</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.4);margin-top:2px">Phase 1</div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px">🔴</div>
+        <div style="font-size:10px;font-weight:700;color:rgba(148,163,184,.4);margin-top:4px">Google</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.3);margin-top:2px">Phase 3</div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px">🎵</div>
+        <div style="font-size:10px;font-weight:700;color:rgba(148,163,184,.4);margin-top:4px">TikTok</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.3);margin-top:2px">Phase 3</div>
+      </div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);border-radius:8px;padding:12px;text-align:center">
+        <div style="font-size:20px">💼</div>
+        <div style="font-size:10px;font-weight:700;color:rgba(148,163,184,.4);margin-top:4px">LinkedIn</div>
+        <div style="font-size:8px;color:rgba(148,163,184,.3);margin-top:2px">Phase 3</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ══ WORDPRESS PAGE ══════════════════════════════════════════════════════ -->
 <div class="page" id="page-wordpress">
   <!-- Header -->
@@ -6295,7 +6408,7 @@ curl -X POST /v1/bots/run \
 const API=window.location.origin;
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar'};
+const TITLES={aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -6338,6 +6451,7 @@ function nav(p){
   if(p==='publisherengine') peLoad();
   if(p==='money') refreshMoney();
   if(p==='nexora') refreshNexora();
+  if(p==='toodle') toodleRefresh();
   if(p==='pixelagents') initPixelAgents();
   if(p==='narai'){ initNarAI(); naraiLoadProposals(); }
   if(p==='whatsapp'){waRefresh();}
@@ -9713,6 +9827,41 @@ function _startKdpPoll(){
 // ═════════════════════════════════════════════════════════════════════════════
 
 // ──────────────────────────────────────────────────────────────────────────────
+// 🎯 Toodle — AI Marketing OS ─────────────────────────────────────────────────
+(function toodleInitStack(){
+  const stack = ['Python 3.12','FastAPI','SQLAlchemy 2.0','Alembic','PostgreSQL 16','TimescaleDB','Redis 7','Celery','Next.js 15','TypeScript','Tailwind','shadcn/ui','Clerk','Stripe','Claude Sonnet','Claude Haiku','Sentry','Docker'];
+  const el = document.getElementById('toodle-stack');
+  if(!el) return;
+  stack.forEach(function(t){
+    const span = document.createElement('span');
+    span.textContent = t;
+    span.style.cssText = 'background:rgba(0,204,255,.08);border:1px solid rgba(0,204,255,.15);border-radius:4px;padding:3px 8px;font-size:9px;color:rgba(0,204,255,.8)';
+    el.appendChild(span);
+  });
+})();
+
+async function toodleRefresh(){
+  const dot = document.getElementById('toodle-health-dot');
+  const txt = document.getElementById('toodle-health-text');
+  const upt = document.getElementById('toodle-uptime');
+  if(txt) txt.textContent = 'Checking API…';
+  try {
+    const r = await fetch('http://localhost:8000/health', {signal: AbortSignal.timeout(3000)});
+    if(r.ok){
+      const d = await r.json();
+      if(dot){ dot.style.background='#44ff88'; dot.style.boxShadow='0 0 8px #44ff88'; }
+      if(txt){ txt.textContent='API online · env: '+d.env; txt.style.color='#44ff88'; }
+      if(upt) upt.textContent='Uptime: '+d.uptime_seconds+'s · v'+d.version;
+    } else {
+      throw new Error('HTTP '+r.status);
+    }
+  } catch(e) {
+    if(dot){ dot.style.background='#ff5050'; dot.style.boxShadow='0 0 8px #ff5050'; }
+    if(txt){ txt.textContent='API offline — run: cd toodle && docker-compose up'; txt.style.color='rgba(148,163,184,.5)'; }
+    if(upt) upt.textContent='Start with: cd /Volumes/Wheellsverse/toodle/infra && docker-compose up';
+  }
+}
+
 // 🌐 NEXORA Control Panel JS
 // ──────────────────────────────────────────────────────────────────────────────
 
