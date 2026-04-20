@@ -12767,6 +12767,23 @@ if _v2_auth_loaded:
     except Exception as _e:
         logger.warning(f"NarAI v2 trading not loaded: {_e}")
 
+    # NarAI v2 Domains 2-7: content, sales, research, ops, creative, kdp
+    for _domain_name, _module_path in [
+        ("content",  "narai.api.routes.content"),
+        ("sales",    "narai.api.routes.sales"),
+        ("research", "narai.api.routes.research"),
+        ("ops",      "narai.api.routes.ops"),
+        ("creative", "narai.api.routes.creative"),
+        ("kdp",      "narai.api.routes.kdp"),
+    ]:
+        try:
+            import importlib as _il
+            _mod = _il.import_module(_module_path)
+            app.include_router(_mod.rt, prefix="/api/v2/narai")
+            logger.info(f"NarAI v2 {_domain_name} loaded at /api/v2/narai/{_domain_name}")
+        except Exception as _e:
+            logger.warning(f"NarAI v2 {_domain_name} not loaded: {_e}")
+
 
 # ── NarAI Marketing Autopilot ─────────────────────────────────────────────────
 try:

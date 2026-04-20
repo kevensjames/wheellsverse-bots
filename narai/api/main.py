@@ -13,6 +13,12 @@ from narai.api.routes.chat import rt as chat_rt
 from narai.api.routes.memory import rag_rt, rt as memory_rt
 from narai.api.routes.skills_route import rt as skills_rt
 from narai.api.routes.trading import rt as trading_rt
+from narai.api.routes.content import rt as content_rt
+from narai.api.routes.sales import rt as sales_rt
+from narai.api.routes.research import rt as research_rt
+from narai.api.routes.ops import rt as ops_rt
+from narai.api.routes.creative import rt as creative_rt
+from narai.api.routes.kdp import rt as kdp_rt
 from narai.core.db import init_db
 from narai.core.resilience import breaker_status
 
@@ -45,6 +51,12 @@ app.include_router(memory_rt, prefix="/api/v2/narai")
 app.include_router(rag_rt, prefix="/api/v2/narai")
 app.include_router(skills_rt, prefix="/api/v2/narai")
 app.include_router(trading_rt, prefix="/api/v2/narai")
+app.include_router(content_rt, prefix="/api/v2/narai")
+app.include_router(sales_rt, prefix="/api/v2/narai")
+app.include_router(research_rt, prefix="/api/v2/narai")
+app.include_router(ops_rt, prefix="/api/v2/narai")
+app.include_router(creative_rt, prefix="/api/v2/narai")
+app.include_router(kdp_rt, prefix="/api/v2/narai")
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
