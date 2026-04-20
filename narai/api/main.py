@@ -12,6 +12,7 @@ from narai.api.auth import create_token, verify_password
 from narai.api.routes.chat import rt as chat_rt
 from narai.api.routes.memory import rag_rt, rt as memory_rt
 from narai.api.routes.skills_route import rt as skills_rt
+from narai.api.routes.trading import rt as trading_rt
 from narai.core.db import init_db
 from narai.core.resilience import breaker_status
 
@@ -43,6 +44,7 @@ app.include_router(chat_rt, prefix="/api/v2/narai")
 app.include_router(memory_rt, prefix="/api/v2/narai")
 app.include_router(rag_rt, prefix="/api/v2/narai")
 app.include_router(skills_rt, prefix="/api/v2/narai")
+app.include_router(trading_rt, prefix="/api/v2/narai")
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────

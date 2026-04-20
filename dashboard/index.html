@@ -876,6 +876,21 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         </div>
       </div>
 
+      <!-- Trading (NarAI v2) -->
+      <div id="narai-trading-panel" style="background:rgba(0,204,136,.06);border:1px solid rgba(0,204,136,.25);border-radius:10px;padding:8px 10px;flex-shrink:0;display:none">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+          <div style="font-size:7px;font-weight:900;color:#00cc88;letter-spacing:2px;text-transform:uppercase">📈 TRADING</div>
+          <span id="narai-trading-equity" style="font-size:9px;color:#00cc88;font-weight:700">—</span>
+        </div>
+        <div style="display:flex;gap:4px;margin-bottom:5px">
+          <input id="narai-trade-symbol" placeholder="AAPL" class="nr-input" style="flex:1;font-size:9px;padding:4px 6px;text-transform:uppercase;border-color:rgba(0,204,136,.3)">
+          <button onclick="naraiTradeForecast()" title="Forecast" style="background:rgba(0,204,136,.15);border:1px solid rgba(0,204,136,.35);color:#00cc88;border-radius:6px;padding:3px 8px;font-size:9px;cursor:pointer;font-family:inherit">🔮</button>
+          <button onclick="naraiTradeBacktest()" title="Backtest" style="background:rgba(136,68,255,.15);border:1px solid rgba(136,68,255,.35);color:#cc88ff;border-radius:6px;padding:3px 8px;font-size:9px;cursor:pointer;font-family:inherit">🧪</button>
+        </div>
+        <div id="narai-trade-output" style="font-size:8px;color:var(--text2);max-height:80px;overflow-y:auto;scrollbar-width:thin;line-height:1.4"></div>
+        <div id="narai-trade-positions" style="margin-top:5px;display:flex;flex-direction:column;gap:2px;max-height:70px;overflow-y:auto;scrollbar-width:thin"></div>
+      </div>
+
       <!-- Skill Forge (compact) -->
       <div style="background:rgba(255,204,68,.05);border:1px solid rgba(255,204,68,.2);border-radius:10px;padding:8px 10px;flex-shrink:0">
         <div style="font-size:7px;font-weight:900;color:#ffcc44;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px">⚡ SKILL FORGE</div>
@@ -18192,7 +18207,7 @@ async function blPortal() {
 }
 
 // ── NarAI v2 ─────────────────────────────────────────────────────────────────
-const NARAI_V2_BASE = 'http://localhost:5051/api/v2/narai';
+const NARAI_V2_BASE = '/api/v2/narai';
 let _v2Active = localStorage.getItem('narai_v2_active') === '1';
 let _v2Token  = localStorage.getItem('narai_v2_token') || '';
 
@@ -18305,6 +18320,147 @@ async function naraiSendVoice() {
 
 // Restore state on load
 window.addEventListener('load', _v2ApplyState);
+
+// ── Trading panel ───────────────────────────────────────────────────────────
+function _tradeFmt(n, pfx) {
+  pfx = pfx || '$';
+  if (n === null || n === undefined || Number.isNaN(+n)) return '—';
+  return pfx + (+n).toLocaleString(undefined, {maximumFractionDigits: 2});
+}
+function _tradeColor(n) { return +n >= 0 ? '#00cc88' : '#ff5566'; }
+
+function _mk(tag, attrs, children) {
+  const el = document.createElement(tag);
+  if (attrs) {
+    for (const k in attrs) {
+      if (k === 'style') el.style.cssText = attrs[k];
+      else if (k === 'text') el.textContent = attrs[k];
+      else el.setAttribute(k, attrs[k]);
+    }
+  }
+  if (children) for (const c of children) el.appendChild(c);
+  return el;
+}
+
+function _v2TradingApply() {
+  const panel = document.getElementById('narai-trading-panel');
+  if (!panel) return;
+  panel.style.display = _v2Active ? '' : 'none';
+  if (_v2Active) naraiTradeRefreshStatus();
+}
+const _prevV2Apply = _v2ApplyState;
+_v2ApplyState = function() { _prevV2Apply(); _v2TradingApply(); };
+
+async function _v2Api(path, opts) {
+  opts = opts || {};
+  if (!_v2Token) throw new Error('v2 not logged in');
+  const headers = Object.assign({}, opts.headers || {}, {'Content-Type':'application/json', 'Authorization':'Bearer '+_v2Token});
+  const r = await fetch(NARAI_V2_BASE + path, Object.assign({}, opts, {headers}));
+  if (r.status === 401) {
+    _v2Token=''; localStorage.removeItem('narai_v2_token'); _v2Active=false;
+    localStorage.setItem('narai_v2_active','0'); _v2ApplyState();
+    throw new Error('session expired');
+  }
+  const d = await r.json().catch(function(){return {};});
+  if (!r.ok) throw new Error(d && d.detail || ('HTTP '+r.status));
+  return d;
+}
+
+function _renderForecast(f) {
+  const out = document.getElementById('narai-trade-output');
+  out.textContent = '';
+  const arrow = f.direction==='up' ? '▲' : f.direction==='down' ? '▼' : '→';
+  const color = f.direction==='up' ? '#00cc88' : f.direction==='down' ? '#ff5566' : '#ffcc44';
+  out.appendChild(_mk('div', {style:'color:'+color+';font-weight:700', text: arrow+' '+f.symbol+' '+f.direction.toUpperCase()+' · '+(f.confidence*100).toFixed(0)+'%'}));
+  out.appendChild(_mk('div', {style:'color:var(--text2)', text: 'Last '+_tradeFmt(f.last_close)+' → '+_tradeFmt(f.prediction)+' ('+f.horizon_days+'d)'}));
+  const sigs = Object.keys(f.signals).map(function(k){return k+':'+(+f.signals[k]).toFixed(2);}).join(' · ');
+  out.appendChild(_mk('div', {style:'color:var(--text3);font-size:7px;margin-top:3px', text: sigs}));
+}
+
+async function naraiTradeForecast() {
+  const symIn = (document.getElementById('narai-trade-symbol')||{}).value || '';
+  const sym = symIn.trim().toUpperCase();
+  if (!sym) return;
+  const out = document.getElementById('narai-trade-output');
+  out.textContent = 'forecasting '+sym+'…';
+  try {
+    const d = await _v2Api('/trading/forecast', {method:'POST', body: JSON.stringify({symbol: sym, horizon_days: 5, use_sentiment: true})});
+    _renderForecast(d.forecast);
+  } catch(e) {
+    out.textContent = ''; out.appendChild(_mk('span', {style:'color:#ff5566', text: e.message}));
+  }
+}
+
+function _renderBacktest(r) {
+  const out = document.getElementById('narai-trade-output');
+  out.textContent = '';
+  const color = _tradeColor(r.total_return_pct);
+  out.appendChild(_mk('div', {style:'color:'+color+';font-weight:700', text: r.symbol+' · '+r.strategy}));
+  out.appendChild(_mk('div', {text: 'Return '+r.total_return_pct+'% · Sharpe '+r.sharpe+' · DD '+r.max_drawdown_pct+'%'}));
+  out.appendChild(_mk('div', {style:'color:var(--text3)', text: r.n_trades+' trades · '+r.win_rate_pct+'% wins · '+_tradeFmt(r.final_equity)}));
+}
+
+async function naraiTradeBacktest() {
+  const symIn = (document.getElementById('narai-trade-symbol')||{}).value || '';
+  const sym = symIn.trim().toUpperCase();
+  if (!sym) return;
+  const out = document.getElementById('narai-trade-output');
+  out.textContent = 'backtesting '+sym+' SMA(20/50) 2y…';
+  try {
+    const d = await _v2Api('/trading/backtest', {method:'POST', body: JSON.stringify({symbol: sym, period:'2y', fast:20, slow:50})});
+    _renderBacktest(d.result);
+  } catch(e) {
+    out.textContent = ''; out.appendChild(_mk('span', {style:'color:#ff5566', text: e.message}));
+  }
+}
+
+function _renderPositions(positions, summary) {
+  const posEl = document.getElementById('narai-trade-positions');
+  posEl.textContent = '';
+  if (!positions.length) {
+    posEl.appendChild(_mk('div', {
+      style: 'font-size:8px;color:var(--text3);text-align:center;padding:3px',
+      text: 'No open positions · '+summary.n_trades+' closed · '+summary.win_rate_pct+'% wins',
+    }));
+    return;
+  }
+  for (const p of positions) {
+    const row = _mk('div', {style:'display:flex;justify-content:space-between;align-items:center;font-size:8px;padding:2px 4px;background:rgba(0,204,136,.06);border-radius:4px'});
+    row.appendChild(_mk('span', {style:'font-weight:700', text: p.symbol+' × '+p.shares}));
+    row.appendChild(_mk('span', {
+      style: 'color:'+_tradeColor(p.unrealized_pnl),
+      text: (p.unrealized_pnl>=0?'+':'')+_tradeFmt(p.unrealized_pnl)+' ('+p.return_pct+'%)',
+    }));
+    const btn = _mk('button', {style:'background:none;border:none;color:#ff5566;cursor:pointer;font-size:9px', text:'✕', title:'Close '+p.symbol});
+    btn.addEventListener('click', function(){ naraiTradeSell(p.symbol); });
+    row.appendChild(btn);
+    posEl.appendChild(row);
+  }
+}
+
+async function naraiTradeRefreshStatus() {
+  try {
+    const d = await _v2Api('/trading/paper/status');
+    const s = d.status;
+    const eqEl = document.getElementById('narai-trading-equity');
+    if (eqEl) {
+      eqEl.textContent = _tradeFmt(s.equity) + ' (' + (s.total_return_pct>=0?'+':'') + s.total_return_pct + '%)';
+      eqEl.style.color = _tradeColor(s.total_return_pct);
+    }
+    _renderPositions(s.open_positions, s);
+  } catch(e) { /* silent — panel may be hidden */ }
+}
+
+async function naraiTradeSell(symbol) {
+  if (!confirm('Close '+symbol+'?')) return;
+  try {
+    await _v2Api('/trading/paper/sell', {method:'POST', body: JSON.stringify({symbol: symbol, reason:'manual'})});
+    naraiTradeRefreshStatus();
+  } catch(e) { alert('sell failed: '+e.message); }
+}
+
+// Auto-refresh every 30 s when v2 active
+setInterval(function(){ if (_v2Active) naraiTradeRefreshStatus(); }, 30000);
 </script>
 
 </body>
