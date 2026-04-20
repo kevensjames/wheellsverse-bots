@@ -473,8 +473,23 @@ async function showGroup(id) {
           <div><div style="font-size:.72rem;color:var(--muted)">Cycle</div><div style="font-weight:600">${g.current_cycle_number}</div></div>
           <div><div style="font-size:.72rem;color:var(--muted)">Fee</div><div style="font-weight:600">${g.fee_bps/100}%</div></div>
         </div>
-        ${canJoin ? `<button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${g.id}')">Join this circle</button>
-        <p class="err" id="joinErr" style="display:none"></p>` : ''}
+        ${canJoin ? (() => {
+          // Payout preview: if user joins now, they'd be position (members.length + 1).
+          // With 10% fee, net payout per member = pool * 0.9.
+          const yourPosition = members.length + 1;
+          const netPayout = Math.round(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000));
+          const totalContributions = g.contribution_cents * g.max_members;
+          const moneyOverTime = '<strong>$' + (netPayout/100).toLocaleString('en-US',{minimumFractionDigits:2}) + '</strong>';
+          return `
+            <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:.6rem;padding:.9rem 1rem;margin-bottom:1rem;font-size:.85rem">
+              <div style="color:var(--cyan);font-weight:600;margin-bottom:.3rem">Join preview</div>
+              <div style="color:var(--text);margin-bottom:.2rem">You'd be position <strong style="color:var(--gold)">${yourPosition}</strong> of ${g.max_members} in the payout rotation.</div>
+              <div style="color:var(--muted);font-size:.8rem">You'll contribute ${fmt$(g.contribution_cents)} each cycle for ${g.max_members} cycles (total ${fmt$(totalContributions)}) and receive ${moneyOverTime} on cycle ${yourPosition} (10% platform fee applied).</div>
+            </div>
+            <button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${g.id}')">Join this circle</button>
+            <p class="err" id="joinErr" style="display:none"></p>
+          `;
+        })() : ''}
       </div>
       ${cycleSection}
       <h3 style="margin-bottom:.75rem">Members</h3>
