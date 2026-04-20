@@ -683,7 +683,8 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/shopify-autopilot/", "/api/shopify/agents/",
                              "/api/shopify/media/", "/api/shopify/intelligence/",
                              "/api/shopify/", "/api/narai/schedules", "/api/sa/",
-                             "/api/narai/run", "/api/narai/revenue", "/api/narai/status")
+                             "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
+                             "/api/v2/narai/")  # v2 uses its own JWT auth
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -12711,6 +12712,60 @@ async def email_subscribe(req: SubscribeRequest):
         logger.warning(f"ConvertKit subscribe failed for {req.email}: {e}")
         # Don't expose internal errors — return success to user regardless
         return {"subscribed": True, "email": req.email}
+
+
+# ── NarAI v2 — routes + auth under /api/v2/narai ──────────────────────────────
+# Two-layer load: auth/health are pure-Python (always work); chat/memory/RAG need
+# chromadb and degrade gracefully if it isn't installed in the current venv.
+_v2_auth_loaded = False
+try:
+    from pydantic import BaseModel as _V2BaseModel
+    from narai.api.auth import create_token as _v2_create_token, verify_password as _v2_verify_password
+
+    class _V2LoginRequest(_V2BaseModel):
+        password: str
+
+    @app.post("/api/v2/narai/auth/login")
+    def _v2_login(req: _V2LoginRequest) -> dict:
+        if not _v2_verify_password(req.password):
+            raise HTTPException(status_code=401, detail="Wrong password")
+        return {"token": _v2_create_token()}
+
+    @app.get("/api/v2/narai/health")
+    def _v2_health() -> dict:
+        return {"status": "ok", "v2_chat": _v2_auth_loaded and "_v2_chat_rt" in globals()}
+
+    _v2_auth_loaded = True
+    logger.info("NarAI v2 auth/health loaded at /api/v2/narai")
+except Exception as _e:
+    logger.warning(f"NarAI v2 auth not loaded: {_e}")
+
+if _v2_auth_loaded:
+    try:
+        import asyncio as _v2_asyncio
+        from narai.api.routes.chat import rt as _v2_chat_rt
+        from narai.api.routes.memory import rag_rt as _v2_rag_rt, rt as _v2_memory_rt
+        from narai.api.routes.skills_route import rt as _v2_skills_rt
+        from narai.core.db import init_db as _v2_init_db
+        from narai.core.resilience import breaker_status as _v2_breaker_status
+
+        app.include_router(_v2_chat_rt, prefix="/api/v2/narai")
+        app.include_router(_v2_memory_rt, prefix="/api/v2/narai")
+        app.include_router(_v2_rag_rt, prefix="/api/v2/narai")
+        app.include_router(_v2_skills_rt, prefix="/api/v2/narai")
+
+        _v2_asyncio.run(_v2_init_db())
+        logger.info("NarAI v2 chat/memory/rag/skills loaded at /api/v2/narai")
+    except Exception as _e:
+        logger.warning(f"NarAI v2 chat/memory/rag not loaded (chromadb missing?): {_e}")
+
+    # NarAI v2 Trading (Phase 1): forecast / sentiment / backtest / paper broker
+    try:
+        from narai.api.routes.trading import rt as _v2_trading_rt
+        app.include_router(_v2_trading_rt, prefix="/api/v2/narai")
+        logger.info("NarAI v2 trading loaded at /api/v2/narai/trading")
+    except Exception as _e:
+        logger.warning(f"NarAI v2 trading not loaded: {_e}")
 
 
 # ── NarAI Marketing Autopilot ─────────────────────────────────────────────────
