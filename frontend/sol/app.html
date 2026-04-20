@@ -110,6 +110,23 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <div class="page active" id="page-dashboard">
     <h1 id="welcomeMsg">Welcome back</h1>
     <p class="sub">Your savings overview</p>
+
+    <!-- Onboarding progress checklist (hidden once complete) -->
+    <div id="onboardingCard" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(0,212,255,.3);background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04))">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
+        <div>
+          <div style="font-weight:700;font-size:1rem">Get started</div>
+          <div style="font-size:.8rem;color:var(--muted)">Complete these steps to join your first circle</div>
+        </div>
+        <div id="onbProgress" style="font-size:.85rem;color:var(--cyan);font-weight:600">0 of 3</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.6rem">
+        <div id="onbStep-kyc" class="onb-step"></div>
+        <div id="onbStep-bank" class="onb-step"></div>
+        <div id="onbStep-verify" class="onb-step"></div>
+      </div>
+    </div>
+
     <div class="cards">
       <div class="card"><div class="card-label">Account</div><div class="card-val" id="dAcct">—</div></div>
       <div class="card"><div class="card-label">KYC Status</div><div class="card-val" id="dKyc">—</div></div>
@@ -271,9 +288,74 @@ async function init() {
     document.getElementById('dSuccess').textContent = me.successful_payments;
     document.getElementById('dFailed').textContent = me.failed_payments;
     loadDashGroups();
+    loadOnboarding();  // fire-and-forget — renders checklist once banks arrive
   } catch {
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';
+  }
+}
+
+// ── Onboarding checklist ──────────────────────────────────────────────────────
+// Shows 3 steps: Verify ID, Link bank, Verify bank. Hides once all complete.
+async function loadOnboarding() {
+  const card = document.getElementById('onboardingCard');
+  if (!card) return;
+  let banks = [];
+  try { banks = await api('/bank/list'); } catch { banks = []; }
+
+  const kycDone = me?.kyc_status === 'VERIFIED';
+  const hasBank = banks.length > 0;
+  const hasVerifiedBank = banks.some(b => b.verified);
+  const steps = [
+    {
+      id: 'kyc',
+      done: kycDone,
+      title: 'Verify your identity',
+      sub: kycDone ? 'Identity verified.' : 'Submit basic details so we can protect every circle member.',
+      cta: 'Verify ID',
+      page: 'kyc',
+    },
+    {
+      id: 'bank',
+      done: hasBank,
+      title: 'Link a bank account',
+      sub: hasBank ? 'Bank linked.' : 'Connect your bank for contributions and payouts.',
+      cta: 'Link bank',
+      page: 'bank',
+    },
+    {
+      id: 'verify',
+      done: hasVerifiedBank,
+      title: 'Verify your bank',
+      sub: hasVerifiedBank ? 'Bank verified and ready.' :
+           (hasBank ? 'Enter the two micro-deposits Sol sent to your bank.' : 'Requires a linked bank first.'),
+      cta: 'Verify bank',
+      page: 'bank',
+    },
+  ];
+
+  const completed = steps.filter(s => s.done).length;
+  if (completed === steps.length) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  document.getElementById('onbProgress').textContent = `${completed} of ${steps.length}`;
+
+  for (const s of steps) {
+    const el = document.getElementById('onbStep-' + s.id);
+    const icon = s.done
+      ? '<span style="color:var(--green);font-weight:700">✓</span>'
+      : '<span style="color:var(--muted);font-weight:700">○</span>';
+    const ctaBtn = s.done ? '' :
+      `<button type="button" class="btn btn-ghost" style="font-size:.75rem;padding:.35rem .75rem" onclick="nav('${s.page}')">${s.cta} →</button>`;
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;background:rgba(0,0,0,.15);border-radius:.5rem;opacity:${s.done ? 0.6 : 1}">
+        <div style="font-size:1.1rem;width:1.5rem;text-align:center">${icon}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:.9rem;font-weight:${s.done ? 500 : 600};${s.done ? 'text-decoration:line-through' : ''}">${s.title}</div>
+          <div style="font-size:.75rem;color:var(--muted)">${s.sub}</div>
+        </div>
+        ${ctaBtn}
+      </div>
+    `;
   }
 }
 
@@ -480,6 +562,7 @@ async function submitKyc() {
     ok.textContent = '✓ Submitted! Status updated.'; ok.style.display = 'block';
     me = await api('/auth/me');
     document.getElementById('dKyc').innerHTML = badge(me.kyc_status);
+    loadOnboarding();
   } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
   finally { btn.disabled = false; btn.textContent = 'Submit for verification'; }
 }
@@ -595,6 +678,8 @@ async function handleVerifyMicro(e, accountId) {
     okEl.textContent = '✓ Verified — you can now contribute to circles.';
     okEl.style.display = 'block';
     form.reset();
+    loadBank();       // refresh badges on the bank page
+    loadOnboarding(); // refresh dashboard checklist
   } catch (ex) {
     errEl.textContent = ex.message || 'Verification failed';
     errEl.style.display = 'block';
@@ -619,6 +704,7 @@ async function handleAddBank(e) {
     });
     document.getElementById('bankForm').reset();
     loadBank();
+    loadOnboarding();
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Connect account'; btn.disabled = false; }
