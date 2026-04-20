@@ -455,17 +455,36 @@ async function loadBank() {
     }
     el.innerHTML = `<div style="display:flex;flex-direction:column;gap:.75rem;max-width:600px;margin-bottom:1.5rem">
       ${accounts.map(a => `
-        <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
-          <div>
-            <div style="font-weight:600">${a.institution_name || 'Bank'}</div>
-            <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
+        <div class="card" style="display:flex;flex-direction:column;gap:.75rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
+            <div>
+              <div style="font-weight:600">${a.institution_name || 'Bank'}</div>
+              <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:.75rem">
+              ${badge(a.status)}
+              ${a.is_primary ? '<span style="color:var(--gold);font-size:.8rem">★ Primary</span>' :
+                `<button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem" onclick="setPrimary('${a.id}')">Set primary</button>`}
+              <button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem;color:#f87171" onclick="removeBank('${a.id}')">Remove</button>
+            </div>
           </div>
-          <div style="display:flex;align-items:center;gap:.75rem">
-            ${badge(a.status)}
-            ${a.is_primary ? '<span style="color:var(--gold);font-size:.8rem">★ Primary</span>' :
-              `<button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem" onclick="setPrimary('${a.id}')">Set primary</button>`}
-            <button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem;color:#f87171" onclick="removeBank('${a.id}')">Remove</button>
-          </div>
+          <details style="border-top:1px solid var(--border);padding-top:.6rem">
+            <summary style="font-size:.8rem;color:var(--cyan);cursor:pointer">Verify micro-deposits</summary>
+            <div style="padding:.75rem 0;font-size:.8rem;color:var(--muted)">
+              Within 1–3 business days, Sol sends two small deposits (each under $1) to this account. Enter the amounts in cents below.
+            </div>
+            <form onsubmit="handleVerifyMicro(event, '${a.id}')" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">
+              <div style="flex:1;min-width:120px"><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Amount 1 (cents)</label>
+                <input name="a1" type="number" min="1" max="99" required placeholder="e.g. 3" style="width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem;color:var(--text)">
+              </div>
+              <div style="flex:1;min-width:120px"><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Amount 2 (cents)</label>
+                <input name="a2" type="number" min="1" max="99" required placeholder="e.g. 9" style="width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem;color:var(--text)">
+              </div>
+              <button class="btn btn-primary" type="submit" style="font-size:.8rem;padding:.45rem 1rem">Verify</button>
+            </form>
+            <div id="vErr-${a.id}" style="color:#f87171;font-size:.75rem;margin-top:.4rem;display:none"></div>
+            <div id="vOk-${a.id}" style="color:var(--green);font-size:.75rem;margin-top:.4rem;display:none"></div>
+          </details>
         </div>`).join('')}
     </div>`;
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
@@ -513,6 +532,28 @@ async function removeBank(id) {
     await api(`/bank/${id}`, { method:'DELETE' });
     loadBank();
   } catch(e) { alert(e.message); }
+}
+
+async function handleVerifyMicro(e, accountId) {
+  e.preventDefault();
+  const form = e.target;
+  const a1 = parseInt(form.a1.value, 10);
+  const a2 = parseInt(form.a2.value, 10);
+  const errEl = document.getElementById('vErr-' + accountId);
+  const okEl = document.getElementById('vOk-' + accountId);
+  errEl.style.display = 'none'; okEl.style.display = 'none';
+  try {
+    await api(`/bank/${accountId}/verify-micro-deposits`, {
+      method: 'POST',
+      body: JSON.stringify({ amount1_cents: a1, amount2_cents: a2 }),
+    });
+    okEl.textContent = '✓ Verified — you can now contribute to circles.';
+    okEl.style.display = 'block';
+    form.reset();
+  } catch (ex) {
+    errEl.textContent = ex.message || 'Verification failed';
+    errEl.style.display = 'block';
+  }
 }
 
 async function handleAddBank(e) {
