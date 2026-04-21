@@ -412,6 +412,69 @@ def _shopify_request(method: str, endpoint: str, data: dict = None) -> dict:
         return {"error": str(ex)}
 
 
+# ─── Quality Gate + Activation ────────────────────────────────────────────────
+#
+# Hard rule: NO product gets flipped to "active" unless it passes the gate.
+# The gate is the only thing standing between NarAI and broken listings.
+
+class ProductQualityError(Exception):
+    """Raised when a product fails the pre-publish quality gate."""
+    pass
+
+
+MIN_DESC_CHARS = 300
+MIN_IMAGES = 1
+MIN_TAGS = 3
+
+
+def _quality_gate(product_id: int, required_fields: dict) -> None:
+    """
+    Fetch the Shopify product and verify it's publish-ready.
+    Raises ProductQualityError with a list of missing pieces.
+    Called AFTER draft creation, BEFORE activation.
+    """
+    resp = _shopify_request("GET", f"products/{product_id}.json")
+    product = resp.get("product") or {}
+    errors = []
+
+    images = product.get("images") or []
+    if len(images) < MIN_IMAGES:
+        errors.append(f"< {MIN_IMAGES} images attached")
+
+    body = product.get("body_html") or ""
+    if len(body) < MIN_DESC_CHARS:
+        errors.append(f"description < {MIN_DESC_CHARS} chars (got {len(body)})")
+
+    tags = (product.get("tags") or "").split(",")
+    tags = [t.strip() for t in tags if t.strip()]
+    if len(tags) < MIN_TAGS:
+        errors.append(f"< {MIN_TAGS} tags (got {len(tags)})")
+
+    variants = product.get("variants") or []
+    if not variants or float(variants[0].get("price", 0) or 0) <= 0:
+        errors.append("price <= 0")
+
+    if not product.get("title"):
+        errors.append("missing title")
+
+    # Caller-enforced extras (seo_title, seo_description, cover_url, etc.)
+    for k, v in (required_fields or {}).items():
+        if not v:
+            errors.append(f"missing {k}")
+
+    if errors:
+        raise ProductQualityError(
+            f"BLOCKED product {product_id}: " + "; ".join(errors)
+        )
+
+
+def _activate_product(product_id: int) -> dict:
+    """Flip a draft product to active. Only call after _quality_gate passes."""
+    return _shopify_request("PUT", f"products/{product_id}.json", {
+        "product": {"id": product_id, "status": "active"}
+    })
+
+
 # ─── Boutique Setup ───────────────────────────────────────────────────────────
 
 def create_boutique_collections() -> List[dict]:
@@ -666,7 +729,7 @@ def publish_digital_product(product_data: dict) -> dict:
             "vendor": "WheellsVerse",
             "product_type": product_data.get("product_type", "Digital Download"),
             "tags": all_tags,
-            "status": "active",
+            "status": "draft",  # draft-first — gate decides if/when we flip to active
             "variants": [{
                 "price": price,
                 "compare_at_price": str(float(best) * 1.4),  # ← anchor price (upgrade #9)
@@ -706,28 +769,55 @@ def publish_digital_product(product_data: dict) -> dict:
     product_id = product["id"]
     handle = product.get("handle", "")
 
-    # ── Cover image via cover_engine (upgrade #2) ─────────────────────────────
-    cover_url = None
-    try:
-        from core.cover_engine import generate_cover
-        cover_prompts = product_data.get(
-            "cover_prompts",
-            [f"professional product cover for {title}, digital product, clean design"]
-        )
-        cover_result = generate_cover(cover_prompts, "shopify", title, product_type_key)
-        if cover_result.get("success") and cover_result.get("url"):
-            cover_url = cover_result["url"]
-            _shopify_request("POST", f"products/{product_id}/images.json", {
-                "image": {"src": cover_url, "alt": title}
-            })
-    except Exception as e:
-        log.warning(f"[ShopifyEngine] Cover image skipped: {e}")
+    # ── Cover image via cover_engine — HARD REQUIRED, no silent skip ─────────
+    from core.cover_engine import generate_cover
+    cover_prompts = product_data.get(
+        "cover_prompts",
+        [f"professional product cover for {title}, digital product, clean design, dark aesthetic, premium feel"]
+    )
+    cover_result = generate_cover(cover_prompts, "shopify", title, product_type_key)
+    cover_url = cover_result.get("url") if cover_result.get("success") else None
+    if not cover_url:
+        _shopify_request("DELETE", f"products/{product_id}.json")
+        return {
+            "success": False,
+            "error": f"Cover generation failed: {cover_result.get('error', 'unknown')}. Draft deleted.",
+            "title": title,
+        }
 
-    # ── Add to collection ──────────────────────────────────────────────────────
+    img_resp = _shopify_request("POST", f"products/{product_id}/images.json", {
+        "image": {"src": cover_url, "alt": title}
+    })
+    if img_resp.get("error"):
+        _shopify_request("DELETE", f"products/{product_id}.json")
+        return {
+            "success": False,
+            "error": f"Image upload failed: {img_resp['error']}. Draft deleted.",
+            "title": title,
+        }
+
+    # ── Quality gate — block activation if anything is missing ───────────────
+    try:
+        _quality_gate(product_id, {
+            "seo_title": product_data.get("seo_title", title),
+            "cover_url": cover_url,
+        })
+    except ProductQualityError as e:
+        log.error(f"[ShopifyEngine] {e} — leaving as DRAFT")
+        return {
+            "success": False,
+            "error": str(e),
+            "product_id": product_id,
+            "handle": handle,
+            "status": "draft",
+        }
+
+    # ── Add to collection + ACTIVATE ─────────────────────────────────────────
     collection = product_data.get("_collection", "AI Tools & Templates")
     _add_product_to_collection(product_id, collection)
+    _activate_product(product_id)
 
-    log.info(f"[ShopifyEngine] Published: {title} → /products/{handle}")
+    log.info(f"[ShopifyEngine] Published ACTIVE: {title} → /products/{handle}")
     return {
         "success": True,
         "product_id": product_id,
@@ -740,6 +830,7 @@ def publish_digital_product(product_data: dict) -> dict:
         "cover_url": cover_url,
         "tags": all_tags,
         "season": season["name"],
+        "status": "active",
     }
 
 
@@ -900,51 +991,86 @@ Return ONLY valid JSON:
 
 def publish_pod_via_printful(pod_data: dict) -> dict:
     """
-    Create POD product on Printful and sync to Shopify.
-    Falls back to creating directly on Shopify if Printful not connected.
+    Publish a POD product. Priority:
+      1. Printify (user's active POD partner — has API key)
+      2. Printful (legacy fallback)
+      3. Shopify-direct with DALL-E cover (never imageless)
+
+    Function keeps its historic name for backward-compat with existing callers,
+    but Printify is now the primary path.
     """
+    title = pod_data.get("title", "POD Product")
+    description = pod_data.get("body_html", "")
+    tags = pod_data.get("tags", "pod")
+    price = pod_data.get("_price", 35)
+    niche = pod_data.get("_niche_key", "entrepreneur mindset")
+    product_type = pod_data.get("_product_type", "tshirt")
+
+    # ── 1. Printify (primary) ────────────────────────────────────────────────
+    try:
+        from core import printify_client
+        if printify_client.is_connected():
+            result = printify_client.create_pod_product(
+                title=title,
+                description=description,
+                niche=niche,
+                product_type=product_type,
+                design_image_path=None,
+                price=price,
+            )
+            if result.get("success"):
+                shopify_result = printify_client.sync_to_shopify(
+                    result, description=description, tags=tags
+                )
+                if shopify_result.get("shopify_product_id"):
+                    log.info(f"[ShopifyEngine] POD via Printify: {title}")
+                    return {
+                        "success": True,
+                        "product_id": shopify_result.get("shopify_product_id"),
+                        "title": title,
+                        "price": price,
+                        "type": "pod",
+                        "source": "printify",
+                    }
+            log.warning(f"[ShopifyEngine] Printify create failed: {result.get('error', 'unknown')}")
+    except Exception as e:
+        log.warning(f"[ShopifyEngine] Printify error: {e}")
+
+    # ── 2. Printful (legacy) ─────────────────────────────────────────────────
     try:
         from core.printful_client import is_connected, create_pod_product, sync_to_shopify
         if is_connected():
             result = create_pod_product(
-                title=pod_data.get("title", "POD Product"),
-                description=pod_data.get("body_html", ""),
-                niche=pod_data.get("_niche_key", "entrepreneur"),
-                product_type=pod_data.get("_product_type", "tshirt"),
-                design_image_path=None,
-                price=pod_data.get("_price", 35),
+                title=title, description=description,
+                niche=niche, product_type=product_type,
+                design_image_path=None, price=price,
             )
             if result.get("success"):
-                shopify_result = sync_to_shopify(result, description=pod_data.get("body_html", ""),
-                                                 tags=pod_data.get("tags", "pod"))
+                shopify_result = sync_to_shopify(result, description=description, tags=tags)
                 return {
                     "success": True,
                     "product_id": shopify_result.get("shopify_product_id"),
-                    "title": pod_data["title"],
-                    "price": pod_data["_price"],
-                    "type": "pod",
-                    "source": "printful",
+                    "title": title, "price": price,
+                    "type": "pod", "source": "printful",
                 }
     except Exception as e:
-        log.warning(f"[ShopifyEngine] Printful error: {e} — publishing POD directly to Shopify")
+        log.warning(f"[ShopifyEngine] Printful error: {e}")
 
-    # Fallback: publish directly to Shopify as a product with POD note
-    body = pod_data.get("body_html", "") + (
+    # ── 3. Shopify-direct fallback — DRAFT + cover + gate + activate ─────────
+    body = description + (
         "<p><em>🖨️ Printed and shipped on demand. Allow 5-7 business days for delivery.</em></p>"
     )
     payload = {
         "product": {
-            "title": pod_data.get("title", "POD Product"),
-            "body_html": body,
-            "vendor": "WheellsVerse",
-            "product_type": "Apparel",
-            "tags": pod_data.get("tags", "pod"),
-            "status": "active",
+            "title": title, "body_html": body,
+            "vendor": "WheellsVerse", "product_type": "Apparel",
+            "tags": tags,
+            "status": "draft",  # draft-first — gate decides
             "variants": [
-                {"price": str(pod_data.get("_price", 35)), "option1": "S", "requires_shipping": True},
-                {"price": str(pod_data.get("_price", 35)), "option1": "M", "requires_shipping": True},
-                {"price": str(pod_data.get("_price", 35)), "option1": "L", "requires_shipping": True},
-                {"price": str(pod_data.get("_price", 35)), "option1": "XL", "requires_shipping": True},
+                {"price": str(price), "option1": "S", "requires_shipping": True},
+                {"price": str(price), "option1": "M", "requires_shipping": True},
+                {"price": str(price), "option1": "L", "requires_shipping": True},
+                {"price": str(price), "option1": "XL", "requires_shipping": True},
             ],
             "options": [{"name": "Size", "values": ["S", "M", "L", "XL"]}],
         }
@@ -956,15 +1082,37 @@ def publish_pod_via_printful(pod_data: dict) -> dict:
         return {"success": False, "error": resp.get("error", "Unknown")}
 
     product_id = product["id"]
+
+    # Attach DALL-E cover — required, no silent skip
+    from core.cover_engine import generate_cover
+    cover_result = generate_cover(
+        [f"premium apparel product photography, {title}, dark aesthetic, studio lighting, 4k"],
+        "shopify", title, "apparel"
+    )
+    cover_url = cover_result.get("url") if cover_result.get("success") else None
+    if not cover_url:
+        _shopify_request("DELETE", f"products/{product_id}.json")
+        return {"success": False, "error": "Cover generation failed. Draft deleted."}
+
+    _shopify_request("POST", f"products/{product_id}/images.json", {
+        "image": {"src": cover_url, "alt": title}
+    })
+
+    try:
+        _quality_gate(product_id, {"cover_url": cover_url})
+    except ProductQualityError as e:
+        log.error(f"[ShopifyEngine] POD blocked: {e} — leaving DRAFT")
+        return {"success": False, "error": str(e), "product_id": product_id, "status": "draft"}
+
     _add_product_to_collection(product_id, "Creator's Toolkit")
+    _activate_product(product_id)
     return {
         "success": True,
         "product_id": product_id,
         "handle": product.get("handle", ""),
-        "title": pod_data.get("title"),
-        "price": pod_data.get("_price", 35),
-        "type": "pod",
-        "source": "shopify_direct",
+        "title": title, "price": price,
+        "type": "pod", "source": "shopify_direct",
+        "cover_url": cover_url, "status": "active",
     }
 
 
