@@ -771,10 +771,19 @@ def publish_digital_product(product_data: dict) -> dict:
 
     # ── Cover image via cover_engine — HARD REQUIRED, no silent skip ─────────
     from core.cover_engine import generate_cover
-    cover_prompts = product_data.get(
-        "cover_prompts",
-        [f"professional product cover for {title}, digital product, clean design, dark aesthetic, premium feel"]
+    dalle_default = (
+        f"professional product cover for '{title}', {product_type_key.replace('_',' ')}, "
+        f"dark premium aesthetic, studio lighting, 4k, editorial product shot"
     )
+    cover_prompts = product_data.get("cover_prompts")
+    # Back-compat: if caller passed a list or string, wrap it into the dict shape generate_cover expects
+    if isinstance(cover_prompts, list):
+        cover_prompts = {"dalle": cover_prompts[0] if cover_prompts else dalle_default}
+    elif isinstance(cover_prompts, str):
+        cover_prompts = {"dalle": cover_prompts}
+    elif not isinstance(cover_prompts, dict):
+        cover_prompts = {"dalle": dalle_default}
+    cover_prompts.setdefault("dalle", dalle_default)
     cover_result = generate_cover(cover_prompts, "shopify", title, product_type_key)
     cover_url = cover_result.get("url") if cover_result.get("success") else None
     if not cover_url:
@@ -1086,7 +1095,7 @@ def publish_pod_via_printful(pod_data: dict) -> dict:
     # Attach DALL-E cover — required, no silent skip
     from core.cover_engine import generate_cover
     cover_result = generate_cover(
-        [f"premium apparel product photography, {title}, dark aesthetic, studio lighting, 4k"],
+        {"dalle": f"premium apparel product photography, {title}, dark aesthetic, studio lighting, 4k"},
         "shopify", title, "apparel"
     )
     cover_url = cover_result.get("url") if cover_result.get("success") else None
