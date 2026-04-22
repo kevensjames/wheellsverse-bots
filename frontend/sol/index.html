@@ -292,6 +292,22 @@ async function apiPost(path, body) {
   return data;
 }
 
+// If the landing URL has ?invite=XYZ, persist it through signup/login so the
+// app page can auto-join the user to the circle after they're authenticated.
+const _inviteFromUrl = new URLSearchParams(window.location.search).get('invite');
+if (_inviteFromUrl) {
+  sessionStorage.setItem('sol_pending_invite', _inviteFromUrl);
+  // If the user arrived via an invite, default to the Register tab + show a
+  // friendly note explaining what's happening.
+  window.addEventListener('DOMContentLoaded', () => {
+    openModal('register');
+    const note = document.createElement('p');
+    note.textContent = 'You\'ve been invited to a savings circle. Sign up or sign in to accept.';
+    note.style.cssText = 'background:rgba(0,212,255,.1);color:var(--cyan);padding:.75rem;border-radius:.5rem;margin-bottom:1rem;font-size:.85rem';
+    document.querySelector('#registerForm h2')?.after(note);
+  });
+}
+
 async function handleLogin(e) {
   e.preventDefault();
   const btn = document.getElementById('loginBtn');

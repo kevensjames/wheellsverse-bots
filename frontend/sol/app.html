@@ -111,6 +111,21 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     <h1 id="welcomeMsg">Welcome back</h1>
     <p class="sub">Your savings overview</p>
 
+    <!-- Your money — next contribution, next payout, total saved -->
+    <div id="moneyPanel" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(0,255,136,.25);background:linear-gradient(135deg,rgba(0,255,136,.05),rgba(0,212,255,.03))">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
+        <div>
+          <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Your savings</div>
+          <div id="moneyTotal" style="font-size:1.75rem;font-weight:700;color:var(--green)">$0.00</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:.75rem;color:var(--muted)">Expected payout</div>
+          <div id="moneyExpected" style="font-size:1rem;font-weight:600;color:var(--gold)">—</div>
+        </div>
+      </div>
+      <div id="moneyRows" style="display:flex;flex-direction:column;gap:.4rem"></div>
+    </div>
+
     <!-- Onboarding progress checklist (hidden once complete) -->
     <div id="onboardingCard" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(0,212,255,.3);background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04))">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
@@ -140,18 +155,41 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <!-- Circles -->
   <div class="page" id="page-groups">
     <h1>Savings circles</h1>
-    <p class="sub">Browse open circles or create your own</p>
+    <p class="sub">Browse open circles, create your own, or join a friend's with an invite code</p>
     <div style="margin-bottom:1.5rem;display:flex;gap:.75rem;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-primary" onclick="toggleCreateForm()">+ New circle</button>
+      <button type="button" class="btn btn-primary" onclick="toggleCreateForm()">+ New circle</button>
+      <button type="button" class="btn btn-ghost" onclick="toggleJoinByCode()">↩︎ Join with invite code</button>
+    </div>
+    <!-- Join by code form -->
+    <div id="joinByCodeForm" style="display:none;margin-bottom:1.5rem">
+      <div class="form-box">
+        <div style="font-weight:600;margin-bottom:.5rem">Join a private circle</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Paste the invite code a friend shared with you.</div>
+        <div class="field"><label>Invite code</label>
+          <input type="text" id="jbcCode" placeholder="e.g. aB3cD4eF"></div>
+        <p class="err" id="jbcErr" style="display:none"></p>
+        <div style="display:flex;gap:.5rem">
+          <button type="button" class="btn btn-primary" id="jbcBtn" onclick="joinByCode()">Join circle</button>
+          <button type="button" class="btn btn-ghost" onclick="toggleJoinByCode()">Cancel</button>
+        </div>
+      </div>
     </div>
     <div id="createForm" style="display:none;margin-bottom:1.5rem">
       <div class="form-box">
         <div style="font-weight:600;margin-bottom:1rem">Create a circle</div>
         <div class="field"><label>Circle name</label>
           <input type="text" id="cName" placeholder="My savings group"></div>
+        <div class="field"><label>Members (2–20)</label>
+          <input type="number" id="cMax" min="2" max="20" value="20"></div>
+        <div class="field"><label>Payout day of month (1–28)</label>
+          <input type="number" id="cDay" min="1" max="28" value="1"></div>
+        <div class="field" style="display:flex;align-items:center;gap:.5rem">
+          <input type="checkbox" id="cPrivate" style="width:auto;margin:0">
+          <label for="cPrivate" style="margin:0;cursor:pointer">Private — only people with my invite link can join</label>
+        </div>
         <p class="err" id="cErr" style="display:none"></p>
         <div style="display:flex;gap:.5rem">
-          <button class="btn btn-primary" id="cBtn" onclick="createGroup()">Create</button>
+          <button type="button" class="btn btn-primary" id="cBtn" onclick="createGroup()">Create</button>
           <button class="btn btn-ghost" onclick="toggleCreateForm()">Cancel</button>
         </div>
       </div>
@@ -293,6 +331,22 @@ function badge(status) {
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 
+async function copyInvite(groupId) {
+  const input = document.getElementById('inviteUrl-' + groupId);
+  if (!input) return;
+  try {
+    await navigator.clipboard.writeText(input.value);
+    const btn = event.target;
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  } catch {
+    // Fallback for older browsers / insecure contexts: select the text so
+    // the user can Cmd/Ctrl+C manually.
+    input.select();
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -306,9 +360,107 @@ async function init() {
     document.getElementById('dFailed').textContent = me.failed_payments;
     loadDashGroups();
     loadOnboarding();  // fire-and-forget — renders checklist once banks arrive
+    loadMoneyPanel(); // next contribution, next payout, total saved
+    consumePendingInvite();  // if user arrived via ?invite=..., auto-join now
   } catch {
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';
+  }
+}
+
+// Build the "Your money" panel: per-circle next-contribution date, next-payout
+// estimate, and the running total this user has contributed across all active
+// circles.
+async function loadMoneyPanel() {
+  const panel = document.getElementById('moneyPanel');
+  if (!panel) return;
+  try {
+    const [groups, payments] = await Promise.all([
+      api('/groups').catch(() => []),
+      api('/payments/my').catch(() => []),
+    ]);
+    const myGroups = groups.filter(g =>
+      (g.status === 'ACTIVE' || g.status === 'FORMING') && g.created_by // any group listed is one we're visible to
+    );
+    if (myGroups.length === 0) { panel.style.display = 'none'; return; }
+
+    const totalSaved = payments
+      .filter(p => p.status === 'SUCCESS')
+      .reduce((sum, p) => sum + (p.amount_cents || 0), 0);
+    document.getElementById('moneyTotal').textContent = fmt$(totalSaved);
+
+    // Next contribution = earliest upcoming payout_day_of_month across all
+    // ACTIVE circles the user belongs to. We don't have per-cycle due-dates
+    // from the API yet, so derive from group.payout_day_of_month + today.
+    const today = new Date();
+    const upcoming = myGroups
+      .filter(g => g.status === 'ACTIVE')
+      .map(g => ({ g, date: _nextDayOfMonth(today, g.payout_day_of_month) }))
+      .sort((a, b) => a.date - b.date);
+
+    const expected = upcoming[0];
+    if (expected) {
+      const dateStr = expected.date.toLocaleDateString(undefined, {month:'short', day:'numeric'});
+      document.getElementById('moneyExpected').textContent = `${dateStr} — ${expected.g.name}`;
+    } else {
+      document.getElementById('moneyExpected').textContent = 'No active cycle yet';
+    }
+
+    // Per-circle rows: name | members | next date | contribution | private badge
+    const rowsEl = document.getElementById('moneyRows');
+    rowsEl.innerHTML = myGroups.map(g => {
+      const nextDate = g.status === 'ACTIVE'
+        ? _nextDayOfMonth(today, g.payout_day_of_month).toLocaleDateString(undefined, {month:'short', day:'numeric'})
+        : 'awaiting members';
+      const privIcon = g.is_private ? '🔒 ' : '';
+      return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .75rem;background:rgba(0,0,0,.15);border-radius:.5rem;gap:.5rem;flex-wrap:wrap">
+          <div style="flex:1;min-width:140px">
+            <div style="font-weight:600;font-size:.9rem">${privIcon}${g.name}</div>
+            <div style="font-size:.72rem;color:var(--muted)">${g.member_count || 0} / ${g.max_members} members · ${fmt$(g.contribution_cents)} per cycle</div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:.75rem;color:var(--muted)">Next ${g.status === 'ACTIVE' ? 'pay date' : ''}</div>
+            <div style="font-weight:600;color:${g.status === 'ACTIVE' ? 'var(--cyan)' : 'var(--muted)'}">${nextDate}</div>
+          </div>
+        </div>`;
+    }).join('');
+    panel.style.display = '';
+  } catch {
+    panel.style.display = 'none';
+  }
+}
+
+// Return the next Date on which `day-of-month` occurs, starting from `from`.
+// Example: from=Apr 22, day=1 -> May 1. from=Apr 22, day=25 -> Apr 25.
+function _nextDayOfMonth(from, dayOfMonth) {
+  const d = new Date(from.getFullYear(), from.getMonth(), dayOfMonth);
+  if (d < from) d.setMonth(d.getMonth() + 1);
+  return d;
+}
+
+// Consume a pending invite code stored from the landing page ?invite=... URL.
+// Runs once per session — we clear the sessionStorage entry after the attempt
+// so a second tab refresh doesn't loop-retry a rejected code.
+async function consumePendingInvite() {
+  const code = sessionStorage.getItem('sol_pending_invite');
+  if (!code) return;
+  sessionStorage.removeItem('sol_pending_invite');
+  try {
+    const g = await api('/groups/join-by-code', { method:'POST', body: JSON.stringify({ invite_code: code }) });
+    if (g && g.id) showGroup(g.id);
+  } catch (e) {
+    // Soft-fail: user likely needs to finish KYC + bank first. Show a banner
+    // on the dashboard with the code so they can paste it later on the
+    // Circles page's "Join with invite code" form.
+    const warn = document.createElement('div');
+    warn.className = 'card';
+    warn.style.cssText = 'max-width:none;margin-bottom:1rem;border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.04)';
+    warn.innerHTML = `<div style="font-weight:600;color:var(--gold);margin-bottom:.25rem">Invite pending</div>
+      <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${(e.message || '').slice(0,80)}). Your invite code:
+      <code style="color:var(--cyan);background:#0a0e1a;padding:.15rem .4rem;border-radius:.3rem">${code}</code>.
+      Finish verifying ID + linking a bank, then paste it into <a href="javascript:nav('groups')" style="color:var(--cyan)">Circles → Join with invite code</a>.</div>`;
+    document.getElementById('onboardingCard')?.after(warn);
   }
 }
 
@@ -415,22 +567,68 @@ async function loadGroups() {
 function toggleCreateForm() {
   const f = document.getElementById('createForm');
   f.style.display = f.style.display === 'none' ? '' : 'none';
+  // Hide the other form if the user opens this one
+  if (f.style.display === '') document.getElementById('joinByCodeForm').style.display = 'none';
+}
+
+function toggleJoinByCode() {
+  const f = document.getElementById('joinByCodeForm');
+  f.style.display = f.style.display === 'none' ? '' : 'none';
+  if (f.style.display === '') document.getElementById('createForm').style.display = 'none';
 }
 
 async function createGroup() {
   const name = document.getElementById('cName').value.trim();
   if (!name) return;
+  const maxMembers = parseInt(document.getElementById('cMax').value, 10) || 20;
+  const payoutDay = parseInt(document.getElementById('cDay').value, 10) || 1;
+  const isPrivate = document.getElementById('cPrivate').checked;
   const btn = document.getElementById('cBtn');
   const err = document.getElementById('cErr');
   err.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Creating…';
   try {
-    await api('/groups', { method:'POST', body: JSON.stringify({ name }) });
+    const g = await api('/groups', { method:'POST', body: JSON.stringify({
+      name,
+      max_members: maxMembers,
+      payout_day_of_month: payoutDay,
+      is_private: isPrivate,
+    })});
     document.getElementById('cName').value = '';
+    document.getElementById('cPrivate').checked = false;
     toggleCreateForm();
     loadGroups();
+    // If the new circle is private (or any circle with an invite code), jump
+    // the user straight to the detail page where the invite URL is shown
+    // prominently so they can copy + share it with friends immediately.
+    if (g && g.id) showGroup(g.id);
   } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
   finally { btn.disabled = false; btn.textContent = 'Create'; }
+}
+
+async function joinByCode() {
+  const code = document.getElementById('jbcCode').value.trim();
+  if (!code) return;
+  const btn = document.getElementById('jbcBtn');
+  const err = document.getElementById('jbcErr');
+  err.style.display = 'none';
+  btn.disabled = true; btn.textContent = 'Joining…';
+  try {
+    const g = await api('/groups/join-by-code', { method:'POST', body: JSON.stringify({ invite_code: code }) });
+    document.getElementById('jbcCode').value = '';
+    toggleJoinByCode();
+    if (g && g.id) showGroup(g.id);
+  } catch(e) {
+    let msg = e.message || 'Failed to join';
+    if (/no active bank/i.test(msg)) {
+      msg = 'You need a verified bank account first.';
+    } else if (/kyc/i.test(msg)) {
+      msg = 'Complete identity verification first.';
+    } else if (/invite code|not found/i.test(msg)) {
+      msg = 'Invite code is invalid or expired.';
+    }
+    err.textContent = msg; err.style.display = 'block';
+  } finally { btn.disabled = false; btn.textContent = 'Join circle'; }
 }
 
 // ── Group detail ──────────────────────────────────────────────────────────────
@@ -478,10 +676,31 @@ async function showGroup(id) {
       </div>`;
     }
 
+    // Invite section — only shows if this user is a member + circle has an
+    // invite_code populated. Builds a shareable URL that lands on the join
+    // page (see index.html ?invite=... handling).
+    const inviteUrl = g.invite_code
+      ? `${window.location.origin}/sol/?invite=${encodeURIComponent(g.invite_code)}`
+      : '';
+    const privacyBadge = g.is_private
+      ? '<span class="badge badge-gold" style="background:rgba(255,215,0,.12);color:var(--gold);font-size:.7rem">🔒 Private</span>'
+      : '';
+    const inviteSection = (isMember && g.invite_code && g.status === 'FORMING') ? `
+      <div class="card" style="max-width:none;margin-bottom:1.5rem;border-color:rgba(0,212,255,.25);background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04))">
+        <div style="font-weight:600;margin-bottom:.25rem">Invite your friends</div>
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Share this link — only people with it can ${g.is_private ? 'find and ' : ''}join.</div>
+        <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+          <input readonly value="${inviteUrl}" id="inviteUrl-${g.id}" style="flex:1;min-width:200px;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem;color:var(--text);font-size:.8rem;font-family:monospace">
+          <button type="button" class="btn btn-primary" style="font-size:.8rem;padding:.45rem 1rem" onclick="copyInvite('${g.id}')">Copy</button>
+        </div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--cyan)">${g.invite_code}</code></div>
+      </div>
+    ` : '';
+
     el.innerHTML = `
       <div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:start;justify-content:space-between;gap:.5rem;margin-bottom:1rem">
-          <h2 style="font-size:1.25rem">${g.name}</h2>${badge(g.status)}
+          <h2 style="font-size:1.25rem">${g.name} ${privacyBadge}</h2>${badge(g.status)}
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:${canJoin?'1.5rem':'0'}">
           <div><div style="font-size:.72rem;color:var(--muted)">Contribution</div><div style="font-weight:600">${fmt$(g.contribution_cents)}</div></div>
@@ -508,6 +727,7 @@ async function showGroup(id) {
           `;
         })() : ''}
       </div>
+      ${inviteSection}
       ${cycleSection}
       <h3 style="margin-bottom:.75rem">Members</h3>
       <div class="table-wrap">
