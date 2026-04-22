@@ -423,7 +423,7 @@ class ProductQualityError(Exception):
 
 
 MIN_DESC_CHARS = 300
-MIN_IMAGES = 1
+MIN_IMAGES = 4   # 4 angled 3D shots minimum — hero + lifestyle + detail + flat-lay
 MIN_TAGS = 3
 
 
@@ -473,6 +473,44 @@ def _activate_product(product_id: int) -> dict:
     return _shopify_request("PUT", f"products/{product_id}.json", {
         "product": {"id": product_id, "status": "active"}
     })
+
+
+# ─── Multi-Angle 3D Image Generator ───────────────────────────────────────────
+#
+# Every product gets at least 4 premium 3D-rendered images from different
+# angles. Single-image listings look cheap and kill conversion.
+
+MIN_IMAGES_PER_PRODUCT = 4
+
+IMAGE_ANGLES = [
+    ("hero", "hero product shot, centered composition, studio lighting, clean dark gradient background, 3D render, octane, 8k, photorealistic"),
+    ("lifestyle", "lifestyle context shot, cinematic environment, moody atmosphere, depth of field, 3D render, unreal engine quality, 4k"),
+    ("detail", "extreme close-up detail shot, macro photography style, premium texture focus, dramatic rim lighting, 3D render, photorealistic"),
+    ("flatlay", "top-down flat-lay composition, editorial magazine style, negative space, minimalist dark surface, 3D render, studio grade"),
+]
+
+
+def _generate_product_image_set(base_concept: str, title: str, product_type_key: str = "product") -> list[str]:
+    """
+    Generate MIN_IMAGES_PER_PRODUCT angled 3D images via DALL-E 3.
+    Returns list of hosted image URLs (empty list if all fail).
+    """
+    from core.cover_engine import generate_cover
+
+    urls = []
+    for angle_name, angle_style in IMAGE_ANGLES[:MIN_IMAGES_PER_PRODUCT]:
+        prompt = f"{base_concept}, {angle_style}"
+        result = generate_cover(
+            {"dalle": prompt},
+            "shopify",
+            f"{title}_{angle_name}",
+            product_type_key,
+        )
+        if result.get("success") and result.get("url"):
+            urls.append(result["url"])
+        else:
+            log.warning(f"[ShopifyEngine] Image '{angle_name}' failed for {title}: {result.get('error', '?')}")
+    return urls
 
 
 # ─── Boutique Setup ───────────────────────────────────────────────────────────
@@ -769,41 +807,48 @@ def publish_digital_product(product_data: dict) -> dict:
     product_id = product["id"]
     handle = product.get("handle", "")
 
-    # ── Cover image via cover_engine — HARD REQUIRED, no silent skip ─────────
-    from core.cover_engine import generate_cover
+    # ── 4+ angled 3D images via cover_engine — HARD REQUIRED ─────────────────
+    # Pull the base concept from cover_prompts (dict/list/str — back-compat)
     dalle_default = (
-        f"professional product cover for '{title}', {product_type_key.replace('_',' ')}, "
-        f"dark premium aesthetic, studio lighting, 4k, editorial product shot"
+        f"premium {product_type_key.replace('_',' ')} product, '{title}', "
+        f"dark premium aesthetic, cinematic"
     )
     cover_prompts = product_data.get("cover_prompts")
-    # Back-compat: if caller passed a list or string, wrap it into the dict shape generate_cover expects
     if isinstance(cover_prompts, list):
-        cover_prompts = {"dalle": cover_prompts[0] if cover_prompts else dalle_default}
+        base_concept = cover_prompts[0] if cover_prompts else dalle_default
     elif isinstance(cover_prompts, str):
-        cover_prompts = {"dalle": cover_prompts}
-    elif not isinstance(cover_prompts, dict):
-        cover_prompts = {"dalle": dalle_default}
-    cover_prompts.setdefault("dalle", dalle_default)
-    cover_result = generate_cover(cover_prompts, "shopify", title, product_type_key)
-    cover_url = cover_result.get("url") if cover_result.get("success") else None
-    if not cover_url:
+        base_concept = cover_prompts
+    elif isinstance(cover_prompts, dict):
+        base_concept = cover_prompts.get("dalle") or dalle_default
+    else:
+        base_concept = dalle_default
+
+    image_urls = _generate_product_image_set(base_concept, title, product_type_key)
+    if len(image_urls) < MIN_IMAGES_PER_PRODUCT:
         _shopify_request("DELETE", f"products/{product_id}.json")
         return {
             "success": False,
-            "error": f"Cover generation failed: {cover_result.get('error', 'unknown')}. Draft deleted.",
+            "error": f"Only {len(image_urls)}/{MIN_IMAGES_PER_PRODUCT} images generated. Draft deleted.",
             "title": title,
         }
 
-    img_resp = _shopify_request("POST", f"products/{product_id}/images.json", {
-        "image": {"src": cover_url, "alt": title}
-    })
-    if img_resp.get("error"):
+    upload_fails = 0
+    for idx, url in enumerate(image_urls):
+        img_resp = _shopify_request("POST", f"products/{product_id}/images.json", {
+            "image": {"src": url, "alt": f"{title} — angle {idx+1}", "position": idx + 1}
+        })
+        if img_resp.get("error"):
+            upload_fails += 1
+            log.warning(f"[ShopifyEngine] Image upload {idx+1}/{len(image_urls)} failed: {img_resp['error']}")
+
+    if upload_fails == len(image_urls):
         _shopify_request("DELETE", f"products/{product_id}.json")
         return {
             "success": False,
-            "error": f"Image upload failed: {img_resp['error']}. Draft deleted.",
+            "error": "All image uploads failed. Draft deleted.",
             "title": title,
         }
+    cover_url = image_urls[0]  # first angle = primary/hero image
 
     # ── Quality gate — block activation if anything is missing ───────────────
     try:
@@ -1092,20 +1137,18 @@ def publish_pod_via_printful(pod_data: dict) -> dict:
 
     product_id = product["id"]
 
-    # Attach DALL-E cover — required, no silent skip
-    from core.cover_engine import generate_cover
-    cover_result = generate_cover(
-        {"dalle": f"premium apparel product photography, {title}, dark aesthetic, studio lighting, 4k"},
-        "shopify", title, "apparel"
-    )
-    cover_url = cover_result.get("url") if cover_result.get("success") else None
-    if not cover_url:
+    # Attach 4+ angled 3D images — required, no silent skip
+    base_concept = f"premium apparel product, {title}, dark aesthetic"
+    image_urls = _generate_product_image_set(base_concept, title, "apparel")
+    if len(image_urls) < MIN_IMAGES_PER_PRODUCT:
         _shopify_request("DELETE", f"products/{product_id}.json")
-        return {"success": False, "error": "Cover generation failed. Draft deleted."}
+        return {"success": False, "error": f"Only {len(image_urls)}/{MIN_IMAGES_PER_PRODUCT} images generated. Draft deleted."}
 
-    _shopify_request("POST", f"products/{product_id}/images.json", {
-        "image": {"src": cover_url, "alt": title}
-    })
+    for idx, url in enumerate(image_urls):
+        _shopify_request("POST", f"products/{product_id}/images.json", {
+            "image": {"src": url, "alt": f"{title} — angle {idx+1}", "position": idx + 1}
+        })
+    cover_url = image_urls[0]
 
     try:
         _quality_gate(product_id, {"cover_url": cover_url})
