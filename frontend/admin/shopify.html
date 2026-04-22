@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>NarAI — Connected Shopify Merchants</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"/>
+<style>
+  :root {
+    --bg: #05070d; --panel: #0b0f1a; --border: #1a2036;
+    --text: #e8edf5; --muted: #8a95a8; --accent: #4df4a5;
+    --warn: #ffb547; --err: #ff5b6e; --purple: #a389f4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;min-height:100vh}
+  .nav{display:flex;align-items:center;gap:20px;padding:18px 32px;border-bottom:1px solid var(--border);background:rgba(11,15,26,.7);backdrop-filter:blur(10px)}
+  .nav .brand{font-weight:700;font-size:18px;color:var(--accent)}
+  .nav a{color:var(--muted);text-decoration:none;font-size:14px}
+  .nav a:hover{color:var(--text)}
+  .wrap{max-width:1280px;margin:0 auto;padding:32px}
+  h1{font-size:28px;margin:0 0 8px;font-weight:600}
+  .sub{color:var(--muted);margin-bottom:24px;font-size:14px}
+  .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .stat .label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px}
+  .stat .value{font-size:26px;font-weight:600}
+  .stat .value.accent{color:var(--accent)}
+  .stat .value.purple{color:var(--purple)}
+  .toolbar{display:flex;gap:12px;margin-bottom:16px;align-items:center}
+  input[type=text]{flex:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:inherit;font-size:14px}
+  input[type=text]:focus{outline:none;border-color:var(--accent)}
+  select{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:inherit;font-size:14px}
+  .btn{background:var(--accent);color:#05070d;border:none;border-radius:8px;padding:10px 18px;font-weight:600;font-family:inherit;cursor:pointer;font-size:14px}
+  .btn:hover{background:#6bfbb6}
+  .btn.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent)}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  th,td{padding:12px 16px;text-align:left;border-bottom:1px solid var(--border);font-size:14px}
+  th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:500;background:#070a12}
+  tr:last-child td{border-bottom:none}
+  tr:hover{background:rgba(77,244,165,.03)}
+  .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+  .pill.free{background:#1a2036;color:var(--muted)}
+  .pill.starter{background:rgba(77,244,165,.12);color:var(--accent)}
+  .pill.pro{background:rgba(163,137,244,.12);color:var(--purple)}
+  .pill.elite{background:rgba(255,181,71,.15);color:var(--warn)}
+  .pill.inactive{background:rgba(255,91,110,.12);color:var(--err)}
+  .empty{text-align:center;padding:60px;color:var(--muted)}
+  .install-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:24px;margin-bottom:24px}
+  .install-box h3{margin:0 0 8px;font-size:16px}
+  .install-box p{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .install-row{display:flex;gap:8px}
+  .email{color:var(--muted);font-size:12px;display:block;margin-top:2px}
+</style>
+</head>
+<body>
+<nav class="nav">
+  <span class="brand">NarAI × Shopify</span>
+  <a href="/dashboard">← Dashboard</a>
+  <a href="/admin/shopify">Merchants</a>
+  <a href="/admin/shopify/revenue">Revenue</a>
+</nav>
+
+<div class="wrap">
+  <h1>Connected Merchants</h1>
+  <div class="sub">Every Shopify store currently running NarAI's product engine.</div>
+
+  <div class="stats">
+    <div class="stat"><div class="label">Total Merchants</div><div class="value" id="stat-total">—</div></div>
+    <div class="stat"><div class="label">Paid (Starter+)</div><div class="value accent" id="stat-paid">—</div></div>
+    <div class="stat"><div class="label">Products Shipped</div><div class="value" id="stat-products">—</div></div>
+    <div class="stat"><div class="label">MRR</div><div class="value purple" id="stat-mrr">—</div></div>
+  </div>
+
+  <div class="install-box">
+    <h3>Install NarAI on a Shopify store</h3>
+    <p>Paste a shop domain — we'll redirect the merchant through Shopify's OAuth install.</p>
+    <div class="install-row">
+      <input id="install-shop" type="text" placeholder="acme-store.myshopify.com"/>
+      <button class="btn" onclick="install()">Install</button>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <input id="q" type="text" placeholder="Search by shop domain or owner email..."/>
+    <select id="plan-filter">
+      <option value="">All plans</option>
+      <option value="free">Free</option>
+      <option value="starter">Starter</option>
+      <option value="pro">Pro</option>
+      <option value="elite">Elite</option>
+    </select>
+  </div>
+
+  <table id="tbl">
+    <thead>
+      <tr>
+        <th>Shop</th><th>Plan</th><th>Products</th><th>Last Sync</th>
+        <th>Installed</th><th>Status</th><th></th>
+      </tr>
+    </thead>
+    <tbody id="tbody">
+      <tr><td colspan="7" class="empty">Loading...</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+// Build elements with safe DOM methods — no innerHTML for untrusted merchant data.
+function el(tag, opts) {
+  opts = opts || {};
+  const e = document.createElement(tag);
+  if (opts.text != null) e.textContent = opts.text;
+  if (opts.cls) e.className = opts.cls;
+  if (opts.attrs) for (const k in opts.attrs) e.setAttribute(k, opts.attrs[k]);
+  if (opts.children) for (const c of opts.children) if (c) e.appendChild(c);
+  return e;
+}
+
+async function auth() {
+  const token = localStorage.getItem('narai_token');
+  if (!token) { location.href = '/login?next=/admin/shopify'; return null; }
+  return {'Authorization': 'Bearer ' + token};
+}
+
+function install() {
+  const shop = document.getElementById('install-shop').value.trim().toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+    alert('Enter a valid *.myshopify.com domain');
+    return;
+  }
+  window.open('/shopify/install?shop=' + encodeURIComponent(shop), '_blank');
+}
+
+async function load() {
+  const h = await auth(); if (!h) return;
+  try {
+    const r = await fetch('/api/narai/shopify/merchants', {headers: h});
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    render(await r.json());
+  } catch (e) {
+    const tbody = document.getElementById('tbody');
+    tbody.replaceChildren(el('tr', {children: [el('td', {attrs:{colspan:'7'}, cls:'empty', text:'Failed to load: ' + e.message})]}));
+  }
+}
+
+function planPill(tier) {
+  return el('span', {cls: 'pill ' + (tier || 'free'), text: tier || 'free'});
+}
+
+function render(data) {
+  const merchants = data.merchants || [];
+  const stats = data.stats || {};
+  document.getElementById('stat-total').textContent = stats.total || 0;
+  document.getElementById('stat-paid').textContent = stats.paid || 0;
+  document.getElementById('stat-products').textContent = stats.products || 0;
+  document.getElementById('stat-mrr').textContent = '$' + (stats.mrr_usd || 0);
+
+  const q = document.getElementById('q').value.toLowerCase();
+  const plan = document.getElementById('plan-filter').value;
+  const filtered = merchants.filter(m => {
+    if (plan && m.plan_tier !== plan) return false;
+    if (q && !(m.shop_domain.includes(q) || (m.owner_email || '').toLowerCase().includes(q))) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('tbody');
+  tbody.replaceChildren();
+
+  if (!filtered.length) {
+    tbody.appendChild(el('tr', {children: [
+      el('td', {attrs:{colspan:'7'}, cls:'empty', text:'No merchants yet. Install one above.'})
+    ]}));
+    return;
+  }
+
+  for (const m of filtered) {
+    const shopCell = el('td', {children: [
+      el('strong', {text: m.shop_domain}),
+      el('span', {cls: 'email', text: m.owner_email || ''}),
+    ]});
+    const planCell = el('td', {children: [planPill(m.plan_tier)]});
+    const productsCell = el('td', {text: String(m.products_count || 0)});
+    const lastSyncCell = el('td', {text: m.last_synced_at ? new Date(m.last_synced_at).toLocaleDateString() : '—'});
+    const installedCell = el('td', {text: m.installed_at ? new Date(m.installed_at).toLocaleDateString() : '—'});
+    const statusCell = el('td', {children: [
+      el('span', {cls: 'pill ' + (m.uninstalled_at ? 'inactive' : 'starter'),
+                  text: m.uninstalled_at ? 'Uninstalled' : 'Active'})
+    ]});
+    const actionsCell = el('td', {children: [
+      el('a', {cls: 'btn ghost', text: 'Details',
+               attrs: {href: '/admin/shopify/' + encodeURIComponent(m.id),
+                       style: 'text-decoration:none;display:inline-block'}})
+    ]});
+    tbody.appendChild(el('tr', {children: [
+      shopCell, planCell, productsCell, lastSyncCell, installedCell, statusCell, actionsCell
+    ]}));
+  }
+}
+
+document.getElementById('q').addEventListener('input', load);
+document.getElementById('plan-filter').addEventListener('change', load);
+load();
+</script>
+</body>
+</html>

@@ -684,7 +684,8 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/shopify/media/", "/api/shopify/intelligence/",
                              "/api/shopify/", "/api/narai/schedules", "/api/sa/",
                              "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                             "/api/v2/narai/")  # v2 uses its own JWT auth
+                             "/api/v2/narai/",  # v2 uses its own JWT auth
+                             "/api/store/download/")  # uses its own signed-token auth
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -767,9 +768,66 @@ async def serve_disclaimer():
     return _serve_frontend("disclaimer.html")
 
 
+@app.get("/api/store/download/{store_key}")
+async def store_download(store_key: str, t: str = ""):
+    """Serve a store deliverable file if the signed token is valid.
+    Token is issued by core.store_delivery.sign_download_token() and emailed to buyer."""
+    from fastapi.responses import FileResponse
+    from core.store_delivery import (
+        verify_download_token, has_local_deliverable,
+        local_deliverable_path, local_deliverable_mime,
+    )
+    if not t:
+        raise HTTPException(status_code=401, detail="Missing token")
+    payload = verify_download_token(t)
+    if not payload or payload.get("k") != store_key:
+        raise HTTPException(status_code=403, detail="Invalid or expired token")
+    if not has_local_deliverable(store_key):
+        raise HTTPException(status_code=404, detail="Deliverable not available")
+    path = local_deliverable_path(store_key)
+    filename = path.name
+    return FileResponse(path, media_type=local_deliverable_mime(store_key), filename=filename)
+
+
 @app.get("/store", response_class=HTMLResponse)
 async def serve_store():
-    return _serve_frontend("store/index.html")
+    """Serve the store page with live Stripe payment links injected.
+    Links come from data/store_payment_links.json (populated by `python -m core.store_setup`).
+    Missing links default to #not-available so broken buttons don't go off-site."""
+    path = ROOT / "frontend" / "store" / "index.html"
+    if not path.exists():
+        return HTMLResponse("<h1>store/index.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+
+    import json as _json
+    # Link source priority: env var STORE_PAYMENT_LINKS_JSON (set on Railway),
+    # then data/store/payment_links.json (local-first dev), then legacy path.
+    # Env-var path avoids the Railway upload quirk where dynamically-generated
+    # files aren't always picked up.
+    links: dict = {}
+    env_links = os.getenv("STORE_PAYMENT_LINKS_JSON", "").strip()
+    if env_links:
+        try:
+            links = _json.loads(env_links)
+        except Exception:
+            pass
+    if not links:
+        for links_file in (ROOT / "data" / "store" / "payment_links.json",
+                           ROOT / "data" / "store_payment_links.json"):
+            if links_file.exists():
+                try:
+                    links = _json.loads(links_file.read_text())
+                    break
+                except Exception:
+                    pass
+
+    keys = ("bundle", "prompt_bible", "ai_course", "social_templates",
+            "crypto_toolkit", "automation_guide", "bot_pack",
+            "crypto_newsletter", "inner_circle", "nexora_beta")
+    for key in keys:
+        url = links.get(key) or "#not-available"
+        html = html.replace(f"%%LINK_{key.upper()}%%", url)
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
 # ─── Public Site Pages ────────────────────────────────────────────────────────
@@ -789,9 +847,10 @@ async def serve_pricing():
     return _serve_frontend("pricing.html")
 
 
-@app.get("/narai", response_class=HTMLResponse)
+@app.get("/narai")
 async def serve_narai_landing():
-    return _serve_frontend("narai_landing.html")
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/chat", status_code=307)
 
 
 @app.get("/chat", response_class=HTMLResponse)
@@ -839,6 +898,11 @@ async def serve_sol_app():
 @app.get("/sol/admin", response_class=HTMLResponse)
 async def serve_sol_admin():
     return _serve_frontend("sol/admin.html")
+
+
+@app.get("/admin/shopify", response_class=HTMLResponse)
+async def serve_admin_shopify():
+    return _serve_frontend("admin/shopify.html", cache=False)
 
 
 # ─── NarAI User API ───────────────────────────────────────────────────────────
@@ -8167,6 +8231,28 @@ async def stripe_webhook(request: Request):
                 _add_log(f"NarAI tier upgraded: {user_email} → {narai_plan}", "INFO")
             except Exception as _e:
                 _add_log(f"NarAI tier upgrade failed: {_e}", "WARNING")
+
+    # Store delivery — fires when a WheellsVerse store product is purchased
+    # (metadata.store_key is set by core/store_setup.py on the PaymentLink).
+    if etype in ("checkout.session.completed", "invoice.paid"):
+        try:
+            meta = data.get("metadata") or {}
+            store_key = meta.get("store_key", "")
+            if store_key:
+                from core.store_delivery import deliver
+                details = data.get("customer_details", {}) or {}
+                buyer_email = data.get("customer_email") or details.get("email", "") or record["email"]
+                buyer_name = details.get("name", "") or ""
+                result = deliver(
+                    store_key=store_key,
+                    buyer_email=buyer_email,
+                    buyer_name=buyer_name,
+                    event_id=event.get("id", ""),
+                    amount_usd=amount_usd,
+                )
+                _add_log(f"Store delivery [{store_key}] → {buyer_email}: {result.get('status')}", "INFO")
+        except Exception as _e:
+            _add_log(f"Store delivery failed: {_e}", "WARNING")
 
     return {"received": True}
 

@@ -21,6 +21,8 @@ from narai.api.routes.creative import rt as creative_rt
 from narai.api.routes.kdp import rt as kdp_rt
 from narai.api.routes.shopify_oauth import router as shopify_oauth_rt
 from narai.api.routes.shopify_webhooks import router as shopify_webhooks_rt
+from narai.api.routes.shopify_billing import api_router as shopify_billing_api_rt, webhook_router as shopify_billing_webhook_rt
+from narai.api.routes.shopify_admin import router as shopify_admin_rt
 from narai.core.db import init_db
 from narai.core.resilience import breaker_status
 
@@ -63,6 +65,9 @@ app.include_router(kdp_rt, prefix="/api/v2/narai")
 # Multi-tenant Shopify (no prefix — Shopify hits /shopify/install and /shopify/callback directly)
 app.include_router(shopify_oauth_rt)
 app.include_router(shopify_webhooks_rt)
+app.include_router(shopify_billing_webhook_rt)
+app.include_router(shopify_billing_api_rt, prefix="/api/narai")
+app.include_router(shopify_admin_rt)
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
