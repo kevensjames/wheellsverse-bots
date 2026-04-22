@@ -265,6 +265,22 @@ document.getElementById('authModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
 });
 
+// FastAPI returns 422 validation errors as detail=[{loc,msg,type}, ...]; if we
+// just do new Error(detail) it stringifies to "[object Object],[object Object]".
+function formatApiError(d, fallback) {
+  if (!d || !d.detail) return fallback || 'Request failed';
+  if (typeof d.detail === 'string') return d.detail;
+  if (Array.isArray(d.detail)) {
+    return d.detail.map(e => {
+      if (typeof e === 'string') return e;
+      const field = Array.isArray(e.loc) ? e.loc.filter(x => x !== 'body').join('.') : '';
+      const msg = e.msg || e.message || JSON.stringify(e);
+      return field ? `${field}: ${msg}` : msg;
+    }).join('; ');
+  }
+  return d.detail.msg || JSON.stringify(d.detail);
+}
+
 async function apiPost(path, body) {
   const r = await fetch(API + path, {
     method: 'POST',
@@ -272,7 +288,7 @@ async function apiPost(path, body) {
     body: JSON.stringify(body)
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(data.detail || r.statusText);
+  if (!r.ok) throw new Error(formatApiError(data, r.statusText));
   return data;
 }
 
