@@ -437,9 +437,9 @@ footer{
     <a href="/nexora"><span>Nexora</span><span class="arr">→</span></a>
     <a href="/sol"><span>Sol</span><span class="arr">→</span></a>
     <a href="/store/"><span>Shop</span><span class="arr">→</span></a>
-    <a href="/login.html"><span>Log in</span><span class="arr">→</span></a>
+    <a href="/login"><span>Log in</span><span class="arr">→</span></a>
   </div>
-  <a class="btn-primary menu-cta" href="/signup.html">Enter the System</a>
+  <a class="btn-primary menu-cta" href="/signup">Enter the System</a>
 </div>
 
 <!-- ═════════════════  HERO  ═════════════════ -->
@@ -453,7 +453,7 @@ footer{
     </h1>
     <p class="sub">Your autonomous AI operator for wealth, signals, and creators. Built by J.K.W.</p>
     <div class="hero-ctas">
-      <a class="btn-primary" href="/signup.html">Enter the System</a>
+      <a class="btn-primary" href="/signup">Enter the System</a>
       <a class="btn-secondary" href="#narai">Meet NarAI ↓</a>
     </div>
     <div class="counters">
@@ -528,7 +528,7 @@ footer{
       <div class="preview-card">
         <h3>Bot Grid</h3>
         <div class="bot-grid" id="bot-grid"></div>
-        <div class="cta-row"><a href="/dashboard.html">Open dashboard →</a></div>
+        <div class="cta-row"><a href="/dashboard">Open dashboard →</a></div>
       </div>
       <div class="preview-card">
         <h3>Recent Runs</h3>
@@ -547,7 +547,7 @@ footer{
         <div class="cta-row spark-meta"><span id="spark-total">1,847</span> predictions · <span class="spark-up">+12.4%</span></div>
       </div>
     </div>
-    <div class="dash-cta"><a class="btn-primary" href="/dashboard.html">See the full dashboard →</a></div>
+    <div class="dash-cta"><a class="btn-primary" href="/dashboard">See the full dashboard →</a></div>
   </div>
 </section>
 
@@ -657,23 +657,23 @@ footer{
     </div>
     <div class="foot-col">
       <h5>Product</h5>
-      <a href="/dashboard.html">Dashboard</a>
+      <a href="/dashboard">Dashboard</a>
       <a href="/nexora">Nexora</a>
       <a href="/sol">Sol</a>
       <a href="/store/">Store</a>
-      <a href="/pricing.html">Pricing</a>
+      <a href="/pricing">Pricing</a>
     </div>
     <div class="foot-col">
       <h5>Company</h5>
       <a href="#founder">Founder</a>
       <a href="/blog/">Blog</a>
-      <a href="/chat.html">Contact</a>
+      <a href="/chat">Contact</a>
     </div>
     <div class="foot-col">
       <h5>Legal</h5>
       <a href="/terms.html">Terms</a>
       <a href="/privacy.html">Privacy</a>
-      <a href="/disclaimer.html">Disclaimer</a>
+      <a href="/disclaimer">Disclaimer</a>
     </div>
   </div>
   <div class="foot-bottom">
@@ -988,7 +988,7 @@ import * as THREE from 'three';
   // ║  Set CHAT_URL = '' to skip the API and use local replies.    ║
   // ║  Extend SMART_REPLIES below to teach her new topics.         ║
   // ╚══════════════════════════════════════════════════════════════╝
-  const NARAI_CHAT_URL = '/api/nx/chat';
+  const NARAI_CHAT_URL = '';  // /api/v2/narai/chat requires auth — using local SMART_REPLIES only
 
   const SMART_REPLIES = [
     // [keyword regex, one-of responses]
