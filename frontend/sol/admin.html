@@ -128,7 +128,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
   <!-- Users -->
   <div class="page" id="page-users">
-    <h1>Users</h1><p class="sub">All registered accounts</p>
+    <h1>Users</h1><p class="sub">Click any row for full detail</p>
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <input type="text" id="userSearch" placeholder="Search by email or name…" oninput="renderUsers(window._currentUserFilter||null)" style="flex:1;min-width:220px;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.85rem">
+    </div>
     <div class="tab-row" id="userFilters">
       <button class="filter-tab active" onclick="filterUsers(null,this)">All</button>
       <button class="filter-tab" onclick="filterUsers('ACTIVE',this)">Active</button>
@@ -142,9 +145,26 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
   </div>
 
+  <!-- User Detail Modal -->
+  <div id="userModal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);padding:2rem;overflow:auto" onclick="if(event.target===this)closeUserModal()">
+    <div style="max-width:720px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:1rem;padding:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+        <div>
+          <h2 style="font-size:1.25rem;margin:0" id="umName">—</h2>
+          <div id="umEmail" style="font-size:.85rem;color:var(--muted)">—</div>
+        </div>
+        <button type="button" onclick="closeUserModal()" style="background:none;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;padding:0">×</button>
+      </div>
+      <div id="userModalBody"><div class="spinner" style="margin:2rem auto"></div></div>
+    </div>
+  </div>
+
   <!-- Circles -->
   <div class="page" id="page-groups">
-    <h1>Savings circles</h1><p class="sub">All groups on the platform</p>
+    <h1>Savings circles</h1><p class="sub">All groups including private ones</p>
+    <div style="display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <input type="text" id="groupSearch" placeholder="Search by name or invite code…" oninput="renderGroups(null)" style="flex:1;min-width:220px;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.85rem">
+    </div>
     <div class="tab-row">
       <button class="filter-tab active" onclick="filterGroups(null,this)">All</button>
       <button class="filter-tab" onclick="filterGroups('FORMING',this)">Forming</button>
@@ -153,7 +173,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Name</th><th>Status</th><th>Members</th><th>Contribution</th><th>Cycle</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Status</th><th>Members</th><th>Contribution</th><th>Cycle / payout day</th><th>Invite code</th></tr></thead>
         <tbody id="groupTable"><tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
       </table>
     </div>
@@ -205,8 +225,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <h1>KYC Queue</h1><p class="sub">Users pending identity verification</p>
     <div class="table-wrap">
       <table>
-        <thead><tr><th>Email</th><th>Name</th><th>KYC Status</th><th>Account</th><th>Joined</th></tr></thead>
-        <tbody id="kycTable"><tr><td colspan="5" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+        <thead><tr><th>Email</th><th>Name</th><th>KYC Status</th><th>Account</th><th>Joined</th><th>Actions</th></tr></thead>
+        <tbody id="kycTable"><tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -369,18 +389,31 @@ async function loadOverview() {
     if (!allUsers.length) await loadUsers();
     if (!allGroups.length) await loadGroupsData();
 
+    // Fire the ledger health check in parallel — non-blocking if it fails.
+    let ledgerHealth = { balanced: null };
+    try { ledgerHealth = await api('/admin/reconcile'); } catch { /* no-op */ }
+
     const activeUsers = allUsers.filter(u=>u.account_status==='ACTIVE').length;
     const delinquent = allUsers.filter(u=>u.account_status==='DELINQUENT').length;
+    const pendingKyc = allUsers.filter(u=>['PENDING','SUBMITTED'].includes(u.kyc_status)).length;
     const formingGroups = allGroups.filter(g=>g.status==='FORMING').length;
     const activeGroups = allGroups.filter(g=>g.status==='ACTIVE').length;
+    const privateGroups = allGroups.filter(g=>g.is_private).length;
+
+    const ledgerIcon = ledgerHealth.balanced === true ? '✅'
+      : ledgerHealth.balanced === false ? '⚠️' : '—';
+    const ledgerColor = ledgerHealth.balanced === true ? 'var(--green)'
+      : ledgerHealth.balanced === false ? 'var(--red)' : 'var(--muted)';
 
     el.innerHTML = `
+      <div class="stat"><div class="stat-val" style="color:${ledgerColor}">${ledgerIcon}</div><div class="stat-label">Ledger health</div></div>
       <div class="stat"><div class="stat-val" style="color:var(--cyan)">${allUsers.length}</div><div class="stat-label">Total users</div></div>
       <div class="stat"><div class="stat-val" style="color:var(--green)">${activeUsers}</div><div class="stat-label">Active accounts</div></div>
       <div class="stat"><div class="stat-val" style="color:var(--red)">${delinquent}</div><div class="stat-label">Delinquent</div></div>
+      <div class="stat"><div class="stat-val" style="color:var(--gold)">${pendingKyc}</div><div class="stat-label">KYC pending</div></div>
       <div class="stat"><div class="stat-val" style="color:var(--gold)">${formingGroups}</div><div class="stat-label">Forming circles</div></div>
       <div class="stat"><div class="stat-val" style="color:var(--purple)">${activeGroups}</div><div class="stat-label">Active circles</div></div>
-      <div class="stat"><div class="stat-val">${allGroups.length}</div><div class="stat-label">Total circles</div></div>
+      <div class="stat"><div class="stat-val">${privateGroups} / ${allGroups.length}</div><div class="stat-label">Private / total</div></div>
     `;
 
     // Recent users table
@@ -410,15 +443,18 @@ async function loadUsers() {
 function filterUsers(status, btn) {
   document.querySelectorAll('#userFilters .filter-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
+  window._currentUserFilter = status;
   renderUsers(status);
 }
 
 function renderUsers(statusFilter) {
+  const q = (document.getElementById('userSearch')?.value || '').toLowerCase();
   const rows = allUsers
     .filter(u => !statusFilter || u.account_status === statusFilter)
-    .map(u=>`<tr>
+    .filter(u => !q || u.email.toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q))
+    .map(u => `<tr style="cursor:pointer" onclick="openUserModal('${u.id}')">
       <td>${u.email}</td>
-      <td>${u.full_name||'—'}</td>
+      <td>${u.full_name || '—'}</td>
       <td>${badge(u.account_status)}</td>
       <td>${badge(u.kyc_status)}</td>
       <td><span style="color:var(--green)">${u.successful_payments}</span> / <span style="color:var(--red)">${u.failed_payments}</span></td>
@@ -428,10 +464,86 @@ function renderUsers(statusFilter) {
     '<tr><td colspan="6" class="empty">No users match</td></tr>';
 }
 
+// ── User detail modal ────────────────────────────────────────────────────────
+async function openUserModal(userId) {
+  document.getElementById('userModal').style.display = 'block';
+  document.getElementById('userModalBody').innerHTML = '<div class="spinner" style="margin:2rem auto"></div>';
+  try {
+    const d = await api(`/admin/users/${userId}`);
+    document.getElementById('umName').textContent = d.user.full_name || '(no name)';
+    document.getElementById('umEmail').textContent = d.user.email;
+    document.getElementById('userModalBody').innerHTML = renderUserDetail(d);
+  } catch (e) {
+    document.getElementById('userModalBody').innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+function closeUserModal() {
+  document.getElementById('userModal').style.display = 'none';
+}
+
+function renderUserDetail(d) {
+  const banksHtml = d.bank_accounts.length ? d.bank_accounts.map(b => `
+    <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
+      <div>
+        <div style="font-weight:600">${b.institution_name || b.provider} ···· ${b.account_last4}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${b.account_type || '—'} · ${b.provider}</div>
+      </div>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        ${b.verified ? '<span class="badge badge-green">✓ Verified</span>' : '<span class="badge badge-yellow">Pending</span>'}
+        ${b.is_primary ? '<span style="color:var(--gold);font-size:.75rem">★ Primary</span>' : ''}
+      </div>
+    </div>
+  `).join('') : '<div class="empty" style="padding:1rem">No bank accounts linked</div>';
+
+  const groupsHtml = d.groups.length ? d.groups.map(g => `
+    <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
+      <div>
+        <div style="font-weight:600">${g.name} ${g.is_private ? '🔒' : ''}</div>
+        <div style="font-size:.75rem;color:var(--muted)">Cycle ${g.current_cycle_number} · ${fmt$(g.contribution_cents)}/member</div>
+      </div>
+      ${badge(g.status)}
+    </div>
+  `).join('') : '<div class="empty" style="padding:1rem">Not in any circle</div>';
+
+  const paymentsHtml = d.recent_payments.length ? `
+    <table style="width:100%;font-size:.8rem"><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th>Attempt</th><th>Error</th></tr></thead><tbody>
+    ${d.recent_payments.map(p => `<tr>
+      <td style="color:var(--muted)">${fmtDate(p.created_at)}</td>
+      <td>${fmt$(p.amount_cents)}</td>
+      <td>${badge(p.status)}</td>
+      <td>${p.attempt_count}</td>
+      <td style="color:var(--red);font-size:.72rem">${p.ach_error_code || '—'}</td>
+    </tr>`).join('')}</tbody></table>
+  ` : '<div class="empty" style="padding:1rem">No payments yet</div>';
+
+  const kycActions = d.user.kyc_status !== 'VERIFIED' ? `
+    <div style="display:flex;gap:.5rem;margin-top:.75rem">
+      <button class="btn btn-sm btn-primary" onclick="approveKYC('${d.user.id}');closeUserModal()">Force-approve KYC</button>
+      ${d.user.kyc_status !== 'REJECTED' ? `<button class="btn btn-sm btn-ghost" onclick="rejectKYC('${d.user.id}');closeUserModal()" style="color:var(--red)">Reject KYC</button>` : ''}
+    </div>` : '';
+
+  return `
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.5rem;margin-bottom:1.25rem">
+      <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Account</div>${badge(d.user.account_status)}</div>
+      <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">KYC</div>${badge(d.user.kyc_status)}</div>
+      <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Role</div>${badge(d.user.role)}</div>
+      <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Payments</div><span style="color:var(--green)">${d.user.successful_payments}</span> / <span style="color:var(--red)">${d.user.failed_payments}</span></div>
+    </div>
+    ${kycActions}
+    <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Bank accounts</h3>
+    ${banksHtml}
+    <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Circles (${d.groups.length})</h3>
+    ${groupsHtml}
+    <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Recent payments</h3>
+    <div class="table-wrap">${paymentsHtml}</div>
+  `;
+}
+
 // ── Groups ────────────────────────────────────────────────────────────────────
 async function loadGroupsData() {
   try {
-    allGroups = await api('/groups') || [];
+    allGroups = await api('/admin/groups') || [];
     renderGroups(null);
   } catch(e) {
     document.getElementById('groupTable').innerHTML =
@@ -446,15 +558,17 @@ function filterGroups(status, btn) {
 }
 
 function renderGroups(statusFilter) {
+  const q = (document.getElementById('groupSearch')?.value || '').toLowerCase();
   const rows = allGroups
     .filter(g => !statusFilter || g.status === statusFilter)
-    .map(g=>`<tr>
-      <td style="font-weight:500">${g.name}</td>
+    .filter(g => !q || g.name.toLowerCase().includes(q) || (g.invite_code || '').toLowerCase().includes(q))
+    .map(g => `<tr>
+      <td style="font-weight:500">${g.name} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
       <td>${badge(g.status)}</td>
-      <td>${g.max_members}</td>
+      <td>${g.member_count || 0} / ${g.max_members}</td>
       <td>${fmt$(g.contribution_cents)}</td>
-      <td>${g.current_cycle_number}</td>
-      <td><button class="btn btn-sm btn-ghost" onclick="initiateCycleFor('${g.id}')">Initiate →</button></td>
+      <td>Cycle ${g.current_cycle_number} · day ${g.payout_day_of_month || 1}</td>
+      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${g.invite_code || '—'}</td>
     </tr>`).join('');
   document.getElementById('groupTable').innerHTML = rows ||
     '<tr><td colspan="6" class="empty">No circles match</td></tr>';
@@ -537,17 +651,44 @@ function showCycleMsg(msg, ok=true) {
 }
 
 // ── KYC ───────────────────────────────────────────────────────────────────────
+// The real enum values are PENDING, SUBMITTED, VERIFIED, REJECTED. Admin
+// needs visibility into the first two (never-submitted + awaiting provider)
+// plus REJECTED so they can reverse a mistake.
 function renderKYC() {
-  const pending = allUsers.filter(u=>u.kyc_status==='PENDING'||u.kyc_status==='UNVERIFIED');
-  const rows = pending.map(u=>`<tr>
+  const actionable = allUsers.filter(u =>
+    ['PENDING', 'SUBMITTED', 'REJECTED'].includes(u.kyc_status)
+  );
+  const rows = actionable.map(u => `<tr>
     <td>${u.email}</td>
-    <td>${u.full_name||'—'}</td>
+    <td>${u.full_name || '—'}</td>
     <td>${badge(u.kyc_status)}</td>
     <td>${badge(u.account_status)}</td>
     <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>
+    <td style="display:flex;gap:.4rem">
+      <button class="btn btn-sm btn-primary" onclick="approveKYC('${u.id}')" ${u.kyc_status === 'VERIFIED' ? 'disabled' : ''}>Approve</button>
+      <button class="btn btn-sm btn-ghost" onclick="rejectKYC('${u.id}')" style="color:var(--red)">Reject</button>
+    </td>
   </tr>`).join('');
   document.getElementById('kycTable').innerHTML = rows ||
-    '<tr><td colspan="5" class="empty">No pending KYC submissions</td></tr>';
+    '<tr><td colspan="6" class="empty">No actionable KYC submissions</td></tr>';
+}
+
+async function approveKYC(userId) {
+  if (!confirm('Force-approve KYC for this user? This bypasses Persona verification.')) return;
+  try {
+    await api(`/admin/kyc/${userId}/approve`, { method: 'POST' });
+    await loadUsers();
+    renderKYC();
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function rejectKYC(userId) {
+  if (!confirm('Reject this KYC submission? User will not be able to join any circle.')) return;
+  try {
+    await api(`/admin/kyc/${userId}/reject`, { method: 'POST' });
+    await loadUsers();
+    renderKYC();
+  } catch (e) { alert('Failed: ' + e.message); }
 }
 
 // ── Reconcile ─────────────────────────────────────────────────────────────────
@@ -559,12 +700,33 @@ async function runReconcile() {
   btn.disabled=true; btn.textContent='Running…';
   try {
     const r = await api('/admin/reconcile');
-    ok.textContent = '✓ Reconciliation complete — ' + JSON.stringify(r);
+    ok.innerHTML = formatReconcileReport(r);
     ok.style.display = 'block';
   } catch(e) {
     err.textContent = e.message; err.style.display = 'block';
   }
   btn.disabled=false; btn.textContent='⚡ Run reconciliation now';
+}
+
+// Render LedgerService.reconcile() output as a readable card grid instead
+// of raw JSON. The service returns {balanced, total_debits, total_credits,
+// difference, currency, ...per-account breakdowns}.
+function formatReconcileReport(r) {
+  if (!r || typeof r !== 'object') return '✓ Done — ' + JSON.stringify(r);
+  const balancedIcon = r.balanced ? '✅' : '⚠️';
+  const balancedColor = r.balanced ? 'var(--green)' : 'var(--red)';
+  const balancedText = r.balanced ? 'BALANCED' : 'UNBALANCED';
+  return `
+    <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
+      <span style="font-size:1.5rem">${balancedIcon}</span>
+      <span style="font-size:1rem;font-weight:700;color:${balancedColor}">Ledger ${balancedText}</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.75rem">
+      <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Total debits</div><div style="font-size:1.1rem;font-weight:600">${fmt$(r.total_debits || 0)}</div></div>
+      <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Total credits</div><div style="font-size:1.1rem;font-weight:600">${fmt$(r.total_credits || 0)}</div></div>
+      <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Difference</div><div style="font-size:1.1rem;font-weight:600;color:${r.balanced ? 'var(--green)' : 'var(--red)'}">${fmt$(r.difference || 0)}</div></div>
+      <div style="background:rgba(0,0,0,.2);border-radius:.5rem;padding:.75rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Currency</div><div style="font-size:1.1rem;font-weight:600">${r.currency || 'USD'}</div></div>
+    </div>`;
 }
 </script>
 </body>
