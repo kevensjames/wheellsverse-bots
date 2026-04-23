@@ -856,6 +856,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
             <option value="writer">✍️ Writer</option>
           </select>
           <span id="narai-v2-status" style="display:none;font-size:8px;color:#cc88ff;background:rgba(136,68,255,.12);border:1px solid rgba(136,68,255,.25);border-radius:10px;padding:2px 8px">● v2 active</span>
+          <button id="narai-v2-memory-btn" onclick="naraiShowMemory()" title="What NarAI remembers about you"
+            style="display:none;background:rgba(0,204,136,.1);border:1px solid rgba(0,204,136,.35);color:#00cc88;border-radius:7px;padding:2px 8px;font-size:9px;cursor:pointer;font-family:inherit;font-weight:700">
+            🧠
+          </button>
         </div>
         <!-- input row -->
         <div style="display:flex;gap:6px;align-items:flex-end">
@@ -18215,6 +18219,7 @@ function _v2ApplyState() {
   const btn = document.getElementById('narai-v2-toggle');
   const sel = document.getElementById('narai-v2-skill');
   const sta = document.getElementById('narai-v2-status');
+  const mem = document.getElementById('narai-v2-memory-btn');
   if (!btn) return;
   if (_v2Active) {
     btn.style.background = 'rgba(136,68,255,.55)';
@@ -18223,6 +18228,7 @@ function _v2ApplyState() {
     btn.textContent = 'v2 ●';
     if (sel) { sel.style.display = ''; sel.value = localStorage.getItem('narai_v2_skill') || ''; }
     if (sta) sta.style.display = '';
+    if (mem) mem.style.display = '';
   } else {
     btn.style.background = 'rgba(136,68,255,.15)';
     btn.style.color = '#cc88ff';
@@ -18230,6 +18236,7 @@ function _v2ApplyState() {
     btn.textContent = 'v2';
     if (sel) sel.style.display = 'none';
     if (sta) sta.style.display = 'none';
+    if (mem) mem.style.display = 'none';
   }
 }
 
@@ -18461,6 +18468,42 @@ async function naraiTradeSell(symbol) {
 
 // Auto-refresh every 30 s when v2 active
 setInterval(function(){ if (_v2Active) naraiTradeRefreshStatus(); }, 30000);
+
+// ── Memory inspector (Step 2 debug) ────────────────────────────────────────
+async function naraiShowMemory() {
+  try {
+    const d = await _v2Api('/chat/memory/debug');
+    const cats = d.facts_by_category || {};
+    const lines = [
+      '🧠 NarAI Memory',
+      'Facts: ' + (d.fact_count||0) + ' · Episodes: ' + (d.episode_count||0),
+      '',
+    ];
+    const order = ['identity','goal','project','preference','skill','other'];
+    let any = false;
+    for (const cat of order) {
+      const items = cats[cat];
+      if (!items || !items.length) continue;
+      any = true;
+      lines.push(cat[0].toUpperCase() + cat.slice(1) + ':');
+      for (const f of items) {
+        lines.push('  - ' + f.content + ' [' + (f.source||'?') + ']');
+      }
+      lines.push('');
+    }
+    if (!any) lines.push('(no facts stored yet — chat a few turns to populate)');
+    const text = lines.join('\n');
+    if (typeof _naraiAddMessage === 'function') {
+      _naraiAddMessage('narai', text);
+    } else {
+      alert(text);
+    }
+  } catch(e) {
+    const msg = '🧠 memory debug failed: ' + (e && e.message || e);
+    if (typeof _naraiAddMessage === 'function') _naraiAddMessage('narai', msg);
+    else alert(msg);
+  }
+}
 </script>
 
 </body>
