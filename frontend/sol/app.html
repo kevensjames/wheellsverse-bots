@@ -300,6 +300,13 @@ async function api(path, opts = {}) {
     }
   });
   if (r.status === 204) return null;
+  // 401 = token expired. Clear local state + bounce to /sol/ login rather
+  // than letting the error bubble up as "Invalid token" in the UI.
+  if (r.status === 401) {
+    localStorage.removeItem('sol_token');
+    window.location.href = '/sol/';
+    throw new Error('Session expired');
+  }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(formatApiError(d, r.statusText));
   return d;

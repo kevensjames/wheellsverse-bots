@@ -349,6 +349,17 @@ async function api(path, opts = {}) {
     }
   });
   if (r.status === 204) return null;
+  // 401 on any admin call = token expired or invalidated. Clear and show
+  // login UI rather than surfacing "Invalid token" as a cell value.
+  if (r.status === 401) {
+    sessionStorage.removeItem('sol_admin_token');
+    adminToken = null;
+    document.getElementById('loginGate').style.display = 'flex';
+    document.getElementById('appShell').style.display = 'none';
+    const hint = document.getElementById('loginHint');
+    if (hint) { hint.textContent = 'Session expired — please sign in again.'; hint.style.color = 'var(--gold)'; }
+    throw new Error('Session expired');
+  }
   const d = await r.json().catch(()=>({}));
   if (!r.ok) throw new Error(formatApiError(d, r.statusText));
   return d;
