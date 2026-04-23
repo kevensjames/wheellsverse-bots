@@ -101,20 +101,27 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="logo-sub">Admin Portal</div>
   </div>
 
+  <!-- Signed-in indicator — populated by showApp() from /auth/me -->
+  <div id="adminSignedInAs" style="padding:.5rem .75rem;margin-bottom:.5rem;font-size:.72rem;color:var(--muted);border-bottom:1px solid var(--border);display:none">
+    <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Signed in</div>
+    <div id="adminEmail" style="color:var(--text);font-weight:500;word-break:break-all">—</div>
+  </div>
+
   <div class="section-title">Overview</div>
-  <button class="nav-item active" data-page="overview" onclick="nav('overview')">◈ Overview</button>
-  <button class="nav-item" data-page="users" onclick="nav('users')">◉ Users</button>
-  <button class="nav-item" data-page="groups" onclick="nav('groups')">◎ Circles</button>
+  <button type="button" class="nav-item active" data-page="overview" onclick="nav('overview')">◈ Overview</button>
+  <button type="button" class="nav-item" data-page="users" onclick="nav('users')">◉ Users</button>
+  <button type="button" class="nav-item" data-page="groups" onclick="nav('groups')">◎ Circles</button>
 
   <div class="section-title">Operations</div>
-  <button class="nav-item" data-page="payments" onclick="nav('payments')">◇ Payments</button>
-  <button class="nav-item" data-page="cycles" onclick="nav('cycles')">⊙ Cycles</button>
-  <button class="nav-item" data-page="kyc" onclick="nav('kyc')">✦ KYC Queue</button>
+  <button type="button" class="nav-item" data-page="payments" onclick="nav('payments')">◇ Payments</button>
+  <button type="button" class="nav-item" data-page="payouts" onclick="nav('payouts')">💸 Payouts</button>
+  <button type="button" class="nav-item" data-page="cycles" onclick="nav('cycles')">⊙ Cycles</button>
+  <button type="button" class="nav-item" data-page="kyc" onclick="nav('kyc')">✦ KYC Queue</button>
 
   <div class="section-title">Tools</div>
-  <button class="nav-item" data-page="reconcile" onclick="nav('reconcile')">⚡ Reconcile</button>
+  <button type="button" class="nav-item" data-page="reconcile" onclick="nav('reconcile')">⚡ Reconcile</button>
 
-  <button class="nav-item logout" style="margin-top:auto" onclick="adminLogout()">→ Sign out</button>
+  <button type="button" class="nav-item logout" style="margin-top:auto" onclick="adminLogout()">→ Sign out</button>
 </aside>
 
 <main class="main">
@@ -201,22 +208,41 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
   <!-- Cycles -->
   <div class="page" id="page-cycles">
-    <h1>Cycles</h1><p class="sub">Initiate collections and check completion</p>
+    <h1>Cycles</h1><p class="sub">One-click initiate for PENDING cycles across all active groups</p>
     <div class="alert alert-ok" id="cycleMsg" style="display:none"></div>
     <div class="alert alert-err" id="cycleErr" style="display:none"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;max-width:680px;margin-bottom:1.5rem">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem">
-        <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Initiate cycle payments</div>
-        <div class="field"><label>Cycle ID</label>
-          <input type="text" id="initiateCycleId" placeholder="UUID"></div>
-        <button class="btn btn-primary" onclick="initiateCycle()">Initiate</button>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Circle</th><th>Cycle #</th><th>Cycle status</th><th>Members</th><th>Contribution</th><th>Actions</th></tr></thead>
+        <tbody id="cyclesTable"><tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Payouts -->
+  <div class="page" id="page-payouts">
+    <h1>Payouts</h1><p class="sub">All ACH credits to recipients. Retry FAILED ones inline.</p>
+    <div class="alert alert-ok" id="payoutMsg" style="display:none"></div>
+    <div class="alert alert-err" id="payoutErr" style="display:none"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Created</th><th>Status</th><th>Net</th><th>Fee</th><th>Attempts</th><th>Transfer ID</th><th>Actions</th></tr></thead>
+        <tbody id="payoutsTable"><tr><td colspan="7" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Group Detail Modal -->
+  <div id="groupModal" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.7);padding:2rem;overflow:auto" onclick="if(event.target===this)closeGroupModal()">
+    <div style="max-width:820px;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-radius:1rem;padding:1.5rem">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem">
+        <div>
+          <h2 style="font-size:1.25rem;margin:0" id="gmName">—</h2>
+          <div id="gmSubtitle" style="font-size:.8rem;color:var(--muted)">—</div>
+        </div>
+        <button type="button" onclick="closeGroupModal()" style="background:none;border:none;color:var(--muted);font-size:1.5rem;cursor:pointer;padding:0">×</button>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem">
-        <div style="font-weight:600;margin-bottom:.75rem;font-size:.9rem">Check cycle completion</div>
-        <div class="field"><label>Cycle ID</label>
-          <input type="text" id="checkCycleId" placeholder="UUID"></div>
-        <button class="btn btn-primary" onclick="checkCycle()">Check</button>
-      </div>
+      <div id="groupModalBody"><div class="spinner" style="margin:2rem auto"></div></div>
     </div>
   </div>
 
@@ -254,6 +280,12 @@ function showApp() {
   document.getElementById('loginGate').style.display = 'none';
   const shell = document.getElementById('appShell');
   shell.style.display = 'flex';
+  // Populate "Signed in as" — fire-and-forget, don't block the UI
+  api('/auth/me').then(me => {
+    const el = document.getElementById('adminEmail');
+    const wrap = document.getElementById('adminSignedInAs');
+    if (el && me) { el.textContent = me.email; wrap.style.display = 'block'; }
+  }).catch(() => {/* 401 handled by api() */});
   loadOverview();
   loadUsers();
   loadGroupsData();
@@ -337,6 +369,8 @@ function nav(page) {
   document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
   if (page === 'payments') loadRetries();
   if (page === 'kyc') renderKYC();
+  if (page === 'cycles') loadCyclesData();
+  if (page === 'payouts') loadPayoutsData();
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -588,6 +622,186 @@ function renderUserDetail(d) {
   `;
 }
 
+// ── Cycles ────────────────────────────────────────────────────────────────────
+// New UX: render every cycle in FORMING/PENDING/COLLECTING/SETTLING state
+// with an inline Initiate button — no more UUID pasting. One call per group
+// would be slow for many groups, so we hydrate from /admin/groups + /admin/groups/{id}
+// for the detail row. Simple approach: fetch /admin/groups, then GET each
+// group's current cycle via /admin/groups/{id} in parallel.
+async function loadCyclesData() {
+  const tb = document.getElementById('cyclesTable');
+  tb.innerHTML = '<tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr>';
+  try {
+    if (!allGroups.length) await loadGroupsData();
+    // Show only groups that have a current cycle — FORMING/ACTIVE
+    const interesting = allGroups.filter(g => g.status !== 'COMPLETED');
+    if (!interesting.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No active cycles</td></tr>'; return; }
+    // Hydrate each in parallel to get the current cycle id + status
+    const details = await Promise.all(interesting.map(g =>
+      api('/admin/groups/' + g.id).catch(() => null)
+    ));
+    const rows = details.filter(Boolean).map(d => {
+      const g = d.group;
+      const currentCycle = d.cycles.find(c => c.cycle_number === g.current_cycle_number) || d.cycles[0];
+      if (!currentCycle) return '';
+      const canInit = currentCycle.status === 'PENDING';
+      const actionBtn = canInit
+        ? `<button class="btn btn-sm btn-primary" onclick="initiateCycleById('${currentCycle.id}')">Initiate →</button>`
+        : `<button class="btn btn-sm btn-ghost" onclick="checkCycleById('${currentCycle.id}')">Check completion</button>`;
+      const memberCount = d.members.filter(m => m.status === 'ACTIVE').length;
+      return `<tr>
+        <td style="font-weight:500">${g.name}${g.is_private ? ' 🔒' : ''}</td>
+        <td>#${currentCycle.cycle_number}</td>
+        <td>${badge(currentCycle.status)}</td>
+        <td>${memberCount} / ${g.max_members}</td>
+        <td>${fmt$(g.contribution_cents)}</td>
+        <td>${actionBtn}</td>
+      </tr>`;
+    }).join('');
+    tb.innerHTML = rows || '<tr><td colspan="6" class="empty">No active cycles</td></tr>';
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+  }
+}
+
+async function initiateCycleById(cycleId) {
+  if (!confirm('Initiate this cycle? This creates one payment per active member and starts ACH debits.')) return;
+  try {
+    const r = await api(`/admin/cycles/${cycleId}/initiate`, { method: 'POST' });
+    showCycleMsg(`✓ Initiated cycle — ${r.payments_created} payments created`, true);
+    loadCyclesData();
+  } catch (e) { showCycleMsg(e.message, false); }
+}
+
+async function checkCycleById(cycleId) {
+  try {
+    const r = await api(`/admin/cycles/${cycleId}/check-completion`, { method: 'POST' });
+    showCycleMsg(`✓ Ready to settle: ${r.ready ?? JSON.stringify(r)}`, true);
+    loadCyclesData();
+  } catch (e) { showCycleMsg(e.message, false); }
+}
+
+// ── Payouts ───────────────────────────────────────────────────────────────────
+async function loadPayoutsData() {
+  const tb = document.getElementById('payoutsTable');
+  tb.innerHTML = '<tr><td colspan="7" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr>';
+  try {
+    const rows = await api('/admin/payouts') || [];
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">No payouts yet</td></tr>'; return; }
+    tb.innerHTML = rows.map(p => {
+      const retryBtn = p.status === 'FAILED'
+        ? `<button class="btn btn-sm btn-primary" onclick="retryPayout('${p.id}')">Retry</button>`
+        : '—';
+      return `<tr>
+        <td style="color:var(--muted);font-size:.75rem">${fmtDate(p.created_at)}</td>
+        <td>${badge(p.status)}</td>
+        <td style="color:var(--green);font-weight:500">${fmt$(p.net_cents || 0)}</td>
+        <td style="color:var(--muted)">${fmt$(p.fee_cents || 0)}</td>
+        <td style="text-align:center">${p.attempt_count}</td>
+        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${(p.ach_transfer_id || '—').slice(0, 16)}${p.ach_transfer_id && p.ach_transfer_id.length > 16 ? '…' : ''}</td>
+        <td>${retryBtn}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="7" class="empty">${e.message}</td></tr>`;
+  }
+}
+
+async function retryPayout(payoutId) {
+  if (!confirm('Retry this FAILED payout? This will re-attempt the ACH credit to the recipient.')) return;
+  const ok = document.getElementById('payoutMsg');
+  const err = document.getElementById('payoutErr');
+  ok.style.display = 'none'; err.style.display = 'none';
+  try {
+    const r = await api(`/admin/payouts/${payoutId}/retry`, { method: 'POST' });
+    ok.textContent = `✓ Retry triggered — payout status now ${r.status}`;
+    ok.style.display = 'block';
+    loadPayoutsData();
+  } catch (e) {
+    err.textContent = e.message; err.style.display = 'block';
+  }
+}
+
+// ── Group detail modal ────────────────────────────────────────────────────────
+async function openGroupModal(groupId) {
+  document.getElementById('groupModal').style.display = 'block';
+  document.getElementById('groupModalBody').innerHTML = '<div class="spinner" style="margin:2rem auto"></div>';
+  try {
+    const d = await api(`/admin/groups/${groupId}`);
+    document.getElementById('gmName').textContent = d.group.name + (d.group.is_private ? ' 🔒' : '');
+    document.getElementById('gmSubtitle').textContent =
+      `${d.group.status} · Cycle ${d.group.current_cycle_number} · ${fmt$(d.group.contribution_cents)}/member · ${d.group.max_members} max`;
+    document.getElementById('groupModalBody').innerHTML = renderGroupDetail(d);
+  } catch (e) {
+    document.getElementById('groupModalBody').innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+function closeGroupModal() {
+  document.getElementById('groupModal').style.display = 'none';
+}
+
+function renderGroupDetail(d) {
+  const membersHtml = d.members.length ? `
+    <table style="width:100%;font-size:.8rem"><thead><tr><th>Pos</th><th>Email</th><th>Status</th><th>Payments</th><th>Payout</th></tr></thead><tbody>
+    ${d.members.map(m => `<tr>
+      <td>${m.position ?? '—'}</td>
+      <td>${m.user_email}</td>
+      <td>${badge(m.status)}</td>
+      <td>${m.successful_payments_in_group}</td>
+      <td>${m.has_received_payout ? '<span style="color:var(--green)">✓</span>' : '—'}</td>
+    </tr>`).join('')}</tbody></table>
+  ` : '<div class="empty" style="padding:1rem">No members yet</div>';
+
+  const cyclesHtml = d.cycles.length ? d.cycles.map(c => `
+    <div style="display:flex;justify-content:space-between;padding:.5rem .75rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
+      <div>
+        <div style="font-weight:500">Cycle ${c.cycle_number}</div>
+        <div style="font-size:.72rem;color:var(--muted)">Collected ${fmt$(c.total_collected_cents)} · payout ${c.payout_cents ? fmt$(c.payout_cents) : '—'}</div>
+      </div>
+      ${badge(c.status)}
+    </div>
+  `).join('') : '<div class="empty" style="padding:1rem">No cycles yet</div>';
+
+  const payoutsHtml = d.payouts.length ? `
+    <table style="width:100%;font-size:.75rem"><thead><tr><th>Cycle</th><th>Net</th><th>Status</th><th>Transfer</th></tr></thead><tbody>
+    ${d.payouts.map(p => `<tr>
+      <td>${d.cycles.find(c => c.id === p.cycle_id)?.cycle_number ?? '?'}</td>
+      <td>${fmt$(p.net_cents)}</td>
+      <td>${badge(p.status)}</td>
+      <td style="font-family:monospace;font-size:.7rem">${(p.ach_transfer_id || '—').slice(0, 14)}</td>
+    </tr>`).join('')}</tbody></table>
+  ` : '<div class="empty" style="padding:1rem">No payouts yet</div>';
+
+  const inviteBlock = d.group.invite_code ? `
+    <div style="background:rgba(0,212,255,.05);border:1px solid rgba(0,212,255,.2);border-radius:.4rem;padding:.5rem .75rem;margin-bottom:1rem;font-size:.75rem">
+      <span style="color:var(--muted)">Invite code:</span>
+      <code style="color:var(--cyan);font-family:monospace;margin-left:.25rem">${d.group.invite_code}</code>
+      <span style="color:var(--muted);margin-left:.5rem">· payout day ${d.group.payout_day_of_month}</span>
+    </div>` : '';
+
+  return `
+    ${inviteBlock}
+    <h3 style="font-size:.9rem;margin:1rem 0 .5rem">Members (${d.members.filter(m=>m.status==='ACTIVE').length}/${d.group.max_members} active)</h3>
+    <div class="table-wrap">${membersHtml}</div>
+    <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Cycles</h3>
+    ${cyclesHtml}
+    <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Payouts</h3>
+    <div class="table-wrap">${payoutsHtml}</div>
+    <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Recent payments</h3>
+    <div class="table-wrap" style="max-height:200px;overflow-y:auto">
+      ${d.recent_payments.length ? `<table style="width:100%;font-size:.72rem"><thead><tr><th>When</th><th>Amount</th><th>Status</th><th>Attempt</th><th>Error</th></tr></thead><tbody>
+        ${d.recent_payments.map(p => `<tr>
+          <td style="color:var(--muted)">${fmtDate(p.created_at)}</td>
+          <td>${fmt$(p.amount_cents)}</td>
+          <td>${badge(p.status)}</td>
+          <td>${p.attempt_count}</td>
+          <td style="color:var(--red);font-size:.7rem">${p.ach_error_code || '—'}</td>
+        </tr>`).join('')}</tbody></table>` : '<div class="empty" style="padding:1rem">No payments yet</div>'}
+    </div>
+  `;
+}
+
 // ── Groups ────────────────────────────────────────────────────────────────────
 async function loadGroupsData() {
   try {
@@ -610,7 +824,7 @@ function renderGroups(statusFilter) {
   const rows = allGroups
     .filter(g => !statusFilter || g.status === statusFilter)
     .filter(g => !q || g.name.toLowerCase().includes(q) || (g.invite_code || '').toLowerCase().includes(q))
-    .map(g => `<tr>
+    .map(g => `<tr style="cursor:pointer" onclick="openGroupModal('${g.id}')">
       <td style="font-weight:500">${g.name} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
       <td>${badge(g.status)}</td>
       <td>${g.member_count || 0} / ${g.max_members}</td>
