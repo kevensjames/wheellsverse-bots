@@ -23,11 +23,17 @@ _DEFAULT_USER_ID = "owner"
 # Step 2 Memory Engine — lazy singleton so import doesn't touch disk.
 _memory_store: MemoryStore | None = None
 
+# Hold references to fire-and-forget tasks so asyncio's garbage collector
+# doesn't reap them before the extraction LLM call completes. Python 3.11
+# docs explicitly warn about this footgun.
+_BACKGROUND_TASKS: set = set()
+
 
 def _get_memory_store() -> MemoryStore:
     global _memory_store
     if _memory_store is None:
         _memory_store = MemoryStore()
+        logger.info(f"MemoryStore ready at {_memory_store.data_dir}")
     return _memory_store
 
 
@@ -39,15 +45,23 @@ async def _extract_and_remember(user_message: str, user_id: str) -> None:
             return resp.get("content", "")
 
         new_facts = await extract_facts_async(user_message, _llm)
+        logger.info(
+            f"fact extraction for {user_id!r}: "
+            f"msg={user_message[:60]!r} extracted={len(new_facts)}"
+        )
         if not new_facts:
             return
         store = _get_memory_store()
         for f in new_facts:
-            store.remember_fact(
+            stored = store.remember_fact(
                 user_id=user_id,
                 content=f.get("content", ""),
                 category=f.get("category", "other"),
                 source="extracted",
+            )
+            logger.info(
+                f"fact stored: user={user_id} cat={stored.category} "
+                f"content={stored.content[:80]!r}"
             )
     except Exception as e:
         logger.warning(f"fact extraction failed (non-fatal): {e}")
@@ -120,7 +134,11 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
     except Exception as e:
         logger.warning(f"episode log failed (non-fatal): {e}")
 
-    asyncio.create_task(_extract_and_remember(req.message, _DEFAULT_USER_ID))
+    task = asyncio.create_task(
+        _extract_and_remember(req.message, _DEFAULT_USER_ID)
+    )
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
 
     return ChatResponse(
         reply=result["content"],
@@ -150,6 +168,34 @@ async def chat_stream(req: ChatRequest, _: str = Depends(require_auth)) -> Strea
 
     # Stream route: fire-and-forget fact extraction; episode logged only on
     # non-stream path so we don't re-assemble chunks here.
-    asyncio.create_task(_extract_and_remember(req.message, _DEFAULT_USER_ID))
+    task = asyncio.create_task(
+        _extract_and_remember(req.message, _DEFAULT_USER_ID)
+    )
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
 
     return StreamingResponse(generate(), media_type="text/event-stream")
+
+
+# ── Memory debug (Step 2 verification) ──────────────────────────────────────
+# Lets you inspect what NarAI currently remembers about you, without having
+# to guess from chat replies. Auth-gated via the same JWT as /chat.
+
+@rt.get("/memory/debug")
+async def memory_debug(_: str = Depends(require_auth)) -> dict:
+    store = _get_memory_store()
+    facts = store.recall_facts(_DEFAULT_USER_ID)
+    episode_count = store.episodes.count()
+    grouped: dict[str, list[dict]] = {}
+    for f in facts:
+        grouped.setdefault(f.category, []).append({
+            "content": f.content,
+            "source": f.source,
+            "created_at": f.created_at,
+        })
+    return {
+        "user_id": _DEFAULT_USER_ID,
+        "fact_count": len(facts),
+        "episode_count": episode_count,
+        "facts_by_category": grouped,
+    }
