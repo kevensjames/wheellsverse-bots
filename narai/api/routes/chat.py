@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from narai.api.auth import require_auth
 from narai.core import memory, rag, router, skills, tiers
 from narai.core.db import ChatLog, SessionLocal
+from narai.core.identity import build_system_prompt as build_identity_prompt
 
 rt = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -29,14 +30,14 @@ class ChatResponse(BaseModel):
 @rt.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse:
     tier = req.tier or tiers.classify(req.message)
-    mem_ctx = await memory.arecall(req.message, n=4)
-    rag_ctx = await rag.aquery(req.message, n=3)
+    mem_hits = await memory.arecall(req.message, n=4)
+    rag_hits = await rag.aquery(req.message, n=3)
 
     system = skills.build_system_prompt(
-        base="You are NarAI, J.K. Blaze's personal AI assistant. Be direct, sharp, and useful.",
+        base=build_identity_prompt(),
         skill=req.skill,
-        memory_context=memory.recall_context(req.message) if mem_ctx else None,
-        rag_context=rag.query_context(req.message) if rag_ctx else None,
+        memory_context=memory.format_recall(mem_hits) or None,
+        rag_context=rag.format_query(rag_hits) or None,
     )
 
     result = await router.call(
@@ -69,11 +70,13 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
 @rt.post("/stream")
 async def chat_stream(req: ChatRequest, _: str = Depends(require_auth)) -> StreamingResponse:
     tier = req.tier or tiers.classify(req.message)
+    mem_hits = await memory.arecall(req.message, n=4)
+    rag_hits = await rag.aquery(req.message, n=3)
     system = skills.build_system_prompt(
-        base="You are NarAI, J.K. Blaze's personal AI assistant. Be direct, sharp, and useful.",
+        base=build_identity_prompt(),
         skill=req.skill,
-        memory_context=memory.recall_context(req.message),
-        rag_context=rag.query_context(req.message),
+        memory_context=memory.format_recall(mem_hits) or None,
+        rag_context=rag.format_query(rag_hits) or None,
     )
 
     async def generate():
