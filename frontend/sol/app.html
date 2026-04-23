@@ -300,16 +300,53 @@ async function api(path, opts = {}) {
     }
   });
   if (r.status === 204) return null;
-  // 401 = token expired. Clear local state + bounce to /sol/ login rather
-  // than letting the error bubble up as "Invalid token" in the UI.
-  if (r.status === 401) {
+  // 401 = access token expired. Try silently refreshing via the refresh token
+  // (valid 30 days) before giving up and bouncing the user to login. This
+  // keeps long-running tabs alive past the 60-min access-token TTL.
+  if (r.status === 401 && !opts._retry) {
+    const refreshed = await _tryRefresh();
+    if (refreshed) {
+      return api(path, { ...opts, _retry: true });
+    }
     localStorage.removeItem('sol_token');
+    localStorage.removeItem('sol_refresh');
     window.location.href = '/sol/';
     throw new Error('Session expired');
   }
   const d = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error(formatApiError(d, r.statusText));
   return d;
+}
+
+// Exchange refresh_token for a fresh access_token. Returns true on success.
+// Called from api() on 401; never throws so callers can fall through to the
+// login redirect on hard failure.
+let _refreshPromise = null;
+async function _tryRefresh() {
+  const refresh = localStorage.getItem('sol_refresh');
+  if (!refresh) return false;
+  // Dedupe concurrent 401s so we don't rotate the refresh token multiple times.
+  if (_refreshPromise) return _refreshPromise;
+  _refreshPromise = (async () => {
+    try {
+      const r = await fetch(API + '/auth/refresh', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!r.ok) return false;
+      const d = await r.json();
+      localStorage.setItem('sol_token', d.access_token);
+      localStorage.setItem('sol_refresh', d.refresh_token);
+      token = d.access_token;
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _refreshPromise = null;
+    }
+  })();
+  return _refreshPromise;
 }
 
 // FastAPI returns validation errors as detail=[{loc, msg, type}, ...] on 422.

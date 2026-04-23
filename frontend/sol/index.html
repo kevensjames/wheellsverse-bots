@@ -320,6 +320,7 @@ async function handleLogin(e) {
       password: document.getElementById('loginPassword').value
     });
     localStorage.setItem('sol_token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('sol_refresh', data.refresh_token);
     window.location.href = '/sol/app';
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
@@ -339,6 +340,7 @@ async function handleRegister(e) {
       full_name: document.getElementById('regName').value
     });
     localStorage.setItem('sol_token', data.access_token);
+    if (data.refresh_token) localStorage.setItem('sol_refresh', data.refresh_token);
     window.location.href = '/sol/app';
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';

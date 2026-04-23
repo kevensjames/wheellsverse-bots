@@ -292,6 +292,7 @@ async function adminLogin() {
     if (chk.status === 403) throw new Error('Not an admin account (login OK, role missing)');
     if (!chk.ok && chk.status !== 200) throw new Error(`Admin check failed: [${chk.status}]`);
     sessionStorage.setItem('sol_admin_token', d.access_token);
+    if (d.refresh_token) sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
     adminToken = d.access_token;
     showApp();
   } catch(e) {
@@ -349,10 +350,17 @@ async function api(path, opts = {}) {
     }
   });
   if (r.status === 204) return null;
-  // 401 on any admin call = token expired or invalidated. Clear and show
-  // login UI rather than surfacing "Invalid token" as a cell value.
-  if (r.status === 401) {
+  // 401 = access token expired. Try a silent refresh first; only bounce
+  // to the login gate if the refresh also fails (refresh token revoked,
+  // server restart, etc.). Prevents the admin from being kicked out
+  // every 60 min during a long triage session.
+  if (r.status === 401 && !opts._retry) {
+    const refreshed = await _tryAdminRefresh();
+    if (refreshed) {
+      return api(path, { ...opts, _retry: true });
+    }
     sessionStorage.removeItem('sol_admin_token');
+    sessionStorage.removeItem('sol_admin_refresh');
     adminToken = null;
     document.getElementById('loginGate').style.display = 'flex';
     document.getElementById('appShell').style.display = 'none';
@@ -363,6 +371,35 @@ async function api(path, opts = {}) {
   const d = await r.json().catch(()=>({}));
   if (!r.ok) throw new Error(formatApiError(d, r.statusText));
   return d;
+}
+
+// Silent refresh for the admin session. Dedupes concurrent 401s so we only
+// rotate the refresh token once per wave of failures. Returns true on success.
+let _adminRefreshPromise = null;
+async function _tryAdminRefresh() {
+  const refresh = sessionStorage.getItem('sol_admin_refresh');
+  if (!refresh) return false;
+  if (_adminRefreshPromise) return _adminRefreshPromise;
+  _adminRefreshPromise = (async () => {
+    try {
+      const r = await fetch(API + '/auth/refresh', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ refresh_token: refresh }),
+      });
+      if (!r.ok) return false;
+      const d = await r.json();
+      sessionStorage.setItem('sol_admin_token', d.access_token);
+      sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
+      adminToken = d.access_token;
+      return true;
+    } catch {
+      return false;
+    } finally {
+      _adminRefreshPromise = null;
+    }
+  })();
+  return _adminRefreshPromise;
 }
 
 // FastAPI returns 422 validation errors as detail=[{loc,msg,type}, ...]; without
