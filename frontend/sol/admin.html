@@ -120,6 +120,8 @@ tr:hover td{background:rgba(255,255,255,.02)}
 
   <div class="section-title">Tools</div>
   <button type="button" class="nav-item" data-page="reconcile" onclick="nav('reconcile')">⚡ Reconcile</button>
+  <button type="button" class="nav-item" data-page="audit" onclick="nav('audit')">📋 Audit log</button>
+  <button type="button" class="nav-item" data-page="emailpreview" onclick="nav('emailpreview')">✉ Email templates</button>
 
   <button type="button" class="nav-item logout" style="margin-top:auto" onclick="adminLogout()">→ Sign out</button>
 </aside>
@@ -267,6 +269,41 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </p>
     <button class="btn btn-primary" id="reconBtn" onclick="runReconcile()">⚡ Run reconciliation now</button>
   </div>
+
+  <!-- Audit log -->
+  <div class="page" id="page-audit">
+    <h1>Audit log</h1><p class="sub">Admin actions, newest first. Filter by action type below.</p>
+    <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
+      <select id="auditFilter" onchange="loadAuditLog()" style="background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.85rem">
+        <option value="">All actions</option>
+        <option value="kyc_approved">KYC approved</option>
+        <option value="kyc_rejected">KYC rejected</option>
+        <option value="user_activated">User activated</option>
+        <option value="user_suspended">User suspended</option>
+        <option value="reminder_sent">Reminder sent</option>
+      </select>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadAuditLog()">↺ Refresh</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Actor</th><th>Action</th><th>Target</th><th>Detail</th></tr></thead>
+        <tbody id="auditTable"><tr><td colspan="5" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Email template preview -->
+  <div class="page" id="page-emailpreview">
+    <h1>Email templates</h1><p class="sub">Preview each transactional email with sample data before touching real sends.</p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('verify')">Verify email</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('reset')">Password reset</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('payment-success')">Payment success</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('payment-failed')">Payment failed</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadEmailPreview('payout')">Payout sent</button>
+    </div>
+    <iframe id="emailFrame" style="width:100%;height:720px;border:1px solid var(--border);border-radius:.6rem;background:#05070d" srcdoc="<div style='padding:2rem;font-family:sans-serif;color:#64748b'>Pick a template above to preview.</div>"></iframe>
+  </div>
 </main>
 </div>
 
@@ -371,6 +408,50 @@ function nav(page) {
   if (page === 'kyc') renderKYC();
   if (page === 'cycles') loadCyclesData();
   if (page === 'payouts') loadPayoutsData();
+  if (page === 'audit') loadAuditLog();
+}
+
+// ── Audit log (#1) ────────────────────────────────────────────────────────────
+async function loadAuditLog() {
+  const tb = document.getElementById('auditTable');
+  tb.innerHTML = '<tr><td colspan="5" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr>';
+  const action = document.getElementById('auditFilter')?.value || '';
+  try {
+    const qs = action ? ('?action=' + encodeURIComponent(action)) : '';
+    const rows = await api('/admin/audit' + qs) || [];
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No audit events yet</td></tr>'; return; }
+    tb.innerHTML = rows.map(e => {
+      const payload = e.payload ? `<code style="font-size:.7rem;color:var(--muted)">${JSON.stringify(e.payload)}</code>` : '—';
+      return `<tr>
+        <td style="color:var(--muted);font-size:.75rem">${fmtDate(e.created_at)} ${new Date(e.created_at).toLocaleTimeString()}</td>
+        <td>${e.actor_email || '<span style="color:var(--muted)">—</span>'}</td>
+        <td><code style="color:var(--cyan);font-size:.75rem">${e.action}</code></td>
+        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${e.target_type || '—'} · ${(e.target_id || '').slice(0,8)}${e.target_id && e.target_id.length > 8 ? '…' : ''}</td>
+        <td>${payload}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    tb.innerHTML = `<tr><td colspan="5" class="empty">${e.message}</td></tr>`;
+  }
+}
+
+// ── Email template preview (#6) ───────────────────────────────────────────────
+// Fetch the rendered HTML from the backend and stuff it into an iframe via
+// srcdoc so the templates render in a sandboxed context. Using fetch +
+// srcdoc instead of a plain ?src=/admin/... URL because the endpoint
+// requires a bearer token — iframes can't attach auth headers themselves.
+async function loadEmailPreview(template) {
+  const iframe = document.getElementById('emailFrame');
+  iframe.srcdoc = '<div style="padding:2rem;font-family:sans-serif;color:#64748b">Loading…</div>';
+  try {
+    const r = await fetch(API + '/admin/email-preview/' + template, {
+      headers: { 'Authorization': 'Bearer ' + adminToken },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    iframe.srcdoc = await r.text();
+  } catch (e) {
+    iframe.srcdoc = `<div style="padding:2rem;font-family:sans-serif;color:#f87171">Failed to load: ${e.message}</div>`;
+  }
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
@@ -600,10 +681,19 @@ function renderUserDetail(d) {
   ` : '<div class="empty" style="padding:1rem">No payments yet</div>';
 
   const kycActions = d.user.kyc_status !== 'VERIFIED' ? `
-    <div style="display:flex;gap:.5rem;margin-top:.75rem">
+    <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
       <button class="btn btn-sm btn-primary" onclick="approveKYC('${d.user.id}');closeUserModal()">Force-approve KYC</button>
       ${d.user.kyc_status !== 'REJECTED' ? `<button class="btn btn-sm btn-ghost" onclick="rejectKYC('${d.user.id}');closeUserModal()" style="color:var(--red)">Reject KYC</button>` : ''}
     </div>` : '';
+
+  // Account-status actions: offer the inverse of the current status.
+  const acctActions = `
+    <div style="display:flex;gap:.5rem;margin-top:.5rem;flex-wrap:wrap">
+      ${d.user.account_status !== 'ACTIVE' ? `<button class="btn btn-sm btn-primary" onclick="activateUser('${d.user.id}')">Activate account</button>` : ''}
+      ${d.user.account_status === 'ACTIVE' ? `<button class="btn btn-sm btn-ghost" onclick="suspendUser('${d.user.id}')" style="color:var(--red)">Suspend account</button>` : ''}
+      <button class="btn btn-sm btn-ghost" onclick="sendReminder('${d.user.id}')">✉ Send reminder email</button>
+      <a class="btn btn-sm btn-ghost" href="${API}/admin/users/${d.user.id}/payments.csv" onclick="downloadCsv(event, '${d.user.id}')">⬇ Download payments CSV</a>
+    </div>`;
 
   return `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.5rem;margin-bottom:1.25rem">
@@ -613,6 +703,7 @@ function renderUserDetail(d) {
       <div style="background:rgba(0,0,0,.15);border-radius:.4rem;padding:.6rem"><div style="font-size:.7rem;color:var(--muted);text-transform:uppercase">Payments</div><span style="color:var(--green)">${d.user.successful_payments}</span> / <span style="color:var(--red)">${d.user.failed_payments}</span></div>
     </div>
     ${kycActions}
+    ${acctActions}
     <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Bank accounts</h3>
     ${banksHtml}
     <h3 style="font-size:.9rem;margin:1.25rem 0 .5rem">Circles (${d.groups.length})</h3>
@@ -951,6 +1042,56 @@ async function rejectKYC(userId) {
     await loadUsers();
     renderKYC();
   } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// Account status actions wire to /admin/users/{id}/activate|suspend.
+// Re-loads users + re-opens the modal so the action buttons toggle to
+// the inverse state without the admin needing to close+reopen.
+async function activateUser(userId) {
+  if (!confirm('Activate this account? User regains full access.')) return;
+  try {
+    await api(`/admin/users/${userId}/activate`, { method: 'POST' });
+    await loadUsers();
+    await openUserModal(userId);
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function suspendUser(userId) {
+  if (!confirm('Suspend this account? User is locked out until reactivated.')) return;
+  try {
+    await api(`/admin/users/${userId}/suspend`, { method: 'POST' });
+    await loadUsers();
+    await openUserModal(userId);
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+async function sendReminder(userId) {
+  if (!confirm('Send a reminder email to this user?')) return;
+  try {
+    const r = await api(`/admin/users/${userId}/send-reminder`, { method: 'POST' });
+    alert('✓ Reminder queued to ' + r.sent_to);
+  } catch (e) { alert('Failed: ' + e.message); }
+}
+
+// CSV download: fetch as blob + create object URL. Can't use plain <a href>
+// because the endpoint requires a bearer token — iframes/anchor elements
+// don't attach auth headers. Intercept the click, fetch with auth, force
+// download via <a download>.
+async function downloadCsv(evt, userId) {
+  evt.preventDefault();
+  try {
+    const r = await fetch(API + `/admin/users/${userId}/payments.csv`, {
+      headers: { 'Authorization': 'Bearer ' + adminToken },
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sol-payments-${userId.slice(0,8)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert('Download failed: ' + e.message); }
 }
 
 // ── Reconcile ─────────────────────────────────────────────────────────────────
