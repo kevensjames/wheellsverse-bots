@@ -887,17 +887,20 @@ async def serve_blog_post(slug: str):
 
 @app.get("/sol", response_class=HTMLResponse)
 async def serve_sol():
-    return _serve_frontend("sol/index.html")
+    # cache=False sends Cache-Control: no-store so new deploys take effect
+    # immediately instead of sitting behind browser heuristic caching (which
+    # otherwise holds HTML for ~24h based on Last-Modified).
+    return _serve_frontend("sol/index.html", cache=False)
 
 
 @app.get("/sol/app", response_class=HTMLResponse)
 async def serve_sol_app():
-    return _serve_frontend("sol/app.html")
+    return _serve_frontend("sol/app.html", cache=False)
 
 
 @app.get("/sol/admin", response_class=HTMLResponse)
 async def serve_sol_admin():
-    return _serve_frontend("sol/admin.html")
+    return _serve_frontend("sol/admin.html", cache=False)
 
 
 @app.get("/admin/shopify", response_class=HTMLResponse)
@@ -3275,8 +3278,8 @@ def _generate_thread_for_article(title: str, category: str, url: str,
     from openai import OpenAI
 
     AFF_CTAS = {
-        "robinhood": "📈 Free stock → https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1",
-        "coinbase":  "₿ $10 free BTC → https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1",
+        "robinhood": "📈 Free stock → https://app.wheellsverse.com/go/robinhood",
+        "coinbase":  "₿ $10 free BTC → https://app.wheellsverse.com/go/coinbase",
         "amazon":    "📚 Best books on this → https://amzn.to/wheellsverse",
     }
     cta_links = "\n".join(AFF_CTAS[a] for a in affiliates if a in AFF_CTAS)
