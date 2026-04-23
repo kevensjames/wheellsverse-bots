@@ -101,6 +101,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <a class="nav-item" data-page="payments" onclick="nav('payments')">
     <span class="nav-icon">⟳</span> Payments
   </a>
+  <a class="nav-item" data-page="wallet" onclick="nav('wallet')">
+    <span class="nav-icon">◆</span> Wallet
+  </a>
   <button class="nav-item logout" onclick="logout()">
     <span class="nav-icon">→</span> Sign out
   </button>
@@ -218,6 +221,19 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     <div id="paymentsList"><div class="spinner"></div></div>
   </div>
 
+  <!-- Wallet -->
+  <div class="page" id="page-wallet">
+    <h1>Wallet</h1>
+    <p class="sub">Virtual balance from payouts &amp; credits</p>
+    <div class="card" style="margin-bottom:1.5rem;border-color:rgba(0,255,136,.25);background:linear-gradient(135deg,rgba(0,255,136,.05),rgba(0,212,255,.03))">
+      <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Available balance</div>
+      <div id="walletBalance" style="font-size:2rem;font-weight:700;color:var(--green);margin-top:.25rem">$0.00</div>
+      <div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">Withdrawals to your linked bank — coming soon</div>
+    </div>
+    <h2 style="font-size:1.1rem;margin-bottom:1rem">Transaction history</h2>
+    <div id="walletHistory"><div class="spinner"></div></div>
+  </div>
+
   <!-- Bank -->
   <div class="page" id="page-bank">
     <h1>Linked bank accounts</h1>
@@ -261,6 +277,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <button type="button" class="mn" data-mpage="kyc" onclick="nav('kyc')"><span class="mni">✦</span>ID</button>
   <button type="button" class="mn" data-mpage="bank" onclick="nav('bank')"><span class="mni">◇</span>Bank</button>
   <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><span class="mni">⟳</span>Pay</button>
+  <button type="button" class="mn" data-mpage="wallet" onclick="nav('wallet')"><span class="mni">◆</span>Wallet</button>
 </nav>
 
 <script>
@@ -282,6 +299,7 @@ function nav(page) {
   if (page === 'kyc') loadKYC();
   if (page === 'bank') loadBank();
   if (page === 'payments') loadMyPayments();
+  if (page === 'wallet') loadWallet();
 }
 
 function logout() {
@@ -946,6 +964,32 @@ async function loadMyPayments() {
       </tbody>
     </table></div>`;
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+async function loadWallet() {
+  const bEl = document.getElementById('walletBalance');
+  const hEl = document.getElementById('walletHistory');
+  hEl.innerHTML = '<div class="spinner"></div>';
+  try {
+    const b = await api('/wallet/balance');
+    bEl.textContent = fmt$(b.balance_cents);
+    const rows = await api('/wallet/history');
+    if (!rows.length) {
+      hEl.innerHTML = '<div class="empty">No wallet activity yet. Payouts from your circles will appear here.</div>';
+      return;
+    }
+    hEl.innerHTML = `<div class="table-wrap"><table>
+      <thead><tr><th>Date</th><th>Description</th><th>Direction</th><th style="text-align:right">Amount</th></tr></thead>
+      <tbody>
+        ${rows.map(r => `<tr>
+          <td style="color:var(--muted)">${new Date(r.created_at).toLocaleDateString()}</td>
+          <td>${r.description ? r.description.replace(/</g,'&lt;') : '—'}</td>
+          <td>${r.direction === 'in' ? '<span style="color:var(--green)">+ in</span>' : '<span style="color:#f87171">− out</span>'}</td>
+          <td style="text-align:right;font-weight:600;color:${r.direction==='in'?'var(--green)':'#f87171'}">${r.direction==='in'?'+':'-'}${fmt$(r.amount_cents)}</td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`;
+  } catch(e) { hEl.innerHTML = `<div class="empty">${e.message}</div>`; }
 }
 
 async function setPrimary(id) {
