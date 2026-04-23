@@ -77,8 +77,15 @@ def build_system_prompt(
     identity: Identity | None = None,
     mode: Mode = "auto",
     user_context: str | None = None,
+    overwhelm_modifier: str | None = None,
 ) -> str:
-    """Generate the full system prompt from identity + runtime context."""
+    """Generate the full system prompt from identity + runtime context.
+
+    `overwhelm_modifier` (Step 3) — when the Overwhelm Engine detects the user
+    is stressed/stuck, a state-override block is appended to the prompt so the
+    model shifts behavior for that one turn. Pass the output of
+    ``narai.core.overwhelm.modifier_for(state)`` — empty strings are ignored.
+    """
     ident = identity or Identity()
 
     parts: list[str] = [
@@ -113,5 +120,8 @@ def build_system_prompt(
 
     if user_context:
         parts += ["", f"User context:\n{user_context}"]
+
+    if overwhelm_modifier:
+        parts += ["", "Current state override:", overwhelm_modifier]
 
     return "\n".join(parts)

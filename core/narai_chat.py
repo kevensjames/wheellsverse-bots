@@ -224,19 +224,22 @@ async def stream_claude(system: str, messages: list, model: str) -> AsyncGenerat
 # ─── OpenAI streaming ────────────────────────────────────────────────────────
 
 async def stream_openai(system: str, messages: list, model: str = "gpt-4o-mini") -> AsyncGenerator[str, None]:
-    """Stream response from OpenAI."""
+    """Stream response from OpenAI using create(stream=True) — yields ChatCompletionChunk objects."""
     from openai import AsyncOpenAI
     client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
     full_messages = [{"role": "system", "content": system}] + messages
-    async with client.chat.completions.stream(
+    stream = await client.chat.completions.create(
         model=model,
         messages=full_messages,
         max_tokens=4096,
-    ) as stream:
-        async for chunk in stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else None
-            if delta:
-                yield delta
+        stream=True,
+    )
+    async for chunk in stream:
+        if not chunk.choices:
+            continue
+        delta = chunk.choices[0].delta.content
+        if delta:
+            yield delta
 
 
 # ─── Smart fallback chain ─────────────────────────────────────────────────────
@@ -326,9 +329,30 @@ async def chat_stream(
     # 2. Select model
     model = select_model(tier, requested_model)
 
-    # 3. Build messages
+    # 3a. Step 3 overwhelm detection (fast pass only for user chat — regex-only,
+    # zero LLM cost, sub-millisecond). When detected, append a state-override
+    # block to the system prompt so NarAI shrinks the reply for that turn.
+    overwhelm_level = "none"
+    try:
+        from narai.core.overwhelm import detect as _detect_overwhelm, modifier_for
+        state = _detect_overwhelm(user_message)  # sync, fast-pass only
+        overwhelm_level = state.level
+        overwhelm_mod = modifier_for(state)
+    except Exception as e:
+        log.warning(f"overwhelm detection failed (non-fatal): {e}")
+        overwhelm_mod = ""
+
+    base_prompt = _get_system_prompt()
+    if overwhelm_mod:
+        base_prompt = (
+            base_prompt
+            + "\n\n## Current state override (this turn only)\n"
+            + overwhelm_mod
+        )
+
+    # 3b. Build messages
     system, messages = build_messages(
-        _get_system_prompt(),
+        base_prompt,
         history,
         user_message,
         memory,
@@ -363,6 +387,20 @@ async def chat_stream(
             add_memory_note(user_id, fact["fact"], fact["category"], conversation_id)
     except Exception as e:
         log.error(f"Memory extraction failed: {e}")
+
+    # 7. Step 3: tag the turn with overwhelm level as a memory note (high/mild
+    # only — skip "none" to avoid noise). Step 7 will mine these to find
+    # recurring patterns (e.g. "user hits overwhelm on Sundays about Nexora").
+    if overwhelm_level in ("mild", "high"):
+        try:
+            add_memory_note(
+                user_id,
+                f"[overwhelm={overwhelm_level}] {user_message[:120]}",
+                "pattern",
+                conversation_id,
+            )
+        except Exception as e:
+            log.error(f"overwhelm tag persist failed: {e}")
 
     # 7. Signal done
     yield f"data: {json.dumps({'done': True, 'model': model})}\n\n"

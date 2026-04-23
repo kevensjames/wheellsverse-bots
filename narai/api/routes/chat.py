@@ -12,6 +12,7 @@ from narai.core.db import ChatLog, SessionLocal
 from narai.core.extractor import extract_facts_async
 from narai.core.identity import build_system_prompt as build_identity_prompt
 from narai.core.memory import MemoryStore
+from narai.core.overwhelm import detect_async, modifier_for
 
 rt = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -94,14 +95,40 @@ def _build_user_context(query: str) -> str | None:
         return None
 
 
+async def _detect_overwhelm(user_message: str):
+    """Step 3: two-pass overwhelm detection. Fast-pass runs regex; ambiguous
+    cases invoke a cheap LLM classifier via the NarAI router. Never raises —
+    memory/identity must keep working if this fails.
+    """
+    async def _classifier(system: str, user: str) -> str:
+        resp = await router.call(user, tier="fast", system=system)
+        return resp.get("content", "")
+
+    try:
+        state = await detect_async(user_message, async_llm_call=_classifier)
+        logger.info(
+            f"overwhelm: level={state.level} score={state.score:.2f} "
+            f"signals={len(state.signals)}"
+        )
+        return state
+    except Exception as e:
+        logger.warning(f"overwhelm detection failed (non-fatal): {e}")
+        from narai.core.overwhelm import OverwhelmState
+        return OverwhelmState("none", 0.0, "detection error", [])
+
+
 @rt.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse:
     tier = req.tier or tiers.classify(req.message)
     mem_hits = await memory.arecall(req.message, n=4)
     rag_hits = await rag.aquery(req.message, n=3)
+    overwhelm_state = await _detect_overwhelm(req.message)
 
     system = skills.build_system_prompt(
-        base=build_identity_prompt(user_context=_build_user_context(req.message)),
+        base=build_identity_prompt(
+            user_context=_build_user_context(req.message),
+            overwhelm_modifier=modifier_for(overwhelm_state) or None,
+        ),
         skill=req.skill,
         memory_context=memory.format_recall(mem_hits) or None,
         rag_context=rag.format_query(rag_hits) or None,
@@ -125,10 +152,12 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
         ))
         await session.commit()
 
-    # Step 2: log the turn as an episode + fire-and-forget fact extraction.
+    # Step 2: log the turn as an episode (tag with overwhelm level for Step 7
+    # pattern mining) + fire-and-forget fact extraction.
     try:
         _get_memory_store().log_episode(
             _DEFAULT_USER_ID,
+            f"[overwhelm={overwhelm_state.level}] "
             f"User: {req.message}\nNarAI: {result['content']}",
         )
     except Exception as e:
@@ -154,8 +183,12 @@ async def chat_stream(req: ChatRequest, _: str = Depends(require_auth)) -> Strea
     tier = req.tier or tiers.classify(req.message)
     mem_hits = await memory.arecall(req.message, n=4)
     rag_hits = await rag.aquery(req.message, n=3)
+    overwhelm_state = await _detect_overwhelm(req.message)
     system = skills.build_system_prompt(
-        base=build_identity_prompt(user_context=_build_user_context(req.message)),
+        base=build_identity_prompt(
+            user_context=_build_user_context(req.message),
+            overwhelm_modifier=modifier_for(overwhelm_state) or None,
+        ),
         skill=req.skill,
         memory_context=memory.format_recall(mem_hits) or None,
         rag_context=rag.format_query(rag_hits) or None,
