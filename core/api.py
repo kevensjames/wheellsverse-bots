@@ -877,6 +877,26 @@ async def serve_blog():
 _BLOG_DATE_PREFIX_RE = re.compile(r"^(\d{8})-(.+)$")
 
 
+@app.get("/{key}.txt")
+async def serve_indexnow_key(key: str):
+    """IndexNow ownership verification endpoint.
+
+    IndexNow requires that the domain owner host the key at
+    https://<host>/<key>.txt as proof of ownership. This route returns
+    the key in plain text if (and only if) the requested key matches
+    our INDEXNOW_KEY env var. Any other /<anything>.txt request 404s
+    so this doesn't become a generic text-file serving hole.
+
+    Rotation: change INDEXNOW_KEY in Railway, re-ping IndexNow with the
+    new key. No code change or redeploy required.
+    """
+    from fastapi.responses import PlainTextResponse
+    expected = (os.getenv("INDEXNOW_KEY") or "").strip()
+    if not expected or key != expected:
+        return PlainTextResponse("not found", status_code=404)
+    return PlainTextResponse(expected)
+
+
 @app.get("/blog/{slug}", response_class=HTMLResponse)
 async def serve_blog_post(slug: str):
     """Serve individual blog post HTML files.
