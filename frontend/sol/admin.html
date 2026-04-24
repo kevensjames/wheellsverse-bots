@@ -92,7 +92,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn" onclick="adminLogin()">Sign in</button>
     <div id="totpBlock" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
       <div class="field"><label>Authenticator code</label>
-        <input type="text" id="aTotp" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="letter-spacing:.3rem;text-align:center;font-size:1.1rem"></div>
+        <input type="text" id="aTotp" placeholder="123456 or backup code" maxlength="13" autocomplete="one-time-code" style="letter-spacing:.15rem;text-align:center;font-size:1.05rem"></div>
       <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn" onclick="adminLoginTotp()">Verify code</button>
     </div>
   </div>
@@ -372,7 +372,7 @@ async function adminLogin() {
       document.getElementById('totpBlock').style.display = 'block';
       const tInput = document.getElementById('aTotp');
       tInput.value = ''; tInput.focus();
-      hint.textContent = 'Enter the 6-digit code from your authenticator.';
+      hint.textContent = 'Enter the 6-digit code from your authenticator, or a backup code.';
       hint.style.color = 'var(--muted)';
       btn.disabled = false; btn.textContent = 'Sign in';
       return;
@@ -402,8 +402,11 @@ async function adminLoginTotp() {
   const btn = document.getElementById('totpBtn');
   const hint = document.getElementById('loginHint');
   const code = (document.getElementById('aTotp').value || '').trim();
-  if (code.length !== 6) {
-    hint.textContent = 'Code must be 6 digits'; hint.style.color = 'var(--red)';
+  // Accept 6-digit TOTP OR a backup code (10 hex chars, optionally dashed)
+  const isTotp = /^\d{6}$/.test(code);
+  const isBackup = /^[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{2}$/.test(code);
+  if (!isTotp && !isBackup) {
+    hint.textContent = 'Enter a 6-digit code or a backup code'; hint.style.color = 'var(--red)';
     return;
   }
   btn.disabled = true; btn.textContent = 'Verifying…';
@@ -534,11 +537,25 @@ async function loadSecurity() {
           <input type="text" id="haltReason" placeholder="e.g. ledger imbalance detected on cycle X"></div>
         <button class="btn btn-ghost" style="color:var(--red);border-color:var(--red)" onclick="haltSol()">🛑 Halt money movement</button>
       </div>`;
+    const remaining = me.totp_backup_codes_remaining || 0;
+    const lowCodesWarning = (me.totp_enabled && remaining <= 3)
+      ? `<div style="margin:.5rem 0;padding:.6rem .75rem;background:rgba(255,215,0,.08);border:1px solid var(--gold);border-radius:.4rem;color:var(--gold);font-size:.8rem">⚠ Only ${remaining} backup code${remaining===1?'':'s'} left — regenerate before running out.</div>`
+      : '';
     const twoFaHtml = me.totp_enabled ? `
         <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
           <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(0,255,136,.12);color:var(--green);font-size:.75rem;font-weight:600">✓ 2FA ENABLED</span>
+          <span style="font-size:.8rem;color:var(--muted)">${remaining} of 10 backup codes remaining</span>
         </div>
-        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">You'll be asked for a 6-digit code from your authenticator app each time you sign in.</p>
+        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">You'll be asked for a 6-digit code from your authenticator app (or a backup code) each time you sign in.</p>
+        ${lowCodesWarning}
+        <div style="padding-top:1rem;border-top:1px solid var(--border);margin-bottom:1rem">
+          <div style="font-weight:600;margin-bottom:.5rem">Regenerate backup codes</div>
+          <p style="color:var(--muted);font-size:.8rem;margin-bottom:.75rem">Issues 10 new codes and invalidates all old ones — including any you haven't used.</p>
+          <div class="field"><label>Password</label><input type="password" id="rb_pw" autocomplete="current-password"></div>
+          <div class="field"><label>Current authenticator code</label><input type="text" id="rb_code" maxlength="6" inputmode="numeric" placeholder="123456"></div>
+          <p class="err" id="rb_err" style="display:none;color:var(--red);font-size:.8rem"></p>
+          <button class="btn btn-ghost" onclick="regenerateBackupCodes()">Regenerate</button>
+        </div>
         <div style="padding-top:1rem;border-top:1px solid var(--border)">
           <div style="font-weight:600;margin-bottom:.75rem">Disable 2FA</div>
           <div class="field"><label>Password</label><input type="password" id="td_pw" autocomplete="current-password"></div>
@@ -599,10 +616,129 @@ async function activateTotp() {
   const err = document.getElementById('ta_err');
   if (code.length !== 6) { err.textContent = 'Code must be 6 digits'; err.style.display = 'block'; return; }
   try {
-    await api('/auth/2fa/activate', { method:'POST', body: JSON.stringify({ code }) });
-    alert('2FA enabled. You will need your authenticator app on your next sign-in.');
-    loadSecurity();
+    const resp = await api('/auth/2fa/activate', { method:'POST', body: JSON.stringify({ code }) });
+    showBackupCodesModal(resp.backup_codes, 'Save these backup codes');
   } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+}
+
+async function regenerateBackupCodes() {
+  const password = document.getElementById('rb_pw').value;
+  const code = (document.getElementById('rb_code').value || '').trim();
+  const err = document.getElementById('rb_err');
+  if (!password || code.length !== 6) { err.textContent = 'Enter password and 6-digit code'; err.style.display = 'block'; return; }
+  if (!confirm('Regenerate backup codes?\n\nAll previously-issued codes will STOP working immediately.')) return;
+  try {
+    const resp = await api('/auth/2fa/backup-codes/regenerate', { method:'POST', body: JSON.stringify({ password, code }) });
+    showBackupCodesModal(resp.backup_codes, 'New backup codes — save these, old ones no longer work');
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+}
+
+// Modal hard-stops the user until they acknowledge saving the codes.
+// Codes are shown exactly once; losing them means DB surgery to recover.
+function showBackupCodesModal(codes, title) {
+  const existing = document.getElementById('backupCodesModal');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'backupCodesModal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;z-index:9999;padding:1rem';
+
+  const inner = document.createElement('div');
+  inner.style.cssText = 'background:var(--surface);border:2px solid var(--gold);border-radius:.6rem;padding:1.5rem;max-width:480px;width:100%;max-height:90vh;overflow-y:auto';
+
+  const h = document.createElement('h2');
+  h.style.cssText = 'font-size:1.1rem;margin-bottom:.5rem;color:var(--gold)';
+  h.textContent = '🔑 ' + title;
+  inner.appendChild(h);
+
+  const warn = document.createElement('p');
+  warn.style.cssText = 'font-size:.85rem;color:var(--muted);margin-bottom:1rem';
+  warn.textContent = 'These 10 codes replace your authenticator app if you lose your phone. Each works once. Printing or saving them in a password manager is required — they will not be shown again.';
+  inner.appendChild(warn);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'margin-bottom:1rem';
+  codes.forEach(c => {
+    const code = document.createElement('code');
+    code.textContent = c;
+    code.style.cssText = 'display:block;padding:.5rem .75rem;background:#05070d;border:1px solid var(--border);border-radius:.35rem;font-family:monospace;letter-spacing:.05em;margin-bottom:.35rem';
+    list.appendChild(code);
+  });
+  inner.appendChild(list);
+
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:.5rem;flex-wrap:wrap';
+  const copyBtn = document.createElement('button');
+  copyBtn.type = 'button';
+  copyBtn.className = 'btn btn-ghost btn-sm';
+  copyBtn.textContent = '📋 Copy all';
+  copyBtn.onclick = () => copyBackupCodes(copyBtn, codes);
+  btnRow.appendChild(copyBtn);
+  const printBtn = document.createElement('button');
+  printBtn.type = 'button';
+  printBtn.className = 'btn btn-ghost btn-sm';
+  printBtn.textContent = '🖨 Print';
+  printBtn.onclick = () => printBackupCodes(codes);
+  btnRow.appendChild(printBtn);
+  inner.appendChild(btnRow);
+
+  const ackRow = document.createElement('div');
+  ackRow.style.cssText = 'margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border);display:flex;align-items:center;gap:.5rem';
+  const ack = document.createElement('input');
+  ack.type = 'checkbox'; ack.id = 'bcAck';
+  ack.style.cssText = 'width:auto;margin:0';
+  const ackLabel = document.createElement('label');
+  ackLabel.htmlFor = 'bcAck';
+  ackLabel.style.cssText = 'margin:0;cursor:pointer;font-size:.9rem';
+  ackLabel.textContent = "I've saved these codes somewhere safe";
+  ackRow.appendChild(ack);
+  ackRow.appendChild(ackLabel);
+  inner.appendChild(ackRow);
+
+  const contBtn = document.createElement('button');
+  contBtn.type = 'button'; contBtn.className = 'btn btn-primary';
+  contBtn.style.cssText = 'width:100%;justify-content:center;margin-top:.75rem';
+  contBtn.disabled = true;
+  contBtn.textContent = 'Continue';
+  contBtn.onclick = closeBackupCodesModal;
+  ack.onchange = () => { contBtn.disabled = !ack.checked; };
+  inner.appendChild(contBtn);
+
+  modal.appendChild(inner);
+  document.body.appendChild(modal);
+}
+
+function copyBackupCodes(btn, codes) {
+  navigator.clipboard.writeText(codes.join('\n')).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓ Copied';
+    setTimeout(() => { btn.textContent = orig; }, 1500);
+  });
+}
+
+// Print via DOM construction in a new window (avoids document.write).
+function printBackupCodes(codes) {
+  const w = window.open('', '_blank', 'width=500,height=600');
+  if (!w) { alert('Pop-up blocked — allow pop-ups to print'); return; }
+  const doc = w.document;
+  doc.title = 'Sol backup codes';
+  const body = doc.body;
+  body.style.cssText = 'font-family:monospace;padding:2rem';
+  const h2 = doc.createElement('h2'); h2.textContent = 'Sol 2FA backup codes'; body.appendChild(h2);
+  const p = doc.createElement('p');
+  p.textContent = 'Generated ' + new Date().toLocaleString() + '. Store in a safe place. Each code works once.';
+  body.appendChild(p);
+  const pre = doc.createElement('pre');
+  pre.style.fontSize = '1rem';
+  pre.textContent = codes.join('\n');
+  body.appendChild(pre);
+  w.print();
+}
+
+function closeBackupCodesModal() {
+  const m = document.getElementById('backupCodesModal');
+  if (m) m.remove();
+  loadSecurity();
 }
 
 async function disableTotp() {
