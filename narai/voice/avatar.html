@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>NarAI — Voice Presence</title>
+<style>
+  body { margin: 0; background: #0a0a0a; display: grid; place-items: center; height: 100vh; font-family: system-ui, sans-serif; }
+  .avatar {
+    width: 240px; height: 240px; border-radius: 50%;
+    background: radial-gradient(circle at 30% 30%, #4a4aff, #0a0a40);
+    display: grid; place-items: center; color: white;
+    font-size: 64px; font-weight: 700; letter-spacing: -2px;
+    transition: transform 0.3s, box-shadow 0.3s, background 0.6s;
+    box-shadow: 0 0 40px rgba(74, 74, 255, 0.3);
+    user-select: none;
+  }
+  .avatar.speaking { animation: pulse 0.6s ease-in-out infinite; box-shadow: 0 0 60px rgba(74, 255, 180, 0.6); }
+  .avatar.listening { box-shadow: 0 0 50px rgba(255, 200, 74, 0.5); }
+  .avatar.companion { background: radial-gradient(circle at 30% 30%, #ff6b9d, #4a0a2a); }
+  .avatar.overwhelm { animation: breathe 3s ease-in-out infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+  @keyframes breathe { 0%,100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.04); opacity: 1; } }
+  .label { position: absolute; bottom: 40px; color: #888; font-size: 14px; letter-spacing: 1px; text-transform: uppercase; }
+  .reply { position: absolute; bottom: 80px; color: #ccc; font-size: 15px; max-width: 600px; text-align: center; padding: 0 20px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div class="avatar" id="narai">N</div>
+<div class="reply" id="reply"></div>
+<div class="label" id="status">idle</div>
+
+<script>
+const avatar = document.getElementById('narai');
+const status = document.getElementById('status');
+const reply = document.getElementById('reply');
+const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/narai/voice/ws';
+const ws = new WebSocket(wsUrl);
+
+function setState(state) {
+  avatar.className = 'avatar ' + state;
+  status.textContent = state;
+}
+
+ws.onopen = () => setState('listening');
+ws.onclose = () => setState('idle');
+
+ws.onmessage = (e) => {
+  if (typeof e.data === 'string') {
+    let msg;
+    try { msg = JSON.parse(e.data); } catch (_) { return; }
+    if (msg.type === 'transcript') {
+      const cls = msg.mode === 'companion' ? 'speaking companion' : 'speaking';
+      setState(cls);
+      reply.textContent = msg.reply || '';
+    } else if (msg.type === 'audio_end') {
+      setState('listening');
+    }
+  } else {
+    // Binary audio frame — play it
+    const audioBlob = new Blob([e.data], { type: 'audio/mpeg' });
+    const url = URL.createObjectURL(audioBlob);
+    const audio = new Audio(url);
+    audio.play().catch(() => {});
+  }
+};
+</script>
+</body>
+</html>
