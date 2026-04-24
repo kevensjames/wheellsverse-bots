@@ -1,15 +1,27 @@
-"""NarAI core layer — router, memory, RAG, resilience, skills, storage, identity, overwhelm, mode."""
+"""NarAI core layer — router, memory, RAG, resilience, skills, storage, identity, overwhelm, mode.
+
+Heavy optional deps (chromadb, etc.) are imported lazily so subpackages like
+shopify_mt can be loaded without them installed.
+"""
 from .identity import Identity, Mode, build_system_prompt
-from .memory import MemoryStore, Fact, Episode
-from .extractor import extract_facts
-from .overwhelm import (
-    detect, detect_async, OverwhelmState,
-    modifier_for as overwhelm_modifier_for,
-)
-from .mode_router import (
-    route, route_async, ModeDecision, parse_override,
-    modifier_for as mode_modifier_for,
-)
+
+try:
+    from .memory import MemoryStore, Fact, Episode
+    from .extractor import extract_facts
+except ImportError:
+    pass  # chromadb / heavy deps absent — shopify_mt and lightweight paths still work
+
+try:
+    from .overwhelm import (
+        detect, detect_async, OverwhelmState,
+        modifier_for as overwhelm_modifier_for,
+    )
+    from .mode_router import (
+        route, route_async, ModeDecision, parse_override,
+        modifier_for as mode_modifier_for,
+    )
+except ImportError:
+    pass
 
 __all__ = [
     "Identity", "Mode", "build_system_prompt",
