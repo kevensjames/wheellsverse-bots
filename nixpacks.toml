@@ -1,14 +1,20 @@
-# cache-bust: 2026-04-24-voice-runtime
+# cache-bust: 2026-04-24-voice-runtime-v3-verbose
 [phases.setup]
-nixPkgs = ["python311", "gcc", "libffi", "openssl"]
+# rust needed for bcrypt 4.x source builds when a manylinux wheel isn't picked
+# (e.g. on Railway's nix-based container). Without it, pip skips the wheel and
+# fails silently, leaving bcrypt missing even though pip reports exit 0.
+nixPkgs = ["python311", "gcc", "libffi", "openssl", "rustc", "cargo"]
 
 [phases.install]
-# Verify the install with `pip check` so partial installs (missing bcrypt,
-# anthropic, etc.) fail the build instead of silently shipping a broken image.
-# The verify stanza imports the exact packages the v2 stack needs at startup —
-# if any are missing, the build fails here, not at runtime.
+# Deliberately split into three cmds and use `|| true` nowhere — ANY failure
+# must kill the build. Uses `-v` on the requirements install so the Railway
+# build log shows every wheel/fallback decision. Final cmd is the verify:
+# if bcrypt or any other critical import is missing, Python exits non-zero and
+# nixpacks fails the phase (which is what we want — no silent partial installs).
 cmds = [
-  "pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements-server.txt",
+  "pip install --no-cache-dir --upgrade pip",
+  "pip install --no-cache-dir -r requirements-server.txt -v",
+  "pip list | grep -iE '^(bcrypt|anthropic|requests|fastapi|edge-tts|chromadb)\\s' || echo 'DEPS_MISSING'",
   "python -c 'import bcrypt, anthropic, requests, fastapi, edge_tts; print(\"deps verified:\", bcrypt.__version__, anthropic.__version__, edge_tts.__version__)'"
 ]
 

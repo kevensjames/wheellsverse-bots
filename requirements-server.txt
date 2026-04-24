@@ -38,3 +38,11 @@ python-jose[cryptography]>=3.3.0
 # NarAI v2 — Step 5 voice (TTS only; STT uses existing openai package;
 # ElevenLabs is optional and imported lazily only when NARAI_TTS_PROVIDER=elevenlabs)
 edge-tts>=6.1.0
+
+# NarAI Godmode — Google OAuth (Gmail/Drive/Calendar/YouTube/Sheets/Docs)
+# cryptography is explicit (transitively pulled by python-jose, but narai_godmode.vault
+# imports it directly — declaring keeps the dependency obvious)
+cryptography>=42.0.0
+google-auth-oauthlib>=1.2.0
+google-api-python-client>=2.130.0
+google-auth-httplib2>=0.2.0
