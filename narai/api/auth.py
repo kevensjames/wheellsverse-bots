@@ -24,7 +24,7 @@ def verify_password(plain: str) -> bool:
 
 
 def create_token() -> str:
-    from jose import jwt  # lazy — module loads even if jose wheel is absent at import time
+    import jwt  # PyJWT — pure Python, no compiled extensions
     expire = datetime.now(timezone.utc) + timedelta(hours=_TTL_HOURS)
     return jwt.encode({"sub": "owner", "exp": expire}, _SECRET, algorithm=_ALGORITHM)
 
@@ -32,11 +32,11 @@ def create_token() -> str:
 def require_auth(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
-    from jose import JWTError, jwt  # lazy
+    import jwt  # PyJWT
     try:
         payload = jwt.decode(creds.credentials, _SECRET, algorithms=[_ALGORITHM])
         return payload["sub"]
-    except JWTError:
+    except jwt.InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",

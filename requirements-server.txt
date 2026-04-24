@@ -33,7 +33,7 @@ psutil>=5.9.0
 # NarAI v2 — auth only (chat/memory/rag need chromadb, added separately later)
 bcrypt>=3.2.0,<4.0.0
 passlib[bcrypt]>=1.7.4
-python-jose>=3.3.0
+PyJWT>=2.8.0
 
 # NarAI v2 — Step 5 voice (TTS only; STT uses existing openai package;
 # ElevenLabs is optional and imported lazily only when NARAI_TTS_PROVIDER=elevenlabs)

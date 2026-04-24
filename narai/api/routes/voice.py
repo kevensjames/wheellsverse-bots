@@ -53,11 +53,11 @@ async def voice_ui() -> HTMLResponse:
 def _verify_token(token: str) -> str | None:
     """Validate a JWT and return the subject, or None if invalid."""
     try:
-        from jose import JWTError, jwt
+        import jwt  # PyJWT — pure Python, no compiled extensions
         secret = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
         payload = jwt.decode(token, secret, algorithms=["HS256"])
         return payload.get("sub")
-    except (JWTError, Exception) as e:
+    except Exception as e:
         logger.warning(f"WS JWT verify failed: {e}")
         return None
 
