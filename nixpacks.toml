@@ -1,11 +1,12 @@
-# cache-bust: 2026-04-24-bcrypt4-noplaywright
+# cache-bust: 2026-04-24-playwright-explicit
 [phases.setup]
 nixPkgs = ["python311", "gcc", "libffi", "openssl", "rustc", "cargo"]
 
 [phases.install]
 cmds = [
   "pip install --no-cache-dir --upgrade pip",
-  "pip install --no-cache-dir -r requirements-server.txt"
+  "pip install --no-cache-dir -r requirements-server.txt",
+  "pip install --no-cache-dir 'playwright>=1.44.0'"
 ]
 
 [start]
