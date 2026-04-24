@@ -344,8 +344,14 @@ class PublishPipeline:
         try:
             BLOG_DIR.mkdir(parents=True, exist_ok=True)
             slug = slug or re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
-            ts = datetime.now().strftime("%Y%m%d")
-            filename = f"{ts}-{slug[:60]}.html"
+            # Clean slug filename (no timestamp prefix) — the URL the bots
+            # announce and the file on disk are now the same thing, so
+            # shared links stop 404'ing. Re-publishing an article with the
+            # same title intentionally overwrites; 80 chars is a reasonable
+            # SEO-friendly cap (old limit was 60 which truncated too many
+            # titles and caused accidental slug collisions).
+            slug_truncated = slug[:80]
+            filename = f"{slug_truncated}.html"
             filepath = BLOG_DIR / filename
 
             body_html = _md_to_html(content)
@@ -390,9 +396,23 @@ class PublishPipeline:
             except Exception as git_err:
                 logger.warning(f"Git auto-push failed (manual push needed): {git_err}")
 
+            # Best-effort IndexNow ping — tells Bing/Yandex to recrawl this
+            # URL within minutes. No-op if INDEXNOW_KEY isn't configured.
+            try:
+                from core import indexnow
+                site_base_for_ping = os.getenv("CTA_URL", "https://wheellsverse.com").rstrip("/")
+                indexnow.ping_urls([f"{site_base_for_ping}/blog/{slug_truncated}"])
+            except Exception as _e:
+                logger.debug("IndexNow ping skipped: %s", _e)
+
+            # Return BOTH slug (backward compat) and basename — the basename
+            # is the truncated+cleaned stem that matches the file on disk,
+            # and is what callers should use to build share URLs.
             return {"platform": "blog", "status": "saved",
                     "file": str(filepath.relative_to(ROOT)),
-                    "slug": slug}
+                    "slug": slug,
+                    "filename": filename,
+                    "basename": slug_truncated}
         except Exception as e:
             return {"platform": "blog", "status": "error", "error": str(e)}
 
@@ -459,8 +479,23 @@ class PublishPipeline:
                         ("posted", "saved", "draft_created", "content_saved", "sent"))
         skipped = sum(1 for r in results if r.get("status") == "skipped")
 
-        # Trigger Netlify deploy if any blog posts were saved
+        # Build the live URL for every saved blog post using the real
+        # filename on disk (not the raw, un-truncated slug). This is what
+        # was broken before — the URL and the filename had drifted apart
+        # because the filename was prefixed with a timestamp and truncated
+        # to 60 chars while the URL used the full raw slug.
         blog_saved = [r for r in results if r.get("platform") == "blog" and r.get("status") == "saved"]
+        site_base = os.getenv("CTA_URL", "https://wheellsverse.com").rstrip("/")
+        for r in blog_saved:
+            # Prefer basename (new publisher output); fall back to slug for
+            # any caller that's somehow producing old-shape results.
+            basename = r.get("basename") or r.get("slug", "")
+            r["live_url"] = f"{site_base}/blog/{basename}"
+
+        # Best-effort legacy Netlify deploy. The site is now served by the
+        # Railway FastAPI app directly from frontend/blog/, so this step is
+        # no-op on Railway deploys — left in place for any environment that
+        # still uses a separate Netlify frontend.
         if blog_saved:
             try:
                 import subprocess
@@ -472,9 +507,6 @@ class PublishPipeline:
                 deployed = deploy.returncode == 0
                 for r in blog_saved:
                     r["netlify_deployed"] = deployed
-                    if deployed:
-                        site_base = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev").rstrip("/")
-                    r["live_url"] = f"{site_base}/blog/{r['slug']}.html"
                 logger.info(f"Netlify deploy: {'✅ ok' if deployed else '✗ ' + deploy.stderr[:200]}")
             except Exception as e:
                 logger.warning(f"Netlify deploy skipped: {e}")

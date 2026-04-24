@@ -12,6 +12,7 @@ import json
 import logging
 import logging.handlers
 import os
+import re
 import sys
 import time
 from collections import deque
@@ -873,16 +874,44 @@ async def serve_blog():
     return _serve_frontend("blog/index.html")
 
 
+_BLOG_DATE_PREFIX_RE = re.compile(r"^(\d{8})-(.+)$")
+
+
 @app.get("/blog/{slug}", response_class=HTMLResponse)
 async def serve_blog_post(slug: str):
-    """Serve individual blog post HTML files."""
-    # Accept both with and without .html extension
+    """Serve individual blog post HTML files.
+
+    Fallback behavior for the slug-migration: if the requested slug still
+    carries an old `YYYYMMDD-` date prefix (from social shares or search
+    indexes written before the 2026-04 migration), strip it and 301 to
+    the canonical clean-slug URL. This makes every already-published link
+    keep working without having to parse the _redirects file at runtime.
+    """
+    from fastapi.responses import RedirectResponse
+
+    blog_dir = ROOT / "frontend" / "blog"
     filename = slug if slug.endswith(".html") else f"{slug}.html"
-    path = ROOT / "frontend" / "blog" / filename
-    if not path.exists():
-        return HTMLResponse(f"<h1>Article not found</h1>", status_code=404)
-    return HTMLResponse(path.read_text(encoding="utf-8"),
-                        headers={"Cache-Control": "public, max-age=3600"})
+    path = blog_dir / filename
+
+    # 1. Direct hit — serve as-is.
+    if path.exists():
+        return HTMLResponse(path.read_text(encoding="utf-8"),
+                            headers={"Cache-Control": "public, max-age=3600"})
+
+    # 2. Legacy date-prefixed slug. Strip YYYYMMDD- and 301 if the stripped
+    #    slug exists on disk. Works for both with and without .html in the
+    #    original request because `filename` already normalizes that.
+    stem = filename[:-5] if filename.endswith(".html") else filename
+    m = _BLOG_DATE_PREFIX_RE.match(stem)
+    if m:
+        canonical_stem = m.group(2)
+        if (blog_dir / f"{canonical_stem}.html").exists():
+            # 301 = permanent — tells search engines to consolidate link
+            # equity onto the canonical URL.
+            return RedirectResponse(url=f"/blog/{canonical_stem}", status_code=301)
+
+    # 3. Nothing matches — genuine 404.
+    return HTMLResponse(f"<h1>Article not found</h1>", status_code=404)
 
 
 @app.get("/sol", response_class=HTMLResponse)
