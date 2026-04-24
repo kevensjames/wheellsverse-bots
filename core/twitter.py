@@ -232,12 +232,16 @@ class TwitterClient:
         except RuntimeError:
             raise
         except Exception as e:
-            if "402" in str(e) or "Payment Required" in str(e) or "credits" in str(e).lower():
-                logger.warning("Twitter API credits exhausted — switching to browser posting")
+            err = str(e)
+            logger.error("Twitter API post_tweet failed: %s", err)
+            is_credits = "402" in err or "Payment Required" in err or "credits" in err.lower()
+            if is_credits and self._browser._is_configured():
+                logger.warning("API credits exhausted — switching to browser posting")
                 result = self._browser.post_tweet(text)
                 self._increment_daily_count()
                 return result
-            raise
+            # Surface the real API error (browser not configured or not a credits issue)
+            raise RuntimeError(f"Twitter API error: {err}") from e
 
     def post_thread(self, tweets: List[str]) -> List[Dict]:
         """Post a thread — API first, browser fallback on 402."""
@@ -330,7 +334,7 @@ class TwitterClient:
 
         # Last tweet — CTA
         coinbase = os.getenv("AFFILIATE_COINBASE_URL", "")
-        robinhood = os.getenv("AFFILIATE_ROBINHOOD_URL", "")
+        robinhood = os.getenv("AFFILIATE_WEBULL_URL", "")
 
         cta_parts = ["💰 Start earning today:"]
         if robinhood:
