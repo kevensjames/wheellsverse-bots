@@ -1,12 +1,11 @@
-# cache-bust: 2026-04-24-playwright
+# cache-bust: 2026-04-24-bcrypt4-noplaywright
 [phases.setup]
 nixPkgs = ["python311", "gcc", "libffi", "openssl", "rustc", "cargo"]
 
 [phases.install]
 cmds = [
   "pip install --no-cache-dir --upgrade pip",
-  "pip install --no-cache-dir -r requirements-server.txt",
-  "playwright install chromium --with-deps"
+  "pip install --no-cache-dir -r requirements-server.txt"
 ]
 
 [start]
