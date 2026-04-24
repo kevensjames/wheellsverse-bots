@@ -72,7 +72,7 @@ _setup_logging()
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("api")
 
@@ -110,7 +110,9 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/nx/register", "/api/nx/login", "/api/nx/logout", "/api/nx/stripe-webhook",
                  "/api/nx/fan/register", "/api/nx/fan/login", "/api/nx/fan/logout",
                  # Sol ROSCA platform — public pages
-                 "/sol", "/sol/app", "/sol/admin"}
+                 "/sol", "/sol/app", "/sol/admin",
+                 # Public landing-page endpoints (no auth, rate-limited internally)
+                 "/api/public/chat", "/api/public/crypto"}
 
 # Shopify dashboard endpoints — all served by the same-origin dashboard, no extra auth
 for _p in [
@@ -3323,10 +3325,32 @@ def _generate_thread_for_article(title: str, category: str, url: str,
     import os
     from openai import OpenAI
 
+    _B = "https://app.wheellsverse.com/go"
     AFF_CTAS = {
-        "robinhood": "📈 Free stock → https://app.wheellsverse.com/go/robinhood",
-        "coinbase":  "₿ $10 free BTC → https://app.wheellsverse.com/go/coinbase",
-        "amazon":    "📚 Best books on this → https://amzn.to/wheellsverse",
+        # Investing
+        "robinhood":       f"📈 Get a free stock on Robinhood → {_B}/robinhood",
+        "coinbase":        f"₿ $10 free BTC on Coinbase → {_B}/coinbase",
+        "webull":          f"📊 Free stocks on Webull → {_B}/webull",
+        "binance":         f"🔶 Trade crypto on Binance → {_B}/binance",
+        "m1finance":       f"💰 Invest for free on M1 → {_B}/m1finance",
+        "public":          f"🏦 Zero-fee investing on Public → {_B}/public",
+        # Gig economy
+        "doordash":        f"🚗 Earn $600 bonus with DoorDash → {_B}/doordash",
+        "uber":            f"🚗 Earn $1,215 with Uber Eats → {_B}/uber",
+        # Fintech
+        "cashapp":         f"💵 Get $5 free on Cash App → {_B}/cashapp",
+        "onepay":          f"💳 Earn $50 cash back on OnePay → {_B}/onepay",
+        "capitalone":      f"💳 Check Capital One pre-approval → {_B}/capitalone",
+        "creditone":       f"💳 Pre-qualify for Credit One → {_B}/creditone",
+        # Amazon subscriptions
+        "amazon_prime":    f"📦 Try Amazon Prime → {_B}/amazon_prime",
+        "amazon_kindle":   f"📚 Try Kindle Unlimited → {_B}/amazon_kindle",
+        "amazon_audible":  f"🎧 Try Audible → {_B}/amazon_audible",
+        "amazon_music":    f"🎵 Try Amazon Music Unlimited → {_B}/amazon_music",
+        "amazon_fresh":    f"🛒 Try Amazon Fresh → {_B}/amazon_fresh",
+        "amazon_kids":     f"👶 Try Amazon Kids+ → {_B}/amazon_kids",
+        "amazon_business": f"🏢 Try Amazon Business → {_B}/amazon_business",
+        "amazon":          f"📚 Best books on this topic → {_B}/amazon",
     }
     cta_links = "\n".join(AFF_CTAS[a] for a in affiliates if a in AFF_CTAS)
 
@@ -5459,15 +5483,15 @@ _BLOG_ARTICLES = [
     {"filename":"20260326-10-ai-tools-that-replace-500-month-in-software-subscriptions.html","title":"10 AI Tools That Replace $500/Month in Software Subscriptions","category":"AI Tools","date":"2026-03-26","affiliates":["amazon"]},
     {"filename":"20260326-5-ai-tools-that-help-you-make-money-while-you-sleep.html","title":"5 AI Tools That Help You Make Money While You Sleep","category":"AI Tools","date":"2026-03-26","affiliates":["amazon"]},
     {"filename":"20260326-best-beginner-crypto-wallets-2025-safety-guide.html","title":"Best Beginner Crypto Wallets 2025 — Safety Guide","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
-    {"filename":"20260326-best-crypto-exchange-for-beginners-in-2025-coinbase-vs-binan.html","title":"Best Crypto Exchange for Beginners in 2025: Coinbase vs Binance","category":"Crypto","date":"2026-03-26","affiliates":["coinbase","robinhood"]},
+    {"filename":"20260326-best-crypto-exchange-for-beginners-in-2025-coinbase-vs-binan.html","title":"Best Crypto Exchange for Beginners in 2025: Coinbase vs Binance","category":"Crypto","date":"2026-03-26","affiliates":["coinbase","webull"]},
     {"filename":"20260326-boost-your-crypto-portfolio-with-smart-investing-strategies.html","title":"Boost Your Crypto Portfolio With Smart Investing Strategies","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
     {"filename":"20260326-coinbase-vs-kraken-vs-binance-which-is-best-for-beginners.html","title":"Coinbase vs Kraken vs Binance: Which Is Best for Beginners?","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
     {"filename":"20260326-cryptocurrency-trends-insights-and-opportunities.html","title":"Cryptocurrency Trends, Insights and Opportunities","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
     {"filename":"20260326-latest-in-crypto-news.html","title":"Latest in Crypto News","category":"Crypto","date":"2026-03-26","affiliates":["coinbase"]},
-    {"filename":"20260326-dividend-stocks-that-pay-monthly-income-2025.html","title":"Dividend Stocks That Pay Monthly Income 2025","category":"Stocks","date":"2026-03-26","affiliates":["robinhood","amazon"]},
-    {"filename":"20260326-how-to-get-a-free-stock-on-robinhood-in-2025-and-what-to-inv.html","title":"How to Get a Free Stock on Robinhood in 2025","category":"Stocks","date":"2026-03-26","affiliates":["robinhood"]},
-    {"filename":"20260326-how-to-start-investing-in-etfs-with-100.html","title":"How to Start Investing in ETFs With $100","category":"Stocks","date":"2026-03-26","affiliates":["robinhood","amazon"]},
-    {"filename":"20260326-affiliate-campaign-best-investing-apps-with-signup-bonuses-i.html","title":"Best Investing Apps With Signup Bonuses in 2025","category":"Stocks","date":"2026-03-26","affiliates":["robinhood","coinbase"]},
+    {"filename":"20260326-dividend-stocks-that-pay-monthly-income-2025.html","title":"Dividend Stocks That Pay Monthly Income 2025","category":"Stocks","date":"2026-03-26","affiliates":["webull","amazon"]},
+    {"filename":"20260326-how-to-get-a-free-stock-on-robinhood-in-2025-and-what-to-inv.html","title":"How to Get a Free Stock on Robinhood in 2025","category":"Stocks","date":"2026-03-26","affiliates":["webull"]},
+    {"filename":"20260326-how-to-start-investing-in-etfs-with-100.html","title":"How to Start Investing in ETFs With $100","category":"Stocks","date":"2026-03-26","affiliates":["webull","amazon"]},
+    {"filename":"20260326-affiliate-campaign-best-investing-apps-with-signup-bonuses-i.html","title":"Best Investing Apps With Signup Bonuses in 2025","category":"Stocks","date":"2026-03-26","affiliates":["webull","coinbase"]},
     {"filename":"20260326-exploring-high-ticket-affiliate-programs-maximize-your-earni.html","title":"The Ultimate Guide to High-Ticket Affiliate Programs","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
     {"filename":"20260326-how-to-build-3-passive-income-streams-in-90-days-starting-wi.html","title":"How to Build 3 Passive Income Streams in 90 Days Starting With $0","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
     {"filename":"20260326-passive-income-7-passive-income-streams-that-made-real-peopl.html","title":"7 Passive Income Streams That Made Real People $500/Month — With Proof","category":"Passive Income","date":"2026-03-26","affiliates":["amazon"]},
@@ -5918,8 +5942,8 @@ def _generate_tiktok_script(title: str, category: str, url: str,
     aff_line = ""
     if "coinbase" in affiliates:
         aff_line += " Sign up to Coinbase and earn free Bitcoin."
-    if "robinhood" in affiliates:
-        aff_line += " Get a free stock on Robinhood."
+    if "webull" in affiliates:
+        aff_line += " Get free stocks on Webull."
     if "amazon" in affiliates:
         aff_line += " Shop the best tools on Amazon."
     prompt = (
@@ -6236,7 +6260,7 @@ async def revenue_v2():
     # Per-program cards with program metadata
     PROGRAM_META = {
         "coinbase":  {"icon": "₿",  "color": "#00d4ff", "target": 200},
-        "robinhood": {"icon": "📈", "color": "#00ff88", "target": 150},
+        "webull": {"icon": "📈", "color": "#00ff88", "target": 150},
         "amazon":    {"icon": "📚", "color": "#ffd700", "target": 150},
     }
     by_program = earn30.get("by_program", {})
@@ -13132,3 +13156,38 @@ async def bug_hunter_scan(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_scan)
     return {"status": "started", "message": "Bug hunter scan started in background"}
+
+
+# ── Public landing-page endpoints (no auth, IP rate-limited) ─────────────────
+
+_PUBLIC_CHAT_HITS: dict[str, list[float]] = {}
+_PUBLIC_CHAT_LIMIT = 5
+_PUBLIC_CHAT_WINDOW = 60.0
+
+
+class _PublicChatBody(BaseModel):
+    message: str = Field(..., min_length=1, max_length=500)
+
+
+@app.post("/api/public/chat")
+async def public_chat(req: Request, body: _PublicChatBody):
+    ip = req.client.host or "unknown"
+    now = time.time()
+    hits = [t for t in _PUBLIC_CHAT_HITS.get(ip, []) if now - t < _PUBLIC_CHAT_WINDOW]
+    if len(hits) >= _PUBLIC_CHAT_LIMIT:
+        raise HTTPException(429, "Rate limit — try again in a minute.")
+    hits.append(now)
+    _PUBLIC_CHAT_HITS[ip] = hits
+
+    from narai.core import router as _narai_router
+    from narai.core.identity import build_system_prompt as _build_identity
+    result = await _narai_router.call(
+        body.message, tier="fast", system=_build_identity()
+    )
+    return {"reply": result["content"]}
+
+
+@app.get("/api/public/crypto")
+async def public_crypto():
+    from core.integrations import get_integrations
+    return get_integrations().get_crypto_prices()

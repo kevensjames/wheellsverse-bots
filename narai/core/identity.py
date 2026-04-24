@@ -77,10 +77,14 @@ def build_system_prompt(
     identity: Identity | None = None,
     mode: Mode = "auto",
     user_context: str | None = None,
+    pattern_context: str | None = None,
     overwhelm_modifier: str | None = None,
     mode_modifier: str | None = None,
 ) -> str:
     """Generate the full system prompt from identity + runtime context.
+
+    `pattern_context` (Step 6) — behavioral patterns mined from the episode
+    history. Pass the output of ``narai.core.patterns.get_proactive_context()``.
 
     `overwhelm_modifier` (Step 3) — when the Overwhelm Engine detects the user
     is stressed/stuck, a state-override block is appended to the prompt so the
@@ -126,6 +130,9 @@ def build_system_prompt(
 
     if user_context:
         parts += ["", f"User context:\n{user_context}"]
+
+    if pattern_context:
+        parts += ["", pattern_context]
 
     if mode_modifier:
         parts += ["", mode_modifier]

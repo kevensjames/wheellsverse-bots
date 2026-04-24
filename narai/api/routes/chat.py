@@ -16,6 +16,7 @@ from narai.core.overwhelm import detect_async, modifier_for
 from narai.core.mode_router import (
     route_async, parse_override, modifier_for as mode_modifier_for,
 )
+from narai.core.patterns import get_proactive_context, mine_patterns_async
 
 rt = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -23,6 +24,10 @@ logger = logging.getLogger("narai.chat")
 
 # Single-user app — everything keyed to "owner" to match the JWT `sub` claim.
 _DEFAULT_USER_ID = "owner"
+
+# Step 7: per-user turn counter. Mining fires every N turns as a background task.
+_TURN_COUNTS: dict[str, int] = {}
+MINE_EVERY_N_TURNS = 10
 
 # Step 2 Memory Engine — lazy singleton so import doesn't touch disk.
 _memory_store: MemoryStore | None = None
@@ -188,9 +193,13 @@ async def run_pipeline_async(
         user_message, user_id, overwhelm_state.level,
     )
 
+    # Step 6: proactive pattern context (fast SQL read, no LLM).
+    proactive_ctx = get_proactive_context(user_id, _get_memory_store())
+
     system = skills.build_system_prompt(
         base=build_identity_prompt(
             user_context=_build_user_context(user_message),
+            pattern_context=proactive_ctx or None,
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
@@ -221,6 +230,18 @@ async def run_pipeline_async(
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_BACKGROUND_TASKS.discard)
 
+    # Step 7: mine behavioral patterns every N turns (non-blocking).
+    _TURN_COUNTS[user_id] = _TURN_COUNTS.get(user_id, 0) + 1
+    if _TURN_COUNTS[user_id] % MINE_EVERY_N_TURNS == 0:
+        async def _mine_llm(system: str, user: str) -> str:
+            resp = await router.call(user, tier="fast", system=system)
+            return resp.get("content", "")
+        mine_task = asyncio.create_task(
+            mine_patterns_async(user_id, _get_memory_store(), _mine_llm)
+        )
+        _BACKGROUND_TASKS.add(mine_task)
+        mine_task.add_done_callback(_BACKGROUND_TASKS.discard)
+
     return {
         "reply": result["content"],
         "model": result["model"],
@@ -243,9 +264,13 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
         req.message, _DEFAULT_USER_ID, overwhelm_state.level,
     )
 
+    # Step 6: proactive pattern context (fast SQL read, no LLM).
+    proactive_ctx = get_proactive_context(_DEFAULT_USER_ID, _get_memory_store())
+
     system = skills.build_system_prompt(
         base=build_identity_prompt(
             user_context=_build_user_context(req.message),
+            pattern_context=proactive_ctx or None,
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
@@ -289,6 +314,18 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
     )
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+    # Step 7: mine behavioral patterns every N turns (non-blocking).
+    _TURN_COUNTS[_DEFAULT_USER_ID] = _TURN_COUNTS.get(_DEFAULT_USER_ID, 0) + 1
+    if _TURN_COUNTS[_DEFAULT_USER_ID] % MINE_EVERY_N_TURNS == 0:
+        async def _mine_llm_rest(system: str, user: str) -> str:
+            resp = await router.call(user, tier="fast", system=system)
+            return resp.get("content", "")
+        mine_task = asyncio.create_task(
+            mine_patterns_async(_DEFAULT_USER_ID, _get_memory_store(), _mine_llm_rest)
+        )
+        _BACKGROUND_TASKS.add(mine_task)
+        mine_task.add_done_callback(_BACKGROUND_TASKS.discard)
 
     return ChatResponse(
         reply=result["content"],

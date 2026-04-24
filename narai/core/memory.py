@@ -200,6 +200,16 @@ class Episode:
     score: float = 0.0
 
 
+@dataclass
+class Pattern:
+    id: str
+    user_id: str
+    pattern_type: str
+    description: str
+    observations_count: int
+    last_seen: str
+
+
 _MEMORY_STORE_SCHEMA = """
 CREATE TABLE IF NOT EXISTS facts (
     id TEXT PRIMARY KEY,
@@ -361,6 +371,60 @@ class MemoryStore:
                 lines.extend(f"- {e.content}" for e in eps)
 
         return "\n".join(lines)
+
+    # ---------- Patterns (Step 6 read, Step 7 write) ----------
+
+    def get_patterns(self, user_id: str, limit: int = 3) -> list[Pattern]:
+        rows = self.db.execute(
+            "SELECT * FROM patterns WHERE user_id = ? "
+            "ORDER BY observations_count DESC LIMIT ?",
+            (user_id, limit),
+        ).fetchall()
+        return [
+            Pattern(
+                r["id"], r["user_id"], r["pattern_type"],
+                r["description"], r["observations_count"], r["last_seen"],
+            )
+            for r in rows
+        ]
+
+    def upsert_pattern(
+        self,
+        user_id: str,
+        pattern_type: str,
+        description: str,
+        observations_count: int = 1,
+    ) -> None:
+        # Deterministic ID so same description always maps to the same row.
+        pid = hashlib.sha256(f"{user_id}:{description}".encode()).hexdigest()[:32]
+        now = datetime.utcnow().isoformat()
+        self.db.execute(
+            "INSERT INTO patterns (id, user_id, pattern_type, description, "
+            "observations_count, last_seen) VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "observations_count=excluded.observations_count, last_seen=excluded.last_seen",
+            (pid, user_id, pattern_type, description, observations_count, now),
+        )
+        self.db.commit()
+
+    def get_recent_episodes_raw(self, user_id: str, limit: int = 100) -> list[dict]:
+        """All episodes for a user sorted newest-first (for pattern mining)."""
+        try:
+            result = self.episodes.get(
+                where={"user_id": user_id},
+                include=["documents", "metadatas"],
+            )
+        except Exception:
+            return []
+        ids = result.get("ids") or []
+        if not ids:
+            return []
+        pairs = [
+            {"content": doc, "timestamp": meta.get("timestamp", "")}
+            for doc, meta in zip(result["documents"], result["metadatas"])
+        ]
+        pairs.sort(key=lambda x: x["timestamp"], reverse=True)
+        return pairs[:limit]
 
     def close(self) -> None:
         self.db.close()

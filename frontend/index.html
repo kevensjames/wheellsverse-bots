@@ -879,7 +879,7 @@ document.getElementById('mic-btn').addEventListener('click', () => {
 /* ────────────── CRYPTO TICKER (safe DOM) ────────────── */
 (async function loadLivePrices(){
   try {
-    const r = await fetch('/api/integrations/crypto');
+    const r = await fetch('/api/public/crypto');
     const d = await r.json();
     if(!d.prices) return;
     const ticker = document.getElementById('ticker');
@@ -988,7 +988,7 @@ import * as THREE from 'three';
   // ║  Set CHAT_URL = '' to skip the API and use local replies.    ║
   // ║  Extend SMART_REPLIES below to teach her new topics.         ║
   // ╚══════════════════════════════════════════════════════════════╝
-  const NARAI_CHAT_URL = '';  // /api/v2/narai/chat requires auth — using local SMART_REPLIES only
+  const NARAI_CHAT_URL = '/api/public/chat';  // rate-limited public endpoint (5/min per IP)
 
   const SMART_REPLIES = [
     // [keyword regex, one-of responses]
