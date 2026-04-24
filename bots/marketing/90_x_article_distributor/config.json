@@ -1,0 +1,6 @@
+{
+  "description": "Picks the least-recently-distributed canonical blog article and posts a promotional tweet linking to it. This is the counterpart to the revenue-gate: content creation is paused when audience is small, but DISTRIBUTION runs regardless — that's the whole point.",
+  "enabled": true,
+  "action": "link",
+  "schedule": "@daily 14:30"
+}
