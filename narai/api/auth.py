@@ -7,7 +7,6 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from jose import JWTError, jwt
 
 _SECRET = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
 _ALGORITHM = "HS256"
@@ -25,6 +24,7 @@ def verify_password(plain: str) -> bool:
 
 
 def create_token() -> str:
+    from jose import jwt  # lazy — module loads even if jose wheel is absent at import time
     expire = datetime.now(timezone.utc) + timedelta(hours=_TTL_HOURS)
     return jwt.encode({"sub": "owner", "exp": expire}, _SECRET, algorithm=_ALGORITHM)
 
@@ -32,6 +32,7 @@ def create_token() -> str:
 def require_auth(
     creds: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> str:
+    from jose import JWTError, jwt  # lazy
     try:
         payload = jwt.decode(creds.credentials, _SECRET, algorithms=[_ALGORITHM])
         return payload["sub"]
