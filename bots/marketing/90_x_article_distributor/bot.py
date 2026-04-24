@@ -54,6 +54,16 @@ _HOOK_TEMPLATES = [
 # Slugs to exclude from distribution — index page + meta content.
 _SKIP_SLUGS = {"index", "landing-page-copy"}
 
+# Patterns that identify non-article files that ended up in the blog dir:
+#   - YYYYMMDD-prefixed slugs (legacy duplicates; canonical counterpart exists)
+#   - Bot task-plan outputs (54-task-assistant-taskplan-…)
+#   - Reminder-bot outputs (55-reminder-bot-…)
+_SKIP_PATTERNS = re.compile(
+    r"^\d{8}-"           # date-prefixed legacy duplicate
+    r"|taskplan"         # task-assistant bot artefact
+    r"|reminder-bot"     # reminder-bot artefact
+)
+
 
 class XArticleDistributorBot(BaseBot):
 
@@ -95,9 +105,10 @@ class XArticleDistributorBot(BaseBot):
             return []
         return sorted(
             p.stem for p in BLOG_DIR.iterdir()
-            if p.is_file() and p.suffix == ".html" and p.stem not in _SKIP_SLUGS
-            # _archive/ is a subdir so it's already excluded by p.is_file()
-            # on iterdir + suffix check
+            if p.is_file()
+            and p.suffix == ".html"
+            and p.stem not in _SKIP_SLUGS
+            and not _SKIP_PATTERNS.search(p.stem)
         )
 
     def _pick_next(self, state: Dict[str, str]) -> Optional[str]:

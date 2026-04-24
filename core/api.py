@@ -690,7 +690,8 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/shopify/media/", "/api/shopify/intelligence/",
                              "/api/shopify/", "/api/narai/schedules", "/api/sa/",
                              "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
-                             "/api/v2/narai/",  # v2 uses its own JWT auth
+                             "/api/v2/narai/",       # v2 uses its own JWT auth
+                 "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
                              "/api/google/",   # OAuth flow: protected by state-based CSRF
                              "/api/store/download/")  # uses its own signed-token auth
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
@@ -13077,6 +13078,26 @@ try:
     logger.info("Marketing autopilot router loaded at /marketing")
 except Exception as _e:
     logger.warning(f"Marketing autopilot not loaded: {_e}")
+
+
+# ── NarAI Multi-tenant Shopify ────────────────────────────────────────────────
+try:
+    from narai.api.routes.shopify_oauth import router as _smt_oauth_rt
+    from narai.api.routes.shopify_webhooks import router as _smt_webhooks_rt
+    from narai.api.routes.shopify_billing import (
+        api_router as _smt_billing_api_rt,
+        webhook_router as _smt_billing_webhook_rt,
+    )
+    from narai.api.routes.shopify_admin import router as _smt_admin_rt
+
+    app.include_router(_smt_oauth_rt)                            # /shopify/install  /shopify/callback
+    app.include_router(_smt_webhooks_rt)                         # /shopify/webhooks/*
+    app.include_router(_smt_billing_webhook_rt)                  # /shopify/billing/webhook
+    app.include_router(_smt_billing_api_rt, prefix="/api/narai") # /api/narai/shopify/billing/*
+    app.include_router(_smt_admin_rt)                            # /api/narai/shopify/merchants
+    logger.info("NarAI multi-tenant Shopify routes loaded")
+except Exception as _e:
+    logger.warning(f"NarAI multi-tenant Shopify not loaded: {_e}")
 
 
 # ── Toodle / Second Brain Inbox ────────────────────────────────────────────────
