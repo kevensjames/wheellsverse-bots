@@ -62,10 +62,17 @@ class ComplianceAgentBot(BaseBot):
         return outputs
 
     def _system_health(self, ts: str, **kwargs) -> dict:
-        """Check health of all agents and core systems."""
-        health = {}
+        """Check health of all agents and core systems.
 
-        # Check agent configs
+        Uses core.compliance to read the REAL run status of every agent
+        that has ever reported. The old version only checked if config
+        files existed — which is why it reported 'ALL SYSTEMS OK' while
+        four agents were in 3-strike credit-exhausted failure loops.
+        """
+        import os
+        from core import compliance as _compliance
+
+        # ─── Static checks (still useful, but not sufficient) ───────────
         agent_dir = ROOT / "bots" / "agent_workforce"
         agents = []
         if agent_dir.exists():
@@ -81,53 +88,83 @@ class ComplianceAgentBot(BaseBot):
                         if config_file.exists() else False,
                     })
 
-        # Check core modules
         core_modules = ["base_bot", "facebook", "instagram", "whatsapp",
-                        "telegram", "convertkit", "publish_pipeline"]
+                        "telegram", "convertkit", "publish_pipeline",
+                        "dedup", "compliance", "revenue_gate"]
         core_health = {}
         for mod in core_modules:
             core_file = ROOT / "core" / f"{mod}.py"
             core_health[mod] = "OK" if core_file.exists() else "MISSING"
 
-        # Check .env keys
-        import os
         critical_vars = [
             "ANTHROPIC_API_KEY", "FACEBOOK_PAGE_TOKEN", "FACEBOOK_PAGE_ID",
             "INSTAGRAM_ACCOUNT_ID", "WHATSAPP_ACCESS_TOKEN", "TELEGRAM_BOT_TOKEN",
         ]
         env_status = {v: "SET" if os.getenv(v) else "MISSING" for v in critical_vars}
+        missing_env = [k for k, v in env_status.items() if v == "MISSING"]
+
+        # ─── LIVE runtime health — the honest signal ────────────────────
+        # Check every agent that has a config file (expected-to-run list),
+        # plus any unexpected agent that's actually reporting.
+        expected_agents = [a["name"] for a in agents if a.get("enabled")]
+        reported_agents = set(_compliance._list_known_agents())
+        agent_list = sorted(set(expected_agents) | reported_agents)
+        results = _compliance.check_all(agent_list, stale_threshold_sec=3600)
+
+        status_counts = {}
+        for r in results:
+            status_counts[r.status.value] = status_counts.get(r.status.value, 0) + 1
+
+        any_dead = any(r.status.value in ("dead", "credit_exhausted") for r in results)
+        any_failing = any(r.status.value == "failing" for r in results)
+        overall_ok = not missing_env and not any_dead and not any_failing
 
         health = {
             "timestamp": datetime.now().isoformat(),
+            "overall_status": "OK" if overall_ok else "DEGRADED",
             "agents": agents,
+            "agent_runtime_health": [
+                {
+                    "name": r.agent,
+                    "status": r.status.value,
+                    "consecutive_failures": r.consecutive_failures,
+                    "seconds_since_success": r.seconds_since_success,
+                    "last_error": r.last_error,
+                }
+                for r in results
+            ],
+            "runtime_status_counts": status_counts,
             "core_modules": core_health,
             "env_vars": env_status,
             "total_agents": len(agents),
             "enabled_agents": sum(1 for a in agents if a["enabled"]),
+            "compliance_backend": _compliance.backend(),
         }
 
-        # Alert if critical vars missing
-        missing = [k for k, v in env_status.items() if v == "MISSING"]
-        if missing:
+        if missing_env:
             try:
                 from core.telegram import notify
-                notify("⚠️ Compliance Alert — Missing ENV vars:\n" + "\n".join(f"- {m}" for m in missing))
+                notify("⚠️ Compliance Alert — Missing ENV vars:\n" + "\n".join(f"- {m}" for m in missing_env))
             except Exception:
                 pass
 
         path = self.save_output(
-            f"# System Health Check — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n```json\n{json.dumps(health, indent=2)}\n```",
+            f"# System Health Check — {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+            f"```json\n{json.dumps(health, indent=2)}\n```",
             f"health_{ts}.md", ext="md")
 
-        # Send health summary to Telegram
+        # ─── Honest Telegram report ─────────────────────────────────────
         try:
             from core.telegram import notify
-            status = "✅ ALL SYSTEMS OK" if not missing else f"⚠️ {len(missing)} issues found"
-            notify(f"🤖 Compliance Agent — Health Check\n{status}\n"
-                   f"Agents: {health['enabled_agents']}/{health['total_agents']} enabled\n"
-                   f"Core modules: {sum(1 for v in core_health.values() if v == 'OK')}/{len(core_modules)} OK")
-        except Exception:
-            pass
+            report = _compliance.format_telegram_report(results)
+            if missing_env:
+                report += "\n\n🔐 Missing env vars: " + ", ".join(missing_env)
+            missing_core = [m for m, s in core_health.items() if s == "MISSING"]
+            if missing_core:
+                report += "\n🧩 Missing core modules: " + ", ".join(missing_core)
+            notify(report)
+        except Exception as e:
+            self.logger.warning("Could not send compliance report to Telegram: %s", e)
 
         return {"file": str(path), "action": "health_check", "health": health}
 

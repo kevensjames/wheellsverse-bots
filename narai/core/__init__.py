@@ -1,12 +1,20 @@
-"""NarAI core layer — router, memory, RAG, resilience, skills, storage, identity, overwhelm."""
+"""NarAI core layer — router, memory, RAG, resilience, skills, storage, identity, overwhelm, mode."""
 from .identity import Identity, Mode, build_system_prompt
 from .memory import MemoryStore, Fact, Episode
 from .extractor import extract_facts
-from .overwhelm import detect, detect_async, OverwhelmState, modifier_for
+from .overwhelm import (
+    detect, detect_async, OverwhelmState,
+    modifier_for as overwhelm_modifier_for,
+)
+from .mode_router import (
+    route, route_async, ModeDecision, parse_override,
+    modifier_for as mode_modifier_for,
+)
 
 __all__ = [
     "Identity", "Mode", "build_system_prompt",
     "MemoryStore", "Fact", "Episode",
     "extract_facts",
-    "detect", "detect_async", "OverwhelmState", "modifier_for",
+    "detect", "detect_async", "OverwhelmState", "overwhelm_modifier_for",
+    "route", "route_async", "ModeDecision", "parse_override", "mode_modifier_for",
 ]

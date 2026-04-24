@@ -78,6 +78,7 @@ def build_system_prompt(
     mode: Mode = "auto",
     user_context: str | None = None,
     overwhelm_modifier: str | None = None,
+    mode_modifier: str | None = None,
 ) -> str:
     """Generate the full system prompt from identity + runtime context.
 
@@ -85,6 +86,11 @@ def build_system_prompt(
     is stressed/stuck, a state-override block is appended to the prompt so the
     model shifts behavior for that one turn. Pass the output of
     ``narai.core.overwhelm.modifier_for(state)`` — empty strings are ignored.
+
+    `mode_modifier` (Step 4) — Operator vs Companion voice override for this
+    turn. Pass the output of ``narai.core.mode_router.modifier_for(decision)``.
+    Rendered before ``overwhelm_modifier`` so a high-overwhelm state override
+    wins when both fire on the same turn.
     """
     ident = identity or Identity()
 
@@ -120,6 +126,9 @@ def build_system_prompt(
 
     if user_context:
         parts += ["", f"User context:\n{user_context}"]
+
+    if mode_modifier:
+        parts += ["", mode_modifier]
 
     if overwhelm_modifier:
         parts += ["", "Current state override:", overwhelm_modifier]

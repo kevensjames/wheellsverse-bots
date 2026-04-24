@@ -25,6 +25,21 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 
+# ─── Operational guards (dedup / compliance / revenue-gate) ──────────────────
+# Import lazily with fallbacks so a broken guard module never takes down bots.
+try:
+    from core import dedup as _guard_dedup  # type: ignore
+except Exception:  # pragma: no cover
+    _guard_dedup = None
+try:
+    from core import compliance as _guard_compliance  # type: ignore
+except Exception:  # pragma: no cover
+    _guard_compliance = None
+try:
+    from core import revenue_gate as _guard_revenue  # type: ignore
+except Exception:  # pragma: no cover
+    _guard_revenue = None
+
 # ─── Token usage log ─────────────────────────────────────────────────────────
 
 _TOKEN_LOG = ROOT / "data" / "token_usage.json"
@@ -100,7 +115,20 @@ class BaseBot(ABC):
     Abstract base class for every bot in the WheellsVerse ecosystem.
     Provides: logging, OpenAI + Claude clients, config loading, output saving,
     error handling, timing, and status reporting.
+
+    Operational guards (applied automatically by execute()):
+      - dedup_enabled: skip re-runs with same args within dedup_ttl_seconds
+      - revenue_gate_enabled: skip if bot's category is gated AND audience < min
+      - compliance recording: every execute() records success/failure so
+        109_compliance_agent can tell the truth instead of 'ALL SYSTEMS OK'
+    Subclasses override _dedup_fingerprint() if they want a custom key.
     """
+
+    # ─── Operational guard defaults (override per-bot if needed) ──────────
+    dedup_enabled: bool = True           # execution-level dedup in execute()
+    dedup_ttl_seconds: int = 3600        # 1 hour — one unique run per hour
+    revenue_gate_enabled: bool = True    # honored ONLY if category is gated
+    _dedup_unstable_keys = ("ts", "timestamp", "now", "time", "run_id", "nonce")
 
     def __init__(self, name: str, category: str, config_path: Optional[Path] = None):
         self.name = name
@@ -422,27 +450,117 @@ class BaseBot(ABC):
         """Main bot logic — override in every subclass."""
         ...
 
+    # ─── Guard helpers ─────────────────────────────────────────────────────
+
+    def _dedup_fingerprint(self, **kwargs) -> Dict[str, Any]:
+        """
+        Build a stable key for execution-level dedup. Default strips timestamp-
+        like kwargs (which would otherwise defeat dedup by varying every call).
+        Override in subclasses to customize — e.g. a book bot may want to
+        include `{genre, title}` only, ignoring everything else.
+        """
+        stable = {k: v for k, v in kwargs.items() if k not in self._dedup_unstable_keys}
+        return {
+            "bot": self.name,
+            "category": self.category,
+            "action": kwargs.get("action", ""),
+            "kwargs": stable,
+        }
+
+    def _check_revenue_gate(self) -> Optional[Dict[str, Any]]:
+        """Return a skip-result dict if the revenue gate blocks this bot,
+        else None. Factored out so execute() stays readable."""
+        if not self.revenue_gate_enabled or _guard_revenue is None:
+            return None
+        try:
+            if _guard_revenue.should_block(self.category):
+                info = _guard_revenue.explain(self.category)
+                self.logger.warning(
+                    "🚦 %s skipped — DISTRIBUTE mode (subs=%s clicks=%s rev=$%s)",
+                    self.name,
+                    info["metrics"]["subscribers"],
+                    info["metrics"]["weekly_clicks"],
+                    info["metrics"]["weekly_revenue_usd"],
+                )
+                return {"skipped": "revenue_gate", "reason": info}
+        except Exception as e:
+            self.logger.warning("revenue_gate check failed (%s) — proceeding", e)
+        return None
+
+    def _check_dedup(self, **kwargs) -> Optional[Dict[str, Any]]:
+        """Return a skip-result dict if this run is a duplicate, else None."""
+        if not self.dedup_enabled or _guard_dedup is None:
+            return None
+        try:
+            fingerprint = self._dedup_fingerprint(**kwargs)
+            if _guard_dedup.is_duplicate(self.name, fingerprint, self.dedup_ttl_seconds):
+                self.logger.warning(
+                    "🔁 %s skipped — duplicate within %ss (action=%s)",
+                    self.name, self.dedup_ttl_seconds, kwargs.get("action", ""),
+                )
+                return {"skipped": "dedup", "ttl_seconds": self.dedup_ttl_seconds}
+        except Exception as e:
+            self.logger.warning("dedup check failed (%s) — proceeding", e)
+        return None
+
+    def _record_success(self) -> None:
+        if _guard_compliance is not None:
+            try:
+                _guard_compliance.record_success(self.name)
+            except Exception as e:
+                self.logger.warning("compliance record_success failed: %s", e)
+
+    def _record_failure(self, err: Exception) -> None:
+        if _guard_compliance is not None:
+            try:
+                _guard_compliance.record_failure(self.name, f"{type(err).__name__}: {err}")
+            except Exception as e:
+                self.logger.warning("compliance record_failure failed: %s", e)
+
+    # ─── Public entry point ────────────────────────────────────────────────
+
     def execute(self, **kwargs) -> Any:
         """
-        Public entry point. Wraps run() with timing, logging, status tracking.
-        Call this from orchestrator instead of run() directly.
+        Public entry point. Wraps run() with timing, logging, status tracking,
+        dedup, revenue-gate, and compliance reporting.
+
+        Order of operations (each guard may short-circuit before run()):
+          1. Revenue gate   — is this category gated AND audience < threshold?
+          2. Dedup          — did we already run with these args this hour?
+          3. run()          — the actual bot work
+          4. Record         — tell compliance whether it worked
         """
         self.status = "running"
         self.start_time = time.time()
         self.last_run = datetime.now()
         self.run_count += 1
         self.logger.info(f"▶  Starting {self.name} (run #{self.run_count})")
+
+        # Guard 1: revenue gate — gated categories bail when audience too small
+        blocked = self._check_revenue_gate()
+        if blocked is not None:
+            self.status = "skipped"
+            return blocked
+
+        # Guard 2: execution dedup — same args within TTL → skip
+        duplicate = self._check_dedup(**kwargs)
+        if duplicate is not None:
+            self.status = "skipped"
+            return duplicate
+
         try:
             result = self.run(**kwargs)
             elapsed = time.time() - self.start_time
             self.status = "done"
             self.logger.info(f"✅ {self.name} finished in {elapsed:.2f}s")
+            self._record_success()
             return result
         except Exception as e:
             elapsed = time.time() - self.start_time
             self.status = "error"
             self._errors.append(f"{datetime.now().isoformat()} {type(e).__name__}: {e}")
             self.logger.error(f"❌ {self.name} failed after {elapsed:.2f}s — {e}", exc_info=True)
+            self._record_failure(e)
             raise
 
     # ─── Status ────────────────────────────────────────────────────────────────

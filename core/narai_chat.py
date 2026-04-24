@@ -13,6 +13,29 @@ from typing import AsyncGenerator, Optional
 
 log = logging.getLogger("narai.chat")
 
+# Step 4: per-user mode lock (operator | companion). Module-level dict;
+# resets on process restart, which is acceptable — user can always re-issue
+# "stay in X mode". Multi-user safe because each key is a distinct user_id.
+_USER_MODE_LOCKS: dict[str, str] = {}
+
+
+def _user_mode_lock_apply(user_id: str, user_message: str) -> bool:
+    """Parse override commands from the user message; mutate the per-user lock
+    accordingly. Returns True if a lock is currently set after processing."""
+    try:
+        from narai.core.mode_router import parse_override
+        cmd = parse_override(user_message)
+        if cmd == "release":
+            if _USER_MODE_LOCKS.pop(user_id, None):
+                log.info(f"user_chat mode lock released for {user_id}")
+        elif cmd in ("operator", "companion"):
+            _USER_MODE_LOCKS[user_id] = cmd
+            log.info(f"user_chat mode lock set for {user_id}: {cmd}")
+    except Exception as e:
+        log.warning(f"mode override parse failed (non-fatal): {e}")
+    return user_id in _USER_MODE_LOCKS
+
+
 # ─── NarAI Identity ──────────────────────────────────────────────────────────
 
 NARAI_SYSTEM_PROMPT = """You are NarAI — the most advanced AI assistant ever built.
@@ -329,20 +352,49 @@ async def chat_stream(
     # 2. Select model
     model = select_model(tier, requested_model)
 
-    # 3a. Step 3 overwhelm detection (fast pass only for user chat — regex-only,
+    # 3a. Step 4 mode lock parsing — user can say "stay in operator mode" or
+    # "release the mode" to pin/unpin the router decision.
+    mode_locked = _user_mode_lock_apply(user_id, user_message)
+
+    # 3b. Step 3 overwhelm detection (fast pass only for user chat — regex-only,
     # zero LLM cost, sub-millisecond). When detected, append a state-override
     # block to the system prompt so NarAI shrinks the reply for that turn.
     overwhelm_level = "none"
     try:
-        from narai.core.overwhelm import detect as _detect_overwhelm, modifier_for
+        from narai.core.overwhelm import detect as _detect_overwhelm
+        from narai.core.overwhelm import modifier_for as _overwhelm_modifier_for
         state = _detect_overwhelm(user_message)  # sync, fast-pass only
         overwhelm_level = state.level
-        overwhelm_mod = modifier_for(state)
+        overwhelm_mod = _overwhelm_modifier_for(state)
     except Exception as e:
         log.warning(f"overwhelm detection failed (non-fatal): {e}")
         overwhelm_mod = ""
 
+    # 3c. Step 4 mode routing (operator vs companion). Fast-pass only here —
+    # same reasoning as overwhelm: per-turn regex work keeps user-chat latency
+    # flat. Respects manual override and lets overwhelm=high force companion.
+    mode_level = "operator"
+    mode_mod = ""
+    try:
+        from narai.core.mode_router import route as _route_mode
+        from narai.core.mode_router import modifier_for as _mode_modifier_for
+        decision = _route_mode(
+            user_message,
+            overwhelm_level=overwhelm_level,
+            manual_override=_USER_MODE_LOCKS.get(user_id),
+        )
+        mode_level = decision.mode
+        mode_mod = _mode_modifier_for(decision)
+        log.info(
+            f"user_chat mode: {decision.mode} forced={decision.forced} "
+            f"overwhelm={overwhelm_level} locked={mode_locked}"
+        )
+    except Exception as e:
+        log.warning(f"mode routing failed (non-fatal): {e}")
+
     base_prompt = _get_system_prompt()
+    if mode_mod:
+        base_prompt = base_prompt + "\n\n## Mode (this turn)\n" + mode_mod
     if overwhelm_mod:
         base_prompt = (
             base_prompt
@@ -350,7 +402,7 @@ async def chat_stream(
             + overwhelm_mod
         )
 
-    # 3b. Build messages
+    # 3d. Build messages
     system, messages = build_messages(
         base_prompt,
         history,
@@ -388,19 +440,20 @@ async def chat_stream(
     except Exception as e:
         log.error(f"Memory extraction failed: {e}")
 
-    # 7. Step 3: tag the turn with overwhelm level as a memory note (high/mild
-    # only — skip "none" to avoid noise). Step 7 will mine these to find
-    # recurring patterns (e.g. "user hits overwhelm on Sundays about Nexora").
-    if overwhelm_level in ("mild", "high"):
+    # 7. Step 3 + 4: tag the turn with overwhelm + mode as a memory note
+    # whenever overwhelm fires (high/mild) OR the router flipped into companion
+    # mode (unusual behavior worth tracking). Step 7 will mine these for
+    # recurring patterns (e.g. "user slides into companion on Sundays").
+    if overwhelm_level in ("mild", "high") or mode_level == "companion":
         try:
             add_memory_note(
                 user_id,
-                f"[overwhelm={overwhelm_level}] {user_message[:120]}",
+                f"[mode={mode_level} overwhelm={overwhelm_level}] {user_message[:120]}",
                 "pattern",
                 conversation_id,
             )
         except Exception as e:
-            log.error(f"overwhelm tag persist failed: {e}")
+            log.error(f"behavior tag persist failed: {e}")
 
     # 7. Signal done
     yield f"data: {json.dumps({'done': True, 'model': model})}\n\n"

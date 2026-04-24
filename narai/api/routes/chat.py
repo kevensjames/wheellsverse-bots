@@ -13,6 +13,9 @@ from narai.core.extractor import extract_facts_async
 from narai.core.identity import build_system_prompt as build_identity_prompt
 from narai.core.memory import MemoryStore
 from narai.core.overwhelm import detect_async, modifier_for
+from narai.core.mode_router import (
+    route_async, parse_override, modifier_for as mode_modifier_for,
+)
 
 rt = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -117,17 +120,66 @@ async def _detect_overwhelm(user_message: str):
         return OverwhelmState("none", 0.0, "detection error", [])
 
 
+# Step 4: per-user mode lock (admin NarAI is single-user, keyed to "owner").
+# Dict is module-level intentionally — resets on process restart, which is
+# acceptable for a voice/behavior lock. User can always say "stay in X" again.
+_MODE_LOCKS: dict[str, str] = {}
+
+
+def _apply_override(user_message: str, user_id: str) -> None:
+    """Mutate the per-user mode lock if the message contains a recognized
+    override command (stay in operator/companion, release the mode)."""
+    cmd = parse_override(user_message)
+    if cmd == "release":
+        if _MODE_LOCKS.pop(user_id, None):
+            logger.info(f"mode lock released for {user_id}")
+    elif cmd in ("operator", "companion"):
+        _MODE_LOCKS[user_id] = cmd
+        logger.info(f"mode lock set for {user_id}: {cmd}")
+
+
+async def _route_mode(user_message: str, user_id: str, overwhelm_level: str):
+    """Step 4: pick operator vs companion for this turn. Fast-pass regex first,
+    deep LLM classifier only for the ambiguous band. Respects lock + overwhelm.
+    """
+    async def _classifier(system: str, user: str) -> str:
+        resp = await router.call(user, tier="fast", system=system)
+        return resp.get("content", "")
+
+    try:
+        decision = await route_async(
+            user_message,
+            overwhelm_level=overwhelm_level,
+            manual_override=_MODE_LOCKS.get(user_id),
+            async_llm_call=_classifier,
+        )
+        logger.info(
+            f"mode: {decision.mode} forced={decision.forced} "
+            f"score={decision.score:.2f} reason={decision.reason!r}"
+        )
+        return decision
+    except Exception as e:
+        logger.warning(f"mode routing failed (non-fatal): {e}")
+        from narai.core.mode_router import ModeDecision
+        return ModeDecision("operator", 0.0, f"routing error: {e}", False)
+
+
 @rt.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse:
     tier = req.tier or tiers.classify(req.message)
+    _apply_override(req.message, _DEFAULT_USER_ID)
     mem_hits = await memory.arecall(req.message, n=4)
     rag_hits = await rag.aquery(req.message, n=3)
     overwhelm_state = await _detect_overwhelm(req.message)
+    mode_decision = await _route_mode(
+        req.message, _DEFAULT_USER_ID, overwhelm_state.level,
+    )
 
     system = skills.build_system_prompt(
         base=build_identity_prompt(
             user_context=_build_user_context(req.message),
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
+            mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
         skill=req.skill,
         memory_context=memory.format_recall(mem_hits) or None,
@@ -152,12 +204,13 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
         ))
         await session.commit()
 
-    # Step 2: log the turn as an episode (tag with overwhelm level for Step 7
-    # pattern mining) + fire-and-forget fact extraction.
+    # Step 2 + 3 + 4: log the turn with mode + overwhelm tags so Step 7 can
+    # mine for patterns (e.g. "user slides into companion mode on Sundays",
+    # "Nexora topic triggers overwhelm 60% of the time").
     try:
         _get_memory_store().log_episode(
             _DEFAULT_USER_ID,
-            f"[overwhelm={overwhelm_state.level}] "
+            f"[mode={mode_decision.mode} overwhelm={overwhelm_state.level}] "
             f"User: {req.message}\nNarAI: {result['content']}",
         )
     except Exception as e:
@@ -181,13 +234,18 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
 @rt.post("/stream")
 async def chat_stream(req: ChatRequest, _: str = Depends(require_auth)) -> StreamingResponse:
     tier = req.tier or tiers.classify(req.message)
+    _apply_override(req.message, _DEFAULT_USER_ID)
     mem_hits = await memory.arecall(req.message, n=4)
     rag_hits = await rag.aquery(req.message, n=3)
     overwhelm_state = await _detect_overwhelm(req.message)
+    mode_decision = await _route_mode(
+        req.message, _DEFAULT_USER_ID, overwhelm_state.level,
+    )
     system = skills.build_system_prompt(
         base=build_identity_prompt(
             user_context=_build_user_context(req.message),
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
+            mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
         skill=req.skill,
         memory_context=memory.format_recall(mem_hits) or None,
