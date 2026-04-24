@@ -90,6 +90,11 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
     <p style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem" id="loginHint"></p>
     <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn" onclick="adminLogin()">Sign in</button>
+    <div id="totpBlock" style="display:none;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <div class="field"><label>Authenticator code</label>
+        <input type="text" id="aTotp" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code" style="letter-spacing:.3rem;text-align:center;font-size:1.1rem"></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn" onclick="adminLoginTotp()">Verify code</button>
+    </div>
   </div>
 </div>
 
@@ -122,6 +127,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <button type="button" class="nav-item" data-page="reconcile" onclick="nav('reconcile')">⚡ Reconcile</button>
   <button type="button" class="nav-item" data-page="audit" onclick="nav('audit')">📋 Audit log</button>
   <button type="button" class="nav-item" data-page="emailpreview" onclick="nav('emailpreview')">✉ Email templates</button>
+  <button type="button" class="nav-item" data-page="security" onclick="nav('security')">🔐 Security</button>
 
   <button type="button" class="nav-item logout" style="margin-top:auto" onclick="adminLogout()">→ Sign out</button>
 </aside>
@@ -304,6 +310,12 @@ tr:hover td{background:rgba(255,255,255,.02)}
     </div>
     <iframe id="emailFrame" style="width:100%;height:720px;border:1px solid var(--border);border-radius:.6rem;background:#05070d" srcdoc="<div style='padding:2rem;font-family:sans-serif;color:#64748b'>Pick a template above to preview.</div>"></iframe>
   </div>
+
+  <div class="page" id="page-security">
+    <h1>Security</h1>
+    <p class="sub">Two-factor authentication for your admin account.</p>
+    <div id="securityCard" class="card" style="max-width:640px"><div class="spinner"></div></div>
+  </div>
 </main>
 </div>
 
@@ -350,9 +362,19 @@ async function adminLogin() {
       body: JSON.stringify({ email, password })
     });
     const d = await r.json().catch(()=>({}));
+    if (r.status === 428 && d.detail && d.detail.totp_required) {
+      window._pendingTotpChallenge = d.detail.challenge_token;
+      document.getElementById('totpBlock').style.display = 'block';
+      const tInput = document.getElementById('aTotp');
+      tInput.value = ''; tInput.focus();
+      hint.textContent = 'Enter the 6-digit code from your authenticator.';
+      hint.style.color = 'var(--muted)';
+      btn.disabled = false; btn.textContent = 'Sign in';
+      return;
+    }
     if (!r.ok) {
       // Show real diagnostic info so we can see what's actually failing
-      const detail = d.detail || r.statusText || 'Unknown error';
+      const detail = typeof d.detail === 'string' ? d.detail : (r.statusText || 'Unknown error');
       throw new Error(`[${r.status}] ${detail} (pw length: ${password.length})`);
     }
     const chk = await fetch(API + '/admin/reconcile', {
@@ -369,6 +391,37 @@ async function adminLogin() {
     hint.style.color = 'var(--red)';
   }
   btn.disabled = false; btn.textContent = 'Sign in';
+}
+
+async function adminLoginTotp() {
+  const btn = document.getElementById('totpBtn');
+  const hint = document.getElementById('loginHint');
+  const code = (document.getElementById('aTotp').value || '').trim();
+  if (code.length !== 6) {
+    hint.textContent = 'Code must be 6 digits'; hint.style.color = 'var(--red)';
+    return;
+  }
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  try {
+    const r = await fetch(API + '/auth/login/totp', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ challenge_token: window._pendingTotpChallenge, code })
+    });
+    const d = await r.json().catch(()=>({}));
+    if (!r.ok) throw new Error(d.detail || `[${r.status}] verification failed`);
+    const chk = await fetch(API + '/admin/reconcile', { headers:{'Authorization':'Bearer ' + d.access_token} });
+    if (chk.status === 403) throw new Error('Not an admin account');
+    if (!chk.ok) throw new Error(`Admin check failed: [${chk.status}]`);
+    sessionStorage.setItem('sol_admin_token', d.access_token);
+    if (d.refresh_token) sessionStorage.setItem('sol_admin_refresh', d.refresh_token);
+    adminToken = d.access_token;
+    delete window._pendingTotpChallenge;
+    showApp();
+  } catch(e) {
+    hint.textContent = e.message;
+    hint.style.color = 'var(--red)';
+  }
+  btn.disabled = false; btn.textContent = 'Verify code';
 }
 
 // Live password-length indicator so user can see autofill overwrites
@@ -409,6 +462,7 @@ function nav(page) {
   if (page === 'cycles') loadCyclesData();
   if (page === 'payouts') loadPayoutsData();
   if (page === 'audit') loadAuditLog();
+  if (page === 'security') loadSecurity();
 }
 
 // ── Audit log (#1) ────────────────────────────────────────────────────────────
@@ -440,6 +494,79 @@ async function loadAuditLog() {
 // srcdoc so the templates render in a sandboxed context. Using fetch +
 // srcdoc instead of a plain ?src=/admin/... URL because the endpoint
 // requires a bearer token — iframes can't attach auth headers themselves.
+async function loadSecurity() {
+  const el = document.getElementById('securityCard');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const me = await api('/auth/me');
+    if (me.totp_enabled) {
+      el.innerHTML = `
+        <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
+          <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(0,255,136,.12);color:var(--green);font-size:.75rem;font-weight:600">✓ 2FA ENABLED</span>
+        </div>
+        <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">You'll be asked for a 6-digit code from your authenticator app each time you sign in.</p>
+        <div style="padding-top:1rem;border-top:1px solid var(--border)">
+          <div style="font-weight:600;margin-bottom:.75rem">Disable 2FA</div>
+          <div class="field"><label>Password</label><input type="password" id="td_pw" autocomplete="current-password"></div>
+          <div class="field"><label>Current code</label><input type="text" id="td_code" maxlength="6" inputmode="numeric" placeholder="123456"></div>
+          <p class="err" id="td_err" style="display:none;color:var(--red);font-size:.8rem"></p>
+          <button class="btn btn-ghost" onclick="disableTotp()">Disable 2FA</button>
+        </div>`;
+      return;
+    }
+    el.innerHTML = `
+      <div style="margin-bottom:1rem">
+        <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(248,113,113,.12);color:var(--red);font-size:.75rem;font-weight:600">⚠ 2FA NOT ENABLED</span>
+      </div>
+      <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">Protect this admin account with a second factor. Use any TOTP app (Google Authenticator, Authy, 1Password).</p>
+      <button class="btn btn-primary" onclick="startTotp()">Start 2FA setup</button>`;
+  } catch(e) {
+    el.innerHTML = `<div class="empty">${e.message}</div>`;
+  }
+}
+
+async function startTotp() {
+  const el = document.getElementById('securityCard');
+  try {
+    const s = await api('/auth/2fa/setup', { method: 'POST' });
+    el.innerHTML = `
+      <div style="font-weight:600;margin-bottom:.5rem">Step 1. Scan this QR code</div>
+      <img src="${s.qr_data_url}" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:.5rem;display:block;margin-bottom:1rem">
+      <details style="margin-bottom:1rem">
+        <summary style="cursor:pointer;font-size:.8rem;color:var(--muted)">Can't scan? Enter this secret manually</summary>
+        <code style="display:block;margin-top:.5rem;padding:.6rem;background:#05070d;border:1px solid var(--border);border-radius:.4rem;font-family:monospace;word-break:break-all">${s.secret}</code>
+      </details>
+      <div style="font-weight:600;margin-bottom:.5rem">Step 2. Enter the 6-digit code shown in your app</div>
+      <div class="field"><input type="text" id="ta_code" maxlength="6" inputmode="numeric" placeholder="123456" style="letter-spacing:.3rem;text-align:center;font-size:1.2rem"></div>
+      <p class="err" id="ta_err" style="display:none;color:var(--red);font-size:.8rem"></p>
+      <button class="btn btn-primary" onclick="activateTotp()">Verify and enable</button>
+      <button class="btn btn-ghost" style="margin-left:.5rem" onclick="loadSecurity()">Cancel</button>`;
+  } catch(e) { alert(e.message); }
+}
+
+async function activateTotp() {
+  const code = (document.getElementById('ta_code').value || '').trim();
+  const err = document.getElementById('ta_err');
+  if (code.length !== 6) { err.textContent = 'Code must be 6 digits'; err.style.display = 'block'; return; }
+  try {
+    await api('/auth/2fa/activate', { method:'POST', body: JSON.stringify({ code }) });
+    alert('2FA enabled. You will need your authenticator app on your next sign-in.');
+    loadSecurity();
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+}
+
+async function disableTotp() {
+  const password = document.getElementById('td_pw').value;
+  const code = (document.getElementById('td_code').value || '').trim();
+  const err = document.getElementById('td_err');
+  if (!password || code.length !== 6) { err.textContent = 'Enter password and 6-digit code'; err.style.display = 'block'; return; }
+  try {
+    await api('/auth/2fa/disable', { method:'POST', body: JSON.stringify({ password, code }) });
+    alert('2FA disabled.');
+    loadSecurity();
+  } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
+}
+
 async function loadEmailPreview(template) {
   const iframe = document.getElementById('emailFrame');
   iframe.srcdoc = '<div style="padding:2rem;font-family:sans-serif;color:#64748b">Loading…</div>';
