@@ -86,10 +86,13 @@ markdown>=3.6.0
 # Reddit automation
 praw>=7.7.1
 
-# YouTube Data API v3
+# YouTube Data API v3 + NarAI Godmode Google OAuth
 google-api-python-client>=2.130.0
 google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
+
+# NarAI Godmode — encrypted vault (Fernet symmetric encryption for stored OAuth tokens)
+cryptography>=42.0.0
 
 # ── New integrations (v2.1 — 8 new bot categories) ──────────────────────────
 
