@@ -43,10 +43,35 @@ class TwitterBrowserPoster:
     def _is_configured(self) -> bool:
         return bool(self.username and self.password)
 
+    @staticmethod
+    def _ensure_chromium() -> None:
+        """Install Playwright Chromium binary on first use if not already present.
+        Runs once per container lifetime (~60s); cached in /tmp after that."""
+        import subprocess, shutil
+        # Check if the chromium binary already exists
+        result = subprocess.run(
+            ["playwright", "install", "--dry-run"],
+            capture_output=True, text=True
+        )
+        if "chromium" in result.stdout.lower() and "already installed" in result.stdout.lower():
+            return
+        # Not present — install now (requires internet; Railway containers have it)
+        logger.info("Installing Playwright Chromium binary (one-time, ~60s)...")
+        proc = subprocess.run(
+            ["playwright", "install", "chromium", "--with-deps"],
+            capture_output=True, text=True, timeout=300
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"playwright install chromium failed: {proc.stderr[:500]}"
+            )
+        logger.info("Playwright Chromium installed.")
+
     def post_tweet(self, text: str) -> Dict:
         """Post a single tweet via browser."""
         if not self._is_configured():
             raise RuntimeError("TWITTER_USERNAME / TWITTER_PASSWORD not set in .env")
+        self._ensure_chromium()
         from playwright.sync_api import sync_playwright
         text = text[:280]
         with sync_playwright() as p:
