@@ -29,6 +29,7 @@ openpyxl>=3.1.0
 python-docx>=1.1.0
 PyPDF2>=3.0.0
 Pillow>=10.3.0
+ffmpeg-python>=0.2.0
 
 # Email
 
@@ -127,3 +128,14 @@ mistralai>=1.0.0
 
 # ── NarAI User Platform (Supabase auth + DB) ─────────────────────────────────
 supabase>=2.4.0
+
+# ── NarAI v2 auth (JWT + bcrypt password verification) ───────────────────────
+bcrypt>=4.0.0
+passlib[bcrypt]>=1.7.4
+PyJWT>=2.8.0
+
+# ── NarAI v2 voice (TTS; STT uses openai package above) ──────────────────────
+edge-tts>=6.1.0
+
+# ── Server utilities ──────────────────────────────────────────────────────────
+psutil>=5.9.0
