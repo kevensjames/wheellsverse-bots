@@ -17,10 +17,11 @@ _bearer = HTTPBearer(auto_error=True)
 
 
 def verify_password(plain: str) -> bool:
-    import bcrypt as _bcrypt  # lazy — module loads even if bcrypt wheel is absent at import time
+    from passlib.context import CryptContext
     if not _PASSWORD_HASH:
         raise EnvironmentError("NARAI_PASSWORD_HASH not set")
-    return _bcrypt.checkpw(plain.encode(), _PASSWORD_HASH.encode())
+    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    return ctx.verify(plain, _PASSWORD_HASH)
 
 
 def create_token() -> str:
