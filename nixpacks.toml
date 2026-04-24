@@ -1,11 +1,12 @@
-# cache-bust: 2026-04-24-force-pip-layer-rebuild
+# cache-bust: 2026-04-24-explicit-auth-deps
 [phases.setup]
 nixPkgs = ["python311", "gcc", "libffi", "openssl", "rustc", "cargo"]
 
 [phases.install]
 cmds = [
   "pip install --no-cache-dir --upgrade pip",
-  "pip install --no-cache-dir --prefer-binary --force-reinstall -r requirements-server.txt"
+  "pip install --no-cache-dir -r requirements-server.txt",
+  "pip install --no-cache-dir --force-reinstall 'bcrypt>=4.0.0' 'passlib[bcrypt]>=1.7.4' 'PyJWT>=2.8.0'"
 ]
 
 [start]
