@@ -111,6 +111,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;opacity:.6">Signed in</div>
     <div id="adminEmail" style="color:var(--text);font-weight:500;word-break:break-all">—</div>
   </div>
+  <!-- Global halt indicator — visible on every page once toggled on -->
+  <div id="haltBanner" style="display:none;margin:0 .5rem .5rem;padding:.6rem .75rem;border-radius:.4rem;background:rgba(248,113,113,.15);border:1px solid var(--red);color:var(--red);font-size:.7rem;font-weight:600;text-align:center;letter-spacing:.04em">
+    🛑 MONEY MOVEMENT HALTED
+  </div>
 
   <div class="section-title">Overview</div>
   <button type="button" class="nav-item active" data-page="overview" onclick="nav('overview')">◈ Overview</button>
@@ -338,6 +342,7 @@ function showApp() {
   loadOverview();
   loadUsers();
   loadGroupsData();
+  refreshHaltBanner();
 }
 
 if (adminToken) showApp();
@@ -494,13 +499,42 @@ async function loadAuditLog() {
 // srcdoc so the templates render in a sandboxed context. Using fetch +
 // srcdoc instead of a plain ?src=/admin/... URL because the endpoint
 // requires a bearer token — iframes can't attach auth headers themselves.
+async function refreshHaltBanner() {
+  try {
+    const s = await api('/admin/halt');
+    const b = document.getElementById('haltBanner');
+    if (b) b.style.display = s.halted ? 'block' : 'none';
+    return s;
+  } catch { return { halted: false, state: null }; }
+}
+
 async function loadSecurity() {
   const el = document.getElementById('securityCard');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    const me = await api('/auth/me');
-    if (me.totp_enabled) {
-      el.innerHTML = `
+    const [me, halt] = await Promise.all([api('/auth/me'), refreshHaltBanner()]);
+    const haltHtml = halt.halted ? `
+      <div class="card" style="margin-top:1.5rem;border-color:var(--red);background:rgba(248,113,113,.05)">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(248,113,113,.15);color:var(--red);font-size:.75rem;font-weight:600">🛑 HALTED</span>
+        </div>
+        <div style="font-size:.85rem;color:var(--muted);margin-bottom:.5rem">
+          <strong style="color:var(--text)">Reason:</strong> ${(halt.state && halt.state.reason || '—').replace(/</g,'&lt;')}<br>
+          <strong style="color:var(--text)">Since:</strong> ${halt.state && halt.state.halted_at ? new Date(halt.state.halted_at).toLocaleString() : '—'}
+        </div>
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">All new ACH debit/credit attempts are rejected with SOL_HALTED. Existing in-flight transfers at Dwolla continue.</p>
+        <button class="btn btn-ghost" onclick="unhaltSol()">Resume money movement</button>
+      </div>` : `
+      <div class="card" style="margin-top:1.5rem;border-color:rgba(0,255,136,.25)">
+        <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem">
+          <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(0,255,136,.12);color:var(--green);font-size:.75rem;font-weight:600">✓ RUNNING</span>
+        </div>
+        <p style="font-size:.85rem;color:var(--muted);margin-bottom:1rem">ACH debits and credits are flowing normally. Only halt if you suspect a SEV-1 (ledger imbalance, misrouted payouts, fraud spree).</p>
+        <div class="field"><label>Reason (required)</label>
+          <input type="text" id="haltReason" placeholder="e.g. ledger imbalance detected on cycle X"></div>
+        <button class="btn btn-ghost" style="color:var(--red);border-color:var(--red)" onclick="haltSol()">🛑 Halt money movement</button>
+      </div>`;
+    const twoFaHtml = me.totp_enabled ? `
         <div style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem">
           <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(0,255,136,.12);color:var(--green);font-size:.75rem;font-weight:600">✓ 2FA ENABLED</span>
         </div>
@@ -511,18 +545,34 @@ async function loadSecurity() {
           <div class="field"><label>Current code</label><input type="text" id="td_code" maxlength="6" inputmode="numeric" placeholder="123456"></div>
           <p class="err" id="td_err" style="display:none;color:var(--red);font-size:.8rem"></p>
           <button class="btn btn-ghost" onclick="disableTotp()">Disable 2FA</button>
-        </div>`;
-      return;
-    }
-    el.innerHTML = `
+        </div>` : `
       <div style="margin-bottom:1rem">
         <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(248,113,113,.12);color:var(--red);font-size:.75rem;font-weight:600">⚠ 2FA NOT ENABLED</span>
       </div>
       <p style="color:var(--muted);font-size:.9rem;margin-bottom:1rem">Protect this admin account with a second factor. Use any TOTP app (Google Authenticator, Authy, 1Password).</p>
       <button class="btn btn-primary" onclick="startTotp()">Start 2FA setup</button>`;
+    el.innerHTML = twoFaHtml + haltHtml;
   } catch(e) {
     el.innerHTML = `<div class="empty">${e.message}</div>`;
   }
+}
+
+async function haltSol() {
+  const reason = (document.getElementById('haltReason').value || '').trim();
+  if (!reason) { alert('Reason required'); return; }
+  if (!confirm(`Halt money movement?\n\nReason: ${reason}\n\nThis stops ALL new ACH debit/credit attempts.`)) return;
+  try {
+    await api('/admin/halt', { method:'POST', body: JSON.stringify({ reason }) });
+    loadSecurity();
+  } catch(e) { alert(e.message); }
+}
+
+async function unhaltSol() {
+  if (!confirm('Resume money movement? Confirm your post-mortem is done.')) return;
+  try {
+    await api('/admin/unhalt', { method:'POST' });
+    loadSecurity();
+  } catch(e) { alert(e.message); }
 }
 
 async function startTotp() {
