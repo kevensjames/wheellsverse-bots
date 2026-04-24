@@ -31,7 +31,7 @@ python-multipart>=0.0.9
 psutil>=5.9.0
 
 # NarAI v2 — auth only (chat/memory/rag need chromadb, added separately later)
-bcrypt>=3.2.0,<4.0.0
+bcrypt>=4.0.0
 passlib[bcrypt]>=1.7.4
 PyJWT>=2.8.0
 

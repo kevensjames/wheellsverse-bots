@@ -1,4 +1,4 @@
-# cache-bust: 2026-04-24-voice-runtime-v5-pyjwt
+# cache-bust: 2026-04-24-bcrypt4-fix
 [phases.setup]
 nixPkgs = ["python311", "gcc", "libffi", "openssl", "rustc", "cargo"]
 
