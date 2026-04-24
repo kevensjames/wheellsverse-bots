@@ -283,6 +283,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
   <!-- Audit log -->
   <div class="page" id="page-audit">
     <h1>Audit log</h1><p class="sub">Admin actions, newest first. Filter by action type below.</p>
+    <div id="auditArchiveLine" style="font-size:.75rem;color:var(--muted);margin-bottom:.75rem">—</div>
     <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
       <select id="auditFilter" onchange="loadAuditLog()" style="background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.85rem">
         <option value="">All actions</option>
@@ -478,6 +479,21 @@ async function loadAuditLog() {
   const tb = document.getElementById('auditTable');
   tb.innerHTML = '<tr><td colspan="5" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr>';
   const action = document.getElementById('auditFilter')?.value || '';
+  // Fire archive-status lookup in parallel — non-critical, don't block the audit table
+  api('/admin/audit/archive-status').then(s => {
+    const line = document.getElementById('auditArchiveLine');
+    if (!line) return;
+    if (s.last_run && s.last_run.ran_at) {
+      const ran = new Date(s.last_run.ran_at).toLocaleString();
+      const retention = s.last_run.retention_days || 90;
+      const bucket = s.last_run.bucket || '(not configured)';
+      line.textContent = `Last archived: ${ran} · ${retention}-day retention · bucket: ${bucket}`;
+    } else {
+      const retention = s.retention_days || 90;
+      const bucket = s.bucket || '(not configured — set S3_AUDIT_BUCKET to enable)';
+      line.textContent = `Archive: not yet run · ${retention}-day retention · bucket: ${bucket}`;
+    }
+  }).catch(() => {});
   try {
     const qs = action ? ('?action=' + encodeURIComponent(action)) : '';
     const rows = await api('/admin/audit' + qs) || [];
