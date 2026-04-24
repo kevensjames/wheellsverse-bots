@@ -164,6 +164,74 @@ async def _route_mode(user_message: str, user_id: str, overwhelm_level: str):
         return ModeDecision("operator", 0.0, f"routing error: {e}", False)
 
 
+async def run_pipeline_async(
+    user_id: str,
+    user_message: str,
+    skill: str | None = None,
+    tier: str | None = None,
+    history: list[dict] | None = None,
+) -> dict:
+    """Shared Step 1-4 pipeline runner. Used by the /chat REST route and the
+    /voice/ws WebSocket route. Returns a dict with reply, mode, overwhelm
+    level, model, and tier so both entry points can use the same plumbing.
+
+    Does NOT persist to ChatLog (that's REST-specific); the voice route has
+    its own episode tagging pattern. Memory-store episode logging + fact
+    extraction still fire so conversation continuity works across channels.
+    """
+    resolved_tier = tier or tiers.classify(user_message)
+    _apply_override(user_message, user_id)
+    mem_hits = await memory.arecall(user_message, n=4)
+    rag_hits = await rag.aquery(user_message, n=3)
+    overwhelm_state = await _detect_overwhelm(user_message)
+    mode_decision = await _route_mode(
+        user_message, user_id, overwhelm_state.level,
+    )
+
+    system = skills.build_system_prompt(
+        base=build_identity_prompt(
+            user_context=_build_user_context(user_message),
+            overwhelm_modifier=modifier_for(overwhelm_state) or None,
+            mode_modifier=mode_modifier_for(mode_decision) or None,
+        ),
+        skill=skill,
+        memory_context=memory.format_recall(mem_hits) or None,
+        rag_context=rag.format_query(rag_hits) or None,
+    )
+
+    result = await router.call(
+        user_message,
+        tier=resolved_tier,
+        system=system,
+        history=history,
+    )
+
+    # Episode tag — mirrors /chat POST path so timelines stay coherent
+    # regardless of which surface (REST or voice WS) the turn came from.
+    try:
+        _get_memory_store().log_episode(
+            user_id,
+            f"[mode={mode_decision.mode} overwhelm={overwhelm_state.level}] "
+            f"User: {user_message}\nNarAI: {result['content']}",
+        )
+    except Exception as e:
+        logger.warning(f"episode log failed (non-fatal): {e}")
+
+    task = asyncio.create_task(_extract_and_remember(user_message, user_id))
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+
+    return {
+        "reply": result["content"],
+        "model": result["model"],
+        "tier": resolved_tier,
+        "tokens": result["tokens"],
+        "mode": mode_decision.mode,
+        "overwhelm": overwhelm_state.level,
+        "skill": skill,
+    }
+
+
 @rt.post("", response_model=ChatResponse)
 async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse:
     tier = req.tier or tiers.classify(req.message)

@@ -860,6 +860,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
             style="display:none;background:rgba(0,204,136,.1);border:1px solid rgba(0,204,136,.35);color:#00cc88;border-radius:7px;padding:2px 8px;font-size:9px;cursor:pointer;font-family:inherit;font-weight:700">
             🧠
           </button>
+          <button id="narai-v2-voice-btn" onclick="naraiOpenVoice()" title="Talk to NarAI (voice session)"
+            style="display:none;background:rgba(74,74,255,.12);border:1px solid rgba(74,74,255,.4);color:#9aaaff;border-radius:7px;padding:2px 8px;font-size:9px;cursor:pointer;font-family:inherit;font-weight:700">
+            🎙
+          </button>
         </div>
         <!-- input row -->
         <div style="display:flex;gap:6px;align-items:flex-end">
@@ -18220,6 +18224,7 @@ function _v2ApplyState() {
   const sel = document.getElementById('narai-v2-skill');
   const sta = document.getElementById('narai-v2-status');
   const mem = document.getElementById('narai-v2-memory-btn');
+  const voi = document.getElementById('narai-v2-voice-btn');
   if (!btn) return;
   if (_v2Active) {
     btn.style.background = 'rgba(136,68,255,.55)';
@@ -18229,6 +18234,7 @@ function _v2ApplyState() {
     if (sel) { sel.style.display = ''; sel.value = localStorage.getItem('narai_v2_skill') || ''; }
     if (sta) sta.style.display = '';
     if (mem) mem.style.display = '';
+    if (voi) voi.style.display = '';
   } else {
     btn.style.background = 'rgba(136,68,255,.15)';
     btn.style.color = '#cc88ff';
@@ -18237,6 +18243,17 @@ function _v2ApplyState() {
     if (sel) sel.style.display = 'none';
     if (sta) sta.style.display = 'none';
     if (mem) mem.style.display = 'none';
+    if (voi) voi.style.display = 'none';
+  }
+}
+
+function naraiOpenVoice() {
+  // Opens the voice session page in a focused popup so mic permission is
+  // scoped to that window. The page reads narai_v2_token from localStorage.
+  const w = window.open('/api/v2/narai/voice', 'narai_voice',
+                        'width=420,height=600,resizable=yes');
+  if (!w) {
+    alert('Popup blocked — allow popups for wheellsverse.com and click 🎙 again');
   }
 }
 

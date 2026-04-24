@@ -19,6 +19,7 @@ from narai.api.routes.research import rt as research_rt
 from narai.api.routes.ops import rt as ops_rt
 from narai.api.routes.creative import rt as creative_rt
 from narai.api.routes.kdp import rt as kdp_rt
+from narai.api.routes.voice import rt as voice_rt
 from narai.api.routes.shopify_oauth import router as shopify_oauth_rt
 from narai.api.routes.shopify_webhooks import router as shopify_webhooks_rt
 from narai.api.routes.shopify_billing import api_router as shopify_billing_api_rt, webhook_router as shopify_billing_webhook_rt
@@ -61,6 +62,7 @@ app.include_router(research_rt, prefix="/api/v2/narai")
 app.include_router(ops_rt, prefix="/api/v2/narai")
 app.include_router(creative_rt, prefix="/api/v2/narai")
 app.include_router(kdp_rt, prefix="/api/v2/narai")
+app.include_router(voice_rt, prefix="/api/v2/narai")
 
 # Multi-tenant Shopify (no prefix — Shopify hits /shopify/install and /shopify/callback directly)
 app.include_router(shopify_oauth_rt)

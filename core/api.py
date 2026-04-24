@@ -4121,6 +4121,129 @@ async def canva_oauth_callback(request: Request, code: str = "", error: str = ""
         return HTMLResponse(f"<h2 style='color:red'>Error: {e}</h2>")
 
 
+# ─── Google OAuth (NarAI Godmode — Gmail/Drive/Calendar/YouTube/Sheets/Docs) ──
+
+_google_oauth_state_store: dict[str, float] = {}  # state -> expiry_ts (CSRF protection)
+_GOOGLE_STATE_TTL_SEC = 600  # 10 minutes to complete consent
+
+
+def _google_redirect_uri(request: Request) -> str:
+    """Resolve redirect URI: env wins, else derive from Host header (dev)."""
+    env = os.getenv("GOOGLE_REDIRECT_URI", "").strip()
+    if env:
+        return env
+    host = request.headers.get("host", "")
+    scheme = "http" if host.startswith(("127.0.0.1", "localhost")) else "https"
+    return f"{scheme}://{host}/api/google/oauth-callback"
+
+
+@app.get("/api/google/oauth-url")
+async def google_oauth_url(request: Request):
+    """Return the consent URL to redirect the user to."""
+    import secrets, time as _t
+    try:
+        from narai_godmode.adapters.google import build_authorization_url
+    except Exception as e:
+        return {"error": f"Google adapter import failed: {e}"}
+
+    redirect_uri = _google_redirect_uri(request)
+    state = secrets.token_urlsafe(24)
+
+    # Prune expired states before adding a new one
+    now = _t.time()
+    for s, exp in list(_google_oauth_state_store.items()):
+        if exp < now:
+            _google_oauth_state_store.pop(s, None)
+    _google_oauth_state_store[state] = now + _GOOGLE_STATE_TTL_SEC
+
+    try:
+        url, _ = build_authorization_url(redirect_uri, state=state)
+    except Exception as e:
+        _google_oauth_state_store.pop(state, None)
+        return {"error": str(e)}
+    return {"url": url, "redirect_uri": redirect_uri, "state": state}
+
+
+@app.get("/api/google/oauth-callback")
+async def google_oauth_callback(request: Request, code: str = "", error: str = "",
+                                state: str = "", scope: str = ""):
+    """Receive Google's redirect, exchange code for token, save to vault."""
+    import time as _t
+    if error:
+        return HTMLResponse(f"<h2 style='color:red'>Google error: {error}</h2>")
+    if not code:
+        return HTMLResponse("<h2 style='color:red'>No auth code received from Google</h2>")
+
+    # CSRF: state must match and not be expired
+    exp = _google_oauth_state_store.pop(state, None)
+    if not exp or exp < _t.time():
+        return HTMLResponse(
+            "<h2 style='color:red'>Invalid or expired state — please restart the connection flow.</h2>"
+        )
+
+    redirect_uri = _google_redirect_uri(request)
+    try:
+        from narai_godmode.adapters.google import exchange_code, whoami
+        exchange_code(code, redirect_uri)
+        try:
+            email = whoami().get("email", "(unknown)")
+        except Exception:
+            email = "(token saved — identity lookup failed)"
+        _add_log(f"Google OAuth connected: {email}", "INFO")
+        return HTMLResponse(f"""
+        <html><body style='background:#0d0f14;color:#00ff88;font-family:monospace;display:flex;align-items:center;justify-content:center;height:100vh;margin:0'>
+        <div style='text-align:center;padding:40px;background:#13161d;border:1px solid #00ff8844;border-radius:16px'>
+          <div style='font-size:40px;margin-bottom:16px'>✅</div>
+          <div style='font-size:18px;font-weight:700;color:#00ff88;margin-bottom:8px'>Google Connected!</div>
+          <div style='font-size:13px;color:#8891a8;margin-bottom:20px'>Authenticated as <b>{email}</b></div>
+          <div style='font-size:12px;color:#8891a8'>You can close this tab and return to the dashboard.</div>
+          <script>setTimeout(()=>window.close(),3000)</script>
+        </div></body></html>""")
+    except Exception as e:
+        return HTMLResponse(f"<h2 style='color:red'>Token exchange failed: {e}</h2>")
+
+
+@app.get("/api/google/status")
+async def google_status():
+    """Report Google OAuth connection status with reconnect detection."""
+    try:
+        from narai_godmode.adapters.google import (
+            _load_creds_from_vault, whoami, needs_reconsent, GoogleReauthRequired,
+        )
+        # Option 2: if the refresh flag is set, tell dashboard to show reconnect banner.
+        needs, reason = needs_reconsent()
+        if needs:
+            return {
+                "connected": False,
+                "reconnect_required": True,
+                "reason": reason,
+                "reconnect_url": "/api/google/oauth-url",
+            }
+
+        creds = _load_creds_from_vault()
+        if not creds:
+            return {
+                "connected": False,
+                "reconnect_required": True,
+                "reason": "Not authorized",
+                "reconnect_url": "/api/google/oauth-url",
+            }
+        try:
+            info = whoami()
+            return {"connected": True, "email": info.get("email"), "name": info.get("name")}
+        except GoogleReauthRequired as e:
+            return {
+                "connected": False,
+                "reconnect_required": True,
+                "reason": str(e),
+                "reconnect_url": "/api/google/oauth-url",
+            }
+        except Exception as e:
+            return {"connected": True, "error": f"Token exists but whoami failed: {e}"}
+    except Exception as e:
+        return {"connected": False, "error": str(e)}
+
+
 @app.get("/api/canva/status")
 async def canva_status():
     tok = _canva_access_token()
@@ -12905,7 +13028,9 @@ if _v2_auth_loaded:
     except Exception as _e:
         logger.warning(f"NarAI v2 trading not loaded: {_e}")
 
-    # NarAI v2 Domains 2-7: content, sales, research, ops, creative, kdp
+    # NarAI v2 Domains 2-7 + voice: content, sales, research, ops, creative,
+    # kdp, voice. Each registered independently so a missing optional dep
+    # (e.g. edge-tts) only breaks that domain's call path, not the stack.
     for _domain_name, _module_path in [
         ("content",  "narai.api.routes.content"),
         ("sales",    "narai.api.routes.sales"),
@@ -12913,6 +13038,7 @@ if _v2_auth_loaded:
         ("ops",      "narai.api.routes.ops"),
         ("creative", "narai.api.routes.creative"),
         ("kdp",      "narai.api.routes.kdp"),
+        ("voice",    "narai.api.routes.voice"),
     ]:
         try:
             import importlib as _il

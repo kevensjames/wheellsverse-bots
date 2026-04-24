@@ -28,12 +28,33 @@
 <div class="avatar" id="narai">N</div>
 <div class="reply" id="reply"></div>
 <div class="label" id="status">idle</div>
+<button id="mic-btn" style="position:absolute;bottom:120px;background:#4a4aff;border:none;color:white;padding:10px 18px;border-radius:20px;font-size:13px;cursor:pointer">🎙 Hold to talk</button>
 
 <script>
 const avatar = document.getElementById('narai');
 const status = document.getElementById('status');
 const reply = document.getElementById('reply');
-const wsUrl = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/narai/voice/ws';
+
+// JWT is stored by the main dashboard on v2 login. Fallback: prompt if opened
+// standalone so this page is independently usable for debugging.
+let token = localStorage.getItem('narai_v2_token');
+if (!token) {
+  const pw = prompt('NarAI v2 password (to open voice session):');
+  if (pw) {
+    // Synchronous xhr — we need token before opening WS
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/v2/narai/auth/login', false);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    xhr.send(JSON.stringify({password: pw}));
+    if (xhr.status === 200) {
+      token = JSON.parse(xhr.responseText).token;
+      localStorage.setItem('narai_v2_token', token);
+    }
+  }
+}
+
+const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+const wsUrl = proto + location.host + '/api/v2/narai/voice/ws?token=' + encodeURIComponent(token || '');
 const ws = new WebSocket(wsUrl);
 
 function setState(state) {
@@ -56,13 +77,52 @@ ws.onmessage = (e) => {
       setState('listening');
     }
   } else {
-    // Binary audio frame — play it
     const audioBlob = new Blob([e.data], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(audioBlob);
     const audio = new Audio(url);
     audio.play().catch(() => {});
   }
 };
+
+// ── Mic capture (hold-to-talk) ──────────────────────────────────────────────
+let recorder = null;
+let chunks = [];
+const micBtn = document.getElementById('mic-btn');
+
+async function startRec() {
+  // Cut NarAI off if it's still talking — that's the interrupt.
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({type: 'interrupt'}));
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    chunks = [];
+    recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'});
+    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = () => {
+      const blob = new Blob(chunks, {type: 'audio/webm'});
+      blob.arrayBuffer().then(buf => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(buf);
+      });
+      stream.getTracks().forEach(t => t.stop());
+    };
+    recorder.start();
+    setState('listening');
+  } catch (err) {
+    reply.textContent = 'Mic permission denied: ' + err.message;
+  }
+}
+
+function stopRec() {
+  if (recorder && recorder.state === 'recording') recorder.stop();
+}
+
+// Desktop: mouse down/up. Mobile: touch.
+micBtn.addEventListener('mousedown', startRec);
+micBtn.addEventListener('mouseup', stopRec);
+micBtn.addEventListener('mouseleave', stopRec);
+micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRec(); });
+micBtn.addEventListener('touchend',   (e) => { e.preventDefault(); stopRec(); });
 </script>
 </body>
 </html>
