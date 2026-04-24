@@ -45,9 +45,9 @@ class CryptoInvestingAffiliateBotBot(BaseBot):
         footer = (
             "## Affiliate Links\n"
             "\n"
-            "Consider starting your crypto investment journey with [Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) "
+            "Consider starting your crypto investment journey with [Coinbase](https://app.wheellsverse.com/go/coinbase) "
             "for a user-friendly platform to buy, sell, and manage your cryptocurrencies. "
-            "Additionally, [Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1) offers commission-free trading, "
+            "Additionally, [Robinhood](https://app.wheellsverse.com/go/robinhood) offers commission-free trading, "
             "making it an attractive option for new investors.\n"
             "\n"
             "For those looking to enhance their crypto knowledge, consider checking out books and resources on Amazon. "

@@ -36,8 +36,8 @@ class CryptoTrendsAffiliateBotBot(BaseBot):
             "current trends in the cryptocurrency market, including emerging technologies, market "
             "movements, and investment strategies. Naturally integrate 2-3 affiliate links into the "
             "content where contextually appropriate. Use the following affiliate links:\n"
-            "- Coinbase: https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1\n"
-            "- Robinhood: https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1\n"
+            "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
+            "- Robinhood: https://app.wheellsverse.com/go/robinhood\n"
             "Ensure the content is engaging, informative, and optimized for search engines to drive "
             "traffic and clicks."
         )
@@ -47,8 +47,8 @@ class CryptoTrendsAffiliateBotBot(BaseBot):
         header = "# Cryptocurrency Trends: Insights and Opportunities\n"
         footer = (
             "For those looking to dive into the world of cryptocurrency trading, platforms like "
-            "[Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) and "
-            "[Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1) offer "
+            "[Coinbase](https://app.wheellsverse.com/go/coinbase) and "
+            "[Robinhood](https://app.wheellsverse.com/go/robinhood) offer "
             "accessible ways to start investing. Whether you're a seasoned investor or just starting "
             "out, keeping up with the latest trends is crucial for making informed decisions."
         )

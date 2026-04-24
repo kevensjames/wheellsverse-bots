@@ -38,9 +38,9 @@ class CryptoNewsAffiliateBotBot(BaseBot):
             "click on the affiliate links. Focus on recent trends, market analysis, or "
             "new developments in the crypto world. Use the following affiliate links "
             "where contextually appropriate:\n"
-            "- Coinbase: https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1\n"
+            "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
             "- Amazon: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20\n"
-            "- Robinhood: https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1"
+            "- Robinhood: https://app.wheellsverse.com/go/robinhood"
         )
 
         result = self.ai(prompt, system=system_str, max_tokens=2000)
@@ -51,11 +51,11 @@ class CryptoNewsAffiliateBotBot(BaseBot):
 
         footer = (
             "For those looking to dive deeper into the world of crypto investments, consider "
-            "[joining Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) "
+            "[joining Coinbase](https://app.wheellsverse.com/go/coinbase) "
             "for a reliable platform to buy and sell cryptocurrencies. Additionally, explore "
             "crypto-related books on [Amazon](https://www.amazon.com/s?k=crypto&tag=wheellsverse-20) "
             "to expand your knowledge. For traditional stock and crypto trading, "
-            "[Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1) offers "
+            "[Robinhood](https://app.wheellsverse.com/go/robinhood) offers "
             "a user-friendly interface to manage your investments."
         )
 

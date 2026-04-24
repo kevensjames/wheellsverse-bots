@@ -255,8 +255,8 @@ footer a{{color:var(--cyan);text-decoration:none}}
     <p><strong style="color:var(--text)">Recommended picks from today's articles:</strong><br>
     All links below are affiliate links — we earn a commission at no cost to you.</p>
     <div class="aff-links">
-      <a href="https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1" target="_blank" class="aff-link aff-link--cyan">📈 Free Stock — Robinhood</a>
-      <a href="https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1" target="_blank" class="aff-link aff-link--green">₿ $10 BTC — Coinbase</a>
+      <a href="https://app.wheellsverse.com/go/robinhood" target="_blank" class="aff-link aff-link--cyan">📈 Free Stock — Robinhood</a>
+      <a href="https://app.wheellsverse.com/go/coinbase" target="_blank" class="aff-link aff-link--green">₿ $10 BTC — Coinbase</a>
       <a href="https://www.amazon.com/s?k=passive+income+investing&tag=wheellsverse-20" target="_blank" class="aff-link aff-link--gold">📚 Best Books — Amazon</a>
     </div>
   </div>

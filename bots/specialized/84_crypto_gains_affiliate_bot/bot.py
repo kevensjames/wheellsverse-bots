@@ -36,8 +36,8 @@ class CryptoGainsAffiliateBotBot(BaseBot):
             "Generate a detailed and engaging article about crypto investment tips. "
             "Include practical advice and strategies for investing in cryptocurrencies. "
             "Naturally incorporate the following affiliate links where contextually appropriate: "
-            "1. Coinbase: https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1 "
-            "2. Robinhood: https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1 "
+            "1. Coinbase: https://app.wheellsverse.com/go/coinbase "
+            "2. Robinhood: https://app.wheellsverse.com/go/robinhood "
             "Ensure the content is valuable, SEO-optimized, and encourages readers to click the links."
         )
 
@@ -46,8 +46,8 @@ class CryptoGainsAffiliateBotBot(BaseBot):
         header = "# Maximize Your Crypto Gains with Expert Investment Tips"
         footer = (
             "For more insights into crypto investments, consider starting your journey "
-            "with trusted platforms like [Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) "
-            "and [Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1). "
+            "with trusted platforms like [Coinbase](https://app.wheellsverse.com/go/coinbase) "
+            "and [Robinhood](https://app.wheellsverse.com/go/robinhood). "
             "These platforms offer user-friendly interfaces and valuable resources for both "
             "beginners and seasoned investors."
         )

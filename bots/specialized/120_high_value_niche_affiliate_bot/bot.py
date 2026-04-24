@@ -38,8 +38,8 @@ class HighValueNicheAffiliateBotBot(BaseBot):
             "content for search engines and encourage readers to click on the affiliate "
             "links. Use the following affiliate links where appropriate:\n"
             "- Amazon Associates: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20\n"
-            "- Coinbase: https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1\n"
-            "- Robinhood: https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1"
+            "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
+            "- Robinhood: https://app.wheellsverse.com/go/robinhood"
         )
 
         result = self.ai(prompt, system=system_str, max_tokens=2000)
@@ -48,8 +48,8 @@ class HighValueNicheAffiliateBotBot(BaseBot):
         footer = (
             "For those looking to delve deeper into these lucrative areas, consider exploring "
             "[AI tools on Amazon](https://www.amazon.com/s?k=AI+tools&tag=wheellsverse-20), "
-            "or start your cryptocurrency journey with [Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1). "
-            "Additionally, if stock investing piques your interest, [Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1) "
+            "or start your cryptocurrency journey with [Coinbase](https://app.wheellsverse.com/go/coinbase). "
+            "Additionally, if stock investing piques your interest, [Robinhood](https://app.wheellsverse.com/go/robinhood) "
             "offers a user-friendly platform to begin trading."
         )
 

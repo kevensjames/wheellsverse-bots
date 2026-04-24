@@ -46,9 +46,9 @@ class CryptoAffiliateAutomatorBot(BaseBot):
 
         footer = (
             "For those ready to dive into the world of crypto investing, consider starting with "
-            "[Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) for a user-friendly "
+            "[Coinbase](https://app.wheellsverse.com/go/coinbase) for a user-friendly "
             "experience, or explore the benefits of commission-free trading with "
-            "[Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1). "
+            "[Robinhood](https://app.wheellsverse.com/go/robinhood). "
             "Stay informed and make the most out of your investments!"
         )
 

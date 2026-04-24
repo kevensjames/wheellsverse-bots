@@ -1,9 +1,16 @@
-# cache-bust: 2026-04-19
+# cache-bust: 2026-04-24-voice-runtime
 [phases.setup]
 nixPkgs = ["python311", "gcc", "libffi", "openssl"]
 
 [phases.install]
-cmds = ["pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements-server.txt"]
+# Verify the install with `pip check` so partial installs (missing bcrypt,
+# anthropic, etc.) fail the build instead of silently shipping a broken image.
+# The verify stanza imports the exact packages the v2 stack needs at startup —
+# if any are missing, the build fails here, not at runtime.
+cmds = [
+  "pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements-server.txt",
+  "python -c 'import bcrypt, anthropic, requests, fastapi, edge_tts; print(\"deps verified:\", bcrypt.__version__, anthropic.__version__, edge_tts.__version__)'"
+]
 
 [start]
 cmd = "sh -c 'uvicorn core.api:app --host 0.0.0.0 --port ${PORT:-8000}'"

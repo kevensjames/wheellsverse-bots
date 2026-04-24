@@ -45,9 +45,9 @@ class CryptoInvestingAffiliateBotBot(BaseBot):
         header = "# Exploring the World of Crypto Investing\n"
         footer = (
             "## Start Your Crypto Journey Today!\n\n"
-            "Sign up with [Coinbase](https://coinbase.com/join/IRZL3QBqT2Fa7117979C7RLARc7WFdWBH1) "
+            "Sign up with [Coinbase](https://app.wheellsverse.com/go/coinbase) "
             "to buy, sell, and manage your cryptocurrency portfolio with ease. For those interested "
-            "in the stock market as well, consider using [Robinhood](https://join.robinhood.com/IRhjrdSej2Ms7117979PpUNgqcMUkCW7g1) "
+            "in the stock market as well, consider using [Robinhood](https://app.wheellsverse.com/go/robinhood) "
             "for a seamless investment experience. Enhance your knowledge and tools with products from "
             "[Amazon](https://www.amazon.com/s?k=crypto+investing+books&tag=wheellsverse-20) to stay ahead in the crypto world."
         )
