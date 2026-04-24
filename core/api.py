@@ -82,11 +82,14 @@ _API_KEY = os.getenv("API_KEY", "").strip()
 
 # Public paths that never require auth
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
-                 # Legal pages — publicly accessible, no auth required
-                 "/terms", "/terms.html", "/privacy", "/privacy.html", "/disclaimer", "/store",
-                 # Public site pages
-                 "/login", "/signup", "/pricing", "/narai",
-                 # NarAI user API (auth handled per-endpoint via Bearer token)
+                  # Legal pages — publicly accessible, no auth required
+                  "/terms", "/terms.html", "/privacy", "/privacy.html", "/disclaimer", "/store",
+                  # Public site pages
+                  "/login", "/signup", "/pricing", "/narai",
+                  # Second Brain Inbox / Toodle
+                  "/api/inbox", "/api/inbox/brain-dump", "/api/inbox/digest", "/api/inbox/search",
+                  "/second-brain-inbox", "/admin/second-brain-inbox", "/user/second-brain-inbox",
+                  # NarAI user API (auth handled per-endpoint via Bearer token)
                  "/api/narai/chat", "/api/narai/conversations", "/api/narai/profile",
                  "/api/narai/memory",
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
@@ -686,6 +689,7 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/shopify/", "/api/narai/schedules", "/api/sa/",
                              "/api/narai/run", "/api/narai/revenue", "/api/narai/status",
                              "/api/v2/narai/",  # v2 uses its own JWT auth
+                             "/api/google/",   # OAuth flow: protected by state-based CSRF
                              "/api/store/download/")  # uses its own signed-token auth
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
@@ -792,19 +796,12 @@ async def store_download(store_key: str, t: str = ""):
 
 @app.get("/store", response_class=HTMLResponse)
 async def serve_store():
-    """Serve the store page with live Stripe payment links injected.
-    Links come from data/store_payment_links.json (populated by `python -m core.store_setup`).
-    Missing links default to #not-available so broken buttons don't go off-site."""
     path = ROOT / "frontend" / "store" / "index.html"
     if not path.exists():
         return HTMLResponse("<h1>store/index.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
 
     import json as _json
-    # Link source priority: env var STORE_PAYMENT_LINKS_JSON (set on Railway),
-    # then data/store/payment_links.json (local-first dev), then legacy path.
-    # Env-var path avoids the Railway upload quirk where dynamically-generated
-    # files aren't always picked up.
     links: dict = {}
     env_links = os.getenv("STORE_PAYMENT_LINKS_JSON", "").strip()
     if env_links:
@@ -13056,6 +13053,42 @@ try:
     logger.info("Marketing autopilot router loaded at /marketing")
 except Exception as _e:
     logger.warning(f"Marketing autopilot not loaded: {_e}")
+
+
+# ── Toodle / Second Brain Inbox ────────────────────────────────────────────────
+try:
+    from core.inbox.routes import rt as _inbox_rt
+    app.include_router(_inbox_rt, prefix="/api/inbox")
+    logger.info("Second Brain Inbox loaded at /api/inbox")
+except Exception as _e:
+    logger.warning(f"Second Brain Inbox not loaded: {_e}")
+
+
+@app.get("/second-brain-inbox", response_class=HTMLResponse)
+async def serve_sbi():
+    """Serve the Second Brain Inbox app."""
+    path = ROOT / "second_brain_inbox" / "frontend" / "index.html"
+    if not path.exists():
+        return HTMLResponse("<h1>Second Brain Inbox not found</h1>", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/admin/second-brain-inbox", response_class=HTMLResponse)
+async def serve_sbi_admin():
+    """Serve the Second Brain Inbox admin command center."""
+    path = ROOT / "second_brain_inbox" / "frontend" / "admin.html"
+    if not path.exists():
+        return HTMLResponse("<h1>Admin not found</h1>", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/user/second-brain-inbox", response_class=HTMLResponse)
+async def serve_sbi_user():
+    """Serve the Second Brain Inbox user version."""
+    path = ROOT / "second_brain_inbox" / "frontend" / "user.html"
+    if not path.exists():
+        return HTMLResponse("<h1>User version not found</h1>", status_code=404)
+    return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
 # ── Bug Hunter API ───────────────────────────────────────────────────��────────
