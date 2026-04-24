@@ -3,7 +3,6 @@ To generate: python -c "from passlib.hash import bcrypt; print(bcrypt.hash('your
 """
 import os
 
-import bcrypt as _bcrypt
 from datetime import datetime, timedelta, timezone
 
 from fastapi import Depends, HTTPException, status
@@ -19,6 +18,7 @@ _bearer = HTTPBearer(auto_error=True)
 
 
 def verify_password(plain: str) -> bool:
+    import bcrypt as _bcrypt  # lazy — module loads even if bcrypt wheel is absent at import time
     if not _PASSWORD_HASH:
         raise EnvironmentError("NARAI_PASSWORD_HASH not set")
     return _bcrypt.checkpw(plain.encode(), _PASSWORD_HASH.encode())
