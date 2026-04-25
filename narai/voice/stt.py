@@ -13,6 +13,27 @@ from typing import Literal, Protocol
 Provider = Literal["openai", "local"]
 
 
+def _sniff_audio_ext(audio_bytes: bytes) -> str:
+    """Pick the right filename extension from the audio's magic bytes.
+    Whisper rejects files when the extension doesn't match the actual format
+    (e.g., Safari sends audio/mp4 even when MediaRecorder asks for webm)."""
+    if not audio_bytes:
+        return "webm"
+    if audio_bytes.startswith(b"\x1aE\xdf\xa3"):  # EBML — webm/matroska
+        return "webm"
+    if len(audio_bytes) >= 8 and audio_bytes[4:8] == b"ftyp":  # MP4
+        return "mp4"
+    if audio_bytes.startswith(b"OggS"):
+        return "ogg"
+    if audio_bytes.startswith(b"RIFF"):
+        return "wav"
+    if audio_bytes.startswith(b"ID3") or audio_bytes[:2] == b"\xff\xfb":
+        return "mp3"
+    if audio_bytes.startswith(b"fLaC"):
+        return "flac"
+    return "webm"
+
+
 class STTClient(Protocol):
     async def transcribe(self, audio_bytes: bytes) -> str: ...
 
@@ -24,7 +45,7 @@ class OpenAIWhisper:
 
     async def transcribe(self, audio_bytes: bytes) -> str:
         buf = io.BytesIO(audio_bytes)
-        buf.name = "audio.webm"
+        buf.name = f"audio.{_sniff_audio_ext(audio_bytes)}"
         result = self.client.audio.transcriptions.create(
             model="whisper-1",
             file=buf,
