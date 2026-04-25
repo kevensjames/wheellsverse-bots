@@ -5332,65 +5332,121 @@ async def telegram_test():
 
 # ─── Telegram Incoming Webhook (instant two-way NarAI chat) ──────────────────
 
+# Hold references to background tasks so asyncio's GC doesn't reap them mid-call.
+_TG_BG_TASKS: set = set()
+
+
+def _format_telegram_html(text: str) -> str:
+    """Escape user content, then convert minimal NarAI markdown to Telegram HTML.
+    Order matters: escape first so `<` in code samples doesn't break the HTML parse.
+    """
+    import html as _html, re as _re
+    safe = _html.escape(text)
+    safe = _re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", safe)
+    safe = _re.sub(r"`(.+?)`", r"<code>\1</code>", safe)
+    return safe
+
+
+async def _telegram_v2_reply(text: str, chat_id: str, tg_token: str) -> None:
+    """Run NarAI v2 pipeline and send the reply. Errors are logged, not raised —
+    Telegram already got its 200 response and will not retry."""
+    import httpx as _httpx
+    try:
+        from narai.api.routes.chat import run_pipeline_async
+        async with _httpx.AsyncClient(timeout=30) as client:
+            await client.post(
+                f"https://api.telegram.org/bot{tg_token}/sendChatAction",
+                json={"chat_id": chat_id, "action": "typing"},
+            )
+            result = await run_pipeline_async(user_id="owner", user_message=text)
+            reply_html = _format_telegram_html(result.get("reply", "")) or "I'm here."
+            r = await client.post(
+                f"https://api.telegram.org/bot{tg_token}/sendMessage",
+                json={"chat_id": chat_id, "text": reply_html, "parse_mode": "HTML"},
+            )
+            print(
+                f"[TG-V2] mode={result.get('mode')} overwhelm={result.get('overwhelm')} "
+                f"tier={result.get('tier')} tokens={result.get('tokens')} "
+                f"sendMessage={r.status_code}",
+                flush=True,
+            )
+    except Exception as _e:
+        import traceback
+        print(f"[TG-V2] reply failed: {_e}\n{traceback.format_exc()}", flush=True)
+
+
 @app.post("/api/telegram/webhook")
-async def telegram_webhook(request: Request):
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(default=None),
+):
+    """Telegram pushes every incoming message here. Routes through the NarAI v2
+    pipeline (Steps 1-7: identity / memory / overwhelm / mode / pattern context).
+
+    Security: owner-only via TELEGRAM_CHAT_ID; webhook secret validated against
+    TELEGRAM_WEBHOOK_SECRET when set. Returns 200 immediately so Telegram doesn't
+    retry — the reply is sent from a background asyncio task.
     """
-    Telegram pushes every incoming message here instantly.
-    Routes all text messages → NarAI voice_chat, replies back.
-    """
-    import threading as _tgthread
-    import requests as _tgreq
+    expected_secret = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+    if expected_secret and x_telegram_bot_api_secret_token != expected_secret:
+        raise HTTPException(status_code=403, detail="invalid secret")
 
     try:
         data = await request.json()
     except Exception:
         return {"ok": True}
 
-    # Support message, channel_post, edited_message
     msg = (data.get("message")
            or data.get("channel_post")
            or data.get("edited_message")
            or {})
     text = (msg.get("text") or "").strip()
-
-    if not text or text.startswith("/"):
+    if not text:
         return {"ok": True}
 
-    chat    = msg.get("chat", {})
+    chat = msg.get("chat", {})
     chat_id = str(chat.get("id", ""))
     tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    if not tg_token:
+        print("[TG-V2] ERROR: TELEGRAM_BOT_TOKEN not set", flush=True)
+        return {"ok": True}
 
-    print(f"[TG-WEBHOOK] Message from chat_id={chat_id}: {text[:80]}", flush=True)
+    owner_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if owner_chat_id and chat_id != owner_chat_id:
+        print(f"[TG-V2] dropping non-owner chat_id={chat_id}", flush=True)
+        return {"ok": True}
 
-    def _reply_thread():
-        try:
-            from bots.narai.narai.bot import get_narai
-            narai = get_narai()
-            result = narai.voice_chat(text)
-            reply = result.get("response", "") if isinstance(result, dict) else str(result)
-            # Strip markdown
-            import re as _re
-            reply = _re.sub(r'[*_`#>]{1,3}', '', reply)
-            reply = _re.sub(r'\[(.+?)\]\(.+?\)', r'\1', reply)
-            reply = reply.strip() or "I'm here."
-
-            print(f"[TG-WEBHOOK] NarAI reply ({len(reply)} chars): {reply[:80]}", flush=True)
-
-            if not tg_token:
-                print("[TG-WEBHOOK] ERROR: TELEGRAM_BOT_TOKEN not set!", flush=True)
-                return
-
-            r = _tgreq.post(
+    # /mode <op|companion> and /reset translate to natural-language phrases the
+    # mode_router already parses — keeps a single override path. /help replies inline.
+    if text.startswith("/mode "):
+        text = f"stay in {text.split(None, 1)[1].strip()} mode"
+    elif text == "/reset":
+        text = "release mode lock"
+    elif text == "/help":
+        import httpx as _httpx_help
+        async with _httpx_help.AsyncClient(timeout=10) as client:
+            await client.post(
                 f"https://api.telegram.org/bot{tg_token}/sendMessage",
-                json={"chat_id": chat_id, "text": reply},
-                timeout=20,
+                json={
+                    "chat_id": chat_id,
+                    "text": (
+                        "<b>NarAI Telegram</b>\n\n"
+                        "/mode operator — force operator mode\n"
+                        "/mode companion — force companion mode\n"
+                        "/reset — release mode lock\n"
+                        "/help — this message"
+                    ),
+                    "parse_mode": "HTML",
+                },
             )
-            print(f"[TG-WEBHOOK] sendMessage status={r.status_code} body={r.text[:200]}", flush=True)
-        except Exception as _e:
-            import traceback
-            print(f"[TG-WEBHOOK] ERROR: {_e}\n{traceback.format_exc()}", flush=True)
+        return {"ok": True}
+    elif text.startswith("/"):
+        return {"ok": True}
 
-    _tgthread.Thread(target=_reply_thread, daemon=True).start()
+    print(f"[TG-V2] msg from chat_id={chat_id}: {text[:80]}", flush=True)
+    task = asyncio.create_task(_telegram_v2_reply(text, chat_id, tg_token))
+    _TG_BG_TASKS.add(task)
+    task.add_done_callback(_TG_BG_TASKS.discard)
     return {"ok": True}
 
 

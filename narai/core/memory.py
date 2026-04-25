@@ -59,10 +59,14 @@ def _get_collection() -> Any:
                 embedding_function=_make_ef(),
                 metadata={"hnsw:space": "cosine"},
             )
-        except ValueError as e:
+        except Exception as e:
+            # chromadb 0.5+ raises a non-ValueError class for EF conflicts.
             if "embedding function" not in str(e).lower():
                 raise
-            _client.delete_collection("narai_memory")
+            try:
+                _client.delete_collection("narai_memory")
+            except Exception:
+                pass
             _collection = _client.get_or_create_collection(
                 name="narai_memory",
                 embedding_function=_make_ef(),
@@ -258,7 +262,24 @@ class MemoryStore:
         self.db.commit()
 
         self.chroma = chromadb.PersistentClient(path=str(self.data_dir / "chroma"))
-        self.episodes = self.chroma.get_or_create_collection("narai_episodes")
+        # Pin to the same EF used by the module-level memory collection so
+        # restarts after a chromadb-version bump don't trigger "EF conflict".
+        # On any conflict, drop the old collection (Railway is ephemeral; data
+        # is rebuilt on first chat anyway) and recreate it cleanly.
+        try:
+            self.episodes = self.chroma.get_or_create_collection(
+                "narai_episodes", embedding_function=_make_ef()
+            )
+        except Exception as e:
+            if "embedding function" not in str(e).lower():
+                raise
+            try:
+                self.chroma.delete_collection("narai_episodes")
+            except Exception:
+                pass
+            self.episodes = self.chroma.get_or_create_collection(
+                "narai_episodes", embedding_function=_make_ef()
+            )
 
     # ---------- Facts ----------
 

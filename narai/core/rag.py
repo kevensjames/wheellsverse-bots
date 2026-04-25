@@ -52,11 +52,24 @@ def _get_rag_collection() -> Any:
     if _rag_collection is None or path != _current_rag_path:
         _current_rag_path = path
         client = chromadb.PersistentClient(path=path)
-        _rag_collection = client.get_or_create_collection(
-            name="narai_rag",
-            embedding_function=_make_ef(),
-            metadata={"hnsw:space": "cosine"},
-        )
+        try:
+            _rag_collection = client.get_or_create_collection(
+                name="narai_rag",
+                embedding_function=_make_ef(),
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception as e:
+            if "embedding function" not in str(e).lower():
+                raise
+            try:
+                client.delete_collection("narai_rag")
+            except Exception:
+                pass
+            _rag_collection = client.get_or_create_collection(
+                name="narai_rag",
+                embedding_function=_make_ef(),
+                metadata={"hnsw:space": "cosine"},
+            )
     return _rag_collection
 
 
