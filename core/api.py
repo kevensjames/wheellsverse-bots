@@ -13,6 +13,7 @@ import logging
 import logging.handlers
 import os
 import re
+import subprocess
 import sys
 import time
 from collections import deque
@@ -25,6 +26,30 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
+
+
+def _resolve_git_sha() -> str:
+    """
+    Short git SHA for the running deployment. Resolved at import time.
+    Railway auto-injects RAILWAY_GIT_COMMIT_SHA; local dev falls back to
+    `git rev-parse --short HEAD`. Returns 'unknown' when neither works.
+    """
+    sha = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
+    if sha:
+        return sha[:7]
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=str(ROOT),
+            stderr=subprocess.DEVNULL,
+            timeout=2,
+        )
+        return out.decode("utf-8", errors="replace").strip() or "unknown"
+    except Exception:
+        return "unknown"
+
+
+_GIT_SHA = _resolve_git_sha()
 
 # ─── Structured log rotation ──────────────────────────────────────────────────
 
@@ -1751,6 +1776,7 @@ async def health():
         "uptime_human": f"{uptime // 3600}h {(uptime % 3600) // 60}m",
         "browser":  browser_ok,
         "version":  "nexora-v6-agent-workforce",
+        "git_sha":  _GIT_SHA,
         "nx_routes": True,
         "narai_autopilot": True,
         "system": {
