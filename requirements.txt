@@ -134,6 +134,14 @@ bcrypt>=4.0.0
 passlib[bcrypt]>=1.7.4
 PyJWT>=2.8.0
 
+# ── NarAI v2 chat/memory/rag pipeline (Steps 1–7) ────────────────────────────
+# chromadb backs the episode store and RAG; litellm is the LLM router;
+# sqlalchemy[asyncio]+aiosqlite back the facts/patterns SQL store.
+chromadb>=0.5.0
+litellm>=1.40.0
+sqlalchemy[asyncio]>=2.0.0
+aiosqlite>=0.20.0
+
 # ── NarAI v2 voice (TTS; STT uses openai package above) ──────────────────────
 edge-tts>=6.1.0
 
