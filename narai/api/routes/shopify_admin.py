@@ -1,29 +1,30 @@
 """
 Admin API for the multi-tenant Shopify dashboard.
 
-Endpoints are auth-gated via the existing Bearer-token guard (reuses
-whichever auth pattern the other admin routes use).
+Endpoints are gated by the platform's API_KEY — this is an *operator* surface
+for the platform owner, not a per-merchant surface. Sent as X-API-Key header.
 """
 from __future__ import annotations
 
+import hmac
 import logging
-from typing import Optional
+import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from core.narai_user import get_supabase, verify_token
+from core.narai_user import get_supabase
 from narai.core.shopify_mt.billing import PLAN_LIMITS, TIER_ORDER, PRICE_IDS
 
 
-def verify_token_user(authorization: str = Header(None)) -> dict:
-    """FastAPI dep: extract Bearer token, verify against Supabase, return user."""
-    if not authorization or not authorization.lower().startswith("bearer "):
-        raise HTTPException(401, "Missing bearer token")
-    token = authorization.split(None, 1)[1].strip()
-    user = verify_token(token)
-    if not user:
-        raise HTTPException(401, "Invalid or expired token")
-    return user
+def verify_admin_api_key(x_api_key: str = Header(None)) -> bool:
+    """FastAPI dep: require the X-API-Key header to match the platform API_KEY env."""
+    expected = os.getenv("API_KEY")
+    if not expected:
+        # Fail closed — never accept admin requests if the env is missing
+        raise HTTPException(503, "Admin API not configured (API_KEY env missing)")
+    if not x_api_key or not hmac.compare_digest(x_api_key, expected):
+        raise HTTPException(401, "Invalid or missing X-API-Key")
+    return True
 
 log = logging.getLogger("shopify_admin")
 router = APIRouter(prefix="/api/narai/shopify", tags=["shopify-admin"])
@@ -32,7 +33,7 @@ PLAN_MONTHLY_USD = {"free": 0, "starter": 19, "pro": 49, "elite": 149}
 
 
 @router.get("/merchants")
-def list_merchants(user=Depends(verify_token_user)) -> dict:
+def list_merchants(_=Depends(verify_admin_api_key)) -> dict:
     """List all connected merchants plus aggregate stats."""
     sb = get_supabase()
 
@@ -66,7 +67,7 @@ def list_merchants(user=Depends(verify_token_user)) -> dict:
 
 
 @router.get("/merchants/{merchant_id}")
-def merchant_detail(merchant_id: str, user=Depends(verify_token_user)) -> dict:
+def merchant_detail(merchant_id: str, _=Depends(verify_admin_api_key)) -> dict:
     sb = get_supabase()
     merchant = sb.table("merchants").select("*").eq("id", merchant_id).limit(1).execute().data
     if not merchant:
@@ -95,7 +96,7 @@ def merchant_detail(merchant_id: str, user=Depends(verify_token_user)) -> dict:
 
 
 @router.get("/plans")
-def list_plans(user=Depends(verify_token_user)) -> dict:
+def list_plans(_=Depends(verify_admin_api_key)) -> dict:
     """Plans the admin dashboard can offer to merchants."""
     return {
         "tiers": TIER_ORDER,

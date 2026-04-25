@@ -118,9 +118,25 @@ function el(tag, opts) {
 }
 
 async function auth() {
-  const token = localStorage.getItem('narai_token');
-  if (!token) { location.href = '/login?next=/admin/shopify'; return null; }
-  return {'Authorization': 'Bearer ' + token};
+  // Admin API_KEY auth (operator surface — not per-merchant).
+  // Stored in sessionStorage so it dies with the tab. URL ?key=... is also accepted
+  // for one-shot bookmarks/links but is immediately moved into sessionStorage and
+  // stripped from the address bar so it doesn't end up in browser history.
+  const url = new URL(location.href);
+  const fromUrl = url.searchParams.get('key');
+  if (fromUrl) {
+    sessionStorage.setItem('admin_api_key', fromUrl);
+    url.searchParams.delete('key');
+    history.replaceState({}, '', url.toString());
+  }
+  let key = sessionStorage.getItem('admin_api_key');
+  if (!key) {
+    key = prompt('Admin API key (X-API-Key):');
+    if (!key) return null;
+    sessionStorage.setItem('admin_api_key', key.trim());
+    key = key.trim();
+  }
+  return {'X-API-Key': key};
 }
 
 function install() {
@@ -136,6 +152,10 @@ async function load() {
   const h = await auth(); if (!h) return;
   try {
     const r = await fetch('/api/narai/shopify/merchants', {headers: h});
+    if (r.status === 401) {
+      sessionStorage.removeItem('admin_api_key');  // wrong key — force re-prompt
+      throw new Error('Unauthorized — refresh the page to re-enter the admin key');
+    }
     if (!r.ok) throw new Error('HTTP ' + r.status);
     render(await r.json());
   } catch (e) {
