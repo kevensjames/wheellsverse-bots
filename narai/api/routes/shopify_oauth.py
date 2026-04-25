@@ -192,4 +192,4 @@ def callback(request: Request) -> RedirectResponse:
     except Exception as e:
         log.warning(f"[shopify_oauth] webhook registration failed for {shop}: {e}")
 
-    return RedirectResponse(f"{APP_URL}/admin/shopify/connected?shop={shop}")
+    return RedirectResponse(f"{APP_URL}/admin/shopify?installed={shop}")
