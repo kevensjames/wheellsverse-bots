@@ -13025,7 +13025,6 @@ except Exception as _e:
 
 if _v2_auth_loaded:
     try:
-        import asyncio as _v2_asyncio
         from narai.api.routes.chat import rt as _v2_chat_rt
         from narai.api.routes.memory import rag_rt as _v2_rag_rt, rt as _v2_memory_rt
         from narai.api.routes.skills_route import rt as _v2_skills_rt
@@ -13037,7 +13036,10 @@ if _v2_auth_loaded:
         app.include_router(_v2_rag_rt, prefix="/api/v2/narai")
         app.include_router(_v2_skills_rt, prefix="/api/v2/narai")
 
-        _v2_asyncio.run(_v2_init_db())
+        # init_db is async; register it on FastAPI's startup so it runs inside
+        # the event loop. Calling asyncio.run() here fails when uvicorn imports
+        # core.api from within an already-running loop.
+        app.add_event_handler("startup", _v2_init_db)
         logger.info("NarAI v2 chat/memory/rag/skills loaded at /api/v2/narai")
     except Exception as _e:
         logger.warning(f"NarAI v2 chat/memory/rag not loaded (chromadb missing?): {_e}")
