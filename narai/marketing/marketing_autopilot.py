@@ -26,6 +26,60 @@ import yaml
 from anthropic import AsyncAnthropic
 from dotenv import load_dotenv
 
+_TOKEN_LOG = Path(__file__).resolve().parents[2] / "data" / "token_usage.json"
+_DAILY_BUDGET = float(os.getenv("ANTHROPIC_DAILY_BUDGET_USD", "2.50"))
+
+
+def _today_anthropic_spend() -> float:
+    try:
+        if not _TOKEN_LOG.exists():
+            return 0.0
+        records = json.loads(_TOKEN_LOG.read_text())
+        today = datetime.now().strftime("%Y-%m-%d")
+        total = 0.0
+        for r in records:
+            if r.get("provider") != "anthropic" or not r.get("ts", "").startswith(today):
+                continue
+            inp, out = r.get("prompt_tokens", 0), r.get("completion_tokens", 0)
+            if "haiku" in r.get("model", ""):
+                total += (inp / 1_000_000 * 0.80) + (out / 1_000_000 * 4.0)
+            else:
+                total += (inp / 1_000_000 * 3.0) + (out / 1_000_000 * 15.0)
+        return total
+    except Exception:
+        return 0.0
+
+
+def _log_usage(model: str, inp: int, out: int) -> None:
+    try:
+        _TOKEN_LOG.parent.mkdir(parents=True, exist_ok=True)
+        records = json.loads(_TOKEN_LOG.read_text()) if _TOKEN_LOG.exists() else []
+        records.append({"ts": datetime.now().isoformat(), "provider": "anthropic",
+                        "model": model, "prompt_tokens": inp, "completion_tokens": out,
+                        "bot": "marketing_autopilot"})
+        if len(records) > 5000:
+            records = records[-5000:]
+        _TOKEN_LOG.write_text(json.dumps(records, indent=2))
+    except Exception:
+        pass
+
+# ── Media pipeline (lazy import — graceful if Pillow/ffmpeg not installed) ───
+_MEDIA_ROOT = Path(__file__).resolve().parents[2]
+import sys as _sys
+if str(_MEDIA_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_MEDIA_ROOT))
+
+try:
+    from narai_godmode.media.image_composer import compose_post as _compose_post
+    from narai_godmode.media.video_composer import (
+        ValidationError as _ValidationError,
+        ensure_audio_track as _ensure_audio_track,
+        validate_before_publish as _validate_before_publish,
+    )
+    _MEDIA_PIPELINE_AVAILABLE = True
+except ImportError:
+    _MEDIA_PIPELINE_AVAILABLE = False
+
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / ".env")
 
@@ -177,7 +231,7 @@ Output format: Return ONLY valid JSON. No markdown. No code fences. No explanati
 class ContentGenerator:
     def __init__(self):
         self._client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        self._model = "claude-opus-4-7"
+        self._model = os.getenv("MARKETING_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
     def _parse_json(self, raw: str) -> dict:
         cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.MULTILINE)
@@ -191,12 +245,21 @@ class ContentGenerator:
             raise
 
     async def _call(self, user_prompt: str) -> dict:
+        spend = _today_anthropic_spend()
+        if spend >= _DAILY_BUDGET:
+            raise RuntimeError(
+                f"Daily Anthropic budget (${_DAILY_BUDGET:.2f}) reached "
+                f"(spent ${spend:.4f}) — marketing_autopilot call blocked"
+            )
         resp = await self._client.messages.create(
             model=self._model,
             max_tokens=2048,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
         )
+        _log_usage(self._model,
+                   resp.usage.input_tokens,
+                   resp.usage.output_tokens)
         return self._parse_json(resp.content[0].text)
 
     async def reel_script(self, topic: str, hook: str) -> dict:
@@ -496,12 +559,53 @@ class TaskRunner:
             return
         if task_type not in {"reel", "carousel", "ad_copy"}:
             return
-        caption = result.get("hook") or result.get("title") or result.get("headline", "")
-        img_url = result.get("cover_image_url", "")
+
+        caption  = result.get("hook") or result.get("title") or result.get("headline", "")
+        subtext  = result.get("subtext") or result.get("body", "")
+        img_url  = result.get("cover_image_url", "")
+        visual_p = result.get("visual_prompt") or result.get("image_prompt", "")
+
+        # ── Step 1: compose a clean image with Pillow text overlay ────────────
+        local_path: Optional[str] = None
+        if _MEDIA_PIPELINE_AVAILABLE and caption:
+            try:
+                vp = visual_p or f"Cinematic dark financial scene, abstract wealth visualization"
+                local_path = _compose_post(
+                    visual_prompt=vp,
+                    headline=caption,
+                    subtext=subtext[:120] if subtext else None,
+                )
+                self._log.info(f"[Media] Composed post image → {local_path}")
+            except Exception as exc:
+                self._log.warning(f"[Media] compose_post failed: {exc} — falling back to cover_image_url")
+
+        # ── Step 2: validate asset before publish ─────────────────────────────
+        if local_path and _MEDIA_PIPELINE_AVAILABLE:
+            try:
+                _validate_before_publish(local_path)
+            except _ValidationError as exc:
+                self._log.error(f"[Media] Validation failed — skipping post: {exc}")
+                return
+
+        # ── Step 3: publish — prefer local composed image, fall back to URL ──
+        if local_path:
+            cdn_base = os.getenv("MEDIA_CDN_URL", "")
+            if cdn_base:
+                fname = Path(local_path).name
+                img_url = f"{cdn_base.rstrip('/')}/{fname}"
+                self._log.info(f"[Media] Using CDN URL → {img_url}")
+            else:
+                # Surface this loudly — silent skips here mean lost reach.
+                self._log.warning(
+                    f"[Media][skip] reason=cdn_url_missing local_path={local_path} "
+                    "fix=set MEDIA_CDN_URL env var so Meta Graph API can fetch the image"
+                )
+
         if img_url:
             self._meta.post_ig_image(img_url, caption)
         else:
-            self._log.info(f"AUTO_POST=true but no cover_image_url in result — skipping Meta post")
+            reason = "cdn_url_missing" if local_path else "no_local_path_and_no_cover_url"
+            self._log.warning(f"[Media][skip] reason={reason} task_type={task_type}")
 
     def run(self, task: Dict) -> Dict:
         type_ = task.get("type", "")
