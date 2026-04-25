@@ -31,12 +31,24 @@ sys.path.insert(0, str(ROOT))
 def _resolve_git_sha() -> str:
     """
     Short git SHA for the running deployment. Resolved at import time.
-    Railway auto-injects RAILWAY_GIT_COMMIT_SHA; local dev falls back to
-    `git rev-parse --short HEAD`. Returns 'unknown' when neither works.
+
+    Tries in order:
+      1. GIT_SHA env var (set explicitly per deploy via `railway variables --set`)
+      2. RAILWAY_GIT_COMMIT_SHA (auto-injected for GitHub-integrated services)
+      3. /app/GIT_SHA file (baked at image build by deploy script)
+      4. `git rev-parse --short HEAD` for local dev (.railwayignore excludes .git/)
+      5. 'unknown'
     """
-    sha = os.getenv("RAILWAY_GIT_COMMIT_SHA", "")
-    if sha:
-        return sha[:7]
+    for env_name in ("GIT_SHA", "RAILWAY_GIT_COMMIT_SHA"):
+        sha = os.getenv(env_name, "").strip()
+        if sha:
+            return sha[:7]
+    sha_file = ROOT / "GIT_SHA"
+    if sha_file.exists():
+        try:
+            return sha_file.read_text().strip()[:7] or "unknown"
+        except Exception:
+            pass
     try:
         out = subprocess.check_output(
             ["git", "rev-parse", "--short", "HEAD"],
