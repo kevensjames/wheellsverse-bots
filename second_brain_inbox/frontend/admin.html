@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Second Brain Inbox - Admin Command Center</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0b;
+            --surface: #141416;
+            --surface-hover: #1c1c1f;
+            --border: #27272a;
+            --text: #fafafa;
+            --text-dim: #a1a1aa;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px; }
+        
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 32px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--border);
+        }
+        .logo { display: flex; align-items: center; gap: 12px; }
+        .logo h1 { font-size: 24px; font-weight: 700; }
+        .logo-badge {
+            background: var(--accent);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .nav { display: flex; gap: 8px; }
+        .nav a {
+            color: var(--text-dim);
+            text-decoration: none;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .nav a:hover, .nav a.active {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .stat-label { color: var(--text-dim); font-size: 13px; margin-bottom: 4px; }
+        .stat-value { font-size: 32px; font-weight: 700; }
+        .stat-value.tasks { color: var(--warning); }
+        .stat-value.ideas { color: var(--accent); }
+        .stat-value.reminders { color: #06b6d4; }
+        .stat-value.completed { color: var(--success); }
+        
+        .section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 24px;
+        }
+        .section-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .section-title { font-size: 16px; font-weight: 600; }
+        .section-actions { display: flex; gap: 8px; }
+        
+        .input-section {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 16px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            min-height: 100px;
+        }
+        textarea::placeholder { color: var(--text-dim); }
+        
+        .input-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover { background: var(--accent-hover); }
+        button.danger { background: var(--danger); }
+        button.secondary { background: var(--surface-hover); color: var(--text); }
+        
+        .item {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .item:last-child { border-bottom: none; }
+        .item-type { font-size: 18px; flex-shrink: 0; }
+        .item-content { flex: 1; }
+        .item-text { font-size: 15px; margin-bottom: 4px; }
+        .item-meta { font-size: 13px; color: var(--text-dim); }
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+            margin-right: 8px;
+        }
+        .badge.task { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+        .badge.idea { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+        .badge.reminder { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
+        
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-dim);
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--surface);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .tab {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            color: var(--text-dim);
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab.active { background: var(--surface-hover); color: var(--text); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <h1>🎯 Toodle</h1>
+                <span class="logo-badge">Admin</span>
+            </div>
+            <nav class="nav">
+                <a href="/admin/toodle" class="active">Dashboard</a>
+                <a href="/admin/toodle/users">Users</a>
+                <a href="/admin/toodle/settings">Settings</a>
+                <a href="/admin/shopify">Shopify Merchants</a>
+                <a href="/toodle">View App</a>
+            </nav>
+        </header>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Items</div>
+                <div class="stat-value" id="totalItems">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Tasks</div>
+                <div class="stat-value tasks" id="taskCount">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ideas</div>
+                <div class="stat-value ideas" id="ideaCount">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Completed</div>
+                <div class="stat-value completed" id="completedCount">-</div>
+            </div>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <span class="section-title">Quick Brain Dump</span>
+                <div class="section-actions">
+                    <button class="secondary" onclick="clearAll()">Clear All</button>
+                    <button class="danger" onclick="exportData()">Export</button>
+                </div>
+            </div>
+            <div class="input-section">
+                <textarea id="brainDump" placeholder="Type anything: 'call bank tomorrow, idea for clothing brand, dont forget gym at 6pm'"></textarea>
+                <div class="input-actions">
+                    <button id="submitBtn" onclick="handleSubmit()">✨ Organize</button>
+                    <button class="secondary" onclick="bulkAdd()">+ Add Multiple</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" data-tab="all" onclick="switchTab('all')">All</button>
+            <button class="tab" data-tab="task" onclick="switchTab('task')">Tasks</button>
+            <button class="tab" data-tab="idea" onclick="switchTab('idea')">Ideas</button>
+            <button class="tab" data-tab="reminder" onclick="switchTab('reminder')">Reminders</button>
+        </div>
+        
+        <div class="section">
+            <div class="section-header">
+                <span class="section-title" id="itemsTitle">All Items</span>
+                <div class="section-actions">
+                    <span id="itemCount" style="color: var(--text-dim); font-size: 14px;">0 items</span>
+                </div>
+            </div>
+            <div id="itemsList">
+                <div class="empty-state">Loading...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = window.location.origin + '/api/inbox';
+        
+        const iconMap = {
+            task: '✅',
+            idea: '💡',
+            reminder: '⏰',
+            event: '📅',
+            note: '📝'
+        };
+        
+        let currentTab = 'all';
+        loadStats();
+        loadItems();
+        
+        async function loadStats() {
+            try {
+                const res = await fetch(API_URL + '/items?limit=1000');
+                const items = await res.json();
+                
+                document.getElementById('totalItems').textContent = items.length;
+                document.getElementById('taskCount').textContent = items.filter(i => i.item_type === 'task').length;
+                document.getElementById('ideaCount').textContent = items.filter(i => i.item_type === 'idea').length;
+                document.getElementById('completedCount').textContent = items.filter(i => i.completed).length;
+            } catch (err) {
+                console.log('Error loading stats:', err);
+            }
+        }
+        
+        async function loadItems() {
+            try {
+                const res = await fetch(API_URL + '/items?limit=100');
+                let items = await res.json();
+                
+                if (currentTab !== 'all') {
+                    items = items.filter(i => i.item_type === currentTab);
+                }
+                
+                document.getElementById('itemCount').textContent = items.length + ' items';
+                document.getElementById('itemsTitle').textContent = currentTab === 'all' ? 'All Items' : currentTab + 's';
+                
+                const list = document.getElementById('itemsList');
+                if (!items.length) {
+                    list.innerHTML = '<div class="empty-state">No items yet.</div>';
+                    return;
+                }
+                
+                list.innerHTML = items.map(item => `
+                    <div class="item">
+                        <span class="item-type">${iconMap[item.item_type] || '📝'}</span>
+                        <div class="item-content">
+                            <div class="item-text">${item.content}</div>
+                            <div class="item-meta">
+                                <span class="badge ${item.item_type}">${item.item_type}</span>
+                                ${item.due_date ? new Date(item.due_date).toLocaleDateString() : ''}
+                                ${item.completed ? ' · ✅ Completed' : ''}
+                            </div>
+                        </div>
+                        ${!item.completed ? `<button class="secondary" style="padding: 6px 12px; font-size: 12px;" onclick="completeItem(${item.id})">✓</button>` : ''}
+                        <button class="secondary" style="padding: 6px 12px; font-size: 12px;" onclick="deleteItem(${item.id})">🗑</button>
+                    </div>
+                `).join('');
+            } catch (err) {
+                document.getElementById('itemsList').innerHTML = '<div class="empty-state">Error loading items.</div>';
+            }
+        }
+        
+        async function handleSubmit() {
+            const text = document.getElementById('brainDump').value.trim();
+            if (!text) return;
+            
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').innerText = 'Organizing...';
+            
+            try {
+                await fetch(API_URL + '/brain-dump', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                
+                document.getElementById('brainDump').value = '';
+                loadStats();
+                loadItems();
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('submitBtn').innerText = '✨ Organize';
+            }
+        }
+        
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+            loadItems();
+        }
+        
+        async function completeItem(id) {
+            await fetch(API_URL + '/items/' + id + '/complete', { method: 'POST' });
+            loadStats();
+            loadItems();
+        }
+        
+        async function deleteItem(id) {
+            if (!confirm('Delete this item?')) return;
+            // Delete would need endpoint - for now just reload
+            loadStats();
+            loadItems();
+        }
+        
+        function clearAll() {
+            if (confirm('Clear all items? This cannot be undone.')) {
+                alert('Clear all - feature coming soon');
+            }
+        }
+        
+        function exportData() {
+            alert('Export - feature coming soon');
+        }
+        
+        function bulkAdd() {
+            const text = prompt('Enter multiple items (one per line):');
+            if (text) {
+                document.getElementById('brainDump').value = text;
+            }
+        }
+    </script>
+</body>
+</html>

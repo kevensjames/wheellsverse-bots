@@ -376,13 +376,35 @@ def create_pod_product(
     if not available:
         available = all_variants[:5]
 
-    # ── Upload design image (optional) ────────────────────────────────────────
-    image_id = None
-    # Printify needs an image ID or URL for each print area
-    # If we have no image, we use a placeholder text-based design
+    # ── Upload design image (was previously skipped — bug) ────────────────────
+    image_id: Optional[str] = None
+    if design_image_path:
+        # Accept either a local file path or a hosted URL.
+        if str(design_image_path).startswith(("http://", "https://")):
+            image_id = upload_image(image_url=design_image_path)
+        else:
+            image_id = upload_image(image_path=design_image_path)
+        if not image_id:
+            log.warning(f"[Printify] Image upload returned no id for {design_image_path}; product will be created without artwork")
+
+    # Printify's schema for print_areas wraps placeholders inside variant scope:
+    #   [{"variant_ids": [...], "placeholders": [{"position", "images": [{...}]}]}]
+    # The previous flat shape was rejected with HTTP 400.
     print_areas = []
     if image_id:
-        print_areas = [{"position": "front", "images": [{"id": image_id, "x": 0.5, "y": 0.5, "scale": 1, "angle": 0}]}]
+        variant_ids = [v["id"] for v in available]
+        print_areas = [{
+            "variant_ids": variant_ids,
+            "placeholders": [{
+                "position": "front",
+                "images": [{
+                    "id": image_id,
+                    "x": 0.5, "y": 0.5,
+                    "scale": 1.0,
+                    "angle": 0,
+                }],
+            }],
+        }]
     # If no image uploaded, product is created without artwork (can be added later in dashboard)
 
     # ── Build product body ────────────────────────────────────────────────────

@@ -104,3 +104,45 @@ def list_plans(_=Depends(verify_admin_api_key)) -> dict:
         "monthly_usd": PLAN_MONTHLY_USD,
         "stripe_configured": all(PRICE_IDS.get(t) for t in ("starter", "pro", "elite")),
     }
+
+
+@router.post("/merchants/{merchant_id}/test-product")
+def push_test_product(merchant_id: str, _=Depends(verify_admin_api_key)) -> dict:
+    """
+    Smoke-test the full product pipeline on a merchant's store.
+    Creates one DALL-E-imagery product end-to-end (draft → 4 images → gate → activate).
+    Used by the admin dashboard's "Test product" button.
+    """
+    from narai.core.shopify_mt.products import (
+        ProductBrief,
+        create_product_for_merchant,
+    )
+
+    brief = ProductBrief(
+        title="NarAI End-to-End Test Product",
+        body_html=(
+            "<p>This product was created by the multi-tenant Shopify pipeline "
+            "as an end-to-end validation. Four 3D-rendered angles (hero, "
+            "lifestyle, detail, flat-lay) were generated via DALL-E 3 and "
+            "attached as a draft. The quality gate enforces ≥4 images, ≥300 "
+            "character description, ≥3 tags, and price &gt; 0 before any "
+            "product becomes active in the storefront. If you can see this "
+            "listing live with four images, every layer of the pipeline is "
+            "healthy: OAuth-issued token, Fernet decryption, Shopify Admin "
+            "API integration, DALL-E image generation, and the activation "
+            "gate.</p>"
+        ),
+        price=29.00,
+        tags="test,narai,validation,multi-tenant",
+        product_type="Digital Test",
+        base_image_concept=(
+            "futuristic minimalist product cube floating in a void, soft "
+            "volumetric lighting, neon accents, premium digital good aesthetic"
+        ),
+        seo_title="NarAI End-to-End Test Product",
+        seo_description="Validation product proving the multi-tenant pipeline works.",
+        vendor="NarAI",
+        requires_shipping=False,
+    )
+    result = create_product_for_merchant(merchant_id, brief)
+    return result

@@ -59,6 +59,7 @@
   <a href="/dashboard">← Dashboard</a>
   <a href="/admin/shopify">Merchants</a>
   <a href="/admin/shopify/revenue">Revenue</a>
+  <a href="/admin/toodle">Toodle</a>
 </nav>
 
 <div class="wrap">
@@ -164,6 +165,31 @@ async function load() {
   }
 }
 
+async function testProduct(merchantId, shop, btn) {
+  const h = await auth(); if (!h) return;
+  if (!confirm(`Push a real test product to ${shop}?\n\nThis generates 4 DALL-E images (~30-60s) and creates an active listing on the merchant's store. Costs ~$0.18 in API credits.`)) return;
+  const orig = btn.textContent;
+  btn.textContent = 'Generating…';
+  btn.disabled = true;
+  try {
+    const r = await fetch(`/api/narai/shopify/merchants/${encodeURIComponent(merchantId)}/test-product`,
+                         {method: 'POST', headers: h});
+    const data = await r.json();
+    if (data.success) {
+      const url = `https://${shop}/products/${data.handle}`;
+      alert(`✓ Test product live:\n\n${url}\n\nProduct id: ${data.product_id}\nImages: ${data.images_count}/4`);
+      load();  // refresh table to bump products_count
+    } else {
+      alert(`✗ Test failed: ${data.error}`);
+    }
+  } catch (e) {
+    alert(`Network error: ${e.message}`);
+  } finally {
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
 function planPill(tier) {
   return el('span', {cls: 'pill ' + (tier || 'free'), text: tier || 'free'});
 }
@@ -207,10 +233,15 @@ function render(data) {
       el('span', {cls: 'pill ' + (m.uninstalled_at ? 'inactive' : 'starter'),
                   text: m.uninstalled_at ? 'Uninstalled' : 'Active'})
     ]});
+    const testBtn = el('button', {cls: 'btn ghost', text: 'Test product',
+              attrs: {style: 'margin-left:6px;cursor:pointer'},
+              children: []});
+    testBtn.addEventListener('click', () => testProduct(m.id, m.shop_domain, testBtn));
     const actionsCell = el('td', {children: [
       el('a', {cls: 'btn ghost', text: 'Details',
                attrs: {href: '/admin/shopify/' + encodeURIComponent(m.id),
-                       style: 'text-decoration:none;display:inline-block'}})
+                       style: 'text-decoration:none;display:inline-block'}}),
+      testBtn,
     ]});
     tbody.appendChild(el('tr', {children: [
       shopCell, planCell, productsCell, lastSyncCell, installedCell, statusCell, actionsCell
