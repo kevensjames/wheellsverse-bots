@@ -193,15 +193,21 @@ def query(text: str, n: int = 5, source_filter: str | None = None) -> list[dict]
     return hits
 
 
-def query_context(text: str, n: int = 5) -> str:
-    """Return RAG hits formatted as a context string for prompts."""
-    hits = query(text, n=n)
+def format_query(hits: list[dict]) -> str:
+    """Format pre-fetched RAG hits as a context string for prompts.
+    Used by chat.py which already has hits from rag.aquery() and just needs
+    the formatting half of query_context()."""
     if not hits:
         return ""
     lines = ["[RAG CONTEXT]"]
     for h in hits:
-        lines.append(f"• [{h['source']}] {h['content'][:400]}")
+        lines.append(f"• [{h.get('source', '?')}] {h.get('content', '')[:400]}")
     return "\n".join(lines)
+
+
+def query_context(text: str, n: int = 5) -> str:
+    """Return RAG hits formatted as a context string for prompts."""
+    return format_query(query(text, n=n))
 
 
 def delete_source(source_label: str) -> None:
