@@ -929,6 +929,26 @@ async def serve_blog():
 _BLOG_DATE_PREFIX_RE = re.compile(r"^(\d{8})-(.+)$")
 
 
+@app.get("/sitemap.xml")
+async def serve_sitemap():
+    """Serve frontend/sitemap.xml — must be at site root for SEO crawlers."""
+    from fastapi.responses import FileResponse, PlainTextResponse
+    p = ROOT / "frontend" / "sitemap.xml"
+    if not p.exists():
+        return PlainTextResponse("sitemap not found", status_code=404)
+    return FileResponse(p, media_type="application/xml")
+
+
+@app.get("/robots.txt")
+async def serve_robots():
+    """Serve frontend/robots.txt — must beat the /{key}.txt IndexNow catch-all below."""
+    from fastapi.responses import FileResponse, PlainTextResponse
+    p = ROOT / "frontend" / "robots.txt"
+    if not p.exists():
+        return PlainTextResponse("User-agent: *\nDisallow:\n", media_type="text/plain")
+    return FileResponse(p, media_type="text/plain")
+
+
 @app.get("/{key}.txt")
 async def serve_indexnow_key(key: str):
     """IndexNow ownership verification endpoint.
@@ -13180,6 +13200,14 @@ if _v2_auth_loaded:
         logger.info("NarAI v2 chat/memory/rag/skills loaded at /api/v2/narai")
     except Exception as _e:
         logger.warning(f"NarAI v2 chat/memory/rag not loaded (chromadb missing?): {_e}")
+
+    # NarAI v2 Voice: WebSocket /voice/ws + voice client page /voice
+    try:
+        from narai.api.routes.voice import rt as _v2_voice_rt
+        app.include_router(_v2_voice_rt, prefix="/api/v2/narai")
+        logger.info("NarAI v2 voice loaded at /api/v2/narai/voice + /api/v2/narai/voice/ws")
+    except Exception as _e:
+        logger.warning(f"NarAI v2 voice not loaded: {_e}")
 
     # NarAI v2 Trading (Phase 1): forecast / sentiment / backtest / paper broker
     try:

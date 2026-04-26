@@ -82,20 +82,25 @@ def run_scan(auto_fix: bool = False, dry_run: bool = True) -> dict:
 if _HAS_BASE:
     class BugHunterBot(BaseBot):
         def __init__(self):
-            super().__init__(
-                name="bug_hunter",
-                category="core",
-                description="Autonomous static bug scanner for the WheellsVerse ecosystem",
-            )
+            super().__init__(name="bug_hunter", category="core")
+            # BaseBot doesn't take description= as a kwarg; set it as an attribute.
+            self.description = "Autonomous static bug scanner for the WheellsVerse ecosystem"
 
         def execute(self, **kwargs):
             return run_scan(auto_fix=False)
+
+        def run(self, **kwargs):
+            # BaseBot requires run(); delegate to execute().
+            return self.execute(**kwargs)
 else:
     class BugHunterBot:  # type: ignore
         name = "bug_hunter"
 
         def execute(self, **kwargs):
             return run_scan(auto_fix=False)
+
+        def run(self, **kwargs):
+            return self.execute(**kwargs)
 
 
 # ─── CLI ──────────────────────────────────────────────────────────────────────
