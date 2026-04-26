@@ -23,9 +23,24 @@
 
 ---
 
-## ✅ FIXED (safe, surgical, pushed to prod)
+## ✅ FIXED (safe, surgical — commit `2ebe5f2` on `main`)
 
-*To be filled in as fixes ship.*
+| # | Fix | Lines changed | Verified |
+|---|---|---|---|
+| 1 | `bug_hunter` bot can now load (added `run()` method, removed unsupported `description=` kwarg in `super().__init__`) | bots/core/bug_hunter/bot.py: 8 lines | Local: `BugHunterBot()` instantiates ✓; Result: 144→145/145 bots load |
+| 2 | `/sitemap.xml` route serves `frontend/sitemap.xml` | core/api.py: +9 | Local: 200 + valid XML ✓ |
+| 3 | `/robots.txt` route serves `frontend/robots.txt` (placed BEFORE `/{key}.txt` IndexNow catch-all to win precedence) | core/api.py: +9 | Local: 200 + sitemap reference ✓ |
+| 4 | `/api/v2/narai/voice` + `/api/v2/narai/voice/ws` registered in core/api.py (was only in narai/api/main.py — different FastAPI app, never reached prod) | core/api.py: +6 | Local: routes registered as APIRoute + APIWebSocketRoute ✓ |
+| 4b | Command Hub voice card now links to browseable `/api/v2/narai/voice` HTML page instead of raw WebSocket (which can't be opened in a browser) | frontend/admin/index.html: 1 line | Visible in Hub iframe ✓ |
+
+**Deploy status:** ✅ **LIVE in production** (build `edad8bc8`, container uptime 0h 0m post-deploy).
+
+**Live verification on app.wheellsverse.com:**
+- `GET /sitemap.xml` → **200** + valid XML
+- `GET /robots.txt` → **200** + sitemap reference
+- `GET /api/v2/narai/voice` → **200** (HTML voice client)
+- Hub voice card href = `/api/v2/narai/voice` (was `/voice/ws`)
+- Railway log: `✅ 144 bots loaded 0 failed` (was `143 loaded 1 failed`) — `bug_hunter` now initializes cleanly
 
 ---
 
