@@ -27,6 +27,13 @@ ROOT = Path(__file__).parent.parent
 load_dotenv(ROOT / ".env")
 sys.path.insert(0, str(ROOT))
 
+# Initialize Sentry as early as possible (no-op if SENTRY_DSN unset)
+try:
+    from core.sentry_init import init_sentry
+    init_sentry()
+except Exception:
+    pass
+
 
 def _resolve_git_sha() -> str:
     """
@@ -650,11 +657,19 @@ app = FastAPI(
     lifespan=_lifespan,
 )
 
+_DEFAULT_CORS_ORIGINS = [
+    "https://app.wheellsverse.com",
+    "https://wheellsverse.com",
+    "https://www.wheellsverse.com",
+    "http://localhost:5050",
+    "http://localhost:5173",
+    "http://127.0.0.1:5050",
+]
 _cors_origins_env = os.getenv("CORS_ORIGINS", "")
 _cors_origins = (
     [o.strip() for o in _cors_origins_env.split(",") if o.strip()]
     if _cors_origins_env
-    else ["*"]
+    else _DEFAULT_CORS_ORIGINS
 )
 app.add_middleware(
     CORSMiddleware,
@@ -1319,7 +1334,13 @@ async def serve_homepage():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def serve_admin_dashboard():
-    """Admin dashboard — internal use."""
+    """Command Center — unified hub linking every internal + external admin surface."""
+    return _serve_frontend("admin/index.html", cache=False)
+
+
+@app.get("/admin/legacy", response_class=HTMLResponse)
+async def serve_admin_legacy():
+    """Legacy 144-bot dashboard — moved off /admin to make room for the command center."""
     return await _serve_old_dashboard()
 
 
@@ -8500,6 +8521,22 @@ async def stripe_webhook(request: Request):
     _save_stripe_payment(record)
     _add_log(f"Stripe {etype}: ${amount_usd} from {record['email'][:30]}", "INFO")
 
+    # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
+    if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
+        try:
+            from core.click_tracker import record_conversion
+            meta = data.get("metadata") or {}
+            partner_hint = meta.get("partner") or meta.get("affiliate_partner") or ""
+            record_conversion(
+                partner=partner_hint,
+                amount_usd=amount_usd,
+                customer_email=record["email"],
+                source="stripe",
+                external_id=event.get("id", ""),
+            )
+        except Exception as _e:
+            _add_log(f"record_conversion failed: {_e}", "WARNING")
+
     # Auto-enroll buyer into ConvertKit drip if email present
     if record["email"] and etype in ("checkout.session.completed", "invoice.paid"):
         try:
@@ -13221,6 +13258,12 @@ async def serve_sbi_admin():
     if not path.exists():
         return HTMLResponse("<h1>Admin not found</h1>", status_code=404)
     return HTMLResponse(path.read_text(encoding="utf-8"))
+
+
+@app.get("/admin/toodle", response_class=HTMLResponse)
+async def serve_toodle_admin():
+    """Toodle admin = Second Brain Inbox admin (same surface, shorter brand URL)."""
+    return await serve_sbi_admin()
 
 
 @app.get("/user/second-brain-inbox", response_class=HTMLResponse)

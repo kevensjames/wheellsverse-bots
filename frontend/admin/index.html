@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>WheellsVerse — Command Center</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap"/>
+<style>
+  :root {
+    --bg: #05070d; --panel: #0b0f1a; --panel2: #11172a; --border: #1a2036;
+    --text: #e8edf5; --muted: #8a95a8; --accent: #4df4a5;
+    --warn: #ffb547; --err: #ff5b6e; --purple: #a389f4; --cyan: #5be7ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;min-height:100vh}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:rgba(11,15,26,.6);backdrop-filter:blur(8px);position:sticky;top:0;z-index:10}
+  .brand{font-weight:700;font-size:18px;letter-spacing:.3px}
+  .brand .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;box-shadow:0 0 12px var(--accent);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .topnav a{color:var(--muted);text-decoration:none;margin-left:18px;font-size:13px}
+  .topnav a:hover{color:var(--text)}
+  .wrap{max-width:1280px;margin:0 auto;padding:32px 28px 80px}
+  h1{font-size:28px;font-weight:600;margin:0 0 6px}
+  .sub{color:var(--muted);margin-bottom:32px;font-size:14px}
+  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin:32px 0 14px;font-weight:500}
+  .grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;text-decoration:none;color:var(--text);transition:transform .15s,border-color .15s,background .15s;display:block}
+  .card:hover{transform:translateY(-2px);border-color:var(--accent);background:var(--panel2)}
+  .card.ext:hover{border-color:var(--purple)}
+  .card .icon{font-size:24px;margin-bottom:12px;display:block}
+  .card .title{font-size:16px;font-weight:600;margin-bottom:4px}
+  .card .desc{font-size:13px;color:var(--muted);line-height:1.4}
+  .card .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;margin-top:10px;background:rgba(77,244,165,.15);color:var(--accent)}
+  .card .badge.warn{background:rgba(255,181,71,.15);color:var(--warn)}
+  .card .badge.purple{background:rgba(163,137,244,.15);color:var(--purple)}
+  .card .badge.cyan{background:rgba(91,231,255,.15);color:var(--cyan)}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:8px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .stat-num{font-size:24px;font-weight:700;color:var(--accent);font-feature-settings:'tnum'}
+  .stat-num.purple{color:var(--purple)}
+  .stat-num.cyan{color:var(--cyan)}
+  .stat-num.warn{color:var(--warn)}
+  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-top:4px}
+  .health-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:middle}
+  .health-dot.ok{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+  .health-dot.warn{background:var(--warn)}
+  .health-dot.err{background:var(--err)}
+  .health-line{font-size:12px;color:var(--muted);margin-top:14px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="pulse"></span>WheellsVerse · Command Center</div>
+  <nav class="topnav">
+    <a href="/dashboard">Legacy dashboard</a>
+    <a href="/landing">Public site</a>
+    <a href="https://github.com/kevensjames/wheellsverse-bots" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <h1>Command Center</h1>
+  <div class="sub">One pane of glass for every operator surface across NarAI, Toodle, Sol, Shopify, and WheellsVerse.</div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-num" id="stat-merchants">—</div><div class="stat-label">Shopify merchants</div></div>
+    <div class="stat"><div class="stat-num purple" id="stat-mrr">—</div><div class="stat-label">Shopify MRR</div></div>
+    <div class="stat"><div class="stat-num cyan" id="stat-products">—</div><div class="stat-label">Products shipped</div></div>
+    <div class="stat"><div class="stat-num warn" id="stat-uptime">—</div><div class="stat-label">Uptime (Railway)</div></div>
+  </div>
+
+  <div class="section-title">Internal admin surfaces</div>
+  <div class="grid">
+    <a class="card" href="/admin/shopify">
+      <span class="icon">🛍️</span>
+      <div class="title">Shopify Merchants</div>
+      <div class="desc">Multi-tenant merchant list, install flow, plan tiers, MRR, GDPR events.</div>
+      <span class="badge">Live · API_KEY</span>
+    </a>
+    <a class="card" href="/admin/toodle">
+      <span class="icon">🎯</span>
+      <div class="title">Toodle</div>
+      <div class="desc">AI Marketing OS admin — users, settings, second-brain inbox dashboard.</div>
+      <span class="badge purple">Internal</span>
+    </a>
+    <a class="card" href="/admin/second-brain-inbox">
+      <span class="icon">🧠</span>
+      <div class="title">Second Brain Inbox</div>
+      <div class="desc">Capture, digest, and surface tasks from your Second-Brain inbox app.</div>
+      <span class="badge cyan">App</span>
+    </a>
+    <a class="card" href="/sol/admin">
+      <span class="icon">⚖️</span>
+      <div class="title">Sol ROSCA</div>
+      <div class="desc">Audit log, kill-switch, payouts, 2FA, KYC pipeline.</div>
+      <span class="badge purple">Internal</span>
+    </a>
+    <a class="card" href="/dashboard">
+      <span class="icon">📊</span>
+      <div class="title">Legacy Dashboard</div>
+      <div class="desc">144-bot orchestrator, revenue feed, Stripe payments, Etsy/Gumroad/WordPress controls.</div>
+      <span class="badge warn">Legacy</span>
+    </a>
+    <a class="card" href="/api/v2/narai/voice/ws" target="_blank" rel="noopener">
+      <span class="icon">🎙️</span>
+      <div class="title">NarAI Voice</div>
+      <div class="desc">WebSocket voice route — open from a NarAI-aware client.</div>
+      <span class="badge">Live</span>
+    </a>
+  </div>
+
+  <div class="section-title">External services (where the data actually lives)</div>
+  <div class="grid">
+    <a class="card ext" href="https://railway.com/project/5407586d-e648-4dd1-a442-ea0f805f2e0e" target="_blank" rel="noopener">
+      <span class="icon">🚂</span>
+      <div class="title">Railway</div>
+      <div class="desc">Deploys, env vars, logs, build history. Service: wheellsverse-v2.</div>
+      <span class="badge cyan">External</span>
+    </a>
+    <a class="card ext" href="https://supabase.com/dashboard/project/rqcngphvpjcscculehph" target="_blank" rel="noopener">
+      <span class="icon">🗃️</span>
+      <div class="title">Supabase</div>
+      <div class="desc">Postgres for merchants, NarAI users, multi-tenant tables. RLS-enabled.</div>
+      <span class="badge cyan">External</span>
+    </a>
+    <a class="card ext" href="https://dashboard.stripe.com/dashboard" target="_blank" rel="noopener">
+      <span class="icon">💳</span>
+      <div class="title">Stripe</div>
+      <div class="desc">Subscriptions, webhooks, plan tiers (Starter/Pro/Elite), payouts.</div>
+      <span class="badge purple">External</span>
+    </a>
+    <a class="card ext" href="https://dev.shopify.com/dashboard/213517848" target="_blank" rel="noopener">
+      <span class="icon">🔧</span>
+      <div class="title">Shopify Partners</div>
+      <div class="desc">App config, distribution, OAuth scopes, App Store listing.</div>
+      <span class="badge purple">External</span>
+    </a>
+    <a class="card ext" href="https://printify.com/app/products" target="_blank" rel="noopener">
+      <span class="icon">👕</span>
+      <div class="title">Printify</div>
+      <div class="desc">POD products, designs, blueprints, fulfillment routing.</div>
+      <span class="badge purple">External</span>
+    </a>
+    <a class="card ext" href="https://platform.openai.com/usage" target="_blank" rel="noopener">
+      <span class="icon">🎨</span>
+      <div class="title">OpenAI Usage</div>
+      <div class="desc">DALL-E / GPT spend per day. Watch this when running batch generations.</div>
+      <span class="badge warn">External · $</span>
+    </a>
+    <a class="card ext" href="https://console.anthropic.com" target="_blank" rel="noopener">
+      <span class="icon">🧬</span>
+      <div class="title">Anthropic</div>
+      <div class="desc">Claude usage and budget for NarAI, copy generation, agent workforce.</div>
+      <span class="badge warn">External · $</span>
+    </a>
+    <a class="card ext" href="https://kdp.amazon.com/en_US/bookshelf" target="_blank" rel="noopener">
+      <span class="icon">📚</span>
+      <div class="title">Amazon KDP</div>
+      <div class="desc">8 paperback drafts ready, ebook live. Manual publish steps remain.</div>
+      <span class="badge cyan">External</span>
+    </a>
+  </div>
+
+  <div class="health-line" id="health"><span class="health-dot"></span>checking system health…</div>
+</div>
+
+<script>
+function el(tag, opts) {
+  opts = opts || {};
+  const e = document.createElement(tag);
+  if (opts.cls) e.className = opts.cls;
+  if (opts.text) e.textContent = opts.text;
+  return e;
+}
+
+async function adminAuth() {
+  const url = new URL(location.href);
+  const fromUrl = url.searchParams.get('key');
+  if (fromUrl) {
+    sessionStorage.setItem('admin_api_key', fromUrl);
+    url.searchParams.delete('key');
+    history.replaceState({}, '', url.toString());
+  }
+  let key = sessionStorage.getItem('admin_api_key');
+  if (!key) {
+    key = prompt('Admin API key (X-API-Key):');
+    if (!key) return null;
+    sessionStorage.setItem('admin_api_key', key.trim());
+    key = key.trim();
+  }
+  return {'X-API-Key': key};
+}
+
+function setHealth(state, msg) {
+  const target = document.getElementById('health');
+  target.replaceChildren(
+    el('span', {cls: 'health-dot ' + (state || '')}),
+    document.createTextNode(msg)
+  );
+}
+
+async function loadStats() {
+  const h = await adminAuth(); if (!h) return;
+
+  // Shopify merchants stats — API_KEY-gated
+  try {
+    const r = await fetch('/api/narai/shopify/merchants', {headers: h});
+    if (r.status === 401) {
+      sessionStorage.removeItem('admin_api_key');
+      setHealth('err', 'Unauthorized — refresh to re-enter the admin key');
+      return;
+    }
+    const data = await r.json();
+    const stats = data.stats || {};
+    document.getElementById('stat-merchants').textContent = stats.total || 0;
+    document.getElementById('stat-mrr').textContent = '$' + (stats.mrr_usd || 0);
+    document.getElementById('stat-products').textContent = stats.products || 0;
+  } catch (e) {
+    document.getElementById('stat-merchants').textContent = '—';
+  }
+
+  // Public health endpoint — no auth needed
+  try {
+    const r = await fetch('/api/health');
+    const data = await r.json();
+    document.getElementById('stat-uptime').textContent = data.uptime_human || '—';
+    const version = data.version || 'unknown';
+    const sha = data.git_sha || 'unknown';
+    setHealth('ok', `All systems nominal · ${version} · sha ${sha}`);
+  } catch (e) {
+    setHealth('warn', 'Health endpoint unreachable: ' + e.message);
+  }
+}
+
+loadStats();
+</script>
+</body>
+</html>
