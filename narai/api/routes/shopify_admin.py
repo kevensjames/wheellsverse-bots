@@ -146,3 +146,50 @@ def push_test_product(merchant_id: str, _=Depends(verify_admin_api_key)) -> dict
     )
     result = create_product_for_merchant(merchant_id, brief)
     return result
+
+
+@router.post("/test-printify")
+def push_test_printify_product(_=Depends(verify_admin_api_key)) -> dict:
+    """
+    Smoke-test the Printify POD pipeline: generate a design via DALL-E,
+    upload to Printify, create a POD product on the connected Shopify store
+    using the new variant_ids+placeholders schema. Single-tenant (uses your
+    own PRINTIFY_SHOP_ID env), not per-merchant.
+    """
+    from core.cover_engine import generate_cover
+    from core.printify_client import create_pod_product, is_connected
+
+    if not is_connected():
+        return {"success": False, "error": "PRINTIFY_API_KEY env not set"}
+
+    # 1. Generate a design via DALL-E
+    cover = generate_cover(
+        {"dalle": (
+            "minimalist t-shirt design, bold geometric pattern in matte black "
+            "and electric purple, centered composition on transparent background, "
+            "vector-style 3D render, premium streetwear aesthetic"
+        )},
+        "printify-test",
+        "narai_printify_smoke_test",
+        "T-Shirt",
+    )
+    if not cover.get("success") or not cover.get("url"):
+        return {"success": False, "stage": "dalle", "error": cover.get("error", "unknown")}
+
+    # 2. Push through the fixed create_pod_product (image + correct print_areas schema)
+    result = create_pod_product(
+        title="NarAI Printify Smoke Test",
+        description=(
+            "Validation product proving the multi-tenant Printify pipeline works "
+            "end-to-end after the print_areas schema fix and image-upload patch."
+        ),
+        niche="streetwear",
+        product_type="t-shirt",
+        design_image_path=cover["url"],  # hosted URL — printify_client handles both paths and URLs
+        price=29.99,
+    )
+    return {
+        "success": result.get("success", False),
+        "design_url": cover["url"],
+        "printify_result": result,
+    }
