@@ -1,0 +1,64 @@
+# Railway upload excludes. Does not inherit from .gitignore (which would block
+# data/store_payment_links.json and the deliverable files we need in the container).
+
+# Secrets — never upload
+.env
+.env.*
+*.env.local
+*.pem
+*.key
+*_secret*
+*credentials*.json
+
+# Virtual environments — rebuilt inside the container
+venv/
+.venv/
+narai/.venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+
+# Build/dist
+dist/
+build/
+node_modules/
+
+# Tooling noise
+.DS_Store
+.vscode/
+.idea/
+.claude/
+*.swp
+
+# Git metadata
+.git/
+
+# Large local-only artifacts
+*.mp4
+*.mp3
+*.wav
+*.zip
+*.tar.gz
+
+# Generated data that should not ship in the image
+logs/
+outputs/
+data/leads/
+data/narai_memory.json
+data/wa_inbox.json
+data/wa_schedule.json
+data/wa_contacts.json
+data/intelligence.json
+data/strategy.json
+data/content_queue.json
+data/*.db
+data/*.db-shm
+data/*.db-wal
+
+# IMPORTANT: we explicitly DO NOT exclude data/store/ or data/store_payment_links.json —
+# these are store deliverables + payment link manifests that MUST ship with the image.

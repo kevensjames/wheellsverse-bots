@@ -1,5 +1,7 @@
 # Environment & secrets — NEVER commit these
 .env
+.env.bak.*
+.env.backup*
 !.env.example
 *.env.local
 client_secret.json
