@@ -1334,13 +1334,19 @@ async def serve_homepage():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def serve_admin_dashboard():
-    """Command Center — unified hub linking every internal + external admin surface."""
+    """Primary admin: legacy 144-bot dashboard (Command Center merged in as a panel)."""
+    return await _serve_old_dashboard()
+
+
+@app.get("/admin/hub", response_class=HTMLResponse)
+async def serve_admin_hub():
+    """Command Center hub — unified card view of every operator surface (loaded inside /admin via iframe)."""
     return _serve_frontend("admin/index.html", cache=False)
 
 
 @app.get("/admin/legacy", response_class=HTMLResponse)
 async def serve_admin_legacy():
-    """Legacy 144-bot dashboard — moved off /admin to make room for the command center."""
+    """Backward-compat alias — same as /admin (legacy dashboard)."""
     return await _serve_old_dashboard()
 
 
