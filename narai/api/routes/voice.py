@@ -120,6 +120,20 @@ async def voice_ws(
                         "error": "audio_too_short",
                     }))
                     continue
+                # Reject webm Cluster-only payloads — these arrive when the
+                # browser releases the mic before MediaRecorder emitted the
+                # EBML header chunk. Whisper rejects them as "Invalid file
+                # format" with 0-second duration; we short-circuit with a
+                # message the user can act on.
+                if audio[:4] == b"\x1f\x43\xb6\x75":
+                    await websocket.send_text(json.dumps({
+                        "type": "transcript",
+                        "user": "",
+                        "reply": "Recording too short — hold the mic for a full second before releasing.",
+                        "mode": "operator",
+                        "error": "audio_no_header",
+                    }))
+                    continue
                 try:
                     result = await session.handle_audio_input(audio)
                 except Exception as exc:

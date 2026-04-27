@@ -155,8 +155,17 @@ async function startRec() {
   }
 }
 
-function stopRec() {
-  if (recorder && recorder.state === 'recording') recorder.stop();
+async function stopRec() {
+  if (!recorder || recorder.state !== 'recording') return;
+  // Hold the recording open until MediaRecorder has emitted at least one
+  // full timeslice. Without this, very short presses (<250ms) flush a
+  // Cluster-only chunk with no EBML header, which Whisper rejects.
+  const elapsed = Date.now() - startedAt;
+  const MIN_RECORDING_MS = 1000;
+  if (elapsed < MIN_RECORDING_MS) {
+    await new Promise(r => setTimeout(r, MIN_RECORDING_MS - elapsed));
+  }
+  recorder.stop();
 }
 
 // Pointer events handle both mouse and touch in one path.
