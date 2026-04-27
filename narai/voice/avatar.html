@@ -87,7 +87,29 @@ ws.onmessage = (e) => {
 // ── Mic capture (hold-to-talk) ──────────────────────────────────────────────
 let recorder = null;
 let chunks = [];
+let recordedMime = '';
+let startedAt = 0;
 const micBtn = document.getElementById('mic-btn');
+
+// Pick the best MediaRecorder MIME type the browser supports. Safari only
+// supports audio/mp4; Chrome+Firefox prefer audio/webm. We let the browser
+// tell us which it can produce instead of hard-coding webm.
+function pickMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4;codecs=mp4a.40.2',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+    '',  // empty → browser picks default
+  ];
+  for (const m of candidates) {
+    if (m === '' || (window.MediaRecorder && MediaRecorder.isTypeSupported(m))) {
+      return m;
+    }
+  }
+  return '';
+}
 
 async function startRec() {
   // Cut NarAI off if it's still talking — that's the interrupt.
@@ -97,19 +119,32 @@ async function startRec() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({audio: true});
     chunks = [];
-    recorder = new MediaRecorder(stream, {mimeType: 'audio/webm'});
-    recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
-    recorder.onstop = () => {
-      const blob = new Blob(chunks, {type: 'audio/webm'});
-      blob.arrayBuffer().then(buf => {
-        if (ws.readyState === WebSocket.OPEN) ws.send(buf);
-      });
+    const mime = pickMimeType();
+    recordedMime = mime || 'audio/webm';
+    recorder = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = async () => {
+      // Pad short presses so we always have at least 600ms of audio captured.
+      const elapsed = Date.now() - startedAt;
+      if (elapsed < 600) {
+        await new Promise(r => setTimeout(r, 600 - elapsed));
+      }
+      // Force one last data flush before bundling.
+      try { if (recorder.state !== 'inactive') recorder.requestData(); } catch (_) {}
+      // Wait a tick so requestData's chunk lands in the array.
+      await new Promise(r => setTimeout(r, 50));
+      const blob = new Blob(chunks, {type: recordedMime});
+      const buf = await blob.arrayBuffer();
+      if (ws.readyState === WebSocket.OPEN) ws.send(buf);
       stream.getTracks().forEach(t => t.stop());
     };
-    recorder.start();
+    // start(timeslice) makes the recorder emit a chunk every N ms — guarantees
+    // we have audio data even on short presses.
+    recorder.start(250);
+    startedAt = Date.now();
     setState('listening');
   } catch (err) {
-    reply.textContent = 'Mic permission denied: ' + err.message;
+    reply.textContent = 'Mic error: ' + err.message;
   }
 }
 
@@ -117,12 +152,12 @@ function stopRec() {
   if (recorder && recorder.state === 'recording') recorder.stop();
 }
 
-// Desktop: mouse down/up. Mobile: touch.
-micBtn.addEventListener('mousedown', startRec);
-micBtn.addEventListener('mouseup', stopRec);
-micBtn.addEventListener('mouseleave', stopRec);
-micBtn.addEventListener('touchstart', (e) => { e.preventDefault(); startRec(); });
-micBtn.addEventListener('touchend',   (e) => { e.preventDefault(); stopRec(); });
+// Pointer events handle both mouse and touch in one path.
+// We deliberately do NOT bind mouseleave — it's a UX trap that cancels the
+// recording the moment the cursor drifts off the button.
+micBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); startRec(); });
+micBtn.addEventListener('pointerup',   (e) => { e.preventDefault(); stopRec(); });
+micBtn.addEventListener('pointercancel', stopRec);
 </script>
 </body>
 </html>
