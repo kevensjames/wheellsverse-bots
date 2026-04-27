@@ -145,9 +145,15 @@ async function startRec() {
       if (ws.readyState === WebSocket.OPEN) ws.send(buf);
       stream.getTracks().forEach(t => t.stop());
     };
-    // start(timeslice) makes the recorder emit a chunk every N ms — guarantees
-    // we have audio data even on short presses.
-    recorder.start(250);
+    // start() with NO timeslice — the recorder buffers the whole recording
+    // and emits one complete webm/mp4 file on stop(). Earlier we used
+    // start(250) hoping per-chunk emission would help short presses, but
+    // some Chrome versions only put the EBML header in the very first
+    // 250ms chunk; if that chunk never fires (race with stop()), the
+    // concat'd blob starts with a Cluster element and Whisper rejects.
+    // With no timeslice + the 1s min-duration guard in stopRec(), every
+    // recording finishes as a single self-contained file.
+    recorder.start();
     startedAt = Date.now();
     setState('listening');
   } catch (err) {
