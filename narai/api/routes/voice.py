@@ -105,7 +105,33 @@ async def voice_ws(
             # Binary audio frame
             if "bytes" in message and message["bytes"] is not None:
                 audio = message["bytes"]
-                result = await session.handle_audio_input(audio)
+                # Log size + magic bytes so we know what the browser actually sent.
+                head_hex = audio[:16].hex() if audio else ""
+                logger.info(
+                    f"voice audio in: sub={sub} bytes={len(audio)} head={head_hex}"
+                )
+                # Reject obviously-empty audio with a clear user-facing message.
+                if len(audio) < 256:
+                    await websocket.send_text(json.dumps({
+                        "type": "transcript",
+                        "user": "",
+                        "reply": "Hold the mic for a full second and speak — I didn't catch anything.",
+                        "mode": "operator",
+                        "error": "audio_too_short",
+                    }))
+                    continue
+                try:
+                    result = await session.handle_audio_input(audio)
+                except Exception as exc:
+                    logger.warning(f"voice pipeline failed: sub={sub} err={exc}")
+                    await websocket.send_text(json.dumps({
+                        "type": "transcript",
+                        "user": "",
+                        "reply": f"Voice pipeline error: {str(exc)[:200]}",
+                        "mode": "operator",
+                        "error": "pipeline_failed",
+                    }))
+                    continue
 
                 # Emit transcript first so the UI can render instantly.
                 await websocket.send_text(json.dumps({
@@ -119,6 +145,10 @@ async def voice_ws(
                 audio_out = await session.get_audio_output()
                 if audio_out:
                     await websocket.send_bytes(audio_out)
+                    await websocket.send_text(json.dumps({"type": "audio_end"}))
+                else:
+                    # No audio (TTS failed or empty reply) — still tell the browser
+                    # the turn is over so the avatar UI flips back to listening.
                     await websocket.send_text(json.dumps({"type": "audio_end"}))
                 continue
 
