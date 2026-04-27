@@ -13217,9 +13217,10 @@ if _v2_auth_loaded:
     except Exception as _e:
         logger.warning(f"NarAI v2 trading not loaded: {_e}")
 
-    # NarAI v2 Domains 2-7 + voice: content, sales, research, ops, creative,
-    # kdp, voice. Each registered independently so a missing optional dep
-    # (e.g. edge-tts) only breaks that domain's call path, not the stack.
+    # NarAI v2 Domains 2-7 + voice + briefing: content, sales, research, ops,
+    # creative, kdp, voice, briefing. Each registered independently so a
+    # missing optional dep (e.g. edge-tts) only breaks that domain's call
+    # path, not the stack.
     for _domain_name, _module_path in [
         ("content",  "narai.api.routes.content"),
         ("sales",    "narai.api.routes.sales"),
@@ -13228,6 +13229,7 @@ if _v2_auth_loaded:
         ("creative", "narai.api.routes.creative"),
         ("kdp",      "narai.api.routes.kdp"),
         ("voice",    "narai.api.routes.voice"),
+        ("briefing", "narai.api.routes.briefing"),
     ]:
         try:
             import importlib as _il
@@ -13236,6 +13238,16 @@ if _v2_auth_loaded:
             logger.info(f"NarAI v2 {_domain_name} loaded at /api/v2/narai/{_domain_name}")
         except Exception as _e:
             logger.warning(f"NarAI v2 {_domain_name} not loaded: {_e}")
+
+    # Daily briefing scheduler — APScheduler cron registered on FastAPI
+    # startup so it lives in the same event loop. Skips itself if Telegram
+    # isn't configured (no point computing if no delivery channel).
+    try:
+        from narai.integrations.scheduler import start_briefing_scheduler
+        app.add_event_handler("startup", start_briefing_scheduler)
+        logger.info("NarAI v2 briefing scheduler hook registered")
+    except Exception as _e:
+        logger.warning(f"NarAI v2 briefing scheduler not registered: {_e}")
 
 
 # ── NarAI Marketing Autopilot ─────────────────────────────────────────────────
