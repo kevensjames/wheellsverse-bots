@@ -80,7 +80,14 @@ ws.onmessage = (e) => {
     const audioBlob = new Blob([e.data], { type: 'audio/mpeg' });
     const url = URL.createObjectURL(audioBlob);
     const audio = new Audio(url);
-    audio.play().catch(() => {});
+    audio.play().catch((err) => {
+      // Autoplay blocked, system muted, or codec unsupported. Make it visible
+      // and offer a one-tap play button so the user can hear the reply.
+      reply.innerHTML += ' <a href="#" id="audio-play-fallback" style="color:#ffaa44;text-decoration:underline">[click to play audio]</a>';
+      const link = document.getElementById('audio-play-fallback');
+      if (link) link.onclick = (ev) => { ev.preventDefault(); audio.play(); link.remove(); };
+      console.warn('audio.play() failed:', err);
+    });
   }
 };
 
