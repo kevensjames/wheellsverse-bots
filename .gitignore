@@ -84,3 +84,21 @@ frontend/netlify/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Pre-commit / security scan artifacts (regenerated on each scan)
+checkov-report.json
+checkov-stderr.txt
+gitleaks-report.json
+gitleaks-stderr.txt
+grype-report.json
+grype-stderr.txt
+hadolint-report.json
+hadolint-stderr.txt
+semgrep-report.json
+semgrep-stderr.txt
+npm-audit.json
+precommit-scan-*.md
+
+# Overnight working files
+OVERNIGHT_LOG.md
+OVERNIGHT_*.md

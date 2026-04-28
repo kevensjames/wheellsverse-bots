@@ -937,8 +937,31 @@ def publish_service_product(service: dict) -> dict:
 
 
 def publish_subscription_product() -> dict:
-    """Create the $19/month AI Stock Alerts Club on Shopify."""
+    """Create-or-return the $19/month AI Stock Alerts Club on Shopify.
+
+    Idempotent. Shopify's REST API has no unique-on-title constraint, so a
+    naive POST creates duplicates on every call. We MUST check existing
+    BEFORE creating — the previous version only checked on POST failure,
+    which was a no-op since POST always succeeded with a new duplicate.
+    """
     sp = SUBSCRIPTION_PRODUCT
+
+    # Pre-create dedup check — single source of truth.
+    import urllib.parse as _up
+    title_q = _up.quote(sp["title"], safe="")
+    existing_check = _shopify_request("GET", f"products.json?title={title_q}&limit=5")
+    existing = existing_check.get("products", [])
+    if existing:
+        e = existing[0]
+        return {
+            "success": True,
+            "product_id": e["id"],
+            "handle": e.get("handle", ""),
+            "title": sp["title"],
+            "price": sp["price"],
+            "type": "subscription",
+            "status": "already_exists",
+        }
 
     payload = {
         "product": {
@@ -961,18 +984,6 @@ def publish_subscription_product() -> dict:
     resp = _shopify_request("POST", "products.json", payload)
     product = resp.get("product", {})
     if not product.get("id"):
-        # Check if already exists
-        existing_check = _shopify_request("GET", "products.json?title=AI+Stock+Alerts+Club&limit=5")
-        existing = existing_check.get("products", [])
-        if existing:
-            return {
-                "success": True,
-                "product_id": existing[0]["id"],
-                "title": sp["title"],
-                "price": sp["price"],
-                "type": "subscription",
-                "status": "already_exists",
-            }
         return {"success": False, "error": resp.get("error", "Unknown")}
 
     product_id = product["id"]
