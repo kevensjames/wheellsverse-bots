@@ -1,8 +1,16 @@
 <footer class="site-footer">
   <div class="links">
-    {%- for link in section.settings.menu.links -%}
-      <a href="{{ link.url }}">{{ link.title }}</a>
-    {%- endfor -%}
+    {%- if section.settings.menu.links.size > 0 -%}
+      {%- for link in section.settings.menu.links -%}
+        <a href="{{ link.url }}">{{ link.title }}</a>
+      {%- endfor -%}
+    {%- else -%}
+      <a href="/policies/privacy-policy">Privacy</a>
+      <a href="/policies/terms-of-service">Terms</a>
+      <a href="/policies/refund-policy">Refunds</a>
+      <a href="/policies/shipping-policy">Shipping</a>
+      <a href="/pages/contact">Contact</a>
+    {%- endif -%}
   </div>
   <div class="cr">© {{ 'now' | date: '%Y' }} {{ shop.name }} · Neural-Mesh Theme</div>
 </footer>

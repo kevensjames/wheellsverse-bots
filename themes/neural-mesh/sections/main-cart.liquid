@@ -1,7 +1,7 @@
 <div class="cart-page">
   <h1>{{ 'cart.general.title' | t }}</h1>
   {%- if cart.item_count > 0 -%}
-    {%- form 'cart' -%}
+    {%- form 'cart', cart -%}
       <div class="cart-items">
         {%- for line in cart.items -%}
           <div class="cart-row">

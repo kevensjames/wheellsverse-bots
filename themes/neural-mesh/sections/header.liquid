@@ -7,9 +7,23 @@
     {%- endif -%}
   </a>
   <nav>
-    {%- for link in section.settings.menu.links -%}
-      <a href="{{ link.url }}">{{ link.title }}</a>
-    {%- endfor -%}
+    {%- comment -%}
+      Use the Shopify Navigation menu if one is configured.
+      Otherwise fall back to a hardcoded menu of the 6 named collections —
+      this way the store has a sensible nav out of the box without
+      requiring a manual menu setup in Online Store → Navigation.
+    {%- endcomment -%}
+    {%- if section.settings.menu.links.size > 0 -%}
+      {%- for link in section.settings.menu.links -%}
+        <a href="{{ link.url }}">{{ link.title }}</a>
+      {%- endfor -%}
+    {%- else -%}
+      <a href="/collections/ai-tools-templates">AI Tools</a>
+      <a href="/collections/trading-intelligence">Trading</a>
+      <a href="/collections/creators-toolkit">Creator Kit</a>
+      <a href="/collections/courses-education">Courses</a>
+      <a href="/collections/all">All</a>
+    {%- endif -%}
   </nav>
   <a class="cart-link" href="{{ routes.cart_url }}">{{ 'accessibility.cart' | t }} · {{ cart.item_count }}</a>
 </header>
