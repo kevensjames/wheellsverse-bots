@@ -8,21 +8,35 @@
   </a>
   <nav>
     {%- comment -%}
-      Use the Shopify Navigation menu if one is configured.
-      Otherwise fall back to a hardcoded menu of the 6 named collections —
-      this way the store has a sensible nav out of the box without
-      requiring a manual menu setup in Online Store → Navigation.
+      Detect whether the Shopify menu is just the default placeholders
+      (Home / Catalog / Contact). If so, override with our curated nav.
+      If the merchant has built a real menu in Online Store → Navigation,
+      we'll respect that.
     {%- endcomment -%}
-    {%- if section.settings.menu.links.size > 0 -%}
-      {%- for link in section.settings.menu.links -%}
-        <a href="{{ link.url }}">{{ link.title }}</a>
+    {%- assign menu_links = section.settings.menu.links -%}
+    {%- assign default_only = false -%}
+    {%- if menu_links.size == 0 -%}
+      {%- assign default_only = true -%}
+    {%- elsif menu_links.size <= 3 -%}
+      {%- assign default_only = true -%}
+      {%- for link in menu_links -%}
+        {%- assign t = link.title | downcase | strip -%}
+        {%- unless t == 'home' or t == 'catalog' or t == 'contact' or t == 'all collections' or t == 'shop' -%}
+          {%- assign default_only = false -%}
+        {%- endunless -%}
       {%- endfor -%}
-    {%- else -%}
+    {%- endif -%}
+
+    {%- if default_only -%}
       <a href="/collections/ai-tools-templates">AI Tools</a>
       <a href="/collections/trading-intelligence">Trading</a>
       <a href="/collections/creators-toolkit">Creator Kit</a>
       <a href="/collections/courses-education">Courses</a>
       <a href="/collections/all">All</a>
+    {%- else -%}
+      {%- for link in menu_links -%}
+        <a href="{{ link.url }}">{{ link.title }}</a>
+      {%- endfor -%}
     {%- endif -%}
   </nav>
   <a class="cart-link" href="{{ routes.cart_url }}">{{ 'accessibility.cart' | t }} · {{ cart.item_count }}</a>
