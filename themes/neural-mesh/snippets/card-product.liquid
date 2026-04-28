@@ -1,0 +1,12 @@
+<a class="product-card" href="{{ product.url }}">
+  {%- if product.featured_image -%}
+    <img class="card-image" src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.featured_image.alt | escape }}" loading="lazy">
+  {%- else -%}
+    <div class="card-image" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">No image</div>
+  {%- endif -%}
+  <div class="card-info">
+    <div class="pt">{{ product.type | default: "PRODUCT" }}</div>
+    <h3>{{ product.title }}</h3>
+    <div class="price">{{ product.price | money }}</div>
+  </div>
+</a>

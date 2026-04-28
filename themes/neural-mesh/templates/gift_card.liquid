@@ -1,0 +1,5 @@
+<div class="form-page">
+  <h1>{{ 'gift_cards.issued.title' | default: "Gift card" }}</h1>
+  <p style="color:var(--muted);text-align:center">{{ gift_card.balance | money }} remaining</p>
+  <p style="text-align:center;font-family:JetBrains Mono,monospace;background:var(--panel);padding:14px;border-radius:8px;letter-spacing:2px">{{ gift_card.code }}</p>
+</div>

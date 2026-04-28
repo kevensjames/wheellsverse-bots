@@ -1,0 +1,12 @@
+{%- if section.settings.text != blank -%}
+  <div class="announcement-bar">{{ section.settings.text }}</div>
+{%- endif -%}
+{% schema %}
+{
+  "name": "Announcement bar",
+  "settings": [
+    {"type": "text", "id": "text", "label": "Text", "default": "FREE SHIPPING ON ORDERS $50+"}
+  ],
+  "presets": [{"name": "Announcement bar"}]
+}
+{% endschema %}

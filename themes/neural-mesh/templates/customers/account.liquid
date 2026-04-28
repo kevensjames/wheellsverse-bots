@@ -1,0 +1,15 @@
+<div style="max-width:780px;margin:60px auto;padding:0 24px">
+  <h1 style="font-family:Orbitron,sans-serif">{{ 'customer.account.title' | t }}</h1>
+  <p style="color:var(--muted)">Welcome, {{ customer.first_name | default: customer.email }}</p>
+  <h2 style="font-family:Orbitron,sans-serif;font-size:18px;margin-top:32px">Recent orders</h2>
+  {%- if customer.orders.size > 0 -%}
+    {%- for order in customer.orders -%}
+      <a href="{{ order.customer_url }}" style="display:block;background:var(--panel);border:1px solid rgba(34,211,238,.18);border-radius:10px;padding:14px;margin:8px 0;text-decoration:none;color:var(--text)">
+        Order #{{ order.name }} · {{ order.created_at | date: "%b %d, %Y" }} · {{ order.total_price | money }}
+      </a>
+    {%- endfor -%}
+  {%- else -%}
+    <p style="color:var(--muted)">No orders yet.</p>
+  {%- endif -%}
+  <a href="{{ routes.account_logout_url }}" class="btn-ghost" style="margin-top:24px">{{ 'customer.account.logout' | t }}</a>
+</div>

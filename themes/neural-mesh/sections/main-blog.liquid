@@ -1,0 +1,13 @@
+<div style="max-width:1100px;margin:60px auto;padding:0 24px">
+  <h1 style="font-family:Orbitron,sans-serif">{{ blog.title }}</h1>
+  {%- for article in blog.articles -%}
+    <a href="{{ article.url }}" style="display:block;text-decoration:none;color:inherit;background:rgba(15,23,42,.5);border:1px solid rgba(34,211,238,.15);border-radius:14px;padding:24px;margin:14px 0;transition:border-color .15s">
+      <h3 style="margin:0;color:var(--text)">{{ article.title }}</h3>
+      <div style="color:var(--muted);font-size:13px;margin-top:6px">{{ article.published_at | date: "%b %d, %Y" }}</div>
+      <p style="color:var(--muted)">{{ article.excerpt_or_content | strip_html | truncate: 200 }}</p>
+    </a>
+  {%- endfor -%}
+</div>
+{% schema %}
+{"name": "Blog", "settings": []}
+{% endschema %}

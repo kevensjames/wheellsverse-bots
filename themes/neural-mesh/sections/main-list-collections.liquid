@@ -1,0 +1,13 @@
+<div class="section-title">CATALOGS</div>
+<h2 class="section-h2">All collections</h2>
+<div class="product-grid">
+  {%- for c in collections -%}
+    <a class="product-card" href="{{ c.url }}">
+      <img class="card-image" src="{{ c.featured_image | image_url: width: 600 }}" alt="{{ c.title | escape }}" loading="lazy">
+      <div class="card-info"><h3>{{ c.title }}</h3><div class="price">{{ c.products_count }} items</div></div>
+    </a>
+  {%- endfor -%}
+</div>
+{% schema %}
+{"name": "Collections list", "settings": []}
+{% endschema %}

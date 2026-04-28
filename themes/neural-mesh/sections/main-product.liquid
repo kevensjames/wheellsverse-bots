@@ -1,0 +1,52 @@
+<div class="product">
+  <div class="product-media">
+    <img id="main-image" src="{{ product.featured_image | image_url: width: 1200 }}" alt="{{ product.title | escape }}">
+    {%- if product.media.size > 1 -%}
+      <div class="thumbs">
+        {%- for media in product.media -%}
+          <img src="{{ media | image_url: width: 200 }}" alt="" data-full="{{ media | image_url: width: 1200 }}" {% if forloop.first %}class="active"{% endif %} loading="lazy">
+        {%- endfor -%}
+      </div>
+    {%- endif -%}
+  </div>
+  <div class="product-info">
+    <div class="pt" style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase">{{ product.type }}</div>
+    <h1>{{ product.title }}</h1>
+    <div class="price">{{ product.price | money }}</div>
+    <div class="desc">{{ product.description }}</div>
+    {%- form 'product', product, id: 'product-form' -%}
+      {%- if product.variants.size > 1 -%}
+        <div class="field">
+          <label>Variant</label>
+          <select name="id">
+            {%- for v in product.variants -%}
+              <option value="{{ v.id }}" {% unless v.available %}disabled{% endunless %}>{{ v.title }} — {{ v.price | money }}</option>
+            {%- endfor -%}
+          </select>
+        </div>
+      {%- else -%}
+        <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
+      {%- endif -%}
+      <div class="field">
+        <label>{{ 'products.product.quantity' | t }}</label>
+        <input type="number" name="quantity" value="1" min="1" style="max-width:120px">
+      </div>
+      <button type="submit" class="btn">{{ 'products.product.add_to_cart' | t }}</button>
+    {%- endform -%}
+  </div>
+</div>
+<script>
+document.querySelectorAll('.product-media .thumbs img').forEach(function(t){
+  t.addEventListener('click', function(){
+    document.querySelectorAll('.product-media .thumbs img').forEach(function(x){x.classList.remove('active');});
+    t.classList.add('active');
+    document.getElementById('main-image').src = t.dataset.full;
+  });
+});
+</script>
+{% schema %}
+{
+  "name": "Product",
+  "settings": []
+}
+{% endschema %}

@@ -1,0 +1,19 @@
+<section class="hero">
+  <h1>{{ section.settings.heading | default: "The Future Doesn\'t Wait for Permission." }}</h1>
+  {%- if section.settings.subheading != blank -%}<p>{{ section.settings.subheading }}</p>{%- endif -%}
+  {%- if section.settings.cta_text != blank -%}
+    <a class="btn" href="{{ section.settings.cta_link }}">{{ section.settings.cta_text }}</a>
+  {%- endif -%}
+</section>
+{% schema %}
+{
+  "name": "Hero",
+  "settings": [
+    {"type": "text", "id": "heading", "label": "Heading", "default": "The Future Doesn\'t Wait for Permission."},
+    {"type": "textarea", "id": "subheading", "label": "Subheading", "default": "Premium AI tools, intelligent subscriptions, and curated tech for the next generation of operators."},
+    {"type": "text", "id": "cta_text", "label": "CTA button text", "default": "EXPLORE THE GRID"},
+    {"type": "url", "id": "cta_link", "label": "CTA link"}
+  ],
+  "presets": [{"name": "Hero"}]
+}
+{% endschema %}

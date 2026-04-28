@@ -1,0 +1,33 @@
+<div class="cart-page">
+  <h1>{{ 'cart.general.title' | t }}</h1>
+  {%- if cart.item_count > 0 -%}
+    {%- form 'cart' -%}
+      <div class="cart-items">
+        {%- for line in cart.items -%}
+          <div class="cart-row">
+            <img src="{{ line.image | image_url: width: 160 }}" alt="{{ line.title | escape }}">
+            <div>
+              <a href="{{ line.url }}" style="color:var(--text);text-decoration:none;font-weight:600">{{ line.product.title }}</a>
+              <div style="color:var(--muted);font-size:12px;margin-top:4px">{{ line.variant.title }}</div>
+            </div>
+            <div>
+              <input type="number" name="updates[]" value="{{ line.quantity }}" min="0" style="width:60px;background:var(--panel);color:var(--text);border:1px solid rgba(34,211,238,.25);border-radius:6px;padding:6px;text-align:center">
+            </div>
+            <div style="font-family:Orbitron;color:var(--accent);font-weight:700">{{ line.final_line_price | money }}</div>
+          </div>
+        {%- endfor -%}
+      </div>
+      <div class="cart-totals">
+        <div style="margin-bottom:10px">{{ 'cart.general.subtotal' | t }}: <span class="total">{{ cart.total_price | money }}</span></div>
+        <button type="submit" class="btn-ghost" name="update">{{ 'cart.general.update' | t }}</button>
+        <button type="submit" class="btn" name="checkout">{{ 'cart.general.checkout' | t }}</button>
+      </div>
+    {%- endform -%}
+  {%- else -%}
+    <p style="color:var(--muted);margin:60px 0;text-align:center">Cart is empty — initialize transaction by selecting from the catalog.</p>
+    <div style="text-align:center"><a class="btn" href="{{ routes.root_url }}">{{ 'cart.general.continue_browsing' | t }}</a></div>
+  {%- endif -%}
+</div>
+{% schema %}
+{"name": "Cart", "settings": []}
+{% endschema %}

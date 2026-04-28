@@ -1,0 +1,12 @@
+<div class="form-page">
+  <h1>{{ 'customer.login.title' | t }}</h1>
+  <p style="text-align:center;color:var(--muted);margin-top:-18px;margin-bottom:28px">Welcome back, operator.</p>
+  {%- form 'customer_login' -%}
+    {{ form.errors | default_errors }}
+    <div class="field"><label>{{ 'customer.login.email' | t }}</label><input type="email" name="customer[email]" required></div>
+    <div class="field"><label>{{ 'customer.login.password' | t }}</label><input type="password" name="customer[password]" required></div>
+    <button type="submit" class="btn">{{ 'customer.login.sign_in' | t }}</button>
+    <div style="text-align:center;margin-top:18px"><a href="{{ routes.account_recover_url }}" style="color:var(--accent);font-size:13px">{{ 'customer.login.forgot_password' | t }}</a></div>
+    <div style="text-align:center;margin-top:8px"><a href="{{ routes.account_register_url }}" style="color:var(--muted);font-size:13px">{{ 'customer.login.create_account' | t }}</a></div>
+  {%- endform -%}
+</div>

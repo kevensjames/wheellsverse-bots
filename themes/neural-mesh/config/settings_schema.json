@@ -1,0 +1,105 @@
+[
+  {
+    "name": "theme_info",
+    "theme_name": "WheellsVerse Neural-Mesh",
+    "theme_version": "1.0.1-wheellsverse",
+    "theme_author": "WheellsVerse \u00b7 J.K. Blaze",
+    "theme_documentation_url": "https://wheellsverse.com",
+    "theme_support_url": "https://wheellsverse.com/support"
+  },
+  {
+    "name": "Logo",
+    "settings": [
+      {
+        "type": "image_picker",
+        "id": "logo",
+        "label": "Logo image"
+      },
+      {
+        "type": "image_picker",
+        "id": "favicon",
+        "label": "Favicon"
+      },
+      {
+        "type": "text",
+        "id": "logo_text",
+        "label": "Logo text",
+        "default": "WHEELLSVERSE"
+      }
+    ]
+  },
+  {
+    "name": "Colors",
+    "settings": [
+      {
+        "type": "color",
+        "id": "color_bg",
+        "label": "Background",
+        "default": "#040816"
+      },
+      {
+        "type": "color",
+        "id": "color_panel",
+        "label": "Panel surface",
+        "default": "#0f172a"
+      },
+      {
+        "type": "color",
+        "id": "color_text",
+        "label": "Text",
+        "default": "#e6edff"
+      },
+      {
+        "type": "color",
+        "id": "color_muted",
+        "label": "Muted",
+        "default": "#94a3b8"
+      },
+      {
+        "type": "color",
+        "id": "color_accent",
+        "label": "Accent (cyan)",
+        "default": "#22d3ee"
+      },
+      {
+        "type": "color",
+        "id": "color_accent2",
+        "label": "Accent 2 (blue)",
+        "default": "#3b82f6"
+      }
+    ]
+  },
+  {
+    "name": "Typography",
+    "settings": [
+      {
+        "type": "select",
+        "id": "heading_font",
+        "label": "Heading font",
+        "options": [
+          {
+            "value": "orbitron",
+            "label": "Orbitron"
+          },
+          {
+            "value": "inter",
+            "label": "Inter"
+          }
+        ],
+        "default": "orbitron"
+      }
+    ]
+  },
+  {
+    "name": "Animation",
+    "settings": [
+      {
+        "type": "checkbox",
+        "id": "neural_animation",
+        "label": "Show neural network background",
+        "default": true,
+        "info": "Animated canvas in the page background. Disable to reduce CPU."
+      }
+    ]
+  }
+]

@@ -1,0 +1,36 @@
+{
+  "sections": {
+    "hero": {
+      "type": "hero",
+      "settings": {
+        "heading": "Built for the operator class.",
+        "subheading": "AI tools, intelligent subscriptions, books, and gear \u2014 engineered to compound. WheellsVerse ships products that pay themselves back.",
+        "cta_text": "EXPLORE THE CATALOG",
+        "cta_link": "/collections/all"
+      }
+    },
+    "featured-ai": {
+      "type": "featured-collection",
+      "settings": {
+        "eyebrow": "INTELLIGENCE LAYER",
+        "heading": "AI tools & subscriptions",
+        "collection": "ai-tools-templates",
+        "product_limit": 8
+      }
+    },
+    "featured-all": {
+      "type": "featured-collection",
+      "settings": {
+        "eyebrow": "FULL CATALOG",
+        "heading": "Latest drops",
+        "collection": "all",
+        "product_limit": 12
+      }
+    }
+  },
+  "order": [
+    "hero",
+    "featured-ai",
+    "featured-all"
+  ]
+}

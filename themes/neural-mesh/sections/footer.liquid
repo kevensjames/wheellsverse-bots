@@ -1,0 +1,17 @@
+<footer class="site-footer">
+  <div class="links">
+    {%- for link in section.settings.menu.links -%}
+      <a href="{{ link.url }}">{{ link.title }}</a>
+    {%- endfor -%}
+  </div>
+  <div class="cr">© {{ 'now' | date: '%Y' }} {{ shop.name }} · Neural-Mesh Theme</div>
+</footer>
+{% schema %}
+{
+  "name": "Footer",
+  "settings": [
+    {"type": "link_list", "id": "menu", "label": "Footer menu", "default": "footer"}
+  ],
+  "presets": [{"name": "Footer"}]
+}
+{% endschema %}

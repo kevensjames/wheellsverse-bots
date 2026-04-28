@@ -1,0 +1,26 @@
+<header class="site-header">
+  <a class="logo" href="{{ routes.root_url }}">
+    {%- if section.settings.logo != blank -%}
+      {{ section.settings.logo | image_url: width: 200 | image_tag: alt: shop.name, loading: 'eager' }}
+    {%- else -%}
+      {{ section.settings.logo_text | default: shop.name }}
+    {%- endif -%}
+  </a>
+  <nav>
+    {%- for link in section.settings.menu.links -%}
+      <a href="{{ link.url }}">{{ link.title }}</a>
+    {%- endfor -%}
+  </nav>
+  <a class="cart-link" href="{{ routes.cart_url }}">{{ 'accessibility.cart' | t }} · {{ cart.item_count }}</a>
+</header>
+{% schema %}
+{
+  "name": "Header",
+  "settings": [
+    {"type": "image_picker", "id": "logo", "label": "Logo image"},
+    {"type": "text", "id": "logo_text", "label": "Logo text", "default": "WHEELLSVERSE"},
+    {"type": "link_list", "id": "menu", "label": "Menu", "default": "main-menu"}
+  ],
+  "presets": [{"name": "Header"}]
+}
+{% endschema %}

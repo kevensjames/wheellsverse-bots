@@ -1,0 +1,77 @@
+{
+  "general": {
+    "meta": {
+      "tags": "Tagged \"{{ tags }}\"",
+      "page": "Page {{ page }}"
+    },
+    "404": {
+      "title": "Page not found",
+      "subtext": "The page you're looking for doesn't exist.",
+      "link": "Continue shopping"
+    },
+    "search": {
+      "placeholder": "Search products\u2026",
+      "submit": "Search",
+      "no_results": "No results."
+    },
+    "pagination": {
+      "previous": "Previous",
+      "next": "Next"
+    }
+  },
+  "accessibility": {
+    "skip_to_content": "Skip to content",
+    "menu": "Menu",
+    "close": "Close",
+    "cart": "Cart"
+  },
+  "products": {
+    "product": {
+      "add_to_cart": "Add to cart",
+      "sold_out": "Sold out",
+      "unavailable": "Unavailable",
+      "on_sale": "Sale",
+      "from_lowest_price_html": "From {{ lowest_price }}",
+      "quantity": "Quantity",
+      "vendor": "Vendor",
+      "view_full_details": "View full details",
+      "media": {
+        "image": "Open media in modal"
+      }
+    }
+  },
+  "cart": {
+    "general": {
+      "title": "Your cart",
+      "empty": "Your cart is empty",
+      "continue_browsing": "Continue browsing",
+      "subtotal": "Subtotal",
+      "checkout": "Checkout",
+      "remove": "Remove",
+      "update": "Update"
+    }
+  },
+  "blogs": {
+    "article": {
+      "posted_on": "Posted on",
+      "by_author": "by {{ author }}",
+      "comments": "{{ count }} comments"
+    }
+  },
+  "customer": {
+    "account": {
+      "title": "My account",
+      "details": "Account details",
+      "view_addresses": "View addresses",
+      "logout": "Log out"
+    },
+    "login": {
+      "title": "Login",
+      "email": "Email",
+      "password": "Password",
+      "sign_in": "Sign in",
+      "create_account": "Create account",
+      "forgot_password": "Forgot password?"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+<div style="max-width:780px;margin:60px auto;padding:0 24px">
+  <h1 style="font-family:Orbitron,sans-serif">Order {{ order.name }}</h1>
+  <p style="color:var(--muted)">Placed {{ order.created_at | date: "%b %d, %Y" }} · {{ order.financial_status }}</p>
+  <table style="width:100%;color:var(--text);border-collapse:collapse;margin-top:24px">
+    {%- for line in order.line_items -%}
+      <tr style="border-bottom:1px solid rgba(34,211,238,.1)">
+        <td style="padding:12px 0">{{ line.title }}</td>
+        <td style="padding:12px 0;text-align:right">{{ line.quantity }} × {{ line.price | money }}</td>
+      </tr>
+    {%- endfor -%}
+    <tr><td style="padding:14px 0;font-weight:700">Total</td><td style="padding:14px 0;text-align:right;font-family:Orbitron;color:var(--accent)">{{ order.total_price | money }}</td></tr>
+  </table>
+</div>

@@ -1,0 +1,8 @@
+<div style="max-width:780px;margin:60px auto;padding:0 24px">
+  <div style="color:var(--muted);font-size:12px;letter-spacing:1.5px;text-transform:uppercase">{{ article.published_at | date: "%b %d, %Y" }}</div>
+  <h1 style="font-family:Orbitron,sans-serif;font-size:clamp(28px,4vw,48px);line-height:1.1;margin:8px 0 28px">{{ article.title }}</h1>
+  <div class="rte" style="color:var(--text);line-height:1.7">{{ article.content }}</div>
+</div>
+{% schema %}
+{"name": "Article", "settings": []}
+{% endschema %}

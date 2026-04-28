@@ -1,0 +1,22 @@
+{
+  "type": "header",
+  "name": "Header group",
+  "sections": {
+    "announcement": {
+      "type": "announcement-bar",
+      "settings": {
+        "text": "\u26a1 AI STOCK ALERTS \u2014 $19/MO \u00b7 LIVE NOW \u00b7 NEW MEMBERS GET 7 DAYS FREE"
+      }
+    },
+    "header": {
+      "type": "header",
+      "settings": {
+        "logo_text": "WHEELLSVERSE"
+      }
+    }
+  },
+  "order": [
+    "announcement",
+    "header"
+  ]
+}

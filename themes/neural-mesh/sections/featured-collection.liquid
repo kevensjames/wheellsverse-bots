@@ -1,0 +1,24 @@
+<div class="section-title">{{ section.settings.eyebrow | default: "FEATURED" }}</div>
+<h2 class="section-h2">{{ section.settings.heading | default: "Latest drops" }}</h2>
+<div class="product-grid">
+  {%- assign collection = collections[section.settings.collection] -%}
+  {%- for product in collection.products limit: section.settings.product_limit -%}
+    {%- render 'card-product', product: product -%}
+  {%- else -%}
+    {%- for product in collections.all.products limit: section.settings.product_limit -%}
+      {%- render 'card-product', product: product -%}
+    {%- endfor -%}
+  {%- endfor -%}
+</div>
+{% schema %}
+{
+  "name": "Featured collection",
+  "settings": [
+    {"type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "FEATURED"},
+    {"type": "text", "id": "heading", "label": "Heading", "default": "Latest drops"},
+    {"type": "collection", "id": "collection", "label": "Collection"},
+    {"type": "range", "id": "product_limit", "label": "Products to show", "min": 4, "max": 24, "step": 2, "default": 8}
+  ],
+  "presets": [{"name": "Featured collection"}]
+}
+{% endschema %}

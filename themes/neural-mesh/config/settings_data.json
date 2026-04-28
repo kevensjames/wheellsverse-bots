@@ -1,0 +1,28 @@
+{
+  "current": {
+    "logo_text": "WHEELLSVERSE",
+    "color_bg": "#040816",
+    "color_panel": "#0f172a",
+    "color_text": "#e6edff",
+    "color_muted": "#94a3b8",
+    "color_accent": "#22d3ee",
+    "color_accent2": "#3b82f6",
+    "heading_font": "orbitron",
+    "neural_animation": true,
+    "shop_tagline": "Where the next class of operators ships from."
+  },
+  "presets": {
+    "WheellsVerse \u00b7 Default": {
+      "logo_text": "WHEELLSVERSE",
+      "color_bg": "#040816",
+      "color_accent": "#22d3ee"
+    },
+    "WheellsVerse \u00b7 High contrast": {
+      "logo_text": "WHEELLSVERSE",
+      "color_bg": "#000000",
+      "color_panel": "#0a0e1f",
+      "color_accent": "#00ffe5",
+      "color_accent2": "#5b8bff"
+    }
+  }
+}
