@@ -1370,6 +1370,14 @@ async def serve_admin_legacy():
     return await _serve_old_dashboard()
 
 
+@app.get("/admin/theme-picker", response_class=HTMLResponse)
+async def serve_theme_picker():
+    """5-theme storefront preview (Neural-Mesh / Quantum-Core / Cyber-Matrix /
+    Holographic-Drift / Bio-Synthetic). Pick one, then we convert it into a
+    full Shopify theme."""
+    return _serve_frontend("admin/theme-picker.html", cache=False)
+
+
 async def _serve_old_dashboard():
     html_path = ROOT / "dashboard" / "index.html"
     if not html_path.exists():
