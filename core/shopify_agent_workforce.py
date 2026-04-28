@@ -327,23 +327,44 @@ class BoutiqueAgent(BaseShopifyAgent):
         return {"error": f"Unknown boutique action: {action}"}
 
     def _rebuild_collections(self, payload: dict) -> dict:
-        """Ensure all boutique collections exist with proper descriptions and images."""
+        """Ensure all boutique collections exist with proper descriptions and images.
+
+        Idempotent. Previously hit a sneaky duplicate-creation bug: titles like
+        'AI Tools & Templates' contain `&`, which is a query-param separator.
+        Building `?title={col['title']}` without URL-encoding meant Shopify
+        only saw `title=AI Tools ` — the dedup check missed every existing
+        collection that had `&` in its name, so the bot created a fresh
+        duplicate per run. After ~10 runs we had 10× of each.
+
+        Fix: pull all custom_collections once (cheap on Basic plan: ≤250)
+        and dedup case-insensitively against the in-memory set.
+        """
         from core.narai_shopify_engine import BOUTIQUE_COLLECTIONS   # type: ignore
+
+        # Fetch all existing once, dedup against memory.
+        all_resp = self.shopify("GET", "custom_collections.json?limit=250")
+        existing_by_title = {
+            c["title"].strip().lower(): c["id"]
+            for c in all_resp.get("custom_collections", [])
+        }
+
         created, existing = [], []
         for col in BOUTIQUE_COLLECTIONS:
-            resp = self.shopify("GET", f"custom_collections.json?title={col['title']}")
-            cols = resp.get("custom_collections", [])
-            if cols:
-                existing.append(cols[0]["id"])
-            else:
-                r = self.shopify("POST", "custom_collections.json", {
-                    "custom_collection": {
-                        "title": col["title"],
-                        "body_html": col.get("description", ""),
-                        "published": True,
-                    }
-                })
-                created.append(r.get("custom_collection", {}).get("id"))
+            key = col["title"].strip().lower()
+            if key in existing_by_title:
+                existing.append(existing_by_title[key])
+                continue
+            r = self.shopify("POST", "custom_collections.json", {
+                "custom_collection": {
+                    "title": col["title"],
+                    "body_html": col.get("description", ""),
+                    "published": True,
+                }
+            })
+            new_id = r.get("custom_collection", {}).get("id")
+            if new_id:
+                created.append(new_id)
+                existing_by_title[key] = new_id  # avoid re-creating in same run
         self.log(f"Collections: {len(created)} created, {len(existing)} existing")
         return {"success": True, "created": len(created), "existing": len(existing)}
 
