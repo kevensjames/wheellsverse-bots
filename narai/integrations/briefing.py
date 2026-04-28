@@ -60,14 +60,17 @@ def _trading_section() -> str:
         from narai.core.trading.paper import PaperBroker
         broker = PaperBroker()
         s = broker.status()
-        equity = s.get("total_equity", 0.0)
+        # status() returns: equity, cash, starting_equity, open_positions, ...
+        equity = s.get("equity", 0.0)
         cash = s.get("cash", 0.0)
-        positions = s.get("positions", [])
+        starting = s.get("starting_equity", 10_000.0)
+        positions = s.get("open_positions", [])
         open_count = len(positions)
-        pnl = equity - 10_000.0  # default starting equity
+        pnl = equity - starting
         sign = "+" if pnl >= 0 else ""
+        ret_pct = s.get("total_return_pct", 0.0)
         return (
-            f"📈 Trading: ${equity:,.0f} equity ({sign}${pnl:,.0f}) · "
+            f"📈 Trading: ${equity:,.0f} equity ({sign}${pnl:,.0f} / {sign}{ret_pct:.1f}%) · "
             f"{open_count} open · cash ${cash:,.0f}"
         )
     except Exception as e:
