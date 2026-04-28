@@ -406,6 +406,32 @@ async def _lifespan(application: FastAPI):
         except Exception as _e:
             _add_log(f"Social pipeline schedule failed: {_e}", "WARNING")
 
+        # Bot 77 — AI Tools Affiliate: daily article + push to Shopify blog
+        # Generates a fresh affiliate-tagged article each morning. Cost ~$0.05/run
+        # in OpenAI credits. Compounding SEO play: each article ranks for its
+        # niche over time and earns Amazon commissions via the embedded
+        # AFFILIATE_AMAZON_TAG (wheellsverse-20).
+        try:
+            import schedule as _schedAff
+            import sys as _sys, importlib as _importlib
+            from pathlib import Path as _Path
+            def _run_affiliate_daily():
+                try:
+                    bot_dir = _Path("/app/bots/specialized/77_ai_tools_affiliate_bot")
+                    if str(bot_dir) not in _sys.path: _sys.path.insert(0, str(bot_dir))
+                    if "bot" in _sys.modules: _importlib.reload(_sys.modules["bot"])
+                    from bot import AiToolsAffiliateBotBot   # type: ignore
+                    bot = AiToolsAffiliateBotBot()
+                    # bypass revenue gate by calling .run() directly
+                    result = bot.run(category=None)  # picks a random topic
+                    _add_log(f"Bot 77 daily: {result.get('file', '?')}", "INFO")
+                except Exception as _eAff:
+                    _add_log(f"Bot 77 daily run failed: {_eAff}", "ERROR")
+            _schedAff.every().day.at("07:30").do(lambda: _ls_th.Thread(target=_run_affiliate_daily, daemon=True).start())
+            _add_log("Bot 77 affiliate scheduled: daily at 07:30", "INFO")
+        except Exception as _e:
+            _add_log(f"Bot 77 schedule failed: {_e}", "WARNING")
+
         # Affiliate Revenue Pipeline: 3× per day
         try:
             import schedule as _schedAR

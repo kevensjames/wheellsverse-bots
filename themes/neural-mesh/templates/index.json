@@ -4,9 +4,19 @@
       "type": "hero",
       "settings": {
         "heading": "Built for the operator class.",
-        "subheading": "AI tools, intelligent subscriptions, books, and gear \u2014 engineered to compound. WheellsVerse ships products that pay themselves back.",
+        "subheading": "AI tools, intelligent subscriptions, books, and gear — engineered to compound. WheellsVerse ships products that pay themselves back.",
         "cta_text": "EXPLORE THE CATALOG",
         "cta_link": "/collections/all"
+      }
+    },
+    "lead-banner": {
+      "type": "lead-banner",
+      "settings": {
+        "eyebrow": "⚡ FEATURED OFFER",
+        "heading": "AI Stock Alerts — $19/mo",
+        "subheading": "Daily AI-curated trade signals across stocks + crypto. New members get 7 days free. Cancel anytime.",
+        "cta_text": "START 7-DAY FREE TRIAL →",
+        "cta_link": "/products/ai-stock-crypto-alerts-19-month"
       }
     },
     "featured-ai": {
@@ -26,11 +36,19 @@
         "collection": "all",
         "product_limit": 12
       }
+    },
+    "email-capture": {
+      "type": "email-capture",
+      "settings": {
+        "delay_seconds": 12
+      }
     }
   },
   "order": [
     "hero",
+    "lead-banner",
     "featured-ai",
-    "featured-all"
+    "featured-all",
+    "email-capture"
   ]
 }

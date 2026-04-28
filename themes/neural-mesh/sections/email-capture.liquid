@@ -1,0 +1,64 @@
+<div id="ec-pop" class="ec-pop" hidden>
+  <div class="ec-card">
+    <button class="ec-close" type="button" aria-label="Close">×</button>
+    <div class="ec-eyebrow">⚡ FREE DAILY SIGNALS</div>
+    <h3 class="ec-h">Get tomorrow's edge<br/>before the market opens.</h3>
+    <p class="ec-sub">AI-curated picks across stocks, crypto, and AI tools. Free. No spam. Unsubscribe in one click.</p>
+    {%- form 'customer' -%}
+      <input type="hidden" name="contact[tags]" value="newsletter,popup">
+      <div class="ec-row">
+        <input class="ec-input" type="email" name="contact[email]" placeholder="you@operator.com" required autocomplete="email">
+        <button class="ec-btn" type="submit">Join Free →</button>
+      </div>
+      {%- if form.posted_successfully? -%}
+        <div class="ec-ok">✓ Signed up. Check your inbox.</div>
+      {%- elsif form.errors -%}
+        <div class="ec-err">{{ form.errors | default_errors }}</div>
+      {%- endif -%}
+    {%- endform -%}
+    <div class="ec-fine">By subscribing you agree to our Privacy Policy.</div>
+  </div>
+</div>
+<style>
+  .ec-pop { position: fixed; inset: 0; background: rgba(4,8,22,.85); backdrop-filter: blur(8px); z-index: 9000; display: flex; align-items: center; justify-content: center; padding: 24px; animation: ec-fade .3s ease; }
+  .ec-pop[hidden] { display: none; }
+  @keyframes ec-fade { from { opacity: 0; } to { opacity: 1; } }
+  .ec-card { background: var(--panel); border: 1px solid rgba(34,211,238,.35); border-radius: 18px; padding: 36px 32px; max-width: 460px; width: 100%; position: relative; box-shadow: 0 0 60px rgba(34,211,238,.18); }
+  .ec-close { position: absolute; top: 12px; right: 14px; background: transparent; border: 0; color: var(--muted); font-size: 22px; cursor: pointer; line-height: 1; padding: 4px 8px; }
+  .ec-close:hover { color: var(--accent); }
+  .ec-eyebrow { font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+  .ec-h { font-family: Orbitron, sans-serif; font-size: 22px; line-height: 1.2; margin: 12px 0 10px; color: var(--text); }
+  .ec-sub { color: var(--muted); font-size: 13px; line-height: 1.5; margin: 0 0 20px; }
+  .ec-row { display: flex; gap: 8px; }
+  .ec-input { flex: 1; background: var(--bg); color: var(--text); border: 1px solid rgba(34,211,238,.3); border-radius: 10px; padding: 12px; font-family: inherit; font-size: 14px; }
+  .ec-input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34,211,238,.15); }
+  .ec-btn { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: var(--bg); border: 0; border-radius: 10px; padding: 12px 18px; font-weight: 700; font-family: Orbitron, sans-serif; font-size: 12px; letter-spacing: 1px; cursor: pointer; }
+  .ec-fine { color: var(--muted); font-size: 10px; margin-top: 14px; opacity: .7; }
+  .ec-ok { color: var(--accent); font-size: 13px; margin-top: 12px; }
+  .ec-err { color: var(--err); font-size: 12px; margin-top: 12px; }
+</style>
+<script>
+(function() {
+  var KEY = 'ec_seen';
+  var DELAY_MS = {{ section.settings.delay_seconds | default: 12 }} * 1000;
+  function show() {
+    if (sessionStorage.getItem(KEY)) return;
+    var pop = document.getElementById('ec-pop');
+    if (!pop) return;
+    pop.hidden = false;
+    sessionStorage.setItem(KEY, '1');
+    pop.querySelector('.ec-close').addEventListener('click', function() { pop.hidden = true; });
+    pop.addEventListener('click', function(e) { if (e.target === pop) pop.hidden = true; });
+  }
+  setTimeout(show, DELAY_MS);
+})();
+</script>
+{% schema %}
+{
+  "name": "Email Capture Popup",
+  "settings": [
+    {"type": "range", "id": "delay_seconds", "label": "Delay before popup (seconds)", "min": 3, "max": 60, "step": 1, "default": 12}
+  ],
+  "presets": [{"name": "Email Capture Popup"}]
+}
+{% endschema %}
