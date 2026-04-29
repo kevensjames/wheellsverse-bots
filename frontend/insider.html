@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WheellsVerse Insider — Daily AI Stock + Crypto Signals</title>
+  <meta name="description" content="Daily AI-powered stock and crypto signals via private Telegram. Morning briefing, AI entry/exit signals, weekly portfolio review. $19/mo. Cancel anytime.">
+  <meta property="og:title" content="WheellsVerse Insider — Daily AI Signals">
+  <meta property="og:description" content="Daily AI stock + crypto signals delivered via private Telegram. $19/mo. Cancel anytime.">
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(ellipse at top, #1a1a3e 0%, #0a0a0f 60%);
+      color: #e8e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.6;
+    }
+    .container { max-width: 560px; margin: 0 auto; padding: 60px 24px; }
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: rgba(0, 212, 255, 0.12);
+      border: 1px solid rgba(0, 212, 255, 0.4);
+      border-radius: 999px;
+      color: #00d4ff;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    h1 {
+      font-size: 44px;
+      line-height: 1.15;
+      margin: 0 0 16px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+    h1 .accent { background: linear-gradient(90deg, #00d4ff, #7c3aed); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .lead { font-size: 18px; color: #aaa; margin: 0 0 32px; }
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 28px;
+      backdrop-filter: blur(20px);
+      margin: 24px 0;
+    }
+    .price-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 16px; }
+    .price-amount { font-size: 56px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; }
+    .price-amount sup { font-size: 24px; vertical-align: super; opacity: 0.7; }
+    .price-period { color: #888; font-size: 16px; }
+    .features { list-style: none; padding: 0; margin: 0 0 24px; }
+    .features li {
+      padding: 10px 0;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    }
+    .features li:last-child { border-bottom: none; }
+    .features .emoji { font-size: 20px; line-height: 1.2; flex-shrink: 0; width: 28px; }
+    .features .text { color: #ddd; }
+    .btn-cta {
+      display: block;
+      width: 100%;
+      padding: 18px;
+      background: linear-gradient(90deg, #00d4ff, #7c3aed);
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      font-weight: 700;
+      font-size: 17px;
+      cursor: pointer;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+      letter-spacing: 0.01em;
+    }
+    .btn-cta:hover { transform: translateY(-1px); opacity: 0.94; }
+    .btn-cta:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .reassure {
+      text-align: center;
+      color: #666;
+      font-size: 13px;
+      margin: 16px 0 0;
+    }
+    .footer-cta {
+      text-align: center;
+      margin-top: 40px;
+      color: #555;
+      font-size: 13px;
+    }
+    .footer-cta a { color: #aaa; text-decoration: none; }
+    .footer-cta a:hover { color: #00d4ff; }
+    .disclaimer {
+      max-width: 520px;
+      margin: 32px auto 0;
+      color: #555;
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: center;
+    }
+    @media (max-width: 480px) {
+      h1 { font-size: 34px; }
+      .price-amount { font-size: 44px; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container" role="main">
+    <div class="badge">📡 INSIDER</div>
+    <h1>Daily AI <span class="accent">stock + crypto signals</span> — straight to your phone.</h1>
+    <p class="lead">A private Telegram channel. Morning briefing, AI entry/exit signals, swing trade ideas. No noise.</p>
+
+    <section class="card" aria-label="Insider plan">
+      <div class="price-row">
+        <div class="price-amount"><sup>$</sup>19</div>
+        <div class="price-period">/mo · cancel anytime</div>
+      </div>
+
+      <ul class="features">
+        <li><span class="emoji" aria-hidden="true">📈</span><span class="text">Morning market briefing — 7am EST, weekdays</span></li>
+        <li><span class="emoji" aria-hidden="true">🤖</span><span class="text">AI-generated entry / exit signals</span></li>
+        <li><span class="emoji" aria-hidden="true">📊</span><span class="text">Weekly portfolio review</span></li>
+        <li><span class="emoji" aria-hidden="true">💬</span><span class="text">Private Telegram community</span></li>
+        <li><span class="emoji" aria-hidden="true">🔥</span><span class="text">Swing trade ideas — RSI, MACD, momentum</span></li>
+      </ul>
+
+      <button type="button" class="btn-cta" id="subscribeBtn" onclick="startTelegramSubscribe()">
+        Join Insider — $19/mo
+      </button>
+      <p class="reassure">Cancel any time. No contracts. Pure alpha.</p>
+    </section>
+
+    <section class="card" aria-label="Free sample">
+      <div style="font-size:13px;color:#888;letter-spacing:.05em;text-transform:uppercase;font-weight:600;margin-bottom:10px">Not ready? Try a free sample.</div>
+      <p style="margin:0 0 16px;color:#bbb;font-size:15px">
+        Get one of next week's AI-picked setups in your inbox — no card, no obligation.
+      </p>
+      <form id="leadForm" novalidate>
+        <input
+          id="leadEmail" type="email" required autocomplete="email"
+          placeholder="you@example.com"
+          style="width:100%;padding:14px;background:rgba(255,255,255,0.04);
+                 border:1px solid rgba(255,255,255,0.12);border-radius:10px;
+                 color:#fff;font-size:15px;margin-bottom:10px;box-sizing:border-box"
+        >
+        <button type="submit" id="leadSubmit"
+          style="width:100%;padding:14px;background:rgba(0,212,255,0.12);
+                 border:1px solid rgba(0,212,255,0.4);border-radius:10px;
+                 color:#00d4ff;font-weight:600;font-size:15px;cursor:pointer">
+          Send me a free signal
+        </button>
+        <p id="leadStatus" style="margin:10px 0 0;font-size:13px;color:#aaa;min-height:18px"></p>
+      </form>
+    </section>
+
+    <p class="footer-cta">
+      Already a member? <a href="https://t.me/Wheellsversebot">Open Telegram</a>
+    </p>
+
+    <p class="disclaimer">
+      Educational content only — not investment advice. Markets are risky.
+      WheellsVerse is not a registered broker, dealer, or investment adviser.
+      Always do your own research before making financial decisions.
+    </p>
+  </main>
+
+  <script>
+    document.getElementById('leadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('leadEmail').value.trim();
+      const status = document.getElementById('leadStatus');
+      const btn = document.getElementById('leadSubmit');
+
+      // Basic shape check — server validates strictly.
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        status.textContent = 'Please enter a valid email.';
+        status.style.color = '#ff7777';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      status.textContent = '';
+
+      try {
+        const res = await fetch('/api/v2/narai/insider/lead', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, source: 'insider_landing' }),
+        });
+        if (res.ok) {
+          status.textContent = "✓ On its way. Check your inbox in the next few minutes.";
+          status.style.color = '#00d4ff';
+          btn.textContent = 'Sent';
+        } else {
+          const data = await res.json().catch(() => ({}));
+          status.textContent = data.detail || 'Could not send. Try again.';
+          status.style.color = '#ff7777';
+          btn.disabled = false;
+          btn.textContent = 'Send me a free signal';
+        }
+      } catch (err) {
+        status.textContent = 'Network error. Try again.';
+        status.style.color = '#ff7777';
+        btn.disabled = false;
+        btn.textContent = 'Send me a free signal';
+      }
+    });
+
+    async function startTelegramSubscribe() {
+      const btn = document.getElementById('subscribeBtn');
+      const originalText = btn.textContent;
+      btn.textContent = 'Loading...';
+      btn.disabled = true;
+
+      let email = '';
+      try {
+        const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
+        const sb = createClient('%%SUPABASE_URL%%', '%%SUPABASE_ANON_KEY%%');
+        const { data: { session } } = await sb.auth.getSession();
+        if (session?.user?.email) email = session.user.email;
+      } catch (e) { /* fall through to prompt */ }
+
+      if (!email) {
+        email = prompt('Email for receipt?') || '';
+        if (!email) {
+          btn.textContent = originalText;
+          btn.disabled = false;
+          return;
+        }
+      }
+
+      try {
+        const res = await fetch('/api/v2/narai/telegram/subscription/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+        const data = await res.json();
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else {
+          alert(data.detail || 'Could not start checkout. Please try again.');
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      } catch (e) {
+        alert('Something went wrong. Please try again.');
+        btn.textContent = originalText;
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>

@@ -130,8 +130,9 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                   "/terms", "/terms.html", "/privacy", "/privacy.html", "/disclaimer", "/store",
                   # Public site pages
                   "/login", "/signup", "/pricing", "/narai",
-                  "/subscribe/success", "/subscribe/cancelled",
+                  "/subscribe/success", "/subscribe/cancelled", "/insider",
                   "/api/v2/narai/telegram/subscription/checkout",
+                  "/api/v2/narai/insider/lead",
                   # Second Brain Inbox / Toodle
                   "/api/inbox", "/api/inbox/brain-dump", "/api/inbox/digest", "/api/inbox/search",
                   "/second-brain-inbox", "/admin/second-brain-inbox", "/user/second-brain-inbox",
@@ -974,6 +975,11 @@ async def serve_subscribe_success():
 @app.get("/subscribe/cancelled", response_class=HTMLResponse)
 async def serve_subscribe_cancelled():
     return _serve_frontend("subscribe_cancelled.html", cache=False)
+
+
+@app.get("/insider", response_class=HTMLResponse)
+async def serve_insider():
+    return _serve_frontend("insider.html")
 
 
 @app.get("/narai")
@@ -13349,6 +13355,7 @@ if _v2_auth_loaded:
         ("voice",                "narai.api.routes.voice"),
         ("briefing",             "narai.api.routes.briefing"),
         ("telegram_subscription", "narai.api.routes.telegram_subscription"),
+        ("insider_admin",         "narai.api.routes.insider_admin"),
     ]:
         try:
             import importlib as _il
@@ -13367,6 +13374,13 @@ if _v2_auth_loaded:
         logger.info("NarAI v2 briefing scheduler hook registered")
     except Exception as _e:
         logger.warning(f"NarAI v2 briefing scheduler not registered: {_e}")
+
+    try:
+        from narai.integrations.scheduler_promo import start_promo_scheduler
+        app.add_event_handler("startup", start_promo_scheduler)
+        logger.info("Insider promo scheduler hook registered")
+    except Exception as _e:
+        logger.warning(f"Insider promo scheduler not registered: {_e}")
 
 
 # ── NarAI Marketing Autopilot ─────────────────────────────────────────────────
