@@ -85,6 +85,13 @@ frontend/netlify/
 .coverage
 htmlcov/
 
+# Browser automation artifacts (Playwright/MCP)
+.playwright-mcp/
+data/playwright/
+
+# Scratch screenshots / one-off renders at repo root
+apex-final.png
+
 # Pre-commit / security scan artifacts (regenerated on each scan)
 checkov-report.json
 checkov-stderr.txt
