@@ -53,6 +53,15 @@
         "product_limit": 6
       }
     },
+    "featured-viral": {
+      "type": "featured-collection",
+      "settings": {
+        "eyebrow": "🔥 VIRAL DROPS",
+        "heading": "What everyone's grabbing",
+        "collection": "viral",
+        "product_limit": 8
+      }
+    },
     "featured-ai": {
       "type": "featured-collection",
       "settings": {
@@ -92,6 +101,7 @@
     "shop-by-category",
     "premium",
     "deals",
+    "featured-viral",
     "featured-ai",
     "you-may-like",
     "featured-all",
