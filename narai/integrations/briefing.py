@@ -111,11 +111,43 @@ def _calendar_section(now: datetime) -> str:
         return "📅 Calendar: —"
 
 
-# ── Section: Inbox (stub for now) ────────────────────────────────────────────
+# ── Section: Inbox ───────────────────────────────────────────────────────────
 
 def _inbox_section() -> str:
-    """Stub — will be expanded once Gmail priority classifier ships."""
-    return "📨 Inbox: priority filter not yet wired"
+    """Top of Gmail's priority inbox: unread + important. Returns count + the
+    most-recent subject so the briefing surfaces the *thing* you'd want to
+    skim first, not just a tally."""
+    try:
+        from narai_godmode.adapters.google import get_service, GoogleReauthRequired
+        try:
+            service = get_service("gmail")
+        except GoogleReauthRequired:
+            return "📨 Inbox: reconnect Google in /admin → NarAI Godmode"
+        # Gmail's "is:important is:unread" matches the priority bucket the
+        # web UI shows — same heuristic the user sees when they open Gmail.
+        # maxResults=10 keeps us cheap; we only render a count + 1 subject.
+        result = service.users().messages().list(
+            userId="me",
+            q="is:important is:unread",
+            maxResults=10,
+        ).execute()
+        msgs = result.get("messages", [])
+        if not msgs:
+            return "📨 Inbox: 0 unread priority"
+        # Fetch only the first message's headers to grab the subject.
+        first = service.users().messages().get(
+            userId="me",
+            id=msgs[0]["id"],
+            format="metadata",
+            metadataHeaders=["Subject", "From"],
+        ).execute()
+        headers = {h["name"]: h["value"] for h in first.get("payload", {}).get("headers", [])}
+        subject = (headers.get("Subject") or "(no subject)")[:50]
+        from_ = (headers.get("From") or "?").split("<")[0].strip()[:30]
+        return f"📨 Inbox: {len(msgs)} unread priority · top: \"{subject}\" — {from_}"
+    except Exception as e:
+        logger.warning(f"inbox_section failed: {e}")
+        return "📨 Inbox: —"
 
 
 # ── Section: Crypto ──────────────────────────────────────────────────────────

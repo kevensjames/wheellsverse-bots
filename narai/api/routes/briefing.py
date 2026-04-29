@@ -36,3 +36,13 @@ async def briefing_now(_=Depends(require_auth)) -> dict:
     text = assemble_briefing()
     delivered = await deliver_via_telegram(text)
     return {"text": text, "delivered": delivered}
+
+
+@rt.post("/briefing/test")
+async def briefing_test(_=Depends(require_auth)) -> dict:
+    """Fire the same callback the daily 7am cron runs. Use this to verify
+    Telegram setup before the cron actually fires — exercises the exact
+    code path the scheduler will, not a parallel one."""
+    from narai.integrations.scheduler import _fire_briefing
+    await _fire_briefing()
+    return {"status": "fired", "note": "check logs + Telegram for delivery confirmation"}
