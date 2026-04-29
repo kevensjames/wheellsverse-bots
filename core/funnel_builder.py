@@ -81,6 +81,140 @@ def _system() -> str:
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+# BATCH HELPERS  (1 API call instead of 5)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _design_all_steps_batch(niche: str, market_intel: dict) -> list:
+    """Return all 5 funnel step product designs in a single API call."""
+    prompt = f"""Design a complete 5-step monetization funnel for this niche.
+
+NICHE: {niche}
+MARKET CONTEXT: {json.dumps(market_intel, default=str)[:800]}
+
+Return a JSON array of exactly 5 objects — one per step, in order:
+[
+  {{"step":1,"price":0,"title":"...","subtitle":"...","format":"checklist|cheatsheet|mini-guide","page_count":7,"problem_solved":"...","content_outline":["Section 1","Section 2","Section 3"],"opt_in_reason":"...","convertkit_tag":"snake_case","convertkit_sequence":"Welcome Sequence Name"}},
+  {{"step":2,"price":9,"compare_at_price":27,"title":"...","subtitle":"...","page_count":30,"chapters":["Ch 1","Ch 2","Ch 3","Ch 4","Ch 5"],"main_promise":"...","upsell_bridge":"one sentence to step 3"}},
+  {{"step":3,"price":29,"compare_at_price":67,"title":"...","subtitle":"...","format":"Notion template|prompt pack|spreadsheet bundle|Canva kit","item_count":25,"includes":["Item 1","Item 2","Item 3","Item 4","Item 5"],"time_saved":"e.g. 12 hours","upsell_bridge":"one sentence to step 4"}},
+  {{"step":4,"price":99,"compare_at_price":197,"title":"...","subtitle":"...","format":"PDF course|mega bundle","modules":["Module 1","Module 2","Module 3","Module 4","Module 5"],"bonuses":["Bonus 1","Bonus 2","Bonus 3"],"total_value":"e.g. $497 worth","upsell_bridge":"one sentence to step 5"}},
+  {{"step":5,"price":19,"price_monthly":19,"billing_cycle":"monthly","title":"...","subtitle":"...","deliverables":["Monthly resource 1","Monthly resource 2","Monthly resource 3"],"retention_hook":"...","cancel_anytime":true}}
+]
+Output pure JSON array only."""
+
+    result = _claude_json(prompt, max_tokens=4000)
+    if isinstance(result, list) and len(result) == 5:
+        return result
+    log.warning("[FunnelBuilder] Batch design returned unexpected format")
+    return []
+
+
+def _create_shopify_for_step(step_num: int, data: dict, niche: str) -> Optional[str]:
+    """Create a Shopify product for a funnel step. Returns product_id or None."""
+    try:
+        from core.shopify_client import create_product
+        subtitle = data.get("subtitle", "")
+        if step_num == 1:
+            body = f"<p>{subtitle}</p>"
+            tags, ptype, price, compare = "lead-magnet, free, digital", "Digital Download", "0.00", None
+        elif step_num == 2:
+            body = f"<p>{subtitle}</p><p><strong>{data.get('main_promise', '')}</strong></p>"
+            tags, ptype, price, compare = f"ebook, {niche}, digital-product", "Digital Download", "9", "27"
+        elif step_num == 3:
+            items = "".join(f"<li>{i}</li>" for i in data.get("includes", []))
+            body = f"<p>{subtitle}</p><ul>{items}</ul>"
+            tags, ptype, price, compare = f"template, toolkit, {niche}, digital-product", "Digital Download", "29", "67"
+        elif step_num == 4:
+            mods = "".join(f"<li>{m}</li>" for m in data.get("modules", []))
+            bons = "".join(f"<li>{b}</li>" for b in data.get("bonuses", []))
+            body = f"<p>{subtitle}</p><h3>What's Inside</h3><ul>{mods}</ul><h3>Bonuses</h3><ul>{bons}</ul>"
+            tags, ptype, price, compare = f"course, blueprint, {niche}, premium", "Digital Download", "99", "197"
+        else:
+            items = "".join(f"<li>{d}</li>" for d in data.get("deliverables", []))
+            body = f"<p>{subtitle}</p><ul>{items}</ul>"
+            tags, ptype, price, compare = f"subscription, monthly, {niche}, membership", "Subscription", str(data.get("price_monthly", 19)), None
+
+        variant: dict = {"price": price, "requires_shipping": False,
+                         "inventory_management": None, "inventory_policy": "continue"}
+        if compare:
+            variant["compare_at_price"] = compare
+
+        result = create_product({
+            "title": data.get("title", f"Step {step_num} Product"),
+            "body_html": body, "vendor": "WheellsVerse",
+            "product_type": ptype, "tags": tags,
+            "requires_shipping": False, "variants": [variant],
+        })
+        return result.get("product_id")
+    except Exception as e:
+        log.warning(f"[FunnelBuilder] Step {step_num} Shopify create failed: {e}")
+        return None
+
+
+def _create_selling_plan(data: dict, shopify_product_id: str) -> Optional[str]:
+    """Create Shopify selling plan group for a subscription product."""
+    try:
+        from core.shopify_client import _gql
+        mutation = """
+mutation sellingPlanGroupCreate($input: SellingPlanGroupInput!, $resources: SellingPlanGroupResourceInput) {
+  sellingPlanGroupCreate(input: $input, resources: $resources) {
+    sellingPlanGroup {
+      id
+      name
+      sellingPlans(first: 1) { edges { node { id name } } }
+    }
+    userErrors { field message }
+  }
+}"""
+        variables = {
+            "input": {
+                "name": data.get("title", "Subscription"),
+                "merchantCode": "narai-subscription",
+                "options": ["Billing Frequency"],
+                "position": 1,
+                "sellingPlansToCreate": [{
+                    "name": "Monthly subscription", "options": ["Monthly"], "position": 1,
+                    "billingPolicy": {"recurring": {"interval": "MONTH", "intervalCount": 1}},
+                    "deliveryPolicy": {"recurring": {"interval": "MONTH", "intervalCount": 1}},
+                    "pricingPolicies": [{"fixed": {"adjustmentType": "PRICE",
+                        "adjustmentValue": {"fixedValue": str(data.get("price_monthly", 19))}}}],
+                }],
+            },
+            "resources": {"productIds": [f"gid://shopify/Product/{shopify_product_id}"]},
+        }
+        gql_resp = _gql(mutation, variables)
+        spg = gql_resp.get("data", {}).get("sellingPlanGroupCreate", {}).get("sellingPlanGroup", {})
+        return spg.get("id")
+    except Exception as e:
+        log.warning(f"[FunnelBuilder] Selling plan create failed: {e}")
+        return None
+
+
+def _generate_all_copy_batch(niche: str, steps: list) -> dict:
+    """Generate conversion copy for all 5 funnel steps in a single API call."""
+    step_summaries = [{"step": s.get("step"), "title": s.get("title", ""), "price": s.get("price", 0)} for s in steps]
+    prompt = f"""Write conversion copy for all 5 steps of a monetization funnel.
+
+NICHE: {niche}
+STEPS: {json.dumps(step_summaries, default=str)}
+
+Return a JSON object with string keys "1" through "5". Each value:
+{{
+  "headline": "power headline under 12 words",
+  "subheadline": "1-sentence expansion with specificity",
+  "body": "3-4 sentences PAS or AIDA copy",
+  "cta": "button text under 6 words",
+  "upsell_line": "one-line transition to next funnel step",
+  "email_subject": "email subject under 50 chars",
+  "email_preview": "inbox preview text under 90 chars",
+  "email_body_opening": "first 2 sentences of email body"
+}}
+Output pure JSON object only."""
+
+    result = _claude_json(prompt, max_tokens=4000)
+    return result if isinstance(result, dict) else {}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
 # COPY GENERATION
 # ══════════════════════════════════════════════════════════════════════════════
 
@@ -578,7 +712,13 @@ def wire_email_sequences(funnel: dict) -> dict:
         Updated funnel dict with convertkit_sequence_ids added to each step
     """
     steps = funnel.get("steps", [])
+    niche = funnel.get("niche", "")
     sequence_ids: Dict[int, Optional[int]] = {}
+
+    # 1 API call for all copy (was 1 per step)
+    all_copy = _generate_all_copy_batch(niche, steps)
+    if not all_copy:
+        log.warning("[FunnelBuilder] Batch copy failed — falling back to per-step")
 
     for step in steps:
         step_num = step.get("step")
@@ -586,10 +726,10 @@ def wire_email_sequences(funnel: dict) -> dict:
             continue
         try:
             from core.email_funnel import build_sequence
-            copy = generate_funnel_copy(step_num, funnel.get("niche", ""), step)
+            copy = all_copy.get(str(step_num)) or generate_funnel_copy(step_num, niche, step)
             seq_id = build_sequence(
                 name=f"Funnel Step {step_num}: {step.get('title', '')}",
-                niche=funnel.get("niche", ""),
+                niche=niche,
                 step=step_num,
                 product=step,
                 copy=copy,
@@ -628,33 +768,34 @@ def build_shopify_funnel(niche: str, market_intel: dict) -> dict:
         "niche": niche,
         "built_at": datetime.now(timezone.utc).isoformat(),
         "steps": [],
-        "stats": {
-            "steps_created": 0,
-            "shopify_products": 0,
-            "email_sequences": 0,
-        },
+        "stats": {"steps_created": 0, "shopify_products": 0, "email_sequences": 0},
     }
 
-    def _run_step(label: str, fn, *args):
+    # 1 API call for all 5 step designs (was 5 separate calls)
+    log.info("[FunnelBuilder] Batch-designing all 5 steps…")
+    step_designs = _design_all_steps_batch(niche, market_intel)
+    if not step_designs:
+        log.error("[FunnelBuilder] Batch design failed — funnel aborted")
+        return funnel
+
+    for step_data in step_designs:
+        step_num = step_data.get("step")
         try:
-            log.info(f"[FunnelBuilder] {label}…")
-            result = fn(*args)
-            funnel["steps"].append(result)
+            log.info(f"[FunnelBuilder] Step {step_num} — creating Shopify product…")
+            shopify_id = _create_shopify_for_step(step_num, step_data, niche)
+            step_data["shopify_product_id"] = shopify_id
+
+            if step_num == 5 and shopify_id:
+                step_data["selling_plan_group_id"] = _create_selling_plan(step_data, shopify_id)
+
+            funnel["steps"].append(step_data)
             funnel["stats"]["steps_created"] += 1
-            if result.get("shopify_product_id"):
+            if shopify_id:
                 funnel["stats"]["shopify_products"] += 1
-            return result
         except Exception as e:
-            log.error(f"[FunnelBuilder] {label} failed: {e}")
-            return {}
+            log.error(f"[FunnelBuilder] Step {step_num} failed: {e}")
 
-    lead_magnet = _run_step("Step 1 — Free lead magnet", _build_lead_magnet, niche, market_intel)
-    _run_step("Step 2 — $9 ebook", _build_low_ticket, niche, lead_magnet)
-    _run_step("Step 3 — $29 toolkit", _build_mid_ticket, niche)
-    _run_step("Step 4 — $99 masterclass", _build_high_ticket, niche)
-    _run_step("Step 5 — $19/mo subscription", _build_subscription, niche)
-
-    # Wire email sequences
+    # Wire email sequences (1 API call for all copy, was 5)
     try:
         funnel = wire_email_sequences(funnel)
         funnel["stats"]["email_sequences"] = len([s for s in funnel.get("email_sequences", {}).values() if s])

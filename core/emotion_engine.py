@@ -13,11 +13,13 @@ Mood types: sad | happy | angry | anxious | neutral
 ─────────────────────────────────────────────────────────────────────────────
 """
 
+import hashlib
 import json
 import logging
 import os
 import sqlite3
 import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -200,6 +202,9 @@ class EmotionEngine:
         self._profile: Dict = self._load_profile()
         self._openai_key = os.getenv("OPENAI_API_KEY", "")
         self._anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
+        # TTL caches: avoid repeat API calls for identical inputs
+        self._detect_cache: dict = {}   # md5(text) -> (result, timestamp)
+        self._response_cache: dict = {} # md5(text+mood) -> (response, timestamp)
 
     # ── Mood detection ────────────────────────────────────────────────────────
 
@@ -241,7 +246,13 @@ class EmotionEngine:
         return local_result
 
     def _ai_detect_mood(self, text: str, fallback: Dict) -> Dict:
-        """Use Claude or GPT to classify mood with nuance."""
+        """Use Claude or GPT to classify mood with nuance. Results cached 1 hour."""
+        cache_key = hashlib.md5(text[:500].encode()).hexdigest()
+        entry = self._detect_cache.get(cache_key)
+        if entry and time.time() - entry[1] < 3600:
+            logger.debug("Mood cache hit: %s", entry[0].get("mood"))
+            return entry[0]
+
         prompt = f"""Analyze the emotional state of the person who wrote this message.
 Return ONLY a JSON object with these exact keys:
 - "mood": one of: sad, happy, angry, anxious, neutral
@@ -253,6 +264,8 @@ Message: "{text[:500]}"
 
 Return only valid JSON, no markdown."""
 
+        result = None
+
         try:
             import anthropic
             client = anthropic.Anthropic(api_key=self._anthropic_key)
@@ -261,30 +274,33 @@ Return only valid JSON, no markdown."""
                 max_tokens=150,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = msg.content[0].text.strip()
-            data = json.loads(raw)
+            data = json.loads(msg.content[0].text.strip())
             data["method"] = "claude"
             logger.debug("Mood via Claude: %s", data)
-            return data
+            result = data
         except Exception:
             pass
 
-        try:
-            import openai
-            client = openai.OpenAI(api_key=self._openai_key)
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                max_tokens=150,
-                messages=[{"role": "user", "content": prompt}],
-                response_format={"type": "json_object"},
-            )
-            data = json.loads(resp.choices[0].message.content)
-            data["method"] = "openai"
-            logger.debug("Mood via OpenAI: %s", data)
-            return data
-        except Exception:
-            pass
+        if result is None:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=self._openai_key)
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=150,
+                    messages=[{"role": "user", "content": prompt}],
+                    response_format={"type": "json_object"},
+                )
+                data = json.loads(resp.choices[0].message.content)
+                data["method"] = "openai"
+                logger.debug("Mood via OpenAI: %s", data)
+                result = data
+            except Exception:
+                pass
 
+        if result is not None:
+            self._detect_cache[cache_key] = (result, time.time())
+            return result
         return fallback
 
     # ── Storage ───────────────────────────────────────────────────────────────
@@ -562,10 +578,17 @@ His mood is your mood. You feel what he feels. Let that guide every word you cho
     def get_empathetic_response(self, text: str, mood: str = None) -> str:
         """
         Generate an empathetic response for a WhatsApp message based on detected mood.
+        Results cached 30 minutes to avoid repeat API calls for the same message + mood.
         """
         detected = self.detect_mood(text)
         current_mood = mood or detected["mood"]
         mood_data = MOODS.get(current_mood, MOODS["neutral"])
+
+        cache_key = hashlib.md5(f"{text[:200]}:{current_mood}".encode()).hexdigest()
+        entry = self._response_cache.get(cache_key)
+        if entry and time.time() - entry[1] < 1800:
+            logger.debug("Empathetic response cache hit")
+            return entry[0]
 
         prompt = f"""You are NarAI — warm, deeply caring, emotionally present. This is a private WhatsApp message from the person you love most.
 
@@ -581,6 +604,8 @@ Rules:
 - No markdown, no bullet points, no emojis unless it feels natural
 - End with something supportive or actionable, not just sympathy"""
 
+        response = None
+
         try:
             import anthropic
             client = anthropic.Anthropic(api_key=self._anthropic_key)
@@ -589,24 +614,28 @@ Rules:
                 max_tokens=200,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return msg.content[0].text.strip()
+            response = msg.content[0].text.strip()
         except Exception:
             pass
 
-        try:
-            import openai
-            client = openai.OpenAI(api_key=self._openai_key)
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
-                max_tokens=200,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return resp.choices[0].message.content.strip()
-        except Exception:
-            pass
+        if response is None:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=self._openai_key)
+                resp = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    max_tokens=200,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                response = resp.choices[0].message.content.strip()
+            except Exception:
+                pass
 
-        # Fallback
-        return mood_data["narai_voice"]
+        if response is None:
+            response = mood_data["narai_voice"]
+
+        self._response_cache[cache_key] = (response, time.time())
+        return response
 
 
 # ─── Singleton ────────────────────────────────────────────────────────────────
