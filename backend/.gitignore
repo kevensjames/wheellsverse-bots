@@ -1,0 +1,21 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+.venv/
+venv/
+env/
+
+.env
+.env.local
+*.env.local
+
+.DS_Store
+*.log
+
+# Keep Alembic versions tracked
+!alembic/versions/
