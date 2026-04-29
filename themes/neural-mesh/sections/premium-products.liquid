@@ -1,0 +1,82 @@
+<section class="prem-wrap">
+  <div class="prem-head">
+    <span class="prem-eyebrow">⚡ {{ section.settings.eyebrow | default: 'PREMIUM PICKS' }}</span>
+    <h2 class="prem-h">{{ section.settings.heading | default: 'Premium products' }}</h2>
+    <p class="prem-sub">{{ section.settings.subheading | default: 'High-value drops curated for serious operators.' }}</p>
+  </div>
+  {%- assign collection = collections[section.settings.collection] -%}
+  {%- assign limit = section.settings.product_limit | default: 4 -%}
+  <div class="prem-grid">
+    {%- if collection != blank -%}
+      {%- for product in collection.products limit: limit -%}
+        <a class="prem-card" href="{{ product.url }}">
+          <div class="prem-badge">PREMIUM</div>
+          {%- if product.featured_image -%}
+            <img class="prem-img" src="{{ product.featured_image | image_url: width: 800 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- else -%}
+            <div class="prem-img" style="background: linear-gradient(135deg, var(--accent), var(--accent2));"></div>
+          {%- endif -%}
+          <div class="prem-body">
+            <div class="prem-pt">{{ product.type | default: 'PRODUCT' }}</div>
+            <h3 class="prem-t">{{ product.title }}</h3>
+            <div class="prem-price-row">
+              <span class="prem-price">{{ product.price | money }}</span>
+              {%- if product.compare_at_price > product.price -%}
+                <span class="prem-was">{{ product.compare_at_price | money }}</span>
+              {%- endif -%}
+            </div>
+          </div>
+        </a>
+      {%- endfor -%}
+    {%- else -%}
+      {%- comment -%} Auto-pick the 4 highest-priced products from /collections/all {%- endcomment -%}
+      {%- assign all_p = collections.all.products | sort: 'price' | reverse -%}
+      {%- for product in all_p limit: limit -%}
+        <a class="prem-card" href="{{ product.url }}">
+          <div class="prem-badge">PREMIUM</div>
+          {%- if product.featured_image -%}
+            <img class="prem-img" src="{{ product.featured_image | image_url: width: 800 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- endif -%}
+          <div class="prem-body">
+            <div class="prem-pt">{{ product.type | default: 'PRODUCT' }}</div>
+            <h3 class="prem-t">{{ product.title }}</h3>
+            <div class="prem-price-row">
+              <span class="prem-price">{{ product.price | money }}</span>
+            </div>
+          </div>
+        </a>
+      {%- endfor -%}
+    {%- endif -%}
+  </div>
+</section>
+<style>
+  .prem-wrap { max-width: 1280px; margin: 60px auto; padding: 0 24px; }
+  .prem-head { margin-bottom: 28px; max-width: 600px; }
+  .prem-eyebrow { font-family: Orbitron, sans-serif; font-size: 11px; letter-spacing: 2px; color: #fbbf24; text-transform: uppercase; }
+  .prem-h { font-family: Orbitron, sans-serif; font-size: clamp(28px, 4vw, 44px); margin: 4px 0 8px; letter-spacing: -.5px; background: linear-gradient(180deg, #fff, #fbbf24 70%); background-clip: text; -webkit-background-clip: text; color: transparent; }
+  .prem-sub { color: var(--muted); font-size: 14px; line-height: 1.55; }
+  .prem-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 18px; }
+  .prem-card { background: rgba(15, 23, 42, .55); backdrop-filter: blur(14px); border: 1px solid rgba(251, 191, 36, .25); border-radius: 18px; overflow: hidden; text-decoration: none; color: var(--text); position: relative; transition: transform .25s, border-color .25s, box-shadow .25s; }
+  .prem-card:hover { transform: translateY(-4px); border-color: #fbbf24; box-shadow: 0 0 40px rgba(251, 191, 36, .25); }
+  .prem-badge { position: absolute; top: 12px; left: 12px; background: linear-gradient(90deg, #fbbf24, #f59e0b); color: #0b0f1a; font-family: Orbitron, sans-serif; font-size: 9px; letter-spacing: 1.5px; font-weight: 700; padding: 5px 10px; border-radius: 6px; z-index: 2; }
+  .prem-img { width: 100%; height: 240px; object-fit: cover; display: block; }
+  .prem-body { padding: 18px; }
+  .prem-pt { font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 2px; color: #fbbf24; text-transform: uppercase; }
+  .prem-t { font-size: 15px; font-weight: 600; margin: 8px 0 12px; line-height: 1.3; }
+  .prem-price-row { display: flex; align-items: baseline; gap: 10px; }
+  .prem-price { font-family: Orbitron, sans-serif; font-size: 22px; font-weight: 700; background: linear-gradient(90deg, #fbbf24, #f97316); background-clip: text; -webkit-background-clip: text; color: transparent; }
+  .prem-was { color: var(--muted); text-decoration: line-through; font-size: 13px; }
+</style>
+{% schema %}
+{
+  "name": "Premium Products",
+  "settings": [
+    {"type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "PREMIUM PICKS"},
+    {"type": "text", "id": "heading", "label": "Heading", "default": "Premium products"},
+    {"type": "textarea", "id": "subheading", "label": "Subheading", "default": "High-value drops curated for serious operators."},
+    {"type": "collection", "id": "collection", "label": "Collection (leave empty to auto-pick highest-priced)"},
+    {"type": "range", "id": "product_limit", "label": "Number to show", "min": 2, "max": 8, "step": 1, "default": 4}
+  ],
+  "presets": [{"name": "Premium Products"}]
+}
+{% endschema %}

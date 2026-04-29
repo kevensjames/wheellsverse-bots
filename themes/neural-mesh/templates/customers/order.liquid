@@ -1,6 +1,51 @@
 <div style="max-width:780px;margin:60px auto;padding:0 24px">
   <h1 style="font-family:Orbitron,sans-serif">Order {{ order.name }}</h1>
   <p style="color:var(--muted)">Placed {{ order.created_at | date: "%b %d, %Y" }} · {{ order.financial_status }}</p>
+
+  {%- comment -%}
+    Digital re-download backup. If the buyer didn't get the email (spam, typo, etc.)
+    they can re-trigger delivery from the order page. Hits our /api/store/redeliver
+    endpoint with order id; backend looks up email + line items and emails fresh.
+  {%- endcomment -%}
+  {%- if order.financial_status == 'paid' -%}
+    {%- assign has_digital = false -%}
+    {%- for line in order.line_items -%}
+      {%- assign t = line.title | downcase -%}
+      {%- if t contains 'wheellsverse library' or t contains 'cartographer of dying cities' or t contains 'last star counter' or t contains 'seven suspects' or t contains 'memory thief' or t contains 'bloodline awakening vol 1' or t contains 'top 5 ai tools' or t contains 'first sale playbook' -%}
+        {%- assign has_digital = true -%}
+      {%- endif -%}
+    {%- endfor -%}
+    {%- if has_digital -%}
+      <div style="margin:28px 0;padding:18px;background:rgba(34,211,238,.06);border:1px solid rgba(34,211,238,.25);border-radius:12px">
+        <div style="font-family:Orbitron,sans-serif;font-size:13px;color:var(--accent);letter-spacing:1px">📩 Digital downloads</div>
+        <p style="color:var(--muted);font-size:13px;margin:8px 0">Your files were emailed to <strong style="color:var(--text)">{{ order.email }}</strong> right after payment. Didn't see it? Check spam, then re-trigger:</p>
+        <a href="/api/store/redeliver?order_id={{ order.id }}" id="redeliver-btn" class="btn-ghost" style="display:inline-block;margin-top:6px;padding:10px 20px;border:1px solid var(--accent);color:var(--accent);border-radius:8px;text-decoration:none;font-size:13px;letter-spacing:.5px">Re-send the file{% if order.line_items.size > 1 %}s{% endif %} to my email</a>
+        <span id="redeliver-status" style="margin-left:12px;font-size:12px;color:var(--muted)"></span>
+      </div>
+      <script>
+        document.getElementById('redeliver-btn')?.addEventListener('click', function(e) {
+          e.preventDefault();
+          var btn = this;
+          var status = document.getElementById('redeliver-status');
+          btn.style.opacity = '.6';
+          btn.style.pointerEvents = 'none';
+          status.textContent = 'Sending…';
+          fetch(this.href).then(r => r.json()).then(d => {
+            if (d.delivered && d.delivered.length) {
+              status.textContent = '✓ Sent to ' + d.email;
+              status.style.color = 'var(--accent)';
+            } else {
+              status.textContent = 'Could not resend — please contact support';
+              status.style.color = 'var(--err, #ff5b6e)';
+            }
+          }).catch(() => {
+            status.textContent = 'Network error — try again';
+          });
+        });
+      </script>
+    {%- endif -%}
+  {%- endif -%}
+
   <table style="width:100%;color:var(--text);border-collapse:collapse;margin-top:24px">
     {%- for line in order.line_items -%}
       <tr style="border-bottom:1px solid rgba(34,211,238,.1)">

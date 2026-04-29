@@ -773,7 +773,8 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/v2/narai/",       # v2 uses its own JWT auth
                  "/api/narai/shopify/",  # multi-tenant Shopify — own Bearer auth
                              "/api/google/",   # OAuth flow: protected by state-based CSRF
-                             "/api/store/download/")  # uses its own signed-token auth
+                             "/api/store/download/",  # uses its own signed-token auth
+                             "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
             key = (
                 request.headers.get("X-API-Key")
@@ -854,6 +855,43 @@ async def serve_privacy():
 async def serve_disclaimer():
     """Disclaimer — publicly accessible."""
     return _serve_frontend("disclaimer.html")
+
+
+@app.get("/api/store/redeliver")
+async def store_redeliver(order_id: str = Query(...)):
+    """Re-send the digital files for a paid order. Public endpoint — no auth.
+    The customer hits this from their /account/orders/{id} page if their email
+    didn't arrive (spam, typo, etc.). Looks up the order by id, finds the
+    customer email + line items, calls deliver_shopify_order().
+
+    Idempotent and safe: if the order isn't paid, or has no digital items,
+    or the email is missing, nothing is sent and we return a clear status.
+    """
+    import urllib.request, json as _json
+    shop = os.getenv("SHOPIFY_STORE", "")
+    token = os.getenv("SHOPIFY_ACCESS_TOKEN", "")
+    if not shop or not token:
+        return {"ok": False, "error": "shop_not_configured"}
+
+    try:
+        req = urllib.request.Request(
+            f"https://{shop}/admin/api/2024-01/orders/{order_id}.json",
+            headers={"X-Shopify-Access-Token": token},
+        )
+        with urllib.request.urlopen(req, timeout=15) as r:
+            order = _json.loads(r.read())["order"]
+    except Exception as e:
+        return {"ok": False, "error": f"order_lookup_failed: {e}"}
+
+    if order.get("financial_status") != "paid":
+        return {"ok": False, "error": "order_not_paid", "status": order.get("financial_status")}
+
+    try:
+        from core.store_delivery import deliver_shopify_order
+        result = deliver_shopify_order(order)
+        return {"ok": True, **result}
+    except Exception as e:
+        return {"ok": False, "error": f"delivery_failed: {e}"}
 
 
 @app.get("/api/store/download/{store_key}")

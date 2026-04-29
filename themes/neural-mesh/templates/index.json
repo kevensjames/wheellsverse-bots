@@ -19,12 +19,54 @@
         "cta_link": "/products/ai-stock-crypto-alerts-19-month"
       }
     },
+    "shop-by-category": {
+      "type": "shop-by-category",
+      "settings": {
+        "eyebrow": "BROWSE",
+        "heading": "Shop by category"
+      },
+      "blocks": {
+        "ai":      {"type": "tile", "settings": {"icon": "🤖", "title": "AI Tools",      "collection": "ai-tools-templates",     "gradient_from": "#22d3ee", "gradient_to": "#3b82f6"}},
+        "trade":   {"type": "tile", "settings": {"icon": "📈", "title": "Trading",       "collection": "trading-intelligence",   "gradient_from": "#10b981", "gradient_to": "#0ea5e9"}},
+        "creator": {"type": "tile", "settings": {"icon": "✨", "title": "Creator Kit",   "collection": "creators-toolkit",       "gradient_from": "#a78bfa", "gradient_to": "#ec4899"}},
+        "books":   {"type": "tile", "settings": {"icon": "📚", "title": "Books",         "collection": "books",                  "gradient_from": "#f97316", "gradient_to": "#dc2626"}},
+        "courses": {"type": "tile", "settings": {"icon": "🎓", "title": "Courses",       "collection": "courses-education",      "gradient_from": "#fbbf24", "gradient_to": "#f97316"}},
+        "saas":    {"type": "tile", "settings": {"icon": "🛠️", "title": "Software",      "collection": "software-saas",          "gradient_from": "#3b82f6", "gradient_to": "#8b5cf6"}}
+      },
+      "block_order": ["ai", "trade", "creator", "books", "courses", "saas"]
+    },
+    "premium": {
+      "type": "premium-products",
+      "settings": {
+        "eyebrow": "PREMIUM PICKS",
+        "heading": "Premium products",
+        "subheading": "High-value drops curated for serious operators.",
+        "product_limit": 4
+      }
+    },
+    "deals": {
+      "type": "recommended-deals",
+      "settings": {
+        "eyebrow": "OPERATOR DEALS",
+        "heading": "Recommended deals",
+        "subheading": "Bundles, sale items, and value picks. The math has been done — you just buy.",
+        "product_limit": 6
+      }
+    },
     "featured-ai": {
       "type": "featured-collection",
       "settings": {
         "eyebrow": "INTELLIGENCE LAYER",
         "heading": "AI tools & subscriptions",
         "collection": "ai-tools-templates",
+        "product_limit": 8
+      }
+    },
+    "you-may-like": {
+      "type": "you-may-like",
+      "settings": {
+        "eyebrow": "TRENDING NOW",
+        "heading": "Items you may like",
         "product_limit": 8
       }
     },
@@ -47,7 +89,11 @@
   "order": [
     "hero",
     "lead-banner",
+    "shop-by-category",
+    "premium",
+    "deals",
     "featured-ai",
+    "you-may-like",
     "featured-all",
     "email-capture"
   ]

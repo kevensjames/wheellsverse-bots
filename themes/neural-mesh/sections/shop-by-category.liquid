@@ -1,0 +1,71 @@
+<section class="cat-grid-wrap">
+  <div class="cat-grid-head">
+    <span class="cat-eyebrow">{{ section.settings.eyebrow | default: 'BROWSE' }}</span>
+    <h2 class="cat-h">{{ section.settings.heading | default: 'Shop by category' }}</h2>
+  </div>
+  <div class="cat-grid">
+    {%- assign tile_count = 0 -%}
+    {%- for block in section.blocks -%}
+      {%- assign col = collections[block.settings.collection] -%}
+      {%- if col != blank or block.settings.fallback_url != blank -%}
+        {%- assign tile_count = tile_count | plus: 1 -%}
+        <a class="cat-tile" href="{% if col != blank %}{{ col.url }}{% else %}{{ block.settings.fallback_url }}{% endif %}" style="--g1: {{ block.settings.gradient_from }}; --g2: {{ block.settings.gradient_to }};">
+          <div class="cat-icon">{{ block.settings.icon | default: '⚡' }}</div>
+          <div class="cat-title">{{ block.settings.title | default: col.title }}</div>
+          <div class="cat-meta">
+            {%- if col != blank -%}{{ col.products_count }} items{%- else -%}{{ block.settings.subtitle }}{%- endif -%}
+          </div>
+        </a>
+      {%- endif -%}
+    {%- endfor -%}
+  </div>
+</section>
+<style>
+  .cat-grid-wrap { max-width: 1280px; margin: 60px auto; padding: 0 24px; }
+  .cat-grid-head { margin-bottom: 22px; }
+  .cat-eyebrow { font-family: Orbitron, sans-serif; font-size: 11px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+  .cat-h { font-family: Orbitron, sans-serif; font-size: clamp(28px, 4vw, 44px); margin: 4px 0 0; letter-spacing: -.5px; }
+  .cat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .cat-tile { aspect-ratio: 4/5; border-radius: 18px; padding: 22px; text-decoration: none; color: var(--text); display: flex; flex-direction: column; justify-content: space-between; background: linear-gradient(135deg, var(--g1, rgba(34,211,238,.15)), var(--g2, rgba(59,130,246,.05))); border: 1px solid rgba(34,211,238,.18); position: relative; overflow: hidden; transition: transform .25s, border-color .25s, box-shadow .25s; }
+  .cat-tile::before { content: ''; position: absolute; inset: -2px; background: radial-gradient(circle at 30% 20%, var(--g1, rgba(34,211,238,.18)), transparent 60%); opacity: .8; pointer-events: none; }
+  .cat-tile:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 0 50px rgba(34,211,238,.18); }
+  .cat-icon { position: relative; z-index: 1; font-size: 38px; filter: drop-shadow(0 0 18px rgba(34,211,238,.45)); }
+  .cat-title { position: relative; z-index: 1; font-family: Orbitron, sans-serif; font-size: 16px; font-weight: 600; letter-spacing: .3px; line-height: 1.2; }
+  .cat-meta { position: relative; z-index: 1; color: var(--muted); font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+</style>
+{% schema %}
+{
+  "name": "Shop by Category",
+  "max_blocks": 12,
+  "settings": [
+    {"type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "BROWSE"},
+    {"type": "text", "id": "heading", "label": "Heading", "default": "Shop by category"}
+  ],
+  "blocks": [
+    {
+      "type": "tile",
+      "name": "Category Tile",
+      "settings": [
+        {"type": "text", "id": "icon", "label": "Emoji icon", "default": "🤖"},
+        {"type": "text", "id": "title", "label": "Title (overrides collection title if set)"},
+        {"type": "text", "id": "subtitle", "label": "Subtitle (used when no collection)"},
+        {"type": "collection", "id": "collection", "label": "Linked collection"},
+        {"type": "url", "id": "fallback_url", "label": "Fallback URL (used when no collection)"},
+        {"type": "color", "id": "gradient_from", "label": "Gradient FROM", "default": "#22d3ee"},
+        {"type": "color", "id": "gradient_to", "label": "Gradient TO", "default": "#3b82f6"}
+      ]
+    }
+  ],
+  "presets": [{
+    "name": "Shop by Category",
+    "blocks": [
+      {"type": "tile", "settings": {"icon": "🤖", "title": "AI Tools", "collection": "ai-tools-templates", "gradient_from": "#22d3ee", "gradient_to": "#3b82f6"}},
+      {"type": "tile", "settings": {"icon": "📈", "title": "Trading", "collection": "trading-intelligence", "gradient_from": "#10b981", "gradient_to": "#0ea5e9"}},
+      {"type": "tile", "settings": {"icon": "✨", "title": "Creator Kit", "collection": "creators-toolkit", "gradient_from": "#a78bfa", "gradient_to": "#ec4899"}},
+      {"type": "tile", "settings": {"icon": "📚", "title": "Books", "collection": "books", "gradient_from": "#f97316", "gradient_to": "#dc2626"}},
+      {"type": "tile", "settings": {"icon": "🎓", "title": "Courses", "collection": "courses-education", "gradient_from": "#fbbf24", "gradient_to": "#f97316"}},
+      {"type": "tile", "settings": {"icon": "🛠️", "title": "All Software", "collection": "software-saas", "gradient_from": "#3b82f6", "gradient_to": "#8b5cf6"}}
+    ]
+  }]
+}
+{% endschema %}

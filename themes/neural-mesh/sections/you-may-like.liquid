@@ -1,0 +1,66 @@
+<section class="ymal-wrap">
+  <div class="ymal-head">
+    <span class="ymal-eyebrow">{{ section.settings.eyebrow | default: 'TRENDING NOW' }}</span>
+    <h2 class="ymal-h">{{ section.settings.heading | default: 'Items you may like' }}</h2>
+  </div>
+  {%- assign coll = collections[section.settings.collection] -%}
+  {%- assign limit = section.settings.product_limit | default: 8 -%}
+  <div class="ymal-scroll">
+    {%- if coll != blank and coll.products_count > 0 -%}
+      {%- for product in coll.products limit: limit -%}
+        <a class="ymal-card" href="{{ product.url }}">
+          {%- if product.featured_image -%}
+            <img class="ymal-img" src="{{ product.featured_image | image_url: width: 500 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- endif -%}
+          <div class="ymal-info">
+            <div class="ymal-pt">{{ product.type | default: 'PRODUCT' }}</div>
+            <div class="ymal-t">{{ product.title | truncate: 50 }}</div>
+            <div class="ymal-price">{{ product.price | money }}</div>
+          </div>
+        </a>
+      {%- endfor -%}
+    {%- else -%}
+      {%- for product in collections.all.products limit: limit -%}
+        <a class="ymal-card" href="{{ product.url }}">
+          {%- if product.featured_image -%}
+            <img class="ymal-img" src="{{ product.featured_image | image_url: width: 500 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- endif -%}
+          <div class="ymal-info">
+            <div class="ymal-pt">{{ product.type | default: 'PRODUCT' }}</div>
+            <div class="ymal-t">{{ product.title | truncate: 50 }}</div>
+            <div class="ymal-price">{{ product.price | money }}</div>
+          </div>
+        </a>
+      {%- endfor -%}
+    {%- endif -%}
+  </div>
+</section>
+<style>
+  .ymal-wrap { max-width: 1320px; margin: 60px auto; padding: 0 24px; }
+  .ymal-head { margin-bottom: 22px; }
+  .ymal-eyebrow { font-family: Orbitron, sans-serif; font-size: 11px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+  .ymal-h { font-family: Orbitron, sans-serif; font-size: clamp(26px, 4vw, 42px); margin: 4px 0 0; letter-spacing: -.5px; }
+  .ymal-scroll { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 14px; -webkit-overflow-scrolling: touch; }
+  .ymal-scroll::-webkit-scrollbar { height: 6px; }
+  .ymal-scroll::-webkit-scrollbar-track { background: rgba(34,211,238,.05); border-radius: 3px; }
+  .ymal-scroll::-webkit-scrollbar-thumb { background: rgba(34,211,238,.3); border-radius: 3px; }
+  .ymal-card { flex: 0 0 220px; scroll-snap-align: start; background: rgba(15,23,42,.55); backdrop-filter: blur(14px); border: 1px solid rgba(34,211,238,.18); border-radius: 14px; overflow: hidden; text-decoration: none; color: var(--text); transition: transform .25s, border-color .25s; }
+  .ymal-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .ymal-img { width: 100%; height: 180px; object-fit: cover; display: block; background: var(--panel); }
+  .ymal-info { padding: 14px; }
+  .ymal-pt { font-family: Orbitron, sans-serif; font-size: 9px; letter-spacing: 1.5px; color: var(--accent); text-transform: uppercase; }
+  .ymal-t { font-size: 13px; font-weight: 500; margin: 6px 0 8px; line-height: 1.3; min-height: 34px; }
+  .ymal-price { font-family: Orbitron, sans-serif; font-size: 16px; font-weight: 700; color: var(--accent); }
+</style>
+{% schema %}
+{
+  "name": "You May Like",
+  "settings": [
+    {"type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "TRENDING NOW"},
+    {"type": "text", "id": "heading", "label": "Heading", "default": "Items you may like"},
+    {"type": "collection", "id": "collection", "label": "Collection (defaults to all)"},
+    {"type": "range", "id": "product_limit", "label": "Number to show", "min": 4, "max": 16, "step": 2, "default": 8}
+  ],
+  "presets": [{"name": "You May Like"}]
+}
+{% endschema %}
