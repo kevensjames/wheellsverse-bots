@@ -23,11 +23,26 @@ Webhook mode when TELEGRAM_WEBHOOK_URL is set, polling mode otherwise.
 
 import logging
 import os
+import time
+from collections import deque
 
 logger = logging.getLogger("telegram_bot")
 
 _app = None        # telegram.ext.Application
 _started = False
+
+# Per-chat sliding-window rate limiter: max 5 messages per 60 seconds
+_rate_limits: dict = {}
+
+def _is_rate_limited(chat_id: str, max_msgs: int = 5, window: int = 60) -> bool:
+    now = time.time()
+    q = _rate_limits.setdefault(chat_id, deque())
+    while q and q[0] < now - window:
+        q.popleft()
+    if len(q) >= max_msgs:
+        return True
+    q.append(now)
+    return False
 
 
 def is_enabled() -> bool:
@@ -74,7 +89,7 @@ async def _get_narai_response(text: str, chat_id: str) -> str:
         add_message(conv_id, "user", text)
 
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        model = get_setting("default_model") or "claude-sonnet-4-6"
+        model = get_setting("default_model") or "claude-haiku-4-5-20251001"
         resp = client.messages.create(
             model=model,
             max_tokens=1024,
@@ -123,8 +138,12 @@ async def _ask_cmd(update, context):
     if not question:
         await update.message.reply_text("Usage: /ask <your question>")
         return
+    chat_id = str(update.effective_chat.id)
+    if _is_rate_limited(chat_id):
+        await update.message.reply_text("Slow down a bit — max 5 messages per minute.")
+        return
     await update.message.chat.send_action("typing")
-    response = await _get_narai_response(question, str(update.effective_chat.id))
+    response = await _get_narai_response(question, chat_id)
     # Split long responses
     for i in range(0, len(response), 4000):
         await update.message.reply_text(response[i:i + 4000])
@@ -215,8 +234,12 @@ async def _message_handler(update, context):
     text = update.message.text.strip()
     if not text:
         return
+    chat_id = str(update.effective_chat.id)
+    if _is_rate_limited(chat_id):
+        await update.message.reply_text("Slow down a bit — max 5 messages per minute.")
+        return
     await update.message.chat.send_action("typing")
-    response = await _get_narai_response(text, str(update.effective_chat.id))
+    response = await _get_narai_response(text, chat_id)
     for i in range(0, len(response), 4000):
         await update.message.reply_text(response[i:i + 4000])
 

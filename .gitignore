@@ -109,3 +109,18 @@ precommit-scan-*.md
 # Overnight working files
 OVERNIGHT_LOG.md
 OVERNIGHT_*.md
+
+# Top-level debug screenshots
+/*.png
+
+# Bot runtime state
+bots/data/*.json
+data/telegram_offset.txt
+
+# Daily-generated blog archive
+frontend/blog/_archive/
+
+# Daily-generated published blogs (keep curated landing pages)
+# Uncomment after auditing which posts are hand-curated:
+# frontend/blog/*.html
+# !frontend/blog/index.html
