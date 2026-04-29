@@ -174,12 +174,48 @@ def _crypto_section() -> str:
         return "🪙 Crypto: —"
 
 
-# ── Section: KPI delta (placeholder) ─────────────────────────────────────────
+# ── Section: KPI delta ───────────────────────────────────────────────────────
 
-def _kpi_section() -> str:
-    """Day-over-day delta placeholder. Click_tracker doesn't currently slice
-    by day, so this is a stub until we add date-bucketed totals."""
-    return "✅ KPIs: tracking enabled"
+def _kpi_section(now: datetime) -> str:
+    """Yesterday vs day-before deltas — the morning briefing metric the user
+    actually wants to see ('did things go up?'). We bucket the raw clicks +
+    conversions JSON by UTC date here rather than refactoring click_tracker;
+    cheap (O(N) over a single-user file) and isolated to this code path."""
+    try:
+        from core.click_tracker import _load_clicks, _load_conversions
+        # UTC dates so we match the click_tracker timestamp ('+Z' suffix).
+        today_utc = now.astimezone(timezone.utc).date()
+        yesterday = (today_utc - timedelta(days=1)).isoformat()
+        day_before = (today_utc - timedelta(days=2)).isoformat()
+
+        def _click_count_on(date_str: str, items: list) -> int:
+            return sum(1 for c in items if c.get("ts", "").startswith(date_str))
+
+        def _revenue_on(date_str: str, items: list) -> float:
+            return sum(
+                float(c.get("amount_usd", 0) or 0)
+                for c in items
+                if c.get("ts", "").startswith(date_str)
+            )
+
+        clicks = _load_clicks()
+        convs = _load_conversions()
+        c_yest = _click_count_on(yesterday, clicks)
+        c_prev = _click_count_on(day_before, clicks)
+        r_yest = _revenue_on(yesterday, convs)
+        r_prev = _revenue_on(day_before, convs)
+
+        # Format clicks delta with directional indicator. n=0 base means
+        # "no signal yet" (don't divide by zero); show absolute count instead.
+        c_arrow = "▲" if c_yest > c_prev else ("▼" if c_yest < c_prev else "→")
+        r_arrow = "▲" if r_yest > r_prev else ("▼" if r_yest < r_prev else "→")
+        return (
+            f"✅ KPIs (yesterday): {c_yest} clicks {c_arrow} (prev {c_prev}) · "
+            f"${r_yest:.2f} revenue {r_arrow} (prev ${r_prev:.2f})"
+        )
+    except Exception as e:
+        logger.warning(f"kpi_section failed: {e}")
+        return "✅ KPIs: —"
 
 
 # ── Assembler ────────────────────────────────────────────────────────────────
@@ -205,11 +241,21 @@ def assemble_briefing(now: datetime | None = None) -> str:
         _calendar_section(now),
         _inbox_section(),
         _crypto_section(),
-        _kpi_section(),
+        _kpi_section(now),
         "",
         "→ Reply with a question or command.",
     ]
     return "\n".join(lines)
+
+
+def assemble_briefing_markdown(now: datetime | None = None) -> str:
+    """Plain-text briefing for non-Telegram destinations (Slack, email, SMS).
+    Strips the HTML tags assemble_briefing() emits and reflows minor markup."""
+    import re
+    html = assemble_briefing(now)
+    # Drop <b>, </b>, <i>, </i> — leaving the contents intact.
+    text = re.sub(r"</?[bi]>", "", html)
+    return text
 
 
 # ── Delivery ─────────────────────────────────────────────────────────────────

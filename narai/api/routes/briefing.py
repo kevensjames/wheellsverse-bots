@@ -14,7 +14,11 @@ import logging
 from fastapi import APIRouter, Depends
 
 from narai.api.auth import require_auth
-from narai.integrations.briefing import assemble_briefing, deliver_via_telegram
+from narai.integrations.briefing import (
+    assemble_briefing,
+    assemble_briefing_markdown,
+    deliver_via_telegram,
+)
 
 rt = APIRouter(tags=["briefing"])
 logger = logging.getLogger("narai.briefing.route")
@@ -26,6 +30,14 @@ async def briefing_preview(_=Depends(require_auth)) -> dict:
     dashboard to render a 'preview today's briefing' panel."""
     text = assemble_briefing()
     return {"text": text, "delivered": False}
+
+
+@rt.post("/briefing/markdown")
+async def briefing_markdown(_=Depends(require_auth)) -> dict:
+    """Same content as /briefing/preview but stripped of HTML tags so it
+    can be dropped into Slack, email, SMS, or any non-Telegram channel."""
+    text = assemble_briefing_markdown()
+    return {"text": text, "format": "plain"}
 
 
 @rt.post("/briefing/now")
