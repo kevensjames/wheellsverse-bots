@@ -47,23 +47,37 @@ def start_briefing_scheduler() -> None:
         logger.info("TELEGRAM_BOT_TOKEN unset — briefing scheduler skipped")
         return
 
-    # Default: 7am US/Eastern on weekdays. Override with NARAI_BRIEFING_CRON
-    # using standard 5-field cron syntax: "minute hour dom month dow".
-    cron_expr = os.environ.get("NARAI_BRIEFING_CRON", "0 7 * * 1-5")
+    # Morning: 7am US/Eastern on weekdays (NARAI_BRIEFING_CRON).
+    # Evening: 6pm US/Eastern on weekdays (NARAI_RECAP_CRON). Set the env var
+    # to "" or "off" to disable the evening run while keeping the morning one.
+    morning_expr = os.environ.get("NARAI_BRIEFING_CRON", "0 7 * * 1-5")
+    evening_expr = os.environ.get("NARAI_RECAP_CRON", "0 18 * * 1-5")
     timezone = os.environ.get("NARAI_BRIEFING_TZ", "America/New_York")
 
-    try:
-        trigger = CronTrigger.from_crontab(cron_expr, timezone=timezone)
-    except Exception as e:
-        logger.warning(
-            f"NARAI_BRIEFING_CRON='{cron_expr}' invalid ({e}) — using default 7am ET weekdays"
-        )
-        trigger = CronTrigger.from_crontab("0 7 * * 1-5", timezone=timezone)
+    def _safe_trigger(expr: str, fallback: str):
+        try:
+            return CronTrigger.from_crontab(expr, timezone=timezone)
+        except Exception as e:
+            logger.warning(f"cron '{expr}' invalid ({e}) — using fallback '{fallback}'")
+            return CronTrigger.from_crontab(fallback, timezone=timezone)
 
     _scheduler = AsyncIOScheduler()
-    _scheduler.add_job(_fire_briefing, trigger=trigger, id="daily_briefing")
+    _scheduler.add_job(
+        _fire_briefing,
+        trigger=_safe_trigger(morning_expr, "0 7 * * 1-5"),
+        id="daily_briefing_morning",
+    )
+    if evening_expr and evening_expr.lower() != "off":
+        _scheduler.add_job(
+            _fire_briefing,
+            trigger=_safe_trigger(evening_expr, "0 18 * * 1-5"),
+            id="daily_briefing_evening",
+        )
     _scheduler.start()
-    logger.info(f"briefing scheduler started: cron='{cron_expr}' tz={timezone}")
+    logger.info(
+        f"briefing scheduler started: morning='{morning_expr}' "
+        f"evening='{evening_expr}' tz={timezone}"
+    )
 
 
 def stop_briefing_scheduler() -> None:

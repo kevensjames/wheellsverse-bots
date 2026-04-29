@@ -865,6 +865,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
             style="display:none;background:rgba(74,74,255,.12);border:1px solid rgba(74,74,255,.4);color:#9aaaff;border-radius:7px;padding:2px 8px;font-size:9px;cursor:pointer;font-family:inherit;font-weight:700">
             🎙
           </button>
+          <button id="narai-v2-briefing-btn" onclick="naraiShowBriefing()" title="Today's briefing — revenue, trading, calendar, inbox, crypto, KPIs"
+            style="display:none;background:rgba(255,170,68,.1);border:1px solid rgba(255,170,68,.4);color:#ffaa44;border-radius:7px;padding:2px 8px;font-size:9px;cursor:pointer;font-family:inherit;font-weight:700">
+            📋
+          </button>
         </div>
         <!-- input row -->
         <div style="display:flex;gap:6px;align-items:flex-end">
@@ -18241,6 +18245,7 @@ function _v2ApplyState() {
   const sta = document.getElementById('narai-v2-status');
   const mem = document.getElementById('narai-v2-memory-btn');
   const voi = document.getElementById('narai-v2-voice-btn');
+  const bri = document.getElementById('narai-v2-briefing-btn');
   if (!btn) return;
   if (_v2Active) {
     btn.style.background = 'rgba(136,68,255,.55)';
@@ -18251,6 +18256,7 @@ function _v2ApplyState() {
     if (sta) sta.style.display = '';
     if (mem) mem.style.display = '';
     if (voi) voi.style.display = '';
+    if (bri) bri.style.display = '';
   } else {
     btn.style.background = 'rgba(136,68,255,.15)';
     btn.style.color = '#cc88ff';
@@ -18260,6 +18266,34 @@ function _v2ApplyState() {
     if (sta) sta.style.display = 'none';
     if (mem) mem.style.display = 'none';
     if (voi) voi.style.display = 'none';
+    if (bri) bri.style.display = 'none';
+  }
+}
+
+async function naraiShowBriefing() {
+  // Fetch today's briefing and render it inline as a NarAI message.
+  // Uses /briefing/markdown so the chat panel doesn't need to interpret HTML.
+  if (!_v2Token) { await naraiV2Toggle(); if (!_v2Token) return; }
+  try {
+    const r = await fetch(NARAI_V2_BASE + '/briefing/markdown', {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+_v2Token},
+    });
+    if (r.status === 401) {
+      _v2Token = ''; localStorage.removeItem('narai_v2_token'); _v2Active = false;
+      localStorage.setItem('narai_v2_active','0'); _v2ApplyState();
+      throw new Error('Session expired — click v2 to re-login');
+    }
+    if (!r.ok) throw new Error('briefing fetch failed: ' + r.status);
+    const d = await r.json();
+    if (typeof _naraiAddMessage === 'function') {
+      _naraiAddMessage('narai', d.text || '(empty briefing)');
+    } else {
+      alert(d.text || '(empty briefing)');
+    }
+  } catch (e) {
+    if (typeof toast === 'function') toast('Briefing: ' + e.message, 'error');
+    else alert('Briefing error: ' + e.message);
   }
 }
 
