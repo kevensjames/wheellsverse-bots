@@ -37,7 +37,7 @@ class AffiliateEmailBoosterBot(BaseBot):
             "Naturally embed the following affiliate links where contextually appropriate:\n"
             "- Amazon Associates: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20\n"
             "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
-            "- Robinhood: https://app.wheellsverse.com/go/robinhood\n"
+            "- Robinhood: https://app.wheellsverse.com/go/webull\n"
             "Ensure the content is tailored to drive affiliate revenue and appeal to readers interested in affiliate marketing."
         )
 
@@ -48,7 +48,7 @@ class AffiliateEmailBoosterBot(BaseBot):
             "Explore more ways to enhance your email campaigns with these tools: "
             "[Amazon Associates](https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20), "
             "[Coinbase](https://app.wheellsverse.com/go/coinbase), "
-            "and [Robinhood](https://app.wheellsverse.com/go/robinhood)."
+            "and [Robinhood](https://app.wheellsverse.com/go/webull)."
         )
 
         output = header + "\n\n" + result + "\n\n" + footer

@@ -47,7 +47,7 @@ class CryptoInvestingAffiliateBotBot(BaseBot):
             "\n"
             "Consider starting your crypto investment journey with [Coinbase](https://app.wheellsverse.com/go/coinbase) "
             "for a user-friendly platform to buy, sell, and manage your cryptocurrencies. "
-            "Additionally, [Robinhood](https://app.wheellsverse.com/go/robinhood) offers commission-free trading, "
+            "Additionally, [Robinhood](https://app.wheellsverse.com/go/webull) offers commission-free trading, "
             "making it an attractive option for new investors.\n"
             "\n"
             "For those looking to enhance their crypto knowledge, consider checking out books and resources on Amazon. "

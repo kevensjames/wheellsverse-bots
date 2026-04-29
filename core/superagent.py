@@ -221,7 +221,7 @@ class SuperAgent:
             "affiliate_programs": {
                 "amazon": os.getenv("AFFILIATE_AMAZON_TAG", ""),
                 "coinbase": os.getenv("AFFILIATE_COINBASE_URL", ""),
-                "robinhood": os.getenv("AFFILIATE_ROBINHOOD_URL", ""),
+                "webull": os.getenv("AFFILIATE_WEBULL_URL", ""),
                 "convertkit": os.getenv("AFFILIATE_CONVERTKIT_URL", ""),
                 "fiverr": os.getenv("AFFILIATE_FIVERR_URL", ""),
             },
@@ -281,7 +281,7 @@ Revenue-focused bots (prioritize these):
 Affiliate link context:
 - Amazon tag: {programs['amazon']} (commissions on ANY purchase after click)
 - Coinbase: {programs['coinbase']} ($10 per signup + fee share)
-- Robinhood: {programs['robinhood']} ($20 per funded account)
+- Robinhood: {programs['webull']} ($20 per funded account)
 - ConvertKit: {programs['convertkit']} (30% recurring)
 
 Return a JSON action plan:
@@ -611,7 +611,7 @@ STRICT RULES:
         """Use GPT-4 to write the bot's run() body, then wrap it in the template."""
         amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
         coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "")
-        robinhood_url = os.getenv("AFFILIATE_ROBINHOOD_URL", "")
+        robinhood_url = os.getenv("AFFILIATE_WEBULL_URL", "")
 
         affiliate_context = f"""
 Available affiliate links to embed naturally in generated content:

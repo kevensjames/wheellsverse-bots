@@ -413,7 +413,7 @@ def _get_niche_affiliate(niche: str) -> Optional[str]:
     """Return the best affiliate link for a niche."""
     mapping = {
         "crypto": os.getenv("AFFILIATE_COINBASE_URL"),
-        "investing": os.getenv("AFFILIATE_ROBINHOOD_URL"),
+        "investing": os.getenv("AFFILIATE_WEBULL_URL"),
         "ai_tools": os.getenv("AFFILIATE_JASPER_URL"),
         "passive_income": os.getenv("AFFILIATE_CLICKBANK_URL"),
         "affiliate": os.getenv("AFFILIATE_CONVERTKIT_URL"),

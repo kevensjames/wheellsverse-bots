@@ -52,7 +52,7 @@ def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
       AFFILIATE_AMAZON_TAG      — your Amazon Associates tag (e.g. yoursite-20)
       AFFILIATE_COINBASE_URL    — your Coinbase referral link
       AFFILIATE_BINANCE_URL     — your Binance referral link
-      AFFILIATE_ROBINHOOD_URL   — your Robinhood referral link
+      AFFILIATE_WEBULL_URL   — your Robinhood referral link
       AFFILIATE_CONVERTKIT_URL  — your ConvertKit affiliate link
       AFFILIATE_JASPER_URL      — your Jasper AI affiliate link
       AFFILIATE_BLUEHOST_URL    — your Bluehost affiliate link
@@ -65,7 +65,7 @@ def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
     amz_video_url = _env("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amz_tag_2}")
     coinbase_url = _env("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/wheellsverse")
     binance_url = _env("AFFILIATE_BINANCE_URL", "https://www.binance.com/en/activity/referral")
-    robinhood_url = _env("AFFILIATE_ROBINHOOD_URL", "https://join.robinhood.com/")
+    robinhood_url = _env("AFFILIATE_WEBULL_URL", "https://join.robinhood.com/")
     convertkit_url = _env("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/?lmref=wheellsverse")
     jasper_url = _env("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
     bluehost_url = _env("AFFILIATE_BLUEHOST_URL", "https://www.bluehost.com/track/wheellsverse/")
@@ -129,7 +129,7 @@ def _build_affiliate_rules() -> List[Tuple[List[str], str, str, str]]:
             "affiliate",
         ),
         (
-            ["stocks", "stock market", "investing", "etf", "portfolio", "robinhood"],
+            ["stocks", "stock market", "investing", "etf", "portfolio", "webull"],
             "Robinhood — Invest in Stocks & Crypto, Commission-Free",
             robinhood_url,
             "affiliate",

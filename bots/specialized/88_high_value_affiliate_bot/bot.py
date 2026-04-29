@@ -15,7 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from core.base_bot import BaseBot  # noqa: E402
 
 COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://app.wheellsverse.com/go/robinhood")
+ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 AMAZON_TAG2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
 AMAZON_VIDEO = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", "https://www.amazon.com/gp/video/storefront?tag=naraiinsights-20")
@@ -88,7 +88,7 @@ class HighValueAffiliateBotBot(BaseBot):
                 f"ClickBank high-ticket crypto products: {CLICKBANK_URL}",
             ],
             "investing": [
-                f"Robinhood — free stock referral ($3-$225 value): {ROBINHOOD_URL}",
+                f"Webull — free stocks referral ($3-$225 value): {ROBINHOOD_URL}",
                 f"Coinbase — get started in crypto: {COINBASE_URL}",
                 f"Amazon investing books (tag={AMAZON_TAG}): https://amazon.com/s?k=investing+beginners&tag={AMAZON_TAG}",
             ],
@@ -105,7 +105,7 @@ class HighValueAffiliateBotBot(BaseBot):
             ],
             "mixed_high_value": [
                 f"Coinbase — $10 BTC signup bonus: {COINBASE_URL}",
-                f"Robinhood — free stock on signup: {ROBINHOOD_URL}",
+                f"Webull — free stocks on signup: {ROBINHOOD_URL}",
                 f"Jasper AI — 25% recurring: {JASPER_URL}",
                 f"AppSumo — up to $200/sale: {APPSUMO_URL}",
                 f"ConvertKit — 30% recurring: {CONVERTKIT_URL}",

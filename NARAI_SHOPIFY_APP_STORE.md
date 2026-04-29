@@ -114,11 +114,25 @@ Already set by automation:
 > - Pro $49 — 1000 products + priority
 > - Elite $149 — Unlimited + dedicated support
 
-### Listing assets (need to create)
-- App icon — 1200×1200 PNG
-- Feature banner — 1600×900 PNG
-- Screenshots — at least 3 × 1600×900 showing the admin dashboard, a generated product, the install flow
-- Demo video — 30-90 seconds, optional but dramatically improves review odds
+### Listing assets
+
+| Asset | Status | Path |
+|---|---|---|
+| App icon (1200×1200 PNG) | ✅ Generated | `app_store_assets/icon-1200.png` |
+| Feature banner (1600×900 PNG) | ✅ Generated | `app_store_assets/banner-1600x900.png` |
+| Screenshots (3+ × 1600×900) | ⏳ Manual | Need to capture: `/admin/shopify` dashboard, `/shopify/install` consent page, generated product on a merchant store |
+| Demo video (30–90s, optional) | ⏳ Manual | Improves review odds — record the install→generate→activate flow |
+
+To regenerate the icon/banner with different prompts: `python3 scripts/generate_app_store_assets.py`
+
+### Screenshot capture commands
+
+```bash
+# Headless Chrome screenshot via Playwright (or just use macOS Cmd+Shift+4):
+# 1. /admin/shopify dashboard
+# 2. /shopify/install on a fresh dev store
+# 3. The merchant's storefront showing a generated product
+```
 
 ---
 

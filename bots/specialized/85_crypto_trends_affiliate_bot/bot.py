@@ -37,7 +37,7 @@ class CryptoTrendsAffiliateBotBot(BaseBot):
             "movements, and investment strategies. Naturally integrate 2-3 affiliate links into the "
             "content where contextually appropriate. Use the following affiliate links:\n"
             "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
-            "- Robinhood: https://app.wheellsverse.com/go/robinhood\n"
+            "- Robinhood: https://app.wheellsverse.com/go/webull\n"
             "Ensure the content is engaging, informative, and optimized for search engines to drive "
             "traffic and clicks."
         )
@@ -48,7 +48,7 @@ class CryptoTrendsAffiliateBotBot(BaseBot):
         footer = (
             "For those looking to dive into the world of cryptocurrency trading, platforms like "
             "[Coinbase](https://app.wheellsverse.com/go/coinbase) and "
-            "[Robinhood](https://app.wheellsverse.com/go/robinhood) offer "
+            "[Robinhood](https://app.wheellsverse.com/go/webull) offer "
             "accessible ways to start investing. Whether you're a seasoned investor or just starting "
             "out, keeping up with the latest trends is crucial for making informed decisions."
         )

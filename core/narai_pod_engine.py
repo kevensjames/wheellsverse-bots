@@ -246,7 +246,7 @@ def _ai_json(prompt: str, system: str = "", max_tokens: int = 2500) -> Any:
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
         full_prompt = prompt if not system else f"{system}\n\n{prompt}"
         resp = client.messages.create(
-            model=os.getenv("NARAI_MODEL", "claude-sonnet-4-6"),
+            model="claude-haiku-4-5-20251001",
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": full_prompt + "\n\nOutput pure JSON only."}],
         )

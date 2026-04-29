@@ -61,7 +61,7 @@ and income strategies that are working right now.</p>
 <h3>🎁 Get a FREE stock (worth up to $200)</h3>
 <p>Robinhood is giving away free stocks just for signing up.
 Zero-commission investing, instant account setup.</p>
-<p><a href="{_site_url()}/go/robinhood" style="background:#00d4ff;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Claim Your Free Stock →</a></p>
+<p><a href="{_site_url()}/go/webull" style="background:#00d4ff;color:#000;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:bold;">Claim Your Free Stock →</a></p>
 
 <p>Talk soon,<br/><strong>J.K. Blaze</strong><br/>WheellsVerse</p>
 <hr/>

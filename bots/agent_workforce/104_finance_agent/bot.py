@@ -28,7 +28,7 @@ class FinanceAgentBot(BaseBot):
     def __init__(self):
         super().__init__("104_finance_agent", "agent_workforce")
         self.coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join")
-        self.robinhood_url = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://robinhood.com/us/en/")
+        self.robinhood_url = os.getenv("AFFILIATE_WEBULL_URL", "https://robinhood.com/us/en/")
         self.binance_url = os.getenv("AFFILIATE_BINANCE_URL", "https://binance.com/en/register")
 
     def run(self, action: str = "signal", **kwargs):

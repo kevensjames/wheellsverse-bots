@@ -39,7 +39,7 @@ class HighValueNicheAffiliateBotBot(BaseBot):
             "links. Use the following affiliate links where appropriate:\n"
             "- Amazon Associates: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20\n"
             "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
-            "- Robinhood: https://app.wheellsverse.com/go/robinhood"
+            "- Robinhood: https://app.wheellsverse.com/go/webull"
         )
 
         result = self.ai(prompt, system=system_str, max_tokens=2000)
@@ -49,7 +49,7 @@ class HighValueNicheAffiliateBotBot(BaseBot):
             "For those looking to delve deeper into these lucrative areas, consider exploring "
             "[AI tools on Amazon](https://www.amazon.com/s?k=AI+tools&tag=wheellsverse-20), "
             "or start your cryptocurrency journey with [Coinbase](https://app.wheellsverse.com/go/coinbase). "
-            "Additionally, if stock investing piques your interest, [Robinhood](https://app.wheellsverse.com/go/robinhood) "
+            "Additionally, if stock investing piques your interest, [Robinhood](https://app.wheellsverse.com/go/webull) "
             "offers a user-friendly platform to begin trading."
         )
 

@@ -44,7 +44,7 @@ class CoinbaseDailyBot(BaseBot):
     def __init__(self):
         super().__init__("03_coinbase_daily", "revenue")
         self.coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com/join/wheellsverse")
-        self.robinhood_url = os.getenv("AFFILIATE_ROBINHOOD_URL", "https://robinhood.com/us/en/")
+        self.robinhood_url = os.getenv("AFFILIATE_WEBULL_URL", "https://robinhood.com/us/en/")
         self.binance_url = os.getenv("AFFILIATE_BINANCE_URL", "https://binance.com/en/register")
 
     def run(self, action: str = "post", **kwargs):

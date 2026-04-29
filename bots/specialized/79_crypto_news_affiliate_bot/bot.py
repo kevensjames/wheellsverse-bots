@@ -40,7 +40,7 @@ class CryptoNewsAffiliateBotBot(BaseBot):
             "where contextually appropriate:\n"
             "- Coinbase: https://app.wheellsverse.com/go/coinbase\n"
             "- Amazon: https://www.amazon.com/s?k=PRODUCT&tag=wheellsverse-20\n"
-            "- Robinhood: https://app.wheellsverse.com/go/robinhood"
+            "- Robinhood: https://app.wheellsverse.com/go/webull"
         )
 
         result = self.ai(prompt, system=system_str, max_tokens=2000)
@@ -55,7 +55,7 @@ class CryptoNewsAffiliateBotBot(BaseBot):
             "for a reliable platform to buy and sell cryptocurrencies. Additionally, explore "
             "crypto-related books on [Amazon](https://www.amazon.com/s?k=crypto&tag=wheellsverse-20) "
             "to expand your knowledge. For traditional stock and crypto trading, "
-            "[Robinhood](https://app.wheellsverse.com/go/robinhood) offers "
+            "[Robinhood](https://app.wheellsverse.com/go/webull) offers "
             "a user-friendly interface to manage your investments."
         )
 

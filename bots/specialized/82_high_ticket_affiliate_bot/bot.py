@@ -46,7 +46,7 @@ class HighTicketAffiliateBotBot(BaseBot):
             "## Affiliate Links\n"
             "- [Explore high-ticket products on Amazon](https://www.amazon.com/s?k=high-ticket+items&tag=wheellsverse-20)\n"
             "- [Start trading with Coinbase](https://app.wheellsverse.com/go/coinbase)\n"
-            "- [Invest smartly with Robinhood](https://app.wheellsverse.com/go/robinhood)\n"
+            "- [Invest smartly with Robinhood](https://app.wheellsverse.com/go/webull)\n"
         )
 
         output = header + "\n\n" + result + "\n\n" + footer

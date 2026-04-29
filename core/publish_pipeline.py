@@ -77,7 +77,7 @@ blockquote{{border-left:4px solid #00d4ff;margin-left:0;padding-left:20px;color:
 <div class="cta">
   <h3>💰 Start Building Passive Income Today</h3>
   <p>
-    📈 <a href="{robinhood_url}" target="_blank">Get a free stock on Robinhood</a> — zero commission investing<br/>
+    📈 <a href="{robinhood_url}" target="_blank">Get free stocks on Webull</a> — zero commission investing<br/>
     ₿ <a href="{coinbase_url}" target="_blank">Earn $10 in free Bitcoin on Coinbase</a> — best crypto platform<br/>
     🛒 <a href="https://www.amazon.com/s?k=passive+income+books&tag={amazon_tag}" target="_blank">Best passive income books on Amazon</a><br/>
     🎬 <a href="{amazon_video_url}" target="_blank">Amazon Prime Video — Stream &amp; Save</a>
@@ -307,7 +307,7 @@ class PublishPipeline:
             amazon_tag_2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
             amazon_video_url = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amazon_tag_2}")
             coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "")
-            robinhood_url = os.getenv("AFFILIATE_ROBINHOOD_URL", "")
+            robinhood_url = os.getenv("AFFILIATE_WEBULL_URL", "")
             footer_html = (
                 f'<hr/><p><strong>💰 Today\'s affiliate picks:</strong><br/>'
                 f'📈 <a href="{robinhood_url}">Free stock on Robinhood</a> | '
@@ -369,7 +369,7 @@ class PublishPipeline:
                 amazon_tag=amazon_tag,
                 amazon_video_url=tracking_url("amazon_video", site_base),
                 coinbase_url=tracking_url("coinbase", site_base),
-                robinhood_url=tracking_url("robinhood", site_base),
+                robinhood_url=tracking_url("webull", site_base),
                 bot_pack_url=os.getenv("STRIPE_BOT_PACK_URL", "https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03"),
                 pro_url=os.getenv("STRIPE_PRO_URL", "https://buy.stripe.com/aFa28q6TX6lI72d9sva3u04"),
             )

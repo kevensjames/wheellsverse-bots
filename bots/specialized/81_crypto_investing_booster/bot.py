@@ -34,7 +34,7 @@ class CryptoInvestingBoosterBot(BaseBot):
             "engaging, informative, and optimized for SEO to attract readers interested in the "
             "crypto niche. Naturally embed affiliate links to Coinbase and Robinhood where they fit "
             "contextually. Use these links: Coinbase - https://app.wheellsverse.com/go/coinbase, "
-            "Robinhood - https://app.wheellsverse.com/go/robinhood. Focus on "
+            "Robinhood - https://app.wheellsverse.com/go/webull. Focus on "
             "crypto investing strategies, benefits, and tips to maximize returns."
         )
 
@@ -44,7 +44,7 @@ class CryptoInvestingBoosterBot(BaseBot):
         footer = (
             "Ready to take your crypto investing to the next level? Consider using platforms like "
             "[Coinbase](https://app.wheellsverse.com/go/coinbase) for secure "
-            "transactions and [Robinhood](https://app.wheellsverse.com/go/robinhood) "
+            "transactions and [Robinhood](https://app.wheellsverse.com/go/webull) "
             "for commission-free trading. Start optimizing your portfolio today!"
         )
 

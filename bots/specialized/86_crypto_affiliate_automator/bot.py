@@ -48,7 +48,7 @@ class CryptoAffiliateAutomatorBot(BaseBot):
             "For those ready to dive into the world of crypto investing, consider starting with "
             "[Coinbase](https://app.wheellsverse.com/go/coinbase) for a user-friendly "
             "experience, or explore the benefits of commission-free trading with "
-            "[Robinhood](https://app.wheellsverse.com/go/robinhood). "
+            "[Robinhood](https://app.wheellsverse.com/go/webull). "
             "Stay informed and make the most out of your investments!"
         )
 

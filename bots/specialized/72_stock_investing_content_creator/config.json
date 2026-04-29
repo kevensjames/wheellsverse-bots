@@ -1,9 +1,9 @@
 {
   "description": "Creates stock investing content that drives Robinhood free-stock signups and Amazon book purchases.",
   "goal": "Maximize Robinhood referral conversions via beginner investing content with clear signup CTAs",
-  "default_topic": "How to get a free stock on Robinhood in 2025 — and what to invest in next",
+  "default_topic": "How to get a free stocks on Webull in 2025 — and what to invest in next",
   "content_type": "blog_post",
-  "affiliate_focus": "robinhood",
+  "affiliate_focus": "webull",
   "target_cpc_keywords": [
     "how to start investing with $100",
     "robinhood free stock 2025",

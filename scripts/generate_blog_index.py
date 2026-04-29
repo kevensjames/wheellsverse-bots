@@ -25,7 +25,7 @@ CATEGORY_MAP = {
     "binance": ("Crypto", "#00d4ff", "₿"),
     "ethereum": ("Crypto", "#00d4ff", "₿"),
     "stock": ("Stocks", "#00ff88", "📈"),
-    "robinhood": ("Stocks", "#00ff88", "📈"),
+    "webull": ("Stocks", "#00ff88", "📈"),
     "invest": ("Stocks", "#00ff88", "📈"),
     "dividend": ("Stocks", "#00ff88", "📈"),
     "passive": ("Passive Income", "#ffd700", "💰"),
@@ -255,7 +255,7 @@ footer a{{color:var(--cyan);text-decoration:none}}
     <p><strong style="color:var(--text)">Recommended picks from today's articles:</strong><br>
     All links below are affiliate links — we earn a commission at no cost to you.</p>
     <div class="aff-links">
-      <a href="https://app.wheellsverse.com/go/robinhood" target="_blank" class="aff-link aff-link--cyan">📈 Free Stock — Robinhood</a>
+      <a href="https://app.wheellsverse.com/go/webull" target="_blank" class="aff-link aff-link--cyan">📈 Free Stock — Robinhood</a>
       <a href="https://app.wheellsverse.com/go/coinbase" target="_blank" class="aff-link aff-link--green">₿ $10 BTC — Coinbase</a>
       <a href="https://www.amazon.com/s?k=passive+income+investing&tag=wheellsverse-20" target="_blank" class="aff-link aff-link--gold">📚 Best Books — Amazon</a>
     </div>

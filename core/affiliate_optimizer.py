@@ -69,8 +69,8 @@ def _build_program_pool() -> Dict[str, List[Dict]]:
              "label": "ClickBank Crypto", "commission": "50-75%"},
         ],
         "investing": [
-            {"name": "robinhood", "url": os.getenv("AFFILIATE_ROBINHOOD_URL", ""),
-             "label": "Robinhood — free stock", "commission": "$3-225/signup"},
+            {"name": "webull", "url": os.getenv("AFFILIATE_WEBULL_URL", ""),
+             "label": "Webull — free stocks", "commission": "$3-225/signup"},
             {"name": "coinbase", "url": os.getenv("AFFILIATE_COINBASE_URL", ""),
              "label": "Coinbase — $10 BTC", "commission": "$10/signup"},
             {"name": "clickbank", "url": os.getenv("AFFILIATE_CLICKBANK_URL", ""),
@@ -111,8 +111,8 @@ def _build_program_pool() -> Dict[str, List[Dict]]:
         "general": [
             {"name": "coinbase", "url": os.getenv("AFFILIATE_COINBASE_URL", ""),
              "label": "Coinbase", "commission": "$10/signup"},
-            {"name": "robinhood", "url": os.getenv("AFFILIATE_ROBINHOOD_URL", ""),
-             "label": "Robinhood", "commission": "$3-225/signup"},
+            {"name": "webull", "url": os.getenv("AFFILIATE_WEBULL_URL", ""),
+             "label": "Webull", "commission": "$3-225/signup"},
             {"name": "jasper", "url": os.getenv("AFFILIATE_JASPER_URL", ""),
              "label": "Jasper AI", "commission": "25% recurring"},
         ],
@@ -435,7 +435,7 @@ class AffiliateOptimizer:
     def _fallback_link(self, niche: str) -> Dict:
         fallbacks = {
             "crypto": ("coinbase", os.getenv("AFFILIATE_COINBASE_URL", ""), "Coinbase"),
-            "investing": ("robinhood", os.getenv("AFFILIATE_ROBINHOOD_URL", ""), "Robinhood"),
+            "investing": ("webull", os.getenv("AFFILIATE_WEBULL_URL", ""), "Robinhood"),
             "ai_tools": ("jasper", os.getenv("AFFILIATE_JASPER_URL", ""), "Jasper AI"),
             "passive_income": ("clickbank", os.getenv("AFFILIATE_CLICKBANK_URL", ""), "ClickBank"),
             "blogging": ("bluehost", os.getenv("AFFILIATE_BLUEHOST_URL", ""), "Bluehost"),

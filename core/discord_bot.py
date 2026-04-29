@@ -15,11 +15,26 @@ Launched as a background asyncio task if DISCORD_BOT_TOKEN is set.
 
 import logging
 import os
+import time
+from collections import deque
 
 logger = logging.getLogger("discord_bot")
 
 _client = None
 _started = False
+
+# Per-user sliding-window rate limiter: max 5 messages per 60 seconds
+_rate_limits: dict = {}
+
+def _is_rate_limited(user_id: str, max_msgs: int = 5, window: int = 60) -> bool:
+    now = time.time()
+    q = _rate_limits.setdefault(user_id, deque())
+    while q and q[0] < now - window:
+        q.popleft()
+    if len(q) >= max_msgs:
+        return True
+    q.append(now)
+    return False
 
 
 def is_enabled() -> bool:
@@ -57,7 +72,7 @@ async def _get_narai_response(text: str, channel_id: str) -> str:
         add_message(conv_id, "user", text)
 
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        model = get_setting("default_model") or "claude-sonnet-4-6"
+        model = get_setting("default_model") or "claude-haiku-4-5-20251001"
         resp = client.messages.create(
             model=model, max_tokens=1024, system=sys_prompt,
             messages=history + [{"role": "user", "content": text}],
@@ -114,9 +129,12 @@ async def start_bot():
         if _client.user in message.mentions:
             text = message.content.replace(f"<@{_client.user.id}>", "").strip()
             if text:
-                async with message.channel.typing():
-                    response = await _get_narai_response(text, str(message.channel.id))
-                await _chunked_reply(message, response)
+                if _is_rate_limited(str(message.author.id)):
+                    await message.channel.send("Slow down — max 5 messages per minute.")
+                else:
+                    async with message.channel.typing():
+                        response = await _get_narai_response(text, str(message.channel.id))
+                    await _chunked_reply(message, response)
         await _client.process_commands(message)
 
     async def _chunked_reply(message, text: str):
@@ -127,6 +145,9 @@ async def start_bot():
     @_client.command(name="ask")
     async def ask_cmd(ctx, *, question: str):
         """Ask NarAI a question."""
+        if _is_rate_limited(str(ctx.author.id)):
+            await ctx.send("Slow down — max 5 messages per minute.")
+            return
         async with ctx.typing():
             response = await _get_narai_response(question, str(ctx.channel.id))
         await _chunked_reply(ctx.message, response)

@@ -81,7 +81,7 @@ NICHE_KEYWORDS = {
     "side_hustle": ["side hustle", "freelance", "gig", "fiverr", "upwork", "extra income"],
     "personal_finance": ["budget", "debt", "savings", "emergency fund", "net worth", "frugal"],
     "ai_tools": ["ai tool", "chatgpt", "openai", "automation", "prompt", "llm"],
-    "investing": ["invest", "stock", "portfolio", "etf", "robinhood", "brokerage"],
+    "investing": ["invest", "stock", "portfolio", "etf", "webull", "brokerage"],
 }
 
 

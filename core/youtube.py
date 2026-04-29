@@ -115,7 +115,7 @@ def _build_description(content: str, title: str = "") -> str:
     summary = " ".join(lines)[:400]
 
     coinbase = f"{site_base}/go/coinbase"
-    robinhood = f"{site_base}/go/robinhood"
+    robinhood = f"{site_base}/go/webull"
     amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
     desc = f"""{summary}
@@ -123,7 +123,7 @@ def _build_description(content: str, title: str = "") -> str:
 ─────────────────────────────────────────
 💰 START EARNING TODAY (Free Resources):
 
-📈 Get a FREE stock on Robinhood → {robinhood}
+📈 Get free stocks on Webull → {robinhood}
 ₿ Earn $10 in FREE Bitcoin on Coinbase → {coinbase}
 📚 Best passive income books → https://amzn.to/{amazon_tag}
 
