@@ -204,16 +204,31 @@ def _tool_write_file(args: dict) -> str:
         return f"Write error: {e}"
 
 
-_SHELL_ALLOWLIST = ("ls ", "ls\n", "cat ", "head ", "tail ", "grep ", "wc ", "find ", "python3 -c", "pip show")
+_SHELL_ALLOWLIST = {"ls", "cat", "head", "tail", "grep", "wc", "find", "python3", "pip"}
+_SHELL_BLOCKED_CHARS = (";", "&", "|", "`", "$", ">", "<", "\n", "\r")
 
 
 def _tool_shell_command(args: dict) -> str:
+    import shlex
     cmd = args["command"].strip()
-    if not any(cmd.startswith(prefix) for prefix in _SHELL_ALLOWLIST):
-        return f"Command not allowed. Permitted prefixes: {', '.join(_SHELL_ALLOWLIST)}"
+    if any(c in cmd for c in _SHELL_BLOCKED_CHARS):
+        return "Command rejected: shell metacharacters not allowed"
+    try:
+        parts = shlex.split(cmd)
+    except ValueError as e:
+        return f"Command parse error: {e}"
+    if not parts:
+        return "Empty command"
+    program = parts[0]
+    if program not in _SHELL_ALLOWLIST:
+        return f"Command not allowed. Permitted programs: {', '.join(sorted(_SHELL_ALLOWLIST))}"
+    if program == "python3" and (len(parts) < 2 or parts[1] != "-c"):
+        return "python3 only allowed with -c flag"
+    if program == "pip" and (len(parts) < 2 or parts[1] != "show"):
+        return "pip only allowed with 'show' subcommand"
     try:
         result = subprocess.run(
-            cmd, shell=True, capture_output=True, text=True,
+            parts, shell=False, capture_output=True, text=True,
             cwd=str(ROOT), timeout=15
         )
         out = (result.stdout + result.stderr).strip()

@@ -43,6 +43,35 @@ except Exception:  # pragma: no cover
 # ─── Token usage log ─────────────────────────────────────────────────────────
 
 _TOKEN_LOG = ROOT / "data" / "token_usage.json"
+_DAILY_BUDGET_USD = float(os.getenv("ANTHROPIC_DAILY_BUDGET_USD", "1.50"))
+
+
+class BudgetExceededError(RuntimeError):
+    """Raised when the daily Anthropic spend cap is reached."""
+
+
+def _get_today_anthropic_spend() -> float:
+    """Sum today's Anthropic costs from token_usage.json (haiku vs sonnet pricing)."""
+    try:
+        if not _TOKEN_LOG.exists():
+            return 0.0
+        records = json.loads(_TOKEN_LOG.read_text())
+        today = datetime.now().strftime("%Y-%m-%d")
+        total = 0.0
+        for r in records:
+            if r.get("provider") != "anthropic":
+                continue
+            if not r.get("ts", "").startswith(today):
+                continue
+            inp = r.get("prompt_tokens", 0)
+            out = r.get("completion_tokens", 0)
+            if "haiku" in r.get("model", ""):
+                total += (inp / 1_000_000 * 0.80) + (out / 1_000_000 * 4.0)
+            else:
+                total += (inp / 1_000_000 * 3.0) + (out / 1_000_000 * 15.0)
+        return total
+    except Exception:
+        return 0.0
 
 
 def _log_token_usage(provider: str, model: str, prompt_tokens: int,
@@ -210,6 +239,12 @@ class BaseBot(ABC):
         """Call Claude (Anthropic) directly — used as fallback when OpenAI quota is exceeded.
         Includes retry logic (3 attempts) matching the OpenAI path.
         """
+        spend = _get_today_anthropic_spend()
+        if spend >= _DAILY_BUDGET_USD:
+            raise BudgetExceededError(
+                f"Daily Anthropic budget (${_DAILY_BUDGET_USD:.2f}) reached "
+                f"(spent ${spend:.4f}) — call blocked"
+            )
         import anthropic
         claude_model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
         client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
@@ -219,7 +254,15 @@ class BaseBot(ABC):
             kw["system"] = system
 
         def _call():
-            return client.messages.create(**kw)
+            try:
+                return client.messages.create(**kw)
+            except anthropic.BadRequestError as e:
+                msg = str(e).lower()
+                if "credit balance" in msg or "credit_balance" in msg:
+                    raise BudgetExceededError(
+                        "Anthropic credit balance too low — top up at console.anthropic.com/settings/billing"
+                    ) from e
+                raise
 
         resp = _retry(_call, retries=3, delay=2.0, logger=self.logger)
         usage = resp.usage
@@ -326,9 +369,15 @@ class BaseBot(ABC):
         Includes retry logic (3 attempts) and token usage logging.
         If no system prompt is given, NarAI's live personality is injected automatically.
         """
+        spend = _get_today_anthropic_spend()
+        if spend >= _DAILY_BUDGET_USD:
+            raise BudgetExceededError(
+                f"Daily Anthropic budget (${_DAILY_BUDGET_USD:.2f}) reached "
+                f"(spent ${spend:.4f}) — call blocked"
+            )
         if system is None:
             system = self._get_personality_system()
-        model = model or os.getenv("CLAUDE_MODEL", "claude-sonnet-4-20250514")
+        model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
         prompt = prompt.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
         system = system.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
 
