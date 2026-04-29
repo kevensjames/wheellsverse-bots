@@ -130,6 +130,8 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                   "/terms", "/terms.html", "/privacy", "/privacy.html", "/disclaimer", "/store",
                   # Public site pages
                   "/login", "/signup", "/pricing", "/narai",
+                  "/subscribe/success", "/subscribe/cancelled",
+                  "/api/v2/narai/telegram/subscription/checkout",
                   # Second Brain Inbox / Toodle
                   "/api/inbox", "/api/inbox/brain-dump", "/api/inbox/digest", "/api/inbox/search",
                   "/second-brain-inbox", "/admin/second-brain-inbox", "/user/second-brain-inbox",
@@ -924,6 +926,16 @@ async def serve_signup():
 @app.get("/pricing", response_class=HTMLResponse)
 async def serve_pricing():
     return _serve_frontend("pricing.html")
+
+
+@app.get("/subscribe/success", response_class=HTMLResponse)
+async def serve_subscribe_success():
+    return _serve_frontend("subscribe_success.html", cache=False)
+
+
+@app.get("/subscribe/cancelled", response_class=HTMLResponse)
+async def serve_subscribe_cancelled():
+    return _serve_frontend("subscribe_cancelled.html", cache=False)
 
 
 @app.get("/narai")
@@ -8581,6 +8593,27 @@ async def stripe_webhook(request: Request):
     _save_stripe_payment(record)
     _add_log(f"Stripe {etype}: ${amount_usd} from {record['email'][:30]}", "INFO")
 
+    # Telegram private-group subscription bridge — react to checkout/cancel events
+    # tagged with metadata.product == "tg_group" or carrying a tg_pairing_token.
+    try:
+        from narai.integrations import telegram_subscription as _ts
+        if etype == "checkout.session.completed":
+            _ts.handle_checkout_completed(data)
+        elif etype == "customer.subscription.updated":
+            _ts.handle_subscription_updated(data)
+        elif etype == "customer.subscription.deleted":
+            sub_id = data.get("id", "")
+            row = _ts.revoke_for_subscription(sub_id)
+            if row and row.get("telegram_user_id") and row.get("channel_id"):
+                await _ts.kick_telegram_user(
+                    row["channel_id"], row["telegram_user_id"]
+                )
+                _add_log(
+                    f"TG sub revoked + kicked user={row['telegram_user_id']}", "INFO"
+                )
+    except Exception as _ts_err:
+        _add_log(f"telegram_subscription dispatch failed: {_ts_err}", "WARNING")
+
     # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
     if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
         try:
@@ -12466,6 +12499,19 @@ async def shopify_webhook(request: Request, background_tasks: BackgroundTasks):
                     except Exception as ck_err:
                         _add_log(f"ConvertKit capture error: {ck_err}", "WARNING")
 
+                # ── Digital fulfillment: email any digital products as PDFs ──
+                try:
+                    from core.store_delivery import deliver_shopify_order
+                    result = deliver_shopify_order(data)
+                    if result.get("delivered"):
+                        for d in result["delivered"]:
+                            _add_log(f"📩 Sent '{d['label']}' to {d['email']} ({len(d['files'])} file{'s' if len(d['files'])>1 else ''})")
+                    if result.get("skipped"):
+                        for s in result["skipped"]:
+                            _add_log(f"  ⊙ skipped '{s['title']}': {s['reason']}", "INFO")
+                except Exception as df_err:
+                    _add_log(f"Digital delivery error: {df_err}", "ERROR")
+
                 # ── Auto-restock: trigger new product publish in background ──
                 try:
                     from core.narai_shopify_engine import run_autopilot_session
@@ -13256,14 +13302,15 @@ if _v2_auth_loaded:
     # missing optional dep (e.g. edge-tts) only breaks that domain's call
     # path, not the stack.
     for _domain_name, _module_path in [
-        ("content",  "narai.api.routes.content"),
-        ("sales",    "narai.api.routes.sales"),
-        ("research", "narai.api.routes.research"),
-        ("ops",      "narai.api.routes.ops"),
-        ("creative", "narai.api.routes.creative"),
-        ("kdp",      "narai.api.routes.kdp"),
-        ("voice",    "narai.api.routes.voice"),
-        ("briefing", "narai.api.routes.briefing"),
+        ("content",              "narai.api.routes.content"),
+        ("sales",                "narai.api.routes.sales"),
+        ("research",             "narai.api.routes.research"),
+        ("ops",                  "narai.api.routes.ops"),
+        ("creative",             "narai.api.routes.creative"),
+        ("kdp",                  "narai.api.routes.kdp"),
+        ("voice",                "narai.api.routes.voice"),
+        ("briefing",             "narai.api.routes.briefing"),
+        ("telegram_subscription", "narai.api.routes.telegram_subscription"),
     ]:
         try:
             import importlib as _il

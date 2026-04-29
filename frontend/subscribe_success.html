@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome — WheellsVerse Insider</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: linear-gradient(180deg, #0a0a0f 0%, #1a1a2e 100%);
+      color: #e8e8f0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      max-width: 480px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 40px 32px;
+      text-align: center;
+      backdrop-filter: blur(20px);
+    }
+    .icon { font-size: 56px; margin-bottom: 8px; }
+    h1 { margin: 0 0 12px; font-size: 28px; font-weight: 600; }
+    p { margin: 0 0 20px; color: #aaa; line-height: 1.6; }
+    .btn {
+      display: inline-block;
+      padding: 14px 32px;
+      background: #00d4ff;
+      color: #000;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 16px;
+      transition: transform 0.15s ease, opacity 0.15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); opacity: 0.92; }
+    .btn:disabled, .btn[aria-disabled="true"] {
+      background: #2a2a3a; color: #555; cursor: not-allowed; transform: none;
+    }
+    .small { color: #666; font-size: 13px; margin-top: 24px; }
+    .countdown { font-weight: 600; color: #00d4ff; }
+  </style>
+</head>
+<body>
+  <main class="card" role="main">
+    <div class="icon" aria-hidden="true">🎉</div>
+    <h1>You're in.</h1>
+    <p>
+      Payment received. Tap below to open Telegram —
+      <strong>@Wheellsversebot</strong> will DM you a single-use invite to the
+      private channel (link expires in 1 hour).
+    </p>
+    <a class="btn" id="goto-btn" href="#" rel="noopener" aria-disabled="true">
+      Open Telegram in <span class="countdown" id="countdown">3</span>s…
+    </a>
+    <p class="small" id="manual" style="display:none">
+      Didn't open automatically?
+      <a href="#" id="manual-link" rel="noopener" style="color:#00d4ff">Click here</a>.
+    </p>
+    <p class="small">Need help? Email <a href="mailto:support@wheellsverse.com" style="color:#00d4ff">support@wheellsverse.com</a></p>
+  </main>
+  <script>
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const goto = params.get('goto') || '';
+      // Strict allowlist: only redirect to Telegram deep links.
+      const isTelegramDeepLink = /^https:\/\/t\.me\/[A-Za-z0-9_]+\?start=[A-Za-z0-9_-]+$/.test(goto);
+      const btn = document.getElementById('goto-btn');
+      const manual = document.getElementById('manual');
+      const manualLink = document.getElementById('manual-link');
+      const countdownEl = document.getElementById('countdown');
+
+      if (!isTelegramDeepLink) {
+        btn.textContent = 'Couldn’t parse subscription link';
+        btn.setAttribute('aria-disabled', 'true');
+        btn.removeAttribute('href');
+        manual.style.display = 'block';
+        manualLink.textContent = 'Contact support';
+        manualLink.href = 'mailto:support@wheellsverse.com';
+        return;
+      }
+
+      btn.href = goto;
+      btn.removeAttribute('aria-disabled');
+      manualLink.href = goto;
+      manualLink.textContent = goto;
+      manual.style.display = 'block';
+
+      let n = 3;
+      const tick = () => {
+        n -= 1;
+        if (n <= 0) { window.location.href = goto; return; }
+        countdownEl.textContent = String(n);
+        setTimeout(tick, 1000);
+      };
+      setTimeout(tick, 1000);
+    })();
+  </script>
+</body>
+</html>

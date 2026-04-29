@@ -216,6 +216,21 @@
     <div class="feature"><span class="check">✓</span><span class="text active">Early access to new features</span></div>
   </div>
 
+  <!-- INSIDER — Private Telegram group (recurring) -->
+  <div class="card insider">
+    <div class="tier-icon">📡</div>
+    <div class="tier-name">Insider</div>
+    <div class="tier-price"><sup>$</sup>19<span class="period">/mo</span></div>
+    <p class="tier-desc">Private Telegram channel. Live drops, raw thinking, signal over noise.</p>
+    <button type="button" class="btn-tier" id="insiderBtn" onclick="startTelegramSubscribe()">Join Insider</button>
+    <div class="divider-line"></div>
+    <div class="features-label">Membership perks</div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Private channel access</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Single-use invite, instant on payment</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Cancel anytime, keep access until period end</span></div>
+    <div class="feature"><span class="check">✓</span><span class="text active">Stacks with any plan above</span></div>
+  </div>
+
 </div>
 
 <!-- FAQ -->
@@ -290,6 +305,40 @@
     } catch(e) {
       alert('Something went wrong. Please try again.');
       if (btn) { btn.textContent = plan === 'pro' ? 'Get Pro' : plan === 'max' ? 'Get Max' : 'Get Ultra'; btn.disabled = false; }
+    }
+  }
+
+  async function startTelegramSubscribe() {
+    const btn = document.getElementById('insiderBtn');
+    if (btn) { btn.textContent = 'Loading...'; btn.disabled = true; }
+    try {
+      let email = '';
+      try {
+        const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
+        const sb = createClient('%%SUPABASE_URL%%', '%%SUPABASE_ANON_KEY%%');
+        const { data: { session } } = await sb.auth.getSession();
+        if (session?.user?.email) email = session.user.email;
+      } catch(e) {}
+      if (!email) {
+        email = prompt('Email for receipt?') || '';
+        if (!email) { if (btn) { btn.textContent = 'Join Insider'; btn.disabled = false; } return; }
+      }
+
+      const res = await fetch('/api/v2/narai/telegram/subscription/checkout', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        alert(data.detail || 'Could not start checkout. Please try again.');
+        if (btn) { btn.textContent = 'Join Insider'; btn.disabled = false; }
+      }
+    } catch(e) {
+      alert('Something went wrong. Please try again.');
+      if (btn) { btn.textContent = 'Join Insider'; btn.disabled = false; }
     }
   }
 </script>
