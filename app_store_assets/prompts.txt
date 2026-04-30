@@ -1,0 +1,7 @@
+# App Store asset prompts (generated Sun Apr 26 04:37:50 UTC 2026)
+
+## ICON_PROMPT (1024x1024 hd vivid)
+minimalist app icon design for an AI-powered Shopify product engine, centered glowing 'N' monogram in matte black metal with electric purple and cyan neon accents, premium 3D iconography, dark gradient background, sharp clean edges, suitable for a software icon at any size, high contrast, Apple App Store quality, 8k render, photorealistic
+
+## BANNER_PROMPT (1792x1024 hd vivid)
+premium SaaS product hero banner showing the workflow of an AI product creation engine, on the left a Shopify storefront mockup on a dark surface with multiple polished product cards, on the right a holographic 3D visualization of four product photos materializing from glowing wireframes, subtle 'NarAI' wordmark in matte chrome, electric purple and cyan accent lighting, cinematic depth of field, dark professional background, 16:9 wide composition, premium SaaS marketing aesthetic, 8k render

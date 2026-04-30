@@ -1,0 +1,40 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "0adfba1bd199335d3d98313c02885f68"
+name = "Wheellsverse"
+application_url = "https://app.wheellsverse.com"
+embedded = false
+
+[webhooks]
+api_version = "2026-04"
+
+  [[webhooks.subscriptions]]
+  uri = "/shopify/webhooks/customers_data_request"
+  compliance_topics = [ "customers/data_request" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/shopify/webhooks/customers_redact"
+  compliance_topics = [ "customers/redact" ]
+
+  [[webhooks.subscriptions]]
+  uri = "/shopify/webhooks/shop_redact"
+  compliance_topics = [ "shop/redact" ]
+
+  [[webhooks.subscriptions]]
+  topics = [ "app/uninstalled" ]
+  uri = "/shopify/webhooks/app_uninstalled"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,read_files,read_fulfillments,read_inventory,read_locations,read_orders,read_price_rules,read_products,read_reports,write_draft_orders,write_files,write_fulfillments,write_inventory,write_orders,write_price_rules,write_products"
+optional_scopes = [ ]
+use_legacy_install_flow = false
+
+[auth]
+redirect_urls = [
+  "https://app.wheellsverse.com/api/shopify/callback",
+  "https://app.wheellsverse.com/shopify/callback"
+]
+
+[pos]
+embedded = false
