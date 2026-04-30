@@ -42,7 +42,6 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.json
-!data/narai_memory.json
 data/narai_memory/
 data/narai_products/
 data/narai_skills/
@@ -116,6 +115,22 @@ OVERNIGHT_*.md
 # Bot runtime state
 bots/data/*.json
 data/telegram_offset.txt
+data/narai_memory.json
+narai/data/memory_store/
+
+# Audit artifacts (regenerated each scan; complement to existing pre-commit patterns)
+npm-audit*
+data/shopify_audit_*.md
+
+# Local backups (env, asset registries)
+*.backup.json
+.env.bak.*
+
+# Hook caches (claude-secure-defaults, etc.)
+semgrep-mcp/
+
+# Heavy doc assets — keep .md, drop screenshots
+docs/screenshots/
 
 # Daily-generated blog archive
 frontend/blog/_archive/
