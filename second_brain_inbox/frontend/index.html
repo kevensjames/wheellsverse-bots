@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Toodle - Your Second Brain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0a0a0b;
+            --surface: #141416;
+            --surface-hover: #1c1c1f;
+            --border: #27272a;
+            --text: #fafafa;
+            --text-dim: #a1a1aa;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --task: #f97316;
+            --idea: #a855f7;
+            --reminder: #06b6d4;
+            --note: #6b7280;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 640px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--text) 0%, var(--text-dim) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            color: var(--text-dim);
+            font-size: 15px;
+        }
+
+        .input-section {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+
+        textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 16px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            min-height: 120px;
+        }
+
+        textarea::placeholder {
+            color: var(--text-dim);
+        }
+
+        .input-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        button.secondary {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+
+        button.secondary:hover {
+            background: var(--border);
+        }
+
+        .digest {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .digest-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent);
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .digest-text {
+            font-size: 14px;
+            color: var(--text-dim);
+        }
+
+        .items-section h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 16px;
+        }
+
+        .items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .item {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            transition: all 0.2s;
+        }
+
+        .item:hover {
+            border-color: var(--accent);
+            transform: translateX(4px);
+        }
+
+        .item-type {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .item-content {
+            flex: 1;
+        }
+
+        .item-text {
+            font-size: 15px;
+            margin-bottom: 4px;
+        }
+
+        .item-meta {
+            font-size: 13px;
+            color: var(--text-dim);
+        }
+
+        .item-type-badge {
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .item-type-badge.task { background: rgba(249, 115, 22, 0.2); color: var(--task); }
+        .item-type-badge.idea { background: rgba(168, 85, 247, 0.2); color: var(--idea); }
+        .item-type-badge.reminder { background: rgba(6, 182, 212, 0.2); color: var(--reminder); }
+        .item-type-badge.note { background: rgba(107, 114, 128, 0.2); color: var(--note); }
+        .item-type-badge.event { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+
+        .complete-btn {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        .complete-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px 24px;
+            color: var(--text-dim);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 4px;
+            background: var(--surface);
+            padding: 4px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 10px;
+            background: transparent;
+            color: var(--text-dim);
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab.active {
+            background: var(--surface-hover);
+            color: var(--text);
+        }
+
+        .hidden { display: none; }
+
+        .search-bar {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .search-bar input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 14px;
+            outline: none;
+        }
+
+        .search-bar input::placeholder {
+            color: var(--text-dim);
+        }
+
+        .voice-btn {
+            background: var(--surface-hover);
+            border: none;
+            padding: 10px;
+            border-radius: 50%;
+        }
+
+        .voice-btn.recording {
+            background: #ef4444;
+            animation: pulse-rec 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse-rec {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Toodle</h1>
+            <p class="tagline">Your AI Second Brain</p>
+        </header>
+
+        <div class="input-section">
+            <textarea id="brainDump" placeholder="What&#39;s on your mind?&#10;&#10;Example: Need to call bank tomorrow, have idea for clothing brand, don&#39;t forget gym at 6pm"></textarea>
+            <div class="input-actions">
+                <button id="submitBtn">
+                    <span>✨</span> Organize
+                </button>
+                <button id="voiceBtn" class="secondary voice-btn">
+                    <span>🎤</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="digest" class="digest hidden">
+            <div class="digest-dot"></div>
+            <span id="digestText" class="digest-text"></span>
+        </div>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="today">Today</button>
+            <button class="tab" data-tab="tasks">Tasks</button>
+            <button class="tab" data-tab="ideas">Ideas</button>
+            <button class="tab" data-tab="search">Search</button>
+        </div>
+
+        <div id="searchTab" class="search-bar hidden">
+            <span>🔍</span>
+            <input type="text" id="searchInput" placeholder="Search your mind... e.g., 'business idea from last week'">
+        </div>
+
+        <div class="items-section">
+            <div id="itemsList" class="items-list">
+                <div class="empty-state">
+                    <p>Your mind is clear.</p>
+                    <p style="margin-top:8px;font-size:13px;">Dump something above to get started.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = window.location.origin + '/api/inbox';
+        let recognition = null;
+        let currentTab = 'today';
+
+        const iconMap = {
+            task: '✅',
+            idea: '💡',
+            reminder: '⏰',
+            event: '📅',
+            note: '📝'
+        };
+
+        initVoice();
+        loadItems();
+
+        document.getElementById('submitBtn').addEventListener('click', handleSubmit);
+        document.getElementById('brainDump').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && e.ctrlKey) handleSubmit();
+        });
+
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => switchTab(tab.dataset.tab));
+        });
+
+        document.getElementById('searchInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleSearch();
+        });
+
+        document.getElementById('voiceBtn').addEventListener('click', toggleVoice);
+
+        async function handleSubmit() {
+            const text = document.getElementById('brainDump').value.trim();
+            if (!text) return;
+
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').innerHTML = '<span>⏳</span> Organizing...';
+
+            try {
+                const res = await fetch(API_URL + '/brain-dump', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json();
+
+                document.getElementById('brainDump').value = '';
+                
+                if (data.digest) {
+                    document.getElementById('digestText').textContent = data.digest;
+                    document.getElementById('digest').classList.remove('hidden');
+                }
+
+                renderItems(data.items);
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('submitBtn').innerHTML = '<span>✨</span> Organize';
+            }
+        }
+
+        async function loadItems() {
+            try {
+                const res = await fetch(API_URL + '/digest');
+                const data = await res.json();
+                const allItems = [...data.tasks, ...data.reminders, ...data.ideas];
+                renderItems(allItems);
+            } catch (err) {
+                console.log('No items yet');
+            }
+        }
+
+        async function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+
+            document.getElementById('searchTab').classList.toggle('hidden', tab !== 'search');
+
+            const res = await fetch(API_URL + `/items?item_type=${tab === 'today' ? '' : tab}&limit=20`);
+            const items = await res.json();
+            renderItems(tab === 'today' ? items.filter(i => i.item_type !== 'idea') : items);
+        }
+
+        async function handleSearch() {
+            const q = document.getElementById('searchInput').value.trim();
+            if (!q) return;
+
+            const res = await fetch(API_URL + `/search?q=${encodeURIComponent(q)}`);
+            const items = await res.json();
+            renderItems(items);
+        }
+
+        function renderItems(items) {
+            const list = document.getElementById('itemsList');
+            
+            if (!items.length) {
+                list.innerHTML = '<div class="empty-state"><p>Nothing here yet.</p></div>';
+                return;
+            }
+
+            list.innerHTML = items.map(item => `
+                <div class="item">
+                    <span class="item-type">${iconMap[item.item_type] || '📝'}</span>
+                    <div class="item-content">
+                        <div class="item-text">${escapeHtml(item.content)}</div>
+                        <div class="item-meta">
+                            <span class="item-type-badge ${item.item_type}">${item.item_type}</span>
+                            ${item.due_date ? ' · ' + new Date(item.due_date).toLocaleString() : ''}
+                        </div>
+                    </div>
+                    ${!item.completed ? `<button class="complete-btn" onclick="completeItem(${item.id})">✓</button>` : ''}
+                </div>
+            `).join('');
+        }
+
+        async function completeItem(id) {
+            await fetch(API_URL + `/items/${id}/complete`, { method: 'POST' });
+            loadItems();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function initVoice() {
+            if (!('webkitSpeechRecognition' in window)) return;
+            
+            recognition = new webkitSpeechRecognition();
+            recognition.continuous = false;
+            recognition.interimResults = false;
+
+            recognition.onresult = (event) => {
+                const transcript = event.results[0][0].transcript;
+                document.getElementById('brainDump').value += (document.getElementById('brainDump').value ? ' ' : '') + transcript;
+            };
+
+            recognition.onend = () => {
+                document.getElementById('voiceBtn').classList.remove('recording');
+            };
+        }
+
+        function toggleVoice() {
+            if (!recognition) {
+                alert('Voice not supported in this browser');
+                return;
+            }
+
+            if (document.getElementById('voiceBtn').classList.contains('recording')) {
+                recognition.stop();
+            } else {
+                recognition.start();
+                document.getElementById('voiceBtn').classList.add('recording');
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Second Brain Inbox - Your AI Brain</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        :root {
+            --bg: #0a0a0b;
+            --surface: #141416;
+            --surface-hover: #1c1c1f;
+            --border: #27272a;
+            --text: #fafafa;
+            --text-dim: #a1a1aa;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+        }
+        body {
+            font-family: 'Inter', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.5;
+        }
+        .container { max-width: 600px; margin: 0 auto; padding: 24px 16px; }
+        
+        header { text-align: center; margin-bottom: 40px; }
+        h1 { font-size: 28px; font-weight: 700; margin-bottom: 8px; }
+        .tagline { color: var(--text-dim); font-size: 15px; }
+        
+        .input-section {
+            background: var(--surface);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        textarea {
+            width: 100%;
+            background: transparent;
+            border: none;
+            color: var(--text);
+            font-size: 16px;
+            font-family: inherit;
+            resize: none;
+            outline: none;
+            min-height: 100px;
+        }
+        textarea::placeholder { color: var(--text-dim); }
+        
+        .input-actions { display: flex; gap: 12px; margin-top: 16px; }
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover { background: var(--accent-hover); }
+        
+        .digest {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        .digest-text { font-size: 14px; color: var(--text-dim); }
+        
+        .item {
+            background: var(--surface);
+            border-radius: 12px;
+            padding: 16px 20px;
+            border: 1px solid var(--border);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        .item-type { font-size: 18px; }
+        .item-content { flex: 1; }
+        .item-text { font-size: 15px; margin-bottom: 4px; }
+        .item-meta { font-size: 13px; color: var(--text-dim); }
+        
+        .badge {
+            display: inline-block;
+            font-size: 11px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .badge.task { background: rgba(249, 115, 22, 0.2); color: #f97316; }
+        .badge.idea { background: rgba(168, 85, 247, 0.2); color: #a855f7; }
+        .badge.reminder { background: rgba(6, 182, 212, 0.2); color: #06b6d4; }
+        
+        .empty-state { text-align: center; padding: 48px 24px; color: var(--text-dim); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Toodle</h1>
+            <p class="tagline">Your thoughts, organized.</p>
+        </header>
+        
+        <div class="input-section">
+            <textarea id="brainDump" placeholder="What's on your mind?&#10;&#10;Example: Call bank tomorrow, idea for new project, dont forget gym at 6pm"></textarea>
+            <div class="input-actions">
+                <button id="submitBtn" onclick="handleSubmit()">✨ Organize</button>
+            </div>
+        </div>
+        
+        <div id="digest" class="digest" style="display: none;">
+            <span id="digestText" class="digest-text"></span>
+        </div>
+        
+        <div id="itemsList">
+            <div class="empty-state">Your mind is clear. Dump something above to get started.</div>
+        </div>
+    </div>
+    
+    <script>
+        const API_URL = window.location.origin + '/api/inbox';
+        
+        const iconMap = { task: '✅', idea: '💡', reminder: '⏰', note: '📝' };
+        
+        loadItems();
+        
+        async function handleSubmit() {
+            const text = document.getElementById('brainDump').value.trim();
+            if (!text) return;
+            
+            document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').innerText = 'Organizing...';
+            
+            try {
+                const res = await fetch(API_URL + '/brain-dump', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await res.json();
+                
+                document.getElementById('brainDump').value = '';
+                
+                if (data.digest) {
+                    document.getElementById('digestText').textContent = data.digest;
+                    document.getElementById('digest').style.display = 'block';
+                }
+                
+                renderItems(data.items);
+            } catch (err) {
+                alert('Error: ' + err.message);
+            } finally {
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('submitBtn').innerText = '✨ Organize';
+            }
+        }
+        
+        async function loadItems() {
+            try {
+                const res = await fetch(API_URL + '/digest');
+                const data = await res.json();
+                const allItems = [...data.tasks, ...data.reminders, ...data.ideas];
+                renderItems(allItems);
+            } catch (err) {
+                console.log('No items yet');
+            }
+        }
+        
+        function renderItems(items) {
+            const list = document.getElementById('itemsList');
+            if (!items.length) {
+                list.innerHTML = '<div class="empty-state">Your mind is clear.</div>';
+                return;
+            }
+            
+            list.innerHTML = items.map(item => `
+                <div class="item">
+                    <span class="item-type">${iconMap[item.item_type] || '📝'}</span>
+                    <div class="item-content">
+                        <div class="item-text">${item.content}</div>
+                        <div class="item-meta">
+                            <span class="badge ${item.item_type}">${item.item_type}</span>
+                            ${item.due_date ? new Date(item.due_date).toLocaleDateString() : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>
