@@ -8658,6 +8658,38 @@ async def stripe_webhook(request: Request):
     except Exception as _ts_err:
         _add_log(f"telegram_subscription dispatch failed: {_ts_err}", "WARNING")
 
+    # Discord paid-role subscription bridge — react to events tagged with
+    # metadata.discord_pairing_token. Grants/revokes a guild role.
+    try:
+        from narai.integrations import discord_subscription as _ds
+        if etype == "checkout.session.completed":
+            row = _ds.handle_checkout_completed(data)
+            if row and row.get("discord_guild_id"):
+                role_id = os.getenv("DISCORD_PAID_ROLE_ID", "")
+                if role_id:
+                    granted = await _ds.grant_role(
+                        row["discord_guild_id"], row["discord_user_id"], role_id
+                    )
+                    if granted:
+                        _add_log(
+                            f"Discord role granted: user={row['discord_user_id']}", "INFO"
+                        )
+        elif etype == "customer.subscription.updated":
+            _ds.handle_subscription_updated(data)
+        elif etype == "customer.subscription.deleted":
+            sub_id = data.get("id", "")
+            row = _ds.revoke_for_subscription(sub_id)
+            role_id = os.getenv("DISCORD_PAID_ROLE_ID", "")
+            if row and row.get("discord_guild_id") and role_id:
+                await _ds.revoke_role(
+                    row["discord_guild_id"], row["discord_user_id"], role_id
+                )
+                _add_log(
+                    f"Discord sub revoked + role removed: user={row['discord_user_id']}", "INFO"
+                )
+    except Exception as _ds_err:
+        _add_log(f"discord_subscription dispatch failed: {_ds_err}", "WARNING")
+
     # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
     if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
         try:
@@ -13381,6 +13413,18 @@ if _v2_auth_loaded:
         logger.info("Insider promo scheduler hook registered")
     except Exception as _e:
         logger.warning(f"Insider promo scheduler not registered: {_e}")
+
+    # Discord bot — runs as a background asyncio task in the FastAPI loop.
+    # Skips itself if DISCORD_BOT_TOKEN is unset, so dev/staging just no-op.
+    try:
+        from core.discord_bot import start_bot as _discord_start
+        import asyncio as _asyncio_disc
+        async def _spawn_discord():
+            _asyncio_disc.create_task(_discord_start())
+        app.add_event_handler("startup", _spawn_discord)
+        logger.info("Discord bot startup hook registered")
+    except Exception as _e:
+        logger.warning(f"Discord bot startup not registered: {_e}")
 
 
 # ── NarAI Marketing Autopilot ─────────────────────────────────────────────────

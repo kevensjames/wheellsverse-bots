@@ -250,6 +250,79 @@ async def start_bot():
         except Exception as e:
             await interaction.followup.send(f"Error: {e}")
 
+    @_client.tree.command(name="help", description="What NarAI can do")
+    async def slash_help(interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🧠 NarAI",
+            description="Ask me anything, or use a slash command:",
+            color=0x00d4ff,
+        )
+        embed.add_field(name="/ask <question>", value="Ask NarAI anything", inline=False)
+        embed.add_field(name="/subscribe", value="Join Insider — $19/mo, AI signals + private channel", inline=False)
+        embed.add_field(name="/bots", value="List running WheellsVerse bots", inline=False)
+        embed.add_field(name="/generate <prompt>", value="Generate Python code", inline=False)
+        embed.add_field(name="/help", value="This message", inline=False)
+        embed.set_footer(text="You can also @mention NarAI in any channel.")
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @_client.tree.command(name="subscribe", description="Subscribe to Insider — daily AI signals + private channel ($19/mo)")
+    async def slash_subscribe(interaction: discord.Interaction):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            from narai.integrations import discord_subscription as ds
+            price_id = os.getenv("STRIPE_PRICE_TG_GROUP", "")
+            stripe_key = os.getenv("STRIPE_SECRET_KEY", "")
+            base_url = os.getenv("APP_BASE_URL", "https://app.wheellsverse.com").rstrip("/")
+            if not price_id or not stripe_key:
+                await interaction.followup.send(
+                    "Subscription system isn't configured yet. Please contact support.",
+                    ephemeral=True,
+                )
+                return
+
+            user_id = str(interaction.user.id)
+            guild_id = str(interaction.guild_id) if interaction.guild_id else None
+            token = ds.new_pairing_token(discord_user_id=user_id, discord_guild_id=guild_id)
+
+            import stripe as _stripe
+            _stripe.api_key = stripe_key
+            session = _stripe.checkout.Session.create(
+                mode="subscription",
+                line_items=[{"price": price_id, "quantity": 1}],
+                success_url=f"{base_url}/subscribe/success?goto=https://discord.com/channels/{guild_id or '@me'}",
+                cancel_url=f"{base_url}/subscribe/cancelled",
+                metadata={
+                    "discord_pairing_token": token,
+                    "discord_user_id": user_id,
+                    "discord_guild_id": guild_id or "",
+                    "product": "discord_role",
+                },
+                subscription_data={
+                    "metadata": {
+                        "discord_pairing_token": token,
+                        "product": "discord_role",
+                    },
+                },
+                allow_promotion_codes=True,
+            )
+            ds.attach_session(token, session.id)
+
+            embed = discord.Embed(
+                title="📡 Insider — $19/mo",
+                description=(
+                    "Daily AI-powered stock + crypto signals.\n"
+                    "Cancel any time. No contracts. Pure alpha."
+                ),
+                color=0x00d4ff,
+                url=session.url,
+            )
+            embed.add_field(name="✓ Subscribe here", value=f"[Open checkout]({session.url})", inline=False)
+            embed.set_footer(text="After payment, your role is granted automatically.")
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.exception("subscribe slash failed")
+            await interaction.followup.send(f"Couldn't start checkout: {e}", ephemeral=True)
+
     # Run bot
     token = os.getenv("DISCORD_BOT_TOKEN")
     _started = True

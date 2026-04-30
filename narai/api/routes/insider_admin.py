@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Iterator, Optional
 
 from fastapi import APIRouter, Header, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 logger = logging.getLogger("narai.insider_admin")
 
@@ -72,7 +72,7 @@ _init()
 
 
 class LeadRequest(BaseModel):
-    email: EmailStr
+    email: str  # frontend pre-validates with regex; we just store + forward
     source: Optional[str] = None
 
 

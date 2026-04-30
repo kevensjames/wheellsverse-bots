@@ -5,7 +5,7 @@ import logging
 import os
 
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 
 from narai.integrations import telegram_subscription as ts
 
@@ -15,7 +15,7 @@ rt = APIRouter(prefix="/telegram/subscription", tags=["telegram-subscription"])
 
 
 class CheckoutRequest(BaseModel):
-    email: EmailStr
+    email: str  # validated downstream by Stripe; frontend pre-validates with regex
 
 
 class CheckoutResponse(BaseModel):

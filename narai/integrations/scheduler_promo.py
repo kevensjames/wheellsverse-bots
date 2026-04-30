@@ -136,6 +136,159 @@ async def _send_weekly_review() -> None:
         logger.exception(f"weekly review failed: {e}")
 
 
+# ── Discord delivery ─────────────────────────────────────────────────────────
+
+
+async def _post_to_discord(channel_id: str, content: str) -> bool:
+    """Send a message to a Discord channel via the Bot API. <2000 chars per msg."""
+    try:
+        import httpx
+    except ImportError:
+        logger.warning("httpx not installed — discord post skipped")
+        return False
+
+    token = os.environ.get("DISCORD_BOT_TOKEN", "")
+    if not token or not channel_id:
+        return False
+
+    headers = {
+        "Authorization": f"Bot {token}",
+        "User-Agent": "WheellsVerse (https://app.wheellsverse.com, 1.0)",
+    }
+    url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+
+    # Discord caps content at 2000 chars. Split if longer.
+    chunks = [content[i:i + 1900] for i in range(0, len(content), 1900)] or [content]
+    ok_all = True
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            for chunk in chunks:
+                r = await client.post(url, json={"content": chunk}, headers=headers)
+                if r.status_code not in (200, 201):
+                    logger.warning(
+                        f"discord post failed: status={r.status_code} body={r.text[:200]}"
+                    )
+                    ok_all = False
+                    break
+        if ok_all:
+            logger.info(f"discord posted: chan={channel_id} chars={len(content)}")
+        return ok_all
+    except Exception as e:
+        logger.exception(f"discord post raised: {e}")
+        return False
+
+
+def _discord_status_channel() -> str:
+    return os.environ.get(
+        "DISCORD_STATUS_CHANNEL_ID",
+        os.environ.get("DISCORD_GENERAL_CHANNEL_ID", ""),
+    )
+
+
+def _discord_content_channel() -> str:
+    return os.environ.get(
+        "DISCORD_CONTENT_CHANNEL_ID",
+        os.environ.get("DISCORD_GENERAL_CHANNEL_ID", ""),
+    )
+
+
+def _strip_html(text: str) -> str:
+    """Discord doesn't parse Telegram HTML. Strip the tags so signals look clean."""
+    import re
+    text = re.sub(r"<b>(.*?)</b>", r"**\1**", text)
+    text = re.sub(r"<i>(.*?)</i>", r"_\1_", text)
+    text = re.sub(r"<code>(.*?)</code>", r"`\1`", text)
+    text = re.sub(r"<[^>]+>", "", text)  # drop anything else
+    return text
+
+
+async def _send_discord_morning_briefing() -> None:
+    """Mirror the TG morning briefing into the Discord content channel."""
+    try:
+        import asyncio
+        from narai.integrations.subscriber_content import morning_briefing
+        text = _strip_html(await asyncio.to_thread(morning_briefing))
+        chan = _discord_content_channel()
+        if chan:
+            await _post_to_discord(chan, text)
+    except Exception as e:
+        logger.exception(f"discord morning briefing failed: {e}")
+
+
+async def _send_discord_daily_signals() -> None:
+    try:
+        import asyncio
+        from narai.integrations.subscriber_content import daily_signals
+        text = _strip_html(await asyncio.to_thread(daily_signals))
+        chan = _discord_content_channel()
+        if chan:
+            await _post_to_discord(chan, text)
+    except Exception as e:
+        logger.exception(f"discord daily signals failed: {e}")
+
+
+async def _send_discord_weekly_review() -> None:
+    try:
+        import asyncio
+        from narai.integrations.subscriber_content import weekly_review
+        text = _strip_html(await asyncio.to_thread(weekly_review))
+        chan = _discord_content_channel()
+        if chan:
+            await _post_to_discord(chan, text)
+    except Exception as e:
+        logger.exception(f"discord weekly review failed: {e}")
+
+
+async def _send_discord_fleet_status() -> None:
+    """Bot-fleet status digest: which bots are running, today's revenue, etc.
+    Best-effort — any subsystem that's missing degrades to a "—" line.
+    """
+    chan = _discord_status_channel()
+    if not chan:
+        return
+    lines: list[str] = ["**🤖 WheellsVerse Bot Fleet — hourly status**", ""]
+
+    try:
+        from core.bot_manager import list_bots
+        running = list_bots()
+        running_count = sum(1 for b in running if b.get("status") == "running")
+        lines.append(f"  Bots:     {running_count}/{len(running)} running")
+    except Exception as e:
+        lines.append("  Bots:     — (manager unavailable)")
+        logger.warning(f"fleet status: bots failed: {e}")
+
+    try:
+        from core.click_tracker import get_stats
+        stats = get_stats()
+        lines.append(
+            f"  Affiliate: ${stats.get('total_revenue_usd', 0.0):.2f} · "
+            f"{stats.get('total_clicks', 0)} clicks (lifetime)"
+        )
+    except Exception as e:
+        lines.append("  Affiliate: —")
+        logger.warning(f"fleet status: clicks failed: {e}")
+
+    try:
+        from narai.integrations import telegram_subscription as ts
+        active_tg = len(ts.list_active_subscribers())
+        lines.append(f"  TG subs:  {active_tg} active")
+    except Exception:
+        pass
+
+    try:
+        from narai.integrations import discord_subscription as ds
+        active_dc = len(ds.list_active_subscribers())
+        lines.append(f"  Discord:  {active_dc} active")
+    except Exception:
+        pass
+
+    from datetime import datetime
+    lines.append("")
+    lines.append(f"_as of {datetime.utcnow().strftime('%Y-%m-%d %H:%M UTC')}_")
+
+    await _post_to_discord(chan, "\n".join(lines))
+
+
 def _add_job(scheduler: AsyncIOScheduler, env_enabled: str, env_cron: str,
              default_cron: str, callback, job_id: str, tz: str) -> None:
     """Add a cron job if its enabled-flag is on. Falls back to default_cron
@@ -191,6 +344,28 @@ def start_promo_scheduler() -> None:
     _add_job(_scheduler, "NARAI_WEEKLY_REVIEW_ENABLED",
              "NARAI_WEEKLY_REVIEW_CRON", "0 18 * * 0",
              _send_weekly_review, "insider_weekly_review", tz)
+
+    # Discord-side jobs (only register if a Discord channel is configured)
+    if os.environ.get("DISCORD_BOT_TOKEN"):
+        if _discord_content_channel():
+            _add_job(_scheduler, "NARAI_DISCORD_BRIEFING_ENABLED",
+                     "NARAI_DISCORD_BRIEFING_CRON", "5 7 * * 1-5",
+                     _send_discord_morning_briefing, "discord_morning_briefing", tz)
+            _add_job(_scheduler, "NARAI_DISCORD_SIGNALS_ENABLED",
+                     "NARAI_DISCORD_SIGNALS_CRON", "5 12 * * 1-5",
+                     _send_discord_daily_signals, "discord_midday_signals", tz)
+            _add_job(_scheduler, "NARAI_DISCORD_WEEKLY_ENABLED",
+                     "NARAI_DISCORD_WEEKLY_CRON", "5 18 * * 0",
+                     _send_discord_weekly_review, "discord_weekly_review", tz)
+        else:
+            logger.info("Discord content channel unset — content jobs skipped")
+
+        if _discord_status_channel():
+            _add_job(_scheduler, "NARAI_DISCORD_STATUS_ENABLED",
+                     "NARAI_DISCORD_STATUS_CRON", "0 * * * *",  # hourly
+                     _send_discord_fleet_status, "discord_fleet_status", tz)
+        else:
+            logger.info("Discord status channel unset — fleet status job skipped")
 
     _scheduler.start()
     logger.info(f"insider scheduler started: tz={tz}, jobs={len(_scheduler.get_jobs())}")
