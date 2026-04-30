@@ -1,18 +1,32 @@
-<header class="site-header">
-  <a class="logo" href="{{ routes.root_url }}">
-    {%- if section.settings.logo != blank -%}
-      {{ section.settings.logo | image_url: width: 200 | image_tag: alt: shop.name, loading: 'eager' }}
-    {%- else -%}
-      {{ section.settings.logo_text | default: shop.name }}
-    {%- endif -%}
-  </a>
-  <nav>
-    {%- comment -%}
-      Detect whether the Shopify menu is just the default placeholders
-      (Home / Catalog / Contact). If so, override with our curated nav.
-      If the merchant has built a real menu in Online Store → Navigation,
-      we'll respect that.
-    {%- endcomment -%}
+<header class="site-header" data-sticky="true">
+  <div class="header-row">
+    <a class="logo" href="{{ routes.root_url }}">
+      {%- if section.settings.logo != blank -%}
+        {{ section.settings.logo | image_url: width: 200 | image_tag: alt: shop.name, loading: 'eager' }}
+      {%- else -%}
+        {{ section.settings.logo_text | default: shop.name }}
+      {%- endif -%}
+    </a>
+
+    <form class="header-search" action="{{ routes.search_url }}" method="get" role="search">
+      <input type="search" name="q" placeholder="Search products, books, AI tools…" autocomplete="off" aria-label="Search the store">
+      <button type="submit" aria-label="Search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+    </form>
+
+    <div class="header-actions">
+      <a class="header-account" href="{{ routes.account_url }}" aria-label="Account">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>
+        <span>Account</span>
+      </a>
+      <a class="cart-link" href="{{ routes.cart_url }}" aria-label="Cart">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><path d="M3 3h2l2.4 12a2 2 0 0 0 2 1.5h8.6a2 2 0 0 0 2-1.5L22 7H6"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>
+        <span>Cart · {{ cart.item_count }}</span>
+      </a>
+    </div>
+  </div>
+  <nav class="header-nav">
     {%- assign menu_links = section.settings.menu.links -%}
     {%- assign default_only = false -%}
     {%- if menu_links.size == 0 -%}
@@ -28,7 +42,7 @@
     {%- endif -%}
 
     {%- if default_only -%}
-      <a href="/collections/viral" style="color:#ff5b6e">🔥 Viral</a>
+      <a href="/collections/viral" class="nav-viral">🔥 Viral</a>
       <a href="/collections/ai-tools-templates">AI Tools</a>
       <a href="/collections/trading-intelligence">Trading</a>
       <a href="/collections/creators-toolkit">Creator Kit</a>
@@ -40,8 +54,31 @@
       {%- endfor -%}
     {%- endif -%}
   </nav>
-  <a class="cart-link" href="{{ routes.cart_url }}">{{ 'accessibility.cart' | t }} · {{ cart.item_count }}</a>
 </header>
+<style>
+  .site-header { position: sticky; top: 0; z-index: 100; background: rgba(4, 8, 22, 0.92); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(34, 211, 238, 0.1); }
+  .header-row { display: flex; align-items: center; gap: 18px; padding: 14px 28px; max-width: 1400px; margin: 0 auto; }
+  .header-search { flex: 1; max-width: 640px; display: flex; gap: 0; position: relative; }
+  .header-search input { flex: 1; background: rgba(15, 23, 42, .65); border: 1px solid rgba(34, 211, 238, .18); border-right: 0; border-radius: 10px 0 0 10px; padding: 11px 16px; color: var(--text); font-family: inherit; font-size: 14px; }
+  .header-search input::placeholder { color: var(--muted); }
+  .header-search input:focus { outline: 0; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(34, 211, 238, .12); }
+  .header-search button { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: var(--bg); border: 0; border-radius: 0 10px 10px 0; padding: 0 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .header-actions { display: flex; gap: 14px; align-items: center; }
+  .header-account, .cart-link { display: flex; gap: 6px; align-items: center; color: var(--text); text-decoration: none; padding: 8px 14px; border: 1px solid rgba(34, 211, 238, .18); border-radius: 999px; font-size: 12px; letter-spacing: .5px; transition: all .15s; }
+  .header-account:hover, .cart-link:hover { border-color: var(--accent); color: var(--accent); }
+  .header-account span, .cart-link span { white-space: nowrap; }
+  .header-nav { display: flex; gap: 22px; padding: 8px 28px 14px; max-width: 1400px; margin: 0 auto; overflow-x: auto; }
+  .header-nav::-webkit-scrollbar { height: 0; }
+  .header-nav a { color: var(--muted); text-decoration: none; font-size: 13px; letter-spacing: .5px; white-space: nowrap; transition: color .15s; }
+  .header-nav a:hover { color: var(--accent); }
+  .header-nav a.nav-viral { color: #ff5b6e; font-weight: 600; }
+  .header-nav a.nav-viral:hover { color: #ff8a99; }
+  @media (max-width: 720px) {
+    .header-row { gap: 10px; padding: 10px 14px; flex-wrap: wrap; }
+    .header-search { order: 3; flex-basis: 100%; max-width: none; }
+    .header-account span { display: none; }
+  }
+</style>
 {% schema %}
 {
   "name": "Header",

@@ -1,19 +1,137 @@
-<div class="section-title">CATALOG</div>
-<h2 class="section-h2">{{ collection.title }}</h2>
-{%- if collection.description != blank -%}<div class="hero" style="padding:20px 24px"><p>{{ collection.description }}</p></div>{%- endif -%}
-<div class="product-grid">
-  {%- paginate collection.products by 24 -%}
-    {%- for product in collection.products -%}
-      {%- render 'card-product', product: product -%}
-    {%- endfor -%}
-    {%- if paginate.pages > 1 -%}
-      <div style="grid-column:1/-1;text-align:center;margin-top:20px">
-        {%- if paginate.previous -%}<a class="btn-ghost" href="{{ paginate.previous.url }}">{{ 'general.pagination.previous' | t }}</a>{%- endif -%}
-        {%- if paginate.next -%}<a class="btn-ghost" href="{{ paginate.next.url }}">{{ 'general.pagination.next' | t }}</a>{%- endif -%}
-      </div>
+{%- render 'breadcrumbs' -%}
+
+<div class="col-wrap">
+  <header class="col-header">
+    <div class="col-eyebrow">CATALOG</div>
+    <h1 class="col-h">{{ collection.title }}</h1>
+    {%- if collection.description != blank -%}
+      <p class="col-desc">{{ collection.description }}</p>
     {%- endif -%}
-  {%- endpaginate -%}
+    <div class="col-meta">{{ collection.products_count }} {% if collection.products_count == 1 %}product{% else %}products{% endif %}</div>
+  </header>
+
+  <div class="col-toolbar">
+    <button class="filter-toggle" type="button" aria-expanded="false" aria-controls="col-filters">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 6h18M6 12h12M10 18h4"/></svg>
+      Filters
+    </button>
+    <form class="col-sort" method="get">
+      <label for="sort_by">Sort by</label>
+      <select id="sort_by" name="sort_by" onchange="this.form.submit()">
+        {%- assign sorts = 'manual:Featured|best-selling:Best selling|created-descending:Newest|price-ascending:Price ↑|price-descending:Price ↓|title-ascending:A-Z|title-descending:Z-A' | split: '|' -%}
+        {%- for opt in sorts -%}
+          {%- assign parts = opt | split: ':' -%}
+          <option value="{{ parts[0] }}" {% if collection.sort_by == parts[0] %}selected{% endif %}>{{ parts[1] }}</option>
+        {%- endfor -%}
+      </select>
+    </form>
+  </div>
+
+  <div class="col-grid-wrap">
+    <aside class="col-filters" id="col-filters" hidden>
+      <div class="filter-group">
+        <h3>Price</h3>
+        <ul>
+          <li><a href="?filter.v.price.gte=0&filter.v.price.lte=10">Under $10</a></li>
+          <li><a href="?filter.v.price.gte=10&filter.v.price.lte=25">$10 - $25</a></li>
+          <li><a href="?filter.v.price.gte=25&filter.v.price.lte=50">$25 - $50</a></li>
+          <li><a href="?filter.v.price.gte=50">$50+</a></li>
+        </ul>
+      </div>
+      <div class="filter-group">
+        <h3>Type</h3>
+        <ul>
+          {%- assign types = collection.products | map: 'type' | uniq -%}
+          {%- for t in types -%}
+            {%- if t != blank -%}
+              <li><a href="?filter.p.product_type={{ t | url_encode }}">{{ t }}</a></li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ul>
+      </div>
+      <div class="filter-group">
+        <h3>Vendor</h3>
+        <ul>
+          {%- assign vendors = collection.products | map: 'vendor' | uniq -%}
+          {%- for v in vendors -%}
+            {%- if v != blank -%}
+              <li><a href="?filter.p.vendor={{ v | url_encode }}">{{ v }}</a></li>
+            {%- endif -%}
+          {%- endfor -%}
+        </ul>
+      </div>
+      {%- if collection.url -%}
+        <a href="{{ collection.url }}" class="filter-clear">Clear filters</a>
+      {%- endif -%}
+    </aside>
+
+    <div class="col-products">
+      {%- paginate collection.products by 24 -%}
+        <div class="product-grid">
+          {%- for product in collection.products -%}
+            {%- render 'card-product', product: product -%}
+          {%- else -%}
+            <div class="col-empty">
+              <p>No products match these filters.</p>
+              <a href="{{ collection.url }}" class="btn-ghost">Clear filters</a>
+            </div>
+          {%- endfor -%}
+        </div>
+        {%- if paginate.pages > 1 -%}
+          <div class="pagination">
+            {%- if paginate.previous -%}<a class="btn-ghost" href="{{ paginate.previous.url }}">‹ Prev</a>{%- endif -%}
+            <span class="pagination-info">Page {{ paginate.current_page }} / {{ paginate.pages }}</span>
+            {%- if paginate.next -%}<a class="btn-ghost" href="{{ paginate.next.url }}">Next ›</a>{%- endif -%}
+          </div>
+        {%- endif -%}
+      {%- endpaginate -%}
+    </div>
+  </div>
 </div>
+
+<style>
+  .col-wrap { max-width: 1320px; margin: 30px auto 60px; padding: 0 24px; }
+  .col-header { padding: 30px 0 20px; border-bottom: 1px solid rgba(34, 211, 238, 0.1); margin-bottom: 22px; }
+  .col-eyebrow { font-family: Orbitron, sans-serif; font-size: 11px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; margin-bottom: 6px; }
+  .col-h { font-family: Orbitron, sans-serif; font-size: clamp(28px, 4vw, 44px); margin: 0 0 8px; letter-spacing: -.5px; }
+  .col-desc { color: var(--muted); margin: 0 0 12px; max-width: 720px; line-height: 1.55; }
+  .col-meta { color: var(--accent); font-family: Orbitron, sans-serif; font-size: 12px; letter-spacing: 1.5px; }
+  .col-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; gap: 12px; flex-wrap: wrap; }
+  .filter-toggle { display: inline-flex; align-items: center; gap: 6px; background: rgba(15, 23, 42, .65); color: var(--text); border: 1px solid rgba(34, 211, 238, .2); border-radius: 8px; padding: 8px 14px; font-family: inherit; font-size: 13px; cursor: pointer; }
+  .filter-toggle:hover { border-color: var(--accent); }
+  .col-sort { display: flex; align-items: center; gap: 8px; }
+  .col-sort label { color: var(--muted); font-size: 12px; letter-spacing: .5px; text-transform: uppercase; }
+  .col-sort select { background: rgba(15, 23, 42, .65); color: var(--text); border: 1px solid rgba(34, 211, 238, .2); border-radius: 8px; padding: 8px 12px; font-family: inherit; font-size: 13px; cursor: pointer; }
+  .col-grid-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 28px; align-items: start; }
+  @media (max-width: 760px) { .col-grid-wrap { grid-template-columns: 1fr; } }
+  .col-filters { background: rgba(15, 23, 42, .55); border: 1px solid rgba(34, 211, 238, .15); border-radius: 14px; padding: 18px; position: sticky; top: 130px; }
+  .col-filters[hidden] { display: none; }
+  @media (min-width: 761px) { .col-filters[hidden] { display: block; } }
+  .filter-group { margin-bottom: 22px; }
+  .filter-group h3 { font-family: Orbitron, sans-serif; font-size: 12px; color: var(--accent); letter-spacing: 1.5px; text-transform: uppercase; margin: 0 0 8px; }
+  .filter-group ul { list-style: none; padding: 0; margin: 0; }
+  .filter-group li { padding: 4px 0; }
+  .filter-group a { color: var(--text); text-decoration: none; font-size: 13px; opacity: .8; transition: all .15s; }
+  .filter-group a:hover { color: var(--accent); opacity: 1; }
+  .filter-clear { display: inline-block; margin-top: 6px; color: var(--accent); font-size: 12px; text-decoration: none; opacity: .7; }
+  .filter-clear:hover { opacity: 1; }
+  .col-empty { grid-column: 1/-1; text-align: center; padding: 60px 24px; color: var(--muted); }
+  .pagination { display: flex; align-items: center; justify-content: center; gap: 14px; padding: 30px 0; }
+  .pagination-info { color: var(--muted); font-size: 13px; }
+</style>
+<script>
+  (function() {
+    var btn = document.querySelector('.filter-toggle');
+    var aside = document.getElementById('col-filters');
+    if (btn && aside) {
+      btn.addEventListener('click', function() {
+        var open = aside.hasAttribute('hidden');
+        if (open) { aside.removeAttribute('hidden'); btn.setAttribute('aria-expanded', 'true'); }
+        else { aside.setAttribute('hidden', ''); btn.setAttribute('aria-expanded', 'false'); }
+      });
+    }
+  })();
+</script>
 {% schema %}
 {"name": "Collection", "settings": []}
 {% endschema %}

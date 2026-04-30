@@ -1,0 +1,64 @@
+<section class="rv-wrap" id="recently-viewed-section" hidden>
+  <div class="rv-head">
+    <span class="rv-eyebrow">{{ section.settings.eyebrow | default: 'YOUR HISTORY' }}</span>
+    <h2 class="rv-h">{{ section.settings.heading | default: 'Recently viewed' }}</h2>
+  </div>
+  <div class="rv-scroll" id="recently-viewed-scroll"></div>
+</section>
+<style>
+  .rv-wrap { max-width: 1320px; margin: 60px auto; padding: 0 24px; }
+  .rv-head { margin-bottom: 18px; }
+  .rv-eyebrow { font-family: Orbitron, sans-serif; font-size: 11px; letter-spacing: 2px; color: var(--accent); text-transform: uppercase; }
+  .rv-h { font-family: Orbitron, sans-serif; font-size: clamp(24px, 3.5vw, 36px); margin: 4px 0 0; letter-spacing: -.3px; }
+  .rv-scroll { display: flex; gap: 14px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 14px; }
+  .rv-scroll::-webkit-scrollbar { height: 6px; }
+  .rv-scroll::-webkit-scrollbar-thumb { background: rgba(34,211,238,.25); border-radius: 3px; }
+  .rv-card { flex: 0 0 200px; scroll-snap-align: start; background: rgba(15,23,42,.55); border: 1px solid rgba(34,211,238,.18); border-radius: 12px; overflow: hidden; text-decoration: none; color: var(--text); transition: transform .2s, border-color .2s; }
+  .rv-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .rv-card img { width: 100%; height: 160px; object-fit: cover; display: block; }
+  .rv-card-info { padding: 12px; }
+  .rv-card-t { font-size: 12px; font-weight: 500; line-height: 1.3; min-height: 32px; margin-bottom: 6px; }
+  .rv-card-p { font-family: Orbitron, sans-serif; color: var(--accent); font-weight: 700; font-size: 14px; }
+</style>
+<script>
+(function() {
+  try {
+    var items = JSON.parse(localStorage.getItem('recently_viewed') || '[]');
+    if (!items.length) return;
+    var section = document.getElementById('recently-viewed-section');
+    var scroll = document.getElementById('recently-viewed-scroll');
+    items.slice(0, 12).forEach(function(p) {
+      var a = document.createElement('a');
+      a.className = 'rv-card';
+      a.href = p.url || '#';
+      var img = document.createElement('img');
+      img.src = p.image || '';
+      img.alt = p.title || '';
+      img.loading = 'lazy';
+      a.appendChild(img);
+      var info = document.createElement('div');
+      info.className = 'rv-card-info';
+      var t = document.createElement('div');
+      t.className = 'rv-card-t';
+      t.textContent = (p.title || '').slice(0, 60);
+      var pr = document.createElement('div');
+      pr.className = 'rv-card-p';
+      pr.textContent = p.price || '';
+      info.appendChild(t); info.appendChild(pr);
+      a.appendChild(info);
+      scroll.appendChild(a);
+    });
+    section.removeAttribute('hidden');
+  } catch (e) {}
+})();
+</script>
+{% schema %}
+{
+  "name": "Recently Viewed",
+  "settings": [
+    {"type": "text", "id": "eyebrow", "label": "Eyebrow", "default": "YOUR HISTORY"},
+    {"type": "text", "id": "heading", "label": "Heading", "default": "Recently viewed"}
+  ],
+  "presets": [{"name": "Recently Viewed"}]
+}
+{% endschema %}

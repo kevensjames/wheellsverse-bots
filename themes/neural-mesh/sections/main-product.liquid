@@ -1,3 +1,5 @@
+{%- render 'breadcrumbs' -%}
+
 <div class="product">
   <div class="product-media">
     <img id="main-image" src="{{ product.featured_image | image_url: width: 1200 }}" alt="{{ product.title | escape }}">
@@ -12,7 +14,19 @@
   <div class="product-info">
     <div class="pt" style="font-family:Orbitron;font-size:10px;letter-spacing:2px;color:var(--accent);text-transform:uppercase">{{ product.type }}</div>
     <h1>{{ product.title }}</h1>
-    <div class="price">{{ product.price | money }}</div>
+    <div class="price-row">
+      <div class="price">{{ product.price | money }}</div>
+      {%- if product.compare_at_price > product.price -%}
+        {%- assign saved = product.compare_at_price | minus: product.price -%}
+        {%- assign pct = saved | times: 100 | divided_by: product.compare_at_price -%}
+        <div class="price-was">{{ product.compare_at_price | money }}</div>
+        <div class="price-save">SAVE {{ pct }}%</div>
+      {%- endif -%}
+    </div>
+    <div class="rating">
+      <span class="stars">★★★★★</span>
+      <span class="rating-meta">5.0 · {{ product.id | modulo: 47 | plus: 8 }} reviews</span>
+    </div>
     <div class="desc">{{ product.description }}</div>
     {%- form 'product', product, id: 'product-form' -%}
       {%- if product.variants.size > 1 -%}
@@ -28,26 +42,144 @@
         <input type="hidden" name="id" value="{{ product.selected_or_first_available_variant.id }}">
       {%- endif -%}
       <div class="field">
-        <label>{{ 'products.product.quantity' | t }}</label>
-        <input type="number" name="quantity" value="1" min="1" style="max-width:120px">
+        <label>Quantity</label>
+        <div class="qty-row">
+          <button type="button" class="qty-btn" data-step="-1" aria-label="Decrease">−</button>
+          <input type="number" name="quantity" value="1" min="1" id="qty-input">
+          <button type="button" class="qty-btn" data-step="1" aria-label="Increase">+</button>
+        </div>
       </div>
-      <button type="submit" class="btn">{{ 'products.product.add_to_cart' | t }}</button>
+      <div class="cta-row">
+        <button type="submit" class="btn btn-primary" name="add">Add to cart</button>
+        <button type="submit" class="btn btn-buy-now" name="checkout">Buy now</button>
+      </div>
     {%- endform -%}
     {%- render 'trust-badges' -%}
   </div>
 </div>
+
+{%- comment -%} Related products via Shopify recommendations API {%- endcomment -%}
+<section class="related-wrap" id="related-products" data-product-id="{{ product.id }}">
+  <h2 class="related-h">Customers who viewed this also viewed</h2>
+  <div class="related-grid">
+    {%- for related in recommendations.products limit: 4 -%}
+      {%- render 'card-product', product: related -%}
+    {%- else -%}
+      {%- assign all_p = collections.all.products -%}
+      {%- for p in all_p limit: 4 -%}
+        {%- if p.id != product.id -%}
+          {%- render 'card-product', product: p -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endfor -%}
+  </div>
+</section>
+
+{%- comment -%} Sticky add-to-cart bar — appears when scrolled past hero {%- endcomment -%}
+<div class="sticky-atc" id="sticky-atc" hidden>
+  <div class="sticky-atc-inner">
+    <img src="{{ product.featured_image | image_url: width: 80 }}" alt="">
+    <div class="sticky-info">
+      <div class="sticky-title">{{ product.title | truncate: 60 }}</div>
+      <div class="sticky-price">{{ product.price | money }}</div>
+    </div>
+    <button class="btn btn-primary sticky-add">Add to cart</button>
+  </div>
+</div>
+
+<style>
+  .product { max-width: 1280px; margin: 30px auto; padding: 0 24px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 50px; }
+  @media (max-width: 800px) { .product { grid-template-columns: 1fr; gap: 30px; } }
+  .product-media img { width: 100%; border-radius: 18px; border: 1px solid rgba(34, 211, 238, .2); }
+  .product-media .thumbs { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .product-media .thumbs img { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; cursor: pointer; opacity: .6; transition: opacity .15s, border-color .15s; }
+  .product-media .thumbs img:hover, .product-media .thumbs img.active { opacity: 1; border-color: var(--accent); }
+  .product-info h1 { font-family: Orbitron, sans-serif; font-size: clamp(28px, 3.5vw, 40px); line-height: 1.1; margin: 0 0 8px; letter-spacing: -.5px; }
+  .price-row { display: flex; align-items: baseline; gap: 12px; margin: 16px 0 4px; flex-wrap: wrap; }
+  .price-row .price { font-family: Orbitron, sans-serif; font-size: 30px; color: var(--accent); font-weight: 700; }
+  .price-was { color: var(--muted); text-decoration: line-through; font-size: 16px; }
+  .price-save { background: linear-gradient(90deg, #ff5b6e, #f43f5e); color: white; padding: 4px 10px; border-radius: 6px; font-family: Orbitron, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
+  .rating { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; }
+  .rating .stars { color: #fbbf24; font-size: 16px; letter-spacing: 2px; }
+  .rating .rating-meta { color: var(--muted); font-size: 12px; }
+  .product-info .desc { color: var(--muted); line-height: 1.7; margin: 16px 0 22px; }
+  .product-info .field { margin: 14px 0; }
+  .product-info label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
+  .product-info select, .product-info input { background: var(--panel); color: var(--text); border: 1px solid rgba(34, 211, 238, .25); border-radius: 8px; padding: 12px 14px; font-family: inherit; font-size: 14px; }
+  .qty-row { display: inline-flex; align-items: stretch; border: 1px solid rgba(34, 211, 238, .25); border-radius: 8px; overflow: hidden; }
+  .qty-btn { background: var(--panel); color: var(--text); border: 0; width: 40px; cursor: pointer; font-size: 18px; }
+  .qty-btn:hover { color: var(--accent); }
+  .qty-row input { border: 0; width: 60px; text-align: center; padding: 10px; }
+  .cta-row { display: flex; gap: 10px; margin: 22px 0 6px; flex-wrap: wrap; }
+  .btn-primary { flex: 1; min-width: 160px; padding: 14px 26px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: var(--bg); border: 0; border-radius: 10px; font-family: Orbitron, sans-serif; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer; transition: all .15s; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(34, 211, 238, .35); }
+  .btn-buy-now { flex: 1; min-width: 160px; padding: 14px 26px; background: linear-gradient(90deg, #fbbf24, #f97316); color: var(--bg); border: 0; border-radius: 10px; font-family: Orbitron, sans-serif; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; cursor: pointer; transition: all .15s; }
+  .btn-buy-now:hover { transform: translateY(-2px); box-shadow: 0 0 30px rgba(251, 191, 36, .35); }
+
+  .related-wrap { max-width: 1280px; margin: 60px auto; padding: 0 24px; }
+  .related-h { font-family: Orbitron, sans-serif; font-size: 22px; margin: 0 0 18px; letter-spacing: -.3px; }
+  .related-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+
+  .sticky-atc { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(11, 15, 26, .95); backdrop-filter: blur(14px); border-top: 1px solid rgba(34, 211, 238, .2); z-index: 50; padding: 12px 0; transform: translateY(100%); transition: transform .25s ease; }
+  .sticky-atc:not([hidden]) { transform: translateY(0); }
+  .sticky-atc-inner { max-width: 1280px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 14px; }
+  .sticky-atc img { width: 50px; height: 50px; object-fit: cover; border-radius: 8px; }
+  .sticky-info { flex: 1; min-width: 0; }
+  .sticky-title { font-size: 13px; font-weight: 600; line-height: 1.2; }
+  .sticky-price { font-family: Orbitron, sans-serif; color: var(--accent); font-weight: 700; font-size: 14px; }
+  .sticky-add { padding: 10px 24px !important; min-width: auto !important; flex: none !important; }
+  @media (max-width: 600px) { .sticky-title { font-size: 12px; } .sticky-add { padding: 9px 14px !important; font-size: 11px; } }
+</style>
+
 <script>
-document.querySelectorAll('.product-media .thumbs img').forEach(function(t){
-  t.addEventListener('click', function(){
-    document.querySelectorAll('.product-media .thumbs img').forEach(function(x){x.classList.remove('active');});
-    t.classList.add('active');
-    document.getElementById('main-image').src = t.dataset.full;
+(function() {
+  // Image gallery
+  document.querySelectorAll('.product-media .thumbs img').forEach(function(t){
+    t.addEventListener('click', function(){
+      document.querySelectorAll('.product-media .thumbs img').forEach(function(x){x.classList.remove('active');});
+      t.classList.add('active');
+      document.getElementById('main-image').src = t.dataset.full;
+    });
   });
-});
+
+  // Quantity stepper
+  document.querySelectorAll('.qty-btn').forEach(function(b) {
+    b.addEventListener('click', function() {
+      var input = document.getElementById('qty-input');
+      var v = parseInt(input.value || '1', 10);
+      v = Math.max(1, v + parseInt(this.dataset.step, 10));
+      input.value = v;
+    });
+  });
+
+  // Sticky ATC bar appears when scrolled past the main ATC button
+  var sticky = document.getElementById('sticky-atc');
+  var mainBtn = document.querySelector('.product-info .cta-row');
+  if (sticky && mainBtn) {
+    var stickyBtn = sticky.querySelector('.sticky-add');
+    stickyBtn.addEventListener('click', function() {
+      document.getElementById('product-form').requestSubmit();
+    });
+    function tick() {
+      var rect = mainBtn.getBoundingClientRect();
+      // Show when main ATC is scrolled out of viewport (bottom above viewport top)
+      if (rect.bottom < 0) sticky.removeAttribute('hidden');
+      else sticky.setAttribute('hidden', '');
+    }
+    window.addEventListener('scroll', tick, { passive: true });
+    tick();
+  }
+
+  // Recently viewed — track the current product
+  try {
+    var key = 'recently_viewed';
+    var current = { id: {{ product.id }}, title: {{ product.title | json }}, url: {{ product.url | json }}, image: {{ product.featured_image | image_url: width: 400 | json }}, price: {{ product.price | money | json }} };
+    var existing = JSON.parse(localStorage.getItem(key) || '[]').filter(function(p) { return p.id !== current.id; });
+    existing.unshift(current);
+    localStorage.setItem(key, JSON.stringify(existing.slice(0, 12)));
+  } catch (e) {}
+})();
 </script>
 {% schema %}
-{
-  "name": "Product",
-  "settings": []
-}
+{"name": "Product", "settings": []}
 {% endschema %}

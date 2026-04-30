@@ -1,0 +1,35 @@
+{%- comment -%}
+  Breadcrumbs — drop into any template. Auto-detects context from
+  template/handles. Renders nothing on the homepage.
+{%- endcomment -%}
+{%- unless template == 'index' or template == 'cart' -%}
+<nav class="bc" aria-label="Breadcrumbs">
+  <a href="{{ routes.root_url }}">Home</a>
+  {%- if template contains 'collection' and collection -%}
+    <span>›</span><a href="{{ routes.collections_url }}">Collections</a>
+    <span>›</span><span class="bc-current">{{ collection.title }}</span>
+  {%- elsif template contains 'product' and product -%}
+    {%- if product.collections.size > 0 -%}
+      {%- assign first_col = product.collections.first -%}
+      <span>›</span><a href="{{ first_col.url }}">{{ first_col.title }}</a>
+    {%- endif -%}
+    <span>›</span><span class="bc-current">{{ product.title | truncate: 50 }}</span>
+  {%- elsif template contains 'page' and page -%}
+    <span>›</span><span class="bc-current">{{ page.title }}</span>
+  {%- elsif template contains 'blog' and blog -%}
+    <span>›</span><span class="bc-current">{{ blog.title }}</span>
+  {%- elsif template contains 'article' and article -%}
+    <span>›</span><a href="{{ blog.url }}">{{ blog.title }}</a>
+    <span>›</span><span class="bc-current">{{ article.title | truncate: 50 }}</span>
+  {%- elsif template contains 'search' -%}
+    <span>›</span><span class="bc-current">Search</span>
+  {%- endif -%}
+</nav>
+<style>
+  .bc { max-width: 1280px; margin: 18px auto 0; padding: 0 24px; font-size: 12px; letter-spacing: .3px; color: var(--muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .bc a { color: var(--muted); text-decoration: none; transition: color .15s; }
+  .bc a:hover { color: var(--accent); }
+  .bc span { color: var(--muted); opacity: .6; }
+  .bc .bc-current { color: var(--text); opacity: .85; }
+</style>
+{%- endunless -%}
