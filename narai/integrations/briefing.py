@@ -56,23 +56,49 @@ def _revenue_section(yesterday: datetime) -> str:
 # ── Section: Trading ─────────────────────────────────────────────────────────
 
 def _trading_section() -> str:
+    """Two-line trading update: equity headline + a positions/trades detail.
+    The detail line names the top open position (or last closed trade) so
+    the briefing shows momentum, not just totals."""
     try:
         from narai.core.trading.paper import PaperBroker
         broker = PaperBroker()
         s = broker.status()
-        # status() returns: equity, cash, starting_equity, open_positions, ...
         equity = s.get("equity", 0.0)
         cash = s.get("cash", 0.0)
         starting = s.get("starting_equity", 10_000.0)
         positions = s.get("open_positions", [])
-        open_count = len(positions)
         pnl = equity - starting
         sign = "+" if pnl >= 0 else ""
         ret_pct = s.get("total_return_pct", 0.0)
-        return (
+        head = (
             f"📈 Trading: ${equity:,.0f} equity ({sign}${pnl:,.0f} / {sign}{ret_pct:.1f}%) · "
-            f"{open_count} open · cash ${cash:,.0f}"
+            f"{len(positions)} open · cash ${cash:,.0f}"
         )
+
+        # Detail line: top open by unrealized P&L, or fall back to last
+        # closed trade. Returns "" when no positions and no trades yet so
+        # the briefing stays compact instead of padding with empty headers.
+        detail = ""
+        if positions:
+            top = max(positions, key=lambda p: p.get("unrealized_pnl", 0))
+            up = top.get("unrealized_pnl", 0)
+            up_sign = "+" if up >= 0 else ""
+            detail = (
+                f"   ↳ top open: {top.get('symbol', '?')} "
+                f"x{top.get('shares', 0)} @ ${top.get('entry', 0):.2f} → "
+                f"${top.get('current', 0):.2f} ({up_sign}${up:.0f})"
+            )
+        else:
+            history = broker.history(limit=1)
+            if history:
+                last = history[0]
+                lp = last.get("pnl", 0)
+                lp_sign = "+" if lp >= 0 else ""
+                detail = (
+                    f"   ↳ last close: {last.get('symbol', '?')} "
+                    f"({lp_sign}${lp:.0f}) — {last.get('reason', 'closed')}"
+                )
+        return head + (("\n" + detail) if detail else "")
     except Exception as e:
         logger.warning(f"trading_section failed: {e}")
         return "📈 Trading: —"
