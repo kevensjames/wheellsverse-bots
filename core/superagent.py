@@ -329,15 +329,17 @@ STRICT RULES:
 - High-value niches: AI tools, crypto, stock investing, passive income, side hustles"""
 
         try:
-            resp = self.client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            from core.llm_client import safe_openai_call
+            resp = safe_openai_call(
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                response_format={"type": "json_object"},
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 max_tokens=1200,
                 temperature=0.7,
+                response_format={"type": "json_object"},
+                bot_name="superagent.plan",
             )
             plan = json.loads(resp.choices[0].message.content)
             return plan
@@ -464,8 +466,8 @@ STRICT RULES:
         self._log("UPGRADE_BOT", f"Upgrading {target}", improvement)
 
         try:
-            resp = self.client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            from core.llm_client import safe_openai_call
+            resp = safe_openai_call(
                 messages=[
                     {"role": "system", "content": (
                         "You are an expert Python developer improving affiliate revenue bots. "
@@ -476,8 +478,10 @@ STRICT RULES:
                     {"role": "user", "content":
                         f"Improvement: {improvement}\n\nCurrent code:\n{current_code}"},
                 ],
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 max_tokens=2000,
                 temperature=0.3,
+                bot_name="superagent.upgrade",
             )
             new_code = resp.choices[0].message.content.strip()
             new_code = re.sub(r"^```python\s*", "", new_code)
@@ -653,14 +657,16 @@ Return ONLY the 8-space-indented Python code for the run() method body.
 End with:  output = header + \"\\n\\n\" + result + \"\\n\\n\" + footer
 (or similar final string assignment)"""
 
-        resp = self.client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
             ],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=1500,
             temperature=0.5,
+            bot_name="superagent.run_body",
         )
 
         run_body = resp.choices[0].message.content.strip()
@@ -761,15 +767,17 @@ Respond with JSON:
 }}"""
 
         try:
-            resp = self.client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            from core.llm_client import safe_openai_call
+            resp = safe_openai_call(
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user", "content": prompt},
                 ],
-                response_format={"type": "json_object"},
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 max_tokens=900,
                 temperature=0.7,
+                response_format={"type": "json_object"},
+                bot_name="superagent.chat",
             )
             data = json.loads(resp.choices[0].message.content)
             reply = data.get("reply", "Done.")

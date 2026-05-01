@@ -255,11 +255,9 @@ class TrendingEngine:
             return trends
 
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+            from core.llm_client import safe_openai_call
             topics_str = "\n".join(f"{i + 1}. {t.topic}" for i, t in enumerate(top))
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+            resp = safe_openai_call(
                 messages=[{
                     "role": "system",
                     "content": f"You are NarAI, a content creator focused on {BRAND_NICHE}. "
@@ -270,7 +268,9 @@ class TrendingEngine:
                     "content": f"Generate content angles for these trends:\n{topics_str}\n\n"
                     f"Return as JSON array of strings, one per trend.",
                 }],
+                model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
                 max_tokens=400, temperature=0.7,
+                bot_name="trending.angles",
             )
             raw = resp.choices[0].message.content.strip()
             m = re.search(r"\[[\s\S]+\]", raw)

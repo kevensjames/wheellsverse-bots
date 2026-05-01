@@ -60,15 +60,14 @@ SEED_KEYWORDS: Dict[str, List[str]] = {
 # ─── GPT helpers ──────────────────────────────────────────────────────────────
 
 def _gpt(prompt: str, system: str = "", max_tokens: int = 600) -> str:
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+    from core.llm_client import safe_openai_call
     model = os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini")
     msgs = []
     if system:
         msgs.append({"role": "system", "content": system})
     msgs.append({"role": "user", "content": prompt})
-    r = client.chat.completions.create(model=model, messages=msgs,
-                                        max_tokens=max_tokens, temperature=0.5)
+    r = safe_openai_call(messages=msgs, model=model, max_tokens=max_tokens,
+                         temperature=0.5, bot_name="seo._gpt")
     return r.choices[0].message.content.strip()
 
 

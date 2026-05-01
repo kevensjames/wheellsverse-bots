@@ -283,13 +283,14 @@ Return only valid JSON, no markdown."""
 
         if result is None:
             try:
-                import openai
-                client = openai.OpenAI(api_key=self._openai_key)
-                resp = client.chat.completions.create(
+                from core.llm_client import safe_openai_call
+                resp = safe_openai_call(
+                    messages=[{"role": "user", "content": prompt}],
                     model="gpt-4o-mini",
                     max_tokens=150,
-                    messages=[{"role": "user", "content": prompt}],
                     response_format={"type": "json_object"},
+                    api_key=self._openai_key,
+                    bot_name="emotion_engine.detect",
                 )
                 data = json.loads(resp.choices[0].message.content)
                 data["method"] = "openai"
@@ -620,12 +621,13 @@ Rules:
 
         if response is None:
             try:
-                import openai
-                client = openai.OpenAI(api_key=self._openai_key)
-                resp = client.chat.completions.create(
+                from core.llm_client import safe_openai_call
+                resp = safe_openai_call(
+                    messages=[{"role": "user", "content": prompt}],
                     model="gpt-4o-mini",
                     max_tokens=200,
-                    messages=[{"role": "user", "content": prompt}],
+                    api_key=self._openai_key,
+                    bot_name="emotion_engine.respond",
                 )
                 response = resp.choices[0].message.content.strip()
             except Exception:

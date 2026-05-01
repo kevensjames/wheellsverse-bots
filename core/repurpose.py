@@ -45,15 +45,15 @@ AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 # ── GPT helper ────────────────────────────────────────────────────────────────
 
 def _gpt(prompt: str, system: str = "", max_tokens: int = 800) -> str:
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+    from core.llm_client import safe_openai_call
     model = os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini")
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
-    resp = client.chat.completions.create(
-        model=model, messages=messages, max_tokens=max_tokens, temperature=0.7
+    resp = safe_openai_call(
+        messages=messages, model=model, max_tokens=max_tokens, temperature=0.7,
+        bot_name="repurpose._gpt",
     )
     return resp.choices[0].message.content.strip()
 

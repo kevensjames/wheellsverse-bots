@@ -222,10 +222,8 @@ class ViralDetector:
     def _generate_angles(self, topic: str) -> List[str]:
         """Use GPT to generate MAX_VARIATIONS spin-off angles from a viral topic."""
         try:
-            import openai
-            client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            from core.llm_client import safe_openai_call
+            resp = safe_openai_call(
                 messages=[{
                     "role": "user",
                     "content": (
@@ -236,8 +234,10 @@ class ViralDetector:
                         "Return ONLY a JSON array of strings, no explanation."
                     )
                 }],
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 max_tokens=400,
                 temperature=0.85,
+                bot_name="viral_detector.angles",
             )
             raw = resp.choices[0].message.content.strip()
             if raw.startswith("["):

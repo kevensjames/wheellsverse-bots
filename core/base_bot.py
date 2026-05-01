@@ -290,8 +290,11 @@ class BaseBot(ABC):
            temperature: float = 0.7) -> str:
         """
         Send a prompt to OpenAI and return the text response.
-        Includes retry logic (3 attempts) and token usage logging.
-        If no system prompt is given, NarAI's live personality is injected automatically.
+
+        Routes through core.llm_client.safe_openai_call so the global TPM/RPM
+        limiter prevents 429 storms (org-tier ceiling). On insufficient_quota
+        or auth failures, falls back to Claude so bots keep running. Token
+        usage is logged inside safe_openai_call.
         """
         if system is None:
             system = self._get_personality_system()
@@ -299,31 +302,28 @@ class BaseBot(ABC):
         prompt = prompt.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
         system = system.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
 
-        def _call():
-            return self.client.chat.completions.create(
-                model=model,
+        from core.llm_client import LLMCapacityTimeout, safe_openai_call
+        try:
+            resp = safe_openai_call(
                 messages=[
                     {"role": "system", "content": system},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": prompt},
                 ],
+                model=model,
                 max_tokens=max_tokens,
                 temperature=temperature,
+                bot_name=self.name,
             )
-
-        try:
-            resp = _retry(_call, retries=3, delay=2.0, logger=self.logger)
-            usage = resp.usage
-            if usage:
-                _log_token_usage(
-                    "openai", model,
-                    getattr(usage, "prompt_tokens", None) or getattr(usage, "input_tokens", 0),
-                    getattr(usage, "completion_tokens", None) or getattr(usage, "output_tokens", 0),
-                    self.name,
-                )
             return resp.choices[0].message.content.strip()
+        except LLMCapacityTimeout:
+            # Limiter waited >timeout for room — Claude is likely just as busy.
+            # Surface the timeout so the scheduler can pause this job.
+            self.logger.error("OpenAI capacity timeout — pausing job, no Claude fallback")
+            raise
         except Exception as e:
             err_str = str(e).lower()
-            # Quota / auth errors → fall back to Claude so bots keep running
+            # Quota / auth errors → fall back to Claude so bots keep running.
+            # 429 / rate_limit retained for safety even though limiter should prevent them.
             if any(x in err_str for x in ("insufficient_quota", "429", "rate_limit", "invalid_api_key", "authentication")):
                 self.logger.warning(f"OpenAI unavailable ({type(e).__name__}) — falling back to Claude")
                 try:

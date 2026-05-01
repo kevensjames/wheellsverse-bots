@@ -224,17 +224,18 @@ def _ai_json(prompt: str, system: str = "", max_tokens: int = 2500) -> Any:
     openai_key = os.getenv("OPENAI_API_KEY", "")
     if openai_key:
         try:
-            import openai
-            client = openai.OpenAI(api_key=openai_key)
+            from core.llm_client import safe_openai_call
             msgs = []
             if system:
                 msgs.append({"role": "system", "content": system})
             msgs.append({"role": "user", "content": prompt})
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            resp = safe_openai_call(
                 messages=msgs,
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 max_tokens=max_tokens,
                 response_format={"type": "json_object"},
+                api_key=openai_key,
+                bot_name="narai_pod_engine.json",
             )
             return json.loads(resp.choices[0].message.content)
         except Exception as e:

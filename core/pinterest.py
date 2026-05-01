@@ -317,11 +317,9 @@ def repurpose_blog_to_pins(blog_content: str, topic: str,
     One blog post → 5 evergreen pins.
     """
     try:
-        import openai
         import json as _json
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": (
                 f"Extract {count} Pinterest pin ideas from this blog post.\n"
                 f"Topic: {topic}\nNiche: {niche}\n\n"
@@ -330,8 +328,10 @@ def repurpose_blog_to_pins(blog_content: str, topic: str,
                 "Make titles curiosity-driven with a benefit. Make descriptions SEO-keyword-rich.\n"
                 f"Return ONLY a JSON array of {count} objects."
             )}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=800,
             temperature=0.75,
+            bot_name="pinterest.repurpose",
         )
         raw = resp.choices[0].message.content.strip()
         pins = _json.loads(raw if raw.startswith("[") else raw[raw.find("["):raw.rfind("]") + 1])
@@ -362,10 +362,8 @@ def repurpose_blog_to_pins(blog_content: str, topic: str,
 def _generate_pin_content(topic: str, niche: str) -> tuple:
     """Generate a Pinterest title + description for a topic."""
     try:
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": (
                 f"Create a Pinterest pin for: '{topic}' (niche: {niche})\n"
                 "Return JSON: {\"title\": \"...\", \"description\": \"...\"}\n"
@@ -373,8 +371,10 @@ def _generate_pin_content(topic: str, niche: str) -> tuple:
                 "Description: max 250 chars, SEO keywords, ends with a soft CTA.\n"
                 "Output ONLY the JSON."
             )}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=200,
             temperature=0.8,
+            bot_name="pinterest.pin_content",
         )
         import json as _j
         data = _j.loads(resp.choices[0].message.content.strip())

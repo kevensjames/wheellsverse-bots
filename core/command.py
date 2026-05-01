@@ -129,14 +129,16 @@ class CommandInterpreter:
 
         # GPT parsing for everything else
         try:
-            resp = self.client.chat.completions.create(
-                model="gpt-4o-mini",
+            from core.llm_client import safe_openai_call
+            resp = safe_openai_call(
                 messages=[
                     {"role": "system", "content": PARSE_SYSTEM},
                     {"role": "user", "content": text},
                 ],
+                model="gpt-4o-mini",
                 max_tokens=120,
                 temperature=0,
+                bot_name="command.parse",
             )
             raw = resp.choices[0].message.content.strip()
             raw = re.sub(r"```json\s*|\s*```", "", raw).strip()

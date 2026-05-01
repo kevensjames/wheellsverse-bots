@@ -171,9 +171,8 @@ def build_sequence(niche: str, sequence_type: str = "nurture") -> List[Dict]:
     sequence_type: nurture / welcome / re_engagement / buyer
     """
     try:
-        import openai
         from core.affiliate_optimizer import get_best_link
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        from core.llm_client import safe_openai_call
 
         best_link = get_best_link(niche)
         aff_label = best_link.get("label", "our top recommendation")
@@ -203,8 +202,7 @@ def build_sequence(niche: str, sequence_type: str = "nurture") -> List[Dict]:
         }
         spec = sequence_specs.get(sequence_type, sequence_specs["nurture"])
 
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": (
                     f"You are {AUTHOR}, founder of {BRAND}. "
@@ -227,8 +225,10 @@ def build_sequence(niche: str, sequence_type: str = "nurture") -> List[Dict]:
                     f"Return ONLY valid JSON: array of {spec['count']} email objects."
                 )},
             ],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=3000,
             temperature=0.75,
+            bot_name="email_funnel.build_sequence",
         )
 
         raw = resp.choices[0].message.content.strip()
@@ -308,14 +308,12 @@ def generate_broadcast(topic: str, niche: str = "general") -> Dict:
     Full pipeline: topic → GPT email → ConvertKit broadcast.
     """
     try:
-        import openai
         from core.affiliate_optimizer import get_best_link
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        from core.llm_client import safe_openai_call
 
         best_link = get_best_link(niche)
 
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": (
                     f"You are {AUTHOR} at {BRAND}. "
@@ -330,8 +328,10 @@ def generate_broadcast(topic: str, niche: str = "general") -> Dict:
                     f"Return JSON: {{\"subject\": \"...\", \"preview\": \"...\", \"body\": \"...\"}}"
                 )},
             ],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=600,
             temperature=0.75,
+            bot_name="email_funnel.broadcast",
         )
         raw = resp.choices[0].message.content.strip()
         data = json.loads(raw[raw.find("{"):raw.rfind("}") + 1])
@@ -377,11 +377,10 @@ def send_weekly_newsletter() -> Dict:
     Pulls best content from FeedbackLoop + current market data.
     """
     try:
-        import openai
         from core.feedback_loop import FeedbackLoop
         from core.integrations import IntegrationsHub
+        from core.llm_client import safe_openai_call
 
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         fl = FeedbackLoop.get()
 
         # Get top content
@@ -403,8 +402,7 @@ def send_weekly_newsletter() -> Dict:
 
         week_str = datetime.now().strftime("%B %d, %Y")
 
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": (
                 f"Write the weekly {BRAND} newsletter for {week_str}.\n\n"
                 f"Bitcoin price: {btc_price}\n"
@@ -422,8 +420,10 @@ def send_weekly_newsletter() -> Dict:
                 "- Sign-off from J.K. Blaze\n\n"
                 "Return JSON: {\"subject\": \"...\", \"body\": \"...\"}"
             )}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=1000,
             temperature=0.72,
+            bot_name="email_funnel.weekly_newsletter",
         )
         raw = resp.choices[0].message.content.strip()
         data = json.loads(raw[raw.find("{"):raw.rfind("}") + 1])

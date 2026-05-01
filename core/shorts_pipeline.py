@@ -231,8 +231,7 @@ class ShortsPipeline:
     def _write_script(self, topic: str, niche: str) -> Optional[str]:
         """Generate a 55-60 second video script with GPT-4o."""
         try:
-            import openai
-            client = openai.OpenAI(api_key=self.openai_key)
+            from core.llm_client import safe_openai_call
 
             prompt = f"""Write a 55-60 second YouTube Shorts / TikTok script on: "{topic}"
 
@@ -249,8 +248,7 @@ Rules:
 - End with: "Find the link in bio."
 - Output ONLY the spoken script. No stage directions, no timestamps."""
 
-            resp = client.chat.completions.create(
-                model=self.model,
+            resp = safe_openai_call(
                 messages=[
                     {"role": "system", "content": (
                         f"You are NarAI, the AI brain of {BRAND}. "
@@ -258,8 +256,11 @@ Rules:
                     )},
                     {"role": "user", "content": prompt},
                 ],
+                model=self.model,
                 max_tokens=500,
                 temperature=0.80,
+                api_key=self.openai_key,
+                bot_name="shorts_pipeline.script",
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:
