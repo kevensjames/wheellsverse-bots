@@ -1,0 +1,74 @@
+{%- comment -%}
+  pixels.liquid — Meta Pixel + TikTok Pixel.
+  No-op until IDs are set in Theme Editor → Theme settings → Tracking pixels.
+{%- endcomment -%}
+
+{%- if settings.meta_pixel_id != blank -%}
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '{{ settings.meta_pixel_id }}');
+fbq('track', 'PageView');
+{%- if template contains 'product' and product -%}
+fbq('track', 'ViewContent', {
+  content_ids: ['{{ product.id }}'],
+  content_name: {{ product.title | json }},
+  content_type: 'product',
+  value: {{ product.price | divided_by: 100.0 }},
+  currency: '{{ shop.currency }}'
+});
+{%- endif -%}
+{%- if template contains 'cart' -%}
+fbq('track', 'AddToCart');
+{%- endif -%}
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id={{ settings.meta_pixel_id }}&ev=PageView&noscript=1"/></noscript>
+{%- endif -%}
+
+{%- if settings.tiktok_pixel_id != blank -%}
+<script>
+!function (w, d, t) {
+  w.TiktokAnalyticsObject=t;var ttq=w[t]=w[t]||[];ttq.methods=["page","track","identify","instances","debug","on","off","once","ready","alias","group","enableCookie","disableCookie"],ttq.setAndDefer=function(t,e){t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}};for(var i=0;i<ttq.methods.length;i++)ttq.setAndDefer(ttq,ttq.methods[i]);ttq.instance=function(t){for(var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n]);return e},ttq.load=function(e,n){var i="https://analytics.tiktok.com/i18n/pixel/events.js";ttq._i=ttq._i||{},ttq._i[e]=[],ttq._i[e]._u=i,ttq._t=ttq._t||{},ttq._t[e]=+new Date,ttq._o=ttq._o||{},ttq._o[e]=n||{};var o=document.createElement("script");o.type="text/javascript",o.async=!0,o.src=i+"?sdkid="+e+"&lib="+t;var a=document.getElementsByTagName("script")[0];a.parentNode.insertBefore(o,a)};
+  ttq.load('{{ settings.tiktok_pixel_id }}');
+  ttq.page();
+{%- if template contains 'product' and product -%}
+  ttq.track('ViewContent', {
+    content_id: '{{ product.id }}',
+    content_name: {{ product.title | json }},
+    value: {{ product.price | divided_by: 100.0 }},
+    currency: '{{ shop.currency }}'
+  });
+{%- endif -%}
+}(window, document, 'ttq');
+</script>
+{%- endif -%}
+
+{%- comment -%} Order-confirmation: fire Purchase events on /checkouts/.../thank_you {%- endcomment -%}
+{%- if first_time_accessed and template contains 'order' and order -%}
+{%- if settings.meta_pixel_id != blank -%}
+<script>
+fbq('track', 'Purchase', {
+  value: {{ order.total_price | divided_by: 100.0 }},
+  currency: '{{ order.currency }}',
+  content_ids: [{% for li in order.line_items %}'{{ li.product_id }}'{% unless forloop.last %},{% endunless %}{% endfor %}],
+  num_items: {{ order.item_count }}
+});
+</script>
+{%- endif -%}
+{%- if settings.tiktok_pixel_id != blank -%}
+<script>
+ttq.track('CompletePayment', {
+  value: {{ order.total_price | divided_by: 100.0 }},
+  currency: '{{ order.currency }}',
+  content_id: 'order-{{ order.id }}'
+});
+</script>
+{%- endif -%}
+{%- endif -%}

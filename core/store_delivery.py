@@ -302,6 +302,11 @@ SHOPIFY_DIGITAL_MAP = [
      "files": ["top_5_ai_tools_2026.pdf"],
      "label": "Top 5 AI Tools 2026",
      "subject": "Your download: Top 5 AI Tools 2026"},
+    # Tripwire bundle — same PDF plus the trial unlock instructions live in CK day-0 email.
+    {"keywords": ["ai stock alerts — 30-day starter", "30-day starter", "ai stock alerts starter"],
+     "files": ["top_5_ai_tools_2026.pdf"],
+     "label": "AI Stock Alerts — 30-day Starter",
+     "subject": "Your AI Tools roundup + your 30-day Stock Alerts trial details"},
 ]
 
 DIGITAL_DIR = ROOT / "data" / "store" / "digital"

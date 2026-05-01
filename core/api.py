@@ -133,6 +133,7 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                   "/subscribe/success", "/subscribe/cancelled", "/insider",
                   "/api/v2/narai/telegram/subscription/checkout",
                   "/api/v2/narai/insider/lead",
+                  "/api/v2/narai/discord/status",
                   # Second Brain Inbox / Toodle
                   "/api/inbox", "/api/inbox/brain-dump", "/api/inbox/digest", "/api/inbox/search",
                   "/second-brain-inbox", "/admin/second-brain-inbox", "/user/second-brain-inbox",
@@ -12589,10 +12590,19 @@ async def shopify_webhook(request: Request, background_tasks: BackgroundTasks):
                     _add_log(f"Digital delivery error: {df_err}", "ERROR")
 
                 # ── Auto-restock: trigger new product publish in background ──
+                # Debounced: skip if last restock was <5min ago to prevent quota burn during viral spikes.
                 try:
                     from core.narai_shopify_engine import run_autopilot_session
-                    run_autopilot_session(num_digital=1, num_pod=0, num_services=0, num_subscriptions=0)
-                    _add_log("♻️ Auto-restock: queued 1 new product after sale")
+                    restock_stamp = ROOT / "data" / "last_autorestock.ts"
+                    now_ts = time.time()
+                    last_ts = restock_stamp.stat().st_mtime if restock_stamp.exists() else 0
+                    if now_ts - last_ts < 300:
+                        _add_log(f"♻️ Auto-restock skipped (cooldown, {int(now_ts - last_ts)}s since last)")
+                    else:
+                        restock_stamp.parent.mkdir(parents=True, exist_ok=True)
+                        restock_stamp.touch()
+                        run_autopilot_session(num_digital=1, num_pod=0, num_services=0, num_subscriptions=0)
+                        _add_log("♻️ Auto-restock: queued 1 new product after sale")
                 except Exception as rs_err:
                     _add_log(f"Auto-restock error: {rs_err}", "WARNING")
 
@@ -12611,6 +12621,23 @@ async def shopify_webhook(request: Request, background_tasks: BackgroundTasks):
                 if TOKEN_FILE.exists():
                     TOKEN_FILE.unlink()
                 _add_log("⚠️ Shopify app uninstalled — token cleared", "WARNING")
+
+            elif topic == "customers/data_request":
+                # GDPR: shop owner requested data export for a customer.
+                # We don't store customer PII beyond order line-items already in Shopify;
+                # log + 200 satisfies Shopify's compliance contract.
+                customer_id = (data.get("customer") or {}).get("id")
+                _add_log(f"GDPR data_request received for customer {customer_id}", "INFO")
+
+            elif topic == "customers/redact":
+                # GDPR: erase customer PII (auto-fires 10 days after deletion request).
+                customer_id = (data.get("customer") or {}).get("id")
+                _add_log(f"GDPR customers/redact received for customer {customer_id}", "INFO")
+
+            elif topic == "shop/redact":
+                # GDPR: erase shop data (auto-fires 48h after app uninstall).
+                shop_id = data.get("shop_id")
+                _add_log(f"GDPR shop/redact received for shop {shop_id}", "INFO")
 
         except Exception as e:
             _add_log(f"Webhook handler error ({topic}): {e}", "ERROR")
@@ -13414,13 +13441,87 @@ if _v2_auth_loaded:
     except Exception as _e:
         logger.warning(f"Insider promo scheduler not registered: {_e}")
 
+    # Discord status diagnostic — surfaces why the bot may be offline.
+    # Reads core.discord_bot's module-level globals; safe regardless of state.
+    # `?start=1` — manually fire start_bot() in a fresh task. The exception
+    #             (if any) is captured + returned in the response so we don't
+    #             have to fish in Railway's tiny log buffer.
+    @app.get("/api/v2/narai/discord/status")
+    async def discord_status_endpoint(start: int = 0):
+        from core import discord_bot as _db
+        manual_start_result = None
+        if start == 1:
+            import asyncio as _aio
+            try:
+                # Fire and forget — but capture immediate exceptions.
+                t = _aio.create_task(_db.start_bot(), name="discord-manual-start")
+                # Give the task a moment to fail-fast (import errors, etc.)
+                await _aio.sleep(0.5)
+                if t.done():
+                    exc = t.exception()
+                    manual_start_result = f"early-exit: {exc!r}" if exc else "early-exit: clean"
+                else:
+                    manual_start_result = "task running"
+            except Exception as _start_err:
+                manual_start_result = f"spawn failed: {_start_err!r}"
+
+        client = getattr(_db, "_client", None)
+        out = {
+            "started_flag": getattr(_db, "_started", False),
+            "client_exists": client is not None,
+            "is_ready": False,
+            "user": None,
+            "guild_count": 0,
+            "latency_ms": None,
+            "voice_clients": len(getattr(_db, "_voice_clients", {})),
+            "token_present": bool(os.getenv("DISCORD_BOT_TOKEN")),
+            "guild_id_set": bool(os.getenv("DISCORD_GUILD_ID")),
+            "manual_start_result": manual_start_result,
+        }
+        if client is not None:
+            try:
+                out["is_ready"] = client.is_ready()
+            except Exception:
+                pass
+            try:
+                u = client.user
+                out["user"] = f"{u}" if u else None
+            except Exception:
+                pass
+            try:
+                out["guild_count"] = len(client.guilds)
+            except Exception:
+                pass
+            try:
+                lat = client.latency
+                out["latency_ms"] = round(lat * 1000, 2) if lat else None
+            except Exception:
+                pass
+        return out
+
     # Discord bot — runs as a background asyncio task in the FastAPI loop.
     # Skips itself if DISCORD_BOT_TOKEN is unset, so dev/staging just no-op.
+    # Keep a strong reference to the task so it doesn't get GC'd mid-flight.
     try:
         from core.discord_bot import start_bot as _discord_start
         import asyncio as _asyncio_disc
-        async def _spawn_discord():
-            _asyncio_disc.create_task(_discord_start())
+        _DISCORD_TASKS: set = set()
+        async def _spawn_discord() -> None:
+            try:
+                t = _asyncio_disc.create_task(_discord_start(), name="discord-bot")
+            except Exception as _spawn_e:
+                logger.warning(f"Discord bot create_task failed: {_spawn_e}")
+                return
+            _DISCORD_TASKS.add(t)
+            def _done(task: "_asyncio_disc.Task") -> None:
+                _DISCORD_TASKS.discard(task)
+                exc = task.exception()
+                if exc is not None:
+                    logger.warning(f"Discord bot task exited with: {exc!r}")
+                else:
+                    logger.info("Discord bot task exited cleanly")
+            t.add_done_callback(_done)
+            logger.info("Discord bot task launched")
         app.add_event_handler("startup", _spawn_discord)
         logger.info("Discord bot startup hook registered")
     except Exception as _e:

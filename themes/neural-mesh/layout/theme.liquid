@@ -15,6 +15,7 @@
   {{ content_for_header }}
   {{ 'theme.css' | asset_url | stylesheet_tag }}
   <script src="{{ 'theme.js' | asset_url }}" defer></script>
+  {%- render 'pixels' -%}
 </head>
 <body class="t-neural">
   <canvas class="bg" id="neural-canvas" aria-hidden="true"></canvas>

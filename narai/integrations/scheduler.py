@@ -16,7 +16,11 @@ import os
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from narai.integrations.briefing import assemble_briefing, deliver_via_telegram
+from narai.integrations.briefing import (
+    assemble_briefing,
+    deliver_via_telegram,
+    log_briefing_to_memory,
+)
 
 logger = logging.getLogger("narai.scheduler")
 
@@ -24,11 +28,13 @@ _scheduler: AsyncIOScheduler | None = None
 
 
 async def _fire_briefing() -> None:
-    """Cron callback: build briefing and deliver it. Errors caught so a
-    failed run doesn't take the whole scheduler down for tomorrow."""
+    """Cron callback: build briefing, deliver it, log it to memory.
+    Errors caught so a failed run doesn't take the whole scheduler down
+    for tomorrow."""
     try:
         text = assemble_briefing()
         delivered = await deliver_via_telegram(text)
+        log_briefing_to_memory(text)  # side effect, never blocks delivery
         logger.info(
             f"daily briefing fired: delivered={delivered} "
             f"chars={len(text)}"

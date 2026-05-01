@@ -41,6 +41,7 @@
         "eyebrow": "PREMIUM PICKS",
         "heading": "Premium products",
         "subheading": "High-value drops curated for serious operators.",
+        "collection": "premium-picks",
         "product_limit": 4
       }
     },
@@ -76,6 +77,7 @@
       "settings": {
         "eyebrow": "TRENDING NOW",
         "heading": "Items you may like",
+        "collection": "trending",
         "product_limit": 8
       }
     },

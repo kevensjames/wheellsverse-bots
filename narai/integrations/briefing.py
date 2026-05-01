@@ -176,6 +176,64 @@ def _inbox_section() -> str:
         return "📨 Inbox: —"
 
 
+# ── Section: Subscribers (Telegram + Discord member counts) ─────────────────
+
+def _subscribers_section() -> str:
+    """One-line read of audience size across the two main channels.
+    Each platform fetched independently — a Discord auth issue won't kill
+    the Telegram count."""
+    parts = []
+
+    # Telegram: prefer the private subscription channel ID if set; fall back
+    # to the main TELEGRAM_CHAT_ID (the public/owner chat).
+    try:
+        from telegram import Bot
+        token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+        chan = os.environ.get("TELEGRAM_PRIVATE_CHANNEL_ID") or os.environ.get("TELEGRAM_CHAT_ID")
+        if token and chan:
+            import asyncio as _aio
+            async def _count():
+                bot = Bot(token)
+                return await bot.get_chat_member_count(chat_id=int(chan))
+            try:
+                tg_count = _aio.get_event_loop().run_until_complete(_count())
+            except RuntimeError:
+                # Already inside an event loop (e.g., when called from the cron) —
+                # use a thread to run the coroutine without conflict.
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor() as ex:
+                    fut = ex.submit(_aio.run, _count())
+                    tg_count = fut.result(timeout=10)
+            parts.append(f"TG {tg_count}")
+    except Exception as e:
+        logger.warning(f"telegram subscribers count failed: {e}")
+
+    # Discord: REST GET on the guild with `with_counts=true` returns
+    # approximate_member_count + approximate_presence_count without needing
+    # the heavy gateway connection.
+    try:
+        import requests
+        token = os.environ.get("DISCORD_BOT_TOKEN", "")
+        guild = os.environ.get("DISCORD_GUILD_ID", "")
+        if token and guild:
+            r = requests.get(
+                f"https://discord.com/api/v10/guilds/{guild}?with_counts=true",
+                headers={"Authorization": f"Bot {token}"},
+                timeout=8,
+            )
+            if r.ok:
+                data = r.json()
+                m = data.get("approximate_member_count", 0)
+                online = data.get("approximate_presence_count", 0)
+                parts.append(f"Discord {m} ({online} online)")
+    except Exception as e:
+        logger.warning(f"discord subscribers count failed: {e}")
+
+    if not parts:
+        return "👥 Subscribers: —"
+    return "👥 Subscribers: " + " · ".join(parts)
+
+
 # ── Section: Crypto ──────────────────────────────────────────────────────────
 
 def _crypto_section() -> str:
@@ -266,6 +324,7 @@ def assemble_briefing(now: datetime | None = None) -> str:
         _trading_section(),
         _calendar_section(now),
         _inbox_section(),
+        _subscribers_section(),
         _crypto_section(),
         _kpi_section(now),
         "",
@@ -304,3 +363,18 @@ async def deliver_via_telegram(text: str) -> bool:
     except Exception as e:
         logger.error(f"Telegram delivery failed: {e}")
         return False
+
+
+def log_briefing_to_memory(text: str) -> None:
+    """Persist the briefing as a NarAI episode so the next chat call can
+    recall 'what happened in today's briefing' without you re-stating it.
+    Strips HTML so the embedded text is search-friendly. Errors swallowed —
+    memory log is a side effect, never a delivery blocker."""
+    try:
+        import re
+        from narai.core.memory import MemoryStore
+        store = MemoryStore()
+        clean = re.sub(r"</?[bi]>", "", text)
+        store.log_episode(user_id="owner", content=f"Briefing:\n{clean}")
+    except Exception as e:
+        logger.warning(f"briefing memory log failed: {e}")

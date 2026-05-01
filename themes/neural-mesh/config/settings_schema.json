@@ -101,5 +101,30 @@
         "info": "Animated canvas in the page background. Disable to reduce CPU."
       }
     ]
+  },
+  {
+    "name": "Tracking pixels",
+    "settings": [
+      {
+        "type": "header",
+        "content": "Meta (Facebook/Instagram) Pixel"
+      },
+      {
+        "type": "text",
+        "id": "meta_pixel_id",
+        "label": "Meta Pixel ID",
+        "info": "Find at business.facebook.com → Events Manager → your pixel → Settings. Numeric, 15-16 digits. Leave blank to disable."
+      },
+      {
+        "type": "header",
+        "content": "TikTok Pixel"
+      },
+      {
+        "type": "text",
+        "id": "tiktok_pixel_id",
+        "label": "TikTok Pixel ID",
+        "info": "Find at ads.tiktok.com → Assets → Events → Web Events. Looks like CXXXXXXXXXXXXXXXXXXX. Leave blank to disable."
+      }
+    ]
   }
 ]

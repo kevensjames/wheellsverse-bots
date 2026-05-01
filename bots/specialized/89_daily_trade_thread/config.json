@@ -1,0 +1,9 @@
+{
+  "description": "Daily AI Stock Alerts trade-thread for X/Twitter — chart + 3-bullet reasoning + soft CTA to /go/insider trial.",
+  "goal": "Drive AI Stock Alerts $19/mo free-trial signups via daily public threads that mirror what paid members got 4h earlier.",
+  "content_type": "twitter_thread",
+  "affiliate_focus": "ai_stock_alerts",
+  "schedule": "@daily 13:00",
+  "early_member_threshold": 30,
+  "enabled": true
+}
