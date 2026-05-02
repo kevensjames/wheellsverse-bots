@@ -77,7 +77,10 @@ def _affiliate_urls() -> Dict[str, str]:
     """Read affiliate URLs from .env at call time (supports hot-reload)."""
     amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
     amazon_tag_2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
+    base_app_url = os.getenv("APP_BASE_URL", "https://app.wheellsverse.com").rstrip("/")
     return {
+        # Owned funnel — bot CTAs route through /go/insider to track click→signup
+        "insider":         os.getenv("AFFILIATE_INSIDER_URL", f"{base_app_url}/insider"),
         # Investing
         "coinbase":        os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com"),
         "robinhood":       os.getenv("AFFILIATE_ROBINHOOD_URL", "https://robinhood.com"),
