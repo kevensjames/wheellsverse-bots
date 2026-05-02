@@ -26,6 +26,10 @@ _started = False
 # Per-user sliding-window rate limiter: max 5 messages per 60 seconds
 _rate_limits: dict = {}
 
+# Per-guild Discord voice clients (populated by /voice join). Keyed by guild_id.
+# Stays empty unless DISCORD_VOICE_ENABLED=true and someone runs /voice join.
+_voice_clients: dict = {}
+
 def _is_rate_limited(user_id: str, max_msgs: int = 5, window: int = 60) -> bool:
     now = time.time()
     q = _rate_limits.setdefault(user_id, deque())
@@ -41,8 +45,12 @@ def is_enabled() -> bool:
     return bool(os.getenv("DISCORD_BOT_TOKEN"))
 
 
-async def _get_narai_response(text: str, channel_id: str) -> str:
-    """Get NarAI response for a Discord message."""
+async def _get_narai_response(text: str, channel_id: str, user_id: str | None = None) -> str:
+    """Get NarAI response for a Discord message.
+
+    If user_id is provided, the user's RAG store (PDFs they've uploaded,
+    research they've run) is searched and prepended to the system prompt.
+    """
     try:
         import anthropic
         from core.chat_db import (
@@ -67,6 +75,30 @@ async def _get_narai_response(text: str, channel_id: str) -> str:
         mem_ctx = format_memory_context()
         if mem_ctx:
             sys_prompt = mem_ctx + "\n" + sys_prompt
+
+        # RAG context — user's own uploaded files + their research, if any match.
+        # Bug-fix: rag.query returns hits with keys 'content' + 'source' (not
+        # 'text'/'source_label'). Filter labels are exact-match in chromadb,
+        # so we standardize on flat per-user labels: 'discord:{uid}' (uploads)
+        # and 'discord:research:{uid}' (research drops).
+        if user_id:
+            try:
+                from narai.core.rag import query as rag_query
+                hits = rag_query(text, n=4, source_filter=f"discord:{user_id}")
+                if not hits:
+                    hits = rag_query(text, n=4,
+                                     source_filter=f"discord:research:{user_id}")
+                if hits:
+                    ctx = "\n\n".join(
+                        f"[{h.get('source','?')}]\n{(h.get('content') or '')[:1200]}"
+                        for h in hits[:4]
+                    )
+                    sys_prompt += (
+                        "\n\n---\nThe user has uploaded files / done research. "
+                        "Use this context if relevant to their question:\n" + ctx
+                    )
+            except Exception as _rag_err:
+                logger.warning(f"[discord] rag query skipped: {_rag_err}")
 
         history = get_claude_history(conv_id, max_messages=15)
         add_message(conv_id, "user", text)
@@ -97,6 +129,7 @@ async def start_bot():
 
     try:
         import discord
+        from discord import app_commands
         from discord.ext import commands
     except ImportError:
         logger.warning("[discord] discord.py not installed. Run: pip install 'discord.py>=2.3.0'")
@@ -125,17 +158,107 @@ async def start_bot():
     async def on_message(message):
         if message.author == _client.user:
             return
-        # Respond if bot is mentioned
-        if _client.user in message.mentions:
-            text = message.content.replace(f"<@{_client.user.id}>", "").strip()
+
+        # Attachment ingest — drop a file in any channel, NarAI puts it in
+        # this user's RAG store so /ask + @mention can use it as context.
+        if message.attachments:
+            await _ingest_attachments(message)
+
+        # Respond if bot is mentioned — either as a user or via its managed role.
+        # Discord's "@NarAI" autocomplete inserts a role mention when the bot's
+        # name matches a role; on_message.mentions only lists USER mentions, so
+        # without the role check the bot looks unresponsive in normal usage.
+        mentioned_directly = _client.user in message.mentions
+        mentioned_via_role = False
+        if message.guild is not None and message.role_mentions:
+            bot_role_ids = {r.id for r in message.guild.me.roles}
+            mentioned_via_role = any(r.id in bot_role_ids for r in message.role_mentions)
+
+        if mentioned_directly or mentioned_via_role:
+            text = message.content.replace(f"<@{_client.user.id}>", "")
+            # Strip whichever bot role(s) were mentioned, too.
+            if mentioned_via_role and message.guild is not None:
+                for r in message.role_mentions:
+                    if r in message.guild.me.roles:
+                        text = text.replace(f"<@&{r.id}>", "")
+            text = text.strip()
             if text:
                 if _is_rate_limited(str(message.author.id)):
                     await message.channel.send("Slow down — max 5 messages per minute.")
                 else:
                     async with message.channel.typing():
-                        response = await _get_narai_response(text, str(message.channel.id))
+                        response = await _get_narai_response(
+                            text,
+                            str(message.channel.id),
+                            user_id=str(message.author.id),
+                        )
                     await _chunked_reply(message, response)
+                    # Voice playback if a /voice join is active in this guild
+                    if message.guild is not None:
+                        vc = _voice_clients.get(message.guild.id)
+                        if vc and vc.is_connected() and not vc.is_playing():
+                            await _speak_in_voice(vc, response)
         await _client.process_commands(message)
+
+    async def _speak_in_voice(voice_client, text: str):
+        """Synthesize text via configured TTS provider and play through voice client."""
+        try:
+            import io
+            from narai.voice.tts import get_tts
+            provider = os.getenv("DISCORD_TTS_PROVIDER", "edge")
+            tts = get_tts(provider)
+            audio = await tts.synthesize(text[:1500])
+            src = discord.FFmpegPCMAudio(io.BytesIO(audio), pipe=True)
+            voice_client.play(src)
+        except Exception as e:
+            logger.warning(f"[discord] tts playback failed: {e}")
+
+    async def _ingest_attachments(message):
+        """Save each attachment to a temp file, push it through RAG, react.
+
+        Files >10MB are skipped (RAG chunking would be expensive). Each file
+        is namespaced by user_id so /ask only surfaces the asker's own docs.
+        """
+        import pathlib, tempfile
+        for att in message.attachments:
+            if att.size and att.size > 10 * 1024 * 1024:
+                try:
+                    await message.add_reaction("📦")  # too-big indicator
+                except Exception:
+                    pass
+                continue
+            ext = pathlib.Path(att.filename).suffix or ".bin"
+            tmp = tempfile.NamedTemporaryFile(suffix=ext, delete=False)
+            tmp.close()
+            try:
+                await att.save(tmp.name)
+                from narai.core import rag
+                # Bug-fix: chromadb where-clause is exact match. Use a flat
+                # per-user label so /ask's source_filter=f"discord:{uid}"
+                # actually finds these chunks. Filename is shown in the reply
+                # below for traceability.
+                label = f"discord:{message.author.id}"
+                n_chunks = await rag.aingest(tmp.name, source_label=label)
+                try:
+                    await message.add_reaction("✅")
+                except Exception:
+                    pass
+                await message.reply(
+                    f"Ingested **{att.filename}** ({n_chunks} chunks). "
+                    f"Mention me or use /ask to query it.",
+                    mention_author=False,
+                )
+            except Exception as e:
+                logger.warning(f"[discord] rag ingest failed for {att.filename}: {e}")
+                try:
+                    await message.add_reaction("⚠️")
+                except Exception:
+                    pass
+            finally:
+                try:
+                    pathlib.Path(tmp.name).unlink(missing_ok=True)
+                except Exception:
+                    pass
 
     async def _chunked_reply(message, text: str):
         """Send long text in chunks."""
@@ -223,10 +346,14 @@ async def start_bot():
 
     # ── Slash commands ────────────────────────────────────────────────────────
 
-    @_client.tree.command(name="ask", description="Ask NarAI a question")
+    @_client.tree.command(name="ask", description="Ask NarAI a question (uses your uploaded files as context if relevant)")
     async def slash_ask(interaction: discord.Interaction, question: str):
         await interaction.response.defer()
-        response = await _get_narai_response(question, str(interaction.channel_id))
+        response = await _get_narai_response(
+            question,
+            str(interaction.channel_id),
+            user_id=str(interaction.user.id),
+        )
         await interaction.followup.send(response[:2000])
 
     @_client.tree.command(name="bots", description="List running bots")
@@ -322,6 +449,132 @@ async def start_bot():
         except Exception as e:
             logger.exception("subscribe slash failed")
             await interaction.followup.send(f"Couldn't start checkout: {e}", ephemeral=True)
+
+    # ── /stock <ticker> ──────────────────────────────────────────────────
+    @_client.tree.command(name="stock",
+                          description="Spot quote + AI forecast for a ticker (e.g. TSLA, BTC-USD)")
+    async def slash_stock(interaction: discord.Interaction, ticker: str):
+        await interaction.response.defer()
+        sym = ticker.strip().upper()
+        try:
+            import asyncio as _aio
+            from narai.integrations.subscriber_content import (
+                _safe_quote, _safe_forecast, _arrow,
+            )
+            quote = await _aio.to_thread(_safe_quote, sym)
+            fc    = await _aio.to_thread(_safe_forecast, sym)
+        except Exception as e:
+            await interaction.followup.send(f"Lookup failed: {e}")
+            return
+
+        if not quote:
+            await interaction.followup.send(f"Couldn't fetch `{sym}`. Try a different symbol.")
+            return
+
+        embed = discord.Embed(title=f"📊 {sym}", color=0x00d4ff)
+        embed.add_field(name="Last", value=f"${quote['last']:,.2f}", inline=True)
+        embed.add_field(name="1d", value=f"{quote['change_pct']:+.2f}%", inline=True)
+        if fc:
+            embed.add_field(
+                name="AI 5-day forecast",
+                value=(f"{_arrow(fc.direction)} **{fc.direction}** "
+                       f"({int(fc.confidence*100)}% conf)\n"
+                       f"Target: ${fc.prediction:,.2f}"),
+                inline=False,
+            )
+        embed.set_footer(text="Educational only — not investment advice.")
+        await interaction.followup.send(embed=embed)
+
+    # ── /research <topic> ────────────────────────────────────────────────
+    @_client.tree.command(name="research",
+                          description="AI research on any topic (auto-saves to your RAG store)")
+    async def slash_research(interaction: discord.Interaction, topic: str):
+        await interaction.response.defer()
+        try:
+            from narai.core.research import ResearchBrief, research as _research
+        except Exception as e:
+            await interaction.followup.send(f"Research module unavailable: {e}")
+            return
+
+        # Per-user RAG namespace so /ask filters can find this later.
+        rag_label = f"discord:research:{interaction.user.id}:{int(time.time())}"
+        try:
+            result = await _research(ResearchBrief(
+                query=topic, max_sources=6,
+                ingest_to_rag=True, rag_label=rag_label,
+            ))
+            d = result.to_dict()
+        except Exception as e:
+            logger.exception("research slash failed")
+            await interaction.followup.send(f"Research failed: {e}")
+            return
+
+        body = (d.get("combined") or "").strip() or "(no summary produced)"
+        sources = d.get("summaries") or []
+        embed = discord.Embed(
+            title=f"🔬 {topic[:80]}",
+            description=body[:3500],
+            color=0x7c3aed,
+        )
+        if sources:
+            src_lines = []
+            for s in sources[:5]:
+                title = (s.get("title") or "source")[:60]
+                url = s.get("url") or ""
+                src_lines.append(f"• [{title}]({url})" if url else f"• {title}")
+            embed.add_field(name="Sources", value="\n".join(src_lines)[:1024], inline=False)
+        embed.set_footer(text=f"Saved to RAG · ask follow-ups with /ask")
+        await interaction.followup.send(embed=embed)
+
+    # ── /voice join | leave ──────────────────────────────────────────────
+    @_client.tree.command(name="voice", description="Voice controls — join | leave")
+    @app_commands.choices(action=[
+        app_commands.Choice(name="join",  value="join"),
+        app_commands.Choice(name="leave", value="leave"),
+    ])
+    async def slash_voice(interaction: discord.Interaction,
+                          action: app_commands.Choice[str]):
+        # Choice wraps the value; downstream code expects a plain string.
+        action = action.value if hasattr(action, "value") else str(action)
+        if os.getenv("DISCORD_VOICE_ENABLED", "false").lower() not in {"true", "1", "yes"}:
+            await interaction.response.send_message(
+                "Voice is disabled. Set DISCORD_VOICE_ENABLED=true to enable.",
+                ephemeral=True,
+            )
+            return
+
+        action = action.strip().lower()
+        gid = interaction.guild_id
+        if gid is None:
+            await interaction.response.send_message("Voice only works in a server.", ephemeral=True)
+            return
+
+        if action == "join":
+            ch = interaction.user.voice and interaction.user.voice.channel
+            if not ch:
+                await interaction.response.send_message(
+                    "Join a voice channel first, then run `/voice join`.", ephemeral=True)
+                return
+            try:
+                if gid in _voice_clients and _voice_clients[gid].is_connected():
+                    await _voice_clients[gid].move_to(ch)
+                else:
+                    _voice_clients[gid] = await ch.connect()
+                await interaction.response.send_message(f"Joined 🔊 {ch.name}", ephemeral=True)
+            except Exception as e:
+                logger.exception("voice join failed")
+                await interaction.response.send_message(f"Couldn't join voice: {e}", ephemeral=True)
+        elif action == "leave":
+            vc = _voice_clients.pop(gid, None)
+            if vc:
+                try:
+                    await vc.disconnect(force=False)
+                except Exception:
+                    pass
+            await interaction.response.send_message("Left voice.", ephemeral=True)
+        else:
+            await interaction.response.send_message(
+                "Use `/voice join` or `/voice leave`.", ephemeral=True)
 
     # Run bot
     token = os.getenv("DISCORD_BOT_TOKEN")

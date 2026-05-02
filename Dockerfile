@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     libcurl4-openssl-dev \
     curl \
+    ffmpeg \
+    libopus0 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

@@ -122,6 +122,7 @@ sentence-transformers>=2.7.0
 pywebpush>=2.0.0
 python-telegram-bot[webhooks]>=20.0
 discord.py>=2.3.0
+PyNaCl>=1.5.0  # required by discord.py for voice channels (DISCORD_VOICE_ENABLED=true)
 PyGithub>=2.1.0
 google-generativeai>=0.7.0
 mistralai>=1.0.0
