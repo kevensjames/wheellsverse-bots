@@ -64,10 +64,11 @@ WEEKLY_THEMES = {
 class QueueItem:
     def __init__(self, platform: str, content_type: str, topic: str,
                  scheduled_time: str, content: str = "", status: str = "pending",
-                 item_id: str = ""):
+                 item_id: str = "", account: str = "main"):
         import uuid
         self.id = item_id or str(uuid.uuid4())[:8]
         self.platform = platform
+        self.account = account  # "main" / "shop" / etc. — routes to per-account creds
         self.content_type = content_type
         self.topic = topic
         self.scheduled_time = scheduled_time
@@ -79,7 +80,7 @@ class QueueItem:
 
     def to_dict(self) -> Dict:
         return {
-            "id": self.id, "platform": self.platform,
+            "id": self.id, "platform": self.platform, "account": self.account,
             "content_type": self.content_type, "topic": self.topic,
             "scheduled_time": self.scheduled_time, "content": self.content,
             "status": self.status, "published_at": self.published_at,
@@ -90,7 +91,8 @@ class QueueItem:
     def from_dict(cls, d: Dict) -> "QueueItem":
         item = cls(d["platform"], d["content_type"], d["topic"],
                    d["scheduled_time"], d.get("content", ""),
-                   d.get("status", "pending"), d.get("id", ""))
+                   d.get("status", "pending"), d.get("id", ""),
+                   d.get("account", "main"))  # default for legacy queue items
         item.published_at = d.get("published_at", "")
         item.result = d.get("result", {})
         item.created_at = d.get("created_at", "")
@@ -141,10 +143,21 @@ class ContentCalendar:
 
     # ── Calendar generation ────────────────────────────────────────────────────
 
-    def generate_week(self, platforms: List[str] = None, start_date: str = "") -> Dict:
-        """Generate a full 7-day content calendar with queue items."""
+    def generate_week(self, platforms: List = None, start_date: str = "") -> Dict:
+        """Generate a full 7-day content calendar with queue items.
+
+        `platforms` accepts either:
+          - List[str]              — legacy form, posts go to account="main"
+          - List[Tuple[str, str]]  — (platform, account) pairs, e.g. ("instagram","shop")
+          - Mixed, e.g. ["twitter", ("instagram", "main"), ("instagram", "shop")]
+        """
         if not platforms:
             platforms = ["twitter", "instagram", "tiktok", "linkedin", "threads", "facebook"]
+
+        # Normalize to (platform, account) tuples
+        targets: List[tuple] = [
+            (p, "main") if isinstance(p, str) else (p[0], p[1]) for p in platforms
+        ]
 
         best_topics = []
         try:
@@ -170,7 +183,10 @@ class ContentCalendar:
 
         calendar: Dict = {}
         new_items: List[QueueItem] = []
-        existing_keys = {(i.platform, i.topic, i.scheduled_time[:10]) for i in self._queue}
+        existing_keys = {
+            (i.platform, getattr(i, "account", "main"), i.topic, i.scheduled_time[:10])
+            for i in self._queue
+        }
 
         for day_offset in range(7):
             day = start + timedelta(days=day_offset)
@@ -191,18 +207,22 @@ class ContentCalendar:
                 "platforms": {},
             }
 
-            for platform in platforms:
+            for platform, account in targets:
                 times = OPTIMAL_TIMES.get(platform, ["10:00"])
                 post_time = times[day_offset % len(times)]
                 scheduled = f"{day_str}T{post_time}:00+00:00"
 
-                key = (platform, topic, day_str)
+                key = (platform, account, topic, day_str)
                 if key not in existing_keys:
-                    item = QueueItem(platform, theme_info["type"], topic, scheduled)
+                    item = QueueItem(platform, theme_info["type"], topic, scheduled,
+                                     account=account)
                     new_items.append(item)
                     existing_keys.add(key)
-                    calendar[day_str]["platforms"][platform] = {
+                    # Calendar key: bare platform for main (back-compat), "platform@account" else
+                    cal_key = platform if account == "main" else f"{platform}@{account}"
+                    calendar[day_str]["platforms"][cal_key] = {
                         "scheduled": scheduled, "queue_id": item.id, "status": "pending",
+                        "account": account,
                     }
 
         with self._lock:
@@ -215,19 +235,21 @@ class ContentCalendar:
             "status": "generated",
             "days": len(calendar),
             "items_queued": len(new_items),
-            "platforms": platforms,
+            "targets": targets,
             "calendar": calendar,
         }
 
     # ── Queue management ───────────────────────────────────────────────────────
 
     def add(self, platform: str, topic: str, content: str = "",
-            scheduled_time: str = "", content_type: str = "post") -> QueueItem:
+            scheduled_time: str = "", content_type: str = "post",
+            account: str = "main") -> QueueItem:
         if not scheduled_time:
             times = OPTIMAL_TIMES.get(platform, ["10:00"])
             tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).date()
             scheduled_time = f"{tomorrow.isoformat()}T{times[0]}:00+00:00"
-        item = QueueItem(platform, content_type, topic, scheduled_time, content)
+        item = QueueItem(platform, content_type, topic, scheduled_time, content,
+                         account=account)
         with self._lock:
             self._queue.append(item)
             self._save_queue()
@@ -326,12 +348,17 @@ class ContentCalendar:
     def _publish(self, item: QueueItem) -> Dict:
         try:
             p = item.platform.lower()
+            account = getattr(item, "account", "main")  # legacy items lack the field
             if p == "twitter":
                 from core.twitter import TwitterClient
                 r = TwitterClient().post_tweet(item.content[:280])
             elif p == "facebook":
-                from core.facebook import post_text
-                r = post_text(item.content)
+                from core.facebook import get_facebook
+                r = get_facebook(account).post(item.content)
+            elif p == "instagram":
+                # IG requires an image — client auto-generates via DALL-E + Pillow
+                from core.instagram import get_instagram
+                r = get_instagram(account).post(item.content)
             elif p == "linkedin":
                 from core.linkedin import get_linkedin
                 r = get_linkedin().post(text=item.content)
@@ -440,5 +467,7 @@ def get_summary() -> Dict:
 
 
 def queue_post(platform: str, topic: str, content: str = "",
-               scheduled_time: str = "") -> Dict:
-    return ContentCalendar.get().add(platform, topic, content, scheduled_time).to_dict()
+               scheduled_time: str = "", account: str = "main") -> Dict:
+    return ContentCalendar.get().add(
+        platform, topic, content, scheduled_time, account=account
+    ).to_dict()

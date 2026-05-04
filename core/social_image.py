@@ -66,6 +66,10 @@ _PLATFORMS = {
     "instagram_story":      (1080, 1920, "1024x1792", True),
     "instagram_reel_cover": (1080, 1920, "1024x1792", True),
     "facebook_feed":        (1200,  630, "1792x1024", True),
+    # Profile/branding assets — no headline overlay (logo art on the DALL-E pass).
+    "profile_avatar":       (1080, 1080, "1024x1024", False),
+    "facebook_cover":       (1640,  924, "1792x1024", False),
+    "instagram_story_banner": (1080, 1920, "1024x1792", False),
 }
 
 
@@ -190,7 +194,7 @@ def generate_social_image(headline: str, subtext: str = "",
     if platform not in _PLATFORMS:
         log.warning("Unknown platform %r — using instagram_feed geometry", platform)
         platform = "instagram_feed"
-    final_w, final_h, dalle_size, _ = _PLATFORMS[platform]
+    final_w, final_h, dalle_size, with_text = _PLATFORMS[platform]
 
     img_bytes = _dalle_background(_build_prompt(headline, style_hint), dalle_size)
     if not img_bytes:
@@ -214,6 +218,18 @@ def generate_social_image(headline: str, subtext: str = "",
         top = (bg.height - new_h) // 2
         bg = bg.crop((0, top, bg.width, top + new_h))
     bg = bg.resize((final_w, final_h), Image.Resampling.LANCZOS)
+
+    # Brand-asset platforms (avatar, cover, story banner) skip the text overlay
+    # — DALL-E art only, save and return.
+    if not with_text:
+        safe = "".join(c if c.isalnum() else "_" for c in (headline or platform).lower()[:40]).strip("_") or platform
+        fname = f"{safe}_{platform}_{int(time.time())}.jpg"
+        out_path = OUTPUT_DIR / fname
+        bg.save(out_path, "JPEG", quality=92, subsampling=0, optimize=True,
+                progressive=True, dpi=(144, 144))
+        log.info("Composed brand asset: %s (%dx%d, no text overlay)",
+                 out_path.name, final_w, final_h)
+        return out_path
 
     # Top dark gradient band so headline contrasts no matter the background.
     band_h = int(final_h * 0.42)

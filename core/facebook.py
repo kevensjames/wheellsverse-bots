@@ -4,23 +4,29 @@ core/facebook.py
 ─────────────────────────────────────────────────────────────────────────────
 Facebook integration — Graph API first, Playwright browser fallback.
 
-Credentials (at least one method must be set):
+Multi-account: every class accepts `account` (default "main"). Env vars use
+an account-derived prefix so a single .env can hold many FB Page identities:
+
+    account="main"  → FACEBOOK_PAGE_TOKEN, FACEBOOK_PAGE_ID, …  (no prefix)
+    account="shop"  → SHOP_FACEBOOK_PAGE_TOKEN, SHOP_FACEBOOK_PAGE_ID, …
+
+Credentials (at least one method must be set per account):
 
   Method A — Graph API (recommended for video + images):
-    FACEBOOK_PAGE_TOKEN   — Page Access Token from Meta Developer Console
-    FACEBOOK_PAGE_ID      — Your Facebook Page ID (numeric)
+    {PREFIX}FACEBOOK_PAGE_TOKEN   — Page Access Token from Meta Developer Console
+    {PREFIX}FACEBOOK_PAGE_ID      — Your Facebook Page ID (numeric)
 
   Method B — Browser automation (text + images via login):
-    FACEBOOK_EMAIL        — Facebook account email
-    FACEBOOK_PASSWORD     — Facebook account password
-    FACEBOOK_PAGE_URL     — Your page URL (e.g. https://www.facebook.com/WheellsVerse)
+    {PREFIX}FACEBOOK_EMAIL        — Facebook account email
+    {PREFIX}FACEBOOK_PASSWORD     — Facebook account password
+    {PREFIX}FACEBOOK_PAGE_URL     — Your page URL (e.g. https://www.facebook.com/WheellsVerse)
 ─────────────────────────────────────────────────────────────────────────────
 """
 
 import logging
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -29,7 +35,16 @@ load_dotenv(ROOT / ".env")
 
 logger = logging.getLogger("facebook")
 
-SESSION_FILE = ROOT / "data" / "facebook_session.json"
+
+def _env_prefix(account: str) -> str:
+    """Empty for "main" (backward compat), "<ACCOUNT>_" otherwise."""
+    return "" if account == "main" else f"{account.upper()}_"
+
+
+def _session_file(account: str) -> Path:
+    """Per-account browser session file so login states don't collide."""
+    suffix = "" if account == "main" else f"_{account}"
+    return ROOT / "data" / f"facebook_session{suffix}.json"
 
 
 # ── Graph API poster ──────────────────────────────────────────────────────────
@@ -37,9 +52,11 @@ SESSION_FILE = ROOT / "data" / "facebook_session.json"
 class FacebookGraphPoster:
     """Post to Facebook Page via Graph API."""
 
-    def __init__(self):
-        self.token = os.getenv("FACEBOOK_PAGE_TOKEN", "")
-        self.page_id = os.getenv("FACEBOOK_PAGE_ID", "")
+    def __init__(self, account: str = "main"):
+        self.account = account
+        prefix = _env_prefix(account)
+        self.token = os.getenv(f"{prefix}FACEBOOK_PAGE_TOKEN", "")
+        self.page_id = os.getenv(f"{prefix}FACEBOOK_PAGE_ID", "")
 
     def is_configured(self) -> bool:
         return bool(self.token and self.page_id)
@@ -108,10 +125,13 @@ class FacebookGraphPoster:
 class FacebookBrowserPoster:
     """Post to Facebook Page via Playwright browser automation."""
 
-    def __init__(self):
-        self.email = os.getenv("FACEBOOK_EMAIL", "")
-        self.password = os.getenv("FACEBOOK_PASSWORD", "")
-        self.page_url = os.getenv("FACEBOOK_PAGE_URL", "").rstrip("/")
+    def __init__(self, account: str = "main"):
+        self.account = account
+        prefix = _env_prefix(account)
+        self.email = os.getenv(f"{prefix}FACEBOOK_EMAIL", "")
+        self.password = os.getenv(f"{prefix}FACEBOOK_PASSWORD", "")
+        self.page_url = os.getenv(f"{prefix}FACEBOOK_PAGE_URL", "").rstrip("/")
+        self.session_file = _session_file(account)
 
     def is_configured(self) -> bool:
         return bool(self.email and self.password)
@@ -126,9 +146,9 @@ class FacebookBrowserPoster:
             viewport={"width": 1280, "height": 800},
             locale="en-US",
         )
-        if SESSION_FILE.exists():
+        if self.session_file.exists():
             try:
-                ctx = browser.new_context(storage_state=str(SESSION_FILE), **ctx_args)
+                ctx = browser.new_context(storage_state=str(self.session_file), **ctx_args)
                 return browser, ctx
             except Exception:
                 pass
@@ -145,8 +165,8 @@ class FacebookBrowserPoster:
         logger.info("[Browser] Logged into Facebook")
 
     def _save_session(self, context):
-        SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
-        context.storage_state(path=str(SESSION_FILE))
+        self.session_file.parent.mkdir(parents=True, exist_ok=True)
+        context.storage_state(path=str(self.session_file))
 
     def _is_logged_in(self, page) -> bool:
         return "login" not in page.url and "checkpoint" not in page.url
@@ -275,9 +295,10 @@ class FacebookBrowserPoster:
 class FacebookClient:
     """Graph API first, browser fallback."""
 
-    def __init__(self):
-        self._graph = FacebookGraphPoster()
-        self._browser = FacebookBrowserPoster()
+    def __init__(self, account: str = "main"):
+        self.account = account
+        self._graph = FacebookGraphPoster(account=account)
+        self._browser = FacebookBrowserPoster(account=account)
 
     def is_configured(self) -> bool:
         return self._graph.is_configured() or self._browser.is_configured()
@@ -301,7 +322,8 @@ class FacebookClient:
                     return self._graph.post_photo(message, image_url)
                 return self._graph.post_text(message)
             except Exception as e:
-                logger.warning("[Graph] Failed (%s) — falling back to browser", e)
+                logger.warning("[Graph %s] Failed (%s) — falling back to browser",
+                               self.account, e)
 
         # ── Browser fallback ──────────────────────────────────────────────────
         if self._browser.is_configured():
@@ -310,24 +332,32 @@ class FacebookClient:
                     return self._browser.post_photo(message, image_url)
                 return self._browser.post_text(message)
             except Exception as e:
-                return {"status": "error", "error": str(e), "method": "browser"}
+                return {"status": "error", "error": str(e), "method": "browser",
+                        "account": self.account}
 
+        prefix = _env_prefix(self.account)
         return {
             "status": "skipped",
+            "account": self.account,
             "reason": (
-                "No Facebook credentials configured. Add to .env:\n"
-                "  FACEBOOK_PAGE_TOKEN + FACEBOOK_PAGE_ID  (Graph API)\n"
+                f"No Facebook credentials for account={self.account!r}. Add to .env:\n"
+                f"  {prefix}FACEBOOK_PAGE_TOKEN + {prefix}FACEBOOK_PAGE_ID  (Graph API)\n"
                 "  OR\n"
-                "  FACEBOOK_EMAIL + FACEBOOK_PASSWORD + FACEBOOK_PAGE_URL  (browser)"
+                f"  {prefix}FACEBOOK_EMAIL + {prefix}FACEBOOK_PASSWORD + {prefix}FACEBOOK_PAGE_URL  (browser)"
             ),
         }
 
 
-_client: Optional[FacebookClient] = None
+_clients: Dict[str, FacebookClient] = {}
 
 
-def get_facebook() -> FacebookClient:
-    global _client
-    if _client is None:
-        _client = FacebookClient()
-    return _client
+def get_facebook(account: str = "main") -> FacebookClient:
+    """Return cached client for `account` (default "main"). Creates on first use."""
+    if account not in _clients:
+        _clients[account] = FacebookClient(account=account)
+    return _clients[account]
+
+
+# Module-level convenience for legacy callers (defaults to "main" account).
+def post_text(message: str) -> dict:
+    return get_facebook().post(message)
