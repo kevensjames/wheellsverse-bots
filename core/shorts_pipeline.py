@@ -388,8 +388,18 @@ Rules:
             ig = get_instagram()
             if not ig.is_configured():
                 return "skipped: Instagram not configured"
-            video_url = str(video_source) if isinstance(video_source, Path) else video_source
-            result = ig.post(caption[:2200], video_url=video_url)
+            # Local Path → route through video_engine.post_video_to_instagram so
+            # ensure_audio runs and the resumable upload reads real bytes.
+            # Genuine HTTPS URL → IG Graph fetches it directly.
+            if isinstance(video_source, Path) or (
+                isinstance(video_source, str) and not video_source.startswith(("http://", "https://"))
+            ):
+                from core.video_engine import post_video_to_instagram
+                pub = post_video_to_instagram(str(video_source), caption[:2200])
+                if pub.get("success"):
+                    return pub.get("result", {}).get("post_id") or "published"
+                return f"error: {pub.get('error', 'unknown')}"
+            result = ig.post(caption[:2200], video_url=video_source)
             return result.get("post_id") or result.get("status") or "published"
         except Exception as e:
             return f"error: {e}"
@@ -400,8 +410,15 @@ Rules:
             fb = get_facebook()
             if not fb.is_configured():
                 return "skipped: Facebook not configured"
-            video_url = str(video_source) if isinstance(video_source, Path) else video_source
-            result = fb.post(caption[:63206], video_url=video_url)
+            if isinstance(video_source, Path) or (
+                isinstance(video_source, str) and not video_source.startswith(("http://", "https://"))
+            ):
+                from core.video_engine import post_video_to_facebook
+                pub = post_video_to_facebook(str(video_source), title="", description=caption[:63206])
+                if pub.get("success"):
+                    return pub.get("result", {}).get("post_id") or "published"
+                return f"error: {pub.get('error', 'unknown')}"
+            result = fb.post(caption[:63206], video_url=video_source)
             return result.get("post_id") or result.get("status") or "published"
         except Exception as e:
             return f"error: {e}"

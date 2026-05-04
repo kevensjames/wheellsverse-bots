@@ -4,16 +4,22 @@ core/instagram.py
 ─────────────────────────────────────────────────────────────────────────────
 Instagram integration — Graph API first, Playwright browser fallback.
 
-Credentials (at least one method must be set):
+Multi-account: every class accepts `account` (default "main"). Env vars use
+an account-derived prefix so a single .env can hold many IG identities:
+
+    account="main"  → INSTAGRAM_PAGE_TOKEN, INSTAGRAM_ACCOUNT_ID, …  (no prefix)
+    account="shop"  → SHOP_INSTAGRAM_PAGE_TOKEN, SHOP_INSTAGRAM_ACCOUNT_ID, …
+
+Credentials (at least one method must be set per account):
 
   Method A — Graph API (recommended for Reels + scheduled):
-    INSTAGRAM_PAGE_TOKEN   — Facebook Page Access Token (linked IG account)
-    INSTAGRAM_ACCOUNT_ID   — Instagram Business Account ID
-    OPENAI_API_KEY         — for auto-generating DALL-E images when needed
+    {PREFIX}INSTAGRAM_PAGE_TOKEN   — Facebook Page Access Token (linked IG account)
+    {PREFIX}INSTAGRAM_ACCOUNT_ID   — Instagram Business Account ID
+    OPENAI_API_KEY                 — for auto-generating DALL-E images when needed
 
   Method B — Browser automation (text + image posts via login):
-    INSTAGRAM_USERNAME     — Instagram username (without @)
-    INSTAGRAM_PASSWORD     — Instagram account password
+    {PREFIX}INSTAGRAM_USERNAME     — Instagram username (without @)
+    {PREFIX}INSTAGRAM_PASSWORD     — Instagram account password
 ─────────────────────────────────────────────────────────────────────────────
 """
 
@@ -22,7 +28,7 @@ import os
 import time
 import tempfile
 from pathlib import Path
-from typing import Optional
+from typing import Dict, Optional
 
 from dotenv import load_dotenv
 
@@ -31,7 +37,16 @@ load_dotenv(ROOT / ".env")
 
 logger = logging.getLogger("instagram")
 
-SESSION_FILE = ROOT / "data" / "instagram_session.json"
+
+def _env_prefix(account: str) -> str:
+    """Empty for "main" (backward compat), "<ACCOUNT>_" otherwise."""
+    return "" if account == "main" else f"{account.upper()}_"
+
+
+def _session_file(account: str) -> Path:
+    """Per-account browser session file so login states don't collide."""
+    suffix = "" if account == "main" else f"_{account}"
+    return ROOT / "data" / f"instagram_session{suffix}.json"
 
 
 # ── Graph API poster ──────────────────────────────────────────────────────────
@@ -39,34 +54,39 @@ SESSION_FILE = ROOT / "data" / "instagram_session.json"
 class InstagramGraphPoster:
     """Post to Instagram via Graph API (requires Business account linked to FB Page)."""
 
-    def __init__(self):
-        self.token = os.getenv("INSTAGRAM_PAGE_TOKEN", "") or os.getenv("FACEBOOK_PAGE_TOKEN", "")
-        self.account_id = os.getenv("INSTAGRAM_ACCOUNT_ID", "")
+    def __init__(self, account: str = "main"):
+        self.account = account
+        prefix = _env_prefix(account)
+        self.token = (
+            os.getenv(f"{prefix}INSTAGRAM_PAGE_TOKEN", "")
+            or os.getenv(f"{prefix}FACEBOOK_PAGE_TOKEN", "")
+        )
+        self.account_id = os.getenv(f"{prefix}INSTAGRAM_ACCOUNT_ID", "")
         self.openai_key = os.getenv("OPENAI_API_KEY", "")
 
     def is_configured(self) -> bool:
         return bool(self.token and self.account_id)
 
     def _generate_image(self, caption: str) -> Optional[str]:
-        """Generate a DALL-E image URL for the post."""
-        if not self.openai_key:
-            return None
+        """Compose a sharp social image (HD background + Pillow text) and expose it
+        via the FastAPI /social-media static mount so Meta can fetch it."""
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=self.openai_key)
-            resp = client.images.generate(
-                model="dall-e-3",
-                prompt=(
-                    f"Professional social media post image for: {caption[:200]}. "
-                    "Dark futuristic tech aesthetic, cyan and gold accents, "
-                    "bold text overlay with key message. WheellsVerse AI brand style."
-                ),
-                size="1024x1024", quality="standard", n=1,
-            )
-            return resp.data[0].url
+            from core.social_image import generate_social_image, upload_to_public_url
         except Exception as e:
-            logger.warning("DALL-E image generation failed: %s", e)
+            logger.warning("social_image module unavailable: %s", e)
             return None
+        # First sentence (or first 90 chars) makes a tighter, more readable headline
+        # than the whole caption, which usually contains hashtags + CTAs.
+        headline = caption.split("\n", 1)[0].split(". ", 1)[0][:90].strip() or "WheellsVerse"
+        subtext = ""
+        rest = caption[len(headline):].strip(" .\n")
+        if rest:
+            subtext = rest.split("\n", 1)[0][:120]
+        local = generate_social_image(headline=headline, subtext=subtext,
+                                      platform="instagram_feed")
+        if not local:
+            return None
+        return upload_to_public_url(local)
 
     def post_photo(self, caption: str, image_url: Optional[str] = None) -> dict:
         """Post a photo to Instagram. Auto-generates DALL-E image if none provided."""
@@ -198,9 +218,12 @@ class InstagramGraphPoster:
 class InstagramBrowserPoster:
     """Post to Instagram via Playwright browser automation."""
 
-    def __init__(self):
-        self.username = os.getenv("INSTAGRAM_USERNAME", "")
-        self.password = os.getenv("INSTAGRAM_PASSWORD", "")
+    def __init__(self, account: str = "main"):
+        self.account = account
+        prefix = _env_prefix(account)
+        self.username = os.getenv(f"{prefix}INSTAGRAM_USERNAME", "")
+        self.password = os.getenv(f"{prefix}INSTAGRAM_PASSWORD", "")
+        self.session_file = _session_file(account)
 
     def is_configured(self) -> bool:
         return bool(self.username and self.password)
@@ -215,9 +238,9 @@ class InstagramBrowserPoster:
             viewport={"width": 1280, "height": 800},
             locale="en-US",
         )
-        if SESSION_FILE.exists():
+        if self.session_file.exists():
             try:
-                ctx = browser.new_context(storage_state=str(SESSION_FILE), **ctx_args)
+                ctx = browser.new_context(storage_state=str(self.session_file), **ctx_args)
                 return browser, ctx
             except Exception:
                 pass
@@ -243,8 +266,8 @@ class InstagramBrowserPoster:
         logger.info("[Browser] Logged into Instagram")
 
     def _save_session(self, context):
-        SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
-        context.storage_state(path=str(SESSION_FILE))
+        self.session_file.parent.mkdir(parents=True, exist_ok=True)
+        context.storage_state(path=str(self.session_file))
 
     def _is_logged_in(self, page) -> bool:
         return "login" not in page.url and "accounts" not in page.url
@@ -324,23 +347,26 @@ class InstagramBrowserPoster:
                 Path(img_path).unlink(missing_ok=True)
 
     def post_text_as_image(self, caption: str) -> dict:
-        """Generate a DALL-E image and post it (Instagram requires images)."""
-        openai_key = os.getenv("OPENAI_API_KEY", "")
-        if not openai_key:
+        """Compose a sharp image with a clean DALL-E HD background + Pillow headline
+        text, then upload via the browser flow (Instagram requires images)."""
+        if not os.getenv("OPENAI_API_KEY"):
             return {"status": "error",
                     "error": "Instagram requires an image. Add OPENAI_API_KEY to auto-generate."}
-        from openai import OpenAI
-        client = OpenAI(api_key=openai_key)
-        resp = client.images.generate(
-            model="dall-e-3",
-            prompt=(
-                f"Professional social media post image for: {caption[:200]}. "
-                "Dark futuristic tech aesthetic, cyan and gold accents, "
-                "bold text overlay with key message. WheellsVerse brand style."
-            ),
-            size="1024x1024", quality="standard", n=1,
-        )
-        image_url = resp.data[0].url
+        from core.social_image import generate_social_image
+        headline = caption.split("\n", 1)[0].split(". ", 1)[0][:90].strip() or "WheellsVerse"
+        subtext = caption[len(headline):].strip(" .\n").split("\n", 1)[0][:120]
+        local = generate_social_image(headline=headline, subtext=subtext,
+                                      platform="instagram_feed")
+        if not local:
+            return {"status": "error", "error": "Image composition failed (DALL-E or Pillow)"}
+        # Browser path uploads from a local file by re-fetching via file:// URL
+        # is brittle — instead read the bytes and re-use the image_url path
+        # through a public HTTPS exposure.
+        from core.social_image import upload_to_public_url
+        image_url = upload_to_public_url(local)
+        if not image_url:
+            return {"status": "error",
+                    "error": "RAILWAY_PUBLIC_URL not set — composed image cannot be exposed to IG"}
         return self.post_photo(caption, image_url)
 
 
@@ -349,9 +375,10 @@ class InstagramBrowserPoster:
 class InstagramClient:
     """Graph API first, browser fallback."""
 
-    def __init__(self):
-        self._graph = InstagramGraphPoster()
-        self._browser = InstagramBrowserPoster()
+    def __init__(self, account: str = "main"):
+        self.account = account
+        self._graph = InstagramGraphPoster(account=account)
+        self._browser = InstagramBrowserPoster(account=account)
 
     def is_configured(self) -> bool:
         return self._graph.is_configured() or self._browser.is_configured()
@@ -372,7 +399,8 @@ class InstagramClient:
                     return self._graph.post_reel(caption, video_url)
                 return self._graph.post_photo(caption, image_url)
             except Exception as e:
-                logger.warning("[Graph] Failed (%s) — falling back to browser", e)
+                logger.warning("[Graph %s] Failed (%s) — falling back to browser",
+                               self.account, e)
 
         # ── Browser fallback ──────────────────────────────────────────────────
         if self._browser.is_configured():
@@ -382,24 +410,27 @@ class InstagramClient:
                 # Instagram needs an image — generate one with DALL-E
                 return self._browser.post_text_as_image(caption)
             except Exception as e:
-                return {"status": "error", "error": str(e), "method": "browser"}
+                return {"status": "error", "error": str(e), "method": "browser",
+                        "account": self.account}
 
+        prefix = _env_prefix(self.account)
         return {
             "status": "skipped",
+            "account": self.account,
             "reason": (
-                "No Instagram credentials configured. Add to .env:\n"
-                "  INSTAGRAM_PAGE_TOKEN + INSTAGRAM_ACCOUNT_ID  (Graph API)\n"
+                f"No Instagram credentials for account={self.account!r}. Add to .env:\n"
+                f"  {prefix}INSTAGRAM_PAGE_TOKEN + {prefix}INSTAGRAM_ACCOUNT_ID  (Graph API)\n"
                 "  OR\n"
-                "  INSTAGRAM_USERNAME + INSTAGRAM_PASSWORD  (browser)"
+                f"  {prefix}INSTAGRAM_USERNAME + {prefix}INSTAGRAM_PASSWORD  (browser)"
             ),
         }
 
 
-_client: Optional[InstagramClient] = None
+_clients: Dict[str, InstagramClient] = {}
 
 
-def get_instagram() -> InstagramClient:
-    global _client
-    if _client is None:
-        _client = InstagramClient()
-    return _client
+def get_instagram(account: str = "main") -> InstagramClient:
+    """Return cached client for `account` (default "main"). Creates on first use."""
+    if account not in _clients:
+        _clients[account] = InstagramClient(account=account)
+    return _clients[account]

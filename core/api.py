@@ -134,6 +134,7 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                   "/api/v2/narai/telegram/subscription/checkout",
                   "/api/v2/narai/insider/lead",
                   "/api/v2/narai/discord/status",
+                  "/api/v2/narai/spend",
                   # Second Brain Inbox / Toodle
                   "/api/inbox", "/api/inbox/brain-dump", "/api/inbox/digest", "/api/inbox/search",
                   "/second-brain-inbox", "/admin/second-brain-inbox", "/user/second-brain-inbox",
@@ -710,6 +711,17 @@ app.add_middleware(
     expose_headers=["X-NarAI-Text", "X-NarAI-Mood", "X-NarAI-Emoji", "X-NarAI-Energy",
                     "Content-Length", "Content-Type"],
 )
+
+
+# ─── Static mount: composed social images ──────────────────────────────────
+# Meta Graph API needs a public HTTPS URL it can fetch when posting photos to
+# Instagram/Facebook. core.social_image writes JPEGs into outputs/social_images/
+# and core.social_image.upload_to_public_url builds a /social-media/<file> URL
+# that resolves through this mount.
+from fastapi.staticfiles import StaticFiles as _StaticFiles
+_social_img_dir = ROOT / "outputs" / "social_images"
+_social_img_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/social-media", _StaticFiles(directory=str(_social_img_dir)), name="social-media")
 
 
 # ─── Rate Limiting ─────────────────────────────────────────────────────────
@@ -13440,6 +13452,80 @@ if _v2_auth_loaded:
         logger.info("Insider promo scheduler hook registered")
     except Exception as _e:
         logger.warning(f"Insider promo scheduler not registered: {_e}")
+
+    # Anthropic spend ranking — reads data/token_usage.json and aggregates.
+    # Public read because it surfaces only token counts + bot names, no secrets.
+    @app.get("/api/v2/narai/spend")
+    async def narai_spend_endpoint(day: str = "", limit: int = 25):
+        """Return per-bot Anthropic spend, optionally filtered to a day (YYYY-MM-DD)."""
+        from collections import defaultdict
+        from pathlib import Path as _Path
+        import json as _json
+
+        log_path = _Path(__file__).resolve().parent.parent / "data" / "token_usage.json"
+        if not log_path.exists():
+            return {"records": 0, "filter_day": day, "total_cost_usd": 0.0,
+                    "by_bot": [], "by_model": [], "by_day": []}
+
+        try:
+            records = _json.loads(log_path.read_text())
+        except Exception as _e:
+            return {"error": f"could not read log: {_e}"}
+
+        # Anthropic-only; per-1M-token pricing
+        PRICING = {
+            "haiku":  {"in": 1.00,  "out": 5.00},
+            "sonnet": {"in": 3.00,  "out": 15.00},
+            "opus":   {"in": 15.00, "out": 75.00},
+        }
+        def _cost(r):
+            m = (r.get("model") or "").lower()
+            tier = "opus" if "opus" in m else "sonnet" if "sonnet" in m else "haiku"
+            p = PRICING[tier]
+            return (r.get("prompt_tokens", 0) / 1_000_000) * p["in"] + \
+                   (r.get("completion_tokens", 0) / 1_000_000) * p["out"]
+
+        ant = [r for r in records if r.get("provider") == "anthropic"]
+        if day:
+            ant = [r for r in ant if (r.get("ts") or "").startswith(day)]
+
+        by_bot = defaultdict(lambda: {"calls": 0, "in_tok": 0, "out_tok": 0, "cost_usd": 0.0})
+        by_model = defaultdict(lambda: {"calls": 0, "cost_usd": 0.0})
+        by_day = defaultdict(lambda: {"calls": 0, "cost_usd": 0.0})
+        total_cost = 0.0
+
+        for r in ant:
+            c = _cost(r)
+            total_cost += c
+            b = r.get("bot_name") or "?"
+            m = r.get("model") or "?"
+            d = (r.get("ts") or "")[:10]
+            by_bot[b]["calls"] += 1
+            by_bot[b]["in_tok"] += r.get("prompt_tokens", 0)
+            by_bot[b]["out_tok"] += r.get("completion_tokens", 0)
+            by_bot[b]["cost_usd"] = round(by_bot[b]["cost_usd"] + c, 6)
+            by_model[m]["calls"] += 1
+            by_model[m]["cost_usd"] = round(by_model[m]["cost_usd"] + c, 6)
+            by_day[d]["calls"] += 1
+            by_day[d]["cost_usd"] = round(by_day[d]["cost_usd"] + c, 6)
+
+        return {
+            "records": len(ant),
+            "filter_day": day or "all",
+            "total_cost_usd": round(total_cost, 4),
+            "by_bot": sorted(
+                [{"bot": b, **s} for b, s in by_bot.items()],
+                key=lambda r: -r["cost_usd"],
+            )[:limit],
+            "by_model": sorted(
+                [{"model": m, **s} for m, s in by_model.items()],
+                key=lambda r: -r["cost_usd"],
+            ),
+            "by_day": sorted(
+                [{"day": d, **s} for d, s in by_day.items()],
+                key=lambda r: r["day"],
+            ),
+        }
 
     # Discord status diagnostic — surfaces why the bot may be offline.
     # Reads core.discord_bot's module-level globals; safe regardless of state.

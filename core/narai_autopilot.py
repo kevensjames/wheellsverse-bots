@@ -189,14 +189,14 @@ def _ap_load_logs() -> list:
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
     """Call Claude for NarAI creation. Uses Sonnet for quality, Haiku for speed."""
-    import anthropic
+    from core.claude_logged import create as _claude_create
     model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
+    r = _claude_create(
         model=model,
         max_tokens=max_tokens,
         system=system or _narai_system(),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="narai_autopilot",
     )
     return r.content[0].text.strip()
 
@@ -1087,9 +1087,22 @@ def _promote_product_on_social(product: dict, platform: str, state: dict):
                 style="cinematic",
                 duration=60,
             )
-            if vid and vid.get("video_url"):
-                post_video_to_instagram(vid["video_url"], caption=ig_post or ig_reel_script[:200])
-                _ap_log(f"  ✅ Instagram Reel posted for '{title}'", phase="promote")
+            # post_video_to_instagram requires a LOCAL file path (so ensure_audio
+            # can run ffprobe/ffmpeg on it and the IG resumable upload can read
+            # the bytes). Use local_path which generate_video populates after
+            # downloading the rendered clip; fall back to video_url only if the
+            # download somehow failed.
+            local_path = (vid or {}).get("local_path")
+            if local_path:
+                pub = post_video_to_instagram(local_path, caption=ig_post or ig_reel_script[:200])
+                if pub.get("success"):
+                    _ap_log(f"  ✅ Instagram Reel posted for '{title}'", phase="promote")
+                else:
+                    _ap_log(f"  ⚠️ Instagram Reel publish failed: {pub.get('error', '')}",
+                            level="WARNING", phase="promote")
+            elif vid and vid.get("video_url"):
+                _ap_log(f"  ⚠️ Reel generated but local download missing — skipping IG publish",
+                        level="WARNING", phase="promote")
         except Exception as ve:
             _ap_log(f"  Reel generation skipped: {ve}", level="WARNING", phase="promote")
 
@@ -1105,8 +1118,7 @@ def _promote_product_on_social(product: dict, platform: str, state: dict):
     if fb_video_script:
         _queue_for_manual("facebook_video", f"Product Video: {title}", fb_video_script, "video_script")
         try:
-            from core.video_engine import generate_video
-            from core.facebook import FacebookClient
+            from core.video_engine import generate_video, post_video_to_facebook
             _ap_log(f"  🎬 Generating product video for Facebook: '{title}'…", phase="promote")
             vid = generate_video(
                 script=fb_video_script,
@@ -1114,10 +1126,23 @@ def _promote_product_on_social(product: dict, platform: str, state: dict):
                 style="cinematic",
                 duration=60,
             )
-            if vid and vid.get("video_url"):
-                fb = FacebookClient()
-                fb.post_video(vid["video_url"], description=fb_post or fb_video_script[:300])
-                _ap_log(f"  ✅ Facebook video posted for '{title}'", phase="promote")
+            # Route through post_video_to_facebook so the audio guard runs and
+            # silent Runway clips don't escape into the FB Page feed.
+            local_path = (vid or {}).get("local_path")
+            if local_path:
+                pub = post_video_to_facebook(
+                    local_path,
+                    title=f"Product Video: {title}",
+                    description=fb_post or fb_video_script[:300],
+                )
+                if pub.get("success"):
+                    _ap_log(f"  ✅ Facebook video posted for '{title}'", phase="promote")
+                else:
+                    _ap_log(f"  ⚠️ Facebook video publish failed: {pub.get('error', '')}",
+                            level="WARNING", phase="promote")
+            elif vid and vid.get("video_url"):
+                _ap_log("  ⚠️ FB video generated but local download missing — skipping publish",
+                        level="WARNING", phase="promote")
         except Exception as ve:
             _ap_log(f"  Facebook video skipped: {ve}", level="WARNING", phase="promote")
 

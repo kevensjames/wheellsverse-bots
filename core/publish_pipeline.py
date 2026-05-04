@@ -175,6 +175,21 @@ def _md_to_html(md: str) -> str:
     return '\n'.join(paras)
 
 
+def _compose_social_image_url(title: str, snippet: str, platform: str) -> Optional[str]:
+    """Build a sharp DALL-E HD + Pillow text image and return a public HTTPS URL
+    Meta can fetch. Returns None on any failure so the caller can decide whether
+    to skip or fall back."""
+    try:
+        from core.social_image import generate_social_image, upload_to_public_url
+        local = generate_social_image(headline=title, subtext=snippet, platform=platform)
+        if not local:
+            return None
+        return upload_to_public_url(local)
+    except Exception as e:
+        logger.warning("Social image composition failed (%s): %s", platform, e)
+        return None
+
+
 class PublishPipeline:
     """Publish content to all connected platforms in parallel."""
 
@@ -218,6 +233,11 @@ class PublishPipeline:
             snippet = clean[:300].rsplit(' ', 1)[0] + '...' if len(clean) > 300 else clean
             tags = ' '.join(f'#{h}' for h in (hashtags or [])[:5])
             message = f"{title}\n\n{snippet}\n\n{tags}"
+            # If no image was supplied AND no video, compose a sharp landscape
+            # image so FB doesn't fall back to a plain text post or whatever
+            # link-preview thumbnail FB scrapes from the page.
+            if not image_url and not video_url:
+                image_url = _compose_social_image_url(title, snippet, "facebook_feed")
             result = fb.post(message, image_url=image_url, video_url=video_url)
             return {"platform": "facebook", **result}
         except Exception as e:
@@ -235,6 +255,11 @@ class PublishPipeline:
             snippet = clean[:200].rsplit(' ', 1)[0] + '...' if len(clean) > 200 else clean
             tags = ' '.join(f'#{h}' for h in (hashtags or [])[:20])
             caption = f"{title}\n\n{snippet}\n\n{tags}"
+            # IG requires an image for non-Reel posts. Pre-compose a sharp one
+            # here so the Instagram client never has to fall back to its
+            # internal DALL-E text-overlay path (which produces blurry text).
+            if not image_url:
+                image_url = _compose_social_image_url(title, snippet, "instagram_feed")
             result = ig.post(caption, image_url=image_url)
             return {"platform": "instagram", **result}
         except Exception as e:

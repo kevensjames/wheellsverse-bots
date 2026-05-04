@@ -66,104 +66,100 @@ def _has_audio(video_path: str) -> bool:
         return True
 
 
-def _add_audio_to_video(video_path: str, caption: str = "") -> str:
+def _add_audio_to_video(video_path: str, caption: str = "") -> Optional[str]:
     """
-    Add audio to a silent video.  Strategy (in order):
-      1. ElevenLabs TTS of the caption → overlay as voiceover
-      2. Royalty-free background music from a local file
-      3. Generate a simple sine-tone placeholder (so the file isn't rejected)
+    Add real audio to a silent video. Returns the path to the new file, or
+    None when no genuine audio source is available — callers must then skip
+    publishing rather than ship a silent reel.
 
-    Returns path to the new video with audio (original untouched).
+    Strategy (in order):
+      1. ElevenLabs TTS of the caption → voiceover (looped if shorter than video)
+      2. Royalty-free background music from a local file
+      (Note: we deliberately do NOT fall back to a sine-tone beep — it sounds
+       worse than no audio at all and turns viewers away.)
     """
     video_path = Path(video_path)
     out_path = video_path.parent / f"{video_path.stem}_with_audio{video_path.suffix}"
 
     audio_path: Optional[Path] = None
+    loop_audio = False  # voiceover is usually shorter than the clip
 
     # ── Strategy 1: ElevenLabs TTS voiceover ──────────────────────────────────
     if caption and os.getenv("ELEVENLABS_API_KEY"):
         try:
             from core.elevenlabs import text_to_speech
-            tts_text = caption[:500]   # keep it short
-            audio_bytes = text_to_speech(tts_text)
+            audio_bytes = text_to_speech(caption[:500])   # keep it short
             if audio_bytes:
                 audio_path = video_path.parent / f"{video_path.stem}_tts.mp3"
                 audio_path.write_bytes(audio_bytes)
+                loop_audio = True
                 log.info(f"TTS audio generated: {audio_path}")
         except Exception as e:
             log.warning(f"ElevenLabs TTS failed: {e}")
 
     # ── Strategy 2: local background music file ────────────────────────────────
     if audio_path is None:
-        bgm_candidates = [
-            ROOT / "data" / "background_music.mp3",
-            ROOT / "data" / "bgm.mp3",
-            ROOT / "assets" / "bgm.mp3",
-        ]
-        for f in bgm_candidates:
+        for f in (ROOT / "data" / "background_music.mp3",
+                  ROOT / "data" / "bgm.mp3",
+                  ROOT / "assets" / "bgm.mp3"):
             if f.exists():
                 audio_path = f
+                loop_audio = True   # bgm tracks are often shorter than reels
                 log.info(f"Using background music: {audio_path}")
                 break
 
-    # ── Strategy 3: generate 1kHz sine tone (silent fallback) ─────────────────
     if audio_path is None:
-        try:
-            tone_path = video_path.parent / f"{video_path.stem}_tone.mp3"
-            subprocess.run(
-                [
-                    "ffmpeg", "-y",
-                    "-f", "lavfi", "-i", "sine=frequency=1000:duration=60",
-                    "-q:a", "9", str(tone_path),
-                ],
-                capture_output=True, timeout=30,
-            )
-            audio_path = tone_path
-            log.info("Generated sine tone fallback audio")
-        except Exception as e:
-            log.error(f"Sine tone generation failed: {e}")
-            return str(video_path)   # give up, return original
+        log.error("No audio source available (TTS unavailable and no bgm.mp3) — "
+                  "cannot mux audio for %s", video_path.name)
+        return None
 
     # ── Mix audio into video with ffmpeg ──────────────────────────────────────
     try:
-        subprocess.run(
-            [
-                "ffmpeg", "-y",
-                "-i", str(video_path),
-                "-i", str(audio_path),
-                "-map", "0:v:0",
-                "-map", "1:a:0",
-                "-shortest",
-                "-c:v", "copy",
-                "-c:a", "aac",
-                "-b:a", "128k",
-                str(out_path),
-            ],
-            capture_output=True, timeout=120, check=True,
-        )
+        cmd = ["ffmpeg", "-y", "-i", str(video_path)]
+        # Loop the audio source so a 8s voiceover doesn't dead-air a 30s clip.
+        # -shortest below trims back to video length.
+        if loop_audio:
+            cmd += ["-stream_loop", "-1"]
+        cmd += [
+            "-i", str(audio_path),
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-shortest",
+            "-c:v", "copy",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-ar", "44100",
+            "-movflags", "+faststart",
+            str(out_path),
+        ]
+        subprocess.run(cmd, capture_output=True, timeout=180, check=True)
         log.info(f"Audio added: {out_path}")
         return str(out_path)
     except subprocess.CalledProcessError as e:
-        log.error(f"ffmpeg mix failed: {e.stderr.decode()[:200]}")
-        return str(video_path)   # return original on failure
+        log.error(f"ffmpeg mix failed: {e.stderr.decode()[:200] if e.stderr else e}")
+        return None
 
 
-def ensure_audio(video_path: str, caption: str = "") -> tuple[str, bool]:
+def ensure_audio(video_path: str, caption: str = "") -> tuple[Optional[str], bool]:
     """
-    Check if video has audio. If not, add it.
-    Returns (final_video_path, was_fixed) where was_fixed=True means audio was added.
+    Check if a video has an audio stream. If not, add one.
+
+    Returns (final_video_path | None, was_fixed):
+      - (path, False) when the video already had audio
+      - (path, True)  when we successfully muxed in TTS / bgm
+      - (None, False) when audio was missing AND we could not add any —
+        callers MUST treat this as "do not publish" instead of shipping silent.
     """
     if _has_audio(video_path):
         return video_path, False
 
     log.warning(f"Silent video detected: {video_path} — adding audio before publish")
     fixed_path = _add_audio_to_video(video_path, caption=caption)
-    was_fixed = fixed_path != video_path
-    if was_fixed:
-        log.info(f"Audio fix applied → {fixed_path}")
-    else:
-        log.error(f"Could not add audio to {video_path} — publishing anyway")
-    return fixed_path, was_fixed
+    if fixed_path is None:
+        log.error(f"Could not add audio to {video_path} — refusing to publish silently")
+        return None, False
+    log.info(f"Audio fix applied → {fixed_path}")
+    return fixed_path, True
 
 
 RUNWAY_KEY = os.getenv("RUNWAYML_API_KEY", "")
@@ -457,12 +453,20 @@ def post_video_to_tiktok(video_path: str, caption: str) -> dict:
 
 
 def post_video_to_instagram(video_path: str, caption: str) -> dict:
-    """Upload video/reel to Instagram via Graph API. Auto-adds audio if video is silent."""
-    video_path, audio_fixed = ensure_audio(video_path, caption=caption)
+    """Upload video/reel to Instagram via Graph API. Auto-adds audio if video is silent;
+    if audio cannot be added, refuses to publish (better than a silent reel)."""
+    fixed_path, audio_fixed = ensure_audio(video_path, caption=caption)
+    if fixed_path is None:
+        log.warning("Skipping IG publish for %s — video has no audio and TTS/bgm unavailable",
+                    video_path)
+        return {
+            "success": False, "platform": "instagram", "audio_fixed": False,
+            "error": "video has no audio and TTS/bgm unavailable — skipped to avoid silent post",
+        }
     try:
         from core.instagram import InstagramClient
         client = InstagramClient()
-        result = client.post(caption, video_path=video_path)
+        result = client.post(caption, video_path=fixed_path)
         return {
             "success": result.get("status") == "posted",
             "platform": "instagram",
@@ -490,13 +494,21 @@ def post_video_to_youtube(video_path: str, title: str, description: str,
 
 
 def post_video_to_facebook(video_path: str, title: str, description: str) -> dict:
-    """Upload video to Facebook Page via Graph API. Auto-adds audio if video is silent."""
+    """Upload video to Facebook Page via Graph API. Auto-adds audio if video is silent;
+    if audio cannot be added, refuses to publish (better than a silent video)."""
     caption = f"{title}\n\n{description}" if title else description
-    video_path, audio_fixed = ensure_audio(video_path, caption=caption)
+    fixed_path, audio_fixed = ensure_audio(video_path, caption=caption)
+    if fixed_path is None:
+        log.warning("Skipping FB publish for %s — video has no audio and TTS/bgm unavailable",
+                    video_path)
+        return {
+            "success": False, "platform": "facebook", "audio_fixed": False,
+            "error": "video has no audio and TTS/bgm unavailable — skipped to avoid silent post",
+        }
     try:
         from core.facebook import FacebookClient
         client = FacebookClient()
-        result = client.post(caption, video_path=video_path)
+        result = client.post(caption, video_path=fixed_path)
         return {
             "success": result.get("status") == "posted",
             "platform": "facebook",
@@ -528,6 +540,16 @@ def repost_with_audio(video_path: str, caption: str, title: str = "",
         "audio_added": was_fixed,
         "platforms": {},
     }
+
+    if fixed_path is None:
+        # ensure_audio refused — no point continuing per platform; the
+        # individual post_video_to_* helpers would each refuse anyway.
+        results["success"] = False
+        results["summary"] = (
+            "Repost aborted — video has no audio and TTS/bgm unavailable. "
+            "Set ELEVENLABS_API_KEY or drop a track at data/background_music.mp3."
+        )
+        return results
 
     for platform in platforms:
         if platform == "instagram":
