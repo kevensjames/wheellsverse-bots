@@ -1,0 +1,15 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "_comment": "Railway service config for the daily KDP publisher. Use with Dockerfile.kdp. Create as a SEPARATE service from the FastAPI app.",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile.kdp"
+  },
+  "deploy": {
+    "startCommand": "python scripts/daily_kdp_publish.py",
+    "cronSchedule": "0 13 * * *",
+    "_cron_comment": "13:00 UTC = 09:00 America/New_York. Adjust if your local timezone differs.",
+    "restartPolicyType": "NEVER",
+    "_restart_comment": "Cron jobs should not auto-restart on success/failure — Railway re-invokes on the next schedule tick."
+  }
+}

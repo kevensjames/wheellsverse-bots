@@ -42,7 +42,9 @@ except Exception:
 
 ROOT = Path(__file__).resolve().parent.parent
 PAPERBACK_DIR = ROOT / "outputs" / "books" / "paperback"
+HARDCOVER_DIR = ROOT / "outputs" / "books" / "hardcover"
 PAPERBACK_DIR.mkdir(parents=True, exist_ok=True)
+HARDCOVER_DIR.mkdir(parents=True, exist_ok=True)
 
 logger = logging.getLogger("kdp_paperback")
 
@@ -58,6 +60,20 @@ PAPERBACK_PRICES = {
     "fantasy":    15.99,
     "horror":     14.99,
     "true_crime": 14.99,
+}
+
+# ── KDP hardcover prices (case-bound; min ~$9.99; we set $22.99–$26.99) ───────
+HARDCOVER_PRICES = {
+    "childrens":  22.99,
+    "mystery":    24.99,
+    "adventure":  24.99,
+    "historical": 25.99,
+    "self_help":  26.99,
+    "romance":    23.99,
+    "sci_fi":     25.99,
+    "fantasy":    25.99,
+    "horror":     24.99,
+    "true_crime": 24.99,
 }
 
 # ── KDP categories for paperback ───────────────────────────────────────────────
@@ -316,6 +332,32 @@ def _cover_jpg_to_pdf(cover_jpg: Path, page_count: int) -> Path:
     return pdf_path
 
 
+def _hardcover_jpg_to_pdf(cover_jpg: Path, page_count: int) -> Path:
+    """
+    Wrap a full-wrap HARDCOVER JPG into a PDF at KDP hardcover dimensions.
+
+    KDP 6×9 hardcover (white paper) total cover spec:
+      width  = 6.875" × 2 + spine_in           (front + back + spine + 0.75" case wrap each side)
+      height = 9.625"                          (9" trim + 0.3125" wrap top + 0.3125" wrap bottom)
+      spine  = (pages × 0.002252) + 0.06"      (paperback spine + 0.06" for case binding gap)
+    """
+    from reportlab.lib.units import inch
+    from reportlab.pdfgen import canvas as _canvas
+
+    spine_in = max(0.002252 * page_count + 0.06, 0.36)
+    total_w  = 6.875 * 2 + spine_in
+    total_h  = 9.625
+
+    pdf_path = cover_jpg.parent / (cover_jpg.stem + "_hardcover.pdf")
+    c = _canvas.Canvas(str(pdf_path), pagesize=(total_w * inch, total_h * inch))
+    c.drawImage(str(cover_jpg), 0, 0, total_w * inch, total_h * inch,
+                preserveAspectRatio=False)
+    c.save()
+    logger.info("Hardcover PDF: %s  (%.2f × %.2f in, spine=%.3f in)",
+                pdf_path.name, total_w, total_h, spine_in)
+    return pdf_path
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # 2. FULL-WRAP COVER GENERATION
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -407,6 +449,83 @@ def generate_paperback_cover(
     out_path = PAPERBACK_DIR / f"cover_{safe}.jpg"
     canvas.save(str(out_path), "JPEG", quality=95, dpi=(DPI, DPI))
     logger.info("Paperback cover saved: %s", out_path.name)
+    return out_path
+
+
+def generate_hardcover_cover(
+    title: str,
+    genre: str,
+    author: str = "J.K. Blaze",
+    page_count: int = 200,
+    description_short: str = "",
+) -> Path:
+    """
+    Generate a full-wrap HARDCOVER cover (front + spine + back) JPEG.
+    KDP 6×9 hardcover spec: 300 DPI, 0.75" wrap each side, 0.3125" wrap top/bottom,
+    spine = (pages × 0.002252) + 0.06" for case binding.
+    """
+    from PIL import Image, ImageDraw
+
+    DPI       = 300
+    FRONT_W   = int(6.875 * DPI)                                # 2062 (6" + 0.875" wrap)
+    TOTAL_H   = int(9.625 * DPI)                                # 2887 (9" + 0.625" wrap)
+    SPINE_W   = max(int((0.002252 * page_count + 0.06) * DPI), 108)
+    BACK_W    = FRONT_W
+    TOTAL_W   = BACK_W + SPINE_W + FRONT_W
+    BLEED     = int(0.125 * DPI)
+
+    logger.info("Hardcover dims: %dx%d  (spine=%dpx for %d pages)", TOTAL_W, TOTAL_H, SPINE_W, page_count)
+
+    front_img_path = _generate_front_cover_image(title, genre)
+
+    canvas = Image.new("RGB", (TOTAL_W, TOTAL_H), (15, 15, 25))
+
+    if front_img_path and front_img_path.exists():
+        try:
+            front = Image.open(front_img_path).convert("RGB")
+            front = front.resize((FRONT_W, TOTAL_H), Image.LANCZOS)
+            canvas.paste(front, (BACK_W + SPINE_W, 0))
+        except Exception as e:
+            logger.warning("Front image paste failed: %s", e)
+
+    draw = ImageDraw.Draw(canvas)
+
+    # Back panel: dark gradient
+    for y in range(TOTAL_H):
+        shade = int(15 + (y / TOTAL_H) * 20)
+        draw.line([(0, y), (BACK_W - 1, y)], fill=(shade, shade, shade + 10))
+
+    back_text = description_short or f"A gripping {genre} novel by {author}."
+    back_text = re.sub(r"<[^>]+>", "", back_text)
+    _draw_wrapped_text(
+        draw, back_text,
+        x=int(BLEED + 0.6 * DPI), y=int(BLEED + 0.8 * DPI),
+        max_width=int(BACK_W - BLEED * 2 - 1.2 * DPI),
+        font_size=28, color=(230, 230, 230), line_spacing=38,
+    )
+
+    _draw_centered_text(
+        draw, author,
+        cx=BACK_W // 2, y=TOTAL_H - int(BLEED + 0.8 * DPI),
+        font_size=26, color=(180, 180, 200),
+    )
+
+    # Back: ISBN barcode placeholder
+    bc_x = int(BACK_W - BLEED - 1.7 * DPI)
+    bc_y = int(TOTAL_H - BLEED - 1.4 * DPI)
+    draw.rectangle([bc_x, bc_y, bc_x + int(1.5 * DPI), bc_y + int(1.0 * DPI)], fill=(255, 255, 255))
+    draw.text((bc_x + 20, bc_y + 20), "ISBN", fill=(0, 0, 0))
+
+    # Spine
+    spine_x = BACK_W
+    draw.rectangle([spine_x, 0, spine_x + SPINE_W - 1, TOTAL_H - 1], fill=(20, 20, 35))
+    spine_title = title if len(title) <= 40 else title[:37] + "..."
+    _draw_spine_text(canvas, spine_title, author, spine_x, SPINE_W, TOTAL_H)
+
+    safe = re.sub(r"[^a-zA-Z0-9_]", "_", title[:35])
+    out_path = HARDCOVER_DIR / f"hc_cover_{safe}.jpg"
+    canvas.save(str(out_path), "JPEG", quality=95, dpi=(DPI, DPI))
+    logger.info("Hardcover cover saved: %s", out_path.name)
     return out_path
 
 
@@ -651,11 +770,18 @@ def upload_paperback(
         "page_count": page_count,
     }
 
+    from core.kdp_session import (
+        load_storage_state, save_storage_state, fetch_otp_from_email,
+    )
+
     with sync_playwright() as pw:
         browser = pw.chromium.launch(
             headless=headless, slow_mo=200,
             args=["--disable-blink-features=AutomationControlled", "--no-sandbox"],
         )
+        _ss = load_storage_state()
+        if _ss:
+            logger.info("Loading persisted KDP storage_state from %s", _ss)
         ctx = browser.new_context(
             viewport={"width": 1280, "height": 900},
             user_agent=(
@@ -663,6 +789,7 @@ def upload_paperback(
                 "AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36"
             ),
             locale="en-US", timezone_id="America/New_York",
+            storage_state=_ss,
         )
         ctx.add_init_script("Object.defineProperty(navigator,'webdriver',{get:()=>undefined})")
         page = ctx.new_page()
@@ -702,19 +829,49 @@ def upload_paperback(
             logger.info("Logging in...")
             page.goto("https://kdp.amazon.com/en_US/", wait_until="domcontentloaded", timeout=45000)
             time.sleep(3)
-            try:
-                page.locator("a:has-text('Sign in')").first.click()
-                page.wait_for_load_state("domcontentloaded"); time.sleep(3)
-            except Exception:
-                pass
-            try:
-                page.locator("#ap_email").first.fill(email)
-                page.locator("#continue").first.click(); time.sleep(2)
-            except Exception:
-                pass
-            page.locator("#ap_password").first.fill(password)
-            page.locator("#signInSubmit").first.click(); time.sleep(6)
+            # If storage_state already authenticated us, the bookshelf is reachable
+            # without ever seeing the sign-in form. Detect and skip credential flow.
+            already_logged_in = "bookshelf" in page.url.lower() or "/dashboard" in page.url.lower()
+            if not already_logged_in:
+                try:
+                    page.locator("a:has-text('Sign in')").first.click()
+                    page.wait_for_load_state("domcontentloaded"); time.sleep(3)
+                except Exception:
+                    pass
+                try:
+                    page.locator("#ap_email").first.fill(email)
+                    page.locator("#continue").first.click(); time.sleep(2)
+                except Exception:
+                    pass
+                try:
+                    page.locator("#ap_password").first.fill(password)
+                    page.locator("#signInSubmit").first.click(); time.sleep(6)
+                except Exception:
+                    logger.info("Password field not present — likely already authenticated.")
+
+                # 2FA via IMAP if Amazon prompts
+                if "auth-mfa" in page.url or "cvf" in page.url or "ap/cvf" in page.url:
+                    otp = fetch_otp_from_email(timeout_s=120)
+                    if otp:
+                        for s in ("input#auth-mfa-otpcode", "input[name='otpCode']", "input[name='code']"):
+                            try:
+                                page.fill(s, otp, timeout=4000); break
+                            except Exception:
+                                continue
+                        for s in ("input#auth-signin-button", "input[type='submit']", "button:has-text('Sign in')"):
+                            try:
+                                page.click(s, timeout=4000); break
+                            except Exception:
+                                continue
+                        try:
+                            page.wait_for_url("*kdp.amazon.com*", timeout=60000)
+                        except Exception:
+                            pass
+                    else:
+                        logger.warning("IMAP OTP unavailable — paperback login may stall on 2FA.")
             logger.info("Login URL: %s", page.url)
+            if "kdp.amazon.com" in page.url:
+                save_storage_state(ctx)
 
             # ── CREATE PAPERBACK — navigate directly to avoid hardcover mismatch ──
             page.goto("https://kdp.amazon.com/en_US/title-setup/paperback/new/details",

@@ -1,0 +1,54 @@
+# ============================================================
+# Dockerfile.kdp — Railway service for the daily KDP publisher
+# ============================================================
+# Build a separate Railway service from this file (NOT the main Dockerfile,
+# which serves the FastAPI app and does not need a browser).
+#
+# Railway setup (one time):
+#   1. railway service create kdp-scheduler
+#   2. Point its source to this repo, with this Dockerfile path
+#   3. Add a Volume mount at /data/kdp_state    (persists Playwright cookies)
+#   4. Set env vars:
+#        KDP_EMAIL, KDP_PASSWORD                 (KDP credentials)
+#        KDP_STORAGE_STATE=/data/kdp_state/storage_state.json
+#        KDP_OTP_EMAIL, KDP_OTP_PASSWORD         (Gmail address + app password)
+#        KDP_OTP_IMAP_HOST=imap.gmail.com
+#        OPENAI_API_KEY                          (cover generation)
+#        TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID    (notifications)
+#        KDP_QC_MIN=90                           (auto-publish threshold)
+#   5. Set the cron schedule (Railway dashboard → Settings → Cron):
+#        0 13 * * *                              (09:00 ET = 13:00 UTC)
+#   6. First-time storage_state capture: run scripts/init_kdp_session.py
+#      locally on your Mac with --visible, then upload the resulting
+#      data/.kdp_storage_state.json file to /data/kdp_state/storage_state.json
+#      via Railway's Volume UI or `railway run`.
+
+# Use Microsoft's Playwright base image — pre-installs chromium + system deps.
+FROM mcr.microsoft.com/playwright/python:v1.45.0-jammy
+
+WORKDIR /app
+
+# Cache layer: requirements first, then code
+COPY requirements-kdp.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements-kdp.txt
+
+# Playwright browsers are already installed in the base image; ensure chromium
+# matches the installed Playwright version (idempotent).
+RUN playwright install chromium
+
+COPY . .
+
+ENV PYTHONPATH=/app
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Default storage_state location inside the Railway volume mount
+ENV KDP_STORAGE_STATE=/data/kdp_state/storage_state.json
+
+# Build-time sanity check: orchestrator imports cleanly (no runtime browser)
+RUN python -c "from scripts.daily_kdp_publish import run; print('[BUILD CHECK] orchestrator imports OK')"
+
+# Default command: run one cycle. Railway's cron schedule re-invokes the
+# container on schedule, so no internal scheduler loop is needed.
+CMD ["python", "scripts/daily_kdp_publish.py"]

@@ -234,13 +234,19 @@ def _kdp_error(code: str, detail: str = "") -> dict:
 
 
 def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
-                headless: bool = False) -> dict:
+                headless: bool = False, auto_publish: bool = True) -> dict:
     """
     Full KDP upload automation via Playwright.
     Validates first, then logs in, fills all fields, uploads files, sets price, publishes.
     Logs all errors with descriptive messages. Retries transient failures automatically.
+
+    auto_publish=True  → click "Publish Your Kindle eBook" at the end (default; preserves legacy behavior).
+    auto_publish=False → stop after pricing Save & Continue; book is left at status="ready_to_publish".
     """
     from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
+    from core.kdp_session import (
+        load_storage_state, save_storage_state, fetch_otp_from_email,
+    )
 
     email = os.getenv("KDP_EMAIL", "")
     password = os.getenv("KDP_PASSWORD", "")
@@ -411,6 +417,12 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                 "--disable-web-security",
             ],
         )
+        # R1: Reuse persisted cookies if available — skips the entire login dance
+        # when KDP's session is still valid. Without this, every Railway run
+        # would re-trigger 2FA.
+        _ss = load_storage_state()
+        if _ss:
+            logger.info("Loading persisted KDP storage_state from %s", _ss)
         context = browser.new_context(
             viewport={"width": 1280, "height": 900},
             user_agent=(
@@ -420,6 +432,7 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
             ),
             locale="en-US",
             timezone_id="America/New_York",
+            storage_state=_ss,
         )
         # Hide webdriver flag
         context.add_init_script(
@@ -517,17 +530,41 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                         page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_signin_timeout.png"))
                 time.sleep(3)
 
-                # Handle OTP / 2FA
+                # Handle OTP / 2FA — try IMAP fetch (R2) first, fall back to manual wait
                 if "auth-mfa" in page.url or "cvf" in page.url or "ap/cvf" in page.url:
-                    logger.warning("⚠️  2FA/OTP required — waiting 90s for manual entry...")
-                    print("\n⚠️  Amazon is asking for a verification code.")
-                    print("Please enter the code in the browser window within 90 seconds.\n")
-                    try:
-                        page.wait_for_url("*kdp.amazon.com*", timeout=90000)
-                    except Exception:
-                        pass
+                    logger.warning("2FA/OTP required — attempting IMAP auto-fetch…")
+                    otp = fetch_otp_from_email(timeout_s=120)
+                    if otp:
+                        for otp_sel in ("input#auth-mfa-otpcode", "input[name='otpCode']", "input[name='code']"):
+                            try:
+                                page.fill(otp_sel, otp, timeout=4000)
+                                logger.info("OTP filled via %s", otp_sel)
+                                break
+                            except Exception:
+                                continue
+                        for sub_sel in ("input#auth-signin-button", "input[type='submit']", "button:has-text('Sign in')"):
+                            try:
+                                page.click(sub_sel, timeout=4000)
+                                break
+                            except Exception:
+                                continue
+                        try:
+                            page.wait_for_url("*kdp.amazon.com*", timeout=60000)
+                        except Exception:
+                            pass
+                    else:
+                        logger.warning("IMAP OTP unavailable — falling back to 90s manual entry window")
+                        print("\n⚠️  Amazon is asking for a verification code.")
+                        print("Please enter the code in the browser window within 90 seconds.\n")
+                        try:
+                            page.wait_for_url("*kdp.amazon.com*", timeout=90000)
+                        except Exception:
+                            pass
 
             logger.info("Logged in. URL: %s", page.url)
+            # R1: Persist cookies for the next run (so we can skip the whole sign-in dance)
+            if "kdp.amazon.com" in page.url:
+                save_storage_state(context)
 
             # ── STEP 3: Navigate to 'Create New Title' ───────────────────────
             page.set_default_timeout(60000)
@@ -1494,36 +1531,42 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                 except Exception:
                     continue
 
-            # ── STEP 8: Publish ──────────────────────────────────────────────
-            logger.info("Publishing... URL: %s", page.url)
-            page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_publish_page.png"))
-            published = False
-            for pub_sel in [
-                "button:has-text('Publish Your Kindle eBook')",
-                "button:has-text('Publish Your Kindle')",
-                "button:has-text('Publish')",
-                "input[type='submit'][value*='Publish' i]",
-            ]:
-                try:
-                    btn = page.locator(pub_sel).first
-                    if btn.is_visible(timeout=5000):
-                        btn.click()
-                        page.wait_for_load_state("domcontentloaded", timeout=30000)
-                        time.sleep(5)
-                        logger.info("Published! URL: %s", page.url)
-                        result["status"] = "published"
-                        result["kdp_url"] = page.url
-                        published = True
-                        break
-                except Exception:
-                    continue
+            # ── STEP 8: Publish (gated by auto_publish) ─────────────────────
+            if auto_publish:
+                logger.info("Publishing... URL: %s", page.url)
+                page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_publish_page.png"))
+                published = False
+                for pub_sel in [
+                    "button:has-text('Publish Your Kindle eBook')",
+                    "button:has-text('Publish Your Kindle')",
+                    "button:has-text('Publish')",
+                    "input[type='submit'][value*='Publish' i]",
+                ]:
+                    try:
+                        btn = page.locator(pub_sel).first
+                        if btn.is_visible(timeout=5000):
+                            btn.click()
+                            page.wait_for_load_state("domcontentloaded", timeout=30000)
+                            time.sleep(5)
+                            logger.info("Published! URL: %s", page.url)
+                            result["status"] = "published"
+                            result["kdp_url"] = page.url
+                            published = True
+                            break
+                    except Exception:
+                        continue
 
-            if not published:
-                logger.warning("Publish button not found — saving screenshot")
-                result["status"] = "review_required"
-                result["note"] = "Reached pricing page — manual publish click may be needed"
-                result["screenshot"] = str(ROOT / "outputs" / "books" / f"kdp_{genre}_final.png")
-                page.screenshot(path=result["screenshot"])
+                if not published:
+                    logger.warning("Publish button not found — saving screenshot")
+                    result["status"] = "review_required"
+                    result["note"] = "Reached pricing page — manual publish click may be needed"
+                    result["screenshot"] = str(ROOT / "outputs" / "books" / f"kdp_{genre}_final.png")
+                    page.screenshot(path=result["screenshot"])
+            else:
+                logger.info("auto_publish=False → leaving book at ready_to_publish. URL: %s", page.url)
+                result["status"] = "ready_to_publish"
+                result["kdp_url"] = page.url
+                result["note"] = "All fields filled; user must click Publish in KDP browser."
 
         except PWTimeout as e:
             logger.error("Timeout during KDP upload: %s", e)
