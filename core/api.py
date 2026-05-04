@@ -142,7 +142,7 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/narai/chat", "/api/narai/conversations", "/api/narai/profile",
                  "/api/narai/memory",
                  "/api/auth/login", "/api/telegram/webhook", "/api/whatsapp/webhook",
-                 "/api/stripe/webhook",
+                 "/api/stripe/webhook", "/api/beehiiv/webhook",
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
@@ -2677,6 +2677,77 @@ async def capture_lead(req: LeadRequest):
             pass
         _add_log(f"Lead captured + drip enrolled: {req.email[:30]} from {req.source}", "INFO")
     return {"status": result["status"], "message": "Thanks! You'll hear from us soon."}
+
+
+# ─── Beehiiv webhook receiver ─────────────────────────────────────────────────
+# Beehiiv → WheellsVerse one-way sync. Beehiiv sends subscription events to this
+# URL; we mirror them into the same leads store as /api/lead so the funnel stays
+# unified regardless of where the email came from.
+
+@app.post("/api/beehiiv/webhook")
+async def beehiiv_webhook(request: Request):
+    """Receive subscription events from Beehiiv and mirror to local leads.
+
+    Auth: optional `?token=...` query parameter. If `BEEHIIV_WEBHOOK_TOKEN` env
+    var is set, the query token must match. If it isn't set, we accept any
+    request (the URL itself is the shared secret). Returning 200 fast prevents
+    Beehiiv from retrying duplicates.
+    """
+    expected = os.getenv("BEEHIIV_WEBHOOK_TOKEN", "").strip()
+    if expected:
+        provided = request.query_params.get("token", "").strip()
+        if provided != expected:
+            logger.warning("beehiiv webhook: bad token from %s",
+                           request.headers.get("x-forwarded-for", "?"))
+            raise HTTPException(401, "Bad token")
+
+    try:
+        payload = await request.json()
+    except Exception as e:
+        logger.warning(f"beehiiv webhook: invalid JSON: {e}")
+        raise HTTPException(400, "Invalid JSON")
+
+    event = (payload.get("event") or payload.get("type") or "").lower()
+    data = payload.get("data") or payload
+
+    # Persist raw event for audit (jsonl, append-only, never blocks the response)
+    try:
+        from pathlib import Path
+        import json as _json
+        out = Path("data/leads/beehiiv_events.jsonl")
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("a") as f:
+            f.write(_json.dumps({
+                "received_at": time.time(),
+                "event": event,
+                "payload": payload,
+            }) + "\n")
+    except Exception as e:
+        logger.warning(f"beehiiv webhook: audit log write failed: {e}")
+
+    # Mirror subscription events into the leads store. Beehiiv emits a few
+    # related event names depending on the publication's signup flow — accept
+    # all of them so we don't miss leads if the user toggles double opt-in.
+    if event in {
+        "subscription.created", "subscription.confirmed",
+        "subscriber.created", "subscriber.confirmed",
+    }:
+        email = (data.get("email") or "").strip().lower()
+        if email and "@" in email:
+            from core.email_capture import get_email_capture
+            result = get_email_capture().capture(
+                email=email,
+                name=(data.get("first_name") or data.get("name") or "").strip(),
+                source="beehiiv",
+                topic="newsletter",
+                metadata={"beehiiv_event": event, "beehiiv_id": data.get("id", "")},
+            )
+            if result["status"] == "new":
+                _add_log(f"Beehiiv lead synced: {email[:30]}", "INFO")
+        else:
+            logger.warning(f"beehiiv webhook: missing email in {event}")
+
+    return {"received": True, "event": event}
 
 
 @app.get("/api/leads")
