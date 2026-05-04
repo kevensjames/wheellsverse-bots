@@ -186,25 +186,25 @@ def _subscribers_section() -> str:
 
     # Telegram: prefer the private subscription channel ID if set; fall back
     # to the main TELEGRAM_CHAT_ID (the public/owner chat).
+    # Uses sync HTTP directly against Telegram's REST API — avoids the
+    # async/sync entanglement we had with python-telegram-bot's Bot class
+    # (calling its async methods from a sync function inside an already-
+    # running event loop produced 'cannot be called from a running event
+    # loop' RuntimeErrors and orphaned coroutines).
     try:
-        from telegram import Bot
+        import requests
         token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
         chan = os.environ.get("TELEGRAM_PRIVATE_CHANNEL_ID") or os.environ.get("TELEGRAM_CHAT_ID")
         if token and chan:
-            import asyncio as _aio
-            async def _count():
-                bot = Bot(token)
-                return await bot.get_chat_member_count(chat_id=int(chan))
-            try:
-                tg_count = _aio.get_event_loop().run_until_complete(_count())
-            except RuntimeError:
-                # Already inside an event loop (e.g., when called from the cron) —
-                # use a thread to run the coroutine without conflict.
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor() as ex:
-                    fut = ex.submit(_aio.run, _count())
-                    tg_count = fut.result(timeout=10)
-            parts.append(f"TG {tg_count}")
+            r = requests.get(
+                f"https://api.telegram.org/bot{token}/getChatMemberCount",
+                params={"chat_id": chan},
+                timeout=8,
+            )
+            if r.ok and r.json().get("ok"):
+                parts.append(f"TG {r.json()['result']}")
+            else:
+                logger.warning(f"telegram member count: HTTP {r.status_code} {r.text[:120]}")
     except Exception as e:
         logger.warning(f"telegram subscribers count failed: {e}")
 
