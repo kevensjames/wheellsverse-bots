@@ -132,6 +132,10 @@ semgrep-mcp/
 # Heavy doc assets — keep .md, drop screenshots
 docs/screenshots/
 
+# Mac mini migration — per-machine customization + encrypted secrets bundles
+scripts/mac-mini/CUSTOMIZE.sh
+wheellsverse-secrets-*.tar.gz.gpg
+
 # Daily-generated blog archive
 frontend/blog/_archive/
 
