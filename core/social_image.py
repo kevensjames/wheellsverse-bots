@@ -126,6 +126,81 @@ def _autosize_headline(text: str, max_width: int, max_lines: int,
     return font, lines[:max_lines], line_h
 
 
+# ─── Headline accents + brand mark ───────────────────────────────────────────
+
+import re as _re
+
+# Words/patterns worth highlighting in cyan — money, percentages, brand-relevant
+# keywords, and a few common power words. First match wins.
+_ACCENT_PATTERNS = [
+    _re.compile(r"\$\d[\d,]*(?:\.\d+)?[KkMmBb]?"),       # $10K, $1,000.50, $1B
+    _re.compile(r"\d+(?:\.\d+)?\s?%"),                    # 7%, 12.5 %
+    _re.compile(r"\d+(?:[xX])"),                          # 10x, 100X
+    _re.compile(r"\b(?:Bitcoin|BTC|Ethereum|ETH|Solana|SOL|crypto)\b", _re.I),
+    _re.compile(r"\b(?:AI|GPT|Claude|ChatGPT|LLM)\b"),
+    _re.compile(r"\b(?:passive\s+income|side\s+hustle|dividends?)\b", _re.I),
+    _re.compile(r"\b(?:free|warning|alert|breaking|hot|live)\b", _re.I),
+]
+
+
+def _pick_accent_word(text: str) -> Optional[str]:
+    """Return the first interesting word/phrase to color in the headline."""
+    for pat in _ACCENT_PATTERNS:
+        m = pat.search(text)
+        if m:
+            return m.group(0)
+    return None
+
+
+def _draw_line_with_accent(draw, line: str, xy: tuple, font,
+                           base_color, accent_word: Optional[str],
+                           accent_color, stroke_color, stroke_w: int):
+    """Render one headline line, coloring the accent_word in accent_color
+    while keeping the rest in base_color. Stroke goes around every glyph."""
+    x, y = xy
+    if not accent_word or accent_word.lower() not in line.lower():
+        draw.text((x, y), line, font=font, fill=base_color,
+                  stroke_width=stroke_w, stroke_fill=stroke_color)
+        return
+    # Split case-insensitively but preserve the original substring.
+    idx = line.lower().find(accent_word.lower())
+    parts = [
+        (line[:idx], base_color),
+        (line[idx:idx + len(accent_word)], accent_color),
+        (line[idx + len(accent_word):], base_color),
+    ]
+    cur_x = x
+    for txt, color in parts:
+        if not txt:
+            continue
+        draw.text((cur_x, y), txt, font=font, fill=color,
+                  stroke_width=stroke_w, stroke_fill=stroke_color)
+        cur_x += int(draw.textlength(txt, font=font))
+
+
+def _draw_brand_mark(img, final_w: int, final_h: int):
+    """Small @WheellsVerse + cyan dot in the bottom-right corner.
+    Subtle enough to not steal attention, present enough to attribute the post."""
+    from PIL import ImageDraw
+    handle = "@WheellsVerse"
+    size = max(20, int(final_h * 0.024))
+    font = _load_font(size, bold=True)
+    d = ImageDraw.Draw(img)
+    text_w = int(d.textlength(handle, font=font))
+    pad = int(final_w * 0.025)
+    x = final_w - pad - text_w
+    y = final_h - pad - size
+    # Cyan dot before the handle
+    dot_r = int(size * 0.28)
+    dot_cx = x - dot_r * 3
+    dot_cy = y + size // 2
+    d.ellipse([(dot_cx - dot_r, dot_cy - dot_r),
+               (dot_cx + dot_r, dot_cy + dot_r)],
+              fill=(0, 220, 255))
+    d.text((x, y), handle, font=font, fill=(255, 255, 255),
+           stroke_width=2, stroke_fill=(8, 12, 26))
+
+
 # ─── DALL-E background ───────────────────────────────────────────────────────
 
 def _dalle_background(prompt: str, size: str) -> Optional[bytes]:
@@ -231,20 +306,24 @@ def generate_social_image(headline: str, subtext: str = "",
                  out_path.name, final_w, final_h)
         return out_path
 
-    # Top dark gradient band so headline contrasts no matter the background.
-    band_h = int(final_h * 0.42)
+    # Bigger dark band — gives the headline more room to breathe and lets
+    # the bottom half of the image stay visible (the DALL-E art viewers came
+    # for). Gradient eases out smoothly so the cut doesn't read as a hard line.
+    band_h = int(final_h * 0.58)
     overlay = Image.new("RGBA", (final_w, final_h), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
     for y in range(band_h):
-        alpha = int(190 * (1 - (y / band_h) ** 1.4))
-        od.rectangle([(0, y), (final_w, y + 1)], fill=(8, 10, 22, alpha))
+        # power=1.6 makes the top very dark (alpha~210) and fades faster, so
+        # the bottom of the band blends into the photo instead of being a wall
+        alpha = int(215 * (1 - (y / band_h) ** 1.6))
+        od.rectangle([(0, y), (final_w, y + 1)], fill=(6, 8, 18, alpha))
     bg = Image.alpha_composite(bg.convert("RGBA"), overlay).convert("RGB")
 
     # Compose the headline + optional subtext.
     draw = ImageDraw.Draw(bg)
     pad_x = int(final_w * 0.07)
     text_zone_w = final_w - 2 * pad_x
-    safe_h = int(band_h * 0.78)
+    safe_h = int(band_h * 0.85)
 
     headline_font, hl_lines, hl_line_h = _autosize_headline(
         headline.strip() or "WheellsVerse",
@@ -252,43 +331,69 @@ def generate_social_image(headline: str, subtext: str = "",
         max_lines=4,
         max_height=safe_h,
         draw=draw,
-        start=int(final_h * 0.085),
-        floor=int(final_h * 0.035),
+        # Bigger headline (was 0.085 / 0.035) — Pillow will bisect down if it
+        # doesn't fit; starting larger means short headlines render bigger.
+        start=int(final_h * 0.115),
+        floor=int(final_h * 0.04),
     )
-    line_gap = int(hl_line_h * 0.25)
+    line_gap = int(hl_line_h * 0.18)
     block_h = hl_line_h * len(hl_lines) + line_gap * (len(hl_lines) - 1)
-    y = max(int(final_h * 0.07), (band_h - block_h) // 2)
+    # Anchor the headline a bit lower than dead-top — feels less cramped.
+    y_start = max(int(final_h * 0.085), (band_h - block_h) // 3)
 
-    # Soft drop shadow for headline so platform compression can't smear it.
+    # Layered shadow: hard near the glyph (sharp edge) + wide soft halo
+    # (separation from busy backgrounds). Two-pass beats a single soft blur.
     shadow_layer = Image.new("RGBA", (final_w, final_h), (0, 0, 0, 0))
     sd = ImageDraw.Draw(shadow_layer)
+    y = y_start
     for line in hl_lines:
-        sd.text((pad_x + 3, y + 3), line, font=headline_font, fill=(0, 0, 0, 180))
+        sd.text((pad_x + 4, y + 5), line, font=headline_font, fill=(0, 0, 0, 220))
         y += hl_line_h + line_gap
-    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(radius=3))
-    bg = Image.alpha_composite(bg.convert("RGBA"), shadow_layer).convert("RGB")
+    shadow_hard = shadow_layer.filter(ImageFilter.GaussianBlur(radius=2))
+    shadow_soft = shadow_layer.filter(ImageFilter.GaussianBlur(radius=14))
+    bg = Image.alpha_composite(bg.convert("RGBA"), shadow_soft)
+    bg = Image.alpha_composite(bg, shadow_hard).convert("RGB")
+
+    # Pick one keyword to accent in cyan — proven attention magnet on social.
+    accent_word = _pick_accent_word(headline)
+    accent_color = (0, 220, 255)   # WheellsVerse cyan
 
     draw = ImageDraw.Draw(bg)
-    y = max(int(final_h * 0.07), (band_h - block_h) // 2)
+    y = y_start
     for line in hl_lines:
-        draw.text((pad_x, y), line, font=headline_font, fill=(255, 255, 255))
+        _draw_line_with_accent(
+            draw, line, (pad_x, y), headline_font,
+            base_color=(255, 255, 255), accent_word=accent_word,
+            accent_color=accent_color, stroke_color=(8, 12, 26), stroke_w=2,
+        )
         y += hl_line_h + line_gap
 
     if subtext:
-        sub_size = max(22, int(hl_line_h * 0.42))
+        sub_size = max(28, int(hl_line_h * 0.46))
         sub_font = _load_font(sub_size, bold=False)
         sub_lines = _wrap_text(subtext.strip(), sub_font, text_zone_w, draw)[:2]
-        sub_y = y + int(hl_line_h * 0.4)
+        sub_y = y + int(hl_line_h * 0.45)
         for line in sub_lines:
-            draw.text((pad_x, sub_y), line, font=sub_font, fill=(220, 230, 245))
-            sub_y += int(sub_size * 1.25)
+            # Subtext also gets a stroke + brighter color so it's readable
+            # over varied backgrounds, not washed out.
+            draw.text((pad_x, sub_y), line, font=sub_font,
+                      fill=(235, 244, 255),
+                      stroke_width=1, stroke_fill=(8, 12, 26))
+            sub_y += int(sub_size * 1.3)
+
+    # Brand mark: small @WheellsVerse + cyan dot, bottom-right.
+    _draw_brand_mark(bg, final_w, final_h)
+
+    # Unsharp mask: counters Instagram's aggressive recompression so headline
+    # edges arrive sharp on viewers' phones, not soft.
+    bg = bg.filter(ImageFilter.UnsharpMask(radius=1.2, percent=140, threshold=2))
 
     # Save high-quality JPEG with 4:4:4 chroma so text edges stay crisp.
     safe = "".join(c if c.isalnum() else "_" for c in headline.lower()[:40]).strip("_") or "post"
     fname = f"{safe}_{platform}_{int(time.time())}.jpg"
     out_path = OUTPUT_DIR / fname
     bg.save(out_path, "JPEG",
-            quality=92, subsampling=0, optimize=True, progressive=True,
+            quality=94, subsampling=0, optimize=True, progressive=True,
             dpi=(144, 144))
     log.info("Composed social image: %s (%dx%d)", out_path.name, final_w, final_h)
     return out_path
