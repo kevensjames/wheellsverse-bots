@@ -20,6 +20,7 @@ import sys
 import time
 import threading
 
+from datetime import datetime
 from pathlib import Path
 from typing import Callable, Dict, List, Optional
 
@@ -48,6 +49,10 @@ class BotScheduler:
         self._thread: Optional[threading.Thread] = None
         self._running = False
         self._consecutive_failures: Dict[str, int] = {}  # bot → failure count
+        # Bots auto-paused for the rest of the UTC day after a budget hit.
+        # Keyed by full_name → ISO date string ("2026-05-05") so the pause
+        # naturally expires when the date rolls over.
+        self._anthropic_paused: Dict[str, str] = {}
 
     # ─── Setup ─────────────────────────────────────────────────────────────────
 
@@ -170,11 +175,35 @@ class BotScheduler:
 
     def _make_job(self, full_name: str, kwargs: Dict) -> Callable:
         def job():
+            # Skip bots paused earlier today after Anthropic budget hit.
+            # The pause auto-expires when UTC date rolls over (no manual reset).
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            paused_on = self._anthropic_paused.get(full_name)
+            if paused_on == today:
+                logger.info(f"⏸  Skipping {full_name} — Anthropic-paused until UTC tomorrow")
+                return
+
             logger.info(f"⏰ Scheduled trigger: {full_name}")
             try:
                 self.orchestrator.run_bot(full_name, **kwargs)
                 self._consecutive_failures[full_name] = 0  # reset on success
             except Exception as e:
+                err_str = str(e)
+                # Detect Anthropic budget / credit-balance failures and pause
+                # for the rest of the UTC day. Counts the run as success for
+                # consecutive_failures so we don't trip the 3-failure alert
+                # on a known financial cap (separate signal from real bugs).
+                if (
+                    "BudgetExceeded" in type(e).__name__
+                    or "credit balance is too low" in err_str
+                    or "Daily Anthropic budget" in err_str
+                ):
+                    self._anthropic_paused[full_name] = today
+                    self._consecutive_failures[full_name] = 0
+                    logger.warning(
+                        f"💰 {full_name} hit Anthropic cap — paused for the rest of {today} UTC"
+                    )
+                    return
                 logger.error(f"Scheduled job failed [{full_name}]: {e}")
                 count = self._consecutive_failures.get(full_name, 0) + 1
                 self._consecutive_failures[full_name] = count
