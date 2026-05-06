@@ -383,14 +383,18 @@ def test_recurrence_zero_for_unseen(tmp_path):
     assert _store(tmp_path).get_recurrence_count("nope") == 0
 
 
-def test_recurrence_counts_every_matching_entry(tmp_path):
+def test_recurrence_counts_distinct_patches_per_signature(tmp_path):
+    """Phase E correctness fix: ``get_recurrence_count`` now counts
+    DISTINCT patches per signature (matching the docstring intent
+    "how many times this signature has been seen"). Lifecycle updates
+    on the same patch do NOT inflate the count."""
     store = _store(tmp_path)
     store.record_outcome(_outcome(sig="hot", patch="p1"))
     store.record_outcome(_outcome(sig="hot", patch="p2"))
     store.record_outcome(_outcome(sig="cool", patch="p3"))
-    # update on p1 = another entry, also counted (per docstring).
+    # update on p1 = lifecycle event, NOT a new sighting.
     store.update_outcome("p1", outcome_state=STATE_MERGED)
-    assert store.get_recurrence_count("hot") == 3
+    assert store.get_recurrence_count("hot") == 2
     assert store.get_recurrence_count("cool") == 1
 
 
@@ -573,19 +577,25 @@ def test_module_silent_when_no_collector_bound(tmp_path):
 # ── sqlite_index_path is reserved ─────────────────────────────────────
 
 
-def test_sqlite_index_path_is_reserved(tmp_path):
-    with pytest.raises(NotImplementedError, match="Phase E"):
-        RepairOutcomeStore(
-            path=tmp_path / "x.jsonl",
-            sqlite_index_path=tmp_path / "x.sqlite",
-        )
-
-
 def test_sqlite_index_path_none_works(tmp_path):
-    # The default (None) must keep working.
+    # The default (None) must keep working — pure JSONL behavior.
     s = RepairOutcomeStore(path=tmp_path / "x.jsonl", sqlite_index_path=None)
     s.record_outcome(_outcome())
     assert (tmp_path / "x.jsonl").exists()
+    # And the index handle stays None so tests + admins can introspect.
+    assert s._sqlite_index is None
+
+
+def test_sqlite_index_path_active_after_phase_e(tmp_path):
+    """Phase E.1: passing ``sqlite_index_path`` enables the index
+    (no longer raises NotImplementedError). Detailed coverage lives in
+    test_repair_outcome_sqlite_index.py."""
+    s = RepairOutcomeStore(
+        path=tmp_path / "x.jsonl",
+        sqlite_index_path=tmp_path / "x.sqlite",
+    )
+    assert s._sqlite_index is not None
+    s.close()
 
 
 # ── Default path constant is sane ─────────────────────────────────────
