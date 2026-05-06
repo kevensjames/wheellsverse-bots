@@ -10,6 +10,7 @@ import pytest
 
 from infra.brain.interface import (
     BrainClient,
+    BrainPolicy,
     Tool,
     ToolNotFoundError,
     ToolPermissionError,
@@ -33,6 +34,26 @@ def _tool_raise():
     return Tool(
         name="broken", description="x", run=_run,
         schema={"type": "object", "properties": {}, "required": []},
+    )
+
+
+def _permissive_policy(mode: str = "test_permissive") -> BrainPolicy:
+    """Construct an unrestricted policy for tests that exercise the
+    *executor mechanics* rather than the policy gate.
+
+    Phase B made the predefined NARAI policy a true allowlist; tests that
+    previously leaned on NarAI's unrestricted behavior switch to this
+    helper so they keep testing what they were meant to test.
+    """
+    return BrainPolicy(
+        mode=mode,
+        tone="test",
+        system_prompt="test",
+        memory_enabled=False,
+        rag_enabled=False,
+        tools_enabled=True,
+        allowed_tools=None,             # unrestricted by name
+        allowed_capabilities=None,      # capability gate off
     )
 
 
@@ -67,12 +88,18 @@ async def test_tool_executor_allows_safe_tool_under_nai_policy():
     assert out == {"echoed": {"x": 1}}
 
 
-async def test_tool_executor_unrestricted_under_narai_policy():
-    """NarAI policy has ``allowed_tools=None`` → all tools allowed."""
+async def test_tool_executor_unrestricted_under_permissive_policy():
+    """A custom policy with ``allowed_tools=None`` allows every tool.
+
+    Pre-Phase-B this test used NarAI directly; NarAI is now a true allowlist
+    so we exercise the unrestricted path via an explicit custom policy.
+    """
     reg = ToolRegistry()
     reg.register(_tool_ok("anything_goes"))
-    narai = BrainClient(user_id="owner", mode="narai", tool_registry=reg)
-    out = await narai.use_tool("anything_goes", {})
+    client = BrainClient(
+        user_id="owner", policy=_permissive_policy(), tool_registry=reg,
+    )
+    out = await client.use_tool("anything_goes", {})
     assert out["echoed"] == {}
 
 
@@ -80,13 +107,17 @@ async def test_tool_executor_unrestricted_under_narai_policy():
 
 
 async def test_tool_executor_raises_not_found():
-    narai = BrainClient(user_id="owner", mode="narai", tool_registry=ToolRegistry())
+    # Permissive policy: name check passes, registry lookup raises.
+    client = BrainClient(
+        user_id="owner", policy=_permissive_policy(),
+        tool_registry=ToolRegistry(),
+    )
     with pytest.raises(ToolNotFoundError) as exc:
-        await narai.use_tool("does_not_exist", {})
+        await client.use_tool("does_not_exist", {})
     # Subclass of stdlib KeyError
     assert isinstance(exc.value, KeyError)
 
-    events = [e["event_type"] for e in narai.telemetry.flush()]
+    events = [e["event_type"] for e in client.telemetry.flush()]
     assert "tool_not_found" in events
 
 
@@ -96,12 +127,14 @@ async def test_tool_executor_raises_not_found():
 async def test_tool_executor_propagates_tool_exception():
     reg = ToolRegistry()
     reg.register(_tool_raise())
-    narai = BrainClient(user_id="owner", mode="narai", tool_registry=reg)
+    client = BrainClient(
+        user_id="owner", policy=_permissive_policy(), tool_registry=reg,
+    )
 
     with pytest.raises(RuntimeError, match="broken"):
-        await narai.use_tool("broken", {})
+        await client.use_tool("broken", {})
 
-    events = [e["event_type"] for e in narai.telemetry.flush()]
+    events = [e["event_type"] for e in client.telemetry.flush()]
     # Both start and error fire — start happens before the run call
     assert "tool_start" in events
     assert "tool_error" in events
@@ -113,10 +146,12 @@ async def test_tool_executor_propagates_tool_exception():
 async def test_tool_executor_records_per_tool_latency():
     reg = ToolRegistry()
     reg.register(_tool_ok("metered"))
-    narai = BrainClient(user_id="owner", mode="narai", tool_registry=reg)
-    await narai.use_tool("metered", {})
-    await narai.use_tool("metered", {})
-    lat = narai.telemetry.get_stats()["latencies_ms"]
+    client = BrainClient(
+        user_id="owner", policy=_permissive_policy(), tool_registry=reg,
+    )
+    await client.use_tool("metered", {})
+    await client.use_tool("metered", {})
+    lat = client.telemetry.get_stats()["latencies_ms"]
     assert "tool:metered" in lat
     assert lat["tool:metered"]["count"] == 2
 
@@ -129,8 +164,12 @@ def test_allows_tool_uses_policy_directly():
     assert nai.allows_tool("web_search") is True       # SAFE_TOOLS
     assert nai.allows_tool("shell_exec") is False      # not in SAFE_TOOLS
 
+    # Phase B audit hardening (Critical Issue #1): NarAI is no longer
+    # unrestricted. The default allowlist contains exactly the names
+    # listed in NARAI_POLICY.allowed_tools.
     narai = BrainClient(user_id="owner", mode="narai", tool_registry=ToolRegistry())
-    assert narai.allows_tool("anything") is True       # unrestricted
+    assert narai.allows_tool("web_search") is True     # in NARAI allowlist
+    assert narai.allows_tool("anything") is False      # NOT in allowlist
 
 
 def test_available_tools_intersects_registry_and_policy():
@@ -144,8 +183,10 @@ def test_available_tools_intersects_registry_and_policy():
     # NAI: only the SAFE_TOOLS-listed name appears
     assert "web_search" in nai.available_tools()
     assert "shell_exec" not in nai.available_tools()
-    # NarAI: both appear (unrestricted)
-    assert set(narai.available_tools()) == {"web_search", "shell_exec"}
+    # Phase B: NarAI's allowlist is now ("web_search",); shell_exec
+    # is no longer auto-authorized by virtue of unrestricted policy.
+    assert set(narai.available_tools()) == {"web_search"}
+    assert "shell_exec" not in narai.available_tools()
 
 
 # ── Telemetry-disabled path is a no-op ─────────────────────────────────────
@@ -155,7 +196,8 @@ async def test_tool_executor_no_telemetry_when_disabled():
     reg = ToolRegistry()
     reg.register(_tool_ok())
     c = BrainClient(
-        user_id="silent", mode="narai",
+        user_id="silent",
+        policy=_permissive_policy("test_silent"),
         tool_registry=reg, telemetry_enabled=False,
     )
     await c.use_tool("ok_tool", {})

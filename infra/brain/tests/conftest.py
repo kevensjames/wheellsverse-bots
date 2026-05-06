@@ -136,3 +136,30 @@ def nai_client():
     """Fresh NAI-mode BrainClient (restricted tools, telemetry on)."""
     from infra.brain.interface import BrainClient
     return BrainClient(user_id="alice", mode="nai")
+
+
+@pytest.fixture
+def permissive_client():
+    """Fresh BrainClient with an unrestricted custom policy.
+
+    Pre-Phase-B (audit Critical Issue #1) ``narai_client`` was unrestricted;
+    many tests of executor/run_task *mechanics* relied on that to register
+    arbitrary tool names. After Phase B, NarAI is a true allowlist
+    (``allowed_tools=("web_search",)``), so those tests use this fixture
+    instead. Tests that exercise the *policy gate itself* keep using
+    ``narai_client`` / ``nai_client``.
+    """
+    from infra.brain.interface import BrainClient, BrainPolicy
+    return BrainClient(
+        user_id="owner",
+        policy=BrainPolicy(
+            mode="test_permissive",
+            tone="test",
+            system_prompt="test",
+            memory_enabled=False,
+            rag_enabled=False,
+            tools_enabled=True,
+            allowed_tools=None,             # unrestricted by name
+            allowed_capabilities=None,      # capability gate off
+        ),
+    )

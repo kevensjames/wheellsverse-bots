@@ -199,12 +199,25 @@ class BrainClient:
     # ── Authorization ────────────────────────────────────────────────────
 
     def allows_tool(self, tool_name: str) -> bool:
-        """Whether the current policy permits running ``tool_name``.
+        """Whether the current policy permits running ``tool_name`` by NAME.
 
-        Forwards to :meth:`BrainPolicy.allows_tool`. The
-        :class:`ToolExecutor` consults this before running anything.
+        Name-only check — does not enforce the capability gate. The
+        :class:`ToolExecutor` uses this as a fast pre-flight before the
+        registry lookup; for the full check (name + capabilities) prefer
+        :meth:`allows`.
         """
         return self.policy.allows_tool(tool_name)
+
+    def allows(self, tool: Tool) -> bool:
+        """Full authorization check (name + capabilities) for a known tool.
+
+        Forwards to :meth:`BrainPolicy.allows`. Used by
+        :meth:`available_tools`, the agent-loop tool catalog, and the
+        :class:`ToolExecutor` post-lookup gate. Phase B (audit Critical
+        Issue #1) — replaces the previous unrestricted-by-default
+        behavior on NarAI.
+        """
+        return self.policy.allows(tool)
 
     async def use_tool(self, name: str, input: dict) -> Any:
         """Authorize and run a registered tool.
@@ -214,19 +227,29 @@ class BrainClient:
         Raises
         ------
         ToolPermissionError
-            Active policy does not authorize ``name``.
+            Active policy does not authorize ``name`` (by name OR by
+            capability).
         ToolNotFoundError
-            Tool is allowed but not registered in :attr:`tool_registry`.
+            Tool is allowed by name but not registered in
+            :attr:`tool_registry`.
         """
         return await self.tool_executor.execute(name, input)
 
     def available_tools(self) -> list[str]:
-        """Return the names of tools that are both *registered* and *authorized*
-        for the active policy. Useful for surfacing a tool catalog to the
-        LLM or to the operator UI."""
-        return [
-            n for n in self.tool_registry.list() if self.allows_tool(n)
-        ]
+        """Return the names of tools that are both *registered* and *fully
+        authorized* (name + capability) for the active policy. Useful for
+        surfacing a tool catalog to the LLM or to the operator UI."""
+        out: list[str] = []
+        for n in self.tool_registry.list():
+            if not self.allows_tool(n):
+                continue
+            try:
+                tool = self.tool_registry.get(n)
+            except KeyError:
+                continue
+            if self.allows(tool):
+                out.append(n)
+        return out
 
     # ── Primary API ──────────────────────────────────────────────────────
 
@@ -385,6 +408,11 @@ class BrainClient:
                 if not self.allows_tool(name):
                     continue
                 tool = self.tool_registry.get(name)
+                # Phase B: capability gate — drop tools whose declared
+                # capabilities aren't in the active policy's allowlist
+                # before they're ever advertised to the planner LLM.
+                if not self.allows(tool):
+                    continue
                 schema = ToolSchema.from_tool(tool)
                 if schema is not None:
                     schemas.append(schema)

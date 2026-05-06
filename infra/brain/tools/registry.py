@@ -10,7 +10,7 @@ or per-request scopes).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
 
 
@@ -43,12 +43,26 @@ class Tool:
         When ``None``, the tool is still executable via ``use_tool`` but the
         agent loop will not list it. This is the on/off switch for "expose
         to the LLM planner".
+    capabilities:
+        Frozen set of capability tokens (see
+        :data:`infra.brain.policy.VALID_CAPABILITIES`) describing what
+        side-effects the tool can have:
+        ``read_only``, ``mutating``, ``network``, ``shell``, ``cost_bearing``.
+
+        Default is an *empty set* — meaning "unspecified, opt-out of the
+        capability gate". Tools that declare a non-empty set become
+        subject to :meth:`infra.brain.policy.BrainPolicy.allows`'s
+        capability check whenever the policy specifies
+        ``allowed_capabilities``. New tools should declare capabilities
+        explicitly so future policy tightening is automatic; existing
+        tools keep working unchanged with the empty default.
     """
 
     name: str
     description: str
     run: ToolRun
     schema: Optional[dict] = None
+    capabilities: frozenset[str] = field(default_factory=frozenset)
 
 
 class ToolRegistry:

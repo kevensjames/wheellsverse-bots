@@ -70,7 +70,7 @@ class ToolExecutor:
         mode = getattr(client.policy, "mode", "?")
         tel = getattr(client, "telemetry", None)
 
-        # 1) Permission check — single source of truth is BrainPolicy.
+        # 1) Name-level permission check — fast deny before registry lookup.
         if not client.allows_tool(tool_name):
             self._log_denied(tool_name, user_id, mode)
             self._emit_tel(tel, "denied", tool_name, input,
@@ -89,7 +89,32 @@ class ToolExecutor:
                            duration_ms=0.0, reason=str(e))
             raise ToolNotFoundError(str(e)) from e
 
-        # 3) Run, with timing + structured logging + telemetry.
+        # 3) Capability-level permission check (Phase B) — denies tools
+        #    that are name-allowed but declare a capability the active
+        #    policy doesn't authorize. Tools with empty capabilities pass
+        #    through (opt-in for both sides).
+        if not client.policy.allows(tool):
+            allowed_caps = (
+                sorted(client.policy.allowed_capabilities)
+                if client.policy.allowed_capabilities is not None
+                else "any"
+            )
+            tool_caps = sorted(tool.capabilities)
+            self._log_denied(tool_name, user_id, mode)
+            self._emit_tel(tel, "denied", tool_name, input,
+                           duration_ms=0.0,
+                           reason=(
+                               f"capability gate: tool {tool_name!r} "
+                               f"requires {tool_caps}, policy {mode!r} "
+                               f"allows {allowed_caps}"
+                           ))
+            raise ToolPermissionError(
+                f"Policy {mode!r} does not authorize tool {tool_name!r}: "
+                f"required capabilities {tool_caps} not subset of "
+                f"allowed {allowed_caps}"
+            )
+
+        # 4) Run, with timing + structured logging + telemetry.
         self._emit_tel(tel, "start", tool_name, input)
         start = time.perf_counter()
         try:
