@@ -179,11 +179,26 @@ def build_tool_use_prompt(schemas: Iterable[ToolSchema]) -> str:
     )
 
 
-def format_tool_result(tool_name: str, result: object, error: Optional[str] = None) -> str:
+def format_tool_result(
+    tool_name: str,
+    result: object,
+    error: Optional[str] = None,
+    *,
+    iteration: Optional[int] = None,
+) -> str:
     """Render a tool's outcome into the next user-turn payload.
 
     The model sees a single labeled message so the convention is obvious
     even without prior context (handy when memory is wiped between turns).
+
+    Audit Issue #5 closure (PR #8, 2026-05-06): when the body exceeds
+    the 8000-byte cap, this function now (a) emits a
+    ``tool_result_truncated`` telemetry event with the original size,
+    truncated size, tool name, and optional iteration index, and (b)
+    prepends a clear inline marker the planner LLM can see — the prior
+    ``…[truncated]`` suffix was too easy for the model to gloss over.
+    The cap itself is unchanged — protecting the context window remains
+    the load-bearing reason this truncation exists.
     """
     if error is not None:
         return f"[tool:{tool_name} ERROR] {error}"
@@ -195,8 +210,55 @@ def format_tool_result(tool_name: str, result: object, error: Optional[str] = No
     # context window. The full result is still available to the caller via
     # the executor's return value.
     if len(body) > 8000:
-        body = body[:8000] + " …[truncated]"
+        original_size = len(body)
+        body = body[:8000]
+        # Emit telemetry first so dashboards see truncations even if the
+        # downstream prompt assembly fails for any reason.
+        _emit_truncation_event(
+            tool=tool_name,
+            original_size=original_size,
+            truncated_size=8000,
+            iteration=iteration,
+        )
+        marker = (
+            f"[TRUNCATED: original size {original_size} bytes; "
+            f"kept first 8000 bytes]"
+        )
+        # Inline marker prepended to the body so the planner LLM sees
+        # the truncation immediately, before the (now-incomplete) data.
+        body = f"{marker}\n{body}"
     return f"[tool:{tool_name} OK] {body}"
+
+
+def _emit_truncation_event(
+    *,
+    tool: str,
+    original_size: int,
+    truncated_size: int,
+    iteration: Optional[int],
+) -> None:
+    """Forward a ``tool_result_truncated`` event to the active collector.
+
+    No-op when no collector is bound — same ContextVar bridge pattern
+    used by the rest of the brain (Phase D/E/F/G modules). Failure to
+    emit must never break tool-result rendering."""
+    try:
+        from ..telemetry import get_current_telemetry
+    except Exception:  # pragma: no cover
+        return
+    col = get_current_telemetry()
+    if col is None:
+        return
+    try:
+        col.emit(
+            "tool_result_truncated",
+            tool=tool,
+            original_size=original_size,
+            truncated_size=truncated_size,
+            iteration=iteration,
+        )
+    except Exception:  # pragma: no cover
+        pass
 
 
 # ── Telemetry helpers ────────────────────────────────────────────────────────
