@@ -65,8 +65,12 @@ frontend/netlify/
 *.tar.gz
 *.pdf
 
-# Claude local config
-.claude/
+# Claude config: ship the shared base (`settings.json` — repo-wide hooks
+# + permissions) but keep per-developer overrides + caches ignored.
+.claude/*
+!.claude/settings.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # macOS
 .DS_Store
