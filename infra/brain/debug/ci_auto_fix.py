@@ -22,6 +22,7 @@ returning a low-confidence advisory rather than fabricating a diff.
 """
 from __future__ import annotations
 
+import dataclasses
 from typing import Any, Optional
 
 
@@ -565,7 +566,11 @@ def _stage_fallback(stage: str, reason: str) -> dict:
 # ── Public API ──────────────────────────────────────────────────────────────
 
 
-def suggest_fix(failure_analysis: dict) -> dict:
+def suggest_fix(
+    failure_analysis: dict,
+    *,
+    context: Optional[Any] = None,
+) -> dict:
     """Map a failure analysis dict to a structured fix proposal.
 
     Parameters
@@ -573,6 +578,13 @@ def suggest_fix(failure_analysis: dict) -> dict:
     failure_analysis:
         The dict returned by
         :func:`infra.brain.debug.ci_self_healing.analyze_ci_failure`.
+    context:
+        Optional :class:`infra.brain.debug.repair_generator.FailureContext`.
+        When supplied, the file-aware generator is consulted FIRST. If it
+        produces a clean (placeholder-free, real-file) patch above its
+        confidence floor, that wins. Otherwise the existing template
+        path runs unchanged. Backwards-compatible: every existing caller
+        that passes only a positional dict keeps the original behavior.
 
     Returns
     -------
@@ -580,7 +592,9 @@ def suggest_fix(failure_analysis: dict) -> dict:
         ``stage``          — copied from the input analysis
         ``root_cause``     — concrete reason narrative
         ``fix_type``       — one of: schema, logic, ordering, missing_event,
-                              crash, config
+                              crash, config (template path) OR one of
+                              parser_fix, executor_fix, tool_fix, safety_fix,
+                              ci_fix (generator path)
         ``patch``          — unified-diff-style suggestion (str)
         ``confidence``     — 0.0 to 1.0 (float)
         ``risk_level``     — low | medium | high
@@ -591,6 +605,40 @@ def suggest_fix(failure_analysis: dict) -> dict:
 
     stage = failure_analysis.get("stage") or "unknown"
     reason = failure_analysis.get("reason") or ""
+
+    # ── Generator-first path (preferred, when context supplied) ──────
+    # Caller-supplied real files mean we can produce a real diff. If the
+    # generator declines (returns None), drop into the template path.
+    if context is not None:
+        try:
+            from infra.brain.debug.repair_generator import (
+                FailureContext, RepairGenerator,
+            )
+            # Accept either a FailureContext or a plain dict (defensive).
+            if not isinstance(context, FailureContext):
+                if isinstance(context, dict):
+                    context = FailureContext(
+                        test_name=str(context.get("test_name") or ""),
+                        error_message=str(context.get("error_message") or ""),
+                        traceback=str(context.get("traceback") or ""),
+                        files=dict(context.get("files") or {}),
+                        recent_history=list(context.get("recent_history") or []),
+                        analysis=context.get("analysis") or failure_analysis,
+                    )
+                else:
+                    context = None
+            if context is not None:
+                # If the caller forgot to attach the analysis, splice it in
+                # so the generator's dispatch can route on stage/reason.
+                if context.analysis is None:
+                    context = dataclasses.replace(context, analysis=failure_analysis)
+                fix = RepairGenerator().generate_patch(context)
+                if fix is not None:
+                    return _finalise_generator(stage, fix)
+        except Exception:
+            # The generator must NEVER take down suggest_fix. Fall through
+            # to the deterministic template path on any failure.
+            pass
 
     # 1) Exception-driven reasons (e.g. "unhandled_RuntimeError")
     if reason.startswith("unhandled_"):
@@ -655,6 +703,62 @@ def _finalise(stage: str, proposal: dict) -> dict:
         "confidence":    confidence,
         "risk_level":    risk,
         "explanation":   str(proposal.get("explanation") or ""),
+    }
+
+
+def _finalise_generator(stage: str, fix: dict) -> dict:
+    """Normalise the dict returned by :class:`RepairGenerator`.
+
+    Parallel to :func:`_finalise` but accepts the generator's broader
+    fix-type vocabulary (``parser_fix``, ``executor_fix`` …). Keeps the
+    output schema callers expect from :func:`suggest_fix` (``stage``,
+    ``root_cause``, ``fix_type``, ``patch``, ``confidence``, ``risk_level``,
+    ``explanation``) plus generator-only diagnostic keys
+    (``files_modified``, ``reasoning``, ``lines_changed``)."""
+    if not isinstance(fix, dict):
+        return _malformed_input("internal: generator returned non-dict")
+
+    fix_type = str(fix.get("fix_type") or "").strip()
+    # Allow generator types AND template types — superset.
+    if fix_type not in {
+        "parser_fix", "executor_fix", "tool_fix", "safety_fix", "ci_fix",
+        FIX_TYPE_SCHEMA, FIX_TYPE_LOGIC, FIX_TYPE_ORDERING,
+        FIX_TYPE_MISSING_EVENT, FIX_TYPE_CRASH, FIX_TYPE_CONFIG,
+    }:
+        fix_type = FIX_TYPE_LOGIC
+
+    risk = fix.get("risk_level") or RISK_MEDIUM
+    if risk not in _VALID_RISK_LEVELS:
+        risk = RISK_MEDIUM
+
+    try:
+        confidence = float(fix.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    # Defense in depth: if the generator somehow leaked a placeholder,
+    # downgrade the patch to empty so the caller sees an advisory rather
+    # than something validate_patch will reject downstream.
+    patch = str(fix.get("patch") or "")
+    import re as _re
+    if _re.search(r"<[A-Za-z0-9_./\- ]+>", patch):
+        patch = ""
+        confidence = min(confidence, 0.1)
+
+    return {
+        "stage":          str(fix.get("stage") or stage or "unknown"),
+        "root_cause":     str(fix.get("root_cause") or fix.get("reasoning") or ""),
+        "fix_type":       fix_type,
+        "patch":          patch,
+        "confidence":     confidence,
+        "risk_level":     risk,
+        "explanation":    str(fix.get("explanation") or fix.get("reasoning") or ""),
+        # Generator-only diagnostics (omitted by template path).
+        "files_modified": list(fix.get("files_modified") or []),
+        "reasoning":      str(fix.get("reasoning") or ""),
+        "lines_changed":  int(fix.get("lines_changed") or 0),
+        "source":         "generator",
     }
 
 
