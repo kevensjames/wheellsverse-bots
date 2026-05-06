@@ -122,6 +122,12 @@ data/telegram_offset.txt
 data/narai_memory.json
 narai/data/memory_store/
 
+# Brain learning ledgers (production runtime state — see
+# infra/brain/learning/repair_outcome_memory.py + repair_memory.py).
+state/
+.ci/repair-memory.jsonl
+.ci/repair-memory.summary.json
+
 # Audit artifacts (regenerated each scan; complement to existing pre-commit patterns)
 npm-audit*
 data/shopify_audit_*.md
