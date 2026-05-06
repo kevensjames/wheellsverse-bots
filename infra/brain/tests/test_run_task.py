@@ -56,7 +56,10 @@ async def test_run_task_happy_path(narai_client, router_mock):
 # ── Tool failure does NOT crash the task ────────────────────────────────────
 
 
-async def test_run_task_tool_failure_isolated(narai_client, router_mock):
+async def test_run_task_tool_failure_isolated(permissive_client, router_mock):
+    """Phase B: switched from ``narai_client`` to ``permissive_client``.
+    NarAI's allowlist no longer includes ``broken_tool`` — exercising the
+    RuntimeError-isolation path needs a policy that authorizes the tool."""
     async def _broken(input):
         raise RuntimeError("kaboom")
 
@@ -75,14 +78,14 @@ async def test_run_task_tool_failure_isolated(narai_client, router_mock):
         make_router_response(json.dumps(plan)),
         make_router_response("Recovering — here's a plain answer"),
     ]
-    task = await narai_client.run_task("call the broken thing")
+    task = await permissive_client.run_task("call the broken thing")
 
     assert task.state == "done"  # task survived
     assert task.result["steps"][0]["ok"] is False
     assert task.result["steps"][0]["error_type"] == "RuntimeError"
     assert task.result["steps"][1]["ok"] is True
 
-    events = [e["event_type"] for e in narai_client.telemetry.flush()]
+    events = [e["event_type"] for e in permissive_client.telemetry.flush()]
     assert "step_error" in events
     assert "step_success" in events
     assert events[-1] == "task_end"

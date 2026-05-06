@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..policy import CAPABILITY_NETWORK, CAPABILITY_READ_ONLY
 from .registry import Tool, register
 
 
@@ -64,6 +65,10 @@ WEB_SEARCH_TOOL = Tool(
         },
         "required": ["query"],
     },
+    # Real web search would be (read_only, network); the mock is local-only
+    # but we declare the *intended* capability set so policy gating exercises
+    # the realistic path.
+    capabilities=frozenset({CAPABILITY_READ_ONLY, CAPABILITY_NETWORK}),
 )
 
 

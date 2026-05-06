@@ -105,7 +105,11 @@ async def test_executor_runs_tool_step_via_use_tool(narai_client):
 # ── Tool-step error isolation ───────────────────────────────────────────────
 
 
-async def test_executor_isolates_tool_exception(narai_client):
+async def test_executor_isolates_tool_exception(permissive_client):
+    """Phase B: switched from ``narai_client`` to ``permissive_client``
+    because NarAI is now a true allowlist; this test exercises executor
+    mechanics with an arbitrary tool name (``broken_tool``) and would
+    otherwise be blocked by the policy gate before the kaboom runs."""
     async def _broken(input):
         raise RuntimeError("kaboom")
 
@@ -124,7 +128,7 @@ async def test_executor_isolates_tool_exception(narai_client):
         ]},
         state="planned",
     )
-    out = await ExecutorAgent(narai_client).run(task)
+    out = await ExecutorAgent(permissive_client).run(task)
 
     # Both steps recorded; task didn't crash.
     assert out.state == "done"
@@ -134,7 +138,7 @@ async def test_executor_isolates_tool_exception(narai_client):
         assert step["error_type"] == "RuntimeError"
         assert "kaboom" in step["error"]
 
-    events = [e["event_type"] for e in narai_client.telemetry.flush()]
+    events = [e["event_type"] for e in permissive_client.telemetry.flush()]
     # step_error fired for both, step_success for neither
     assert events.count("step_error") == 2
     assert "step_success" not in events
@@ -198,6 +202,9 @@ async def test_executor_handles_unknown_step_type(narai_client):
 
 
 async def test_executor_invalid_tool_input_recorded_as_error(narai_client):
+    # The non-dict-input guard fires inside ``_run_tool_step`` BEFORE
+    # ``use_tool`` is called, so the policy gate is irrelevant here.
+    # Stays on ``narai_client`` after Phase B for that reason.
     task = BrainTask(
         id="t1", input="x",
         plan={"steps": [{"type": "tool", "name": "ws", "input": "not-a-dict"}]},
