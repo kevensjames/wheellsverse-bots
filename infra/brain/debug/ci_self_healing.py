@@ -632,11 +632,18 @@ async def ci_wrap_run_task(client: Any, input: str):
         if report["stage"] != "unknown":
             print_report(report)
         assert exc is None and result is not None
+
+    Audit Issue #4 closure (PR #7, 2026-05-06): the catch is narrowed
+    from ``BaseException`` to ``Exception`` so ``KeyboardInterrupt``
+    and ``SystemExit`` propagate. The diagnostic layer must NOT
+    swallow shutdown signals — CI jobs become un-killable otherwise,
+    and the contract advertised by :mod:`ci_auto_fix` lines 256-258
+    requires the propagation.
     """
     try:
         result = await client.run_task(input)
         return result, None
-    except BaseException as e:  # noqa: BLE001 — diagnostic layer captures all
+    except Exception as e:  # narrowed from BaseException — see docstring
         return None, e
 
 
