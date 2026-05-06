@@ -6,7 +6,7 @@ Builds on the previous two diagnostic layers:
   2. ``ci_auto_fix.suggest_fix``              → proposes a unified-diff fix
   3. **this module**                          → applies / verifies / packages
 
-Pipeline (default-safe; nothing is mutated unless ``apply_patch=True``)::
+Pipeline::
 
     rerun(test_node) → record pre-repair state
     validate_patch(diff)
@@ -14,14 +14,38 @@ Pipeline (default-safe; nothing is mutated unless ``apply_patch=True``)::
     confirm_stability(test_node, retries=3)     ← rerun N times after fix
     build_pr_bundle(...)                        ← write artifacts to disk
 
+When ``apply_patch=False`` the working tree is never modified; the
+pipeline runs the failing test, validates the diff, and emits the
+bundle without any disk mutation. When ``apply_patch=True`` the
+working tree IS modified by ``git apply``, and may also be modified
+by the rollback paths described below if post-repair runs fail.
+
 Safety contract — every guard is enforced before the disk is touched:
 
-  * Refuses to apply on a dirty working tree.
+  * Refuses to apply on a dirty working tree (see :func:`apply_patch_safely`
+    lines 407-413 — the load-bearing protection for the rollback path
+    described next).
   * Refuses to apply on the ``main`` / ``master`` branch.
   * Refuses to apply if the patch contains ``<placeholder>`` paths.
   * Refuses to apply if ``confidence`` is below ``MIN_APPLY_CONFIDENCE``.
   * Always runs ``git apply --check`` before ``git apply``.
-  * On any failure the working tree is restored via ``git stash pop``.
+  * On apply failure or post-repair-test failure, the working tree is
+    restored via ``git checkout -- .`` (NOT ``git stash pop``). This
+    discards every modification since the apply, which is exactly the
+    set of changes the patch introduced — because the clean-tree gate
+    above guaranteed the tree was free of unrelated user work before
+    the apply ran. Rollback sites: :func:`apply_patch_safely:518`
+    (apply-time failure) and :func:`attempt_repair` lines 613, 617
+    (post-repair test failures + flakiness). Audit Issue #3 closure
+    (PR #6, 2026-05-06) — the previous wording claimed
+    ``git stash pop`` semantics; the actual ``git checkout -- .``
+    is safe only because the clean-tree gate enforces its precondition.
+
+★ Operator note: a future change to the clean-tree gate at
+``apply_patch_safely:407-413`` invalidates the safety reasoning above.
+If you ever soften that gate (e.g. to allow apply-with-stash for
+mid-rebase fixups), you MUST upgrade the rollback paths in lockstep —
+otherwise ``git checkout -- .`` will start eating user work.
 
 Importable as a library or runnable as a CLI:
 
