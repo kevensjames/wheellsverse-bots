@@ -1,5 +1,5 @@
 """Tests for response tier classifier."""
-from narai.core.tiers import classify
+from infra.brain.tiers import classify
 
 
 def test_short_greeting_is_fast():

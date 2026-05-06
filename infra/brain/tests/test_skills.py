@@ -1,6 +1,6 @@
 """Tests for skill pack loader."""
 import pytest
-from narai.core import skills
+from infra.brain import skills
 
 
 def test_available_skills():

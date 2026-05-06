@@ -1,20 +1,18 @@
-"""Tests for RAG pipeline."""
+"""Tests for the RAG pipeline (real ChromaDB ingest + query).
+
+These exercise the actual chunk → embed → upsert → query → score path,
+so the ``real_chroma`` marker opts out of the conftest's chroma-mocking
+fixture and gives the suite an isolated, on-disk per-test Chroma instance.
+"""
 import json
-import os
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def temp_chroma(tmp_path, monkeypatch):
-    monkeypatch.setenv("NARAI_CHROMA_PATH", str(tmp_path / "chroma"))
-    import narai.core.rag as r
-    r._rag_collection = None
-    yield
-    r._rag_collection = None
+# All tests in this file need real ChromaDB.
+pytestmark = pytest.mark.real_chroma
 
 
 def test_ingest_text_and_query():
-    from narai.core.rag import ingest_text, query
+    from infra.brain.rag import ingest_text, query
 
     text = "NarAI uses an LSTM model to forecast stock prices based on historical data."
     chunks = ingest_text(text, source_label="test_doc")
@@ -27,7 +25,7 @@ def test_ingest_text_and_query():
 
 
 def test_ingest_markdown_file(tmp_path):
-    from narai.core.rag import ingest, query
+    from infra.brain.rag import ingest, query
 
     md = tmp_path / "notes.md"
     md.write_text("# Trading Strategy\nRSI below 30 indicates oversold conditions.")
@@ -40,7 +38,7 @@ def test_ingest_markdown_file(tmp_path):
 
 
 def test_ingest_csv_file(tmp_path):
-    from narai.core.rag import ingest, query
+    from infra.brain.rag import ingest, query
 
     csv_file = tmp_path / "trades.csv"
     csv_file.write_text("ticker,action,price\nBTC,BUY,45000\nETH,SELL,3200\n")
@@ -51,7 +49,7 @@ def test_ingest_csv_file(tmp_path):
 
 
 def test_ingest_json_file(tmp_path):
-    from narai.core.rag import ingest
+    from infra.brain.rag import ingest
 
     data = [{"key": "insight_1", "content": "Market is bullish in Q1 2026"}]
     jf = tmp_path / "data.json"
@@ -61,7 +59,7 @@ def test_ingest_json_file(tmp_path):
 
 
 def test_delete_source():
-    from narai.core.rag import _get_rag_collection, delete_source, ingest_text, query
+    from infra.brain.rag import _get_rag_collection, delete_source, ingest_text, query
 
     ingest_text("Some text about crypto markets", source_label="to_delete")
     delete_source("to_delete")
@@ -69,7 +67,7 @@ def test_delete_source():
 
 
 def test_query_context_format():
-    from narai.core.rag import ingest_text, query_context
+    from infra.brain.rag import ingest_text, query_context
 
     ingest_text("Ethereum 2.0 uses proof of stake for consensus", source_label="eth_notes")
     ctx = query_context("ethereum consensus")

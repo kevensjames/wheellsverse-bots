@@ -1,10 +1,10 @@
-"""Skill pack loader. Skills are .md files in narai/skills/.
+"""Skill pack loader. Skills are .md files in infra/brain/skills/.
 Active skill is prepended to the system prompt on every LLM call."""
 import os
 from pathlib import Path
 from typing import Iterator
 
-_SKILLS_DIR = Path(__file__).parent.parent / "skills"
+_SKILLS_DIR = Path(__file__).parent / "skills"
 _ACTIVE_SKILL: str | None = None
 _CACHE: dict[str, str] = {}
 
