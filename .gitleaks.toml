@@ -1,0 +1,94 @@
+# gitleaks config — paths and patterns to ignore as known false-positives.
+# https://github.com/gitleaks/gitleaks#configuration
+#
+# Run scans with: gitleaks detect --source . --no-git --config .gitleaks.toml
+#
+# Rationale for each entry: see commit log on this file.
+
+# Inherit gitleaks' default ruleset (don't redefine the secret-detection rules
+# from scratch — just layer the allowlist on top).
+[extend]
+useDefault = true
+
+[allowlist]
+description = "wheellsverse_bots — false-positive paths"
+
+# Paths whose entire content gets ignored.
+# Regex (re2 syntax). Each pattern is anchored with `(^|/)` for directory match.
+paths = [
+  # Runtime log files. system.log* contains opaque IDs and tokenized strings
+  # that gitleaks' Facebook-token rule false-positives on (4,141 hits as of
+  # 2026-05-07). logs/ is gitignored — contents never reach commits.
+  '''(^|/)logs/''',
+
+  # Persistent memory store. Contains user-conversation embeddings + serialized
+  # facts including occasional verbatim text fragments. Gitignored.
+  '''(^|/)memory/''',
+
+  # Runtime data: queues, registries, autopilot state, content backlog.
+  # Gitignored. False-positives from API responses cached in JSON.
+  '''(^|/)data/''',
+
+  # Environment files (gitignored, but gitleaks scans disk regardless).
+  # Real secrets live here; false-positives because gitleaks pattern-matches
+  # high-entropy values.
+  '''(^|/)\.env$''',
+  '''(^|/)\.env\.bak.*''',
+  '''(^|/)\.env\.example$''',
+
+  # Backup snapshots produced by tools (e.g., supabase migrations).
+  '''.*\.bak\.[0-9_]+$''',
+
+  # Vendor directories. We never authored secrets here; any matches are test
+  # data inside dependencies.
+  '''(^|/)\.venv/''',
+  '''(^|/)\.venv-1/''',
+  '''(^|/)narai/\.venv/''',
+  '''(^|/)backend/\.venv/''',
+  '''(^|/)node_modules/''',
+  '''(^|/)wheelsverse/node_modules/''',
+  '''(^|/)trade-app/node_modules/''',
+
+  # Worktree mirrors of the main tree.
+  '''(^|/)\.claude/worktrees/''',
+
+  # Legacy blog HTML — generated content, no secrets in source.
+  '''(^|/)frontend/blog/.*\.html$''',
+
+  # Raw scanner outputs from previous scans (not source).
+  '''.*-report\.json$''',
+  '''.*-stderr\.txt$''',
+  '''(^|/)package-leakage-report\.json$''',
+  '''(^|/)semgrep-staged\.json$''',
+  '''(^|/)gitleaks-report\.json$''',
+  '''(^|/)npm-audit\.json$''',
+]
+
+# Regex patterns to ignore in matched secret values.
+# Use sparingly — each entry is a hole in the detector.
+regexes = [
+  # Documentation placeholder tokens. We use these in NARAI_SHOPIFY_APP_STORE.md
+  # and similar docs to show how secrets *would* look without leaking real ones.
+  '''sk-placeholder.*''',
+  '''sk_test_placeholder.*''',
+  '''placeholder_(?:api_key|secret|token).*''',
+
+  # Documentation placeholders — curl examples in deploy/README.md and
+  # similar docs use literal strings like "your-api-key" to indicate where
+  # the reader should substitute their real key. Not a real secret.
+  '''your-api-key''',
+  '''your-secret''',
+  '''YOUR_API_KEY''',
+  '''YOUR_SECRET''',
+
+  # Stripe public test-mode keys (the well-known pk_test_ / sk_test_
+  # prefixes) — pattern-only, not actual key values, so we don't trigger
+  # GitHub's secret scanner ourselves.
+  '''pk_test_[A-Za-z0-9]{24,}''',
+  '''sk_test_[A-Za-z0-9]{24,}''',
+]
+
+# Stop matching when a comment marks a line as intentionally non-sensitive.
+# Use as: VAR_NAME = "fake-token"  # gitleaks:allow
+# Note: gitleaks' built-in inline ignore is `# gitleaks:allow` — already honored
+# by the engine, listing here for documentation only.
