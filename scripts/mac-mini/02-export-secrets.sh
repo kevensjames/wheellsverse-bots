@@ -124,7 +124,7 @@ TS="$(date +%Y%m%d-%H%M%S)"
 TAR="wheellsverse-secrets-${TS}.tar.gz"
 GPG_OUT="${TAR}.gpg"
 
-log "Creating $TAR…"
+log "Creating ${TAR}..."
 # Use -c (gzip), -f (file), -- to terminate options.
 tar -czf "$TAR" -- "${INCLUDES[@]}"
 ok "Tarball: $(du -h "$TAR" | awk '{print $1}')"

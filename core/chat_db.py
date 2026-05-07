@@ -521,13 +521,13 @@ def auto_title(conversation_id: str):
             return
         first_msg = dict(row)["content"][:300]
 
-        from anthropic import Anthropic
-        client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        resp = client.messages.create(
+        from core.claude_logged import create as _claude_create
+        resp = _claude_create(
             model="claude-haiku-4-5-20251001",
             max_tokens=30,
             system="Generate a short 3-6 word title for this conversation. Return ONLY the title, no quotes.",
             messages=[{"role": "user", "content": first_msg}],
+            bot_name="chat_db_title",
         )
         title = resp.content[0].text.strip().strip('"').strip("'")[:60]
         if title:

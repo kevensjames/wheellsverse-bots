@@ -449,14 +449,27 @@ class DecisionEngine:
         return entry
 
     def _send_alert(self, title: str, message: str, channels: Optional[List[str]] = None) -> bool:
-        """Broadcast an alert through output_automation and increment counter."""
+        """Broadcast an alert through output_automation and increment counter.
+
+        Env kill switches (set to "true"/"1"/"yes"):
+          ALERTS_DISABLE_EMAIL  — strip email from default channels (Slack +
+                                  Discord still go through)
+          ALERTS_DISABLE_ALL    — drop the alert entirely (logged but not sent)
+        """
+        if os.getenv("ALERTS_DISABLE_ALL", "").lower() in {"true", "1", "yes"}:
+            logger.info(f"Alert suppressed (ALERTS_DISABLE_ALL): {title}")
+            return False
+
+        if channels is None:
+            channels = ["slack", "discord", "email"]
+            if os.getenv("ALERTS_DISABLE_EMAIL", "").lower() in {"true", "1", "yes"}:
+                channels = [c for c in channels if c != "email"]
+
         try:
             from core.output_automation import get_automator
-            get_automator().send_alert(title, message,
-                channels=channels or ["slack", "discord", "email"],
-            )
+            get_automator().send_alert(title, message, channels=channels)
             self._alerts_sent += 1
-            logger.info(f"Alert sent: {title}")
+            logger.info(f"Alert sent on {channels}: {title}")
             return True
         except Exception as e:
             logger.error(f"Alert send failed: {e}")
@@ -677,17 +690,39 @@ class DecisionEngine:
                         ))
 
                 elif rec.consecutive_failures >= 3:
-                    # Multiple failures — escalate
+                    # Multiple failures — escalate, BUT skip if the last error
+                    # is a known operator condition (Anthropic credit balance,
+                    # missing API key, daily budget). Those are resolved by
+                    # action outside the codebase, not by paging on every run.
                     last_err = (rec.last_error or "Unknown error")[:200]
-                    self._send_alert(
-                        f"🚨 Critical Bot Failure: {bot_name}",
-                        (
-                            f"Bot `{bot_name}` has failed "
-                            f"{rec.consecutive_failures} times in a row.\n\n"
-                            f"Last error: {last_err}\n\n"
-                            f"Manual investigation required."
-                        ),
+                    err_lower = last_err.lower()
+                    SKIP_PATTERNS = (
+                        "credit balance",
+                        "credit_balance",
+                        "daily.*budget",
+                        "anthropic_api_key",
+                        "openai_api_key",
+                        "api key",
                     )
+                    import re as _re
+                    is_known_operator_issue = any(
+                        _re.search(p, err_lower) for p in SKIP_PATTERNS
+                    )
+                    if is_known_operator_issue:
+                        logger.info(
+                            f"Skipping escalation for {bot_name} — known operator "
+                            f"issue: {last_err[:80]}"
+                        )
+                    else:
+                        self._send_alert(
+                            f"🚨 Critical Bot Failure: {bot_name}",
+                            (
+                                f"Bot `{bot_name}` has failed "
+                                f"{rec.consecutive_failures} times in a row.\n\n"
+                                f"Last error: {last_err}\n\n"
+                                f"Manual investigation required."
+                            ),
+                        )
                     entries.append(self._log_intel(
                         "system", f"escalate_{bot_name}",
                         f"{bot_name} — {rec.consecutive_failures} consecutive failures",

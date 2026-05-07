@@ -1,0 +1,46 @@
+{%- comment -%}
+  mobile-nav.liquid — fixed bottom nav, mobile only.
+  4 anchor points: Home, Shop (mega-menu trigger via #mega-menu),
+  Cart (with item count badge), Account.
+{%- endcomment -%}
+<nav class="mobile-nav" aria-label="Bottom navigation">
+  <a href="{{ routes.root_url }}" class="mnav-item" aria-label="Home">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M3 12l9-9 9 9"/><path d="M5 10v10a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V10"/></svg>
+    <span>Home</span>
+  </a>
+  <a href="/collections/all" class="mnav-item" aria-label="Shop">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+    <span>Shop</span>
+  </a>
+  <a href="{{ routes.search_url }}" class="mnav-item" aria-label="Search">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <span>Search</span>
+  </a>
+  <a href="{{ routes.cart_url }}" class="mnav-item mnav-cart" aria-label="Cart">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><path d="M3 3h2l2.4 12a2 2 0 0 0 2 1.5h8.6a2 2 0 0 0 2-1.5L22 7H6"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/></svg>
+    {%- if cart.item_count > 0 -%}<span class="mnav-badge">{{ cart.item_count }}</span>{%- endif -%}
+    <span>Cart</span>
+  </a>
+  <a href="{{ routes.account_url }}" class="mnav-item" aria-label="Account">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="22" height="22"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a8 8 0 0 1 16 0v1"/></svg>
+    <span>You</span>
+  </a>
+</nav>
+<style>
+  .mobile-nav { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 90; background: rgba(4, 8, 22, .96); backdrop-filter: blur(14px); border-top: 1px solid rgba(34, 211, 238, .18); padding: 8px 6px calc(8px + env(safe-area-inset-bottom)); justify-content: space-around; align-items: stretch; }
+  .mnav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; padding: 6px 4px; color: var(--muted); text-decoration: none; font-size: 10px; letter-spacing: .3px; text-transform: uppercase; transition: color .15s; position: relative; }
+  .mnav-item:hover, .mnav-item:focus-visible { color: var(--accent); }
+  .mnav-item svg { display: block; }
+  .mnav-badge { position: absolute; top: 0; right: calc(50% - 18px); background: linear-gradient(90deg, #ff5b6e, #f43f5e); color: white; font-family: Orbitron, sans-serif; font-size: 9px; font-weight: 700; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 10px; display: flex; align-items: center; justify-content: center; line-height: 1; }
+  @media (max-width: 720px) {
+    .mobile-nav { display: flex; }
+    body { padding-bottom: 76px; }
+  }
+</style>
+{% schema %}
+{
+  "name": "Mobile bottom nav",
+  "settings": [],
+  "presets": [{"name": "Mobile bottom nav"}]
+}
+{% endschema %}

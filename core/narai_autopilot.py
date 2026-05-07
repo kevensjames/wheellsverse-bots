@@ -1856,8 +1856,46 @@ def _publish_product(product: dict, platform: str) -> bool:
                 _queue_for_manual(platform, title, content)
                 return False
 
-        # ── Etsy / Payhip (manual queue — no full API yet) ────────────────────
-        elif platform in ("etsy", "payhip"):
+        # ── Etsy: create as DRAFT via v3 API (user finishes image + publish) ─
+        elif platform == "etsy":
+            try:
+                from core.etsy_client import get_client as _get_etsy, EtsyAuthError
+                price = float(os.getenv("ETSY_DEFAULT_PRICE_USD", "7.00"))
+                # Tags: alphanumeric tokens from title, max 13, ≤20 chars each
+                tags = []
+                for tok in re.split(r"[\s\-_/,.:;|]+", title.lower()):
+                    tok = re.sub(r"[^a-z0-9 ]", "", tok).strip()
+                    if 2 <= len(tok) <= 20 and tok not in tags:
+                        tags.append(tok)
+                    if len(tags) >= 13:
+                        break
+                listing = _get_etsy().create_draft_listing(
+                    title=title,
+                    description=content,
+                    price_usd=price,
+                    is_digital=True,
+                    tags=tags or None,
+                )
+                listing_id = listing.get("listing_id") or listing.get("results", [{}])[0].get("listing_id")
+                _ap_log(
+                    f"  ✓ Etsy draft listing created: id={listing_id} "
+                    f"(add image + publish in dashboard)",
+                    phase="etsy",
+                )
+                return True
+            except EtsyAuthError as e:
+                _ap_log(f"  Etsy auth not configured ({e}) — queueing manual",
+                        level="WARNING", phase="etsy")
+                _queue_for_manual(platform, title, content)
+                return False
+            except Exception as ee:
+                _ap_log(f"  Etsy publish failed: {ee} — queueing manual",
+                        level="WARNING", phase="etsy")
+                _queue_for_manual(platform, title, content)
+                return False
+
+        # ── Payhip (manual queue — no public API for listing creation) ────────
+        elif platform == "payhip":
             _queue_for_manual(platform, title, content)
             return False
 

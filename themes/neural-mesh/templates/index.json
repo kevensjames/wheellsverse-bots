@@ -4,7 +4,7 @@
       "type": "hero",
       "settings": {
         "heading": "Built for the operator class.",
-        "subheading": "AI tools, intelligent subscriptions, books, and gear — engineered to compound. WheellsVerse ships products that pay themselves back.",
+        "subheading": "AI tools, intelligent subscriptions, books, and gear — engineered to compound. WheellsVerse ships products that pay themselves back. ",
         "cta_text": "EXPLORE THE CATALOG",
         "cta_link": "/collections/all"
       }
@@ -93,7 +93,7 @@
       "settings": {
         "eyebrow": "FULL CATALOG",
         "heading": "Latest drops",
-        "collection": "all",
+        "collection": "operator-picks",
         "product_limit": 12
       }
     },

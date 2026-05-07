@@ -1,0 +1,63 @@
+{%- comment -%}
+  star-rating.liquid — drop-in star rating block. v2 (filter-fix)
+
+  Honest-by-default: only renders stars when product.metafields.reviews.rating
+  exists (a number 1-5). Otherwise renders a "Be the first to review" link.
+  Wire up Loox / Judge.me / Stamped to write into metafield namespace 'reviews'
+  with keys 'rating' (number) and 'count' (number) and the stars light up
+  automatically.
+
+  Usage: {%- render 'star-rating', product: product, size: 'sm' -%}
+  size: 'sm' (cards), 'md' (default), 'lg' (PDP)
+{%- endcomment -%}
+{%- assign rating_raw = product.metafields.reviews.rating -%}
+{%- assign rating_count = product.metafields.reviews.count | default: 0 -%}
+{%- assign size = size | default: 'md' -%}
+
+{%- if rating_raw != blank -%}
+  {%- assign rating = rating_raw | plus: 0.0 -%}
+  {%- assign full_stars = rating | floor -%}
+  {%- assign has_half = false -%}
+  {%- assign frac = rating | minus: full_stars -%}
+  {%- if frac >= 0.25 and frac < 0.75 -%}{%- assign has_half = true -%}{%- endif -%}
+  {%- if frac >= 0.75 -%}{%- assign full_stars = full_stars | plus: 1 -%}{%- endif -%}
+  {%- assign half_pos = full_stars | plus: 1 -%}
+  <div class="rating rating--{{ size }}" aria-label="Rated {{ rating }} out of 5 from {{ rating_count }} reviews">
+    <span class="rating-stars">
+      {%- for i in (1..5) -%}
+        {%- if i <= full_stars -%}<span class="star star--full">★</span>
+        {%- elsif i == half_pos and has_half -%}<span class="star star--half">★</span>
+        {%- else -%}<span class="star star--empty">★</span>{%- endif -%}
+      {%- endfor -%}
+    </span>
+    <span class="rating-meta">
+      {{- rating | round: 1 -}}
+      {%- if rating_count > 0 -%}
+        <span class="rating-count">({{ rating_count }})</span>
+      {%- endif -%}
+    </span>
+  </div>
+{%- else -%}
+  <div class="rating rating--{{ size }} rating--empty">
+    <span class="rating-stars rating-stars--empty">
+      {%- for i in (1..5) -%}<span class="star star--empty">★</span>{%- endfor -%}
+    </span>
+    <span class="rating-meta">Be the first</span>
+  </div>
+{%- endif -%}
+
+<style>
+  .rating { display: inline-flex; align-items: center; gap: 6px; }
+  .rating-stars { color: #fbbf24; letter-spacing: 1px; line-height: 1; }
+  .rating-stars--empty { color: rgba(251, 191, 36, .25); }
+  .rating .star { display: inline-block; }
+  .rating .star--empty { color: rgba(251, 191, 36, .22); }
+  .rating .star--half { background: linear-gradient(90deg, #fbbf24 50%, rgba(251, 191, 36, .22) 50%); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+  .rating-meta { font-size: 11px; color: var(--muted); }
+  .rating-count { margin-left: 3px; }
+  .rating--sm .rating-stars { font-size: 11px; }
+  .rating--sm .rating-meta { font-size: 10px; }
+  .rating--md .rating-stars { font-size: 14px; }
+  .rating--lg .rating-stars { font-size: 18px; }
+  .rating--lg .rating-meta { font-size: 13px; }
+</style>

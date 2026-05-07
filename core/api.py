@@ -13452,7 +13452,7 @@ if _v2_auth_loaded:
         from narai.api.routes.memory import rag_rt as _v2_rag_rt, rt as _v2_memory_rt
         from narai.api.routes.skills_route import rt as _v2_skills_rt
         from narai.core.db import init_db as _v2_init_db
-        from narai.core.resilience import breaker_status as _v2_breaker_status
+        from infra.brain.resilience import breaker_status as _v2_breaker_status
 
         app.include_router(_v2_chat_rt, prefix="/api/v2/narai")
         app.include_router(_v2_memory_rt, prefix="/api/v2/narai")
@@ -13820,10 +13820,14 @@ async def public_chat(req: Request, body: _PublicChatBody):
     hits.append(now)
     _PUBLIC_CHAT_HITS[ip] = hits
 
-    from narai.core import router as _narai_router
+    from infra.brain.interface import BrainClient
     from narai.core.identity import build_system_prompt as _build_identity
-    result = await _narai_router.call(
-        body.message, tier="fast", system=_build_identity()
+    result = await BrainClient(user_id="public", mode="narai").chat(
+        body.message,
+        tier="fast",
+        system=_build_identity(),
+        use_memory=False,
+        use_rag=False,
     )
     return {"reply": result["content"]}
 

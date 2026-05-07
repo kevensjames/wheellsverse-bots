@@ -48,7 +48,7 @@ fi
 # ── 2. Homebrew (Apple Silicon prefix) ──────────────────────────────────────
 BREW_PREFIX="/opt/homebrew"
 if ! command -v brew >/dev/null 2>&1; then
-  log "Installing Homebrew at $BREW_PREFIX…"
+  log "Installing Homebrew at ${BREW_PREFIX}..."
   NONINTERACTIVE=1 /bin/bash -c \
     "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 fi

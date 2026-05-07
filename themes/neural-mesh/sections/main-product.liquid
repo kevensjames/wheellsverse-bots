@@ -1,12 +1,17 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
 {%- render 'breadcrumbs' -%}
 
 <div class="product">
   <div class="product-media">
-    <img id="main-image" src="{{ product.featured_image | image_url: width: 1200 }}" alt="{{ product.title | escape }}">
+    <div class="zoom-stage" id="zoom-stage" data-zoom-src="{{ product.featured_image | image_url: width: 1600 }}">
+      <img id="main-image" src="{{ product.featured_image | image_url: width: 1200 }}" alt="{{ product.title | escape }}">
+      <div class="zoom-lens" id="zoom-lens" aria-hidden="true"></div>
+      <div class="zoom-pane" id="zoom-pane" aria-hidden="true"></div>
+    </div>
     {%- if product.media.size > 1 -%}
       <div class="thumbs">
         {%- for media in product.media -%}
-          <img src="{{ media | image_url: width: 200 }}" alt="" data-full="{{ media | image_url: width: 1200 }}" {% if forloop.first %}class="active"{% endif %} loading="lazy">
+          <img src="{{ media | image_url: width: 200 }}" alt="" data-full="{{ media | image_url: width: 1200 }}" data-zoom="{{ media | image_url: width: 1600 }}" {% if forloop.first %}class="active"{% endif %} loading="lazy">
         {%- endfor -%}
       </div>
     {%- endif -%}
@@ -23,9 +28,9 @@
         <div class="price-save">SAVE {{ pct }}%</div>
       {%- endif -%}
     </div>
-    <div class="rating">
-      <span class="stars">★★★★★</span>
-      <span class="rating-meta">5.0 · {{ product.id | modulo: 47 | plus: 8 }} reviews</span>
+    <div class="rating-row">
+      {%- render 'star-rating', product: product, size: 'lg' -%}
+      <a href="#reviews" class="rating-jump">{%- if product.metafields.reviews.count > 0 -%}See reviews →{%- else -%}Write the first review{%- endif -%}</a>
     </div>
     <div class="desc">{{ product.description }}</div>
     {%- form 'product', product, id: 'product-form' -%}
@@ -58,18 +63,33 @@
   </div>
 </div>
 
+{%- render 'bundle-widget', product: product -%}
+
+{%- render 'qa-section', product: product -%}
+
+{%- render 'reviews-section', product: product -%}
+
 {%- comment -%} Related products via Shopify recommendations API {%- endcomment -%}
 <section class="related-wrap" id="related-products" data-product-id="{{ product.id }}">
   <h2 class="related-h">Customers who viewed this also viewed</h2>
   <div class="related-grid">
-    {%- for related in recommendations.products limit: 4 -%}
+    {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+    {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
+    {%- assign rel_shown = 0 -%}
+    {%- for related in recommendations.products -%}
+      {%- if rel_shown >= 4 -%}{%- break -%}{%- endif -%}
+      {%- if related.type == blank or frag_types contains related.type -%}{%- continue -%}{%- endif -%}
+      {%- if hidden_vendors contains related.vendor -%}{%- continue -%}{%- endif -%}
       {%- render 'card-product', product: related -%}
+      {%- assign rel_shown = rel_shown | plus: 1 -%}
     {%- else -%}
-      {%- assign all_p = collections.all.products -%}
-      {%- for p in all_p limit: 4 -%}
-        {%- if p.id != product.id -%}
-          {%- render 'card-product', product: p -%}
-        {%- endif -%}
+      {%- for p in collections['operator-picks'].products -%}
+        {%- if rel_shown >= 4 -%}{%- break -%}{%- endif -%}
+        {%- if p.id == product.id -%}{%- continue -%}{%- endif -%}
+        {%- if p.type == blank or frag_types contains p.type -%}{%- continue -%}{%- endif -%}
+        {%- if hidden_vendors contains p.vendor -%}{%- continue -%}{%- endif -%}
+        {%- render 'card-product', product: p -%}
+        {%- assign rel_shown = rel_shown | plus: 1 -%}
       {%- endfor -%}
     {%- endfor -%}
   </div>
@@ -90,7 +110,12 @@
 <style>
   .product { max-width: 1280px; margin: 30px auto; padding: 0 24px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 50px; }
   @media (max-width: 800px) { .product { grid-template-columns: 1fr; gap: 30px; } }
-  .product-media img { width: 100%; border-radius: 18px; border: 1px solid rgba(34, 211, 238, .2); }
+  .product-media .zoom-stage { position: relative; cursor: zoom-in; }
+  .product-media .zoom-stage img { width: 100%; border-radius: 18px; border: 1px solid rgba(34, 211, 238, .2); display: block; }
+  .product-media .zoom-lens { position: absolute; pointer-events: none; border: 1px solid var(--accent); background: rgba(34, 211, 238, .15); width: 140px; height: 140px; border-radius: 8px; display: none; }
+  .product-media .zoom-pane { position: absolute; top: 0; left: calc(100% + 18px); width: 480px; height: 100%; border: 1px solid rgba(34, 211, 238, .3); border-radius: 18px; background-repeat: no-repeat; background-color: var(--panel); display: none; pointer-events: none; z-index: 50; box-shadow: 0 20px 60px rgba(0,0,0,.4); }
+  .product-media .zoom-stage.is-zooming .zoom-lens, .product-media .zoom-stage.is-zooming .zoom-pane { display: block; }
+  @media (max-width: 1100px) { .product-media .zoom-stage.is-zooming .zoom-pane { display: none; } }
   .product-media .thumbs { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
   .product-media .thumbs img { width: 70px; height: 70px; object-fit: cover; border-radius: 8px; cursor: pointer; opacity: .6; transition: opacity .15s, border-color .15s; }
   .product-media .thumbs img:hover, .product-media .thumbs img.active { opacity: 1; border-color: var(--accent); }
@@ -99,9 +124,9 @@
   .price-row .price { font-family: Orbitron, sans-serif; font-size: 30px; color: var(--accent); font-weight: 700; }
   .price-was { color: var(--muted); text-decoration: line-through; font-size: 16px; }
   .price-save { background: linear-gradient(90deg, #ff5b6e, #f43f5e); color: white; padding: 4px 10px; border-radius: 6px; font-family: Orbitron, sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 1px; }
-  .rating { display: flex; align-items: center; gap: 8px; margin: 0 0 18px; }
-  .rating .stars { color: #fbbf24; font-size: 16px; letter-spacing: 2px; }
-  .rating .rating-meta { color: var(--muted); font-size: 12px; }
+  .rating-row { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; flex-wrap: wrap; }
+  .rating-jump { color: var(--accent); font-size: 12px; text-decoration: none; }
+  .rating-jump:hover { text-decoration: underline; }
   .product-info .desc { color: var(--muted); line-height: 1.7; margin: 16px 0 22px; }
   .product-info .field { margin: 14px 0; }
   .product-info label { display: block; color: var(--muted); font-size: 11px; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 6px; }
@@ -134,13 +159,39 @@
 <script>
 (function() {
   // Image gallery
+  var stage = document.getElementById('zoom-stage');
+  var mainImg = document.getElementById('main-image');
   document.querySelectorAll('.product-media .thumbs img').forEach(function(t){
     t.addEventListener('click', function(){
       document.querySelectorAll('.product-media .thumbs img').forEach(function(x){x.classList.remove('active');});
       t.classList.add('active');
-      document.getElementById('main-image').src = t.dataset.full;
+      mainImg.src = t.dataset.full;
+      if (stage && t.dataset.zoom) stage.dataset.zoomSrc = t.dataset.zoom;
     });
   });
+
+  // Hover-zoom
+  if (stage) {
+    var lens = document.getElementById('zoom-lens');
+    var pane = document.getElementById('zoom-pane');
+    var ZOOM = 2.4;
+    function updateZoom(e) {
+      var rect = mainImg.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+      var y = e.clientY - rect.top;
+      var lensW = lens.offsetWidth, lensH = lens.offsetHeight;
+      var lx = Math.max(0, Math.min(rect.width - lensW, x - lensW / 2));
+      var ly = Math.max(0, Math.min(rect.height - lensH, y - lensH / 2));
+      lens.style.left = lx + 'px';
+      lens.style.top = ly + 'px';
+      pane.style.backgroundImage = "url('" + (stage.dataset.zoomSrc || mainImg.src) + "')";
+      pane.style.backgroundSize = (rect.width * ZOOM) + 'px ' + (rect.height * ZOOM) + 'px';
+      pane.style.backgroundPosition = '-' + (lx * ZOOM) + 'px -' + (ly * ZOOM) + 'px';
+    }
+    stage.addEventListener('mouseenter', function(){ stage.classList.add('is-zooming'); });
+    stage.addEventListener('mousemove', updateZoom);
+    stage.addEventListener('mouseleave', function(){ stage.classList.remove('is-zooming'); });
+  }
 
   // Quantity stepper
   document.querySelectorAll('.qty-btn').forEach(function(b) {

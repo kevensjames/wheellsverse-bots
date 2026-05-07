@@ -1,0 +1,56 @@
+{%- comment -%}
+  qa-section.liquid — product Q&A accordion.
+  Reads from product.metafields.qa.items (a list, each with question + answer).
+  Hidden if metafield is empty.
+
+  Set up: Shopify Admin → Settings → Metafields → Products → Add definition
+    Namespace and key: qa.items
+    Type: List of mixed reference / single line text — easiest is JSON string
+    OR define qa.q1 / qa.a1 / qa.q2 / qa.a2 individually (this snippet reads both)
+{%- endcomment -%}
+{%- assign qa_items = product.metafields.qa.items.value -%}
+{%- assign has_individual = false -%}
+{%- if product.metafields.qa.q1 != blank -%}{%- assign has_individual = true -%}{%- endif -%}
+
+{%- if qa_items != blank or has_individual -%}
+<section class="qa-wrap">
+  <h2 class="qa-h">Questions &amp; Answers</h2>
+  <div class="qa-list">
+    {%- if qa_items != blank -%}
+      {%- for item in qa_items -%}
+        <details class="qa-item">
+          <summary class="qa-q"><span class="qa-marker">Q</span>{{ item.question | default: item.q }}</summary>
+          <div class="qa-a"><span class="qa-marker qa-marker--a">A</span>{{ item.answer | default: item.a }}</div>
+        </details>
+      {%- endfor -%}
+    {%- else -%}
+      {%- for n in (1..6) -%}
+        {%- assign q_key = 'q' | append: n -%}
+        {%- assign a_key = 'a' | append: n -%}
+        {%- assign q = product.metafields.qa[q_key] -%}
+        {%- assign a = product.metafields.qa[a_key] -%}
+        {%- if q != blank -%}
+          <details class="qa-item">
+            <summary class="qa-q"><span class="qa-marker">Q</span>{{ q }}</summary>
+            <div class="qa-a"><span class="qa-marker qa-marker--a">A</span>{{ a }}</div>
+          </details>
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endif -%}
+  </div>
+</section>
+<style>
+  .qa-wrap { max-width: 1280px; margin: 50px auto; padding: 0 24px; }
+  .qa-h { font-family: Orbitron, sans-serif; font-size: clamp(20px, 2.5vw, 26px); margin: 0 0 18px; letter-spacing: -.3px; }
+  .qa-list { display: flex; flex-direction: column; gap: 8px; }
+  .qa-item { background: rgba(15, 23, 42, .55); border: 1px solid rgba(34, 211, 238, .15); border-radius: 12px; transition: border-color .15s; }
+  .qa-item[open] { border-color: rgba(34, 211, 238, .4); }
+  .qa-q { padding: 14px 18px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; font-weight: 500; font-size: 14px; line-height: 1.45; list-style: none; }
+  .qa-q::-webkit-details-marker { display: none; }
+  .qa-q::after { content: '+'; margin-left: auto; color: var(--accent); font-size: 20px; line-height: 1; transition: transform .2s; }
+  .qa-item[open] .qa-q::after { content: '−'; }
+  .qa-a { padding: 0 18px 16px 48px; color: var(--muted); line-height: 1.6; font-size: 14px; }
+  .qa-marker { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 5px; background: rgba(34, 211, 238, .18); color: var(--accent); font-family: Orbitron, sans-serif; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .qa-marker--a { background: rgba(52, 211, 153, .18); color: #34d399; margin-right: 12px; vertical-align: top; }
+</style>
+{%- endif -%}

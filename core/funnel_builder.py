@@ -42,14 +42,14 @@ log = logging.getLogger("funnel_builder")
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
-    import anthropic
+    from core.claude_logged import create as _claude_create
     model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
+    r = _claude_create(
         model=model,
         max_tokens=max_tokens,
         system=system or _system(),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="funnel_builder",
     )
     return r.content[0].text.strip()
 

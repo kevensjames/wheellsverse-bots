@@ -1,0 +1,60 @@
+{%- comment -%}
+  reviews-section.liquid — product reviews list.
+  Reads from product.metafields.reviews.list (json list, each {author,
+  rating, title, body, date, verified}). Hidden if metafield is empty.
+
+  Compatible with: Loox, Judge.me, Stamped (configure them to write into
+  the 'reviews' metafield namespace), or hand-curated via Shopify Admin.
+
+  Header pulls aggregate rating from product.metafields.reviews.rating
+  + .count (same source as the star-rating snippet).
+{%- endcomment -%}
+{%- assign review_list = product.metafields.reviews.list.value -%}
+{%- if review_list != blank -%}
+<section class="rv-wrap-2" id="reviews">
+  <header class="rv-header">
+    <div>
+      <span class="rv-eyebrow">VERIFIED</span>
+      <h2 class="rv-h">Customer reviews</h2>
+    </div>
+    {%- render 'star-rating', product: product, size: 'lg' -%}
+  </header>
+  <div class="rv-list">
+    {%- for r in review_list -%}
+      {%- assign r_rating = r.rating | default: 5 | plus: 0 -%}
+      <article class="rv-item">
+        <div class="rv-row">
+          <span class="rv-stars">
+            {%- for i in (1..5) -%}
+              {%- if i <= r_rating -%}<span class="star star--full">★</span>{%- else -%}<span class="star star--empty">★</span>{%- endif -%}
+            {%- endfor -%}
+          </span>
+          {%- if r.verified -%}<span class="rv-verified">✓ Verified buyer</span>{%- endif -%}
+        </div>
+        {%- if r.title != blank -%}<h3 class="rv-t">{{ r.title }}</h3>{%- endif -%}
+        <div class="rv-meta">
+          <strong>{{ r.author | default: 'Anonymous' }}</strong>
+          {%- if r.date != blank -%} · <span>{{ r.date }}</span>{%- endif -%}
+        </div>
+        {%- if r.body != blank -%}<p class="rv-body">{{ r.body }}</p>{%- endif -%}
+      </article>
+    {%- endfor -%}
+  </div>
+</section>
+<style>
+  .rv-wrap-2 { max-width: 1280px; margin: 50px auto; padding: 0 24px; }
+  .rv-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; flex-wrap: wrap; margin-bottom: 18px; padding-bottom: 14px; border-bottom: 1px solid rgba(34, 211, 238, .12); }
+  .rv-eyebrow { font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--accent); }
+  .rv-h { font-family: Orbitron, sans-serif; font-size: clamp(20px, 2.5vw, 26px); margin: 4px 0 0; letter-spacing: -.3px; }
+  .rv-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+  .rv-item { background: rgba(15, 23, 42, .55); border: 1px solid rgba(34, 211, 238, .12); border-radius: 12px; padding: 16px 18px; }
+  .rv-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .rv-stars { color: #fbbf24; letter-spacing: 1px; font-size: 14px; }
+  .rv-stars .star--empty { color: rgba(251, 191, 36, .22); }
+  .rv-verified { font-size: 11px; color: #34d399; font-weight: 600; }
+  .rv-t { font-size: 14px; font-weight: 600; margin: 6px 0 4px; }
+  .rv-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .rv-meta strong { color: var(--text); }
+  .rv-body { font-size: 13px; line-height: 1.6; color: var(--text); margin: 0; }
+</style>
+{%- endif -%}

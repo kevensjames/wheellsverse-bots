@@ -131,10 +131,20 @@ state/
 # Audit artifacts (regenerated each scan; complement to existing pre-commit patterns)
 npm-audit*
 data/shopify_audit_*.md
+package-leakage-report.json
+semgrep-staged.json
 
 # Local backups (env, asset registries)
 *.backup.json
 .env.bak.*
+# Date-suffixed registry/queue snapshots (e.g. *.bak.20260503_233939).
+# The existing *.bak pattern misses these because the .bak comes mid-name.
+data/*.bak.*
+
+# venv symlink at repo root — convenience pointer to .venv. Line 24's
+# `venv/` pattern matches a directory; this catches the symlink form,
+# anchored to root so a deeper `venv` dir (if one ever exists) is unaffected.
+/venv
 
 # Hook caches (claude-secure-defaults, etc.)
 semgrep-mcp/

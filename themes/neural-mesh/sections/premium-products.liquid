@@ -1,3 +1,4 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
 <section class="prem-wrap">
   <div class="prem-head">
     <span class="prem-eyebrow">⚡ {{ section.settings.eyebrow | default: 'PREMIUM PICKS' }}</span>
@@ -8,43 +9,50 @@
   {%- assign limit = section.settings.product_limit | default: 4 -%}
   <div class="prem-grid">
     {%- if collection != blank -%}
-      {%- for product in collection.products limit: limit -%}
-        <a class="prem-card" href="{{ product.url }}">
+      {%- for prod in collection.products limit: limit -%}
+        <a class="prem-card" href="{{ prod.url }}">
           <div class="prem-badge">PREMIUM</div>
-          {%- if product.featured_image -%}
-            <img class="prem-img" src="{{ product.featured_image | image_url: width: 800 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- if prod.featured_image -%}
+            <img class="prem-img" src="{{ prod.featured_image | image_url: width: 800 }}" alt="{{ prod.title | escape }}" loading="lazy">
           {%- else -%}
             <div class="prem-img" style="background: linear-gradient(135deg, var(--accent), var(--accent2));"></div>
           {%- endif -%}
           <div class="prem-body">
-            <div class="prem-pt">{{ product.type | default: 'PRODUCT' }}</div>
-            <h3 class="prem-t">{{ product.title }}</h3>
+            <div class="prem-pt">{{ prod.type | default: 'PRODUCT' }}</div>
+            <h3 class="prem-t">{{ prod.title }}</h3>
             <div class="prem-price-row">
-              <span class="prem-price">{{ product.price | money }}</span>
-              {%- if product.compare_at_price > product.price -%}
-                <span class="prem-was">{{ product.compare_at_price | money }}</span>
+              <span class="prem-price">{{ prod.price | money }}</span>
+              {%- if prod.compare_at_price > product.price -%}
+                <span class="prem-was">{{ prod.compare_at_price | money }}</span>
               {%- endif -%}
             </div>
           </div>
         </a>
       {%- endfor -%}
     {%- else -%}
-      {%- comment -%} Auto-pick the 4 highest-priced products from /collections/all {%- endcomment -%}
-      {%- assign all_p = collections.all.products | sort: 'price' | reverse -%}
-      {%- for product in all_p limit: limit -%}
-        <a class="prem-card" href="{{ product.url }}">
+      {%- comment -%} Auto-pick highest-priced from /collections/all, filtering out fragrances {%- endcomment -%}
+      {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+      {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
+      {%- assign all_p = collections['operator-picks'].products | sort: 'price' | reverse -%}
+      {%- assign prem_shown = 0 -%}
+      {%- for prod in all_p -%}
+        {%- if prem_shown >= limit -%}{%- break -%}{%- endif -%}
+        {%- if prod.type == blank or frag_types contains prod.type -%}{%- continue -%}{%- endif -%}
+        {%- if hidden_vendors contains prod.vendor -%}{%- continue -%}{%- endif -%}
+        <a class="prem-card" href="{{ prod.url }}">
           <div class="prem-badge">PREMIUM</div>
-          {%- if product.featured_image -%}
-            <img class="prem-img" src="{{ product.featured_image | image_url: width: 800 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- if prod.featured_image -%}
+            <img class="prem-img" src="{{ prod.featured_image | image_url: width: 800 }}" alt="{{ prod.title | escape }}" loading="lazy">
           {%- endif -%}
           <div class="prem-body">
-            <div class="prem-pt">{{ product.type | default: 'PRODUCT' }}</div>
-            <h3 class="prem-t">{{ product.title }}</h3>
+            <div class="prem-pt">{{ prod.type | default: 'PRODUCT' }}</div>
+            <h3 class="prem-t">{{ prod.title }}</h3>
             <div class="prem-price-row">
-              <span class="prem-price">{{ product.price | money }}</span>
+              <span class="prem-price">{{ prod.price | money }}</span>
             </div>
           </div>
         </a>
+        {%- assign prem_shown = prem_shown | plus: 1 -%}
       {%- endfor -%}
     {%- endif -%}
   </div>

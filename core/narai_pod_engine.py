@@ -243,13 +243,13 @@ def _ai_json(prompt: str, system: str = "", max_tokens: int = 2500) -> Any:
 
     # Claude fallback
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        from core.claude_logged import create as _claude_create
         full_prompt = prompt if not system else f"{system}\n\n{prompt}"
-        resp = client.messages.create(
+        resp = _claude_create(
             model="claude-haiku-4-5-20251001",
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": full_prompt + "\n\nOutput pure JSON only."}],
+            bot_name="narai_pod_engine",
         )
         raw = resp.content[0].text.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)
