@@ -27,7 +27,7 @@ markdown>=3.6.0
 reportlab>=4.2.0
 anthropic>=0.39.0
 supabase>=2.4.0
-python-multipart>=0.0.9
+python-multipart>=0.0.20  # CVE-2024-53981 (DoS via slow uploads) fixed in 0.0.18+
 psutil>=5.9.0
 
 # NarAI v2 — auth
