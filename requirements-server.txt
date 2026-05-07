@@ -17,7 +17,7 @@ stripe>=9.9.0
 tweepy>=4.14.0
 yfinance>=0.2.40
 feedparser>=6.0.11
-fastapi>=0.111.0
+fastapi>=0.116.0    # bumped to allow starlette CVE fix
 uvicorn[standard]>=0.29.0
 python-dateutil>=2.9.0
 pytz>=2024.1
@@ -39,7 +39,7 @@ PyJWT>=2.8.0
 # chromadb backs the episode store and RAG; litellm is the LLM router;
 # sqlalchemy[asyncio]+aiosqlite back the facts/patterns SQL store.
 chromadb>=0.5.0
-litellm>=1.40.0
+litellm>=1.83.0   # GHSA-jjhc-v7c2-5hh6 (Critical) + 3 High advisories survive through 1.80
 sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.20.0
 

@@ -2,7 +2,7 @@
 # Install: pip install -r narai/requirements.txt
 
 # Multi-model router
-litellm>=1.40.0
+litellm>=1.83.0   # GHSA-jjhc-v7c2-5hh6 (Critical) + 3 High advisories survive through 1.80
 
 # Vector memory
 chromadb>=0.5.0
@@ -19,7 +19,7 @@ alembic>=1.13.0
 aiosqlite>=0.20.0
 
 # API + auth
-fastapi>=0.111.0
+fastapi>=0.116.0    # bumped to allow starlette CVE fix
 uvicorn[standard]>=0.30.0
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
