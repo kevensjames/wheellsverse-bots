@@ -1,0 +1,14 @@
+{%- comment -%}
+  is-fragrance.liquid — sets `is_fragrance` to true if the product matches
+  any of the fragrance product types. Used by default surfaces to hide
+  fragrances unless the customer is explicitly on /collections/fragrance.
+
+  Usage:
+    {%- render 'is-fragrance', product: product -%}
+    {%- if is_fragrance -%}{%- continue -%}{%- endif -%}
+{%- endcomment -%}
+{%- assign is_fragrance = false -%}
+{%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+{%- if frag_types contains product.type -%}
+  {%- assign is_fragrance = true -%}
+{%- endif -%}

@@ -41,20 +41,44 @@
       {%- endfor -%}
     {%- endif -%}
 
+    <button type="button" class="nav-departments" aria-expanded="false" aria-controls="mega-menu" data-toggle="mega-menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      All
+    </button>
     {%- if default_only -%}
       <a href="/collections/viral" class="nav-viral">🔥 Viral</a>
       <a href="/collections/ai-tools-templates">AI Tools</a>
       <a href="/collections/trading-intelligence">Trading</a>
       <a href="/collections/creators-toolkit">Creator Kit</a>
       <a href="/collections/books">Books</a>
-      <a href="/collections/all">All</a>
+      <a href="/collections/all">Everything</a>
     {%- else -%}
       {%- for link in menu_links -%}
         <a href="{{ link.url }}">{{ link.title }}</a>
       {%- endfor -%}
     {%- endif -%}
   </nav>
+  {%- render 'mega-menu' -%}
 </header>
+<script>
+  (function(){
+    var btn = document.querySelector('.nav-departments[data-toggle="mega-menu"]');
+    var menu = document.getElementById('mega-menu');
+    if (!btn || !menu) return;
+    function close(){ menu.setAttribute('hidden',''); btn.setAttribute('aria-expanded','false'); }
+    function open(){ menu.removeAttribute('hidden'); btn.setAttribute('aria-expanded','true'); }
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if (menu.hasAttribute('hidden')) open(); else close();
+    });
+    document.addEventListener('click', function(e){
+      if (!menu.contains(e.target) && e.target !== btn) close();
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') close();
+    });
+  })();
+</script>
 <style>
   .site-header { position: sticky; top: 0; z-index: 100; background: rgba(4, 8, 22, 0.92); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(34, 211, 238, 0.1); }
   .header-row { display: flex; align-items: center; gap: 18px; padding: 14px 28px; max-width: 1400px; margin: 0 auto; }
@@ -67,10 +91,13 @@
   .header-account, .cart-link { display: flex; gap: 6px; align-items: center; color: var(--text); text-decoration: none; padding: 8px 14px; border: 1px solid rgba(34, 211, 238, .18); border-radius: 999px; font-size: 12px; letter-spacing: .5px; transition: all .15s; }
   .header-account:hover, .cart-link:hover { border-color: var(--accent); color: var(--accent); }
   .header-account span, .cart-link span { white-space: nowrap; }
-  .header-nav { display: flex; gap: 22px; padding: 8px 28px 14px; max-width: 1400px; margin: 0 auto; overflow-x: auto; }
+  .header-nav { display: flex; gap: 22px; padding: 8px 28px 14px; max-width: 1400px; margin: 0 auto; overflow-x: auto; align-items: center; }
   .header-nav::-webkit-scrollbar { height: 0; }
   .header-nav a { color: var(--muted); text-decoration: none; font-size: 13px; letter-spacing: .5px; white-space: nowrap; transition: color .15s; }
   .header-nav a:hover { color: var(--accent); }
+  .nav-departments { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(90deg, var(--accent), var(--accent2)); color: var(--bg); border: 0; border-radius: 8px; padding: 7px 14px; font-family: Orbitron, sans-serif; font-size: 12px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+  .nav-departments:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(34, 211, 238, .35); }
+  .nav-departments[aria-expanded="true"] { box-shadow: 0 4px 14px rgba(34, 211, 238, .55); }
   .header-nav a.nav-viral { color: #ff5b6e; font-weight: 600; }
   .header-nav a.nav-viral:hover { color: #ff8a99; }
   @media (max-width: 720px) {

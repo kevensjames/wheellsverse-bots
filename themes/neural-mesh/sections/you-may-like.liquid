@@ -1,3 +1,4 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
 <section class="ymal-wrap">
   <div class="ymal-head">
     <span class="ymal-eyebrow">{{ section.settings.eyebrow | default: 'TRENDING NOW' }}</span>
@@ -5,32 +6,43 @@
   </div>
   {%- assign coll = collections[section.settings.collection] -%}
   {%- assign limit = section.settings.product_limit | default: 8 -%}
+  {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+  {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
   <div class="ymal-scroll">
+    {%- assign shown = 0 -%}
     {%- if coll != blank and coll.products_count > 0 -%}
-      {%- for product in coll.products limit: limit -%}
-        <a class="ymal-card" href="{{ product.url }}">
-          {%- if product.featured_image -%}
-            <img class="ymal-img" src="{{ product.featured_image | image_url: width: 500 }}" alt="{{ product.title | escape }}" loading="lazy">
+      {%- for prod in coll.products -%}
+        {%- if shown >= limit -%}{%- break -%}{%- endif -%}
+        {%- if prod.type == blank or frag_types contains prod.type -%}{%- continue -%}{%- endif -%}
+        {%- if hidden_vendors contains prod.vendor -%}{%- continue -%}{%- endif -%}
+        <a class="ymal-card" href="{{ prod.url }}">
+          {%- if prod.featured_image -%}
+            <img class="ymal-img" src="{{ prod.featured_image | image_url: width: 500 }}" alt="{{ prod.title | escape }}" loading="lazy">
           {%- endif -%}
           <div class="ymal-info">
-            <div class="ymal-pt">{{ product.type | default: 'PRODUCT' }}</div>
-            <div class="ymal-t">{{ product.title | truncate: 50 }}</div>
-            <div class="ymal-price">{{ product.price | money }}</div>
+            <div class="ymal-pt">{{ prod.type | default: 'PRODUCT' }}</div>
+            <div class="ymal-t">{{ prod.title | truncate: 50 }}</div>
+            <div class="ymal-price">{{ prod.price | money }}</div>
           </div>
         </a>
+        {%- assign shown = shown | plus: 1 -%}
       {%- endfor -%}
     {%- else -%}
-      {%- for product in collections.all.products limit: limit -%}
-        <a class="ymal-card" href="{{ product.url }}">
-          {%- if product.featured_image -%}
-            <img class="ymal-img" src="{{ product.featured_image | image_url: width: 500 }}" alt="{{ product.title | escape }}" loading="lazy">
+      {%- for prod in collections['operator-picks'].products -%}
+        {%- if shown >= limit -%}{%- break -%}{%- endif -%}
+        {%- if prod.type == blank or frag_types contains prod.type -%}{%- continue -%}{%- endif -%}
+        {%- if hidden_vendors contains prod.vendor -%}{%- continue -%}{%- endif -%}
+        <a class="ymal-card" href="{{ prod.url }}">
+          {%- if prod.featured_image -%}
+            <img class="ymal-img" src="{{ prod.featured_image | image_url: width: 500 }}" alt="{{ prod.title | escape }}" loading="lazy">
           {%- endif -%}
           <div class="ymal-info">
-            <div class="ymal-pt">{{ product.type | default: 'PRODUCT' }}</div>
-            <div class="ymal-t">{{ product.title | truncate: 50 }}</div>
-            <div class="ymal-price">{{ product.price | money }}</div>
+            <div class="ymal-pt">{{ prod.type | default: 'PRODUCT' }}</div>
+            <div class="ymal-t">{{ prod.title | truncate: 50 }}</div>
+            <div class="ymal-price">{{ prod.price | money }}</div>
           </div>
         </a>
+        {%- assign shown = shown | plus: 1 -%}
       {%- endfor -%}
     {%- endif -%}
   </div>

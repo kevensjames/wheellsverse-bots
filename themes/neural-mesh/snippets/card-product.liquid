@@ -1,12 +1,38 @@
-<a class="product-card" href="{{ product.url }}">
-  {%- if product.featured_image -%}
-    <img class="card-image" src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.featured_image.alt | escape }}" loading="lazy">
-  {%- else -%}
-    <div class="card-image" style="display:flex;align-items:center;justify-content:center;color:var(--muted)">No image</div>
-  {%- endif -%}
+{%- comment -%}
+  card-product.liquid — Amazon-grade product card.
+  Shows: image, type/vendor, title, price (with strikethrough + % off when on
+  sale), star rating, fulfillment badge ("INSTANT" for digital).
+{%- endcomment -%}
+{%- assign on_sale = false -%}
+{%- if product.compare_at_price > product.price -%}{%- assign on_sale = true -%}{%- endif -%}
+{%- assign requires_shipping = product.selected_or_first_available_variant.requires_shipping -%}
+
+<a class="product-card" href="{{ product.url }}" aria-label="{{ product.title | escape }}">
+  <div class="card-image-wrap">
+    {%- if product.featured_image -%}
+      <img class="card-image" src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.featured_image.alt | escape }}" loading="lazy">
+    {%- else -%}
+      <div class="card-image card-image--placeholder">No image</div>
+    {%- endif -%}
+    {%- if on_sale -%}
+      {%- assign saved = product.compare_at_price | minus: product.price -%}
+      {%- assign pct = saved | times: 100 | divided_by: product.compare_at_price -%}
+      <span class="card-badge card-badge--sale">−{{ pct }}%</span>
+    {%- endif -%}
+    {%- unless requires_shipping -%}
+      <span class="card-badge card-badge--instant">⚡ INSTANT</span>
+    {%- endunless -%}
+  </div>
   <div class="card-info">
-    <div class="pt">{{ product.type | default: "PRODUCT" }}</div>
-    <h3>{{ product.title }}</h3>
-    <div class="price">{{ product.price | money }}</div>
+    <div class="card-meta">{{ product.type | default: product.vendor | default: "PRODUCT" }}</div>
+    <h3 class="card-title">{{ product.title }}</h3>
+    {%- render 'star-rating', product: product, size: 'sm' -%}
+    <div class="card-price-row">
+      <span class="card-price">{{ product.price | money }}</span>
+      {%- if on_sale -%}<span class="card-was">{{ product.compare_at_price | money }}</span>{%- endif -%}
+    </div>
+    {%- unless requires_shipping -%}
+      <div class="card-fulfill">Email delivery in seconds</div>
+    {%- endunless -%}
   </div>
 </a>

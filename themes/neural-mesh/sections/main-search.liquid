@@ -1,13 +1,31 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
 <div style="max-width:1280px;margin:60px auto;padding:0 24px">
   <h1 style="font-family:Orbitron,sans-serif">Search</h1>
   <form action="{{ routes.search_url }}" method="get">
     <input type="text" name="q" value="{{ search.terms | escape }}" placeholder="{{ 'general.search.placeholder' | t }}" class="form-page" style="background:var(--panel);color:var(--text);border:1px solid rgba(34,211,238,.25);border-radius:10px;padding:14px;font-size:15px;width:100%;max-width:520px">
   </form>
   {%- if search.performed -%}
-    <p style="color:var(--muted);margin:14px 0">{{ search.results_count }} results</p>
+    {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+    {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
+    {%- assign include_frag = false -%}
+    {%- if request.path contains 'fragrance' or search.terms contains 'perfume' or search.terms contains 'cologne' or search.terms contains 'fragrance' -%}{%- assign include_frag = true -%}{%- endif -%}
+    {%- assign visible = 0 -%}
+    {%- assign hidden_frag = 0 -%}
+    {%- for item in search.results -%}
+      {%- if item.object_type != 'product' -%}{%- continue -%}{%- endif -%}
+      {%- if hidden_vendors contains item.vendor -%}{%- continue -%}{%- endif -%}
+      {%- if item.type == blank or frag_types contains item.type and include_frag == false -%}
+        {%- assign hidden_frag = hidden_frag | plus: 1 -%}
+      {%- else -%}
+        {%- assign visible = visible | plus: 1 -%}
+      {%- endif -%}
+    {%- endfor -%}
+    <p style="color:var(--muted);margin:14px 0">{{ visible }} result{% if visible != 1 %}s{% endif %}{% if hidden_frag > 0 %} · <a href="/collections/fragrance" style="color:var(--accent)">{{ hidden_frag }} fragrance match{% if hidden_frag != 1 %}es{% endif %} hidden — browse Fragrance →</a>{% endif %}</p>
     <div class="product-grid">
       {%- for item in search.results -%}
         {%- if item.object_type == 'product' -%}
+          {%- if hidden_vendors contains item.vendor -%}{%- continue -%}{%- endif -%}
+          {%- if item.type == blank or frag_types contains item.type and include_frag == false -%}{%- continue -%}{%- endif -%}
           {%- render 'card-product', product: item -%}
         {%- endif -%}
       {%- endfor -%}

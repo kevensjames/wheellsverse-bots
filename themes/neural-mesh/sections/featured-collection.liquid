@@ -1,12 +1,27 @@
+{%- comment -%}featured-collection v4 (final filter){%- endcomment -%}
 <div class="section-title">{{ section.settings.eyebrow | default: "FEATURED" }}</div>
 <h2 class="section-h2">{{ section.settings.heading | default: "Latest drops" }}</h2>
 <div class="product-grid">
   {%- assign collection = collections[section.settings.collection] -%}
-  {%- for product in collection.products limit: section.settings.product_limit -%}
-    {%- render 'card-product', product: product -%}
+  {%- assign limit = section.settings.product_limit -%}
+  {%- assign shown = 0 -%}
+  {%- for prod in collection.products -%}
+    {%- if shown >= limit -%}{%- break -%}{%- endif -%}
+    {%- assign pt = prod.type -%}
+    {%- if pt == blank or pt == 'Perfume' or pt == 'Cologne' or pt == 'Body Spray' or pt == 'Body Mist' -%}{%- continue -%}{%- endif -%}
+    {%- assign vd = prod.vendor -%}
+    {%- if vd == "Wheellsverse" or vd == "Lybethras Swimwear" or vd == 'Eloura Fusion LLC' or vd == 'Spun Bamboo' or vd == 'Coastline Clothing' or vd == 'GlowHaven' or vd == 'WeloWela' -%}{%- continue -%}{%- endif -%}
+    {%- render 'card-product', product: prod -%}
+    {%- assign shown = shown | plus: 1 -%}
   {%- else -%}
-    {%- for product in collections.all.products limit: section.settings.product_limit -%}
-      {%- render 'card-product', product: product -%}
+    {%- for prod in collections['operator-picks'].products -%}
+      {%- if shown >= limit -%}{%- break -%}{%- endif -%}
+      {%- assign pt = prod.type -%}
+      {%- if pt == blank or pt == 'Perfume' or pt == 'Cologne' or pt == 'Body Spray' or pt == 'Body Mist' -%}{%- continue -%}{%- endif -%}
+      {%- assign vd = prod.vendor -%}
+      {%- if vd == "Wheellsverse" or vd == "Lybethras Swimwear" or vd == 'Eloura Fusion LLC' or vd == 'Spun Bamboo' or vd == 'Coastline Clothing' or vd == 'GlowHaven' or vd == 'WeloWela' -%}{%- continue -%}{%- endif -%}
+      {%- render 'card-product', product: prod -%}
+      {%- assign shown = shown | plus: 1 -%}
     {%- endfor -%}
   {%- endfor -%}
 </div>

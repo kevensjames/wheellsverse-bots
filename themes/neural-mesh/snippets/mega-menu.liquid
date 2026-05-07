@@ -1,0 +1,131 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
+{%- comment -%}
+  mega-menu.liquid — Amazon-style "All Departments" dropdown.
+  Triggered by an "All" link in the header. 6 categories matching the
+  homepage shop-by-category tiles, plus a featured collection on the right.
+{%- endcomment -%}
+<div class="mega-menu" id="mega-menu" hidden>
+  <div class="mega-menu-inner">
+    <div class="mega-menu-grid">
+      <a class="mega-tile" href="/collections/ai-tools-templates" style="--g1:#22d3ee;--g2:#3b82f6">
+        <span class="mega-icon">🤖</span>
+        <span class="mega-label">AI Tools</span>
+        <span class="mega-sub">Templates · Agents</span>
+      </a>
+      <a class="mega-tile" href="/collections/trading-intelligence" style="--g1:#10b981;--g2:#0ea5e9">
+        <span class="mega-icon">📈</span>
+        <span class="mega-label">Trading</span>
+        <span class="mega-sub">Signals · Alerts</span>
+      </a>
+      <a class="mega-tile" href="/collections/creators-toolkit" style="--g1:#a78bfa;--g2:#ec4899">
+        <span class="mega-icon">✨</span>
+        <span class="mega-label">Creator Kit</span>
+        <span class="mega-sub">Content · Growth</span>
+      </a>
+      <a class="mega-tile" href="/collections/books" style="--g1:#f97316;--g2:#dc2626">
+        <span class="mega-icon">📚</span>
+        <span class="mega-label">Books</span>
+        <span class="mega-sub">Fiction · Nonfiction</span>
+      </a>
+      <a class="mega-tile" href="/collections/courses-education" style="--g1:#fbbf24;--g2:#f97316">
+        <span class="mega-icon">🎓</span>
+        <span class="mega-label">Courses</span>
+        <span class="mega-sub">Self-paced</span>
+      </a>
+      <a class="mega-tile" href="/collections/software-saas" style="--g1:#3b82f6;--g2:#8b5cf6">
+        <span class="mega-icon">🛠️</span>
+        <span class="mega-label">Software</span>
+        <span class="mega-sub">SaaS · Tools</span>
+      </a>
+      <a class="mega-tile" href="/collections/fragrance" style="--g1:#d4af37;--g2:#7c2d12">
+        <span class="mega-icon">🌹</span>
+        <span class="mega-label">Fragrance</span>
+        <span class="mega-sub">Perfumes · Colognes</span>
+      </a>
+      <a class="mega-tile" href="/collections/swimwear" style="--g1:#06b6d4;--g2:#0e7490">
+        <span class="mega-icon">👙</span>
+        <span class="mega-label">Swimwear</span>
+        <span class="mega-sub">Designer bikinis</span>
+      </a>
+      <a class="mega-tile" href="/collections/beauty" style="--g1:#f472b6;--g2:#be185d">
+        <span class="mega-icon">💄</span>
+        <span class="mega-label">Beauty</span>
+        <span class="mega-sub">Skin · Makeup</span>
+      </a>
+      <a class="mega-tile" href="/collections/lifestyle" style="--g1:#84cc16;--g2:#365314">
+        <span class="mega-icon">🌿</span>
+        <span class="mega-label">Lifestyle</span>
+        <span class="mega-sub">Apparel · Home</span>
+      </a>
+    </div>
+    <div class="mega-menu-side">
+      <span class="mega-side-eyebrow">🔥 RIGHT NOW</span>
+      <h4 class="mega-side-h">Trending picks</h4>
+      <div class="mega-side-list">
+        {%- assign viral = collections['viral'] -%}
+        {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+        {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
+        {%- assign rail_shown = 0 -%}
+        {%- if viral != blank and viral.products_count > 0 -%}
+          {%- for p in viral.products -%}
+            {%- if rail_shown >= 4 -%}{%- break -%}{%- endif -%}
+            {%- if p.type == blank or frag_types contains p.type -%}{%- continue -%}{%- endif -%}
+            {%- if hidden_vendors contains p.vendor -%}{%- continue -%}{%- endif -%}
+            <a class="mega-side-item" href="{{ p.url }}">
+              {%- if p.featured_image -%}
+                <img src="{{ p.featured_image | image_url: width: 120 }}" alt="" loading="lazy">
+              {%- endif -%}
+              <span class="mega-side-name">{{ p.title | truncate: 36 }}</span>
+              <span class="mega-side-price">{{ p.price | money }}</span>
+            </a>
+            {%- assign rail_shown = rail_shown | plus: 1 -%}
+          {%- endfor -%}
+        {%- else -%}
+          {%- for p in collections['operator-picks'].products -%}
+            {%- if rail_shown >= 4 -%}{%- break -%}{%- endif -%}
+            {%- if p.type == blank or frag_types contains p.type -%}{%- continue -%}{%- endif -%}
+            {%- if hidden_vendors contains p.vendor -%}{%- continue -%}{%- endif -%}
+            <a class="mega-side-item" href="{{ p.url }}">
+              {%- if p.featured_image -%}<img src="{{ p.featured_image | image_url: width: 120 }}" alt="" loading="lazy">{%- endif -%}
+              <span class="mega-side-name">{{ p.title | truncate: 36 }}</span>
+              <span class="mega-side-price">{{ p.price | money }}</span>
+            </a>
+            {%- assign rail_shown = rail_shown | plus: 1 -%}
+          {%- endfor -%}
+        {%- endif -%}
+      </div>
+      <a class="mega-side-cta" href="/collections/all">See everything →</a>
+    </div>
+  </div>
+</div>
+
+<style>
+  .mega-menu { position: absolute; top: 100%; left: 0; right: 0; background: rgba(4, 8, 22, .98); backdrop-filter: blur(20px); border-top: 1px solid rgba(34, 211, 238, .15); border-bottom: 1px solid rgba(34, 211, 238, .15); z-index: 99; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+  .mega-menu[hidden] { display: none; }
+  .mega-menu-inner { max-width: 1400px; margin: 0 auto; padding: 28px 28px 32px; display: grid; grid-template-columns: 1fr 320px; gap: 36px; }
+  .mega-menu-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  @media (max-width: 1200px) { .mega-menu-grid { grid-template-columns: repeat(4, 1fr); } }
+  @media (max-width: 900px) { .mega-menu-grid { grid-template-columns: repeat(3, 1fr); } }
+  .mega-tile { display: flex; flex-direction: column; gap: 4px; padding: 18px; border-radius: 14px; background: linear-gradient(135deg, var(--g1), var(--g2)); color: white; text-decoration: none; transition: transform .15s, box-shadow .15s; min-height: 110px; justify-content: center; }
+  .mega-tile:hover { transform: translateY(-3px); box-shadow: 0 12px 30px rgba(0, 0, 0, .3); }
+  .mega-icon { font-size: 28px; }
+  .mega-label { font-family: Orbitron, sans-serif; font-size: 16px; font-weight: 700; letter-spacing: .5px; }
+  .mega-sub { font-size: 11px; opacity: .85; letter-spacing: .3px; }
+  .mega-menu-side { border-left: 1px solid rgba(34, 211, 238, .12); padding-left: 28px; }
+  .mega-side-eyebrow { font-family: Orbitron, sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--accent); }
+  .mega-side-h { font-family: Orbitron, sans-serif; font-size: 16px; margin: 4px 0 14px; }
+  .mega-side-list { display: flex; flex-direction: column; gap: 8px; }
+  .mega-side-item { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; text-decoration: none; color: var(--text); padding: 6px; border-radius: 8px; transition: background .15s; }
+  .mega-side-item:hover { background: rgba(34, 211, 238, .08); }
+  .mega-side-item img { width: 44px; height: 44px; object-fit: cover; border-radius: 6px; }
+  .mega-side-name { font-size: 12px; line-height: 1.3; overflow: hidden; }
+  .mega-side-price { font-family: Orbitron, sans-serif; font-size: 12px; color: var(--accent); font-weight: 700; }
+  .mega-side-cta { display: inline-block; margin-top: 14px; color: var(--accent); text-decoration: none; font-size: 12px; letter-spacing: .5px; }
+  .mega-side-cta:hover { text-decoration: underline; }
+  @media (max-width: 900px) {
+    .mega-menu-inner { grid-template-columns: 1fr; padding: 20px 18px; gap: 24px; }
+    .mega-menu-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    .mega-tile { min-height: 90px; padding: 14px; }
+    .mega-menu-side { border-left: 0; border-top: 1px solid rgba(34, 211, 238, .12); padding-left: 0; padding-top: 18px; }
+  }
+</style>

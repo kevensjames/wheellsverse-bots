@@ -1,3 +1,4 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
 <section class="deals-wrap">
   <div class="deals-head">
     <span class="deals-eyebrow">🔥 {{ section.settings.eyebrow | default: 'OPERATOR DEALS' }}</span>
@@ -7,53 +8,62 @@
   <div class="deals-grid">
     {%- assign coll = collections[section.settings.collection] -%}
     {%- assign limit = section.settings.product_limit | default: 6 -%}
+    {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+    {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
     {%- if coll != blank and coll.products_count > 0 -%}
-      {%- for product in coll.products limit: limit -%}
+      {%- assign deal_shown = 0 -%}
+      {%- for prod in coll.products -%}
+        {%- if deal_shown >= limit -%}{%- break -%}{%- endif -%}
+        {%- if prod.type == blank or frag_types contains prod.type -%}{%- continue -%}{%- endif -%}
+        {%- if hidden_vendors contains prod.vendor -%}{%- continue -%}{%- endif -%}
         {%- assign discount = 0 -%}
-        {%- if product.compare_at_price > product.price -%}
+        {%- if prod.compare_at_price > product.price -%}
           {%- assign saved = product.compare_at_price | minus: product.price -%}
           {%- assign discount = saved | times: 100 | divided_by: product.compare_at_price -%}
-        {%- elsif product.tags contains 'bundle' -%}
+        {%- elsif prod.tags contains 'bundle' -%}
           {%- assign discount = 13 -%}
-        {%- elsif product.tags contains 'sale' -%}
+        {%- elsif prod.tags contains 'sale' -%}
           {%- assign discount = 20 -%}
         {%- endif -%}
-        <a class="deal-card" href="{{ product.url }}">
+        <a class="deal-card" href="{{ prod.url }}">
           {%- if discount > 0 -%}
             <div class="deal-tag">SAVE {{ discount }}%</div>
           {%- else -%}
             <div class="deal-tag deal-tag-value">VALUE PICK</div>
           {%- endif -%}
-          {%- if product.featured_image -%}
-            <img class="deal-img" src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.title | escape }}" loading="lazy">
+          {%- if prod.featured_image -%}
+            <img class="deal-img" src="{{ prod.featured_image | image_url: width: 600 }}" alt="{{ prod.title | escape }}" loading="lazy">
           {%- endif -%}
           <div class="deal-info">
-            <div class="deal-pt">{{ product.type | default: 'PRODUCT' }}</div>
-            <h3 class="deal-t">{{ product.title | truncate: 60 }}</h3>
+            <div class="deal-pt">{{ prod.type | default: 'PRODUCT' }}</div>
+            <h3 class="deal-t">{{ prod.title | truncate: 60 }}</h3>
             <div class="deal-price-row">
-              <span class="deal-price">{{ product.price | money }}</span>
-              {%- if product.compare_at_price > product.price -%}
-                <span class="deal-was">{{ product.compare_at_price | money }}</span>
+              <span class="deal-price">{{ prod.price | money }}</span>
+              {%- if prod.compare_at_price > product.price -%}
+                <span class="deal-was">{{ prod.compare_at_price | money }}</span>
               {%- endif -%}
             </div>
           </div>
         </a>
+        {%- assign deal_shown = deal_shown | plus: 1 -%}
       {%- endfor -%}
     {%- else -%}
       {%- comment -%} Auto-pick: anything tagged 'bundle' or 'sale', then fallback to top sellers {%- endcomment -%}
       {%- assign shown = 0 -%}
-      {%- for product in collections.all.products -%}
+      {%- for prod in collections['operator-picks'].products -%}
+        {%- if prod.type == blank or frag_types contains prod.type -%}{%- continue -%}{%- endif -%}
+        {%- if hidden_vendors contains prod.vendor -%}{%- continue -%}{%- endif -%}
         {%- if product.tags contains 'bundle' or product.tags contains 'sale' or product.compare_at_price > product.price -%}
-          <a class="deal-card" href="{{ product.url }}">
+          <a class="deal-card" href="{{ prod.url }}">
             <div class="deal-tag">{% if product.tags contains 'bundle' %}BUNDLE{% else %}SALE{% endif %}</div>
-            {%- if product.featured_image -%}
-              <img class="deal-img" src="{{ product.featured_image | image_url: width: 600 }}" alt="{{ product.title | escape }}" loading="lazy">
+            {%- if prod.featured_image -%}
+              <img class="deal-img" src="{{ prod.featured_image | image_url: width: 600 }}" alt="{{ prod.title | escape }}" loading="lazy">
             {%- endif -%}
             <div class="deal-info">
-              <div class="deal-pt">{{ product.type | default: 'PRODUCT' }}</div>
-              <h3 class="deal-t">{{ product.title | truncate: 60 }}</h3>
+              <div class="deal-pt">{{ prod.type | default: 'PRODUCT' }}</div>
+              <h3 class="deal-t">{{ prod.title | truncate: 60 }}</h3>
               <div class="deal-price-row">
-                <span class="deal-price">{{ product.price | money }}</span>
+                <span class="deal-price">{{ prod.price | money }}</span>
               </div>
             </div>
           </a>

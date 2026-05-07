@@ -1,3 +1,4 @@
+{%- comment -%}cache-bust 1777773890{%- endcomment -%}
 {%- render 'breadcrumbs' -%}
 
 <div class="col-wrap">
@@ -44,7 +45,7 @@
           {%- assign types = collection.products | map: 'type' | uniq -%}
           {%- for t in types -%}
             {%- if t != blank -%}
-              <li><a href="?filter.p.product_type={{ t | url_encode }}">{{ t }}</a></li>
+              <li><a href="?filter.p.type={{ t | url_encode }}">{{ t }}</a></li>
             {%- endif -%}
           {%- endfor -%}
         </ul>
@@ -67,15 +68,26 @@
 
     <div class="col-products">
       {%- paginate collection.products by 24 -%}
+        {%- assign hide_fragrance = false -%}
+        {%- if collection.handle == 'all' -%}{%- assign hide_fragrance = true -%}{%- endif -%}
+        {%- assign frag_types = "Perfume,Cologne,Body Spray,Body Mist" | split: "," -%}
+        {%- assign hidden_vendors = "Wheellsverse,Lybethras Swimwear,Eloura Fusion LLC,Spun Bamboo,Coastline Clothing,GlowHaven,WeloWela" | split: "," -%}
+        {%- assign hide_vendor = false -%}
+        {%- if collection.handle == 'all' -%}{%- assign hide_vendor = true -%}{%- endif -%}
         <div class="product-grid">
-          {%- for product in collection.products -%}
-            {%- render 'card-product', product: product -%}
-          {%- else -%}
+          {%- assign shown = 0 -%}
+          {%- for prod in collection.products -%}
+            {%- if hide_fragrance and prod.type == blank or frag_types contains prod.type -%}{%- continue -%}{%- endif -%}
+            {%- if hide_vendor and hidden_vendors contains prod.vendor -%}{%- continue -%}{%- endif -%}
+            {%- render 'card-product', product: prod -%}
+            {%- assign shown = shown | plus: 1 -%}
+          {%- endfor -%}
+          {%- if shown == 0 -%}
             <div class="col-empty">
               <p>No products match these filters.</p>
               <a href="{{ collection.url }}" class="btn-ghost">Clear filters</a>
             </div>
-          {%- endfor -%}
+          {%- endif -%}
         </div>
         {%- if paginate.pages > 1 -%}
           <div class="pagination">
