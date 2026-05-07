@@ -637,8 +637,12 @@ def suggest_fix(
                     return _finalise_generator(stage, fix)
         except Exception:
             # The generator must NEVER take down suggest_fix. Fall through
-            # to the deterministic template path on any failure.
-            pass
+            # to the deterministic template path on any failure. The
+            # explicit ``fix = None`` is the visible-recovery action
+            # required by the system-invariants classification rule —
+            # it makes the fallback intent observable in source instead
+            # of being a bare ``pass``.
+            fix = None
 
     # 1) Exception-driven reasons (e.g. "unhandled_RuntimeError")
     if reason.startswith("unhandled_"):

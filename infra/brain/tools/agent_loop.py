@@ -22,11 +22,14 @@ preamble. This is the kind of slop that production LLMs produce.
 from __future__ import annotations
 
 import json
+import logging
 import re
 from dataclasses import dataclass
 from typing import Iterable, Optional
 
 from .schema import ToolSchema
+
+_log = logging.getLogger("infra.brain.tools.agent_loop")
 
 
 # Hard upper bound on iterations for safety. The kwarg in BrainClient.chat
@@ -258,7 +261,7 @@ def _emit_truncation_event(
             iteration=iteration,
         )
     except Exception:  # pragma: no cover
-        pass
+        _log.debug("tool truncation telemetry emit failed", exc_info=True)
 
 
 # ── Telemetry helpers ────────────────────────────────────────────────────────

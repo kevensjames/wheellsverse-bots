@@ -519,7 +519,7 @@ def _emit(event_type: str, **md: Any) -> None:
     try:
         col.emit(event_type, **md)
     except Exception:  # pragma: no cover
-        pass
+        _log.debug("policy evolver telemetry emit failed", exc_info=True)
 
 
 __all__ = [

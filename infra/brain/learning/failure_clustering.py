@@ -601,7 +601,7 @@ class FailureClusterer:
         try:
             col.emit(event_type, **md)
         except Exception:  # pragma: no cover
-            pass
+            _log.debug("clustering telemetry emit failed", exc_info=True)
 
 
 __all__ = [
