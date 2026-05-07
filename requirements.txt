@@ -56,8 +56,8 @@ feedparser>=6.0.11
 plyer>=2.1.0
 
 # Web server (dashboard) — FastAPI stack
-fastapi>=0.111.0,<0.116.0
-starlette>=0.37.0,<0.42.0
+fastapi>=0.116.0    # bumped from <0.116 to allow starlette CVE fix
+starlette>=0.46.0   # CVE-2024-47874 (multipart DoS) fixed in 0.40+; FastAPI 0.116+ requires <0.47
 uvicorn[standard]>=0.29.0,<0.35.0
 flask>=3.0.0
 flask-cors>=4.0.0
@@ -139,7 +139,7 @@ PyJWT>=2.8.0
 # chromadb backs the episode store and RAG; litellm is the LLM router;
 # sqlalchemy[asyncio]+aiosqlite back the facts/patterns SQL store.
 chromadb>=0.5.0
-litellm>=1.40.0
+litellm>=1.83.0   # GHSA-jjhc-v7c2-5hh6 (Critical) + 3 High advisories survive through 1.80; bumping floor
 sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.20.0
 
