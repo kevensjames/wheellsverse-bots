@@ -65,8 +65,12 @@ frontend/netlify/
 *.tar.gz
 *.pdf
 
-# Claude local config
-.claude/
+# Claude config: ship the shared base (`settings.json` — repo-wide hooks
+# + permissions) but keep per-developer overrides + caches ignored.
+.claude/*
+!.claude/settings.json
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
 
 # macOS
 .DS_Store
@@ -117,6 +121,12 @@ bots/data/*.json
 data/telegram_offset.txt
 data/narai_memory.json
 narai/data/memory_store/
+
+# Brain learning ledgers (production runtime state — see
+# infra/brain/learning/repair_outcome_memory.py + repair_memory.py).
+state/
+.ci/repair-memory.jsonl
+.ci/repair-memory.summary.json
 
 # Audit artifacts (regenerated each scan; complement to existing pre-commit patterns)
 npm-audit*

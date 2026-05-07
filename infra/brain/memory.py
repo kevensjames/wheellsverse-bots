@@ -30,7 +30,10 @@ from typing import Any, Literal, Optional
 import chromadb
 from chromadb.utils import embedding_functions
 
-ROOT = Path(__file__).parent.parent
+# Brain modules now live at infra/brain/, but persistent data continues to
+# live at narai/data/ so existing Chroma collections and SQLite stores keep
+# working without migration. Override with NARAI_CHROMA_PATH env if desired.
+ROOT = Path(__file__).resolve().parents[2] / "narai"
 _DEFAULT_CHROMA_PATH = str(ROOT / "data" / "chroma")
 
 _client: Optional[Any] = None
@@ -102,6 +105,20 @@ def remember(
 
 def recall(query: str, n: int = 5, tag_filter: str | None = None) -> list[dict]:
     """Semantic search over memories. Returns list of {key, content, tags, score}."""
+    import time as _time
+    # Telemetry — context-bound, optional, never throws into the hot path.
+    try:
+        from .telemetry import (
+            EVENT_MEMORY_HIT,
+            EVENT_MEMORY_MISS,
+            EVENT_MEMORY_RECALL,
+            get_current_telemetry,
+        )
+        _tel = get_current_telemetry()
+    except Exception:
+        _tel = None
+
+    _t0 = _time.perf_counter()
     col = _get_collection()
     where = {"tags": {"$contains": tag_filter}} if tag_filter else None
     try:
@@ -112,6 +129,12 @@ def recall(query: str, n: int = 5, tag_filter: str | None = None) -> list[dict]:
             include=["documents", "metadatas", "distances"],
         )
     except Exception:
+        if _tel is not None and _tel.enabled:
+            _ms = (_time.perf_counter() - _t0) * 1000.0
+            _tel.emit(EVENT_MEMORY_RECALL, query_len=len(query), n_requested=n,
+                      hits=0, duration_ms=_ms, error=True)
+            _tel.emit(EVENT_MEMORY_MISS, query_len=len(query))
+            _tel.record_latency("memory_recall", _ms)
         return []
 
     entries = []
@@ -128,6 +151,15 @@ def recall(query: str, n: int = 5, tag_filter: str | None = None) -> list[dict]:
             "saved_at": meta.get("saved_at", ""),
             "score": round(1 - dist, 4),  # cosine distance → similarity
         })
+
+    if _tel is not None and _tel.enabled:
+        _ms = (_time.perf_counter() - _t0) * 1000.0
+        _tel.emit(EVENT_MEMORY_RECALL, query_len=len(query), n_requested=n,
+                  hits=len(entries), duration_ms=_ms)
+        _tel.emit(EVENT_MEMORY_HIT if entries else EVENT_MEMORY_MISS,
+                  hits=len(entries))
+        _tel.record_latency("memory_recall", _ms)
+
     return entries
 
 

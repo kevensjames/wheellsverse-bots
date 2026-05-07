@@ -1,5 +1,5 @@
 import tempfile
-from narai.core.memory import MemoryStore
+from infra.brain.memory import MemoryStore
 from narai.core.identity import build_system_prompt
 
 

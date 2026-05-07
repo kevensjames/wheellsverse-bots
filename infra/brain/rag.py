@@ -12,7 +12,10 @@ from typing import Any, Optional
 import chromadb
 from chromadb.utils import embedding_functions
 
-ROOT = Path(__file__).parent.parent
+# Brain modules now live at infra/brain/, but persistent Chroma data
+# continues to live at narai/data/chroma so existing RAG collections keep
+# working without migration. Override with NARAI_CHROMA_PATH env if desired.
+ROOT = Path(__file__).resolve().parents[2] / "narai"
 _DEFAULT_CHROMA_PATH = str(ROOT / "data" / "chroma")
 _CHUNK_SIZE = int(os.getenv("NARAI_CHUNK_SIZE", "512"))
 _CHUNK_OVERLAP = int(os.getenv("NARAI_CHUNK_OVERLAP", "64"))
@@ -163,8 +166,28 @@ def ingest_text(text: str, source_label: str, file_type: str = "text") -> int:
 
 def query(text: str, n: int = 5, source_filter: str | None = None) -> list[dict]:
     """Semantic search over ingested documents."""
+    import time as _time
+    # Telemetry — context-bound, optional, never throws into the hot path.
+    try:
+        from .telemetry import (
+            EVENT_RAG_HIT,
+            EVENT_RAG_MISS,
+            EVENT_RAG_QUERY,
+            get_current_telemetry,
+        )
+        _tel = get_current_telemetry()
+    except Exception:
+        _tel = None
+
+    _t0 = _time.perf_counter()
     col = _get_rag_collection()
     if col.count() == 0:
+        if _tel is not None and _tel.enabled:
+            _ms = (_time.perf_counter() - _t0) * 1000.0
+            _tel.emit(EVENT_RAG_QUERY, query_len=len(text), n_requested=n,
+                      hits=0, duration_ms=_ms, empty_collection=True)
+            _tel.emit(EVENT_RAG_MISS, hits=0)
+            _tel.record_latency("rag_query", _ms)
         return []
     where = {"source": source_filter} if source_filter else None
     try:
@@ -175,6 +198,12 @@ def query(text: str, n: int = 5, source_filter: str | None = None) -> list[dict]
             include=["documents", "metadatas", "distances"],
         )
     except Exception:
+        if _tel is not None and _tel.enabled:
+            _ms = (_time.perf_counter() - _t0) * 1000.0
+            _tel.emit(EVENT_RAG_QUERY, query_len=len(text), n_requested=n,
+                      hits=0, duration_ms=_ms, error=True)
+            _tel.emit(EVENT_RAG_MISS, hits=0)
+            _tel.record_latency("rag_query", _ms)
         return []
 
     hits = []
@@ -190,6 +219,15 @@ def query(text: str, n: int = 5, source_filter: str | None = None) -> list[dict]
             "file_type": meta.get("file_type", ""),
             "score": round(1 - dist, 4),
         })
+
+    if _tel is not None and _tel.enabled:
+        _ms = (_time.perf_counter() - _t0) * 1000.0
+        _tel.emit(EVENT_RAG_QUERY, query_len=len(text), n_requested=n,
+                  hits=len(hits), duration_ms=_ms,
+                  source_filter=source_filter or None)
+        _tel.emit(EVENT_RAG_HIT if hits else EVENT_RAG_MISS, hits=len(hits))
+        _tel.record_latency("rag_query", _ms)
+
     return hits
 
 

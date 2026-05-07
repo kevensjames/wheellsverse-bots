@@ -1,22 +1,18 @@
-"""Tests for ChromaDB memory layer using a temp directory."""
-import os
+"""Tests for the ChromaDB-backed memory layer (module-level vector API).
+
+These exercise the real Chroma pipeline (embed → upsert → query → score).
+The ``real_chroma`` marker opts out of the conftest's chroma-mocking
+fixture and routes us through an isolated, on-disk per-test Chroma
+instance instead.
+"""
 import pytest
 
-
-@pytest.fixture(autouse=True)
-def temp_chroma(tmp_path, monkeypatch):
-    monkeypatch.setenv("NARAI_CHROMA_PATH", str(tmp_path / "chroma"))
-    # Reset module-level singletons so each test gets a fresh collection
-    import narai.core.memory as m
-    m._client = None
-    m._collection = None
-    yield
-    m._client = None
-    m._collection = None
+# All tests in this file need real ChromaDB.
+pytestmark = pytest.mark.real_chroma
 
 
 def test_remember_and_recall():
-    from narai.core.memory import count, recall, remember
+    from infra.brain.memory import count, recall, remember
 
     remember("test_key", "NarAI is a personal AI assistant for J.K. Blaze", tags=["narai"])
     assert count() == 1
@@ -28,7 +24,7 @@ def test_remember_and_recall():
 
 
 def test_forget():
-    from narai.core.memory import count, forget, remember
+    from infra.brain.memory import count, forget, remember
 
     remember("to_delete", "temporary memory entry")
     assert count() == 1
@@ -38,7 +34,7 @@ def test_forget():
 
 
 def test_recall_context_format():
-    from narai.core.memory import recall_context, remember
+    from infra.brain.memory import recall_context, remember
 
     remember("mk1", "BTCUSD is trending bullish on the 4h chart", tags=["trading"])
     ctx = recall_context("bitcoin trading")
@@ -47,7 +43,7 @@ def test_recall_context_format():
 
 
 def test_multiple_memories_ranked():
-    from narai.core.memory import recall, remember
+    from infra.brain.memory import recall, remember
 
     remember("m1", "Python is great for data science and ML pipelines")
     remember("m2", "FastAPI is an async web framework for Python")

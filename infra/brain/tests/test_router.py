@@ -13,9 +13,9 @@ def mock_litellm_response():
 
 @pytest.mark.asyncio
 async def test_call_fast_tier(mock_litellm_response):
-    from narai.core import router
+    from infra.brain import router
 
-    with patch("narai.core.router.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("infra.brain.router.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = mock_litellm_response
         result = await router.call("quick question", tier="fast")
 
@@ -26,9 +26,9 @@ async def test_call_fast_tier(mock_litellm_response):
 
 @pytest.mark.asyncio
 async def test_call_deep_tier(mock_litellm_response):
-    from narai.core import router
+    from infra.brain import router
 
-    with patch("narai.core.router.litellm.acompletion", new_callable=AsyncMock) as mock_call:
+    with patch("infra.brain.router.litellm.acompletion", new_callable=AsyncMock) as mock_call:
         mock_call.return_value = mock_litellm_response
         result = await router.call("analyze this market", tier="deep")
 
@@ -37,7 +37,7 @@ async def test_call_deep_tier(mock_litellm_response):
 
 @pytest.mark.asyncio
 async def test_fallback_on_primary_failure(mock_litellm_response):
-    from narai.core import router
+    from infra.brain import router
 
     call_count = 0
 
@@ -48,7 +48,7 @@ async def test_fallback_on_primary_failure(mock_litellm_response):
             raise Exception("Primary model down")
         return mock_litellm_response
 
-    with patch("narai.core.router.litellm.acompletion", side_effect=flaky_call):
+    with patch("infra.brain.router.litellm.acompletion", side_effect=flaky_call):
         result = await router.call("test fallback", tier="fast")
 
     assert result["content"] == "NarAI response"
@@ -57,10 +57,10 @@ async def test_fallback_on_primary_failure(mock_litellm_response):
 
 @pytest.mark.asyncio
 async def test_all_models_fail():
-    from narai.core import router
+    from infra.brain import router
 
     with patch(
-        "narai.core.router.litellm.acompletion",
+        "infra.brain.router.litellm.acompletion",
         new_callable=AsyncMock,
         side_effect=Exception("all down"),
     ):
@@ -69,7 +69,7 @@ async def test_all_models_fail():
 
 
 def test_set_config():
-    from narai.core import router
+    from infra.brain import router
     router.set_config(temperature=0.3)
     assert router._config.temperature == 0.3
     router.set_config(temperature=0.7)  # reset
