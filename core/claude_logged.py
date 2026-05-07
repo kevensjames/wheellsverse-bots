@@ -99,3 +99,23 @@ def create(
         logger.warning(f"token logging failed for {bot_name}: {log_err}")
 
     return resp
+
+
+def is_budget_healthy() -> bool:
+    """Cheap pre-flight check: is today's Anthropic spend below the daily cap?
+
+    Use this at the top of long-running jobs (cron-triggered autopilots) to
+    skip cleanly instead of generating a cascade of credit-balance errors.
+
+    Note: this only checks the *daily budget* heuristic. Anthropic-side credit
+    balance can still be empty even if our daily-budget accounting says OK —
+    that case is caught by `create()` raising `BudgetExceededError` on the
+    actual API response.
+    """
+    try:
+        from core.base_bot import _DAILY_BUDGET_USD, _get_today_anthropic_spend
+        return _get_today_anthropic_spend() < _DAILY_BUDGET_USD
+    except Exception:
+        # If the helpers blow up, default to "healthy" so we don't accidentally
+        # disable everything on an unrelated error.
+        return True

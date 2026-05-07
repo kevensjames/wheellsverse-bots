@@ -267,12 +267,13 @@ Return only valid JSON, no markdown."""
         result = None
 
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=self._anthropic_key)
-            msg = client.messages.create(
+            from core.claude_logged import create as claude_create
+            msg = claude_create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=150,
                 messages=[{"role": "user", "content": prompt}],
+                api_key=self._anthropic_key,
+                bot_name="emotion_engine.mood",
             )
             data = json.loads(msg.content[0].text.strip())
             data["method"] = "claude"
@@ -608,12 +609,13 @@ Rules:
         response = None
 
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=self._anthropic_key)
-            msg = client.messages.create(
+            from core.claude_logged import create as claude_create
+            msg = claude_create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=200,
                 messages=[{"role": "user", "content": prompt}],
+                api_key=self._anthropic_key,
+                bot_name="emotion_engine.response",
             )
             response = msg.content[0].text.strip()
         except Exception:

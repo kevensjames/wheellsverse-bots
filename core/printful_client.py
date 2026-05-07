@@ -147,12 +147,10 @@ def get_product_variants(printful_product_id: int) -> List[dict]:
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _claude_json(prompt: str, max_tokens: int = 2000) -> Any:
-    """Local Claude JSON helper — avoids circular imports."""
-    import anthropic
-    model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
-        model=model,
+    """Local Claude JSON helper — routed through claude_logged for budget guard."""
+    from core.claude_logged import create as claude_create
+    r = claude_create(
+        model=os.getenv("NARAI_MODEL", "claude-sonnet-4-6"),
         max_tokens=max_tokens,
         system=(
             "You are NarAI's design director. You create compelling print-on-demand "
@@ -160,6 +158,7 @@ def _claude_json(prompt: str, max_tokens: int = 2000) -> Any:
             "and dark fantasy / anime fans. Output pure JSON only — no prose."
         ),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="printful_client",
     )
     raw = r.content[0].text.strip()
     raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)

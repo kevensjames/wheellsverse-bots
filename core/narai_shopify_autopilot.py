@@ -128,14 +128,13 @@ def _queue_for_manual(platform: str, title: str, content: str):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
-    import anthropic
-    model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
-        model=model,
+    from core.claude_logged import create as claude_create
+    r = claude_create(
+        model=os.getenv("NARAI_MODEL", "claude-sonnet-4-6"),
         max_tokens=max_tokens,
         system=system or _system(),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="shopify_autopilot",
     )
     return r.content[0].text.strip()
 
@@ -768,6 +767,28 @@ def run_shopify_session(
 
     if session_id is None:
         session_id = str(uuid.uuid4())[:8]
+
+    # ── Pre-flight: skip cleanly if Anthropic budget is exhausted ────────────
+    # Without this, every cron tick burns ~30s producing a cascade of
+    # "credit balance too low" 400s with nothing to show for it.
+    try:
+        from core.claude_logged import is_budget_healthy
+        if not is_budget_healthy():
+            log.warning(
+                "Shopify autopilot skipping session %s — Anthropic daily budget "
+                "exhausted. Top up at console.anthropic.com or wait for UTC "
+                "rollover.", session_id,
+            )
+            state = _sa_load()
+            state.update({
+                "running": False, "session_id": session_id,
+                "phase": "skipped", "task": "Skipped — budget exhausted",
+                "progress": 100, "started_at": _now(),
+            })
+            _sa_save(state)
+            return state
+    except ImportError:
+        pass  # claude_logged not available; fall through to old behaviour.
 
     state = _sa_load()
     state.update({

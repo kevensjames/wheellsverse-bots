@@ -22,12 +22,13 @@ router = APIRouter(prefix="/api/creative", tags=["creative"])
 
 def _claude(system: str, prompt: str, max_tokens: int = 2048) -> str:
     """Call Claude for a creative generation task."""
-    import anthropic
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    model = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6")
-    resp = client.messages.create(
-        model=model, max_tokens=max_tokens, system=system,
+    from core.claude_logged import create as claude_create
+    resp = claude_create(
+        model=os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6"),
+        max_tokens=max_tokens,
+        system=system,
         messages=[{"role": "user", "content": prompt}],
+        bot_name="creative_router",
     )
     return resp.content[0].text if resp.content else ""
 

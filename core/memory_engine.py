@@ -49,13 +49,14 @@ def extract_facts(conv_id: str, assistant_msg: str) -> List[Dict]:
         return []
 
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
+        from core.claude_logged import create as claude_create
+        resp = claude_create(
             model=_MODEL,
             max_tokens=512,
             system=_EXTRACT_SYSTEM,
             messages=[{"role": "user", "content": f"Message: {assistant_msg[:1500]}"}],
+            api_key=api_key,
+            bot_name="memory_engine",
         )
         raw = resp.content[0].text.strip() if resp.content else "[]"
 

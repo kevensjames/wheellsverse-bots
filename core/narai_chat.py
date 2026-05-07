@@ -462,15 +462,15 @@ async def chat_stream(
 async def chat_title_from_message(message: str) -> str:
     """Generate a short title for a conversation from the first message."""
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        resp = client.messages.create(
+        from core.claude_logged import create as claude_create
+        resp = claude_create(
             model="claude-haiku-4-5-20251001",
             max_tokens=20,
             messages=[{
                 "role": "user",
                 "content": f"Give a 4-6 word title for a conversation that starts with: '{message[:200]}'. Reply with ONLY the title, no quotes."
-            }]
+            }],
+            bot_name="narai_chat.title",
         )
         return resp.content[0].text.strip()[:60]
     except Exception:

@@ -55,25 +55,25 @@ def generate_code(prompt: str, template: Optional[str] = None) -> str:
     Raises RuntimeError on API failure.
     """
     try:
-        from anthropic import Anthropic
+        from core.claude_logged import create as claude_create
     except ImportError:
-        raise RuntimeError("anthropic package not installed. Run: pip install anthropic")
+        raise RuntimeError("core.claude_logged not available — install anthropic package")
 
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY not set in .env")
 
-    client = Anthropic(api_key=api_key)
-
     user_content = prompt
     if template:
         user_content = f"{prompt}\n\nBase template to extend:\n```python\n{template}\n```"
 
-    response = client.messages.create(
+    response = claude_create(
         model=_CODE_MODEL,
         max_tokens=4096,
         system=_CODE_SYSTEM,
         messages=[{"role": "user", "content": user_content}],
+        api_key=api_key,
+        bot_name="code_engine",
     )
 
     code = response.content[0].text.strip()

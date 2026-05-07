@@ -64,9 +64,8 @@ def _now() -> str:
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 3000) -> str:
     """Call Claude Haiku for intelligence analysis."""
-    import anthropic
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
+    from core.claude_logged import create as claude_create
+    r = claude_create(
         model="claude-haiku-4-5-20251001",
         max_tokens=max_tokens,
         system=system or (
@@ -75,6 +74,7 @@ def _claude(prompt: str, system: str = "", max_tokens: int = 3000) -> str:
             "Always return valid JSON when asked. Be deeply insightful."
         ),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="market_intelligence",
     )
     return r.content[0].text.strip()
 
