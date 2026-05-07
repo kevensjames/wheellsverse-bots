@@ -122,14 +122,13 @@ GUMROAD_FORMATS = {
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
-    import anthropic
-    model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
-        model=model,
+    from core.claude_logged import create as claude_create
+    r = claude_create(
+        model=os.getenv("NARAI_MODEL", "claude-sonnet-4-6"),
         max_tokens=max_tokens,
         system=system or _product_system(),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="narai_product_engine",
     )
     return r.content[0].text.strip()
 

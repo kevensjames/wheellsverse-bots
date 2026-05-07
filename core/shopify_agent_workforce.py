@@ -170,13 +170,14 @@ class BaseShopifyAgent:
                 raise
             self.log(f"OpenAI unavailable — falling back to Claude: {type(e).__name__}", "WARNING")
 
-        # Fallback to Claude
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        resp = client.messages.create(
+        # Fallback to Claude — routed through claude_logged for budget guard +
+        # token logging + credit-balance error normalization.
+        from core.claude_logged import create as claude_create
+        resp = claude_create(
             model=os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001"),
             max_tokens=max_tokens,
             messages=[{"role": "user", "content": prompt}],
+            bot_name="shopify_agent_workforce",
         )
         return resp.content[0].text.strip()
 
