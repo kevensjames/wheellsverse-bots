@@ -1,0 +1,98 @@
+name: Brain Feedback Ingest
+
+# Phase F.2 of the Brain audit follow-up roadmap. Pipes GitHub
+# pull_request_review and main-branch push events into the
+# RepairOutcomeStore via scripts/feedback/ingest_github_events.py.
+#
+# Security note: every value sourced from `github.event.*` flows
+# through env: vars (never inline `${{ ... }}` interpolation in
+# `run:` blocks) so attacker-controlled fields like commit messages
+# can't escape into shell command parsing. The actual payload body
+# is captured as a JSON-encoded string and written to a file the
+# CLI parses with json.loads — no shell evaluation of the message
+# text anywhere in this workflow.
+#
+# This workflow is pure data-wiring: capture the event payload,
+# invoke the CLI, surface the IngestionResult in the workflow log.
+# All semantics live in the CLI (which is testable in isolation —
+# tests/learning/test_ingest_github_events_cli.py covers them).
+#
+# In CI runners the JSONL ledger is ephemeral. A real production
+# deployment swaps in a persistent backing store via the
+# BRAIN_OUTCOME_LEDGER env var (Phase G+ wires this up against the
+# actual brain runtime).
+
+on:
+  pull_request_review:
+    types: [submitted]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  # One ingest per (event-type, identifier) — replays of the same
+  # webhook are idempotent at the ingestor level, but coalescing
+  # avoids burning runner minutes on duplicates.
+  group: brain-feedback-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Capture event payload
+        # toJSON quotes the entire payload as a JSON string; we
+        # write it through an env var to a file so attacker-supplied
+        # content (commit messages, PR titles, review bodies) can't
+        # break out of shell parsing. The CLI then reads the file
+        # via json.loads which is shell-safe.
+        env:
+          PAYLOAD: ${{ toJSON(github.event) }}
+        run: |
+          mkdir -p .ci
+          printf '%s' "$PAYLOAD" > .ci/event.json
+          echo "Wrote $(wc -c < .ci/event.json) bytes of payload to .ci/event.json"
+
+      - name: Run ingestor CLI
+        # event_name is a bounded enum on GitHub's side
+        # (`pull_request_review`, `push`, etc.) — but we still pass
+        # it through env: rather than inline interpolation to keep
+        # the no-interpolation-in-run discipline uniform across the
+        # whole workflow.
+        env:
+          BRAIN_EVENT_TYPE: ${{ github.event_name }}
+          # Ephemeral runner-local ledger. Real deployments override
+          # this via repository secrets / variables.
+          BRAIN_OUTCOME_LEDGER: .ci/repair_outcomes.jsonl
+        run: |
+          python scripts/feedback/ingest_github_events.py .ci/event.json \
+            --event-type "$BRAIN_EVENT_TYPE" \
+            > .ci/ingestion_result.json
+          echo "--- IngestionResult ---"
+          cat .ci/ingestion_result.json
+          echo
+
+      - name: Upload ingestion artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: brain-feedback-ingest-${{ github.run_id }}
+          path: |
+            .ci/event.json
+            .ci/ingestion_result.json
+            .ci/repair_outcomes.jsonl
+          if-no-files-found: warn
+          retention-days: 14
