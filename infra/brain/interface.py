@@ -116,7 +116,8 @@ class BrainClient:
     """
 
     __slots__ = (
-        "user_id", "policy", "tool_registry", "tool_executor", "telemetry",
+        "user_id", "policy", "static_policy", "tool_registry",
+        "tool_executor", "telemetry", "outcome_store",
     )
 
     def __init__(
@@ -128,6 +129,10 @@ class BrainClient:
         tool_registry: Optional[ToolRegistry] = None,
         telemetry_enabled: bool = True,
         telemetry: Optional[TelemetryCollector] = None,
+        # Phase G.2 — opt-in dynamic policy resolution.
+        dynamic_policy: Optional[bool] = None,
+        outcome_store: Optional[Any] = None,
+        evolution_config: Optional[Any] = None,
     ) -> None:
         """Create a brain client.
 
@@ -143,12 +148,82 @@ class BrainClient:
         a pre-built ``telemetry=`` collector) to disable or replace it. A
         disabled collector still exposes ``record/flush/get_stats`` — those
         methods are no-ops.
+
+        Phase G.2 — opt-in dynamic policy resolution
+        ---------------------------------------------
+
+        ``dynamic_policy``:
+            ``True``  → resolve the effective policy once at init by
+                       running :class:`PolicyEvolver` over
+                       ``outcome_store``.
+            ``False`` → static-only behavior (PR #2 contract).
+            ``None``  → read ``BRAIN_POLICY_DYNAMIC`` env var; default
+                       off when unset / unrecognised. Truthy values:
+                       ``on``, ``true``, ``1``, ``yes``
+                       (case-insensitive). Falsy: ``off``, ``false``,
+                       ``0``, ``no``.
+
+        ``outcome_store``:
+            :class:`infra.brain.learning.repair_outcome_memory.RepairOutcomeStore`
+            instance. Required when ``dynamic_policy=True`` and the
+            evolver should read live data; constructor builds a default
+            store at the canonical path otherwise. When dynamic is off,
+            this attribute is set to ``None`` regardless of arg.
+
+        ``evolution_config``:
+            :class:`infra.brain.learning.policy_evolver.EvolutionConfig`.
+            Defaults to ``EvolutionConfig(enabled=True, ...)`` (the
+            evolver's own ``enabled`` defaults to False, so we flip it
+            to True here when ``dynamic_policy`` is on — the kill
+            switch is at the BrainClient level, not the config level).
+
+        ``self.static_policy`` always reflects the unmutated base.
+        ``self.policy`` is the (possibly more restrictive) effective
+        policy. Both are readable. The single-resolution-at-init
+        contract is preserved — mutating ``outcome_store`` post-init
+        does NOT change ``self.policy`` until the next ``BrainClient``
+        construction.
         """
         self.user_id = user_id
-        self.policy = policy if policy is not None else get_policy(mode)
+        self.static_policy = policy if policy is not None else get_policy(mode)
         self.tool_registry = (
             tool_registry if tool_registry is not None else default_registry()
         )
+
+        # ── Phase G.2: resolve effective policy ────────────────────
+        # Kill-switch precedence: explicit kwarg > env var > default-off.
+        dynamic_enabled = self._resolve_dynamic_flag(dynamic_policy)
+        self.outcome_store = None
+        if dynamic_enabled:
+            from .learning.policy_evolver import (
+                EvolutionConfig, PolicyEvolver,
+            )
+            from .learning.repair_outcome_memory import RepairOutcomeStore
+            self.outcome_store = (
+                outcome_store
+                if outcome_store is not None
+                else RepairOutcomeStore()
+            )
+            cfg = evolution_config
+            if cfg is None:
+                # Default: enable the evolver internally (the kill
+                # switch lives on dynamic_policy, not on the config's
+                # own ``enabled`` flag — this is the BrainClient's
+                # contract, separate from the standalone evolver's).
+                cfg = EvolutionConfig(enabled=True)
+            elif not cfg.enabled:
+                # Caller passed a config but explicitly disabled it.
+                # Honor that — config-level kill switch wins.
+                pass
+            self.policy = PolicyEvolver().compute_dynamic_policy(
+                self.static_policy,
+                self.outcome_store,
+                config=cfg,
+                tool_registry=self.tool_registry,
+            )
+        else:
+            self.policy = self.static_policy
+
         self.tool_executor = ToolExecutor(self)
         if telemetry is not None:
             self.telemetry = telemetry
@@ -158,6 +233,23 @@ class BrainClient:
                 mode=self.policy.mode,
                 enabled=telemetry_enabled,
             )
+
+    @staticmethod
+    def _resolve_dynamic_flag(arg_value: Optional[bool]) -> bool:
+        """Phase G.2 kill-switch resolver.
+
+        Precedence: explicit kwarg > ``BRAIN_POLICY_DYNAMIC`` env var
+        > default off. Truthy env values: ``on / true / 1 / yes``
+        (case-insensitive). Falsy: ``off / false / 0 / no``.
+        Anything unrecognised is treated as off (safe default).
+        """
+        if arg_value is not None:
+            return bool(arg_value)
+        import os
+        raw = os.environ.get("BRAIN_POLICY_DYNAMIC", "").strip().lower()
+        if raw in {"on", "true", "1", "yes"}:
+            return True
+        return False
 
     # ── Compatibility shim for the previous ``mode`` attribute ───────────
 

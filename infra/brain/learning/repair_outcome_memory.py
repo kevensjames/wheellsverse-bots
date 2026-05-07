@@ -221,11 +221,21 @@ class RepairOutcome:
     recurrence_count: int = 0
     stability_score: Optional[float] = None
     regression_detected_at: Optional[str] = None
+    # Phase G addition (2026-05-06): tool names this outcome touched,
+    # used by ``PolicyEvolver`` for per-tool restriction decisions.
+    # Default empty tuple so existing fixtures, JSONL lines, and
+    # callers all stay byte-compatible — Phase D's ``from_dict``
+    # already filters on declared fields. Outcomes that don't tag
+    # the tools they used contribute zero to per-tool evolver stats.
+    touched_tools: tuple[str, ...] = ()
 
     def to_dict(self) -> dict:
         """JSON-friendly representation. Round-trips losslessly through
-        :meth:`from_dict`."""
-        return dataclasses.asdict(self)
+        :meth:`from_dict`. ``touched_tools`` is serialised as a JSON
+        array (tuples don't survive json.dumps directly)."""
+        d = dataclasses.asdict(self)
+        d["touched_tools"] = list(self.touched_tools)
+        return d
 
     @classmethod
     def from_dict(cls, data: dict) -> "RepairOutcome":
@@ -237,6 +247,10 @@ class RepairOutcome:
             )
         valid_fields = {f.name for f in dataclasses.fields(cls)}
         kwargs = {k: v for k, v in data.items() if k in valid_fields}
+        # touched_tools may arrive as a list (from JSON) — coerce to tuple
+        # so the dataclass stays hashable + frozen-correct.
+        if "touched_tools" in kwargs and isinstance(kwargs["touched_tools"], list):
+            kwargs["touched_tools"] = tuple(kwargs["touched_tools"])
         return cls(**kwargs)
 
 
