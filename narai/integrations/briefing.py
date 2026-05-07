@@ -372,8 +372,8 @@ def log_briefing_to_memory(text: str) -> None:
     memory log is a side effect, never a delivery blocker."""
     try:
         import re
-        from narai.core.memory import MemoryStore
-        store = MemoryStore()
+        from infra.brain.interface import BrainClient
+        store = BrainClient(user_id="owner", mode="narai").memory.MemoryStore()
         clean = re.sub(r"</?[bi]>", "", text)
         store.log_episode(user_id="owner", content=f"Briefing:\n{clean}")
     except Exception as e:

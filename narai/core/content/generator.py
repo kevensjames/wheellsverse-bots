@@ -9,7 +9,9 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict, field
 from typing import Any, Optional
 
-from narai.core import memory, rag, router, skills
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 
 # ── Format templates ──────────────────────────────────────────────────────────
@@ -131,14 +133,14 @@ def _build_prompt(brief: ContentBrief, fmt: dict[str, Any]) -> str:
 
 
 def _build_system(brief: ContentBrief) -> str:
-    mem_ctx = memory.recall_context(brief.topic) if brief.use_memory else ""
-    rag_ctx = rag.query_context(brief.topic) if brief.use_rag else ""
+    mem_ctx = _brain.memory.recall_context(brief.topic) if brief.use_memory else ""
+    rag_ctx = _brain.rag.query_context(brief.topic) if brief.use_rag else ""
     base = (
         "You are NarAI, a high-signal content generator for J.K. Blaze (WheellsVerse). "
         "Write like a senior copywriter — concrete, punchy, no filler. "
         "Avoid generic AI disclaimers."
     )
-    return skills.build_system_prompt(
+    return _brain.skills.build_system_prompt(
         base=base,
         skill="writer",
         memory_context=mem_ctx,
@@ -157,13 +159,13 @@ async def generate(brief: ContentBrief) -> ContentResult:
     prompt = _build_prompt(brief, fmt)
     system = _build_system(brief)
 
-    result = await router.call(prompt, tier=fmt["tier"], system=system)
+    result = await _brain.router.call(prompt, tier=fmt["tier"], system=system)
     text = result.get("content", "")
 
     # Persist a memory record so future generations can reference past outputs
     if brief.use_memory:
         try:
-            await memory.aremember(
+            await _brain.memory.aremember(
                 key=f"content:{brief.kind}:{brief.topic[:40]}",
                 content=text[:600],
                 tags=["content", brief.kind],

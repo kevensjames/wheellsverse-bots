@@ -19,7 +19,7 @@ from collections import Counter
 from typing import TYPE_CHECKING, Awaitable, Callable
 
 if TYPE_CHECKING:
-    from narai.core.memory import MemoryStore
+    from infra.brain.interface import MemoryStore
 
 logger = logging.getLogger("narai.patterns")
 

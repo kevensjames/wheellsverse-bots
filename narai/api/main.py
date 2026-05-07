@@ -26,7 +26,7 @@ from narai.api.routes.shopify_billing import api_router as shopify_billing_api_r
 from narai.api.routes.shopify_admin import router as shopify_admin_rt
 from narai.api.routes.telegram import rt as telegram_rt
 from narai.core.db import init_db
-from narai.core.resilience import breaker_status
+from infra.brain.resilience import breaker_status
 from narai.integrations.telegram import setup_webhook
 
 

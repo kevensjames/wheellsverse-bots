@@ -1,10 +1,12 @@
-"""Outreach drafter — generates personalized cold emails via NarAI router."""
+"""Outreach drafter — generates personalized cold emails via NarAI _brain.router."""
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict, field
 from typing import Any
 
-from narai.core import memory, router, skills
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 
 @dataclass
@@ -64,13 +66,13 @@ def _build_prompt(brief: OutreachBrief) -> str:
 
 async def draft_outreach(brief: OutreachBrief) -> dict[str, Any]:
     prompt = _build_prompt(brief)
-    system = skills.build_system_prompt(
+    system = _brain.skills.build_system_prompt(
         base=("You are NarAI writing cold/warm outreach for J.K. Blaze. "
               "Style: direct, specific, zero fluff, one clear CTA. No AI tells."),
         skill="writer",
-        memory_context=memory.recall_context(brief.recipient_company),
+        memory_context=_brain.memory.recall_context(brief.recipient_company),
     )
-    result = await router.call(prompt, tier="fast", system=system)
+    result = await _brain.router.call(prompt, tier="fast", system=system)
     text = result.get("content", "")
 
     # Parse subject line

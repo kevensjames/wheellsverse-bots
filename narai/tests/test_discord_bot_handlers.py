@@ -7,7 +7,7 @@ we verify the *contracts* the new commands rely on are still in place:
   • core.discord_bot module imports cleanly + module-level globals exist
   • subscriber_content._safe_quote / _safe_forecast / _arrow signatures
   • narai.core.research.ResearchBrief / research async
-  • narai.core.rag.{ingest_text, query, aingest, query_context} signatures
+  • infra.brain.rag.{ingest_text, query, aingest, query_context} signatures
   • narai.voice.tts.get_tts(provider) signature
   • _get_narai_response accepts the new `user_id` kwarg
 """
@@ -78,7 +78,11 @@ def test_rag_module_contract():
     """File→RAG ingest + per-user filter both depend on these signatures."""
     pytest.importorskip("chromadb",
                         reason="rag → chromadb; install via requirements.txt")
-    from narai.core import rag
+    # Reach the rag module through BrainClient's public proxy so we're
+    # honouring the architectural boundary while still asserting the
+    # underlying signature contract.
+    from infra.brain.interface import BrainClient
+    rag = BrainClient(user_id="test", mode="narai").rag
 
     assert callable(rag.ingest)
     assert callable(rag.ingest_text)

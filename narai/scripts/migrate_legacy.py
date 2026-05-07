@@ -16,7 +16,9 @@ DATA = ROOT / "data"
 sys.path.insert(0, str(ROOT))
 
 from narai.core.db import ChatLog, MemoryEntry, SessionLocal, init_db
-from narai.core.memory import remember
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 
 async def migrate_memory() -> int:
@@ -42,7 +44,7 @@ async def migrate_memory() -> int:
                 continue
 
             # Insert into ChromaDB
-            chroma_id = remember(key, content, tags=tags, source=source)
+            chroma_id = _brain.memory.remember(key, content, tags=tags, source=source)
 
             # Insert into SQLite for full-text history
             existing = await session.get(MemoryEntry, key)

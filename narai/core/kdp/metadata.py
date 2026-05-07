@@ -6,7 +6,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from narai.core import router, skills
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 
 async def optimize_metadata(topic: str, genre: str = "self-help",
@@ -26,11 +28,11 @@ async def optimize_metadata(topic: str, genre: str = "self-help",
         '{"title": "...", "subtitle": "...", "description": "...", '
         '"keywords": ["...", ...7 items], "categories": ["...", ...3 items]}'
     )
-    system = skills.build_system_prompt(
+    system = _brain.skills.build_system_prompt(
         base=("You are NarAI as a KDP SEO expert. Use Amazon search-volume heuristics. "
               "Output valid JSON only, no surrounding text.")
     )
-    result = await router.call(prompt, tier="deep", system=system)
+    result = await _brain.router.call(prompt, tier="deep", system=system)
     text = result.get("content", "")
 
     # Extract JSON block

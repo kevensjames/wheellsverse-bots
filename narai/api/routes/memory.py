@@ -3,7 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from narai.api.auth import require_auth
-from narai.core import memory, rag
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 rt = APIRouter(prefix="/memory", tags=["memory"])
 
@@ -23,18 +25,18 @@ class RecallQuery(BaseModel):
 
 @rt.post("")
 async def store(item: MemoryIn, _: str = Depends(require_auth)) -> dict:
-    chroma_id = await memory.aremember(item.key, item.content, tags=item.tags, source=item.source)
+    chroma_id = await _brain.memory.aremember(item.key, item.content, tags=item.tags, source=item.source)
     return {"chroma_id": chroma_id, "key": item.key}
 
 
 @rt.post("/recall")
 async def recall(req: RecallQuery, _: str = Depends(require_auth)) -> list[dict]:
-    return await memory.arecall(req.query, n=req.n, tag_filter=req.tag_filter)
+    return await _brain.memory.arecall(req.query, n=req.n, tag_filter=req.tag_filter)
 
 
 @rt.delete("/{key}")
 async def forget(key: str, _: str = Depends(require_auth)) -> dict:
-    deleted = await memory.aforget(key)
+    deleted = await _brain.memory.aforget(key)
     if not deleted:
         raise HTTPException(status_code=404, detail="Memory key not found")
     return {"deleted": key}
@@ -42,7 +44,7 @@ async def forget(key: str, _: str = Depends(require_auth)) -> dict:
 
 @rt.get("/count")
 async def mem_count(_: str = Depends(require_auth)) -> dict:
-    return {"memories": memory.count(), "rag_documents": rag._get_rag_collection().count()}
+    return {"memories": _brain.memory.count(), "rag_documents": _brain.rag._get_rag_collection().count()}
 
 
 # ── RAG routes ────────────────────────────────────────────────────────────────
@@ -56,7 +58,7 @@ async def ingest_text_endpoint(
     text: str,
     _: str = Depends(require_auth),
 ) -> dict:
-    chunks = rag.ingest_text(text, source_label=source)
+    chunks = _brain.rag.ingest_text(text, source_label=source)
     return {"source": source, "chunks": chunks}
 
 
@@ -73,7 +75,7 @@ async def ingest_file(
         tmp.write(await file.read())
         tmp_path = tmp.name
 
-    chunks = await rag.aingest(tmp_path, source_label=file.filename)
+    chunks = await _brain.rag.aingest(tmp_path, source_label=file.filename)
     Path(tmp_path).unlink(missing_ok=True)
     return {"filename": file.filename, "chunks": chunks}
 
@@ -84,4 +86,4 @@ async def rag_query(
     n: int = 5,
     _: str = Depends(require_auth),
 ) -> list[dict]:
-    return await rag.aquery(query, n=n)
+    return await _brain.rag.aquery(query, n=n)

@@ -1,4 +1,9 @@
-"""NarAI core layer — router, memory, RAG, resilience, skills, storage, identity, overwhelm, mode.
+"""NarAI core layer — identity, overwhelm, mode, storage, db, patterns, ...
+
+The canonical AI brain lives in ``infra.brain`` and is accessed exclusively
+via ``infra.brain.interface.BrainClient``. This package no longer re-exports
+brain symbols (``MemoryStore``, ``Fact``, ``Episode``); construct them via a
+``BrainClient`` instead.
 
 Heavy optional deps (chromadb, etc.) are imported lazily so subpackages like
 shopify_mt can be loaded without them installed.
@@ -6,10 +11,9 @@ shopify_mt can be loaded without them installed.
 from .identity import Identity, Mode, build_system_prompt
 
 try:
-    from .memory import MemoryStore, Fact, Episode
     from .extractor import extract_facts
 except ImportError:
-    pass  # chromadb / heavy deps absent — shopify_mt and lightweight paths still work
+    pass  # heavy deps absent — shopify_mt and lightweight paths still work
 
 try:
     from .overwhelm import (
@@ -25,7 +29,6 @@ except ImportError:
 
 __all__ = [
     "Identity", "Mode", "build_system_prompt",
-    "MemoryStore", "Fact", "Episode",
     "extract_facts",
     "detect", "detect_async", "OverwhelmState", "overwhelm_modifier_for",
     "route", "route_async", "ModeDecision", "parse_override", "mode_modifier_for",
