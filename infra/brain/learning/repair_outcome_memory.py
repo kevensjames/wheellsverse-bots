@@ -88,6 +88,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
@@ -160,6 +161,8 @@ TRANSITIONS: dict[str, frozenset[str]] = {
 # strings are encouraged but not enforced").
 EVENT_OUTCOME_RECORDED:      str = "repair_outcome_recorded"
 EVENT_OUTCOME_STATE_CHANGED: str = "repair_outcome_state_changed"
+EVENT_OUTCOME_INDEX_DROPPED: str = "repair_outcome_index_dropped"
+EVENT_OUTCOME_INDEX_REBUILT: str = "repair_outcome_index_rebuilt"
 
 
 # ── RepairOutcome dataclass ─────────────────────────────────────────────
@@ -283,6 +286,150 @@ def _emit(event_type: str, **md: Any) -> None:
         _log.debug("telemetry emit failed for %s", event_type, exc_info=True)
 
 
+# ── SQLite index (Phase E.1) ────────────────────────────────────────────
+
+
+_SQLITE_SCHEMA: str = """
+CREATE TABLE IF NOT EXISTS outcomes (
+    patch_hash TEXT PRIMARY KEY,
+    failure_signature TEXT NOT NULL,
+    outcome_state TEXT NOT NULL,
+    applied_at TEXT NOT NULL,
+    regression_detected_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_outcomes_signature
+    ON outcomes(failure_signature);
+CREATE INDEX IF NOT EXISTS idx_outcomes_state
+    ON outcomes(outcome_state);
+"""
+
+
+class _SqliteIndex:
+    """Optional secondary index over the JSONL store.
+
+    JSONL is the source of truth (durability + auditability); this index
+    is a derived view, regenerable from JSONL via
+    :meth:`RepairOutcomeStore.rebuild_index`. Schema is keys-only — no
+    patch bodies, no PII (per the audit boundary):
+
+        outcomes(
+            patch_hash TEXT PRIMARY KEY,
+            failure_signature TEXT INDEXED,
+            outcome_state TEXT INDEXED,
+            applied_at TEXT,
+            regression_detected_at TEXT
+        )
+
+    One row per patch_hash — the index tracks the *latest* state for each
+    distinct patch. This is deliberate: the index answers "how many
+    distinct patches has this signature spawned?" with O(log N) instead
+    of full-file scan.
+
+    Concurrency:
+      * Same-process: serialised behind ``RepairOutcomeStore``'s
+        :class:`threading.RLock`. The index uses ``BEGIN IMMEDIATE`` so
+        SQLite gives us write-write serialisation across threads of
+        the same process even when the lock is dropped briefly.
+      * Cross-process: NOT safe. Same hazard as JSONL appends — operators
+        running multiple workers should funnel writes through one owner.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = Path(path)
+        self._conn: Optional[sqlite3.Connection] = None
+
+    def _connect(self) -> sqlite3.Connection:
+        if self._conn is None:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            # ``isolation_level=None`` puts SQLite in autocommit mode so
+            # we control transactions explicitly via ``BEGIN IMMEDIATE``.
+            conn = sqlite3.connect(
+                str(self.path),
+                isolation_level=None,
+                check_same_thread=False,
+                timeout=10.0,
+            )
+            conn.executescript(_SQLITE_SCHEMA)
+            self._conn = conn
+        return self._conn
+
+    def upsert(self, entry: "RepairOutcome") -> None:
+        """Insert-or-update a single outcome row."""
+        conn = self._connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute(
+                """
+                INSERT INTO outcomes (
+                    patch_hash, failure_signature, outcome_state,
+                    applied_at, regression_detected_at
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(patch_hash) DO UPDATE SET
+                    failure_signature      = excluded.failure_signature,
+                    outcome_state          = excluded.outcome_state,
+                    applied_at             = excluded.applied_at,
+                    regression_detected_at = excluded.regression_detected_at
+                """,
+                (
+                    entry.patch_hash,
+                    entry.failure_signature,
+                    entry.outcome_state,
+                    entry.applied_at,
+                    entry.regression_detected_at,
+                ),
+            )
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    def query_patch_hashes_by_signature(
+        self, signature: str, limit: int,
+    ) -> list[str]:
+        """Return up to ``limit`` patch_hashes for ``signature``,
+        most-recently-applied first."""
+        if limit < 1:
+            return []
+        conn = self._connect()
+        cursor = conn.execute(
+            "SELECT patch_hash FROM outcomes "
+            "WHERE failure_signature = ? "
+            "ORDER BY applied_at DESC, patch_hash DESC "
+            "LIMIT ?",
+            (signature, limit),
+        )
+        return [row[0] for row in cursor.fetchall()]
+
+    def count_by_signature(self, signature: str) -> int:
+        """Distinct-patch count for ``signature``."""
+        conn = self._connect()
+        cursor = conn.execute(
+            "SELECT COUNT(*) FROM outcomes WHERE failure_signature = ?",
+            (signature,),
+        )
+        row = cursor.fetchone()
+        return int(row[0]) if row else 0
+
+    def truncate(self) -> None:
+        """Remove every row. Used by :meth:`RepairOutcomeStore.rebuild_index`."""
+        conn = self._connect()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            conn.execute("DELETE FROM outcomes")
+            conn.execute("COMMIT")
+        except Exception:
+            conn.execute("ROLLBACK")
+            raise
+
+    def close(self) -> None:
+        if self._conn is not None:
+            try:
+                self._conn.close()
+            except Exception:  # pragma: no cover
+                pass
+            self._conn = None
+
+
 # ── Store ──────────────────────────────────────────────────────────────
 
 
@@ -293,9 +440,12 @@ class RepairOutcomeStore:
     lock. Cross-process write atomicity is documented as a known
     limitation — see the module docstring.
 
-    The ``sqlite_index_path`` argument is reserved for Phase E. Passing
-    a non-None value today raises :class:`NotImplementedError` rather
-    than silently doing nothing; callers must opt in deliberately.
+    Optional secondary index (Phase E.1): pass ``sqlite_index_path`` to
+    enable a SQLite-backed index over the JSONL log. The index is a
+    derived view (regenerable via :meth:`rebuild_index`) — JSONL stays
+    the source of truth. SQLite-write failures degrade gracefully: the
+    index is dropped for the rest of the process and queries fall back
+    to JSONL scan. Default ``None`` keeps the original Phase D behavior.
     """
 
     def __init__(
@@ -305,14 +455,20 @@ class RepairOutcomeStore:
         sqlite_index_path: Optional[Path] = None,
     ) -> None:
         self.path = Path(path) if path else Path(DEFAULT_OUTCOMES_PATH)
+        self._sqlite_index: Optional[_SqliteIndex] = None
         if sqlite_index_path is not None:
-            # Reserved for Phase E. The flag exists here so the public
-            # API stays stable across the rollout — callers passing the
-            # arg today get a precise error, not a silent no-op.
-            raise NotImplementedError(
-                "sqlite_index_path is reserved for Phase E; pass None today."
-            )
-        self._sqlite_index_path: Optional[Path] = None
+            try:
+                idx = _SqliteIndex(Path(sqlite_index_path))
+                # Eagerly touch the connection so a borked path fails fast
+                # at construction rather than on the first write.
+                idx._connect()
+                self._sqlite_index = idx
+            except Exception as e:
+                _log.warning(
+                    "sqlite index init failed for %s: %s — falling back "
+                    "to JSONL only", sqlite_index_path, e,
+                )
+                self._sqlite_index = None
         self._lock = threading.RLock()
 
     # ── Recording ──────────────────────────────────────────────────
@@ -343,6 +499,10 @@ class RepairOutcomeStore:
             ) + "\n"
             with self.path.open("a", encoding="utf-8") as f:
                 f.write(line)
+            # Phase E.1: best-effort secondary index. JSONL is the source
+            # of truth — if SQLite stumbles we drop the index for this
+            # process and continue.
+            self._index_upsert_or_drop(entry)
 
         _emit(
             EVENT_OUTCOME_RECORDED,
@@ -398,6 +558,9 @@ class RepairOutcomeStore:
             ) + "\n"
             with self.path.open("a", encoding="utf-8") as f:
                 f.write(line)
+            # Phase E.1: keep the index aligned. Same best-effort policy
+            # as record_outcome — JSONL stays the source of truth.
+            self._index_upsert_or_drop(new_entry)
 
         if target_state != latest.outcome_state:
             _emit(
@@ -443,9 +606,39 @@ class RepairOutcomeStore:
         self, signature: str, limit: int = DEFAULT_QUERY_LIMIT,
     ) -> list[RepairOutcome]:
         """Return up to ``limit`` outcomes matching ``signature``,
-        most-recent-first by file order (later in the JSONL = newer)."""
+        most-recent-first by file order (later in the JSONL = newer).
+
+        When the SQLite index is enabled, the candidate ``patch_hash``
+        set is fetched from the index first (O(log N) on the signature
+        column) and the JSONL scan filters to only those rows. JSONL is
+        still the materialisation source so ``stability_score``,
+        ``commit_sha`` and other non-indexed fields round-trip correctly.
+        """
         if limit < 1:
             return []
+        if self._sqlite_index is not None:
+            try:
+                wanted = self._sqlite_index.query_patch_hashes_by_signature(
+                    signature, limit,
+                )
+                if not wanted:
+                    return []
+                wanted_set = set(wanted)
+                # Walk JSONL once, keep the latest record per matching
+                # patch_hash so multi-update entries collapse correctly.
+                latest_per: dict[str, RepairOutcome] = {}
+                for entry in self._iter_records():
+                    if entry.patch_hash in wanted_set:
+                        latest_per[entry.patch_hash] = entry
+                # Return in the SQLite ordering (most-recent-applied first).
+                return [latest_per[h] for h in wanted if h in latest_per]
+            except Exception as e:
+                _log.warning(
+                    "sqlite query_by_signature failed; dropping index "
+                    "and falling back to scan: %s", e,
+                )
+                self._drop_index()
+        # Unindexed path — full JSONL scan.
         out: list[RepairOutcome] = []
         for entry in self._iter_records():
             if entry.failure_signature == signature:
@@ -476,17 +669,110 @@ class RepairOutcomeStore:
         return sum(scores) / len(scores)
 
     def get_recurrence_count(self, signature: str) -> int:
-        """Total entries (across all patch_hashes) with ``signature``.
+        """Distinct-patch count for ``signature``.
 
-        Counts every ledger record — a single patch updated five times
-        contributes 5. That matches the "how many times this signature
-        was seen since the entry was created" semantics in the
-        :class:`RepairOutcome.recurrence_count` snapshot field.
+        Phase E correctness fix: previously this counted every JSONL
+        line with a matching signature, which over-counted lifecycle
+        updates (a single patch transitioned applied→merged contributed
+        2 to the count). The semantic intent — and the docstring on
+        :class:`RepairOutcome.recurrence_count` — is "how many times
+        this signature has been *seen*", which means *distinct patches
+        attempted*. State-machine updates on the same patch are not
+        new sightings.
+
+        Both indexed and unindexed paths return the same answer.
         """
-        return sum(
-            1 for entry in self._iter_records()
-            if entry.failure_signature == signature
-        )
+        if self._sqlite_index is not None:
+            try:
+                return self._sqlite_index.count_by_signature(signature)
+            except Exception as e:
+                _log.warning(
+                    "sqlite count_by_signature failed; dropping index "
+                    "and falling back to scan: %s", e,
+                )
+                self._drop_index()
+        seen: set[str] = set()
+        for entry in self._iter_records():
+            if entry.failure_signature == signature:
+                seen.add(entry.patch_hash)
+        return len(seen)
+
+    # ── Index maintenance (Phase E.1) ───────────────────────────────
+
+    def rebuild_index(self) -> int:
+        """Drop and replay the SQLite index from JSONL. No-op when no
+        index is configured. Returns the number of rows reloaded.
+
+        Use after a process detects the SQLite file is corrupt, after a
+        failed write that dropped the in-memory handle, or as a
+        scheduled cron job for long-running deployments.
+        """
+        if self._sqlite_index is None:
+            return 0
+        with self._lock:
+            try:
+                self._sqlite_index.truncate()
+            except Exception as e:
+                _log.warning(
+                    "sqlite truncate failed during rebuild; dropping "
+                    "index: %s", e,
+                )
+                self._drop_index()
+                return 0
+            # Walk JSONL, take the LATEST entry per patch_hash (the index
+            # is one-row-per-patch by design) and upsert.
+            latest_per: dict[str, RepairOutcome] = {}
+            for entry in self._iter_records():
+                latest_per[entry.patch_hash] = entry
+            count = 0
+            for entry in latest_per.values():
+                try:
+                    self._sqlite_index.upsert(entry)
+                except Exception as e:
+                    _log.warning(
+                        "sqlite upsert failed mid-rebuild for %s: %s — "
+                        "dropping index", entry.patch_hash, e,
+                    )
+                    self._drop_index()
+                    return count
+                count += 1
+        _emit(EVENT_OUTCOME_INDEX_REBUILT, rows=count)
+        return count
+
+    def close(self) -> None:
+        """Release the SQLite handle. Safe to call repeatedly. No-op
+        when no index is configured."""
+        with self._lock:
+            if self._sqlite_index is not None:
+                self._sqlite_index.close()
+
+    def _index_upsert_or_drop(self, entry: RepairOutcome) -> None:
+        """Best-effort SQLite upsert. Caller holds ``self._lock``.
+        On any failure: drop the in-memory handle, log a warning, and
+        continue — JSONL is the source of truth."""
+        if self._sqlite_index is None:
+            return
+        try:
+            self._sqlite_index.upsert(entry)
+        except Exception as e:
+            _log.warning(
+                "sqlite upsert failed for patch_hash=%s: %s — dropping "
+                "index for the rest of this process",
+                entry.patch_hash, e,
+            )
+            self._drop_index()
+
+    def _drop_index(self) -> None:
+        """Internal: nullify the index handle and emit a telemetry
+        beacon. Caller holds ``self._lock``."""
+        if self._sqlite_index is None:
+            return
+        try:
+            self._sqlite_index.close()
+        except Exception:  # pragma: no cover
+            pass
+        self._sqlite_index = None
+        _emit(EVENT_OUTCOME_INDEX_DROPPED)
 
     # ── Internals ──────────────────────────────────────────────────
 
@@ -546,6 +832,7 @@ __all__ = [
     "compute_failure_signature", "patch_signature",
     # Telemetry event types
     "EVENT_OUTCOME_RECORDED", "EVENT_OUTCOME_STATE_CHANGED",
+    "EVENT_OUTCOME_INDEX_DROPPED", "EVENT_OUTCOME_INDEX_REBUILT",
     # Tunables
     "DEFAULT_OUTCOMES_PATH", "DEFAULT_QUERY_LIMIT",
 ]
