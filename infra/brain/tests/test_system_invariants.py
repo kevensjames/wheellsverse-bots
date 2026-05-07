@@ -14,8 +14,8 @@ shared state):
   * TestToolSafety            — tool dispatch through ToolExecutor only
   * TestPolicySafety          — dynamic policy contracts
   * TestSelfHealingSafety     — apply-patch gate + protected-branches
-  * TestExceptionSafety       — no BaseException catches  (xfail → PR #8)
-  * TestToolTruncationVisibility — visible marker + telemetry  (xfail → PR #8)
+  * TestExceptionSafety       — no BaseException catches in runtime
+  * TestToolTruncationVisibility — visible marker + telemetry
   * TestSanityOverride        — meta documentation
 
 Architecture-freeze rule: this file MUST NOT introduce abstractions,
@@ -552,7 +552,7 @@ class TestSelfHealingSafety:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# TestExceptionSafety  (xfail — depends on PR #8)
+# TestExceptionSafety  (PR #8 has landed — invariants enforced)
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -637,17 +637,18 @@ class TestExceptionSafety:
     """No ``except BaseException`` anywhere in the runtime; no
     unauthorized silent ``except Exception: pass``."""
 
-    @pytest.mark.xfail(
-        reason="depends on PR #8 narrowing — PR #5's branch still has "
-        "infra/brain/debug/ci_self_healing.py:639 catching BaseException"
-    )
     def test_no_baseexception_in_brain_source(self):
-        """Grep all ``infra/brain/`` source for ``except BaseException``;
-        assert zero non-string-literal hits. PR #8 narrows the only
-        offender at ``ci_self_healing.py:639``."""
+        """Grep all ``infra/brain/`` runtime source (excluding ``tests/``)
+        for ``except BaseException``; assert zero non-string-literal
+        hits. PR #8 narrowed the only runtime offender at
+        ``ci_self_healing.py:639``; test files retain BaseException
+        references as test fixtures and historical docstrings."""
         offenders: list[str] = []
         pattern = re.compile(r"except\s+BaseException\b")
         for py in _BRAIN_ROOT.rglob("*.py"):
+            parts = py.relative_to(_BRAIN_ROOT).parts
+            if parts and parts[0] == "tests":
+                continue
             rel = py.relative_to(_REPO_ROOT.parent / _REPO_ROOT.name)
             text = py.read_text(encoding="utf-8")
             for line_no, line in enumerate(text.splitlines(), start=1):
@@ -728,7 +729,7 @@ class TestExceptionSafety:
 
 
 # ─────────────────────────────────────────────────────────────────────
-# TestToolTruncationVisibility  (xfail — depends on PR #8)
+# TestToolTruncationVisibility  (PR #8 has landed — invariants enforced)
 # ─────────────────────────────────────────────────────────────────────
 
 
@@ -737,10 +738,6 @@ class TestToolTruncationVisibility:
     (NOT just a ``…[truncated]`` suffix) and (b) emit a
     ``tool_result_truncated`` telemetry event. PR #8 closure."""
 
-    @pytest.mark.xfail(
-        reason="depends on PR #8 — PR #5's branch still emits the silent "
-        "[truncated] suffix without a visible prepended marker"
-    )
     def test_truncation_marker_visible_in_output(self):
         from infra.brain.tools.agent_loop import format_tool_result
         big = {"data": "z" * 20000}
@@ -750,11 +747,6 @@ class TestToolTruncationVisibility:
             "is the failure mode this test guards against."
         )
 
-    @pytest.mark.xfail(
-        reason="depends on PR #8 — PR #5's branch emits no truncation "
-        "telemetry event (the format_tool_result function on this branch "
-        "does not call get_current_telemetry)"
-    )
     def test_truncation_emits_telemetry_event(self):
         from unittest.mock import MagicMock
         from infra.brain.tools.agent_loop import format_tool_result
