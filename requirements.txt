@@ -114,7 +114,7 @@ websockets>=12.0
 # deploy-1776700000
 
 # ── Wave 2 additions ─────────────────────────────────────────────────────────
-python-multipart>=0.0.9
+python-multipart>=0.0.20  # CVE-2024-53981 (DoS via slow uploads) fixed in 0.0.18+
 duckduckgo-search>=6.0.0
 
 # ── Wave 3 additions ─────────────────────────────────────────────────────────
