@@ -585,7 +585,7 @@ def _emit(kind: str, **md: Any) -> None:
     try:
         col.emit(kind, **md)
     except Exception:  # pragma: no cover
-        pass
+        _log.debug("feedback telemetry emit failed", exc_info=True)
 
 
 __all__ = [

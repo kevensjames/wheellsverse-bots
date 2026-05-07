@@ -79,6 +79,13 @@ class TelemetryCollector:
         self._latencies = HistogramRegistry(max_samples_per_key=histogram_samples)
         self._events: deque[Event] = deque(maxlen=buffer_size)
         self._created_at = time.time()
+        # Per-collector counter for swallowed ``log_event`` faults
+        # inside :meth:`record`. Surfaced via :meth:`get_stats` so the
+        # silent swallow becomes observable without recursing through
+        # the very logger that just failed. See the
+        # ``except Exception`` block in :meth:`record` and the
+        # ``logger_fault_count`` key emitted by ``get_stats``.
+        self._logger_fault_count: int = 0
 
     # ── State ────────────────────────────────────────────────────────────
 
@@ -109,8 +116,13 @@ class TelemetryCollector:
         try:
             log_event(event)
         except Exception:
-            # Logger faults must never propagate into the brain's hot path.
-            pass
+            # Logger faults must never propagate into the brain's hot
+            # path. The visible-recovery action is incrementing the
+            # per-collector counter — surfaced via :meth:`get_stats`
+            # under ``logger_fault_count``. We don't call ``_log`` here
+            # because it would recurse into the very logger that just
+            # failed.
+            self._logger_fault_count += 1
 
     def emit(
         self,
@@ -177,6 +189,7 @@ class TelemetryCollector:
             "by_mode": snap.get("by_mode", {}),
             "latencies_ms": self._latencies.snapshot() if self._enabled else {},
             "buffer_size": len(self._events),
+            "logger_fault_count": self._logger_fault_count,
         }
 
     def clear(self) -> None:
