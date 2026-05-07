@@ -350,9 +350,8 @@ SUBSCRIPTION_PRODUCT = {
 # ─── Claude helper ────────────────────────────────────────────────────────────
 
 def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
-    import anthropic
-    client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    r = client.messages.create(
+    from core.claude_logged import create as claude_create
+    r = claude_create(
         model=os.getenv("NARAI_MODEL", "claude-sonnet-4-6"),
         max_tokens=max_tokens,
         system=system or (
@@ -360,6 +359,7 @@ def _claude(prompt: str, system: str = "", max_tokens: int = 4000) -> str:
             "digital products. Niche: AI + Money + Productivity. Output pure JSON when asked."
         ),
         messages=[{"role": "user", "content": prompt}],
+        bot_name="shopify_engine",
     )
     return r.content[0].text.strip()
 

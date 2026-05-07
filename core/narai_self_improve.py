@@ -143,13 +143,14 @@ def _ask_ai(log_text: str) -> dict:
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "")
     if anthropic_key and not anthropic_key.startswith("sk-placeholder"):
         try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=anthropic_key)
-            resp = client.messages.create(
+            from core.claude_logged import create as claude_create
+            resp = claude_create(
                 model="claude-haiku-4-5-20251001",
                 max_tokens=400,
                 system=_ANALYST_SYSTEM,
                 messages=[{"role": "user", "content": user_content}],
+                api_key=anthropic_key,
+                bot_name="narai_self_improve",
             )
             raw = resp.content[0].text.strip()
             return json.loads(raw)

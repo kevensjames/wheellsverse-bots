@@ -1016,6 +1016,13 @@ async def serve_nexora():
     return _serve_frontend("nexora/index.html")
 
 
+@app.get("/stock-alerts", response_class=HTMLResponse)
+@app.get("/stock-alerts/", response_class=HTMLResponse)
+async def serve_stock_alerts():
+    """AI Stock Alerts Club — waitlist landing for the $19/mo product."""
+    return _serve_frontend("stock-alerts/index.html")
+
+
 @app.get("/blog", response_class=HTMLResponse)
 async def serve_blog():
     return _serve_frontend("blog/index.html")
@@ -11093,8 +11100,7 @@ async def payhip_prepare_product(req: dict):
 
     # Generate with Claude
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        from core.claude_logged import create as claude_create
         prompt = (
             f"Write a high-converting Payhip product description for:\n"
             f"Product: {name}\n"
@@ -11110,10 +11116,11 @@ async def payhip_prepare_product(req: dict):
             "Keep it professional, warm, and benefit-focused. No hype or false claims.\n"
             "Return ONLY the description text, no extra commentary."
         )
-        msg = client.messages.create(
+        msg = claude_create(
             model="claude-haiku-4-5-20251001",
             max_tokens=600,
-            messages=[{"role": "user", "content": prompt}]
+            messages=[{"role": "user", "content": prompt}],
+            bot_name="api.payhip_description",
         )
         generated = msg.content[0].text.strip()
         _add_log(f"Payhip product description generated: {name}", "INFO")
@@ -11219,15 +11226,14 @@ def _pf_log(msg: str, level: str = "INFO", extra: dict = None):
     _add_log(f"[ProductFactory] {msg}", level)
 
 def _pf_claude(prompt: str, system: str = "", max_tokens: int = 2000) -> str:
-    """Call Claude directly for the factory pipeline."""
-    import anthropic as _ant
-    client = _ant.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    msgs = [{"role": "user", "content": prompt}]
-    r = client.messages.create(
+    """Call Claude for the factory pipeline — routed through claude_logged."""
+    from core.claude_logged import create as claude_create
+    r = claude_create(
         model="claude-haiku-4-5-20251001",
         max_tokens=max_tokens,
         system=system or "You are a world-class digital product creator and marketer.",
-        messages=msgs,
+        messages=[{"role": "user", "content": prompt}],
+        bot_name="api.product_factory",
     )
     return r.content[0].text.strip()
 
