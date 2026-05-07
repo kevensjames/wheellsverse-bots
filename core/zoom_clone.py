@@ -164,7 +164,7 @@ class CloneBrain:
         Stream a response to what a meeting participant just said.
         Yields text tokens as they arrive.
         """
-        import anthropic
+        from core.claude_logged import stream as claude_stream
 
         system = self.personality.build()
         self._history.append({"role": "user", "content": participant_said})
@@ -174,15 +174,16 @@ class CloneBrain:
             self._history = self._history[-self._max_history:]
 
         try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            with client.messages.stream(
+            with claude_stream(
                 model=self.model,
                 max_tokens=300,       # short — this is live audio, not a blog post
                 system=system,
                 messages=self._history,
-            ) as stream:
+                api_key=ANTHROPIC_API_KEY,
+                bot_name="zoom_clone.respond",
+            ) as s:
                 full_reply = ""
-                for token in stream.text_stream:
+                for token in s.text_stream:
                     full_reply += token
                     yield token
                 # Save assistant turn to history
