@@ -30,6 +30,7 @@ prefix.
 """
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 from typing import Any, Optional
@@ -119,3 +120,107 @@ def is_budget_healthy() -> bool:
         # If the helpers blow up, default to "healthy" so we don't accidentally
         # disable everything on an unrelated error.
         return True
+
+
+def _budget_preflight(bot_name: str) -> None:
+    """Raise BudgetExceededError if today's spend has hit the daily cap.
+
+    Shared by create/stream/astream so all paths get the same guard.
+    """
+    from core.base_bot import (
+        BudgetExceededError, _DAILY_BUDGET_USD, _get_today_anthropic_spend,
+    )
+    spend = _get_today_anthropic_spend()
+    if spend >= _DAILY_BUDGET_USD:
+        raise BudgetExceededError(
+            f"Daily Anthropic budget (${_DAILY_BUDGET_USD:.2f}) reached "
+            f"(spent ${spend:.4f}) — call from {bot_name!r} blocked"
+        )
+
+
+def _normalize_credit_error(exc: Exception) -> Exception:
+    """If exc is a 400 'credit balance too low', return BudgetExceededError.
+
+    Otherwise return the original exception unchanged.
+    """
+    msg = str(exc).lower()
+    if "credit balance" in msg or "credit_balance" in msg:
+        from core.base_bot import BudgetExceededError
+        return BudgetExceededError(
+            "Anthropic credit balance too low — top up at "
+            "console.anthropic.com/settings/billing"
+        )
+    return exc
+
+
+@contextlib.contextmanager
+def stream(
+    *,
+    model: str,
+    max_tokens: int,
+    messages: list,
+    system: Optional[str] = None,
+    bot_name: str = "unknown",
+    api_key: Optional[str] = None,
+    **extra: Any,
+):
+    """Sync streaming wrapper. Use as a context manager:
+
+        with claude_logged.stream(model=..., max_tokens=..., messages=..., bot_name="x") as s:
+            for token in s.text_stream:
+                yield token
+
+    Pre-flight budget check raises BudgetExceededError before any API call.
+    Credit-balance 400 errors are normalized to BudgetExceededError.
+
+    Note: token-usage logging is skipped for streams. The Anthropic SDK exposes
+    `stream.usage` after iteration completes; callers who want accounting can
+    read it and call `core.base_bot._log_token_usage(...)` themselves.
+    """
+    _budget_preflight(bot_name)
+
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key or os.getenv("ANTHROPIC_API_KEY", ""))
+    kwargs: dict = {"model": model, "max_tokens": max_tokens, "messages": messages, **extra}
+    if system is not None:
+        kwargs["system"] = system
+
+    try:
+        with client.messages.stream(**kwargs) as s:
+            yield s
+    except anthropic.BadRequestError as e:
+        raise _normalize_credit_error(e) from e
+
+
+@contextlib.asynccontextmanager
+async def astream(
+    *,
+    model: str,
+    max_tokens: int,
+    messages: list,
+    system: Optional[str] = None,
+    bot_name: str = "unknown",
+    api_key: Optional[str] = None,
+    **extra: Any,
+):
+    """Async streaming wrapper. Use as an async context manager:
+
+        async with claude_logged.astream(model=..., max_tokens=..., messages=...) as s:
+            async for text in s.text_stream:
+                yield text
+
+    Pre-flight budget check + credit-balance error normalization match `stream()`.
+    """
+    _budget_preflight(bot_name)
+
+    import anthropic
+    client = anthropic.AsyncAnthropic(api_key=api_key or os.getenv("ANTHROPIC_API_KEY", ""))
+    kwargs: dict = {"model": model, "max_tokens": max_tokens, "messages": messages, **extra}
+    if system is not None:
+        kwargs["system"] = system
+
+    try:
+        async with client.messages.stream(**kwargs) as s:
+            yield s
+    except anthropic.BadRequestError as e:
+        raise _normalize_credit_error(e) from e

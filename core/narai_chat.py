@@ -231,16 +231,16 @@ def _is_credit_error(exc: Exception) -> bool:
 # ─── Claude streaming ────────────────────────────────────────────────────────
 
 async def stream_claude(system: str, messages: list, model: str) -> AsyncGenerator[str, None]:
-    """Stream response from Claude (Anthropic API) using async client."""
-    import anthropic
-    client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-    async with client.messages.stream(
+    """Stream response from Claude — routed through claude_logged for budget guard."""
+    from core.claude_logged import astream
+    async with astream(
         model=model,
         max_tokens=4096,
         system=system,
         messages=messages,
-    ) as stream:
-        async for text in stream.text_stream:
+        bot_name="narai_chat.stream",
+    ) as s:
+        async for text in s.text_stream:
             yield text
 
 
