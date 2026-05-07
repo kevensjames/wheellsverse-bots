@@ -1,7 +1,7 @@
 """Research engine — search web, scrape article bodies, summarize, ingest to RAG.
 
 Search provider: DuckDuckGo HTML (no API key). Scrape: requests + BeautifulSoup.
-Summarization: NarAI router (deep tier). RAG ingest: existing narai.core.rag.
+Summarization: brain router (deep tier). RAG ingest: infra.brain.rag.
 """
 from __future__ import annotations
 
@@ -12,7 +12,9 @@ from typing import Any
 import requests
 from bs4 import BeautifulSoup
 
-from narai.core import rag, router, skills
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 
 _HEADERS = {
@@ -83,10 +85,10 @@ async def _summarize(text: str, query: str) -> str:
         "output only: 'NOT RELEVANT'.\n\n"
         f"---\n{text}\n---"
     )
-    system = skills.build_system_prompt(
+    system = _brain.skills.build_system_prompt(
         base="You are NarAI in research mode. Extract signal, discard noise.",
     )
-    result = await router.call(prompt, tier="deep", system=system)
+    result = await _brain.router.call(prompt, tier="deep", system=system)
     return result.get("content", "")
 
 
@@ -137,7 +139,7 @@ async def research(brief: ResearchBrief) -> ResearchResult:
         })
         if brief.ingest_to_rag:
             try:
-                rag.ingest_text(
+                _brain.rag.ingest_text(
                     text=f"{hit['title']}\n{hit['url']}\n\n{summary}\n\n---\n{body[:4000]}",
                     source_label=label,
                     file_type="research",
@@ -156,7 +158,7 @@ async def research(brief: ResearchBrief) -> ResearchResult:
             "(3) the 3 most actionable takeaways, (4) open questions. Markdown.\n\n"
             f"---\n{all_summaries}\n---"
         )
-        result = await router.call(prompt, tier="deep")
+        result = await _brain.router.call(prompt, tier="deep")
         combined = result.get("content", "")
 
     return ResearchResult(

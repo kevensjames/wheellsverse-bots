@@ -1,10 +1,12 @@
 """Daily brief — synthesize tasks, habits, sales pipeline, trading, market into
-a short morning briefing via NarAI router."""
+a short morning briefing via NarAI _brain.router."""
 from __future__ import annotations
 
 from typing import Any
 
-from narai.core import router, skills
+from infra.brain.interface import BrainClient
+
+_brain = BrainClient(user_id="owner", mode="narai")
 
 
 async def _safe_call(coro):
@@ -76,11 +78,11 @@ async def generate_daily_brief(include_market: bool = True) -> dict[str, Any]:
         f"--- Sales ---\n{fmt_pipeline(pipeline)}\n\n"
         f"--- Market ---\n{market or '(skipped)'}\n"
     )
-    system = skills.build_system_prompt(
+    system = _brain.skills.build_system_prompt(
         base=("You are NarAI generating J.K. Blaze's daily brief. "
               "Voice: direct, energizing, zero filler."),
     )
-    result = await router.call(prompt, tier="fast", system=system)
+    result = await _brain.router.call(prompt, tier="fast", system=system)
 
     return {
         "brief": result.get("content", ""),

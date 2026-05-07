@@ -3,7 +3,7 @@ import tempfile
 import time
 import pytest
 
-from narai.core.memory import MemoryStore
+from infra.brain.interface import MemoryStore  # type re-export — public surface
 from narai.core.patterns import (
     _extract_stat_patterns,
     get_proactive_context,
