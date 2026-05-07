@@ -184,10 +184,9 @@ def get_blueprint_variants(blueprint_id: int, provider_id: int) -> List[dict]:
 def _claude_json(prompt: str, max_tokens: int = 2000) -> Any:
     """Local Claude JSON helper. Returns {} on any failure — never raises."""
     try:
-        import anthropic
+        from core.claude_logged import create as _claude_create
         model = os.getenv("NARAI_MODEL", "claude-sonnet-4-6")
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        r = client.messages.create(
+        r = _claude_create(
             model=model,
             max_tokens=max_tokens,
             system=(
@@ -196,6 +195,7 @@ def _claude_json(prompt: str, max_tokens: int = 2000) -> Any:
                 "and dark fantasy / anime fans. Output pure JSON only — no prose."
             ),
             messages=[{"role": "user", "content": prompt}],
+            bot_name="printify_client",
         )
         raw = r.content[0].text.strip()
         raw = re.sub(r"^```(?:json)?\s*", "", raw, flags=re.MULTILINE)

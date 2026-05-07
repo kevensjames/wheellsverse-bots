@@ -83,7 +83,8 @@ async def _get_narai_response(text: str, channel_id: str, user_id: str | None = 
         # and 'discord:research:{uid}' (research drops).
         if user_id:
             try:
-                from narai.core.rag import query as rag_query
+                from infra.brain.interface import BrainClient
+                rag_query = BrainClient(user_id=str(user_id), mode="narai").rag.query
                 hits = rag_query(text, n=4, source_filter=f"discord:{user_id}")
                 if not hits:
                     hits = rag_query(text, n=4,
@@ -103,11 +104,12 @@ async def _get_narai_response(text: str, channel_id: str, user_id: str | None = 
         history = get_claude_history(conv_id, max_messages=15)
         add_message(conv_id, "user", text)
 
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        from core.claude_logged import create as _claude_create
         model = get_setting("default_model") or "claude-haiku-4-5-20251001"
-        resp = client.messages.create(
+        resp = _claude_create(
             model=model, max_tokens=1024, system=sys_prompt,
             messages=history + [{"role": "user", "content": text}],
+            bot_name=f"discord_chat:{user_id or 'anon'}",
         )
         response_text = resp.content[0].text if resp.content else "I couldn't process that request."
         add_message(conv_id, "assistant", response_text)
@@ -232,13 +234,14 @@ async def start_bot():
             tmp.close()
             try:
                 await att.save(tmp.name)
-                from narai.core import rag
+                from infra.brain.interface import BrainClient
+                _brain = BrainClient(user_id=str(message.author.id), mode="narai")
                 # Bug-fix: chromadb where-clause is exact match. Use a flat
                 # per-user label so /ask's source_filter=f"discord:{uid}"
                 # actually finds these chunks. Filename is shown in the reply
                 # below for traceability.
                 label = f"discord:{message.author.id}"
-                n_chunks = await rag.aingest(tmp.name, source_label=label)
+                n_chunks = await _brain.rag.aingest(tmp.name, source_label=label)
                 try:
                     await message.add_reaction("✅")
                 except Exception:

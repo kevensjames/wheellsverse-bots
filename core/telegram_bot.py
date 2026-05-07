@@ -88,13 +88,14 @@ async def _get_narai_response(text: str, chat_id: str) -> str:
         history = get_claude_history(conv_id, max_messages=20)
         add_message(conv_id, "user", text)
 
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+        from core.claude_logged import create as _claude_create
         model = get_setting("default_model") or "claude-haiku-4-5-20251001"
-        resp = client.messages.create(
+        resp = _claude_create(
             model=model,
             max_tokens=1024,
             system=sys_prompt,
             messages=history + [{"role": "user", "content": text}],
+            bot_name="telegram_chat",
         )
         response_text = resp.content[0].text if resp.content else "Sorry, I couldn't process that."
         add_message(conv_id, "assistant", response_text)
