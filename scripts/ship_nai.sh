@@ -94,12 +94,21 @@ else
 fi
 
 # ── 3. Smoke test ─────────────────────────────────────────────────────────────
-say "Smoke test: in-process TestClient hits /api/nai/config + /api/v2/nai/chat"
+# Prefer the project venv (has PyJWT, fastapi, etc.) over system python3.
+if [[ -x .venv/bin/python ]]; then
+  PY=.venv/bin/python
+elif command -v python3 >/dev/null 2>&1; then
+  PY=python3
+else
+  die "No python interpreter found." 1
+fi
+
+say "Smoke test: in-process TestClient hits /api/nai/config + /api/v2/nai/chat ($PY)"
 SMOKE_OUT=$(NARAI_FAST_MODEL=ollama/llama3.2 NARAI_DEEP_MODEL=ollama/llama3.2 \
             SUPABASE_URL=https://test.supabase.co \
             SUPABASE_ANON_KEY=test-anon-key \
             NARAI_JWT_SECRET="test-secret-for-smoke-32-bytes-min" \
-            python3 - <<'PY' 2>>"$LOG"
+            "$PY" - <<'PY' 2>>"$LOG"
 import os, json, jwt
 from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
@@ -140,7 +149,7 @@ print(json.dumps({
     "auth_reject": 401,
 }))
 PY
-) || die "Smoke test failed. Tail of $LOG:\n$(tail -20 "$LOG")" 3
+) || die "Smoke test failed. Tail of $LOG:"$'\n'"$(tail -20 "$LOG")" 3
 
 ok "Smoke test passed: $SMOKE_OUT"
 
