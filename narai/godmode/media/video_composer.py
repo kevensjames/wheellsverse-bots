@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-narai_godmode/media/video_composer.py
+narai/godmode/media/video_composer.py
 ─────────────────────────────────────────────────────────────────────────────
 Audio layer for generated videos.
 
@@ -11,7 +11,7 @@ Audio layer for generated videos.
 
 Delegates audio detection/mixing to core/video_engine.py — no duplication.
 
-Logging: narai_godmode/logs/media_pipeline.log
+Logging: narai/godmode/logs/media_pipeline.log
 Format:  timestamp | stage | status | asset_id | detail
 ─────────────────────────────────────────────────────────────────────────────
 """

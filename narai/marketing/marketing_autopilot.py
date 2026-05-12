@@ -70,8 +70,8 @@ if str(_MEDIA_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_MEDIA_ROOT))
 
 try:
-    from narai_godmode.media.image_composer import compose_post as _compose_post
-    from narai_godmode.media.video_composer import (
+    from narai.godmode.media.image_composer import compose_post as _compose_post
+    from narai.godmode.media.video_composer import (
         ValidationError as _ValidationError,
         ensure_audio_track as _ensure_audio_track,
         validate_before_publish as _validate_before_publish,

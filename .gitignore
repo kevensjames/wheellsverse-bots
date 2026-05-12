@@ -163,3 +163,8 @@ frontend/blog/_archive/
 # Uncomment after auditing which posts are hand-curated:
 # frontend/blog/*.html
 # !frontend/blog/index.html
+
+# Vector DB runtime state (do not commit)
+narai/data/chroma/
+narai.godmode/logs/
+narai/godmode/logs/

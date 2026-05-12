@@ -1,7 +1,7 @@
 """
 tests/test_image_composer.py
 ─────────────────────────────────────────────────────────────────────────────
-Tests for narai_godmode/media/image_composer.py.
+Tests for narai/godmode/media/image_composer.py.
 
 All tests run offline — no real DALL-E calls.
 OCR check: if pytesseract is installed, verify <5 chars of raw text bleed
@@ -22,7 +22,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from narai_godmode.media.image_composer import (
+from narai.godmode.media.image_composer import (
     _load_font,
     _wrap_text,
     add_text_overlay,
@@ -221,7 +221,7 @@ def test_generate_clean_image_returns_none_on_api_error():
 def test_compose_post_uses_fallback_canvas_when_dalle_unavailable(tmp_out):
     """When DALL-E returns None, compose_post should still produce a valid PNG."""
     with patch(
-        "narai_godmode.media.image_composer.generate_clean_image",
+        "narai.godmode.media.image_composer.generate_clean_image",
         return_value=None,
     ):
         path = compose_post(
@@ -238,7 +238,7 @@ def test_compose_post_uses_fallback_canvas_when_dalle_unavailable(tmp_out):
 
 def test_compose_post_output_is_valid_image(tmp_out):
     with patch(
-        "narai_godmode.media.image_composer.generate_clean_image",
+        "narai.godmode.media.image_composer.generate_clean_image",
         return_value=Image.new("RGBA", (1024, 1024), "#1a1a2e"),
     ):
         path = compose_post(
@@ -253,7 +253,7 @@ def test_compose_post_output_is_valid_image(tmp_out):
 
 def test_compose_post_with_subtext(tmp_out):
     with patch(
-        "narai_godmode.media.image_composer.generate_clean_image",
+        "narai.godmode.media.image_composer.generate_clean_image",
         return_value=None,
     ):
         path = compose_post(
@@ -267,7 +267,7 @@ def test_compose_post_with_subtext(tmp_out):
 
 def test_compose_post_without_subtext(tmp_out):
     with patch(
-        "narai_godmode.media.image_composer.generate_clean_image",
+        "narai.godmode.media.image_composer.generate_clean_image",
         return_value=None,
     ):
         path = compose_post(
@@ -281,7 +281,7 @@ def test_compose_post_without_subtext(tmp_out):
 def test_compose_post_brand_config_applied(tmp_out):
     custom_brand = {"bg": "#FF0000", "cyan": "#00FF00", "gold": "#0000FF", "white": "#EEEEEE"}
     with patch(
-        "narai_godmode.media.image_composer.generate_clean_image",
+        "narai.godmode.media.image_composer.generate_clean_image",
         return_value=None,
     ):
         path = compose_post(
@@ -295,7 +295,7 @@ def test_compose_post_brand_config_applied(tmp_out):
 
 def test_assert_safe_https_url_rejects_non_https():
     """SSRF guard must reject http://, file://, ftp:// schemes."""
-    from narai_godmode.media.image_composer import _assert_safe_https_url, _UnsafeURLError
+    from narai.godmode.media.image_composer import _assert_safe_https_url, _UnsafeURLError
     for bad in [
         "http://example.com/img.png",
         "file:///etc/passwd",
@@ -307,8 +307,8 @@ def test_assert_safe_https_url_rejects_non_https():
 
 def test_assert_safe_https_url_rejects_private_addresses(monkeypatch):
     """SSRF guard must reject loopback / RFC1918 / link-local resolutions."""
-    from narai_godmode.media.image_composer import _assert_safe_https_url, _UnsafeURLError
-    import narai_godmode.media.image_composer as ic_mod
+    from narai.godmode.media.image_composer import _assert_safe_https_url, _UnsafeURLError
+    import narai.godmode.media.image_composer as ic_mod
 
     # Force resolution to AWS metadata IP (link-local)
     monkeypatch.setattr(
@@ -323,7 +323,7 @@ def test_assert_safe_https_url_rejects_private_addresses(monkeypatch):
 def test_compose_post_subtext_does_not_overlap_headline(tmp_out):
     """Subtext y-position must start below the last wrapped headline line."""
     from PIL import ImageDraw
-    from narai_godmode.media.image_composer import _load_font, _wrap_text
+    from narai.godmode.media.image_composer import _load_font, _wrap_text
 
     captured: list[list[dict]] = []
     original_overlay = add_text_overlay
@@ -332,8 +332,8 @@ def test_compose_post_subtext_does_not_overlap_headline(tmp_out):
         captured.append(list(blocks))
         return original_overlay(img, blocks, **kw)
 
-    with patch("narai_godmode.media.image_composer.generate_clean_image", return_value=None), \
-         patch("narai_godmode.media.image_composer.add_text_overlay", side_effect=capturing_overlay):
+    with patch("narai.godmode.media.image_composer.generate_clean_image", return_value=None), \
+         patch("narai.godmode.media.image_composer.add_text_overlay", side_effect=capturing_overlay):
         compose_post(
             visual_prompt="test",
             headline="YOUR SAVINGS ACCOUNT IS ROBBING YOU BLIND",
@@ -360,9 +360,9 @@ def test_compose_post_subtext_does_not_overlap_headline(tmp_out):
 def test_compose_post_writes_media_log(tmp_out, monkeypatch):
     log_path = tmp_out / "media_pipeline.log"
     monkeypatch.setattr(
-        "narai_godmode.media.image_composer.MEDIA_LOG", log_path
+        "narai.godmode.media.image_composer.MEDIA_LOG", log_path
     )
-    with patch("narai_godmode.media.image_composer.generate_clean_image", return_value=None):
+    with patch("narai.godmode.media.image_composer.generate_clean_image", return_value=None):
         compose_post("Test", "LOG TEST", out_dir=tmp_out)
     assert log_path.exists()
     content = log_path.read_text()

@@ -53,7 +53,7 @@ def open_service(service: str, goto: str | None = None, headless: bool = False, 
     if not creds or creds["kind"] != "password":
         raise RuntimeError(
             f"No password creds for {service}. Run:\n"
-            f"  python -m narai_godmode.cli set {service}"
+            f"  python -m narai.godmode.cli set {service}"
         )
 
     target = goto or profile["home_url"]

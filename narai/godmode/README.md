@@ -42,21 +42,21 @@ Add to `~/.zshrc` so NarAI reads it on boot.
 
 ```bash
 # Store creds
-.venv/bin/python -m narai_godmode.cli set amazon_kdp
-.venv/bin/python -m narai_godmode.cli set printify
+.venv/bin/python -m narai.godmode.cli set amazon_kdp
+.venv/bin/python -m narai.godmode.cli set printify
 
 # List
-.venv/bin/python -m narai_godmode.cli list
+.venv/bin/python -m narai.godmode.cli list
 
 # Open (first run: fills login. Later runs: cookies stick)
-.venv/bin/python -m narai_godmode.cli open amazon_kdp create_paperback
-.venv/bin/python -m narai_godmode.cli open printify
+.venv/bin/python -m narai.godmode.cli open amazon_kdp create_paperback
+.venv/bin/python -m narai.godmode.cli open printify
 ```
 
 ### Call from NarAI
 
 ```python
-from narai_godmode import godmode
+from narai.godmode import godmode
 godmode("open amazon_kdp create_book")
 ```
 

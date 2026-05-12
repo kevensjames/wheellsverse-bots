@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """
-narai_godmode/media/image_composer.py
+narai/godmode/media/image_composer.py
 ─────────────────────────────────────────────────────────────────────────────
 Two-layer image pipeline:
   1. generate_clean_image()  →  DALL-E 3 with text-suppression suffix
   2. add_text_overlay()      →  Pillow draws headline/subtext on top
   3. compose_post()          →  orchestrates both + WheellsVerse branding
 
-Fonts: Inter-Bold.ttf / Inter-Regular.ttf (narai_godmode/media/fonts/)
+Fonts: Inter-Bold.ttf / Inter-Regular.ttf (narai/godmode/media/fonts/)
        falls back to system Helvetica or PIL default.
 
-Logging: narai_godmode/logs/media_pipeline.log
+Logging: narai/godmode/logs/media_pipeline.log
 Format:  timestamp | stage | status | asset_id | detail
 ─────────────────────────────────────────────────────────────────────────────
 """

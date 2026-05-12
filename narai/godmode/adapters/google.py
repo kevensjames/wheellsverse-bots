@@ -15,7 +15,7 @@ Setup (one time):
      /Volumes/Wheellsverse/wheellsverse_bots/data/google_credentials.json
   5. Add to .env:   GOOGLE_CREDENTIALS_JSON=/path/to/google_credentials.json
   6. Run the authorize flow (opens a browser):
-       python -m narai_godmode.cli google auth
+       python -m narai.godmode.cli google auth
 """
 from __future__ import annotations
 
