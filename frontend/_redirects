@@ -1,6 +1,10 @@
 # Cloudflare Pages _redirects
-# Root → landing page
-/                           /landing_page.html          200
+# Root: serve frontend/index.html natively (no rewrite). The previous
+# `/ → /landing_page.html (200)` rule composed with Cloudflare's automatic
+# .html-stripping into a 308 chain (/ → /landing_page), which strict review
+# crawlers (e.g. TikTok app reviewers) sometimes flag as "no homepage".
+# index.html and landing_page.html are byte-identical, so dropping the
+# rewrite is a no-op for users.
 
 # Sol — ROSCA savings platform
 /sol                        /sol/index.html             200
