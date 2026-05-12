@@ -2,14 +2,14 @@
 NarAI Godmode CLI + command router.
 
 CLI usage:
-  python -m narai_godmode.cli set amazon_kdp
-  python -m narai_godmode.cli set printify
-  python -m narai_godmode.cli list
-  python -m narai_godmode.cli open amazon_kdp create_book
-  python -m narai_godmode.cli open printify
+  python -m narai.godmode.cli set amazon_kdp
+  python -m narai.godmode.cli set printify
+  python -m narai.godmode.cli list
+  python -m narai.godmode.cli open amazon_kdp create_book
+  python -m narai.godmode.cli open printify
 
 Programmatic usage (for NarAI to call):
-  from narai_godmode.cli import godmode
+  from narai.godmode.cli import godmode
   godmode("open amazon_kdp create_book")
 """
 import sys

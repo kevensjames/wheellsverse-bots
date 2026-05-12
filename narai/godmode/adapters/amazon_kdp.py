@@ -21,7 +21,7 @@ def open_kdp(goal: str = "bookshelf", headless: bool = False, keep_open: bool = 
     if not creds or creds["kind"] != "password":
         raise RuntimeError(
             "No password creds for amazon_kdp. Run:\n"
-            "  python -m narai_godmode.cli set amazon_kdp"
+            "  python -m narai.godmode.cli set amazon_kdp"
         )
 
     target = GOALS.get(goal, GOALS["bookshelf"])

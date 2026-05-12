@@ -2,13 +2,13 @@
 NarAI book-launch fan-out — called after a KDP launch to cross-post on social.
 
 Usage from Python:
-    from narai_godmode.launch import post_to_all
+    from narai.godmode.launch import post_to_all
     result = post_to_all(title="My Book", genre="mystery",
                         ebook_url="...", paperback_url="...")
     # {"x": {ok, url}, "fb": {ok, id}, "ig": {ok, id}, "gmail": {ok, id}}
 
 Or from the CLI:
-    python -m narai_godmode.launch --title "My Book" --genre mystery \\
+    python -m narai.godmode.launch --title "My Book" --genre mystery \\
         --ebook-url "..." --paperback-url "..." [--dry-run]
 
 Dry-run prints all drafts to stdout without posting — use to review copy first.

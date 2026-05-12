@@ -4430,7 +4430,7 @@ async def google_oauth_url(request: Request):
     """Return the consent URL to redirect the user to."""
     import secrets, time as _t
     try:
-        from narai_godmode.adapters.google import build_authorization_url
+        from narai.godmode.adapters.google import build_authorization_url
     except Exception as e:
         return {"error": f"Google adapter import failed: {e}"}
 
@@ -4471,7 +4471,7 @@ async def google_oauth_callback(request: Request, code: str = "", error: str = "
 
     redirect_uri = _google_redirect_uri(request)
     try:
-        from narai_godmode.adapters.google import exchange_code, whoami
+        from narai.godmode.adapters.google import exchange_code, whoami
         exchange_code(code, redirect_uri)
         try:
             email = whoami().get("email", "(unknown)")
@@ -4495,7 +4495,7 @@ async def google_oauth_callback(request: Request, code: str = "", error: str = "
 async def google_status():
     """Report Google OAuth connection status with reconnect detection."""
     try:
-        from narai_godmode.adapters.google import (
+        from narai.godmode.adapters.google import (
             _load_creds_from_vault, whoami, needs_reconsent, GoogleReauthRequired,
         )
         # Option 2: if the refresh flag is set, tell dashboard to show reconnect banner.

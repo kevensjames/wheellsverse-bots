@@ -9,22 +9,22 @@ Design:
 Usage:
 
     # One-off: enqueue a book you just published
-    python -m narai_godmode.launch_queue add \\
+    python -m narai.godmode.launch_queue add \\
         --title "The Last Cartographer" --genre adventure \\
         --ebook-url "https://amazon.com/dp/B0XXXX" \\
         --paperback-url "https://amazon.com/dp/979XXXX"
 
     # Scan kdp_registry for newly-live books and auto-enqueue them
-    python -m narai_godmode.launch_queue detect
+    python -m narai.godmode.launch_queue detect
 
     # Process the queue once (cron-friendly)
-    python -m narai_godmode.launch_queue run
+    python -m narai.godmode.launch_queue run
 
     # Daemon mode — poll every 60s forever
-    python -m narai_godmode.launch_queue daemon --interval 60
+    python -m narai.godmode.launch_queue daemon --interval 60
 
     # List what's pending and what's been posted
-    python -m narai_godmode.launch_queue list
+    python -m narai.godmode.launch_queue list
 
 How "is it live?" is detected:
     A registry entry is considered LIVE when BOTH:
