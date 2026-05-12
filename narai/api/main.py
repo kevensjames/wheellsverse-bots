@@ -85,14 +85,19 @@ app.include_router(shopify_admin_rt)
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
+    email: str
     password: str
 
 
 @app.post("/api/v2/narai/auth/login")
 def login(req: LoginRequest) -> dict:
-    if not verify_password(req.password):
-        raise HTTPException(status_code=401, detail="Wrong password")
-    return {"token": create_token()}
+    """Email/password login. Delegates verification to Supabase auth, then
+    mints a NarAI-signed JWT carrying the user's UUID as ``sub``."""
+    from narai.api.auth import sign_in_with_supabase
+    user_id = sign_in_with_supabase(req.email, req.password)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return {"token": create_token(user_id)}
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
