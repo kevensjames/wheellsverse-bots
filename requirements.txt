@@ -148,3 +148,4 @@ edge-tts>=6.1.0
 
 # ── Server utilities ──────────────────────────────────────────────────────────
 psutil>=5.9.0
+cachetools>=5.5.0   # per-user BrainClient TTL cache in narai/api/dependencies/brain.py

@@ -7,6 +7,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from narai.api.auth import require_auth
+from narai.api.dependencies.brain import get_brain
 from infra.brain.interface import BrainClient
 from narai.core.db import ChatLog, SessionLocal
 from narai.core.extractor import extract_facts_async
@@ -21,19 +22,16 @@ rt = APIRouter(prefix="/chat", tags=["chat"])
 
 logger = logging.getLogger("narai.chat")
 
-# Single-user app — everything keyed to "owner" to match the JWT `sub` claim.
-_DEFAULT_USER_ID = "owner"
-
-# Single brain client for the developer / automation surface. All access to
-# router / memory / rag / skills / tiers goes through this object — direct
-# imports of brain modules are forbidden by architecture.
-_brain = BrainClient(user_id=_DEFAULT_USER_ID, mode="narai")
+# Per-request BrainClient is resolved via Depends(get_brain), keyed to the
+# JWT `sub` claim. Helpers take `brain` as an explicit parameter.
 
 # Step 7: per-user turn counter. Mining fires every N turns as a background task.
 _TURN_COUNTS: dict[str, int] = {}
 MINE_EVERY_N_TURNS = 10
 
-# Step 2 Memory Engine — lazy singleton so import doesn't touch disk.
+# Step 2 Memory Engine — lazy singleton so import doesn't touch disk. The
+# MemoryStore is process-wide (per-row user_id filtering happens inside it),
+# so there's no benefit to per-user instances.
 _memory_store = None
 
 # Hold references to fire-and-forget tasks so asyncio's garbage collector
@@ -42,19 +40,21 @@ _memory_store = None
 _BACKGROUND_TASKS: set = set()
 
 
-def _get_memory_store():
+def _get_memory_store(brain: BrainClient):
     global _memory_store
     if _memory_store is None:
-        _memory_store = _brain.memory.MemoryStore()
+        _memory_store = brain.memory.MemoryStore()
         logger.info(f"MemoryStore ready at {_memory_store.data_dir}")
     return _memory_store
 
 
-async def _extract_and_remember(user_message: str, user_id: str) -> None:
+async def _extract_and_remember(
+    brain: BrainClient, user_message: str, user_id: str
+) -> None:
     """Non-blocking fact extraction. Memory writes must never break the chat."""
     try:
         async def _llm(system: str, user: str) -> str:
-            resp = await _brain.router.call(user, tier="fast", system=system)
+            resp = await brain.router.call(user, tier="fast", system=system)
             return resp.get("content", "")
 
         new_facts = await extract_facts_async(user_message, _llm)
@@ -64,7 +64,7 @@ async def _extract_and_remember(user_message: str, user_id: str) -> None:
         )
         if not new_facts:
             return
-        store = _get_memory_store()
+        store = _get_memory_store(brain)
         for f in new_facts:
             stored = store.remember_fact(
                 user_id=user_id,
@@ -96,24 +96,24 @@ class ChatResponse(BaseModel):
     skill: str | None
 
 
-def _build_user_context(query: str) -> str | None:
-    """Facts + recent episodes for the owner, formatted for the identity prompt."""
+def _build_user_context(brain: BrainClient, user_id: str, query: str) -> str | None:
+    """Facts + recent episodes for the user, formatted for the identity prompt."""
     try:
-        store = _get_memory_store()
-        ctx = store.get_context(_DEFAULT_USER_ID, query=query)
+        store = _get_memory_store(brain)
+        ctx = store.get_context(user_id, query=query)
         return ctx or None
     except Exception as e:
         logger.warning(f"memory context failed (non-fatal): {e}")
         return None
 
 
-async def _detect_overwhelm(user_message: str):
+async def _detect_overwhelm(brain: BrainClient, user_message: str):
     """Step 3: two-pass overwhelm detection. Fast-pass runs regex; ambiguous
-    cases invoke a cheap LLM classifier via the NarAI _brain.router. Never raises —
+    cases invoke a cheap LLM classifier via the NarAI brain.router. Never raises —
     memory/identity must keep working if this fails.
     """
     async def _classifier(system: str, user: str) -> str:
-        resp = await _brain.router.call(user, tier="fast", system=system)
+        resp = await brain.router.call(user, tier="fast", system=system)
         return resp.get("content", "")
 
     try:
@@ -147,12 +147,14 @@ def _apply_override(user_message: str, user_id: str) -> None:
         logger.info(f"mode lock set for {user_id}: {cmd}")
 
 
-async def _route_mode(user_message: str, user_id: str, overwhelm_level: str):
+async def _route_mode(
+    brain: BrainClient, user_message: str, user_id: str, overwhelm_level: str
+):
     """Step 4: pick operator vs companion for this turn. Fast-pass regex first,
     deep LLM classifier only for the ambiguous band. Respects lock + overwhelm.
     """
     async def _classifier(system: str, user: str) -> str:
-        resp = await _brain.router.call(user, tier="fast", system=system)
+        resp = await brain.router.call(user, tier="fast", system=system)
         return resp.get("content", "")
 
     try:
@@ -174,6 +176,7 @@ async def _route_mode(user_message: str, user_id: str, overwhelm_level: str):
 
 
 async def run_pipeline_async(
+    brain: BrainClient,
     user_id: str,
     user_message: str,
     skill: str | None = None,
@@ -188,31 +191,31 @@ async def run_pipeline_async(
     its own episode tagging pattern. Memory-store episode logging + fact
     extraction still fire so conversation continuity works across channels.
     """
-    resolved_tier = tier or _brain.tiers.classify(user_message)
+    resolved_tier = tier or brain.tiers.classify(user_message)
     _apply_override(user_message, user_id)
-    mem_hits = await _brain.memory.arecall(user_message, n=4)
-    rag_hits = await _brain.rag.aquery(user_message, n=3)
-    overwhelm_state = await _detect_overwhelm(user_message)
+    mem_hits = await brain.memory.arecall(user_message, n=4, user_id=user_id)
+    rag_hits = await brain.rag.aquery(user_message, n=3)
+    overwhelm_state = await _detect_overwhelm(brain, user_message)
     mode_decision = await _route_mode(
-        user_message, user_id, overwhelm_state.level,
+        brain, user_message, user_id, overwhelm_state.level,
     )
 
     # Step 6: proactive pattern context (fast SQL read, no LLM).
-    proactive_ctx = get_proactive_context(user_id, _get_memory_store())
+    proactive_ctx = get_proactive_context(user_id, _get_memory_store(brain))
 
-    system = _brain.skills.build_system_prompt(
+    system = brain.skills.build_system_prompt(
         base=build_identity_prompt(
-            user_context=_build_user_context(user_message),
+            user_context=_build_user_context(brain, user_id, user_message),
             pattern_context=proactive_ctx or None,
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
         skill=skill,
-        memory_context=_brain.memory.format_recall(mem_hits) or None,
-        rag_context=_brain.rag.format_query(rag_hits) or None,
+        memory_context=brain.memory.format_recall(mem_hits) or None,
+        rag_context=brain.rag.format_query(rag_hits) or None,
     )
 
-    result = await _brain.router.call(
+    result = await brain.router.call(
         user_message,
         tier=resolved_tier,
         system=system,
@@ -222,7 +225,7 @@ async def run_pipeline_async(
     # Episode tag — mirrors /chat POST path so timelines stay coherent
     # regardless of which surface (REST or voice WS) the turn came from.
     try:
-        _get_memory_store().log_episode(
+        _get_memory_store(brain).log_episode(
             user_id,
             f"[mode={mode_decision.mode} overwhelm={overwhelm_state.level}] "
             f"User: {user_message}\nNarAI: {result['content']}",
@@ -230,7 +233,7 @@ async def run_pipeline_async(
     except Exception as e:
         logger.warning(f"episode log failed (non-fatal): {e}")
 
-    task = asyncio.create_task(_extract_and_remember(user_message, user_id))
+    task = asyncio.create_task(_extract_and_remember(brain, user_message, user_id))
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_BACKGROUND_TASKS.discard)
 
@@ -238,10 +241,10 @@ async def run_pipeline_async(
     _TURN_COUNTS[user_id] = _TURN_COUNTS.get(user_id, 0) + 1
     if _TURN_COUNTS[user_id] % MINE_EVERY_N_TURNS == 0:
         async def _mine_llm(system: str, user: str) -> str:
-            resp = await _brain.router.call(user, tier="fast", system=system)
+            resp = await brain.router.call(user, tier="fast", system=system)
             return resp.get("content", "")
         mine_task = asyncio.create_task(
-            mine_patterns_async(user_id, _get_memory_store(), _mine_llm)
+            mine_patterns_async(user_id, _get_memory_store(brain), _mine_llm)
         )
         _BACKGROUND_TASKS.add(mine_task)
         mine_task.add_done_callback(_BACKGROUND_TASKS.discard)
@@ -258,32 +261,36 @@ async def run_pipeline_async(
 
 
 @rt.post("", response_model=ChatResponse)
-async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse:
-    tier = req.tier or _brain.tiers.classify(req.message)
-    _apply_override(req.message, _DEFAULT_USER_ID)
-    mem_hits = await _brain.memory.arecall(req.message, n=4)
-    rag_hits = await _brain.rag.aquery(req.message, n=3)
-    overwhelm_state = await _detect_overwhelm(req.message)
+async def chat(
+    req: ChatRequest,
+    user_id: str = Depends(require_auth),
+    brain: BrainClient = Depends(get_brain),
+) -> ChatResponse:
+    tier = req.tier or brain.tiers.classify(req.message)
+    _apply_override(req.message, user_id)
+    mem_hits = await brain.memory.arecall(req.message, n=4, user_id=user_id)
+    rag_hits = await brain.rag.aquery(req.message, n=3)
+    overwhelm_state = await _detect_overwhelm(brain, req.message)
     mode_decision = await _route_mode(
-        req.message, _DEFAULT_USER_ID, overwhelm_state.level,
+        brain, req.message, user_id, overwhelm_state.level,
     )
 
     # Step 6: proactive pattern context (fast SQL read, no LLM).
-    proactive_ctx = get_proactive_context(_DEFAULT_USER_ID, _get_memory_store())
+    proactive_ctx = get_proactive_context(user_id, _get_memory_store(brain))
 
-    system = _brain.skills.build_system_prompt(
+    system = brain.skills.build_system_prompt(
         base=build_identity_prompt(
-            user_context=_build_user_context(req.message),
+            user_context=_build_user_context(brain, user_id, req.message),
             pattern_context=proactive_ctx or None,
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
         skill=req.skill,
-        memory_context=_brain.memory.format_recall(mem_hits) or None,
-        rag_context=_brain.rag.format_query(rag_hits) or None,
+        memory_context=brain.memory.format_recall(mem_hits) or None,
+        rag_context=brain.rag.format_query(rag_hits) or None,
     )
 
-    result = await _brain.router.call(
+    result = await brain.router.call(
         req.message,
         tier=tier,
         system=system,
@@ -305,8 +312,8 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
     # mine for patterns (e.g. "user slides into companion mode on Sundays",
     # "Nexora topic triggers overwhelm 60% of the time").
     try:
-        _get_memory_store().log_episode(
-            _DEFAULT_USER_ID,
+        _get_memory_store(brain).log_episode(
+            user_id,
             f"[mode={mode_decision.mode} overwhelm={overwhelm_state.level}] "
             f"User: {req.message}\nNarAI: {result['content']}",
         )
@@ -314,19 +321,19 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
         logger.warning(f"episode log failed (non-fatal): {e}")
 
     task = asyncio.create_task(
-        _extract_and_remember(req.message, _DEFAULT_USER_ID)
+        _extract_and_remember(brain, req.message, user_id)
     )
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_BACKGROUND_TASKS.discard)
 
     # Step 7: mine behavioral patterns every N turns (non-blocking).
-    _TURN_COUNTS[_DEFAULT_USER_ID] = _TURN_COUNTS.get(_DEFAULT_USER_ID, 0) + 1
-    if _TURN_COUNTS[_DEFAULT_USER_ID] % MINE_EVERY_N_TURNS == 0:
+    _TURN_COUNTS[user_id] = _TURN_COUNTS.get(user_id, 0) + 1
+    if _TURN_COUNTS[user_id] % MINE_EVERY_N_TURNS == 0:
         async def _mine_llm_rest(system: str, user: str) -> str:
-            resp = await _brain.router.call(user, tier="fast", system=system)
+            resp = await brain.router.call(user, tier="fast", system=system)
             return resp.get("content", "")
         mine_task = asyncio.create_task(
-            mine_patterns_async(_DEFAULT_USER_ID, _get_memory_store(), _mine_llm_rest)
+            mine_patterns_async(user_id, _get_memory_store(brain), _mine_llm_rest)
         )
         _BACKGROUND_TASKS.add(mine_task)
         mine_task.add_done_callback(_BACKGROUND_TASKS.discard)
@@ -341,35 +348,39 @@ async def chat(req: ChatRequest, _: str = Depends(require_auth)) -> ChatResponse
 
 
 @rt.post("/stream")
-async def chat_stream(req: ChatRequest, _: str = Depends(require_auth)) -> StreamingResponse:
-    tier = req.tier or _brain.tiers.classify(req.message)
-    _apply_override(req.message, _DEFAULT_USER_ID)
-    mem_hits = await _brain.memory.arecall(req.message, n=4)
-    rag_hits = await _brain.rag.aquery(req.message, n=3)
-    overwhelm_state = await _detect_overwhelm(req.message)
+async def chat_stream(
+    req: ChatRequest,
+    user_id: str = Depends(require_auth),
+    brain: BrainClient = Depends(get_brain),
+) -> StreamingResponse:
+    tier = req.tier or brain.tiers.classify(req.message)
+    _apply_override(req.message, user_id)
+    mem_hits = await brain.memory.arecall(req.message, n=4, user_id=user_id)
+    rag_hits = await brain.rag.aquery(req.message, n=3)
+    overwhelm_state = await _detect_overwhelm(brain, req.message)
     mode_decision = await _route_mode(
-        req.message, _DEFAULT_USER_ID, overwhelm_state.level,
+        brain, req.message, user_id, overwhelm_state.level,
     )
-    system = _brain.skills.build_system_prompt(
+    system = brain.skills.build_system_prompt(
         base=build_identity_prompt(
-            user_context=_build_user_context(req.message),
+            user_context=_build_user_context(brain, user_id, req.message),
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
         ),
         skill=req.skill,
-        memory_context=_brain.memory.format_recall(mem_hits) or None,
-        rag_context=_brain.rag.format_query(rag_hits) or None,
+        memory_context=brain.memory.format_recall(mem_hits) or None,
+        rag_context=brain.rag.format_query(rag_hits) or None,
     )
 
     async def generate():
-        async for chunk in _brain.router.stream(req.message, tier=tier, system=system):
+        async for chunk in brain.router.stream(req.message, tier=tier, system=system):
             yield f"data: {chunk}\n\n"
         yield "data: [DONE]\n\n"
 
     # Stream route: fire-and-forget fact extraction; episode logged only on
     # non-stream path so we don't re-assemble chunks here.
     task = asyncio.create_task(
-        _extract_and_remember(req.message, _DEFAULT_USER_ID)
+        _extract_and_remember(brain, req.message, user_id)
     )
     _BACKGROUND_TASKS.add(task)
     task.add_done_callback(_BACKGROUND_TASKS.discard)
@@ -382,9 +393,12 @@ async def chat_stream(req: ChatRequest, _: str = Depends(require_auth)) -> Strea
 # to guess from chat replies. Auth-gated via the same JWT as /chat.
 
 @rt.get("/memory/debug")
-async def memory_debug(_: str = Depends(require_auth)) -> dict:
-    store = _get_memory_store()
-    facts = store.recall_facts(_DEFAULT_USER_ID)
+async def memory_debug(
+    user_id: str = Depends(require_auth),
+    brain: BrainClient = Depends(get_brain),
+) -> dict:
+    store = _get_memory_store(brain)
+    facts = store.recall_facts(user_id)
     episode_count = store.episodes.count()
     grouped: dict[str, list[dict]] = {}
     for f in facts:
@@ -394,7 +408,7 @@ async def memory_debug(_: str = Depends(require_auth)) -> dict:
             "created_at": f.created_at,
         })
     return {
-        "user_id": _DEFAULT_USER_ID,
+        "user_id": user_id,
         "fact_count": len(facts),
         "episode_count": episode_count,
         "facts_by_category": grouped,

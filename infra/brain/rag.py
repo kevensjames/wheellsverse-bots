@@ -1,5 +1,8 @@
 """RAG pipeline — ingest PDF/MD/CSV/JSON/trade logs → chunk → embed → query.
-Documents are stored in the same ChromaDB instance as memories, separate collection."""
+Documents are stored in the same ChromaDB instance as memories, separate collection.
+
+RAG is intentionally global — shared knowledge base across all users.
+If per-user uploads land later, add user_id filter then."""
 from __future__ import annotations
 
 import asyncio
