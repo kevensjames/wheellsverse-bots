@@ -1,13 +1,16 @@
 """Chat route — accepts a prompt, returns NarAI's response with tier + memory + RAG."""
 import asyncio
 import logging
+import os
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from core.narai_user import TIER_CONFIG, increment_usage_via_rpc
 from narai.api.auth import require_auth
 from narai.api.dependencies.brain import get_brain
+from narai.api.dependencies.tier import get_user_tier, model_allowed_for_tier
 from infra.brain.interface import BrainClient
 from narai.core.db import ChatLog, SessionLocal
 from narai.core.extractor import extract_facts_async
@@ -21,6 +24,41 @@ from narai.core.patterns import get_proactive_context, mine_patterns_async
 rt = APIRouter(prefix="/chat", tags=["chat"])
 
 logger = logging.getLogger("narai.chat")
+
+
+def _enforce_quota(user_id: str, subscription_tier: str) -> None:
+    """Atomic quota check. Feature-flagged via NARAI_QUOTA_ENABLED so the
+    code can ship before the SQL function lands on the live DB. Fails open
+    if the RPC returns None (function missing / transport error)."""
+    if os.getenv("NARAI_QUOTA_ENABLED", "false").lower() != "true":
+        return
+    cfg = TIER_CONFIG.get(subscription_tier) or TIER_CONFIG["free"]
+    limit = cfg.get("messages_day")
+    if limit is None:
+        return
+    new_count = increment_usage_via_rpc(user_id)
+    if new_count is None:
+        logger.warning(f"quota RPC unavailable for user={user_id}; failing open")
+        return
+    if new_count > limit:
+        raise HTTPException(
+            status_code=402,
+            detail=f"daily message limit reached ({limit} for tier {subscription_tier})",
+        )
+
+
+def _enforce_model_whitelist(model: str, subscription_tier: str, user_id: str) -> None:
+    """Defense in depth: brain.router shouldn't pick models outside the
+    tier whitelist, but if it does we 403 instead of returning the result."""
+    if model_allowed_for_tier(model, subscription_tier):
+        return
+    logger.warning(
+        f"model whitelist violation: user={user_id} tier={subscription_tier} model={model}"
+    )
+    raise HTTPException(
+        status_code=403,
+        detail=f"model {model} not available on tier {subscription_tier}",
+    )
 
 # Per-request BrainClient is resolved via Depends(get_brain), keyed to the
 # JWT `sub` claim. Helpers take `brain` as an explicit parameter.
@@ -265,7 +303,11 @@ async def chat(
     req: ChatRequest,
     user_id: str = Depends(require_auth),
     brain: BrainClient = Depends(get_brain),
+    subscription_tier: str = Depends(get_user_tier),
 ) -> ChatResponse:
+    # Pre-call: atomic quota check (feature-flagged). Raises 402 on overflow.
+    _enforce_quota(user_id, subscription_tier)
+
     tier = req.tier or brain.tiers.classify(req.message)
     _apply_override(req.message, user_id)
     mem_hits = await brain.memory.arecall(req.message, n=4, user_id=user_id)
@@ -296,6 +338,10 @@ async def chat(
         system=system,
         history=req.history,
     )
+
+    # Post-call: enforce the tier model whitelist. Raises 403 if the router
+    # picked a model outside this subscription tier's allowed set.
+    _enforce_model_whitelist(result["model"], subscription_tier, user_id)
 
     async with SessionLocal() as session:
         session.add(ChatLog(
@@ -352,7 +398,15 @@ async def chat_stream(
     req: ChatRequest,
     user_id: str = Depends(require_auth),
     brain: BrainClient = Depends(get_brain),
+    subscription_tier: str = Depends(get_user_tier),
 ) -> StreamingResponse:
+    # Pre-call: atomic quota check (same as /chat). Raises 402 on overflow.
+    # TODO(week2.5): model whitelist post-check — streaming output doesn't
+    # expose the chosen model the way /chat does, so this lane is currently
+    # quota-only. Either teach brain.router.stream to emit a metadata frame
+    # with the model, or refactor it to accept allowed_models upfront.
+    _enforce_quota(user_id, subscription_tier)
+
     tier = req.tier or brain.tiers.classify(req.message)
     _apply_override(req.message, user_id)
     mem_hits = await brain.memory.arecall(req.message, n=4, user_id=user_id)
