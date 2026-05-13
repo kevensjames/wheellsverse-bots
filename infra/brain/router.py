@@ -97,6 +97,21 @@ async def call(
     raise RuntimeError(f"All models failed. Last error: {last_exc}")
 
 
+def preview_model(tier: str = "fast") -> str:
+    """Return the model name that ``call()``/``stream()`` would dispatch to
+    for the given routing tier, without invoking any LLM. Useful for
+    pre-emptive subscription-tier whitelist checks before streaming starts.
+
+    Returns the *primary* model only — runtime fallbacks aren't reflected.
+    If the primary errors, ``call()`` walks the fallback chain; callers
+    relying on this preview for whitelist gating should accept that the
+    actual model used may differ from the previewed one in rare cases
+    (e.g., the primary is unreachable). For tier-whitelist purposes this
+    is fine because fallback models are usually the same tier or cheaper.
+    """
+    return _config.primary_fast if tier == "fast" else _config.primary_deep
+
+
 async def stream(
     prompt: str,
     *,

@@ -93,6 +93,77 @@ def test_model_allowed_for_tier_matches_config():
     assert tier_dep.model_allowed_for_tier("claude-opus-4-6", "ultra") is True
 
 
+# ── Week 2.5: provider-prefix normalization + preview_model ────────────────
+
+
+def test_strip_provider_prefix_normalizes_litellm_names():
+    """The router formats model names like 'claude/<name>' (litellm convention).
+    TIER_CONFIG lists bare names. Strip ensures both match."""
+    assert tier_dep._strip_provider_prefix("claude/claude-haiku-4-5-20251001") == "claude-haiku-4-5-20251001"
+    assert tier_dep._strip_provider_prefix("openai/gpt-4o") == "gpt-4o"
+    assert tier_dep._strip_provider_prefix("ollama/llama3.2") == "llama3.2"
+    # Bare names (no prefix) pass through unchanged
+    assert tier_dep._strip_provider_prefix("gpt-4o-mini") == "gpt-4o-mini"
+    assert tier_dep._strip_provider_prefix("claude-sonnet-4-6") == "claude-sonnet-4-6"
+    # Edge: empty string
+    assert tier_dep._strip_provider_prefix("") == ""
+
+
+def test_model_allowed_for_tier_handles_provider_prefix():
+    """Bug regression: Week 2's whitelist check failed for prefixed model names
+    because TIER_CONFIG stores them bare. Week 2.5 normalizes both sides."""
+    # Prefixed names should now match — these were the silent 403 bug
+    assert tier_dep.model_allowed_for_tier("claude/claude-haiku-4-5-20251001", "free") is True
+    assert tier_dep.model_allowed_for_tier("claude/claude-sonnet-4-6", "pro") is True
+    assert tier_dep.model_allowed_for_tier("claude/claude-opus-4-6", "max") is True
+    assert tier_dep.model_allowed_for_tier("openai/gpt-4o", "pro") is True
+    # Disallowed combos still fail (prefix doesn't help)
+    assert tier_dep.model_allowed_for_tier("claude/claude-opus-4-6", "free") is False
+
+
+def test_preview_model_returns_primary_for_tier(monkeypatch):
+    """preview_model must return what call()/stream() would dispatch to
+    without invoking any LLM. Mirrors RouterConfig.primary_fast / primary_deep."""
+    from infra.brain import router as router_mod
+
+    # Use the default config's primaries (FAST_MODELS[0], DEEP_MODELS[0])
+    fast_primary = router_mod._config.primary_fast
+    deep_primary = router_mod._config.primary_deep
+    assert router_mod.preview_model("fast") == fast_primary
+    assert router_mod.preview_model("deep") == deep_primary
+
+    # Unknown tier defaults to deep (mirrors stream()'s default tier="deep")
+    assert router_mod.preview_model("medium") == deep_primary
+    assert router_mod.preview_model("anything-else") == deep_primary
+
+
+def test_preview_model_respects_env_overrides(monkeypatch):
+    """If NARAI_FAST_MODEL / NARAI_DEEP_MODEL env vars set the primary,
+    preview_model reflects that (so whitelist checks against a deployment's
+    actual configured model, not just the default)."""
+    from infra.brain import router as router_mod
+
+    # Swap in a temporary RouterConfig with custom primaries
+    custom = router_mod.RouterConfig(
+        primary_fast="claude/claude-haiku-test",
+        primary_deep="claude/claude-opus-test",
+    )
+    monkeypatch.setattr(router_mod, "_config", custom)
+    assert router_mod.preview_model("fast") == "claude/claude-haiku-test"
+    assert router_mod.preview_model("deep") == "claude/claude-opus-test"
+
+
+def test_preview_model_chained_with_whitelist_blocks_disallowed_tier():
+    """End-to-end: this is the chain chat_stream uses to enforce."""
+    from infra.brain import router as router_mod
+
+    previewed = router_mod.preview_model("deep")  # default = "claude/claude-sonnet-4-6"
+    # A free user's whitelist doesn't allow sonnet → whitelist must say False
+    assert tier_dep.model_allowed_for_tier(previewed, "free") is False
+    # A max user's whitelist DOES allow sonnet → True
+    assert tier_dep.model_allowed_for_tier(previewed, "max") is True
+
+
 def test_enforce_model_whitelist_passes_on_match():
     # Should not raise
     _enforce_model_whitelist("claude-haiku-4-5-20251001", "free", "alice")

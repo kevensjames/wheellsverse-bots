@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from narai.api.auth import create_token, verify_password
+from narai.api.auth import create_token
 from narai.api.routes.chat import rt as chat_rt
 from narai.api.routes.memory import rag_rt, rt as memory_rt
 from narai.api.routes.skills_route import rt as skills_rt

@@ -1,8 +1,5 @@
 """Multi-user JWT auth via Supabase. Email/password login route delegates to
 Supabase auth, then mints a NarAI-signed JWT with the real user UUID as `sub`.
-
-NARAI_PASSWORD_HASH path is retained as a fallback for the single-operator
-flow but is no longer the primary auth surface — Week 2.5 cleanup removes it.
 """
 import logging
 import os
@@ -17,21 +14,8 @@ log = logging.getLogger("narai.auth")
 _SECRET = os.getenv("NARAI_JWT_SECRET", "change-me-in-production-narai-2026")
 _ALGORITHM = "HS256"
 _TTL_HOURS = int(os.getenv("NARAI_JWT_TTL_HOURS", "72"))
-_PASSWORD_HASH = os.getenv("NARAI_PASSWORD_HASH", "")
 
 _bearer = HTTPBearer(auto_error=True)
-
-
-def verify_password(plain: str) -> bool:
-    """Legacy single-operator password check. Kept for backward compat only.
-
-    New code paths use Supabase auth via ``sign_in_with_supabase``.
-    """
-    import bcrypt as _bcrypt
-    if not _PASSWORD_HASH:
-        raise EnvironmentError("NARAI_PASSWORD_HASH not set")
-    pw_bytes = plain.encode("utf-8")[:72]
-    return _bcrypt.checkpw(pw_bytes, _PASSWORD_HASH.encode("utf-8"))
 
 
 def sign_in_with_supabase(email: str, password: str) -> str | None:

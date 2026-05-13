@@ -401,13 +401,16 @@ async def chat_stream(
     subscription_tier: str = Depends(get_user_tier),
 ) -> StreamingResponse:
     # Pre-call: atomic quota check (same as /chat). Raises 402 on overflow.
-    # TODO(week2.5): model whitelist post-check — streaming output doesn't
-    # expose the chosen model the way /chat does, so this lane is currently
-    # quota-only. Either teach brain.router.stream to emit a metadata frame
-    # with the model, or refactor it to accept allowed_models upfront.
     _enforce_quota(user_id, subscription_tier)
 
     tier = req.tier or brain.tiers.classify(req.message)
+
+    # Pre-call: model whitelist check via preview_model. Streaming output
+    # doesn't expose the chosen model post-hoc, so we use brain.router.preview_model
+    # to look up the primary model for this routing tier BEFORE any LLM call.
+    # Raises 403 if the user's subscription tier doesn't allow that model.
+    _enforce_model_whitelist(brain.router.preview_model(tier), subscription_tier, user_id)
+
     _apply_override(req.message, user_id)
     mem_hits = await brain.memory.arecall(req.message, n=4, user_id=user_id)
     rag_hits = await brain.rag.aquery(req.message, n=3)

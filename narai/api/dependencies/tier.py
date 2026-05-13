@@ -80,9 +80,27 @@ def require_tier(min_tier: str):
     return _check
 
 
+def _strip_provider_prefix(model: str) -> str:
+    """Normalize litellm-style provider-prefixed model names so the whitelist
+    check matches regardless of how the router formats them.
+
+    Examples:
+        ``claude/claude-haiku-4-5-20251001`` → ``claude-haiku-4-5-20251001``
+        ``openai/gpt-4o`` → ``gpt-4o``
+        ``ollama/llama3.2`` → ``llama3.2``
+        ``gpt-4o-mini`` → ``gpt-4o-mini`` (unchanged)
+    """
+    return model.split("/", 1)[1] if "/" in model else model
+
+
 def model_allowed_for_tier(model: str, tier: str) -> bool:
     """Return True if ``model`` is in ``tier``'s whitelist. Uses
-    TIER_CONFIG from core/narai_user.py as the single source of truth."""
+    TIER_CONFIG from core/narai_user.py as the single source of truth.
+
+    Provider prefixes (``claude/``, ``openai/``, ``ollama/``) are stripped
+    before comparison so litellm's full model names match TIER_CONFIG's
+    bare names.
+    """
     from core.narai_user import TIER_CONFIG
     cfg = TIER_CONFIG.get(tier) or TIER_CONFIG["free"]
-    return model in (cfg.get("models") or [])
+    return _strip_provider_prefix(model) in (cfg.get("models") or [])
