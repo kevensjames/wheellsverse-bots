@@ -8781,6 +8781,21 @@ async def stripe_webhook(request: Request):
     except Exception as _ds_err:
         _add_log(f"discord_subscription dispatch failed: {_ds_err}", "WARNING")
 
+    # NAI tier-upgrade bridge — Stripe → Supabase profiles.tier (Week 3).
+    # Acts only on prices matching STRIPE_PRICE_PRO / MAX / ULTRA. Other
+    # prices (Shopify-merchant, Bot Pack, Telegram, Discord) are skipped
+    # silently by the module's price-id filter.
+    try:
+        from narai.integrations import nai_subscription as _nai
+        if etype == "checkout.session.completed":
+            _nai.handle_checkout_completed(data)
+        elif etype in ("customer.subscription.created", "customer.subscription.updated"):
+            _nai.handle_subscription_updated(data)
+        elif etype == "customer.subscription.deleted":
+            _nai.handle_subscription_deleted(data)
+    except Exception as _nai_err:
+        _add_log(f"nai_subscription dispatch failed: {_nai_err}", "WARNING")
+
     # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
     if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
         try:
