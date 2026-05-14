@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from core.narai_user import TIER_CONFIG, increment_usage_via_rpc
 from narai.api.auth import require_auth
 from narai.api.dependencies.brain import get_brain
+from narai.api.dependencies.personality import get_user_personality
 from narai.api.dependencies.tier import get_user_tier, model_allowed_for_tier
 from infra.brain.interface import BrainClient
 from narai.core.db import ChatLog, SessionLocal
@@ -20,6 +21,7 @@ from narai.core.mode_router import (
     route_async, parse_override, modifier_for as mode_modifier_for,
 )
 from narai.core.patterns import get_proactive_context, mine_patterns_async
+from narai.core.personalities import modifier_for_personality
 
 rt = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -220,6 +222,7 @@ async def run_pipeline_async(
     skill: str | None = None,
     tier: str | None = None,
     history: list[dict] | None = None,
+    personality_slug: str | None = None,
 ) -> dict:
     """Shared Step 1-4 pipeline runner. Used by the /chat REST route and the
     /voice/ws WebSocket route. Returns a dict with reply, mode, overwhelm
@@ -228,6 +231,10 @@ async def run_pipeline_async(
     Does NOT persist to ChatLog (that's REST-specific); the voice route has
     its own episode tagging pattern. Memory-store episode logging + fact
     extraction still fire so conversation continuity works across channels.
+
+    ``personality_slug`` (Week 4-B) — when None, falls back to the default
+    archetype so the voice WS path (which doesn't yet resolve personality
+    per-connection) still gets a coherent system prompt.
     """
     resolved_tier = tier or brain.tiers.classify(user_message)
     _apply_override(user_message, user_id)
@@ -247,6 +254,7 @@ async def run_pipeline_async(
             pattern_context=proactive_ctx or None,
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
+            personality_modifier=modifier_for_personality(personality_slug),
         ),
         skill=skill,
         memory_context=brain.memory.format_recall(mem_hits) or None,
@@ -304,6 +312,7 @@ async def chat(
     user_id: str = Depends(require_auth),
     brain: BrainClient = Depends(get_brain),
     subscription_tier: str = Depends(get_user_tier),
+    personality_slug: str = Depends(get_user_personality),
 ) -> ChatResponse:
     # Pre-call: atomic quota check (feature-flagged). Raises 402 on overflow.
     _enforce_quota(user_id, subscription_tier)
@@ -326,6 +335,7 @@ async def chat(
             pattern_context=proactive_ctx or None,
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
+            personality_modifier=modifier_for_personality(personality_slug),
         ),
         skill=req.skill,
         memory_context=brain.memory.format_recall(mem_hits) or None,
@@ -399,6 +409,7 @@ async def chat_stream(
     user_id: str = Depends(require_auth),
     brain: BrainClient = Depends(get_brain),
     subscription_tier: str = Depends(get_user_tier),
+    personality_slug: str = Depends(get_user_personality),
 ) -> StreamingResponse:
     # Pre-call: atomic quota check (same as /chat). Raises 402 on overflow.
     _enforce_quota(user_id, subscription_tier)
@@ -423,6 +434,7 @@ async def chat_stream(
             user_context=_build_user_context(brain, user_id, req.message),
             overwhelm_modifier=modifier_for(overwhelm_state) or None,
             mode_modifier=mode_modifier_for(mode_decision) or None,
+            personality_modifier=modifier_for_personality(personality_slug),
         ),
         skill=req.skill,
         memory_context=brain.memory.format_recall(mem_hits) or None,
