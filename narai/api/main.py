@@ -24,6 +24,7 @@ from narai.api.routes.shopify_oauth import router as shopify_oauth_rt
 from narai.api.routes.shopify_webhooks import router as shopify_webhooks_rt
 from narai.api.routes.shopify_billing import api_router as shopify_billing_api_rt, webhook_router as shopify_billing_webhook_rt
 from narai.api.routes.shopify_admin import router as shopify_admin_rt
+from narai.api.routes.personality import rt as personality_rt
 from narai.api.routes.telegram import rt as telegram_rt
 from narai.core.db import init_db
 from infra.brain.resilience import breaker_status
@@ -73,6 +74,7 @@ app.include_router(creative_rt, prefix="/api/v2/narai")
 app.include_router(kdp_rt, prefix="/api/v2/narai")
 app.include_router(voice_rt, prefix="/api/v2/narai")
 app.include_router(telegram_rt, prefix="/api/v2/narai")
+app.include_router(personality_rt, prefix="/api/v2/narai")
 
 # Multi-tenant Shopify (no prefix — Shopify hits /shopify/install and /shopify/callback directly)
 app.include_router(shopify_oauth_rt)

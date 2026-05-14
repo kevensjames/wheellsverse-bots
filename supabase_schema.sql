@@ -166,6 +166,21 @@ begin
 end;
 $$;
 
+-- ─── PERSONALITY PRESET (Week 4-B) ──────────────────────────────────────────
+-- Per-user NarAI personality archetype (companion / coach / coder / writer /
+-- trader / strategist). Read by narai/api/dependencies/personality.py and
+-- injected into the chat system prompt via
+-- narai.core.identity.build_system_prompt(personality_modifier=...).
+--
+-- Backend reads default to "companion" if column is missing (fail-open),
+-- so the code can ship before this migration lands. Writes will 503 until
+-- the migration is applied.
+alter table public.profiles add column if not exists personality text
+  check (personality in (
+    'companion', 'coach', 'coder', 'writer', 'trader', 'strategist'
+  ))
+  default 'companion';
+
 -- ─── DONE ────────────────────────────────────────────────────────────────────
 -- After running this:
 -- 1. Go to Supabase → Settings → API
