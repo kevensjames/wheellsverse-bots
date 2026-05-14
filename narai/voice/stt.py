@@ -163,9 +163,28 @@ class WhisperCpp:
             return result.stdout.strip()
 
 
-def get_stt(provider: Provider = "openai") -> STTClient:
-    if provider == "whisper-cpp":
+def _resolve_default_provider() -> Provider:
+    """Pick the default STT provider from env.
+
+    Priority:
+      1. NARAI_STT_PROVIDER / STT_PROVIDER explicit setting (any known value)
+      2. LLM_BACKEND=ollama (or local/lmstudio/llamacpp) implies local STT,
+         keeping the local-LLM workflow consistent with the text path
+      3. Fall back to the OpenAI Whisper API
+    """
+    explicit = (os.getenv("NARAI_STT_PROVIDER") or os.getenv("STT_PROVIDER") or "").strip().lower()
+    if explicit in ("local", "openai", "whisper-cpp"):
+        return explicit  # type: ignore[return-value]
+    if (os.getenv("LLM_BACKEND") or "").strip().lower() in ("ollama", "local", "lmstudio", "llamacpp"):
+        return "local"
+    return "openai"
+
+
+def get_stt(provider: Provider | None = None) -> STTClient:
+    """Return an STT client. If provider is None, resolve from env."""
+    chosen = provider or _resolve_default_provider()
+    if chosen == "whisper-cpp":
         return WhisperCpp()
-    if provider == "local":
-        return LocalWhisper()
+    if chosen == "local":
+        return LocalWhisper(model_size=os.getenv("WHISPER_MODEL_SIZE", "base"))
     return OpenAIWhisper()

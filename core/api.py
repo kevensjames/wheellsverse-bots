@@ -8,6 +8,7 @@ Serves the web dashboard + REST endpoints for all bot operations.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import logging.handlers
@@ -201,7 +202,7 @@ async def verify_api_key(request: Request):
         or request.headers.get("x-api-key")
         or request.query_params.get("api_key")
     )
-    if key != _API_KEY:
+    if not key or not hmac.compare_digest(key, _API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -766,6 +767,22 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # HSTS — browsers remember to upgrade to HTTPS for 1 year.
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # CSP — admin/dashboard surfaces use inline JS+CSS, Google Fonts, and Shopify's image CDN.
+    # 'unsafe-inline' is required for the current admin pages; tightening to nonces is a separate refactor.
+    if request.url.path.startswith("/admin") or request.url.path == "/dashboard":
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "img-src 'self' https://cdn.shopify.com data: blob:; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
     # Prevent Fastly/CDN from caching API responses (especially 404s)
     if request.url.path.startswith("/api/") or request.url.path in ("/", "/landing"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -1131,6 +1148,20 @@ async def serve_admin_shopify():
     return _serve_frontend("admin/shopify.html", cache=False)
 
 
+# IMPORTANT: literal sub-paths must be registered BEFORE the {merchant_id}
+# param route below, otherwise FastAPI binds them as a merchant ID lookup.
+@app.get("/admin/shopify/revenue", response_class=HTMLResponse)
+async def serve_admin_shopify_revenue():
+    """Revenue dashboard — MRR by plan tier, paid-vs-free split."""
+    return _serve_frontend("admin/shopify-revenue.html", cache=False)
+
+
+@app.get("/admin/shopify/{merchant_id}", response_class=HTMLResponse)
+async def serve_admin_shopify_detail(merchant_id: str):
+    """Merchant detail — info, products, events, billing for one shop."""
+    return _serve_frontend("admin/shopify-detail.html", cache=False)
+
+
 # ─── NarAI User API ───────────────────────────────────────────────────────────
 
 from fastapi import Header
@@ -1478,6 +1509,15 @@ async def serve_theme_picker():
     Holographic-Drift / Bio-Synthetic). Pick one, then we convert it into a
     full Shopify theme."""
     return _serve_frontend("admin/theme-picker.html", cache=False)
+
+
+@app.get("/admin/wvkey", response_class=HTMLResponse)
+async def serve_wvkey_admin():
+    """wvkey vault info/runbook page. The vault itself lives on the Mac mini
+    host (~/.config/wvkey/vault.enc) with the master password in macOS Keychain
+    — this page is a launcher + documentation surface, NOT a remote vault UI.
+    Phase 2 (not built) would add a Mac-mini→Supabase status manifest sync."""
+    return _serve_frontend("admin/wvkey.html", cache=False)
 
 
 async def _serve_old_dashboard():
@@ -2912,13 +2952,13 @@ Write a report with:
 Keep total length under 600 words. Use clean HTML with inline styles. No markdown."""
 
     import os
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    from core.llm_client import safe_openai_call
+    resp = safe_openai_call(
         messages=[{"role": "user", "content": prompt}],
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         max_tokens=1500,
         temperature=0.6,
+        bot_name="api_weekly_report",
     )
     import re as _re
     html = resp.choices[0].message.content.strip()
@@ -3636,12 +3676,13 @@ Rules:
 
 Return ONLY the 7 tweets, separated by "---" on its own line. No other text."""
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    from core.llm_client import safe_openai_call
+    resp = safe_openai_call(
         messages=[{"role": "user", "content": prompt}],
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         max_tokens=900,
         temperature=0.8,
+        bot_name="api_tweets",
     )
     raw = resp.choices[0].message.content.strip()
     tweets = [t.strip() for t in raw.split("---") if t.strip()]
@@ -5913,12 +5954,12 @@ def _generate_reddit_post(title: str, category: str, url: str) -> Dict:
         '{"reddit_title":"<post title max 200 chars>","body":"<self-post body 150-250 words>","niche":"' + niche + '"}'
     )
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": prompt}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=500, temperature=0.75,
+            bot_name="api_reddit",
         )
         import re as _re
         raw = resp.choices[0].message.content.strip()
@@ -6277,12 +6318,12 @@ def _generate_tiktok_script(title: str, category: str, url: str,
         '{"hook":"<15-second attention-grabbing opening line>","script":"<45-second main content, 3-4 sentences>","caption":"<TikTok caption max 150 chars with emoji>","hashtags":["<tag1>","<tag2>","<tag3>","<tag4>","<tag5>"]}'
     )
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": prompt}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=400, temperature=0.8,
+            bot_name="api_tiktok",
         )
         import re as _re
         raw = resp.choices[0].message.content.strip()
@@ -6487,12 +6528,12 @@ async def generate_newsletter():
         "Keep it under 400 words. Use inline CSS. Make it look premium."
     )
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": prompt}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=1200, temperature=0.7,
+            bot_name="api_newsletter",
         )
         raw = resp.choices[0].message.content.strip()
     except Exception as e:
@@ -6702,11 +6743,13 @@ def _generate_ad_copy(product: str, ad_type: str, cta_url: str, tone: str, platf
         f"Return ONLY the ad copy, no labels or explanation."
     )
 
-    resp = openai.chat.completions.create(
-        model=model,
+    from core.llm_client import safe_openai_call
+    resp = safe_openai_call(
         messages=[{"role": "user", "content": prompt}],
+        model=model,
         max_tokens=300,
         temperature=0.85,
+        bot_name="api_ads",
     )
     return resp.choices[0].message.content.strip()
 
@@ -8024,14 +8067,14 @@ async def narai_generate_image(req: NarAIImageRequest):
     prompt = req.prompt.strip()[:800]
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt required")
-    allowed_sizes = {"1024x1024", "1792x1024", "1024x1792"}
+    allowed_sizes = {"1024x1024", "1536x1024", "1024x1536"}
     size = req.size if req.size in allowed_sizes else "1024x1024"
-    quality = req.quality if req.quality in {"standard", "hd"} else "standard"
+    quality = req.quality if req.quality in {"low", "medium", "high"} else "high"
     try:
         from openai import OpenAI as _OAI
         client = _OAI(api_key=os.getenv("OPENAI_API_KEY", ""))
         resp = client.images.generate(
-            model="dall-e-3",
+            model="gpt-image-1",
             prompt=prompt,
             size=size,
             quality=quality,
@@ -13474,6 +13517,7 @@ if _v2_auth_loaded:
         from narai.api.routes.chat import rt as _v2_chat_rt
         from narai.api.routes.memory import rag_rt as _v2_rag_rt, rt as _v2_memory_rt
         from narai.api.routes.skills_route import rt as _v2_skills_rt
+        from narai.api.routes.personality import rt as _v2_personality_rt
         from narai.core.db import init_db as _v2_init_db
         from infra.brain.resilience import breaker_status as _v2_breaker_status
 
@@ -13481,6 +13525,7 @@ if _v2_auth_loaded:
         app.include_router(_v2_memory_rt, prefix="/api/v2/narai")
         app.include_router(_v2_rag_rt, prefix="/api/v2/narai")
         app.include_router(_v2_skills_rt, prefix="/api/v2/narai")
+        app.include_router(_v2_personality_rt, prefix="/api/v2/narai")
 
         # init_db is async; register it on FastAPI's startup so it runs inside
         # the event loop. Calling asyncio.run() here fails when uvicorn imports
@@ -13820,6 +13865,29 @@ async def bug_hunter_scan(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_scan)
     return {"status": "started", "message": "Bug hunter scan started in background"}
+
+
+# ── Whop integration status (admin-gated by global X-API-Key middleware) ─────
+
+@app.get("/api/whop/status")
+async def whop_status():
+    """Whop connection health: auth + which permission tiers are reachable.
+    Mirrors the same shape as NARAI's /api/narai/whop/health so a single
+    frontend can consume either endpoint."""
+    try:
+        from narai.integrations.whop import WhopClient
+    except ImportError as e:
+        return {"auth": "fail", "errors": [f"whop integration unavailable: {e}"]}
+
+    try:
+        async with WhopClient() as c:
+            return await c.health()
+    except Exception as e:
+        return {
+            "auth": "fail",
+            "errors": [str(e)],
+            "endpoint": "https://api.whop.com/public-graphql",
+        }
 
 
 # ── Public landing-page endpoints (no auth, IP rate-limited) ─────────────────
