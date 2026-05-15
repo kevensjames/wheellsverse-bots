@@ -168,3 +168,15 @@ frontend/blog/_archive/
 narai/data/chroma/
 narai.godmode/logs/
 narai/godmode/logs/
+
+# === SUPPREMA cleanup additions ===
+data/piper_voices/
+frontend/tiktok*.txt
+frontend/.wrangler/
+narai/data/*.db
+narai/data/*.db-journal
+audit*.sh
+audit*.txt
+suppreme-audit*.txt
+/products/
+/tools/
