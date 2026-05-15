@@ -210,12 +210,11 @@ def _dalle_background(prompt: str, size: str) -> Optional[bytes]:
         return None
     try:
         body = json.dumps({
-            "model": "dall-e-3",
+            "model": "gpt-image-1",
             "prompt": prompt,
             "n": 1,
             "size": size,
-            "quality": "hd",
-            "response_format": "url",
+            "quality": "high",
         }).encode()
         req = urllib.request.Request(
             DALLE_URL,
