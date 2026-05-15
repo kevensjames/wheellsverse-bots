@@ -349,20 +349,26 @@ class BaseBookBot(BaseBot):
         except ImportError:
             pass
         # Fallback: generate directly if kdp_uploader not available
-        import openai
         import urllib.request
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
         prompt = (
             f"Professional book cover for a {self.genre} book titled '{title}'. "
             "Stunning, commercially publishable design. High contrast. "
             "Title text integrated naturally. Evocative, genre-appropriate artwork. "
             "No watermarks, no borders, clean professional design."
         )
-        resp = client.images.generate(
-            model="dall-e-3", prompt=prompt,
-            size="1024x1792",   # portrait — closest to KDP 6×9 ratio
-            quality="hd", n=1,
-        )
+        from core import local_image
+        if local_image.should_use_local() and local_image.is_available():
+            resp = local_image.generate(
+                prompt=prompt, size="1024x1536", quality="standard", n=1,
+            )
+        else:
+            import openai
+            client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+            resp = client.images.generate(
+                model="gpt-image-1", prompt=prompt,
+                size="1024x1536",   # portrait — closest to KDP 6×9 ratio (gpt-image-1 supported)
+                quality="high", n=1,
+            )
         img_url = resp.data[0].url
         covers_dir = Path(__file__).resolve().parents[2] / "outputs" / "books" / "covers" / "generated"
         covers_dir.mkdir(parents=True, exist_ok=True)

@@ -205,15 +205,32 @@ class MemoryStore:
         ]
 
     def _semantic_search(self, query: str, limit: int, tags: Optional[List[str]]) -> List[Dict]:
-        """Vector similarity search using OpenAI embeddings."""
+        """Vector similarity search using embeddings (OpenAI or local Ollama).
+
+        Routes to Ollama when LLM_BACKEND env routes local; otherwise uses
+        OpenAI's text-embedding-3-small. Local default model: nomic-embed-text.
+        Note: cached embeddings from a previous backend won't match new
+        queries (different vector spaces) — clearing entry.metadata.embedding
+        for impacted entries forces re-embed on next query.
+        """
         try:
             from openai import OpenAI
             import numpy as np
 
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
+            local = backend in ("ollama", "local", "lmstudio", "llamacpp")
+            if local:
+                client = OpenAI(
+                    base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+                    api_key=os.getenv("OLLAMA_API_KEY", "ollama"),
+                )
+                embed_model = os.getenv("OLLAMA_EMBED_MODEL", "nomic-embed-text")
+            else:
+                client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+                embed_model = "text-embedding-3-small"
 
             # Embed query
-            q_resp = client.embeddings.create(model="text-embedding-3-small", input=query)
+            q_resp = client.embeddings.create(model=embed_model, input=query)
             q_vec = q_resp.data[0].embedding
 
             results = []
@@ -222,11 +239,16 @@ class MemoryStore:
                     if tags and not any(t in entry.tags for t in tags):
                         continue
                     cached_emb = entry.metadata.get("embedding")
+                    # Drop cached embeddings from a different vector space
+                    # (e.g., OpenAI 1536-dim cached, now using nomic 768-dim).
+                    if cached_emb and len(cached_emb) != len(q_vec):
+                        cached_emb = None
+                        entry.metadata.pop("embedding", None)
                     if not cached_emb:
                         # Embed on demand
                         try:
                             r = client.embeddings.create(
-                                model="text-embedding-3-small",
+                                model=embed_model,
                                 input=entry.content[:2000]
                             )
                             cached_emb = r.data[0].embedding

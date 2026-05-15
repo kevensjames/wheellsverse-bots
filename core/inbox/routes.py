@@ -91,14 +91,16 @@ Rules:
 5. Return empty array if nothing to parse"""
 
     try:
-        response = openai_client.chat.completions.create(
-            model="gpt-4o-mini",
+        from core.llm_client import safe_openai_call
+        response = safe_openai_call(
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": text}
             ],
+            model="gpt-4o-mini",
             temperature=0.3,
             max_tokens=1000,
+            bot_name="inbox",
         )
         
         content = response.choices[0].message.content

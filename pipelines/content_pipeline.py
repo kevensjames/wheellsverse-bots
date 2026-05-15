@@ -93,21 +93,22 @@ class ContentGenerator:
     """
 
     def __init__(self, model: str = "gpt-4o-mini"):
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.model = model
         self.brand = os.getenv("BRAND_NAME", "WheellsVerse")
         self.author = os.getenv("AUTHOR_NAME", "J.K. Blaze")
         self.niche = os.getenv("BRAND_NICHE", "AI tools for making money, stock insights, and crypto trends")
 
     def _call(self, system: str, user: str, max_tokens: int = 2000) -> str:
-        resp = self.client.chat.completions.create(
-            model=self.model,
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": user},
             ],
+            model=self.model,
             max_tokens=max_tokens,
             temperature=0.75,
+            bot_name="content_pipeline",
         )
         return resp.choices[0].message.content.strip()
 

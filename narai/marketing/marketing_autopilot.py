@@ -230,7 +230,6 @@ Output format: Return ONLY valid JSON. No markdown. No code fences. No explanati
 
 class ContentGenerator:
     def __init__(self):
-        self._client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
         self._model = os.getenv("MARKETING_CLAUDE_MODEL", "claude-haiku-4-5-20251001")
 
     def _parse_json(self, raw: str) -> dict:
@@ -245,17 +244,16 @@ class ContentGenerator:
             raise
 
     async def _call(self, user_prompt: str) -> dict:
-        spend = _today_anthropic_spend()
-        if spend >= _DAILY_BUDGET:
-            raise RuntimeError(
-                f"Daily Anthropic budget (${_DAILY_BUDGET:.2f}) reached "
-                f"(spent ${spend:.4f}) — marketing_autopilot call blocked"
-            )
-        resp = await self._client.messages.create(
+        # claude_create is sync; offload to a thread so we don't block the
+        # event loop. The wrapper handles cloud vs Ollama routing internally.
+        from core.claude_logged import create as claude_create
+        resp = await asyncio.to_thread(
+            claude_create,
             model=self._model,
             max_tokens=2048,
             system=_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": user_prompt}],
+            bot_name="marketing_autopilot",
         )
         _log_usage(self._model,
                    resp.usage.input_tokens,

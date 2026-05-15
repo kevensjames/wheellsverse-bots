@@ -557,15 +557,20 @@ def _generate_front_cover_image(title: str, genre: str) -> Optional[Path]:
     )
 
     try:
-        client = openai.OpenAI(api_key=api_key)
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=prompt[:4000],
-            size="1024x1792",
-            quality="hd",
-            n=1,
-            response_format="b64_json",
-        )
+        from core import local_image
+        if local_image.should_use_local() and local_image.is_available():
+            response = local_image.generate(
+                prompt=prompt[:4000], size="1024x1536", quality="standard", n=1,
+            )
+        else:
+            client = openai.OpenAI(api_key=api_key)
+            response = client.images.generate(
+                model="gpt-image-1",
+                prompt=prompt[:4000],
+                size="1024x1536",
+                quality="high",
+                n=1,
+            )
         img_data = base64.b64decode(response.data[0].b64_json)
         safe = re.sub(r"[^a-zA-Z0-9_]", "_", title[:30])
         p = PAPERBACK_DIR / f"front_{genre}_{safe}.jpg"

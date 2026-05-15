@@ -270,11 +270,10 @@ def _dalle(prompt: str) -> Optional[str]:
         return None
 
     body = json.dumps({
-        "model": "dall-e-3",
+        "model": "gpt-image-1",
         "prompt": prompt[:4000],
         "size": "1024x1024",
-        "quality": "hd",
-        "style": "vivid",
+        "quality": "high",
         "n": 1,
     }).encode()
 

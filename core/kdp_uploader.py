@@ -152,14 +152,19 @@ def generate_cover(title: str, genre: str, dall_e_prompt: str = None) -> Path:
 
     logger.info("Generating cover for: %s (%s)", title, genre)
 
-    response = client.images.generate(
-        model="dall-e-3",
-        prompt=prompt,
-        size="1024x1024",
-        quality="hd",
-        n=1,
-        response_format="b64_json",
-    )
+    from core import local_image
+    if local_image.should_use_local() and local_image.is_available():
+        response = local_image.generate(
+            prompt=prompt, size="1024x1024", quality="standard", n=1,
+        )
+    else:
+        response = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size="1024x1024",
+            quality="high",
+            n=1,
+        )
 
     img_data = base64.b64decode(response.data[0].b64_json)
     safe_title = title.lower().replace(" ", "_").replace("'", "")[:30]

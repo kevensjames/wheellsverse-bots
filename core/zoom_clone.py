@@ -163,8 +163,12 @@ class CloneBrain:
         """
         Stream a response to what a meeting participant just said.
         Yields text tokens as they arrive.
+
+        Routes through core.narai_chat.stream_claude, which automatically
+        uses local Ollama when LLM_BACKEND=ollama, or the real Anthropic
+        async API otherwise.
         """
-        import anthropic
+        from core.narai_chat import stream_claude
 
         system = self.personality.build()
         self._history.append({"role": "user", "content": participant_said})
@@ -174,19 +178,12 @@ class CloneBrain:
             self._history = self._history[-self._max_history:]
 
         try:
-            client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
-            with client.messages.stream(
-                model=self.model,
-                max_tokens=300,       # short — this is live audio, not a blog post
-                system=system,
-                messages=self._history,
-            ) as stream:
-                full_reply = ""
-                for token in stream.text_stream:
-                    full_reply += token
-                    yield token
-                # Save assistant turn to history
-                self._history.append({"role": "assistant", "content": full_reply})
+            full_reply = ""
+            async for token in stream_claude(system, self._history, self.model):
+                full_reply += token
+                yield token
+            # Save assistant turn to history
+            self._history.append({"role": "assistant", "content": full_reply})
         except Exception as e:
             logger.error(f"[CloneBrain] Claude error: {e}")
             yield "Sorry, I had a technical issue. Could you repeat that?"

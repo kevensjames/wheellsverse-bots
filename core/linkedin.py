@@ -277,8 +277,7 @@ def generate_post(topic: str, niche: str = "general",
     LinkedIn format: hook → insight → data → CTA. Professional but human.
     """
     try:
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        from core.llm_client import safe_openai_call
 
         affiliate_hint = ""
         if include_affiliate:
@@ -286,8 +285,7 @@ def generate_post(topic: str, niche: str = "general",
             links = get_affiliate_links(niche)
             affiliate_hint = f"\nNaturally embed 1 affiliate recommendation: {links[:200]}"
 
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": (
                     f"You write LinkedIn posts for {BRAND} — an AI entrepreneur "
@@ -307,8 +305,10 @@ def generate_post(topic: str, niche: str = "general",
                     "Output only the post text."
                 )},
             ],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=500,
             temperature=0.78,
+            bot_name="linkedin",
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
@@ -319,10 +319,8 @@ def generate_post(topic: str, niche: str = "general",
 def repurpose_to_linkedin(blog_content: str, topic: str) -> str:
     """Condense a blog post into a LinkedIn post."""
     try:
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{
                 "role": "user",
                 "content": (
@@ -334,8 +332,10 @@ def repurpose_to_linkedin(blog_content: str, topic: str) -> str:
                     "Add 3 hashtags. Output only the post."
                 )
             }],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=400,
             temperature=0.7,
+            bot_name="linkedin",
         )
         return resp.choices[0].message.content.strip()
     except Exception as e:
@@ -350,11 +350,11 @@ def _generate_dalle_image(prompt: str) -> Optional[str]:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         resp = client.images.generate(
-            model="dall-e-3",
+            model="gpt-image-1",
             prompt=f"Professional LinkedIn cover image for: {prompt[:200]}. "
             "Modern, clean, dark theme, data visualization aesthetic.",
-            size="1792x1024",
-            quality="standard",
+            size="1536x1024",
+            quality="high",
             n=1,
         )
         return resp.data[0].url

@@ -164,8 +164,16 @@ def test_instagram_post(ig_account_id: str, page_token: str, openai_key: str) ->
         _print("  ⚠️  OPENAI_API_KEY not set — skipping Instagram test (image required)", "yellow")
         return True
 
-    # Generate a test image
+    # Generate a test image. NOTE: Instagram requires a publicly-reachable URL
+    # for the image, so local SDXL output (file://) won't work here — we
+    # skip the IG test entirely when local-image mode is on. Setup-time
+    # diagnostics shouldn't be billing-critical anyway.
     try:
+        from core import local_image
+        if local_image.should_use_local():
+            _print("  ⚠️  Local image mode enabled — skipping IG image test "
+                   "(Instagram needs a public URL, not file://)", "yellow")
+            return True
         from openai import OpenAI
         img = OpenAI(api_key=openai_key).images.generate(
             model="dall-e-3",

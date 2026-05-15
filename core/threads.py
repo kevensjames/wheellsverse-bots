@@ -250,8 +250,7 @@ def generate_post(topic: str, niche: str = "general",
     more thoughtful than Twitter.
     """
     try:
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        from core.llm_client import safe_openai_call
 
         style_guide = {
             "conversational": "Casual, relatable, like texting a smart friend. Ask a question.",
@@ -260,8 +259,7 @@ def generate_post(topic: str, niche: str = "general",
             "list": "Quick list: 3 things most people don't know about this topic.",
         }.get(style, "Casual and punchy.")
 
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": (
                     f"You write Threads posts for {BRAND}. "
@@ -276,8 +274,10 @@ def generate_post(topic: str, niche: str = "general",
                     "No more than 3 hashtags. Output only the post text."
                 )},
             ],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=200,
             temperature=0.82,
+            bot_name="threads",
         )
         return resp.choices[0].message.content.strip()[:MAX_CHARS]
     except Exception as e:
@@ -288,18 +288,18 @@ def generate_post(topic: str, niche: str = "general",
 def repurpose_from_twitter(tweet_thread: str, topic: str = "") -> str:
     """Convert a Twitter thread into a Threads post."""
     try:
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": (
                 f"Convert this Twitter thread into a single Threads post (max 480 chars).\n"
                 f"Topic: {topic}\n\nThread:\n{tweet_thread[:1500]}\n\n"
                 "Keep the best insight. Threads is more conversational than Twitter. "
                 "End with a question. No hashtag spam (max 2). Output only the post."
             )}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=200,
             temperature=0.75,
+            bot_name="threads",
         )
         return resp.choices[0].message.content.strip()[:MAX_CHARS]
     except Exception as e:
@@ -310,18 +310,18 @@ def repurpose_from_twitter(tweet_thread: str, topic: str = "") -> str:
 def repurpose_from_instagram(caption: str, topic: str = "") -> str:
     """Convert an Instagram caption into a Threads post."""
     try:
-        import openai
-        client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": (
                 f"Convert this Instagram caption into a Threads post (max 480 chars).\n"
                 f"Topic: {topic}\n\nCaption:\n{caption[:1000]}\n\n"
                 "Threads is text-first, more like a thoughtful tweet. "
                 "Remove excessive hashtags (keep max 2). Make it feel organic. Output only the post."
             )}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o"),
             max_tokens=200,
             temperature=0.75,
+            bot_name="threads",
         )
         return resp.choices[0].message.content.strip()[:MAX_CHARS]
     except Exception as e:
@@ -369,11 +369,11 @@ def _generate_image(prompt: str) -> Optional[str]:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         resp = client.images.generate(
-            model="dall-e-3",
+            model="gpt-image-1",
             prompt=f"Social media image for Threads post: {prompt}. "
             "Clean, modern, dark background, purple/cyan tech aesthetic.",
             size="1024x1024",
-            quality="standard",
+            quality="high",
             n=1,
         )
         return resp.data[0].url
