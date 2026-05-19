@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NAI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>NAI</h1>
+    <div class="controls">
+      <label><input type="checkbox" id="use-tools" /> Use tools (no streaming)</label>
+      <label><input type="checkbox" id="prefer-local" /> Prefer local (Ollama)</label>
+      <button id="new-conv" type="button">New conversation</button>
+    </div>
+  </header>
+
+  <main id="messages" aria-live="polite"></main>
+
+  <form id="composer">
+    <textarea id="input" rows="2" placeholder="Type a message…" required></textarea>
+    <button type="submit" id="send">Send</button>
+  </form>
+
+  <div id="status"></div>
+
+  <script src="chat.js"></script>
+</body>
+</html>

@@ -1,8 +1,11 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.routers import admin_data, auth, billing, predictions
+from app.routers import admin_data, auth, billing, nai, predictions
 
 
 app = FastAPI(
@@ -23,6 +26,15 @@ app.include_router(auth.router)
 app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
+app.include_router(nai.router)
+
+_NAI_STATIC = Path(__file__).parent / "static" / "nai"
+if _NAI_STATIC.exists():
+    app.mount(
+        "/nai-ui",
+        StaticFiles(directory=str(_NAI_STATIC), html=True),
+        name="nai-ui",
+    )
 
 
 @app.get("/")
