@@ -15,6 +15,7 @@ from app.services.router.types import (
     Intent,
     Message,
     Role,
+    ToolCallSpec,
     to_message_dicts,
 )
 
@@ -43,6 +44,7 @@ __all__ = [
     "Role",
     "Router",
     "SpendTracker",
+    "ToolCallSpec",
     "build_default_router",
     "calculate_cost",
     "classify_intent",

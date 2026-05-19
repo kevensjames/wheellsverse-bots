@@ -28,6 +28,14 @@ class Message:
 
 
 @dataclass(slots=True)
+class ToolCallSpec:
+    """Canonical (OpenAI-style) tool-call request returned by an adapter."""
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass(slots=True)
 class CompletionResult:
     """Unified result from any adapter."""
     content: str
@@ -39,6 +47,7 @@ class CompletionResult:
     latency_ms: int
     finish_reason: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    tool_calls: list[ToolCallSpec] = field(default_factory=list)
 
 
 def to_message_dicts(messages: list[Message] | list[dict]) -> list[dict]:

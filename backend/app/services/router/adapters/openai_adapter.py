@@ -1,6 +1,7 @@
 """OpenAI adapter — default for general chat."""
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
@@ -9,7 +10,7 @@ from typing import Iterator
 from openai import OpenAI
 
 from app.services.router.adapters.base import calculate_cost
-from app.services.router.types import CompletionResult
+from app.services.router.types import CompletionResult, ToolCallSpec
 
 logger = logging.getLogger(__name__)
 
@@ -39,19 +40,37 @@ class OpenAIAdapter:
         max_tokens: int = 1024,
         temperature: float = 0.7,
         system: str | None = None,
+        tools: list[dict] | None = None,
     ) -> CompletionResult:
         msgs = self._build_messages(messages, system)
+        kwargs: dict = {
+            "model": self.model,
+            "messages": msgs,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+        }
+        if tools:
+            kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
+
         start = time.time()
-        resp = self._client.chat.completions.create(
-            model=self.model,
-            messages=msgs,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
+        resp = self._client.chat.completions.create(**kwargs)
         latency_ms = int((time.time() - start) * 1000)
         choice = resp.choices[0]
         in_tok = resp.usage.prompt_tokens
         out_tok = resp.usage.completion_tokens
+
+        tc_specs: list[ToolCallSpec] = []
+        if choice.message.tool_calls:
+            for tc in choice.message.tool_calls:
+                try:
+                    args = json.loads(tc.function.arguments)
+                except json.JSONDecodeError:
+                    args = {"_raw": tc.function.arguments}
+                tc_specs.append(
+                    ToolCallSpec(id=tc.id, name=tc.function.name, arguments=args)
+                )
+
         return CompletionResult(
             content=choice.message.content or "",
             adapter=self.name,
@@ -61,6 +80,7 @@ class OpenAIAdapter:
             cost_usd=calculate_cost(self.model, in_tok, out_tok),
             latency_ms=latency_ms,
             finish_reason=choice.finish_reason,
+            tool_calls=tc_specs,
         )
 
     def stream(
