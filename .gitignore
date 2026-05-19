@@ -56,6 +56,8 @@ memory/
 # NAI/NarAI source package — must be tracked even though `memory/` is ignored above
 !services/narai/memory/
 !services/narai/memory/**
+!backend/app/services/memory/
+!backend/app/services/memory/**
 *.bak
 frontend/.netlify/
 frontend/netlify/
