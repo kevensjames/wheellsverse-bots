@@ -149,3 +149,8 @@ edge-tts>=6.1.0
 # ── Server utilities ──────────────────────────────────────────────────────────
 psutil>=5.9.0
 cachetools>=5.5.0   # per-user BrainClient TTL cache in narai/api/dependencies/brain.py
+
+# ── NAI / NarAI (Stage 0) ─────────────────────────────────────────────────────
+# openai/anthropic/httpx/tiktoken already pinned above with compatible floors.
+pgvector==0.3.6
+sse-starlette>=2.1.0,<3.0.0   # 3.x bumps starlette to 1.0 which breaks fastapi 0.115.x
