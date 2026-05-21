@@ -19,13 +19,34 @@ VENV="$REPO_ROOT/.venv"
 
 cd "$REPO_ROOT"
 
-# Source .env so every key becomes a real env var (allexport).
+# Source secrets. Two files, both contribute keys:
+#   - root .env      → OPENAI_API_KEY, ANTHROPIC_API_KEY, etc. (~230 keys)
+#   - backend/.env   → DATABASE_URL, JWT_SECRET_KEY (FastAPI's pydantic-settings
+#                       loads this directly; the wrapper sources it too so the
+#                       env-var assertions below catch a stale or missing value
+#                       before uvicorn boots).
+# Order matters: backend/.env LAST so its DATABASE_URL wins if both files
+# define it.
+#
+# `set +e` during sourcing because root .env has some keys with unquoted
+# spaces (e.g. EMAIL_FROM_NAME=WheellsVerse Bot) that make the shell treat
+# the second word as a command. We tolerate those bad lines (the well-formed
+# keys we care about — OPENAI_API_KEY, ANTHROPIC_API_KEY, DATABASE_URL,
+# JWT_SECRET_KEY — all have no spaces and parse cleanly).
+set +e
 if [ -f .env ]; then
     set -a
     # shellcheck disable=SC1091
-    . ./.env
+    . ./.env 2>/dev/null
     set +a
 fi
+if [ -f backend/.env ]; then
+    set -a
+    # shellcheck disable=SC1091
+    . ./backend/.env 2>/dev/null
+    set +a
+fi
+set -e
 
 # Fail loudly + early if any of these are missing.
 : "${DATABASE_URL:?DATABASE_URL missing — fix .env}"
