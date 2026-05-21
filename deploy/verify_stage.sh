@@ -137,6 +137,9 @@ run_check "git: branch"             git rev-parse --abbrev-ref HEAD
 run_check "git: clean tree"         bash -c 'test -z "$(git status --porcelain)"'
 run_check "python: version"         python --version
 run_check "venv: active"            bash -c 'test -n "${VIRTUAL_ENV:-}"'
+run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
+             "db: real connection (SQLAlchemy)" \
+             python deploy/db_check.py connect
 
 # ════════════════════════════════════════════════════════════════
 # STAGE-SPECIFIC CHECKS
@@ -158,7 +161,7 @@ case "$STAGE" in
     run_check "env: .env gitignored"                git check-ignore -q .env
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
                  "pgvector: extension enabled" \
-                 bash -c 'psql "${DIRECT_DATABASE_URL:-$DATABASE_URL}" -c "SELECT 1 FROM pg_extension WHERE extname='\''vector'\''" | grep -q "1 row"'
+                 python deploy/db_check.py extension vector
     run_check "ollama: responding"                  bash -c 'curl -sf http://127.0.0.1:11434/api/tags >/dev/null'
     run_check "decision log: 0001 committed"        test -f docs/decisions/0001-nai-scaffolding.md
     ;;
@@ -173,11 +176,11 @@ case "$STAGE" in
     run_check "retrieval: import"                   python -c "from app.services.memory.retrieval import search_memories, format_for_prompt"
     run_check "shim: services.narai.memory works"   python -c "from services.narai.memory import Memory"
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
-                 "schema: memories table exists" \
-                 bash -c 'psql "${DIRECT_DATABASE_URL:-$DATABASE_URL}" -c "\d memories" | grep -q embedding'
+                 "schema: memories.embedding column" \
+                 python deploy/db_check.py column memories embedding
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
                  "schema: ivfflat index exists" \
-                 bash -c 'psql "${DIRECT_DATABASE_URL:-$DATABASE_URL}" -c "\di memories*" | grep -q ix_memories_embedding'
+                 python deploy/db_check.py index memories ix_memories_embedding
     run_or_defer 'test -n "${OPENAI_API_KEY:-}"' \
                  "embeddings: real call returns 1536-dim" \
                  python -c "from app.services.memory.embeddings import embed_one; v=embed_one('hello'); assert len(v)==1536, f'got {len(v)}'"
@@ -199,8 +202,8 @@ case "$STAGE" in
     run_check "spend tracker: import"               python -c "from app.services.router.spend_tracker import SpendTracker"
     run_check "shim: services.narai.router works"   python -c "from services.narai.router import Router as R2; from app.services.router import Router as R1; assert R2 is R1"
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
-                 "schema: llm_call_log exists" \
-                 bash -c 'psql "${DIRECT_DATABASE_URL:-$DATABASE_URL}" -c "\d llm_call_log" | grep -q cost_usd'
+                 "schema: llm_call_log.cost_usd column" \
+                 python deploy/db_check.py column llm_call_log cost_usd
     run_check "intent tests"                        bash -c 'cd backend && pytest tests/test_intent.py -v --tb=short'
     run_check "router unit tests"                   bash -c 'cd backend && pytest tests/test_router.py -v --tb=short'
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
@@ -238,11 +241,11 @@ case "$STAGE" in
     run_check "static: chat.js exists"              test -f backend/app/static/nai/chat.js
     run_check "static: style.css exists"            test -f backend/app/static/nai/style.css
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
-                 "schema: conversations table" \
-                 bash -c 'psql "${DIRECT_DATABASE_URL:-$DATABASE_URL}" -c "\d conversations" | grep -q user_id'
+                 "schema: conversations.user_id column" \
+                 python deploy/db_check.py column conversations user_id
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
-                 "schema: messages table" \
-                 bash -c 'psql "${DIRECT_DATABASE_URL:-$DATABASE_URL}" -c "\d messages" | grep -q conversation_id'
+                 "schema: messages.conversation_id column" \
+                 python deploy/db_check.py column messages conversation_id
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
                  "brain tests" \
                  bash -c 'cd backend && pytest tests/test_brain.py -v --tb=short'
