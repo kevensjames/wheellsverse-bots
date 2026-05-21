@@ -139,7 +139,11 @@ PyJWT>=2.8.0
 # chromadb backs the episode store and RAG; litellm is the LLM router;
 # sqlalchemy[asyncio]+aiosqlite back the facts/patterns SQL store.
 chromadb>=0.5.0
-litellm>=1.83.0   # GHSA-jjhc-v7c2-5hh6 (Critical) + 3 High advisories survive through 1.80; bumping floor
+litellm==1.80.0   # PINNED: 1.83+ requires openai>=2.x which conflicts with `openai<2.0.0` two lines apart in this file.
+                   # The working venv has used 1.80.0 since the openai pin was set. Holding 1.80.0 keeps the file
+                   # reproducible (pip install -r resolves without resolver errors).
+                   # TODO(Phase B): bump openai to 2.x + litellm to >=1.83.0 (GHSA-jjhc-v7c2-5hh6 — Critical + 3 High
+                   # advisories survive through 1.80). Requires re-testing Stage 2 adapters against the openai 2.x API.
 sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.20.0
 
