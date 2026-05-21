@@ -20,11 +20,11 @@ If status is non-zero, see deploy/start_nai.sh's TCC note + 0006 decision log.
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/deploy/start_nai.sh</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/deploy/start_nai.sh</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots</string>
 
     <key>RunAtLoad</key>
     <true/>

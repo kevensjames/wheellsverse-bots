@@ -6,7 +6,7 @@ business logic — running the code Stages 0–4 produced.
 For the broader WheellsVerse bot deployment (Docker / Railway / Fly), see
 `README.md` in the same directory. The two are independent.
 
-> **TCC heads-up:** the repo lives at `/Volumes/Wheellsverse/wheellsverse_bots`.
+> **TCC heads-up:** the repo lives at `/Users/jhonwheeler/wheellsverse_bots`.
 > macOS Transparency, Consent, and Control may block LaunchAgents whose
 > executable lives on an external volume. See "TCC mitigation" below before
 > `launchctl load -w`.
@@ -33,7 +33,7 @@ For the broader WheellsVerse bot deployment (Docker / Railway / Fly), see
 Before installing any LaunchAgent, confirm NAI runs by hand end-to-end:
 
 ```bash
-cd /Volumes/Wheellsverse/wheellsverse_bots
+cd /Users/jhonwheeler/wheellsverse_bots
 source .venv/bin/activate
 cd backend
 uvicorn app.main:app --host 127.0.0.1 --port 8001
@@ -103,7 +103,7 @@ sudo newsyslog -nv     # dry-run; lists every log without errors
 
 ```bash
 (crontab -l 2>/dev/null; \
- echo "*/5 * * * * /Volumes/Wheellsverse/wheellsverse_bots/deploy/health_check.sh") \
+ echo "*/5 * * * * /Users/jhonwheeler/wheellsverse_bots/deploy/health_check.sh") \
  | crontab -
 
 crontab -l | grep health_check
@@ -166,7 +166,7 @@ the agent doesn't appear at all. Three options:
    ```
    Edit `~/Library/LaunchAgents/com.wheellsverse.nai.plist` so
    `ProgramArguments` points at `/Users/jhonwheeler/bin/start_nai.sh`. The
-   wrapper still cd's into `/Volumes/Wheellsverse/wheellsverse_bots` to run
+   wrapper still cd's into `/Users/jhonwheeler/wheellsverse_bots` to run
    uvicorn from the venv there.
 3. **Pivot to a Login Item .app bundle.** The user's existing NarAI Supreme
    v1 already uses this pattern. More setup than a plist but TCC-clean. See

@@ -2,7 +2,7 @@
 # WheellsVerse Dashboard — persistent launcher for launchd
 # Waits for the Wheellsverse volume, then starts the dashboard.
 
-BOTS_DIR="/Volumes/Wheellsverse/wheellsverse_bots"
+BOTS_DIR="/Users/jhonwheeler/wheellsverse_bots"
 PYTHON="$BOTS_DIR/venv/bin/python"
 LOG="$BOTS_DIR/logs/dashboard.log"
 

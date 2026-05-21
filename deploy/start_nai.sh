@@ -6,17 +6,15 @@
 # is world-readable under ~/Library/LaunchAgents/). The plist runs this
 # script; this script does the sourcing.
 #
-# TCC note: this script is committed inside the repo at /Volumes/Wheellsverse,
-# but macOS may block LaunchAgents executing from external volumes. If
-# `launchctl list | grep wheellsverse` shows a non-zero exit status, either:
-#   1. Grant "External Volumes" access to the LaunchAgent in System
-#      Settings → Privacy & Security → Files and Folders.
-#   2. Copy this script to ~/bin/start_nai.sh and point the plist there.
-#   3. Pivot to the existing Login Item .app pattern (see 0006 decision log).
+# Repo lives on the Mac mini's internal SSD (post-migration from
+# /Volumes/Wheellsverse, see commit history). The original TCC concern
+# from Stage 5 is moot now — internal-disk paths are always mounted before
+# login and macOS does not gate them with the External-Volumes prompt.
+# Override REPO_ROOT only if testing the wrapper from a different checkout.
 
 set -euo pipefail
 
-REPO_ROOT="${NAI_REPO_ROOT:-/Volumes/Wheellsverse/wheellsverse_bots}"
+REPO_ROOT="${NAI_REPO_ROOT:-/Users/jhonwheeler/wheellsverse_bots}"
 VENV="$REPO_ROOT/.venv"
 
 cd "$REPO_ROOT"

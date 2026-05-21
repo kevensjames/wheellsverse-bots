@@ -8,13 +8,13 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing/venv/bin/python3</string>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing/marketing_autopilot.py</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/narai/marketing/venv/bin/python3</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/narai/marketing/marketing_autopilot.py</string>
         <string>daemon</string>
     </array>
 
     <key>WorkingDirectory</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/narai/marketing</string>
 
     <key>KeepAlive</key>
     <true/>
@@ -23,15 +23,15 @@
     <true/>
 
     <key>StandardOutPath</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing/logs/autopilot.log</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/narai/marketing/logs/autopilot.log</string>
 
     <key>StandardErrorPath</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing/logs/autopilot.err</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/narai/marketing/logs/autopilot.err</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>PATH</key>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/narai/marketing/venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/narai/marketing/venv/bin:/usr/local/bin:/usr/bin:/bin</string>
     </dict>
 </dict>
 </plist>

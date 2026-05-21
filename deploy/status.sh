@@ -2,10 +2,10 @@
 # One-command Phase A health snapshot. Run anytime:
 #   ./deploy/status.sh
 # or alias it:
-#   alias nai-status='/Volumes/Wheellsverse/wheellsverse_bots/deploy/status.sh'
+#   alias nai-status='/Users/jhonwheeler/wheellsverse_bots/deploy/status.sh'
 set +e
 
-REPO_ROOT="/Volumes/Wheellsverse/wheellsverse_bots"
+REPO_ROOT="/Users/jhonwheeler/wheellsverse_bots"
 LOG_DIR="/Users/jhonwheeler/Library/Logs/wheellsverse"
 
 echo "─── NAI Phase A status ──────────────────────────────"

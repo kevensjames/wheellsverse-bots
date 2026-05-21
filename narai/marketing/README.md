@@ -64,7 +64,7 @@ Output files are saved as `output/{slug}.json`. Review them, edit if needed, the
 
 ## Plug Into NarAI Backend
 
-Add these 3 lines near the **bottom** of `/Volumes/Wheellsverse/wheellsverse_bots/core/api.py`, after the `app = FastAPI(...)` line:
+Add these 3 lines near the **bottom** of `/Users/jhonwheeler/wheellsverse_bots/core/api.py`, after the `app = FastAPI(...)` line:
 
 ```python
 import sys

@@ -27,7 +27,7 @@ import urllib.request
 
 from dotenv import load_dotenv
 
-load_dotenv("/Volumes/Wheellsverse/wheellsverse_bots/.env", override=True)
+load_dotenv("/Users/jhonwheeler/wheellsverse_bots/.env", override=True)
 
 TOKEN = os.environ["DISCORD_BOT_TOKEN"]
 GUILD = os.environ["DISCORD_GUILD_ID"]

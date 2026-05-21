@@ -50,7 +50,7 @@ The committed plists assume option 1 or 2. The decision of which to use is opera
 
 ## Verification status
 - [x] All six artifacts written. Shell scripts use `set -e`/`set -u` discipline. Plists use modern `KeepAlive` dict shape.
-- [x] Paths match the actual Mac mini: `/Users/jhonwheeler/` (not `/Users/jhon/`), `/usr/local/bin/ollama` (not `/opt/homebrew/bin/ollama`), `/Volumes/Wheellsverse/wheellsverse_bots/` (not `…/admin`).
+- [x] Paths match the actual Mac mini: `/Users/jhonwheeler/` (not `/Users/jhon/`), `/usr/local/bin/ollama` (not `/opt/homebrew/bin/ollama`), `/Users/jhonwheeler/wheellsverse_bots/` (not `…/admin`).
 - [ ] **Manual pre-flight (uvicorn + browser sanity) — NOT RUN.** Depends on the carried-forward operator gap (`DATABASE_URL`, three API keys exported, JWT issuance via `/auth/login`).
 - [ ] **`launchctl load -w` + endpoint curls — NOT RUN.** Same gap.
 - [ ] **Reboot test — NOT RUN.** Operator only.

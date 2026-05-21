@@ -12,7 +12,7 @@ Setup (one time):
      Sheets, Docs, People (Contacts), Photos Library
   3. APIs & Services → Credentials → Create → OAuth client ID → Desktop app
   4. Download the JSON, save it somewhere NarAI can read, e.g.:
-     /Volumes/Wheellsverse/wheellsverse_bots/data/google_credentials.json
+     /Users/jhonwheeler/wheellsverse_bots/data/google_credentials.json
   5. Add to .env:   GOOGLE_CREDENTIALS_JSON=/path/to/google_credentials.json
   6. Run the authorize flow (opens a browser):
        python -m narai.godmode.cli google auth

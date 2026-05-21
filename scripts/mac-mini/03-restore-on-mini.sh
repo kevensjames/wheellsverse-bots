@@ -12,7 +12,7 @@
 # PREREQS
 #   01-bootstrap.sh already ran. New terminal opened so PATH/mise/brew live.
 #   The repo exists on this mini (either on the external drive at
-#   /Volumes/Wheellsverse/wheellsverse_bots, or freshly cloned).
+#   /Users/jhonwheeler/wheellsverse_bots, or freshly cloned).
 #
 # USAGE
 #   bash 03-restore-on-mini.sh /path/to/wheellsverse-secrets-*.tar.gz.gpg

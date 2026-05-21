@@ -7,8 +7,8 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/.venv/bin/python</string>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/scripts/check_env_drift.py</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin/python</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/scripts/check_env_drift.py</string>
     </array>
 
     <!-- Mondays at 09:13 (off-minute, off-hour to avoid the cron stampede) -->
@@ -23,12 +23,12 @@
     </dict>
 
     <key>WorkingDirectory</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots</string>
 
     <key>StandardOutPath</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/logs/envdrift_weekly.log</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/logs/envdrift_weekly.log</string>
     <key>StandardErrorPath</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/logs/envdrift_weekly_error.log</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/logs/envdrift_weekly_error.log</string>
 
     <key>RunAtLoad</key>
     <false/>
