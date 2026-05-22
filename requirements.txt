@@ -158,3 +158,10 @@ cachetools>=5.5.0   # per-user BrainClient TTL cache in narai/api/dependencies/b
 # openai/anthropic/httpx/tiktoken already pinned above with compatible floors.
 pgvector==0.3.6
 sse-starlette>=2.1.0,<3.0.0   # 3.x bumps starlette to 1.0 which breaks fastapi 0.115.x
+
+# ── Composio SaaS tool runtime (Stage 6 prep) ──────────────────────────────────
+# composio==0.13.1 ships as composio (SDK wrapper) + composio-client (HTTP layer).
+# The wrapper reports version 1.0.0-rc2 at runtime — pinning the pypi release
+# tag, not the internal version. Backend uses `composio.Composio(api_key=...)
+# .client.tools.execute(...)` directly; no provider adapter needed.
+composio==0.13.1
