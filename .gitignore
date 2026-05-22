@@ -72,8 +72,13 @@ frontend/netlify/
 
 # Claude config: ship the shared base (`settings.json` — repo-wide hooks
 # + permissions) but keep per-developer overrides + caches ignored.
+# Project-local skills (`.claude/skills/<name>/SKILL.md`) ship with the repo
+# so the truth-verification protocol and any future skills are discoverable
+# by every clone.
 .claude/*
 !.claude/settings.json
+!.claude/skills/
+!.claude/skills/**
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 

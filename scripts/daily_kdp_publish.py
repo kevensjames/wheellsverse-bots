@@ -166,6 +166,7 @@ def publish_kindle(item: dict, *, auto_publish: bool, headless: bool) -> dict:
         manuscript_path=manuscript_path or None,
         auto_publish=auto_publish,
         headless=headless,
+        title=item.get("title") or None,
     )
 
 
