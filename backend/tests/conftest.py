@@ -6,9 +6,93 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
+from sqlalchemy import Column, Table, event
+from sqlalchemy.dialects.postgresql import UUID
+
 from app.database import Base, get_db
 from app.main import app
 from app import models  # noqa: F401  — register all tables on Base.metadata
+
+
+# ── Schema-drift stub: `profiles` ──────────────────────────────────────
+# `Conversation.user_id`, `Message.user_id`, and `LLMCallLog.user_id` all
+# FK to `profiles.id`, inherited from the NarAI v1 Supabase auth pattern
+# (auth.users → profiles trigger). But the SQLAlchemy `User` model owns
+# the `users` table, and `/auth/signup` writes there — so prod has a
+# schema-drift bug (signup-created users have no profile row; downstream
+# inserts violate FK). Operator must align this in Phase B (either move
+# all FKs to users.id, or create a profiles row on signup via a trigger).
+#
+# For tests, declare a minimal `profiles` table on Base.metadata so
+# create_all() can resolve the FK target — and event-mirror every User
+# insert into profiles so the FK is always satisfied. Test-only;
+# production schema is owned by Alembic + Supabase migrations.
+if "profiles" not in Base.metadata.tables:
+    _profiles = Table(
+        "profiles",
+        Base.metadata,
+        Column("id", UUID(as_uuid=True), primary_key=True),
+    )
+
+    @event.listens_for(models.user.User, "after_insert")
+    def _mirror_user_to_profiles(_mapper, connection, target):  # type: ignore[no-untyped-def]
+        connection.execute(_profiles.insert().values(id=target.id))
+
+
+# ── Schema-drift stub: `llm_call_log` ─────────────────────────────────
+# Created in Alembic migration 0004 (Stage 2) but never given a SQLAlchemy
+# model — `spend_tracker.py` writes via raw SQL. So `create_all()` doesn't
+# know about it. Declare a matching shadow table here so test setup
+# creates it. Schema mirrors alembic/versions/0004_add_llm_call_log_table.py
+# exactly; keep them in sync if either changes.
+from sqlalchemy import (  # noqa: E402
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB  # noqa: E402
+
+if "llm_call_log" not in Base.metadata.tables:
+    Table(
+        "llm_call_log",
+        Base.metadata,
+        Column(
+            "id",
+            UUID(as_uuid=True),
+            primary_key=True,
+            server_default=text("gen_random_uuid()"),
+        ),
+        Column(
+            "user_id",
+            UUID(as_uuid=True),
+            ForeignKey("profiles.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        Column("adapter", String(50), nullable=False),
+        Column("model", String(100), nullable=False),
+        Column("input_tokens", Integer, nullable=False, server_default="0"),
+        Column("output_tokens", Integer, nullable=False, server_default="0"),
+        Column("cost_usd", Numeric(10, 6), nullable=False, server_default="0"),
+        Column("latency_ms", Integer, nullable=True),
+        Column("success", Boolean, nullable=False, server_default=text("true")),
+        Column("error_message", Text, nullable=True),
+        Column("metadata", JSONB, nullable=False, server_default=text("'{}'::jsonb")),
+        Column(
+            "created_at",
+            DateTime(timezone=True),
+            nullable=False,
+            server_default=text("NOW()"),
+        ),
+        Index("ix_llm_call_log_user_id_created_at", "user_id", text("created_at DESC")),
+        Index("ix_llm_call_log_adapter_created_at", "adapter", text("created_at DESC")),
+        Index("ix_llm_call_log_created_at", text("created_at DESC")),
+    )
 
 
 TEST_DATABASE_URL = os.getenv(

@@ -265,8 +265,11 @@ case "$STAGE" in
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
                  "schema: messages.conversation_id column" \
                  python deploy/db_check.py column messages conversation_id
-    # Same pattern as Stage 2 spend tracker: gate on a reachable TEST_DATABASE_URL.
-    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
+    # Brain tests need TEST_DATABASE_URL AND OPENAI_API_KEY (Brain.chat calls
+    # embed_one inline for memory injection). A future refactor could mock the
+    # embeddings layer in the test fixture and remove the OPENAI dependency;
+    # until then, treat as a real precondition.
+    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && test -n "${OPENAI_API_KEY:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
                  "brain tests" \
                  bash -c 'cd backend && pytest tests/test_brain.py -v --tb=short'
     run_or_defer 'curl -sf -m 2 http://127.0.0.1:8001/docs >/dev/null' \
