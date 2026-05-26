@@ -29,6 +29,7 @@ import os
 from typing import Any
 
 from app.services.tools.base import ToolContext, ToolError
+from app.services.tools.composio_auth import resolve_composio_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -118,7 +119,7 @@ class NotionTool:
             resp = self._composio.client.tools.execute(
                 slug,
                 arguments=arguments,
-                user_id=str(ctx.user_id),
+                user_id=resolve_composio_user_id(ctx.user_id),
             )
         except Exception as e:
             # Composio raises auth-related errors when no connected account
@@ -139,7 +140,35 @@ class NotionTool:
 
         # ToolExecuteResponse → JSON-serializable dict. The SDK returns a
         # pydantic-like model with .data, .successful, .error attrs.
-        return _serialize_response(resp, action=action)
+        out = _serialize_response(resp, action=action)
+        # Composio returns 200 with successful=False when the upstream API
+        # (Notion) rejects the OAuth token. status=ACTIVE in connected_accounts
+        # only means "Composio has a token on file" — not that it works.
+        # Translate this to no_connected_account so the LLM handles it
+        # identically to a missing connection.
+        if _is_upstream_auth_failure(out):
+            return {
+                "error": "no_connected_account",
+                "detail": (
+                    "Notion rejected the stored OAuth token (it expired or was "
+                    "revoked). Visit https://app.composio.dev → Connected "
+                    "Accounts → Notion → Reconnect, then retry."
+                ),
+                "raw": str(out.get("error") or out.get("data"))[:300],
+            }
+        return out
+
+
+def _is_upstream_auth_failure(resp_dict: dict[str, Any]) -> bool:
+    """Detect Composio responses where the SaaS rejected our token."""
+    if resp_dict.get("successful") is True:
+        return False
+    blob = str(resp_dict.get("error") or "") + " " + str(resp_dict.get("data") or "")
+    blob_lower = blob.lower()
+    return any(
+        token in blob_lower
+        for token in ("401", "unauthorized", "api token is invalid", "token expired", "invalid_grant")
+    )
 
 
 def _serialize_response(resp: Any, *, action: str) -> dict[str, Any]:

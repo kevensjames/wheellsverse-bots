@@ -26,6 +26,7 @@ import os
 from typing import Any
 
 from app.services.tools.base import ToolContext, ToolError
+from app.services.tools.composio_auth import resolve_composio_user_id
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ class ComposioTool:
         if arguments is not None and not isinstance(arguments, dict):
             raise ToolError("arguments must be a JSON object")
 
-        call_kwargs: dict[str, Any] = {"user_id": str(ctx.user_id)}
+        call_kwargs: dict[str, Any] = {"user_id": resolve_composio_user_id(ctx.user_id)}
         if arguments:
             call_kwargs["arguments"] = arguments
         if text:
@@ -208,7 +209,31 @@ class ComposioTool:
 
         out = _serialize_response(resp)
         out["_tool_slug"] = tool_slug
+        # Catch upstream auth failures (Composio holds a token, SaaS rejects it)
+        # — same translation as composio_notion uses.
+        if _is_upstream_auth_failure(out):
+            return {
+                "error": "no_connected_account",
+                "detail": (
+                    f"The SaaS app behind tool_slug={tool_slug!r} rejected the "
+                    "stored OAuth token. Visit https://app.composio.dev → "
+                    "Connected Accounts → find the entry → Reconnect, then retry."
+                ),
+                "raw": str(out.get("error") or out.get("data"))[:300],
+            }
         return out
+
+
+def _is_upstream_auth_failure(resp_dict: dict[str, Any]) -> bool:
+    """Detect Composio responses where the SaaS rejected our token."""
+    if resp_dict.get("successful") is True:
+        return False
+    blob = str(resp_dict.get("error") or "") + " " + str(resp_dict.get("data") or "")
+    blob_lower = blob.lower()
+    return any(
+        token in blob_lower
+        for token in ("401", "unauthorized", "api token is invalid", "token expired", "invalid_grant")
+    )
 
 
 def _items_from_list(resp: Any) -> list[Any]:

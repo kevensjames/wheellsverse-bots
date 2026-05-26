@@ -92,6 +92,63 @@ class TestNotionTool:
         assert result["error"] == "no_connected_account"
         assert "connect" in result["detail"].lower()
 
+    def test_upstream_auth_failure_translates_to_no_connected_account(
+        self, mock_composio_cls, ctx, monkeypatch
+    ):
+        """Composio returns 200 with successful=False when the SaaS itself
+        (Notion) rejects the stored OAuth token. The tool should translate
+        this to the same no_connected_account shape an exception would."""
+        monkeypatch.setenv("COMPOSIO_USER_ID", "pg-test-fixture")
+        _, instance = mock_composio_cls
+        instance.client.tools.execute.return_value = MagicMock(
+            model_dump=lambda: {
+                "successful": False,
+                "data": {
+                    "http_error": "401 Client Error: Unauthorized for url: https://api.notion.com/v1/users",
+                    "message": "API token is invalid.",
+                    "status_code": 401,
+                },
+                "error": "API token is invalid.",
+            }
+        )
+        from app.services.tools.composio_notion import NotionTool
+        tool = NotionTool()
+        result = tool.execute(ctx, action="list_users", arguments={})
+        assert result["error"] == "no_connected_account"
+        assert "reconnect" in result["detail"].lower()
+
+    def test_resolver_uses_env_override_when_set(
+        self, mock_composio_cls, ctx, monkeypatch
+    ):
+        """When COMPOSIO_USER_ID is set, the tool passes the override, not
+        ctx.user_id."""
+        monkeypatch.setenv("COMPOSIO_USER_ID", "pg-test-jhonwheeler")
+        _, instance = mock_composio_cls
+        instance.client.tools.execute.return_value = MagicMock(
+            model_dump=lambda: {"successful": True, "data": {}}
+        )
+        from app.services.tools.composio_notion import NotionTool
+        tool = NotionTool()
+        tool.execute(ctx, action="search", arguments={"query": "x"})
+        call_kwargs = instance.client.tools.execute.call_args.kwargs
+        assert call_kwargs["user_id"] == "pg-test-jhonwheeler"
+        assert call_kwargs["user_id"] != str(ctx.user_id)
+
+    def test_resolver_falls_back_to_ctx_user_id_when_no_override(
+        self, mock_composio_cls, ctx, monkeypatch
+    ):
+        """No override → resolver returns str(ctx.user_id)."""
+        monkeypatch.delenv("COMPOSIO_USER_ID", raising=False)
+        _, instance = mock_composio_cls
+        instance.client.tools.execute.return_value = MagicMock(
+            model_dump=lambda: {"successful": True, "data": {}}
+        )
+        from app.services.tools.composio_notion import NotionTool
+        tool = NotionTool()
+        tool.execute(ctx, action="search", arguments={"query": "x"})
+        call_kwargs = instance.client.tools.execute.call_args.kwargs
+        assert call_kwargs["user_id"] == str(ctx.user_id)
+
     def test_arguments_must_be_dict(self, mock_composio_cls, ctx):
         from app.services.tools.base import ToolError
         from app.services.tools.composio_notion import NotionTool
