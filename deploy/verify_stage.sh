@@ -134,7 +134,13 @@ log "═════════════════════════
 section "Environment baseline"
 run_check "git: HEAD commit"        git rev-parse HEAD
 run_check "git: branch"             git rev-parse --abbrev-ref HEAD
-run_check "git: clean tree"         bash -c 'test -z "$(git status --porcelain)"'
+# The verifier's own evidence file (evidence/stage_${STAGE}_${TIMESTAMP}.log)
+# is created by `tee -a` in the header above, BEFORE this check fires.
+# Without filtering it out, `git: clean tree` could never PASS during a
+# verifier run (the verifier dirties its own tree by definition). Filter is
+# scoped narrowly: only `?? evidence/stage_*` is tolerated. Other dirty
+# paths (operator WIP, modified source files) still fail the check.
+run_check "git: clean tree"         bash -c "test -z \"\$(git status --porcelain | grep -v '^?? evidence/stage_')\""
 run_check "python: version"         python --version
 run_check "venv: active"            bash -c 'test -n "${VIRTUAL_ENV:-}"'
 run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
