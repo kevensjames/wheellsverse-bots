@@ -47,7 +47,7 @@ load_dotenv(ROOT / ".env")
 
 logger = logging.getLogger("shorts_pipeline")
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 RESULTS_DIR = ROOT / "outputs" / "shorts_results"
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 

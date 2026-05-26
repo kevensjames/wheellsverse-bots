@@ -30,7 +30,7 @@ QUEUE_FILE = Path("data/content_queue.json")
 CALENDAR_FILE = Path("data/content_calendar.json")
 
 BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools, crypto, and passive income")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 
 # ─── Optimal posting times per platform ───────────────────────────────────────
 

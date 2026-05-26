@@ -62,7 +62,7 @@ CLIENT_SECRET = os.getenv("LINKEDIN_CLIENT_SECRET", "")
 REDIRECT_URI = os.getenv("LINKEDIN_REDIRECT_URI",
                           "https://grateful-flexibility-production.up.railway.app/api/linkedin/callback")
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 
 SCOPES = ["openid", "profile", "email", "w_member_social"]
 

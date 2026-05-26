@@ -22,7 +22,7 @@ CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/
 CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
 JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
 APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 
 HIGH_INTENT_ANGLES = [

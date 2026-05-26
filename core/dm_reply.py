@@ -48,7 +48,7 @@ logger = logging.getLogger("dm_reply")
 
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 STRIPE_PRO = os.getenv("STRIPE_PRO_URL", "")
 POLL_SECONDS = 10    # fallback poll interval (webhook is primary)
 

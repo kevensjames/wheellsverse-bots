@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 DATA_FILE = Path("data/seo_tracker.json")
 
 BRAND_NICHE = os.getenv("BRAND_NICHE", "AI tools for making money, stock insights, and crypto trends")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 
 # ─── Seed keywords by niche ──────────────────────────────────────────────────
 

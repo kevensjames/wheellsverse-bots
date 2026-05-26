@@ -60,7 +60,7 @@ REDIRECT_URI = os.getenv("PINTEREST_REDIRECT_URI",
                          "https://grateful-flexibility-production.up.railway.app/api/pinterest/callback")
 BOARD_ID = os.getenv("PINTEREST_BOARD_ID", "")
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 
 SCOPES = ["boards:read", "boards:write", "pins:read", "pins:write", "user_accounts:read"]
 

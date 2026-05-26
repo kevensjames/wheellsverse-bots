@@ -25,7 +25,7 @@ JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
 APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
 FIVERR_URL = os.getenv("AFFILIATE_FIVERR_URL", "https://www.fiverr.com/")
 BLUEHOST_URL = os.getenv("AFFILIATE_BLUEHOST_URL", "https://www.bluehost.com/")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 

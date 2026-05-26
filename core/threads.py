@@ -46,7 +46,7 @@ load_dotenv(ROOT / ".env")
 logger = logging.getLogger("threads")
 API_BASE = "https://graph.threads.net/v1.0"
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 
 # Threads posts: max 500 chars
 MAX_CHARS = 500

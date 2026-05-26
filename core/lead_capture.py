@@ -33,7 +33,7 @@ log = logging.getLogger(__name__)
 DATA_FILE = Path("data/leads.json")
 
 LEAD_MAGNET_TITLE = os.getenv("LEAD_MAGNET_TITLE", "The AI Entrepreneur Blueprint")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 EMAIL_FROM = os.getenv("EMAIL_FROM_NAME", "WheellsVerse Bot")

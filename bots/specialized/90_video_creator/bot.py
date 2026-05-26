@@ -239,7 +239,7 @@ Output ONLY the spoken script, no stage directions.""",
                         description=(
                             f"{script[:500]}\n\n"
                             "Subscribe for daily AI + crypto + passive income tips!\n"
-                            "https://grateful-flexibility-production.up.railway.app/landing/"
+                            "https://wheellsverse-bots.pages.dev/blueprint.pdf"
                         ),
                         tags=["AI", "PassiveIncome", "Crypto", "Investing", "WheellsVerse"],
                     )
