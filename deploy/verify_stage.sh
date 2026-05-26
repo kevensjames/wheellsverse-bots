@@ -184,8 +184,10 @@ case "$STAGE" in
 
     run_check "model: import"                       python -c "from app.models.memory import Memory"
     run_check "embeddings: import"                  python -c "from app.services.memory.embeddings import embed_one, embed_many"
-    run_check "store: import"                       python -c "from app.services.memory.store import add_memory, search_memories" 2>/dev/null || \
-                                                    python -c "from app.services.memory.store import add_memory"
+    # `add_memory` lives in store; `search_memories` lives in retrieval.
+    # The old check tried both in store/ with an `||` fallback, but the OR
+    # was outside run_check's argv so only the first (failing) form ran.
+    run_check "store: add_memory import"            python -c "from app.services.memory.store import add_memory"
     run_check "retrieval: import"                   python -c "from app.services.memory.retrieval import search_memories, format_for_prompt"
     run_check "shim: services.narai.memory works"   python -c "from services.narai.memory import Memory"
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
@@ -219,7 +221,11 @@ case "$STAGE" in
                  python deploy/db_check.py column llm_call_log cost_usd
     run_check "intent tests"                        bash -c 'cd backend && pytest tests/test_intent.py -v --tb=short'
     run_check "router unit tests"                   bash -c 'cd backend && pytest tests/test_router.py -v --tb=short'
-    run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
+    # Pytest reads TEST_DATABASE_URL (not DIRECT_DATABASE_URL) — gate on that,
+    # and require it to actually be reachable. Otherwise pytest will hard-fail
+    # with a connection error and the verifier reports a FAIL that's really
+    # "no test DB available", which should be DEFERRED.
+    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
                  "spend tracker DB tests" \
                  bash -c 'cd backend && pytest tests/test_spend_tracker.py -v --tb=short'
     run_check "decision log: 0003 committed"        test -f docs/decisions/0003-model-router.md
@@ -259,7 +265,8 @@ case "$STAGE" in
     run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
                  "schema: messages.conversation_id column" \
                  python deploy/db_check.py column messages conversation_id
-    run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"' \
+    # Same pattern as Stage 2 spend tracker: gate on a reachable TEST_DATABASE_URL.
+    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
                  "brain tests" \
                  bash -c 'cd backend && pytest tests/test_brain.py -v --tb=short'
     run_or_defer 'curl -sf -m 2 http://127.0.0.1:8001/docs >/dev/null' \
