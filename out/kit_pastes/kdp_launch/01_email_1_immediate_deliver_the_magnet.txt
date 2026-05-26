@@ -1,0 +1,21 @@
+# EMAIL 1 — Immediate (deliver the magnet)
+# Delay: immediate
+# Source: paste-ready — drop straight into Kit's sequence builder.
+
+SUBJECT:
+Here's your AI Entrepreneur Blueprint
+
+BODY:
+You're in.
+
+Here's the blueprint I promised → https://wheellsverse-bots.pages.dev/blueprint.pdf?utm_source=email&utm_medium=nurture&utm_campaign=kdp_seq
+
+Open it now while it's fresh. It's short on purpose — most "guides" are 90 pages of filler. This one is the actual steps, in order.
+
+Quick context on who's sending this: I'm J.K. Blaze. I build AI systems that turn ideas into real products — fast. The blueprint is the same process I use myself.
+
+Over the next few days I'll send you the parts that don't fit in a PDF — the mistakes that stall most people, and how to skip them.
+
+Read the blueprint first. Then watch your inbox.
+
+— J.K.
