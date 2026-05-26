@@ -6,24 +6,27 @@ This is a runbook, not a status report. Tick items off when done.
 
 ---
 
-## 1. Provision a real test Postgres
+## 1. Provision a real test Postgres ✅ DONE (2026-05-26)
 
-**Why:** `tests/test_cookie_auth.py` writes 13 tests. `pytest --collect-only` confirms they're well-formed, but executing them needs a non-prod Postgres. The verifier currently `DEFERRED`s the run because no `TEST_DATABASE_URL` resolves on this host.
-
-**Choose one:**
-
-- **Local Homebrew:** `brew install postgresql@16 && brew services start postgresql@16 && createdb wheellsverse_test`
-- **Supabase secondary project:** create a new project (free tier), copy the Session pooler URL into `TEST_DATABASE_URL`. **Confirm it is NOT the prod pooler** — the suite truncates every table.
-- **Local Docker (if installed):** `docker run -d --name wv-pg-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16`
-
-**Then run:**
+Completed locally on the build host. Result:
 
 ```bash
+brew install postgresql@17                # pg16 swapped: pgvector only ships for 17/18
+brew install pgvector
+initdb /opt/homebrew/var/postgresql@17 -U $USER
+brew services start postgresql@17
+createdb -U postgres -O postgres wheellsverse_test
+psql -d wheellsverse_test -c "CREATE EXTENSION pgcrypto; CREATE EXTENSION vector;"
 export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/wheellsverse_test"
 cd backend && pytest tests/test_cookie_auth.py -v --tb=short
+# Result: 13 passed
 ```
 
-Expect: 13 passed.
+While running the sweep, the test DB exposed **two pre-existing schema-drift bugs** that production must address (test-side workaround already shipped in `backend/tests/conftest.py`):
+
+1. **`conversations.user_id` / `messages.user_id` / `llm_call_log.user_id` FK to `profiles.id`** — inherited from NarAI v1's Supabase `auth.users → profiles` trigger. But the SQLAlchemy `User` model owns the `users` table, and `/auth/signup` writes there, not `profiles`. So a fresh signup user has no `profiles` row and any conversation/message/log insert violates the FK. Today this only works in production because legacy NarAI v1 had populated `profiles` for the existing users. New signups will hit this on first chat/persist call.
+   - **Operator fix (Phase B):** either (a) ALTER the FK target to `users.id` (preferred — single source of truth), or (b) add a Supabase trigger that auto-creates a `profiles` row whenever a `users` row is inserted.
+2. **`llm_call_log` has no SQLAlchemy model** — Alembic migration 0004 creates it; `spend_tracker.py` writes via raw SQL. This isn't a runtime bug but it means new dev environments can't bootstrap a test DB from `Base.metadata.create_all()` alone. **Operator fix (low priority):** add an `LLMCallLog` SQLAlchemy model mirroring the Alembic schema so the test layer doesn't need a shadow declaration.
 
 ---
 
