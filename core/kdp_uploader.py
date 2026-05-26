@@ -1800,6 +1800,15 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                                     bv["bookshelf_says"], bv["overrides_to"],
                                     bv.get("used_fallback"), bv.get("detail", ""))
 
+                        # Pull labelled identifiers from the bookshelf probe.
+                        # bv["row_id"] is the DEPRECATED bookshelf-row id; use
+                        # wizard_id for in_review and public_asin for live, per
+                        # SKILL.md "KDP DOM gotchas". Routing row_id into
+                        # external_id was the May-19-lie-wearing-a-new-costume bug.
+                        bookshelf_row_id = bv.get("bookshelf_row_id") or ""
+                        wizard_id = bv.get("wizard_id") or ""
+                        public_asin = bv.get("public_asin") or ""
+
                         if bv["overrides_to"]:
                             shot = ROOT / "outputs" / "books" / f"kdp_bookshelf_override_{genre}_{ts_pub}.png"
                             try:
@@ -1816,6 +1825,9 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                                     dom_markers_seen=[
                                         f"bookshelf:{bv['bookshelf_says']}",
                                         f"used_fallback:{bv.get('used_fallback')}",
+                                        f"bookshelf_row_id:{bookshelf_row_id}",
+                                        f"wizard_id:{wizard_id}",
+                                        f"public_asin:{public_asin}",
                                     ],
                                 ),
                                 detail=(f"Wizard claimed in_review but bookshelf "
@@ -1832,6 +1844,12 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                                 page.screenshot(path=str(shot))
                             except Exception:
                                 pass
+                            # external_id for in_review = wizard_id (the internal
+                            # KDP draft/title ID). Fall back to public_asin in
+                            # the unusual case where KDP already minted one (it
+                            # would still validate, just unexpected at in_review).
+                            # NEVER use bookshelf_row_id here — that was the bug.
+                            in_review_external_id = wizard_id or public_asin or None
                             kresult = KDPResult(
                                 ok=True, state="in_review",
                                 genre=genre, title=title,
@@ -1841,12 +1859,19 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                                     url=page.url, screenshot=str(shot),
                                     dom_markers_seen=(
                                         pc["markers_seen"]
-                                        + [f"bookshelf:{bv['bookshelf_says']}"]
+                                        + [
+                                            f"bookshelf:{bv['bookshelf_says']}",
+                                            f"bookshelf_row_id:{bookshelf_row_id}",
+                                            f"wizard_id:{wizard_id}",
+                                            f"public_asin:{public_asin}",
+                                        ]
                                     ),
-                                    external_id=bv.get("row_id") or None,
+                                    external_id=in_review_external_id,
                                 ),
                                 detail=("Confirmed in_review via wizard markers "
-                                        "+ fresh bookshelf row reading."),
+                                        "+ fresh bookshelf row reading. "
+                                        f"external_id source: "
+                                        f"{'wizard_id' if wizard_id else ('public_asin' if public_asin else 'none')}."),
                             )
 
                 # ━━━ Legacy compat shim — REMOVE IN PART 4 ━━━

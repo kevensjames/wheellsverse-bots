@@ -627,7 +627,10 @@ def _verify_result_against_bookshelf(*, claimed_state: str, page, title: str) ->
             "overrides_to": ("publish_unconfirmed"
                              if claimed_state in ("in_review", "live") else None),
             "detail": f"bookshelf_load_failed: {type(e).__name__}: {str(e)[:200]}",
-            "row_id": "",
+            "bookshelf_row_id": "",
+            "wizard_id": "",
+            "public_asin": "",
+            "row_id": "",  # DEPRECATED
             "used_fallback": False,
             "status_selector_hit": "",
         }
@@ -661,8 +664,50 @@ def _verify_result_against_bookshelf(*, claimed_state: str, page, title: str) ->
                 const badges = ['draft', 'in review', 'live', 'submitted', 'unpublished', 'blocked'];
                 const badge_found = badges.find(b => searchText.includes(b)) || null;
 
+                // ─── DUAL-ID CAPTURE ───────────────────────────────────────
+                // The bookshelf row exposes three different identifiers; each
+                // means a different thing and they MUST NOT be conflated:
+                //
+                //   bookshelf_row_id — the <tr id> (e.g. 'PTJB5X24SCR').
+                //     Useful only for re-locating the row in this same DOM.
+                //     NOT a wizard ID, NOT an ASIN, never persist as proof.
+                //
+                //   wizard_id — the internal KDP draft/title-setup ID
+                //     (e.g. 'A23W5MA77RJT0B'). Extracted from manage/edit
+                //     anchor hrefs like:
+                //       /title-setup/kindle/<WIZARD_ID>/content?ref_=...
+                //     Valid for state='in_review' evidence.external_id.
+                //
+                //   public_asin — the Amazon public ASIN (e.g. 'B0GX32FKH6').
+                //     Only exists on LIVE rows via marketplacelink/dp hrefs.
+                //     Required for state='live' evidence.external_id; the
+                //     KDPResult validator enforces B0/B1 + 10-char format.
+                //
+                // See SKILL.md "KDP DOM gotchas" — extracting the wrong ID
+                // here was the May-19-lie-wearing-a-new-costume bug.
+                let wizard_id = '';
+                const editLinks = row.querySelectorAll('a[href*="/title-setup/"]');
+                for (const a of editLinks) {
+                    const href = a.getAttribute('href') || '';
+                    const m = href.match(/\/title-setup\/(?:kindle|paperback|hardcover)\/([A-Z0-9]{8,16})\/(?:content|pricing|details)/);
+                    if (m) { wizard_id = m[1]; break; }
+                }
+
+                let public_asin = '';
+                const dpLinks = row.querySelectorAll(
+                    'a[href*="marketplacelink"], a[href*="/dp/"], a[href*="/amazon-dp-action/"]'
+                );
+                for (const a of dpLinks) {
+                    const href = a.getAttribute('href') || '';
+                    const m = href.match(/(?:marketplacelink|\/dp)\/([A-Z0-9]{10})\b/);
+                    if (m) { public_asin = m[1]; break; }
+                }
+
                 return {
-                    row_id: row.id || '',
+                    bookshelf_row_id: row.id || '',
+                    wizard_id,
+                    public_asin,
+                    row_id: row.id || '',  // DEPRECATED — kept for backward compat; use bookshelf_row_id
                     row_title_sample: rowTitle.slice(0, 120),
                     status_text_sample: searchText.slice(0, 200),
                     used_fallback: usedFallback,
@@ -683,7 +728,10 @@ def _verify_result_against_bookshelf(*, claimed_state: str, page, title: str) ->
             "overrides_to": ("publish_unconfirmed"
                              if claimed_state in ("in_review", "live") else None),
             "detail": f"bookshelf_dom_probe_failed: {type(e).__name__}: {str(e)[:200]}",
-            "row_id": "",
+            "bookshelf_row_id": "",
+            "wizard_id": "",
+            "public_asin": "",
+            "row_id": "",  # DEPRECATED
             "used_fallback": False,
             "status_selector_hit": "",
         }
@@ -695,7 +743,10 @@ def _verify_result_against_bookshelf(*, claimed_state: str, page, title: str) ->
             "overrides_to": ("publish_unconfirmed"
                              if claimed_state in ("in_review", "live") else None),
             "detail": f"title {title[:60]!r} not found on bookshelf after publish click",
-            "row_id": "",
+            "bookshelf_row_id": "",
+            "wizard_id": "",
+            "public_asin": "",
+            "row_id": "",  # DEPRECATED
             "used_fallback": False,
             "status_selector_hit": "",
         }
@@ -721,14 +772,33 @@ def _verify_result_against_bookshelf(*, claimed_state: str, page, title: str) ->
         elif bookshelf_says in ("draft", "unknown", "unpublished", "blocked"):
             overrides_to = "publish_unconfirmed"
 
+    bookshelf_row_id = info.get("bookshelf_row_id", "") or info.get("row_id", "")
+    wizard_id = info.get("wizard_id", "")
+    public_asin = info.get("public_asin", "")
+
     return {
         "bookshelf_says": bookshelf_says,
         "status_row_seen": True,
         "overrides_to": overrides_to,
-        "detail": (f"bookshelf row found: id={info.get('row_id')!r}, "
-                   f"badge={badge!r}, used_fallback={used_fallback}, "
-                   f"status_selector_hit={info.get('status_selector_hit')!r}"),
-        "row_id": info.get("row_id", ""),
+        "detail": (
+            f"bookshelf row found: bookshelf_row_id={bookshelf_row_id!r}, "
+            f"wizard_id={wizard_id!r}, public_asin={public_asin!r}, "
+            f"badge={badge!r}, used_fallback={used_fallback}, "
+            f"status_selector_hit={info.get('status_selector_hit')!r}"
+        ),
+        # Canonical labelled IDs — callers must pick the right one for the state:
+        #   - in_review / draft_saved → wizard_id (internal KDP ID, e.g. A23W5MA77RJT0B)
+        #   - live                    → public_asin (B0/B1 + 10 chars, validated by
+        #                                 is_valid_public_asin in KDPResult.__post_init__)
+        #   - row re-location only    → bookshelf_row_id (e.g. PTJB5X24SCR)
+        "bookshelf_row_id": bookshelf_row_id,
+        "wizard_id": wizard_id,
+        "public_asin": public_asin,
+        # DEPRECATED — kept temporarily for callers that haven't migrated. Points
+        # at bookshelf_row_id (which is what the old `row_id` field always was).
+        # Routing this into evidence.external_id was the May-19-lie-wearing-a-
+        # new-costume bug; new callers MUST use wizard_id or public_asin instead.
+        "row_id": bookshelf_row_id,
         "used_fallback": used_fallback,
         "status_selector_hit": info.get("status_selector_hit", ""),
     }
