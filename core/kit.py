@@ -155,6 +155,45 @@ class KitClient:
             body={}, writes=True,
         )
 
+    def list_sequence_emails(self, sequence_id: int) -> List[Dict]:
+        data = self._request("GET", f"/sequences/{sequence_id}/emails")
+        return data.get("emails", []) if isinstance(data.get("emails"), list) else []
+
+    def create_sequence_email(
+        self,
+        sequence_id: int,
+        *,
+        subject: str,
+        delay_value: int,
+        delay_unit: str = "days",      # "days" or "hours"
+        content: Optional[str] = None,
+        preview_text: Optional[str] = None,
+        position: Optional[int] = None,
+        published: bool = False,
+        send_days: Optional[List[str]] = None,
+    ) -> Dict:
+        """POST /v4/sequences/{sequence_id}/emails — adds one email to the sequence."""
+        if delay_unit not in {"days", "hours"}:
+            raise ValueError(f"delay_unit must be 'days' or 'hours', got {delay_unit!r}")
+        body: Dict[str, Any] = {
+            "subject": subject,
+            "delay_value": int(delay_value),
+            "delay_unit": delay_unit,
+            "published": published,
+        }
+        if content is not None:
+            body["content"] = content
+        if preview_text is not None:
+            body["preview_text"] = preview_text
+        if position is not None:
+            body["position"] = int(position)
+        if send_days:
+            body["send_days"] = send_days
+        return self._request(
+            "POST", f"/sequences/{sequence_id}/emails",
+            body=body, writes=True,
+        )
+
     # ── Subscribers ───────────────────────────────────────────────────────────
 
     def upsert_subscriber(self, email_address: str, first_name: str = "",
