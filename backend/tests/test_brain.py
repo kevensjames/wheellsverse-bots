@@ -108,8 +108,24 @@ def test_chat_resumes_existing_conversation(db_session, free_user):
 
 
 def test_chat_rejects_foreign_conversation(db_session, free_user):
-    # Conversation owned by some other user
-    other = Conversation(user_id=uuid.uuid4(), title="other")
+    # Conversation owned by some other real user. Creating it through the User
+    # model triggers the conftest after-insert event that mirrors into
+    # `profiles`, so the FK target exists. Previously this used a bare uuid4()
+    # which produced a no-such-profile FK violation.
+    from app.core.security import hash_password
+    from app.models.user import User
+
+    other_user = User(
+        email="other@test.com",
+        password_hash=hash_password("x"),
+        full_name="other",
+        is_active=True,
+    )
+    db_session.add(other_user)
+    db_session.commit()
+    db_session.refresh(other_user)
+
+    other = Conversation(user_id=other_user.id, title="other")
     db_session.add(other)
     db_session.commit()
 

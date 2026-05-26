@@ -243,9 +243,17 @@ case "$STAGE" in
     run_check "router.chat: import"                 python -c "from app.services.router.router import Router; assert hasattr(Router, 'chat')"
     run_check "tool registry tests"                 bash -c 'cd backend && pytest tests/test_tool_registry.py -v --tb=short'
     run_check "router chat-loop tests"              bash -c 'cd backend && pytest tests/test_router_chat.py -v --tb=short'
-    run_or_defer 'test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}" && test -n "${OPENAI_API_KEY:-}"' \
-                 "smoke: tools end-to-end" \
-                 bash -c 'cd backend && timeout 60 python -m scripts.smoke_test_tools'
+    # SAFETY: smoke_test_tools.py writes to whatever DATABASE_URL it sees —
+    # including production if .env was sourced. Refuse to run unless
+    # DATABASE_URL targets a local/test DB (substring match against localhost,
+    # 127.0.0.1, or the literal word "test"). Operator who wants to smoke
+    # against a specific test DB can override DATABASE_URL inline.
+    #
+    # `timeout` is GNU coreutils — macOS doesn't ship it, so we use perl's
+    # alarm + exec as a portable substitute.
+    run_or_defer 'test -n "${OPENAI_API_KEY:-}" && echo "${DATABASE_URL:-}" | grep -qE "localhost|127\.0\.0\.1|test"' \
+                 "smoke: tools end-to-end (local/test DB only)" \
+                 bash -c 'cd backend && perl -e "alarm shift @ARGV; exec @ARGV" 60 python -m scripts.smoke_test_tools'
     run_check "decision log: 0004 committed"        test -f docs/decisions/0004-narrow-tools.md
     ;;
 
