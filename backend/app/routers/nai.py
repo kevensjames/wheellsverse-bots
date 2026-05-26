@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.auth import get_current_user
-from app.dependencies.stream_auth import get_user_from_query_token
+from app.dependencies.stream_auth import get_user_for_stream
 from app.models.conversation import Conversation, Message
 from app.models.user import User
 from app.schemas.nai import (
@@ -81,7 +81,7 @@ def chat_stream(
     conversation_id: uuid.UUID | None = Query(None),
     prefer_local: bool = Query(False),
     max_tokens: int = Query(1024, ge=64, le=4096),
-    current_user: User = Depends(get_user_from_query_token),
+    current_user: User = Depends(get_user_for_stream),
     session: Session = Depends(get_db),
 ):
     """SSE streaming endpoint. Tools are disabled in streaming mode."""

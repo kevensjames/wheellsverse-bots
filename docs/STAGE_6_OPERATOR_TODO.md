@@ -1,0 +1,140 @@
+# Stage 6 — Operator-side TODOs
+
+Stage 6 ships code-complete: cookie auth, signup/login/pricing UI, Stripe-checkout wiring, verifier hooks, decision log 0007. **None of it is "live"** until the work in this file is done — the work below is operator-side because it touches real money, real domains, or real machines.
+
+This is a runbook, not a status report. Tick items off when done.
+
+---
+
+## 1. Provision a real test Postgres
+
+**Why:** `tests/test_cookie_auth.py` writes 13 tests. `pytest --collect-only` confirms they're well-formed, but executing them needs a non-prod Postgres. The verifier currently `DEFERRED`s the run because no `TEST_DATABASE_URL` resolves on this host.
+
+**Choose one:**
+
+- **Local Homebrew:** `brew install postgresql@16 && brew services start postgresql@16 && createdb wheellsverse_test`
+- **Supabase secondary project:** create a new project (free tier), copy the Session pooler URL into `TEST_DATABASE_URL`. **Confirm it is NOT the prod pooler** — the suite truncates every table.
+- **Local Docker (if installed):** `docker run -d --name wv-pg-test -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16`
+
+**Then run:**
+
+```bash
+export TEST_DATABASE_URL="postgresql://postgres:postgres@localhost:5432/wheellsverse_test"
+cd backend && pytest tests/test_cookie_auth.py -v --tb=short
+```
+
+Expect: 13 passed.
+
+---
+
+## 2. Stripe: switch from test → live
+
+**Why:** Stage 5 wired the checkout flow with test keys. Stage 6 marketing pages POST to `/billing/checkout` regardless of key mode, so flipping to live keys is purely env-side.
+
+**Steps:**
+
+1. Stripe Dashboard → Developers → API keys → reveal **live** secret key. Paste into `wvkey set STRIPE_SECRET_KEY ...` (vault). Update `backend/.env` to read from vault.
+2. Stripe Dashboard → Products → create **Pro** and **Elite** recurring prices. Copy the `price_...` IDs.
+3. Set `STRIPE_PRICE_PRO=price_xxx` and `STRIPE_PRICE_ELITE=price_yyy` in `backend/.env`.
+4. Stripe Dashboard → Webhooks → add endpoint `https://YOUR_DOMAIN/billing/webhook`. Subscribe to `checkout.session.completed`. Copy signing secret → `STRIPE_WEBHOOK_SECRET`.
+5. Set `STRIPE_SUCCESS_URL=https://YOUR_DOMAIN/nai-ui/?subscribed=1` and `STRIPE_CANCEL_URL=https://YOUR_DOMAIN/nai-ui/pricing.html?canceled=1`.
+6. Restart NAI: `launchctl unload ~/Library/LaunchAgents/com.wheellsverse.nai.plist && launchctl load ...`
+
+**Validate:** From a new browser, sign up → /nai-ui/pricing.html → Subscribe to Pro → should land on `checkout.stripe.com` with the live price displayed.
+
+---
+
+## 3. Cloudflare Tunnel from public domain → 127.0.0.1:8001
+
+**Why:** NAI binds to `127.0.0.1:8001` only (Stage 5 decision). Cloudflare Tunnel exposes that without opening a port on the Mac mini.
+
+**Steps:**
+
+1. `brew install cloudflared`
+2. `cloudflared tunnel login`
+3. `cloudflared tunnel create wheellsverse-nai` (note the UUID)
+4. `~/.cloudflared/config.yml`:
+
+   ```yaml
+   tunnel: <UUID>
+   credentials-file: /Users/jhonwheeler/.cloudflared/<UUID>.json
+   ingress:
+     - hostname: narai.wheellsverse.com
+       service: http://127.0.0.1:8001
+     - service: http_status:404
+   ```
+
+5. `cloudflared tunnel route dns wheellsverse-nai narai.wheellsverse.com`
+6. `cloudflared service install` — runs the tunnel as a launchd-managed daemon
+7. Verify: `curl -I https://narai.wheellsverse.com/health` returns `200`.
+
+---
+
+## 4. Flip `APP_ENV=production`
+
+**Why:** The cookie helper gates the `Secure` flag on `APP_ENV`. Anything other than `development|dev|local|test` enables `Secure`, which means cookies are sent over HTTPS only. After step 3 you're on HTTPS — set `APP_ENV=production` in `backend/.env`. Restart NAI.
+
+**Validate:**
+
+```bash
+curl -i -X POST https://narai.wheellsverse.com/auth/login \
+     -H 'Content-Type: application/json' \
+     -d '{"email":"YOU","password":"YOU"}' | grep -i "set-cookie"
+```
+
+Expected: `Set-Cookie: nai_access=...; HttpOnly; Secure; SameSite=Lax; Path=/`.
+
+---
+
+## 5. Update `CORS_ORIGINS`
+
+**Why:** Defaults are localhost dev URLs. Add the production domain so browser fetches aren't blocked by CORS.
+
+`backend/.env`:
+
+```
+CORS_ORIGINS=https://narai.wheellsverse.com
+```
+
+Restart NAI.
+
+---
+
+## 6. Public smoke test from a clean browser
+
+This is the gate that decides "Stage 6 is live, not just deployed."
+
+1. **New incognito window** (no cookies, no localStorage).
+2. Visit `https://narai.wheellsverse.com/nai-ui/pricing.html`.
+3. Click **Subscribe to Pro** → expect redirect to `/nai-ui/signup.html?next=...`.
+4. Create an account with a real-ish email + 8+ char password → expect redirect to `/nai-ui/` (the chat page).
+5. Expected: chat page loads. DevTools → Network: `Cookie: nai_access=...; nai_refresh=...` on `/auth/me`.
+6. Click **Pricing** in the chat header → expect chat page persistence (cookie still there).
+7. Click **Subscribe to Pro** again → expect immediate redirect to `checkout.stripe.com` (the "resume after signup" path).
+8. Pay with a real card (test mode is over — this is live). Stripe redirects back to `/nai-ui/?subscribed=1`.
+9. Verify `GET /billing/subscription` returns `status: active` with the right `plan_code`.
+10. Click **Log out** → expect redirect to login page. Visit `/nai-ui/` directly → expect bounce back to login (cookies cleared).
+
+If all 10 pass: **Stage 6 is live.** Tag the repo `stage-6-live`.
+
+If step 7 redirects to signup again (i.e. cookie didn't survive the round-trip), check `SameSite` + `Secure` + your domain config. Lax + Secure on a same-origin GET should work.
+
+---
+
+## 7. Deferred design questions (NOT blockers)
+
+Things to think about once Stage 6 is live and you have real user behavior to look at:
+
+- **Remember-me:** currently `/auth/logout` clears both cookies. If users complain about being kicked out every refresh-token lifetime (7 days), add a "Stay logged in" checkbox on login that issues a longer refresh cookie.
+- **Email verification gate:** `User.is_verified` exists but isn't enforced. Decide whether free users need a confirmed email before they can chat / subscribe.
+- **CSRF for `/auth/logout`:** Lax cookies stop cross-origin POST CSRF, so logout-CSRF doesn't actually log anyone out maliciously, but if you want defense-in-depth, add a CSRF token round-trip on auth-mutating routes.
+- **Drop the SSE `?token=` fallback:** once `grep "deprecated ?token=" backend.log` returns zero hits for ~1 week, delete the fallback in `app/dependencies/stream_auth.py`.
+- **Rate limiting on `/auth/login` + `/auth/signup`:** the current code has no throttle. Once you're public, a tiny `slowapi` decorator is the smallest fix.
+
+---
+
+## 8. What this document does NOT cover
+
+- Email delivery (transactional welcome email, password-reset link). Not built yet; not a Stage 6 deliverable.
+- Customer-portal UX (using `/billing/portal` to cancel/change plan). Endpoint exists but no UI link; add when needed.
+- Admin dashboard for viewing users / revenue. Stage 5's `admin_data` router has the read side; UI is operator-side.

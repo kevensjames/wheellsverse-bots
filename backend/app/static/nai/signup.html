@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign up — NAI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>NAI</h1>
+    <nav class="subnav">
+      <a href="/nai-ui/pricing.html">Pricing</a>
+      <a href="/nai-ui/login.html">Log in</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="auth-card" id="signup-form" novalidate>
+      <h1>Create your account</h1>
+      <p class="muted">Start chatting with your Companion AI in seconds.</p>
+
+      <div class="error-banner" id="error"></div>
+
+      <div class="field">
+        <label for="full_name">Name</label>
+        <input id="full_name" name="full_name" type="text" autocomplete="name" required minlength="1" maxlength="120" />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+      </div>
+      <div class="field">
+        <label for="password">Password (min 8 chars)</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
+      </div>
+
+      <button class="btn-primary" id="submit" type="submit">Create account</button>
+
+      <p class="alt-link">Already have an account? <a href="/nai-ui/login.html">Log in</a></p>
+    </form>
+  </main>
+
+  <script src="auth.js"></script>
+  <script>
+    bindAuthForm({
+      formId: "signup-form",
+      submitId: "submit",
+      errorId: "error",
+      endpoint: "/auth/signup",
+      buildBody: () => ({
+        email:     document.getElementById("email").value.trim(),
+        password:  document.getElementById("password").value,
+        full_name: document.getElementById("full_name").value.trim(),
+      }),
+      successRedirect: "/nai-ui/",
+    });
+  </script>
+</body>
+</html>

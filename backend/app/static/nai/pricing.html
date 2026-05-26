@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing — NAI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>NAI</h1>
+    <nav class="subnav">
+      <a href="/nai-ui/">Chat</a>
+      <a href="/nai-ui/login.html">Log in</a>
+      <a href="/nai-ui/signup.html">Sign up</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1>Choose your plan</h1>
+    <p class="lede">
+      Companion AI for thinking, building, and shipping. Cancel anytime.
+    </p>
+
+    <div class="error-banner" id="error"></div>
+
+    <div class="plans">
+      <div class="plan">
+        <h2>Pro</h2>
+        <div class="price">$19<small> / month</small></div>
+        <ul>
+          <li>Unlimited chats</li>
+          <li>OpenAI &amp; Anthropic adapters</li>
+          <li>Memory across conversations</li>
+          <li>Notion + 200 SaaS tools (Composio)</li>
+        </ul>
+        <button class="btn-primary" data-plan="pro" type="button">Subscribe to Pro</button>
+      </div>
+
+      <div class="plan featured">
+        <h2>Elite</h2>
+        <div class="price">$49<small> / month</small></div>
+        <ul>
+          <li>Everything in Pro</li>
+          <li>Perplexity research adapter</li>
+          <li>Local Ollama fallback</li>
+          <li>Priority support</li>
+        </ul>
+        <button class="btn-primary" data-plan="elite" type="button">Subscribe to Elite</button>
+      </div>
+    </div>
+
+    <p class="alt-link">
+      Already subscribed? <a href="/nai-ui/">Open the chat</a>
+    </p>
+  </main>
+
+  <script src="auth.js"></script>
+  <script src="pricing.js"></script>
+</body>
+</html>

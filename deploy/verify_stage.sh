@@ -35,6 +35,13 @@ fi
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 
+# The Python package `app` lives under backend/. Bare `python -c "from app..."`
+# checks need backend/ on the path. Without this, every import-check silently
+# turns into a ModuleNotFoundError and the verifier reports false negatives.
+# Discovered Stage 6 — historical Stage 4+ logs show the same FAIL signature
+# we just stopped looking at it.
+export PYTHONPATH="$REPO_ROOT/backend:${PYTHONPATH:-}"
+
 EVIDENCE_DIR="$REPO_ROOT/evidence"
 mkdir -p "$EVIDENCE_DIR"
 
@@ -280,6 +287,56 @@ case "$STAGE" in
     run_check "logs: rotation config installed"     test -f /etc/newsyslog.d/wheellsverse.conf
     run_check "cron: health check scheduled"        bash -c 'crontab -l 2>/dev/null | grep -q health_check'
     run_check "decision log: 0006 committed"        test -f docs/decisions/0006-mac-mini-daemonization.md
+    ;;
+
+  6)
+    section "Stage 6 — Public Exposure (cookie auth + signup/login/pricing UI)"
+
+    # --- backend: cookie-auth module ---
+    run_check "cookie_auth: module imports"          python -c "from app.dependencies.cookie_auth import set_auth_cookies, clear_auth_cookies, get_user_from_cookie, get_user_from_cookie_or_bearer, ACCESS_COOKIE, REFRESH_COOKIE"
+    run_check "cookie_auth: ACCESS_COOKIE name"      python -c "from app.dependencies.cookie_auth import ACCESS_COOKIE; assert ACCESS_COOKIE == 'nai_access', ACCESS_COOKIE"
+    run_check "cookie_auth: REFRESH_COOKIE name"     python -c "from app.dependencies.cookie_auth import REFRESH_COOKIE; assert REFRESH_COOKIE == 'nai_refresh', REFRESH_COOKIE"
+
+    # --- backend: stream auth migrated to cookie-preferred ---
+    run_check "stream_auth: get_user_for_stream"     python -c "from app.dependencies.stream_auth import get_user_for_stream"
+    run_check "stream_auth: alias preserved"         python -c "from app.dependencies.stream_auth import get_user_from_query_token, get_user_for_stream; assert get_user_from_query_token is get_user_for_stream"
+
+    # --- backend: auth router has /logout ---
+    run_check "auth router: /logout route exists"    python -c "from app.routers.auth import router; assert any(getattr(r, 'path', '') == '/auth/logout' for r in router.routes), [r.path for r in router.routes]"
+
+    # --- backend: get_current_user accepts either cookie or bearer ---
+    run_check "get_current_user: hybrid signature"   python -c "import inspect; from app.dependencies.auth import get_current_user; params = inspect.signature(get_current_user).parameters; assert 'nai_access' in params and 'token' in params, list(params)"
+
+    # --- UI: Stage 6 marketing pages exist ---
+    run_check "ui: signup.html exists"               test -f backend/app/static/nai/signup.html
+    run_check "ui: login.html exists"                test -f backend/app/static/nai/login.html
+    run_check "ui: pricing.html exists"              test -f backend/app/static/nai/pricing.html
+    run_check "ui: auth.js exists"                   test -f backend/app/static/nai/auth.js
+    run_check "ui: pricing.js exists"                test -f backend/app/static/nai/pricing.js
+
+    # --- UI hygiene: localStorage JWT removed from chat.js ---
+    run_check "ui: chat.js no longer stores JWT"     bash -c "! grep -q 'TOKEN_KEY\\|localStorage.getItem(.nai_jwt' backend/app/static/nai/chat.js"
+    run_check "ui: chat.js uses credentials:include" bash -c "grep -q 'credentials: \"include\"\\|credentials: .include.' backend/app/static/nai/chat.js"
+    run_check "ui: chat.js sends no ?token=" bash -c "! grep -q 'params.set(.token.\\|token:[[:space:]]*token' backend/app/static/nai/chat.js"
+
+    # --- tests ---
+    run_check "tests: test_cookie_auth.py collected" bash -c 'cd backend && python -m pytest tests/test_cookie_auth.py --collect-only -q | grep -q test_cookie_auth'
+    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
+                 "tests: pytest test_cookie_auth" \
+                 bash -c 'cd backend && pytest tests/test_cookie_auth.py -v --tb=short'
+
+    # --- live endpoint smoke (only if server is running) ---
+    run_or_defer 'curl -sf -m 2 http://127.0.0.1:8001/docs >/dev/null' \
+                 "server: /nai-ui/signup.html reachable" \
+                 bash -c 'curl -sf http://127.0.0.1:8001/nai-ui/signup.html >/dev/null'
+    run_or_defer 'curl -sf -m 2 http://127.0.0.1:8001/docs >/dev/null' \
+                 "server: /nai-ui/login.html reachable" \
+                 bash -c 'curl -sf http://127.0.0.1:8001/nai-ui/login.html >/dev/null'
+    run_or_defer 'curl -sf -m 2 http://127.0.0.1:8001/docs >/dev/null' \
+                 "server: /nai-ui/pricing.html reachable" \
+                 bash -c 'curl -sf http://127.0.0.1:8001/nai-ui/pricing.html >/dev/null'
+
+    run_check "decision log: 0007 committed"        test -f docs/decisions/0007-public-exposure-cookie-auth.md
     ;;
 
   *)

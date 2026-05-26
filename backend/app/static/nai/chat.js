@@ -1,12 +1,9 @@
-// Vanilla JS chat client.
-//   - Tools off  → SSE stream via EventSource (faster, no tools)
-//   - Tools on   → POST /nai/chat (full tool loop, no streaming)
+// Vanilla JS chat client. Stage 6: cookie auth.
+//   - Tools off  → SSE stream via EventSource (cookies auto-sent same-origin)
+//   - Tools on   → POST /nai/chat (cookies auto-sent same-origin)
 //
-// JWT auth: header for POST, query param for SSE (EventSource can't set headers).
-// JWT in URL is acceptable while the server is 127.0.0.1-only. Phase B must
-// move to HttpOnly cookies before any public exposure.
-
-const TOKEN_KEY = "nai_jwt";
+// No JWT touches JS anymore. The server issues HttpOnly cookies on
+// /auth/login + /auth/signup; we never read them, only send them implicitly.
 
 const els = {
   messages: document.getElementById("messages"),
@@ -17,19 +14,10 @@ const els = {
   local:    document.getElementById("prefer-local"),
   newConv:  document.getElementById("new-conv"),
   status:   document.getElementById("status"),
+  logout:   document.getElementById("logout-btn"),
 };
 
 let conversationId = null;
-let token = localStorage.getItem(TOKEN_KEY);
-
-function ensureToken() {
-  if (token) return token;
-  const t = window.prompt("Paste your JWT (from /auth/login):");
-  if (!t) return null;
-  localStorage.setItem(TOKEN_KEY, t);
-  token = t;
-  return t;
-}
 
 function appendMessage(role, content) {
   const div = document.createElement("div");
@@ -48,10 +36,8 @@ async function sendWithTools(message) {
   setStatus("Thinking… (tools enabled)");
   const resp = await fetch("/nai/chat", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${token}`,
-    },
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
     body: JSON.stringify({
       message,
       conversation_id: conversationId,
@@ -59,6 +45,10 @@ async function sendWithTools(message) {
       prefer_local: els.local.checked,
     }),
   });
+  if (resp.status === 401) {
+    window.location.href = "/nai-ui/login.html";
+    return;
+  }
   if (!resp.ok) {
     const text = await resp.text();
     appendMessage("assistant", `Error ${resp.status}: ${text}`);
@@ -78,12 +68,13 @@ function sendStreaming(message) {
   const params = new URLSearchParams({
     message,
     prefer_local: els.local.checked ? "true" : "false",
-    token,
   });
   if (conversationId) params.set("conversation_id", conversationId);
 
+  // EventSource needs withCredentials=true to send cookies even on same-origin
+  // for some browsers; setting it is safe everywhere.
   const url = `/nai/chat/stream?${params.toString()}`;
-  const evtSource = new EventSource(url);
+  const evtSource = new EventSource(url, { withCredentials: true });
   const bubble = appendMessage("assistant", "");
 
   evtSource.onmessage = (e) => {
@@ -107,13 +98,12 @@ function sendStreaming(message) {
 
   evtSource.onerror = () => {
     evtSource.close();
-    setStatus("Stream error");
+    setStatus("Stream error — your session may have expired. Try logging in again.");
   };
 }
 
 els.form.addEventListener("submit", async (e) => {
   e.preventDefault();
-  if (!ensureToken()) return;
   const message = els.input.value.trim();
   if (!message) return;
 
@@ -149,3 +139,10 @@ els.input.addEventListener("keydown", (e) => {
     els.form.requestSubmit();
   }
 });
+
+if (els.logout) {
+  els.logout.addEventListener("click", () => window.logout());
+}
+
+// On page load, confirm we're authenticated. If not, redirect to login.
+window.requireAuthOrRedirect("/nai-ui/login.html");

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Log in — NAI</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>NAI</h1>
+    <nav class="subnav">
+      <a href="/nai-ui/pricing.html">Pricing</a>
+      <a href="/nai-ui/signup.html">Sign up</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="auth-card" id="login-form" novalidate>
+      <h1>Welcome back</h1>
+      <p class="muted">Log in to continue your conversation.</p>
+
+      <div class="error-banner" id="error"></div>
+
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required />
+      </div>
+
+      <button class="btn-primary" id="submit" type="submit">Log in</button>
+
+      <p class="alt-link">No account yet? <a href="/nai-ui/signup.html">Sign up</a></p>
+    </form>
+  </main>
+
+  <script src="auth.js"></script>
+  <script>
+    bindAuthForm({
+      formId: "login-form",
+      submitId: "submit",
+      errorId: "error",
+      endpoint: "/auth/login",
+      buildBody: () => ({
+        email:    document.getElementById("email").value.trim(),
+        password: document.getElementById("password").value,
+      }),
+      successRedirect: "/nai-ui/",
+    });
+  </script>
+</body>
+</html>
