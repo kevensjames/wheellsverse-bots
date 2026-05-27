@@ -132,7 +132,7 @@ Things to think about once Stage 6 is live and you have real user behavior to lo
 - **Email verification gate:** `User.is_verified` exists but isn't enforced. Decide whether free users need a confirmed email before they can chat / subscribe.
 - **CSRF for `/auth/logout`:** Lax cookies stop cross-origin POST CSRF, so logout-CSRF doesn't actually log anyone out maliciously, but if you want defense-in-depth, add a CSRF token round-trip on auth-mutating routes.
 - **Drop the SSE `?token=` fallback:** once `grep "deprecated ?token=" backend.log` returns zero hits for ~1 week, delete the fallback in `app/dependencies/stream_auth.py`.
-- **Rate limiting on `/auth/login` + `/auth/signup`:** the current code has no throttle. Once you're public, a tiny `slowapi` decorator is the smallest fix.
+- ~~**Rate limiting on `/auth/login` + `/auth/signup`:** the current code has no throttle. Once you're public, a tiny `slowapi` decorator is the smallest fix.~~ **DONE 2026-05-26** — `slowapi` Limiter wired in `app/core/rate_limit.py`, decorators on signup (5/min), login (10/min), refresh (20/min); tests at `tests/test_auth_rate_limit.py` (3/3 PASS). For multi-worker uvicorn, switch to `storage_uri="redis://..."` so counters stay consistent across workers.
 
 ---
 

@@ -14,6 +14,9 @@ redis==5.1.1
 python-multipart==0.0.12
 email-validator==2.2.0
 stripe==11.1.0
+# Stage 6: rate-limit auth endpoints. In-memory storage by default —
+# acceptable for single-worker uvicorn; multi-worker needs storage_uri="redis://..."
+slowapi==0.1.9
 
 # market data + workers (Stage 3)
 # yfinance chases Yahoo's undocumented backend — use a range so cookie/crumb

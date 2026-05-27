@@ -1,0 +1,285 @@
+════════════════════════════════════════════════════════════════
+VERIFY_STAGE.SH — Independent Stage Verifier
+Stage: 6
+Timestamp: 20260527T002734Z
+Repo: /Users/jhonwheeler/wheellsverse_bots
+Script: ./deploy/verify_stage.sh
+User: jhonwheeler
+Host: Jhons-Mac-mini.local
+════════════════════════════════════════════════════════════════
+
+─── Environment baseline ───
+
+>>> CHECK [1]: git: HEAD commit
+>>> CMD: git rev-parse HEAD
+14728293f4ec710d63b48a48192e33da18400bfe
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [2]: git: branch
+>>> CMD: git rev-parse --abbrev-ref HEAD
+feat/kdp-fillers
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [3]: git: clean tree
+>>> CMD: bash -c test -z "$(git status --porcelain | grep -v '^?? evidence/stage_')"
+
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [4]: python: version
+>>> CMD: python --version
+Python 3.11.15
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [5]: venv: active
+>>> CMD: bash -c test -n "${VIRTUAL_ENV:-}"
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [6]: db: real connection (SQLAlchemy)
+>>> CMD: python deploy/db_check.py connect
+OK connected: db=postgres
+   PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gc
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Stage 6 — Public Exposure (cookie auth + signup/login/pricing UI) ───
+
+>>> CHECK [7]: cookie_auth: module imports
+>>> CMD: python -c from app.dependencies.cookie_auth import set_auth_cookies, clear_auth_cookies, get_user_from_cookie, get_user_from_cookie_or_bearer, ACCESS_COOKIE, REFRESH_COOKIE
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [8]: cookie_auth: ACCESS_COOKIE name
+>>> CMD: python -c from app.dependencies.cookie_auth import ACCESS_COOKIE; assert ACCESS_COOKIE == 'nai_access', ACCESS_COOKIE
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [9]: cookie_auth: REFRESH_COOKIE name
+>>> CMD: python -c from app.dependencies.cookie_auth import REFRESH_COOKIE; assert REFRESH_COOKIE == 'nai_refresh', REFRESH_COOKIE
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [10]: stream_auth: get_user_for_stream
+>>> CMD: python -c from app.dependencies.stream_auth import get_user_for_stream
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [11]: stream_auth: alias preserved
+>>> CMD: python -c from app.dependencies.stream_auth import get_user_from_query_token, get_user_for_stream; assert get_user_from_query_token is get_user_for_stream
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [12]: auth router: /logout route exists
+>>> CMD: python -c from app.routers.auth import router; assert any(getattr(r, 'path', '') == '/auth/logout' for r in router.routes), [r.path for r in router.routes]
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [13]: get_current_user: hybrid signature
+>>> CMD: python -c import inspect; from app.dependencies.auth import get_current_user; params = inspect.signature(get_current_user).parameters; assert 'nai_access' in params and 'token' in params, list(params)
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [14]: ui: signup.html exists
+>>> CMD: test -f backend/app/static/nai/signup.html
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [15]: ui: login.html exists
+>>> CMD: test -f backend/app/static/nai/login.html
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [16]: ui: pricing.html exists
+>>> CMD: test -f backend/app/static/nai/pricing.html
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [17]: ui: auth.js exists
+>>> CMD: test -f backend/app/static/nai/auth.js
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [18]: ui: pricing.js exists
+>>> CMD: test -f backend/app/static/nai/pricing.js
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [19]: ui: chat.js no longer stores JWT
+>>> CMD: bash -c ! grep -q 'TOKEN_KEY\|localStorage.getItem(.nai_jwt' backend/app/static/nai/chat.js
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [20]: ui: chat.js uses credentials:include
+>>> CMD: bash -c grep -q 'credentials: "include"\|credentials: .include.' backend/app/static/nai/chat.js
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [21]: ui: chat.js sends no ?token=
+>>> CMD: bash -c ! grep -q 'params.set(.token.\|token:[[:space:]]*token' backend/app/static/nai/chat.js
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [22]: tests: test_cookie_auth.py collected
+>>> CMD: bash -c cd backend && python -m pytest tests/test_cookie_auth.py --collect-only -q | grep -q test_cookie_auth
+/Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [23]: tests: pytest test_cookie_auth
+>>> CMD: bash -c cd backend && pytest tests/test_cookie_auth.py -v --tb=short
+/Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-8.3.3, pluggy-1.6.0 -- /Users/jhonwheeler/wheellsverse_bots/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jhonwheeler/wheellsverse_bots/backend
+configfile: pytest.ini
+plugins: asyncio-0.24.0, Faker-30.3.0, anyio-4.13.0
+asyncio: mode=Mode.STRICT, default_loop_scope=None
+collecting ... collected 13 items
+
+tests/test_cookie_auth.py::test_signup_sets_both_cookies PASSED          [  7%]
+tests/test_cookie_auth.py::test_login_sets_both_cookies PASSED           [ 15%]
+tests/test_cookie_auth.py::test_access_cookie_is_httponly_samesite_lax PASSED [ 23%]
+tests/test_cookie_auth.py::test_refresh_cookie_is_path_scoped_to_auth PASSED [ 30%]
+tests/test_cookie_auth.py::test_me_with_cookie_only PASSED               [ 38%]
+tests/test_cookie_auth.py::test_me_with_bearer_header_still_works PASSED [ 46%]
+tests/test_cookie_auth.py::test_me_no_auth_at_all_is_401 PASSED          [ 53%]
+tests/test_cookie_auth.py::test_logout_clears_cookies PASSED             [ 61%]
+tests/test_cookie_auth.py::test_refresh_using_cookie_only PASSED         [ 69%]
+tests/test_cookie_auth.py::test_refresh_with_invalid_cookie_is_401 PASSED [ 76%]
+tests/test_cookie_auth.py::test_stream_with_cookie_only PASSED           [ 84%]
+tests/test_cookie_auth.py::test_stream_legacy_query_token_still_works_with_warning PASSED [ 92%]
+tests/test_cookie_auth.py::test_stream_no_auth_is_401 PASSED             [100%]
+
+=============================== warnings summary ===============================
+../.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 13 passed, 1 warning in 2.75s =========================
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [24]: server: /nai-ui/signup.html reachable
+>>> CMD: bash -c curl -sf http://127.0.0.1:8001/nai-ui/signup.html >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [25]: server: /nai-ui/login.html reachable
+>>> CMD: bash -c curl -sf http://127.0.0.1:8001/nai-ui/login.html >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [26]: server: /nai-ui/pricing.html reachable
+>>> CMD: bash -c curl -sf http://127.0.0.1:8001/nai-ui/pricing.html >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [27]: slowapi: installed
+>>> CMD: python -c import slowapi; from slowapi import Limiter
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [28]: rate_limit: shared module imports
+>>> CMD: python -c from app.core.rate_limit import limiter; assert callable(limiter.limit)
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [29]: auth router: limit decorators wired
+>>> CMD: bash -c grep -q '@limiter.limit(' backend/app/routers/auth.py
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [30]: app: SlowAPIMiddleware mounted
+>>> CMD: python -c from app.main import app; mws = [m.cls.__name__ for m in app.user_middleware]; assert 'SlowAPIMiddleware' in mws, mws
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [31]: tests: pytest test_auth_rate_limit
+>>> CMD: bash -c cd backend && pytest tests/test_auth_rate_limit.py -v --tb=short
+/Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-8.3.3, pluggy-1.6.0 -- /Users/jhonwheeler/wheellsverse_bots/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jhonwheeler/wheellsverse_bots/backend
+configfile: pytest.ini
+plugins: asyncio-0.24.0, Faker-30.3.0, anyio-4.13.0
+asyncio: mode=Mode.STRICT, default_loop_scope=None
+collecting ... collected 3 items
+
+tests/test_auth_rate_limit.py::test_signup_blocks_after_5_per_minute PASSED [ 33%]
+tests/test_auth_rate_limit.py::test_login_blocks_after_10_per_minute PASSED [ 66%]
+tests/test_auth_rate_limit.py::test_reset_between_tests_works PASSED     [100%]
+
+=============================== warnings summary ===============================
+../.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 3 passed, 1 warning in 3.33s =========================
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [32]: decision log: 0007 committed
+>>> CMD: test -f docs/decisions/0007-public-exposure-cookie-auth.md
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Summary ───
+Total checks:  32
+Passed:        31
+Failed:        1
+Deferred:      0
+
+FAILED CHECKS:
+  - git: clean tree
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): 7d9524dc80214f960ed455eb5d59face47c80f6195894f6a98305727b8fe9389
+Generated: 2026-05-27T00:27:50Z
+
+Evidence written to: /Users/jhonwheeler/wheellsverse_bots/evidence/stage_6_20260527T002734Z.log
+SHA256: 7d9524dc80214f960ed455eb5d59face47c80f6195894f6a98305727b8fe9389
+
+════════════════════════════════════════════════════════════════
+VERDICT: STAGE 6 — FAIL (1 check(s) failed)
+════════════════════════════════════════════════════════════════

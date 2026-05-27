@@ -134,6 +134,26 @@ def db_session(engine):
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def _disable_rate_limiter():
+    """Stage 6 added slowapi rate limits on /auth/signup (5/min), /auth/login
+    (10/min), and /auth/refresh (20/min). The existing test_auth suite + the
+    new test_cookie_auth suite both fire dozens of those requests from a
+    single TestClient IP — without this fixture they'd hit 429 partway through
+    the run. The dedicated test_auth_rate_limit suite re-enables the limiter
+    explicitly to prove it still fires under attack."""
+    from app.core.rate_limit import limiter as _limiter
+
+    was_enabled = _limiter.enabled
+    _limiter.enabled = False
+    _limiter.reset()
+    try:
+        yield
+    finally:
+        _limiter.reset()
+        _limiter.enabled = was_enabled
+
+
 @pytest.fixture
 def client(db_session):
     def _override_get_db():

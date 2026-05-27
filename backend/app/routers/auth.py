@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from jose import JWTError
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -46,7 +47,9 @@ def _issue_tokens(user_id: UUID, response: Response) -> TokenResponse:
 
 
 @router.post("/signup", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/minute")  # brute-force / fake-account-spam defense
 def signup(
+    request: Request,  # required by slowapi; do not remove
     body: SignupRequest,
     response: Response,
     db: Session = Depends(get_db),
@@ -68,7 +71,9 @@ def signup(
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("10/minute")  # credential-stuffing defense
 def login(
+    request: Request,
     body: LoginRequest,
     response: Response,
     db: Session = Depends(get_db),
@@ -84,7 +89,9 @@ def login(
 
 
 @router.post("/refresh", response_model=TokenResponse)
+@limiter.limit("20/minute")  # refresh is cheap but still rate-bound
 def refresh(
+    request: Request,
     response: Response,
     body: RefreshRequest | None = None,
     db: Session = Depends(get_db),

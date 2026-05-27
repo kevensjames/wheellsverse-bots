@@ -354,6 +354,16 @@ case "$STAGE" in
                  "server: /nai-ui/pricing.html reachable" \
                  bash -c 'curl -sf http://127.0.0.1:8001/nai-ui/pricing.html >/dev/null'
 
+    # --- rate limiting (slowapi) on auth endpoints ---
+    run_check "slowapi: installed"                   python -c "import slowapi; from slowapi import Limiter"
+    run_check "rate_limit: shared module imports"    python -c "from app.core.rate_limit import limiter; assert callable(limiter.limit)"
+    run_check "auth router: limit decorators wired"  bash -c "grep -q '@limiter.limit(' backend/app/routers/auth.py"
+    run_check "app: SlowAPIMiddleware mounted"       python -c "from app.main import app; mws = [m.cls.__name__ for m in app.user_middleware]; assert 'SlowAPIMiddleware' in mws, mws"
+
+    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
+                 "tests: pytest test_auth_rate_limit" \
+                 bash -c 'cd backend && pytest tests/test_auth_rate_limit.py -v --tb=short'
+
     run_check "decision log: 0007 committed"        test -f docs/decisions/0007-public-exposure-cookie-auth.md
     ;;
 
