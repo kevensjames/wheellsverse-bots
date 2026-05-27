@@ -9,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.config import settings
 from app.core.rate_limit import limiter
+from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.routers import admin_data, auth, billing, nai, predictions
 
 
@@ -30,6 +31,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security headers — added last so it's the outermost wrapper, which means it
+# runs *last on response* and stamps headers on every response including
+# rate-limit 429s, CORS preflights, and SSE streams. HSTS is only set when
+# APP_ENV indicates production (production=HTTPS=safe to set HSTS).
+app.add_middleware(SecurityHeadersMiddleware, app_env=settings.APP_ENV)
 
 app.include_router(auth.router)
 app.include_router(predictions.router)

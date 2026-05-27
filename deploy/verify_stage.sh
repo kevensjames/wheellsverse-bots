@@ -364,6 +364,16 @@ case "$STAGE" in
                  "tests: pytest test_auth_rate_limit" \
                  bash -c 'cd backend && pytest tests/test_auth_rate_limit.py -v --tb=short'
 
+    # --- security headers middleware ---
+    run_check "security: middleware imports"         python -c "from app.middleware.security_headers import SecurityHeadersMiddleware"
+    run_check "security: middleware mounted"         python -c "from app.main import app; mws = [m.cls.__name__ for m in app.user_middleware]; assert 'SecurityHeadersMiddleware' in mws, mws"
+    run_check "security: no unsafe-inline in CSP"    bash -c "! grep -q 'unsafe-inline' backend/app/middleware/security_headers.py"
+    run_check "security: no inline script tags in signup.html"   bash -c '! grep -E "<script>[^<]" backend/app/static/nai/signup.html'
+    run_check "security: no inline script tags in login.html"    bash -c '! grep -E "<script>[^<]" backend/app/static/nai/login.html'
+    run_check "security: signup-init.js exists"      test -f backend/app/static/nai/signup-init.js
+    run_check "security: login-init.js exists"       test -f backend/app/static/nai/login-init.js
+    run_check "tests: pytest test_security_headers"  bash -c 'cd backend && pytest tests/test_security_headers.py -v --tb=short'
+
     run_check "decision log: 0007 committed"        test -f docs/decisions/0007-public-exposure-cookie-auth.md
     ;;
 

@@ -1,0 +1,190 @@
+════════════════════════════════════════════════════════════════
+VERIFY_STAGE.SH — Independent Stage Verifier
+Stage: 3
+Timestamp: 20260527T010044Z
+Repo: /Users/jhonwheeler/wheellsverse_bots
+Script: ./deploy/verify_stage.sh
+User: jhonwheeler
+Host: Jhons-Mac-mini.local
+════════════════════════════════════════════════════════════════
+
+─── Environment baseline ───
+
+>>> CHECK [1]: git: HEAD commit
+>>> CMD: git rev-parse HEAD
+76ea8aa4d78ebebc9c937d884abc50ab3e2bbaed
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [2]: git: branch
+>>> CMD: git rev-parse --abbrev-ref HEAD
+feat/kdp-fillers
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [3]: git: clean tree
+>>> CMD: bash -c test -z "$(git status --porcelain | grep -v '^?? evidence/stage_')"
+
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [4]: python: version
+>>> CMD: python --version
+Python 3.11.15
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [5]: venv: active
+>>> CMD: bash -c test -n "${VIRTUAL_ENV:-}"
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [6]: db: real connection (SQLAlchemy)
+>>> CMD: python deploy/db_check.py connect
+OK connected: db=postgres
+   PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gc
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Stage 3 — Narrow Tools ───
+
+>>> CHECK [7]: registry: import
+>>> CMD: python -c from app.services.tools import ToolRegistry, build_default_registry
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [8]: tools: web_search import
+>>> CMD: python -c from app.services.tools.web_search import WebSearchTool
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [9]: tools: memory_tool import
+>>> CMD: python -c from app.services.tools.memory_tool import MemoryTool
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [10]: tools: trading_signal import
+>>> CMD: python -c from app.services.tools.trading_signal import TradingSignalTool
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [11]: brain: memory_injection import
+>>> CMD: python -c from app.services.nai_brain.memory_injection import build_memory_preamble
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [12]: shim: services.narai.brain works
+>>> CMD: python -c from services.narai.brain import build_memory_preamble
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [13]: router.chat: import
+>>> CMD: python -c from app.services.router.router import Router; assert hasattr(Router, 'chat')
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [14]: tool registry tests
+>>> CMD: bash -c cd backend && pytest tests/test_tool_registry.py -v --tb=short
+/Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-8.3.3, pluggy-1.6.0 -- /Users/jhonwheeler/wheellsverse_bots/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jhonwheeler/wheellsverse_bots/backend
+configfile: pytest.ini
+plugins: asyncio-0.24.0, Faker-30.3.0, anyio-4.13.0
+asyncio: mode=Mode.STRICT, default_loop_scope=None
+collecting ... collected 8 items
+
+tests/test_tool_registry.py::test_register_and_get PASSED                [ 12%]
+tests/test_tool_registry.py::test_duplicate_register_raises PASSED       [ 25%]
+tests/test_tool_registry.py::test_get_unknown_raises PASSED              [ 37%]
+tests/test_tool_registry.py::test_openai_schema PASSED                   [ 50%]
+tests/test_tool_registry.py::test_anthropic_schema PASSED                [ 62%]
+tests/test_tool_registry.py::test_execute_happy PASSED                   [ 75%]
+tests/test_tool_registry.py::test_execute_tool_error_returns_error_result PASSED [ 87%]
+tests/test_tool_registry.py::test_execute_unknown_tool_returns_error PASSED [100%]
+
+=============================== warnings summary ===============================
+../.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 8 passed, 1 warning in 0.03s =========================
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [15]: router chat-loop tests
+>>> CMD: bash -c cd backend && pytest tests/test_router_chat.py -v --tb=short
+/Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/pytest_asyncio/plugin.py:208: PytestDeprecationWarning: The configuration option "asyncio_default_fixture_loop_scope" is unset.
+The event loop scope for asynchronous fixtures will default to the fixture caching scope. Future versions of pytest-asyncio will default the loop scope for asynchronous fixtures to function scope. Set the default fixture loop scope explicitly in order to avoid unexpected behavior in the future. Valid fixture loop scopes are: "function", "class", "module", "package", "session"
+
+  warnings.warn(PytestDeprecationWarning(_DEFAULT_FIXTURE_LOOP_SCOPE_UNSET))
+============================= test session starts ==============================
+platform darwin -- Python 3.11.15, pytest-8.3.3, pluggy-1.6.0 -- /Users/jhonwheeler/wheellsverse_bots/.venv/bin/python3
+cachedir: .pytest_cache
+rootdir: /Users/jhonwheeler/wheellsverse_bots/backend
+configfile: pytest.ini
+plugins: asyncio-0.24.0, Faker-30.3.0, anyio-4.13.0
+asyncio: mode=Mode.STRICT, default_loop_scope=None
+collecting ... collected 5 items
+
+tests/test_router_chat.py::test_chat_no_tools_returns_immediately PASSED [ 20%]
+tests/test_router_chat.py::test_chat_executes_tool_then_completes PASSED [ 40%]
+tests/test_router_chat.py::test_chat_loop_cap_raises PASSED              [ 60%]
+tests/test_router_chat.py::test_chat_requires_tool_context_when_registry_present PASSED [ 80%]
+tests/test_router_chat.py::test_chat_without_registry_skips_tools PASSED [100%]
+
+=============================== warnings summary ===============================
+../.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /Users/jhonwheeler/wheellsverse_bots/.venv/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+========================= 5 passed, 1 warning in 0.03s =========================
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [16]: smoke: tools end-to-end (local/test DB only)
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${OPENAI_API_KEY:-}" && echo "${DATABASE_URL:-}" | grep -qE "localhost|127\.0\.0\.1|test"
+
+>>> CHECK [17]: decision log: 0004 committed
+>>> CMD: test -f docs/decisions/0004-narrow-tools.md
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Summary ───
+Total checks:  17
+Passed:        15
+Failed:        1
+Deferred:      1
+
+FAILED CHECKS:
+  - git: clean tree
+
+DEFERRED CHECKS:
+  - smoke: tools end-to-end (local/test DB only) :: precondition failed: test -n "${OPENAI_API_KEY:-}" && echo "${DATABASE_URL:-}" | grep -qE "localhost|127\.0\.0\.1|test"
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): d681cdfb89d6667581c14c66a1ce1d36b5f635be47ff86981c2c8fe758153409
+Generated: 2026-05-27T01:00:53Z
+
+Evidence written to: /Users/jhonwheeler/wheellsverse_bots/evidence/stage_3_20260527T010044Z.log
+SHA256: d681cdfb89d6667581c14c66a1ce1d36b5f635be47ff86981c2c8fe758153409
+
+════════════════════════════════════════════════════════════════
+VERDICT: STAGE 3 — FAIL (1 check(s) failed)
+════════════════════════════════════════════════════════════════
