@@ -136,10 +136,15 @@ the full story.
 checks added).
 
 **Operator action required:**
-1. **Rotate `sb_secret_*` immediately** — the value was pasted in the chat
-   transcript that configured this work. Supabase dashboard → Settings → API
-   → Secret keys → Roll. After rolling, paste the new value into
-   `backend/.env` `SUPABASE_SECRET_KEY=...` and restart NAI.
+1. ~~**Rotate `sb_secret_*` immediately**~~ **DONE 2026-05-28** — old key
+   `sha256_prefix=499e5b97f415` was revoked server-side by Supabase
+   ("Unregistered API key" on probe); new key `sha256_prefix=204e005f5221`
+   pasted into `backend/.env` via `scripts/rotate_supabase_secret.sh`
+   (hidden-stdin read, never echoed to chat). Live admin probe authenticated
+   successfully. **NEXT:** restart the NAI daemon so it picks up the new env:
+   ```bash
+   launchctl kickstart -k gui/$(id -u)/com.wheellsverse.nai
+   ```
 2. **Smoke-test against real Supabase** (not the in-memory test fake):
    ```bash
    curl -X POST http://127.0.0.1:8001/auth/signup \
