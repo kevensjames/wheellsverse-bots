@@ -55,3 +55,23 @@ exit=0
 1. The first rotation attempt failed because the script required the operator to manually URI-encode the password. The dashboard hands you a raw value with `@`/`/`/`:` in it; manual encoding is error-prone. **Fix:** script now auto-encodes.
 2. The second attempt failed with `password authentication failed` after the script's encoding bug was the wrong RFC (`quote_plus` form-encoding rather than `quote` RFC-3986). Caught it on the rollback.
 3. The token-rotation step broke the daemon because `start_nai.sh` validated `JWT_SECRET_KEY` directly rather than the canonical `ADMIN_TOKEN`. The wrapper-script edit documents the transition contract: either env var satisfies the pre-flight.
+
+## 2026-05-28 — Publishable key rotation completed (operator)
+
+Operator rotated SUPABASE_PUBLISHABLE_KEY in the Supabase dashboard and
+pasted the new value into backend/.env. Verified live:
+
+| Check | Result |
+|---|---|
+| Prefix | sb_publishable_ ✓ |
+| Length | 46 (matches new-format keys) |
+| Old leaked sha (dead) | df070f021d25 |
+| New active sha | c53a57548598 |
+| Live GET /auth/v1/settings with new key | HTTP 200 (Supabase accepted) |
+| Daemon restart + env hash check | process env sha == file sha ✓ |
+
+All four secrets from the original .env exposure are now rotated:
+SUPABASE_SECRET_KEY, DB password, JWT_SECRET_KEY -> ADMIN_TOKEN,
+SUPABASE_PUBLISHABLE_KEY. No outstanding rotation items.
+
+Evidence: evidence/rotation_publishable_*.log
