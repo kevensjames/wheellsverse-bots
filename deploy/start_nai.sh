@@ -52,7 +52,12 @@ set -e
 : "${DATABASE_URL:?DATABASE_URL missing — fix .env}"
 : "${OPENAI_API_KEY:?OPENAI_API_KEY missing}"
 : "${ANTHROPIC_API_KEY:?ANTHROPIC_API_KEY missing}"
-: "${JWT_SECRET_KEY:?JWT_SECRET_KEY missing}"
+# Admin auth: ADMIN_TOKEN is the canonical name. JWT_SECRET_KEY is the
+# legacy fallback path (Path X transition). At least one must be set.
+if [ -z "${ADMIN_TOKEN:-}" ] && [ -z "${JWT_SECRET_KEY:-}" ]; then
+    echo "ADMIN_TOKEN (or legacy JWT_SECRET_KEY) missing — fix .env" >&2
+    exit 1
+fi
 
 # Keep PATH sane for any subprocess uvicorn spawns.
 export PATH="$VENV/bin:$PATH"
