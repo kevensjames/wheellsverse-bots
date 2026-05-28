@@ -1,39 +1,33 @@
-"""Cookie-based auth for Stage 6 (public exposure).
+"""Cookie helpers — issuance + clearing (Path X).
 
-Replaces the Stage 4 query-param token on /nai/chat/stream with HttpOnly cookies.
-Browsers auto-send cookies on same-origin EventSource requests, and JS can't
-read them — so the JWT no longer travels through the URL bar, browser history,
-or referer headers.
+The validation half of this module moved to ``app/dependencies/supabase_jwt.py``
+when Path X swapped the fictional self-managed JWT for real Supabase tokens.
+What's left here is just the response-cookie plumbing — set on signup/login/
+refresh, clear on logout.
 
-Public API:
-- ``set_auth_cookies(response, access, refresh)`` — call this in /auth/signup,
-  /auth/login, /auth/refresh after issuing new tokens.
-- ``clear_auth_cookies(response)`` — call this in /auth/logout.
-- ``get_user_from_cookie`` — FastAPI dependency for endpoints that should
-  accept cookie auth only (e.g. the SSE endpoint).
-- ``get_user_from_cookie_or_bearer`` — fallback dependency for endpoints that
-  must accept either cookie OR ``Authorization: Bearer`` (transitional, and
-  for API clients that don't have cookies).
+HttpOnly + SameSite=Lax + Secure-in-prod is unchanged from Stage 6. The
+cookie *value* is now a Supabase JWT (ES256), but the cookie *contract*
+(name, path, lifetime) stays the same — the UI doesn't need to know.
 
-The Bearer path is still the canonical "machine" auth; the cookie path is for
-browser-driven UIs (the /nai-ui pages).
+Cookie lifetimes track Supabase defaults (60-min access, 30-day refresh)
+rather than the legacy Stage 6 ACCESS_TOKEN_EXPIRE_MINUTES / REFRESH_TOKEN_
+EXPIRE_DAYS — those settings are now meaningless for user auth, kept only
+so existing .env files don't blow up at startup.
 """
 from __future__ import annotations
 
-from uuid import UUID
-
-from fastapi import Cookie, Depends, Header, HTTPException, Response, status
-from jose import JWTError
-from sqlalchemy.orm import Session
+from fastapi import Response
 
 from app.config import settings
-from app.core.security import decode_token
-from app.database import get_db
-from app.models.user import User
 
 
 ACCESS_COOKIE = "nai_access"
 REFRESH_COOKIE = "nai_refresh"
+
+# Supabase access tokens default to 60min; refresh to 30 days. Match those so
+# the cookie expiry tracks the JWT's actual validity.
+_ACCESS_COOKIE_SECONDS = 60 * 60
+_REFRESH_COOKIE_SECONDS = 30 * 86400
 
 
 def _cookie_secure() -> bool:
@@ -42,17 +36,12 @@ def _cookie_secure() -> bool:
 
 
 def set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
-    """Attach HttpOnly cookies to the outgoing response.
-
-    The access cookie matches ACCESS_TOKEN_EXPIRE_MINUTES; the refresh cookie
-    matches REFRESH_TOKEN_EXPIRE_DAYS. Both are HttpOnly + SameSite=Lax. In
-    production they're also Secure (HTTPS only).
-    """
+    """Attach HttpOnly cookies to the outgoing response."""
     secure = _cookie_secure()
     response.set_cookie(
         key=ACCESS_COOKIE,
         value=access_token,
-        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        max_age=_ACCESS_COOKIE_SECONDS,
         httponly=True,
         secure=secure,
         samesite="lax",
@@ -61,7 +50,7 @@ def set_auth_cookies(response: Response, access_token: str, refresh_token: str) 
     response.set_cookie(
         key=REFRESH_COOKIE,
         value=refresh_token,
-        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 86400,
+        max_age=_REFRESH_COOKIE_SECONDS,
         httponly=True,
         secure=secure,
         samesite="lax",
@@ -74,58 +63,3 @@ def clear_auth_cookies(response: Response) -> None:
     """Drop both cookies (logout)."""
     response.delete_cookie(ACCESS_COOKIE, path="/")
     response.delete_cookie(REFRESH_COOKIE, path="/auth")
-
-
-_INVALID = HTTPException(
-    status_code=status.HTTP_401_UNAUTHORIZED,
-    detail="Invalid credentials",
-)
-
-
-def _user_from_access_token(token: str, db: Session) -> User:
-    try:
-        payload = decode_token(token)
-    except JWTError:
-        raise _INVALID
-    if payload.get("type") != "access":
-        raise _INVALID
-    sub = payload.get("sub")
-    if not sub:
-        raise _INVALID
-    try:
-        user_id = UUID(sub)
-    except (ValueError, TypeError):
-        raise _INVALID
-    user = db.get(User, user_id)
-    if user is None or not user.is_active:
-        raise _INVALID
-    return user
-
-
-def get_user_from_cookie(
-    nai_access: str | None = Cookie(default=None),
-    db: Session = Depends(get_db),
-) -> User:
-    """Cookie-only dependency. Use for SSE endpoints reachable from the UI."""
-    if not nai_access:
-        raise _INVALID
-    return _user_from_access_token(nai_access, db)
-
-
-def get_user_from_cookie_or_bearer(
-    nai_access: str | None = Cookie(default=None),
-    authorization: str | None = Header(default=None),
-    db: Session = Depends(get_db),
-) -> User:
-    """Accept either cookie OR Authorization: Bearer header.
-
-    The cookie is preferred (UI flow); the header is the API-client fallback.
-    """
-    token: str | None = nai_access
-    if not token and authorization:
-        scheme, _, value = authorization.partition(" ")
-        if scheme.lower() == "bearer" and value:
-            token = value.strip()
-    if not token:
-        raise _INVALID
-    return _user_from_access_token(token, db)

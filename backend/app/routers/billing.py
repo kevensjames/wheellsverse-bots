@@ -20,8 +20,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies.auth import get_current_user
+from app.dependencies.supabase_jwt import UserPrincipal
+from app.models.profile import Profile
 from app.models.subscription import Plan, Subscription
-from app.models.user import User
 from app.schemas.billing import (
     CheckoutRequest,
     CheckoutResponse,
@@ -68,6 +69,15 @@ def _plan_by_code(db: Session, code: str) -> Plan | None:
     return db.query(Plan).filter(Plan.code == code).first()
 
 
+def _load_profile_or_404(db: Session, user_id) -> Profile:
+    """Path X: pull the profile row by id. The Supabase trigger guarantees
+    one exists for every auth.users row, so missing = bug."""
+    prof = db.get(Profile, user_id)
+    if prof is None:
+        raise HTTPException(status_code=404, detail="profile not found")
+    return prof
+
+
 def _utc_from_ts(ts: int | None) -> datetime | None:
     if ts is None:
         return None
@@ -79,7 +89,7 @@ def _utc_from_ts(ts: int | None) -> datetime | None:
 @router.get("/subscription", response_model=SubscriptionResponse)
 def current_subscription(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: UserPrincipal = Depends(get_current_user),
 ) -> SubscriptionResponse:
     sub = _active_sub(db, user.id)
     if sub:
@@ -109,7 +119,7 @@ def current_subscription(
 def create_checkout(
     body: CheckoutRequest,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: UserPrincipal = Depends(get_current_user),
 ) -> CheckoutResponse:
     price_id = _price_id_for_plan(body.plan_code)
     if not price_id:
@@ -118,16 +128,16 @@ def create_checkout(
             detail=f"Plan '{body.plan_code}' not configured (STRIPE_PRICE_* env missing)",
         )
 
+    profile = _load_profile_or_404(db, user.id)
     try:
         customer_id = stripe_service.get_or_create_customer(
             user_id=str(user.id),
-            email=user.email,
-            existing_customer_id=user.stripe_customer_id,
+            email=profile.email or (user.email or ""),
+            existing_customer_id=profile.stripe_customer_id,
         )
         # Persist customer_id so we don't create duplicates on retry
-        if user.stripe_customer_id != customer_id:
-            user.stripe_customer_id = customer_id
-            db.add(user)
+        if profile.stripe_customer_id != customer_id:
+            profile.stripe_customer_id = customer_id
             db.commit()
 
         checkout_url = stripe_service.create_checkout_session(
@@ -148,16 +158,17 @@ def create_checkout(
 @router.post("/portal", response_model=PortalResponse)
 def create_portal(
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: UserPrincipal = Depends(get_current_user),
 ) -> PortalResponse:
-    if not user.stripe_customer_id:
+    profile = _load_profile_or_404(db, user.id)
+    if not profile.stripe_customer_id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="No Stripe customer on file — subscribe first",
         )
     try:
         portal_url = stripe_service.create_portal_session(
-            customer_id=user.stripe_customer_id,
+            customer_id=profile.stripe_customer_id,
             return_url=settings.BILLING_PUBLIC_UPGRADE_URL,
         )
     except stripe_service.StripeError as e:
@@ -215,31 +226,35 @@ async def stripe_webhook(
 
 # ---------- webhook handlers ----------
 
-def _resolve_user(db: Session, data: dict[str, Any]) -> User | None:
-    """Locate our User row from any webhook payload.
+def _resolve_profile(db: Session, data: dict[str, Any]) -> Profile | None:
+    """Path X: locate the profiles row from a webhook payload.
 
     Tries metadata.user_id first (set by /checkout), falls back to
-    customer_id lookup (for subscription.updated events where metadata may
-    not be preserved).
+    stripe_customer_id lookup (for subscription.updated events where
+    metadata may not be preserved).
     """
     meta = data.get("metadata") or {}
     user_id = meta.get("user_id")
     if user_id:
-        user = db.query(User).filter(User.id == user_id).first()
-        if user:
-            return user
+        prof = db.get(Profile, user_id)
+        if prof:
+            return prof
 
     customer_id = data.get("customer")
     if customer_id:
-        return db.query(User).filter(User.stripe_customer_id == customer_id).first()
+        return (
+            db.query(Profile)
+            .filter(Profile.stripe_customer_id == customer_id)
+            .first()
+        )
     return None
 
 
 def _handle_checkout_completed(db: Session, data: dict[str, Any]) -> None:
     """User finished paying — create or activate the Subscription row."""
-    user = _resolve_user(db, data)
-    if not user:
-        logger.warning("checkout.session.completed: no matching user in %s", data.get("id"))
+    profile = _resolve_profile(db, data)
+    if not profile:
+        logger.warning("checkout.session.completed: no matching profile in %s", data.get("id"))
         return
 
     meta = data.get("metadata") or {}
@@ -264,7 +279,7 @@ def _handle_checkout_completed(db: Session, data: dict[str, Any]) -> None:
         sub.plan_id = plan.id
     else:
         sub = Subscription(
-            user_id=user.id,
+            user_id=profile.id,
             plan_id=plan.id,
             stripe_subscription_id=stripe_sub_id,
             status="active",
@@ -273,12 +288,11 @@ def _handle_checkout_completed(db: Session, data: dict[str, Any]) -> None:
 
     # Ensure stripe_customer_id is persisted (user could have paid via Checkout
     # without us having created the customer first — edge case but covers it).
-    if not user.stripe_customer_id and data.get("customer"):
-        user.stripe_customer_id = data["customer"]
-        db.add(user)
+    if not profile.stripe_customer_id and data.get("customer"):
+        profile.stripe_customer_id = data["customer"]
 
     db.commit()
-    logger.info("sub activated: user=%s plan=%s sub=%s", user.id, plan.code, stripe_sub_id)
+    logger.info("sub activated: user=%s plan=%s sub=%s", profile.id, plan.code, stripe_sub_id)
 
 
 def _handle_sub_updated(db: Session, data: dict[str, Any]) -> None:

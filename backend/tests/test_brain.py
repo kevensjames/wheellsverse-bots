@@ -108,24 +108,21 @@ def test_chat_resumes_existing_conversation(db_session, free_user):
 
 
 def test_chat_rejects_foreign_conversation(db_session, free_user):
-    # Conversation owned by some other real user. Creating it through the User
-    # model triggers the conftest after-insert event that mirrors into
-    # `profiles`, so the FK target exists. Previously this used a bare uuid4()
-    # which produced a no-such-profile FK violation.
-    from app.core.security import hash_password
-    from app.models.user import User
+    # Path X: create a profile row directly for the "other" user. The
+    # conversations.user_id FK targets profiles.id, so this is what the FK
+    # needs to satisfy. profiles.id has no server_default in code (prod
+    # supplies it via the auth.users.id trigger) — mint one explicitly.
+    import uuid as _uuid
+    from app.models.profile import Profile
 
-    other_user = User(
-        email="other@test.com",
-        password_hash=hash_password("x"),
-        full_name="other",
-        is_active=True,
+    other_profile = Profile(
+        id=_uuid.uuid4(), email="other@test.com", name="other", tier="free"
     )
-    db_session.add(other_user)
+    db_session.add(other_profile)
     db_session.commit()
-    db_session.refresh(other_user)
+    db_session.refresh(other_profile)
 
-    other = Conversation(user_id=other_user.id, title="other")
+    other = Conversation(user_id=other_profile.id, title="other")
     db_session.add(other)
     db_session.commit()
 

@@ -19,7 +19,7 @@ from app.database import get_db
 from app.dependencies.auth import get_current_user
 from app.dependencies.stream_auth import get_user_for_stream
 from app.models.conversation import Conversation, Message
-from app.models.user import User
+from app.dependencies.supabase_jwt import UserPrincipal as User  # Path X alias
 from app.schemas.nai import (
     ChatRequest,
     ChatResponse,

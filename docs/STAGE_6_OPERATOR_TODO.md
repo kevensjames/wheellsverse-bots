@@ -124,6 +124,39 @@ If step 7 redirects to signup again (i.e. cookie didn't survive the round-trip),
 
 ---
 
+## 7-X. Path X — Supabase Auth alignment (DONE 2026-05-28)
+
+The schema-drift bug surfaced during operator-TODO §1 turned out to be much
+bigger than a missing trigger — Stage 6 had reinvented self-managed JWT auth
+against a `public.users` table that doesn't exist in prod. See decision log
+[0008-path-x-supabase-auth.md](decisions/0008-path-x-supabase-auth.md) for
+the full story.
+
+**Status:** code-complete + 155 tests PASS + Stage 6 verifier 49/49 (path-X
+checks added).
+
+**Operator action required:**
+1. **Rotate `sb_secret_*` immediately** — the value was pasted in the chat
+   transcript that configured this work. Supabase dashboard → Settings → API
+   → Secret keys → Roll. After rolling, paste the new value into
+   `backend/.env` `SUPABASE_SECRET_KEY=...` and restart NAI.
+2. **Smoke-test against real Supabase** (not the in-memory test fake):
+   ```bash
+   curl -X POST http://127.0.0.1:8001/auth/signup \
+     -H "Content-Type: application/json" \
+     -d '{"email":"pathx-test@example.com","password":"TestPass123!"}'
+   ```
+   Then verify the trigger fired:
+   ```bash
+   psql "$DIRECT_DATABASE_URL" -c \
+     "SELECT email FROM profiles WHERE email='pathx-test@example.com';"
+   ```
+   Then send a chat as that user. If `/nai/chat` returns a conversation_id
+   (not a 500), Path X is live in prod. Clean up the test user from the
+   Supabase Auth dashboard afterwards.
+
+---
+
 ## 7. Deferred design questions (NOT blockers)
 
 Things to think about once Stage 6 is live and you have real user behavior to look at:

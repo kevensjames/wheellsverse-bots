@@ -19,10 +19,29 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    JWT_SECRET_KEY: str
+    # Legacy self-managed JWT secret. Still read at startup so existing .env
+    # files don't break — but no Stage 6+ code path uses it for user auth.
+    # `dependencies/admin.py` reuses it as a shared admin-API token; the
+    # rename to ADMIN_TOKEN is tracked but a soft alias keeps backward compat.
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Path X: Supabase Auth is the real identity system. Anon-level password
+    # grant uses the publishable key; admin create_user uses the secret key.
+    # JWT validation is JWKS (ES256) — no shared secret needed.
+    SUPABASE_URL: str = ""
+    SUPABASE_PUBLISHABLE_KEY: str = ""
+    SUPABASE_SECRET_KEY: str = ""
+
+    # Dedicated admin-API token. Falls back to JWT_SECRET_KEY for transition
+    # so deployments don't break before .env is updated.
+    ADMIN_TOKEN: str = ""
+
+    @property
+    def admin_token(self) -> str:
+        return self.ADMIN_TOKEN or self.JWT_SECRET_KEY
 
     # Stored as a plain CSV string — pydantic-settings 2.x tries to JSON-decode
     # List[str] fields from env, which breaks on "http://a,http://b". We parse

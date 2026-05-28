@@ -311,7 +311,10 @@ case "$STAGE" in
     section "Stage 6 — Public Exposure (cookie auth + signup/login/pricing UI)"
 
     # --- backend: cookie-auth module ---
-    run_check "cookie_auth: module imports"          python -c "from app.dependencies.cookie_auth import set_auth_cookies, clear_auth_cookies, get_user_from_cookie, get_user_from_cookie_or_bearer, ACCESS_COOKIE, REFRESH_COOKIE"
+    # Path X: get_user_from_cookie / get_user_from_cookie_or_bearer were
+    # removed — JWT validation moved to supabase_jwt. Only the cookie
+    # set/clear helpers + cookie names remain here.
+    run_check "cookie_auth: module imports"          python -c "from app.dependencies.cookie_auth import set_auth_cookies, clear_auth_cookies, ACCESS_COOKIE, REFRESH_COOKIE"
     run_check "cookie_auth: ACCESS_COOKIE name"      python -c "from app.dependencies.cookie_auth import ACCESS_COOKIE; assert ACCESS_COOKIE == 'nai_access', ACCESS_COOKIE"
     run_check "cookie_auth: REFRESH_COOKIE name"     python -c "from app.dependencies.cookie_auth import REFRESH_COOKIE; assert REFRESH_COOKIE == 'nai_refresh', REFRESH_COOKIE"
 
@@ -323,7 +326,10 @@ case "$STAGE" in
     run_check "auth router: /logout route exists"    python -c "from app.routers.auth import router; assert any(getattr(r, 'path', '') == '/auth/logout' for r in router.routes), [r.path for r in router.routes]"
 
     # --- backend: get_current_user accepts either cookie or bearer ---
-    run_check "get_current_user: hybrid signature"   python -c "import inspect; from app.dependencies.auth import get_current_user; params = inspect.signature(get_current_user).parameters; assert 'nai_access' in params and 'token' in params, list(params)"
+    # Path X: get_current_user now takes (nai_access, authorization) — the
+    # Stage 6 (token) parameter is gone, replaced by the standard
+    # Authorization header path.
+    run_check "get_current_user: hybrid signature"   python -c "import inspect; from app.dependencies.auth import get_current_user; params = inspect.signature(get_current_user).parameters; assert 'nai_access' in params and 'authorization' in params, list(params)"
 
     # --- UI: Stage 6 marketing pages exist ---
     run_check "ui: signup.html exists"               test -f backend/app/static/nai/signup.html
@@ -373,6 +379,21 @@ case "$STAGE" in
     run_check "security: signup-init.js exists"      test -f backend/app/static/nai/signup-init.js
     run_check "security: login-init.js exists"       test -f backend/app/static/nai/login-init.js
     run_check "tests: pytest test_security_headers"  bash -c 'cd backend && pytest tests/test_security_headers.py -v --tb=short'
+
+    # --- Path X: Supabase Auth integration ---
+    run_check "path-x: supabase_auth module"          python -c "from app.services import supabase_auth; assert callable(supabase_auth.create_user) and callable(supabase_auth.password_login) and callable(supabase_auth.refresh_session)"
+    # Resolve string annotations (from __future__ import annotations) to types.
+    run_check "path-x: supabase_jwt validator"        python -c "from app.dependencies.supabase_jwt import UserPrincipal, decode_supabase_jwt, get_current_user; import typing; from uuid import UUID; assert typing.get_type_hints(UserPrincipal)['id'] is UUID"
+    run_check "path-x: Profile model registered"      python -c "from app.models import Profile; assert Profile.__tablename__ == 'profiles'"
+    run_check "path-x: User model deleted"            bash -c "! test -f backend/app/models/user.py"
+    run_check "path-x: core/security.py deleted"      bash -c "! test -f backend/app/core/security.py"
+    run_check "path-x: auth router uses Supabase"     bash -c "grep -q 'supabase_auth\.\(create_user\|password_login\|refresh_session\)' backend/app/routers/auth.py"
+    run_check "path-x: no jose JWT imports"           bash -c "! grep -rn 'from jose import\|import jose' backend/app --include='*.py'"
+    run_check "path-x: no bcrypt in app/"             bash -c "! grep -rn 'hash_password\|verify_password\|bcrypt' backend/app --include='*.py'"
+    run_check "path-x: signup-init.js + login-init.js (CSP)" bash -c "test -f backend/app/static/nai/signup-init.js && test -f backend/app/static/nai/login-init.js"
+    run_or_defer 'test -n "${TEST_DATABASE_URL:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null' \
+                 "tests: pytest auth+cookie+rate-limit+security+billing" \
+                 bash -c 'cd backend && pytest tests/test_auth.py tests/test_cookie_auth.py tests/test_auth_rate_limit.py tests/test_security_headers.py tests/test_billing.py -v --tb=short'
 
     run_check "decision log: 0007 committed"        test -f docs/decisions/0007-public-exposure-cookie-auth.md
     ;;

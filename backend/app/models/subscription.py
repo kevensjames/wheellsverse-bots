@@ -37,7 +37,8 @@ class Subscription(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        # Path X: prod has subscriptions_user_id_fkey → profiles(id); align here.
+        ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
     )
     plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"), nullable=False)

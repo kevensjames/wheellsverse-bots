@@ -17,7 +17,7 @@ from app.models.asset import Asset
 from app.models.prediction import Prediction
 from app.models.subscription import Plan, Subscription
 from app.models.usage import UsageLog
-from app.models.user import User
+from app.dependencies.supabase_jwt import UserPrincipal as User  # Path X alias
 from app.schemas.prediction import PredictionResponse, PredictionStats, SignalCounts
 
 
