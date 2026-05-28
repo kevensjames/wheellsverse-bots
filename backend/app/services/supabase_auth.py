@@ -88,16 +88,53 @@ def create_user(email: str, password: str, full_name: str | None = None) -> dict
             }
         )
     except Exception as e:
-        msg = str(e).lower()
-        logger.warning("Supabase create_user failed for %s: %s", email, e)
-        if "already" in msg or "registered" in msg or "exists" in msg:
+        # Extract a structured detail from supabase-py's AuthApiError if present.
+        # The .code / .message fields are the Supabase-server categorisation
+        # (e.g. "weak_password", "email_address_invalid", "email_exists") —
+        # safe to surface and helpful for the client to act on.
+        raw = str(e)
+        code = getattr(e, "code", None) or ""
+        message = getattr(e, "message", None) or ""
+        msg_l = (raw + " " + code + " " + message).lower()
+        logger.warning(
+            "Supabase create_user failed for %s: type=%s code=%r message=%r raw=%s",
+            email, type(e).__name__, code, message, raw[:200],
+        )
+        if any(t in msg_l for t in ("already", "registered", "exists")):
             raise AuthError("email already registered", status_code=409)
-        # Anything else: don't leak internals.
-        raise AuthError("signup failed", status_code=400)
+        if "weak_password" in msg_l or "password" in msg_l:
+            raise AuthError("password too weak", status_code=400)
+        if "email_address_invalid" in msg_l or "invalid_email" in msg_l:
+            raise AuthError("email address rejected by auth provider", status_code=400)
+        if "signup" in msg_l and "disabled" in msg_l:
+            raise AuthError("signups are disabled in supabase auth settings", status_code=503)
+        # Generic fallback — include exception class + supabase code if any
+        # (not the raw text). Class name + code are safe; they tell us
+        # "AuthRetryableError" vs "ConnectionError" vs "AuthApiError(weak_password)"
+        # without leaking credentials or server internals.
+        cls_name = type(e).__name__
+        if code:
+            detail = f"signup failed ({cls_name}: {code})"
+        else:
+            detail = f"signup failed ({cls_name})"
+        raise AuthError(detail, status_code=400)
 
-    user = getattr(resp, "user", None) or resp.get("user") if isinstance(resp, dict) else None  # type: ignore[union-attr]
+    # supabase-py 2.x returns a `UserResponse` object with `.user`. Older
+    # paths returned dicts. Handle both without the operator-precedence trap
+    # that previously yielded `user=None` for every successful call.
+    if hasattr(resp, "user"):
+        user = resp.user
+    elif isinstance(resp, dict):
+        user = resp.get("user")
+    else:
+        user = None
+
     if user is None:
-        raise AuthError("signup failed", status_code=400)
+        logger.warning(
+            "Supabase create_user returned no user; resp type=%s repr=%s",
+            type(resp).__name__, repr(resp)[:200],
+        )
+        raise AuthError("signup failed (no user in response)", status_code=400)
     return {"id": str(user.id), "email": user.email}
 
 

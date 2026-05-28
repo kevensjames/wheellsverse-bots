@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-REQUIRED_ADAPTERS = frozenset({"openai", "anthropic", "perplexity", "ollama"})
+REQUIRED_ADAPTERS = frozenset({"openai"})
 TOOL_CAPABLE_ADAPTERS = frozenset({"openai", "anthropic"})
 DEFAULT_MAX_TOOL_ITERS = 5
 
@@ -36,6 +36,18 @@ class Router:
         self.adapters = adapters
         self.spend = spend_tracker
 
+    def _get(self, preferred: str, *, reason: str) -> Adapter:
+        """Return the preferred adapter, falling back to openai when it
+        isn't configured. Lets the router survive in degraded deployments
+        (e.g. Perplexity/Ollama unset) without crashing the chat endpoint."""
+        if preferred in self.adapters:
+            return self.adapters[preferred]
+        logger.warning(
+            "router: %s preferred (%s) not configured — falling back to openai",
+            reason, preferred,
+        )
+        return self.adapters["openai"]
+
     def select(
         self,
         intent: Intent,
@@ -44,16 +56,16 @@ class Router:
     ) -> Adapter:
         if prefer_local:
             logger.info("routing to ollama (prefer_local)")
-            return self.adapters["ollama"]
+            return self._get("ollama", reason="prefer_local")
 
         if self.spend.over_daily_cap(user_id):
             logger.warning("user %s over daily cap — routing to ollama", user_id)
-            return self.adapters["ollama"]
+            return self._get("ollama", reason="over_daily_cap")
 
         if intent == Intent.CODE:
-            return self.adapters["anthropic"]
+            return self._get("anthropic", reason="intent=code")
         if intent == Intent.REALTIME:
-            return self.adapters["perplexity"]
+            return self._get("perplexity", reason="intent=realtime")
         return self.adapters["openai"]
 
     def complete(

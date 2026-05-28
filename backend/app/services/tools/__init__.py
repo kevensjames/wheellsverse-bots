@@ -1,3 +1,6 @@
+import logging
+import os
+
 from app.services.tools.base import (
     Tool,
     ToolCall,
@@ -14,30 +17,49 @@ from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.web_search import WebSearchTool
 
 
+logger = logging.getLogger(__name__)
+
+
 def build_default_registry(
     *,
-    include_perplexity: bool = True,
-    include_composio: bool = True,
+    include_perplexity: bool | None = None,
+    include_composio: bool | None = None,
 ) -> ToolRegistry:
     """Wire the default tool set.
 
-    - include_perplexity=False  → skip web_search (no PERPLEXITY_API_KEY)
-    - include_composio=False    → skip Notion + generic Composio tools
-                                  (no COMPOSIO_API_KEY, or tests that mock
-                                  the SaaS surface)
+    Each include_* defaults to env-detected: register the tool only when its
+    API key is set. Explicit True/False overrides (used in tests, or to force
+    a tool off in dev).
     """
+    if include_perplexity is None:
+        include_perplexity = bool(os.environ.get("PERPLEXITY_API_KEY"))
+    if include_composio is None:
+        include_composio = bool(os.environ.get("COMPOSIO_API_KEY"))
+
     reg = ToolRegistry()
     if include_perplexity:
-        reg.register(WebSearchTool())
+        try:
+            reg.register(WebSearchTool())
+        except RuntimeError as e:
+            logger.warning("tools: skipping web_search — %s", e)
+    else:
+        logger.info("tools: web_search skipped (PERPLEXITY_API_KEY not set)")
+
     reg.register(MemoryTool())
     reg.register(TradingSignalTool())
+
     if include_composio:
         # Notion is the priority surface (Pattern A — dedicated tool).
         # ComposioTool is the catch-all for the other 200+ Composio apps
         # (Pattern B — discover + execute via toolkit+slug). Together they
         # implement the Stage 6 Hybrid (Pattern C) design.
-        reg.register(NotionTool())
-        reg.register(ComposioTool())
+        try:
+            reg.register(NotionTool())
+            reg.register(ComposioTool())
+        except RuntimeError as e:
+            logger.warning("tools: skipping composio tools — %s", e)
+    else:
+        logger.info("tools: composio skipped (COMPOSIO_API_KEY not set)")
     return reg
 
 

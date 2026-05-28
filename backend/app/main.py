@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,6 +12,21 @@ from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.routers import admin_data, auth, billing, nai, predictions
+
+
+# Uvicorn configures its own loggers but doesn't attach a handler to the root
+# logger, so WARNINGS from app.* loggers silently disappear into the void.
+# Add a single StreamHandler to root so things like
+# `logger.warning("Supabase create_user failed: ...")` actually surface in
+# nai.stderr.log under launchd.
+_root = logging.getLogger()
+if not any(isinstance(h, logging.StreamHandler) for h in _root.handlers):
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)s %(name)s: %(message)s"
+    ))
+    _root.addHandler(_h)
+_root.setLevel(logging.INFO)
 
 
 app = FastAPI(

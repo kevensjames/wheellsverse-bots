@@ -76,9 +76,24 @@ def test_over_daily_cap_forces_local(adapters, fake_tracker):
     assert r.select(Intent.CODE, uuid.uuid4()).name == "ollama"
 
 
-def test_missing_adapter_raises(fake_tracker):
+def test_missing_openai_raises(fake_tracker):
+    """Only openai is structurally required — it's the fallback for unknown
+    intents. Missing perplexity / ollama / anthropic should NOT raise;
+    select() degrades to openai instead (tested in test_select_*)."""
     with pytest.raises(ValueError, match="missing adapters"):
-        Router(adapters={"openai": MockAdapter("openai")}, spend_tracker=fake_tracker)
+        Router(adapters={"ollama": MockAdapter("ollama")}, spend_tracker=fake_tracker)
+
+
+def test_missing_optional_adapter_does_not_raise(fake_tracker):
+    """Missing perplexity is fine — graceful degradation."""
+    Router(adapters={"openai": MockAdapter("openai")}, spend_tracker=fake_tracker)
+
+
+def test_select_falls_back_to_openai_when_specialised_missing(fake_tracker):
+    """REALTIME intent prefers perplexity; with perplexity absent, falls back."""
+    r = Router(adapters={"openai": MockAdapter("openai")}, spend_tracker=fake_tracker)
+    fake_tracker.over_daily_cap.return_value = False
+    assert r.select(Intent.REALTIME, uuid.uuid4()).name == "openai"
 
 
 def test_complete_logs_spend(router, fake_tracker):
