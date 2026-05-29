@@ -2223,6 +2223,68 @@ async def prompts_mark_used(prompt_id: str):
     return _prompt_row_to_dict(r)
 
 
+# ─── Customer-facing API keys (CRUD over chat_db.api_keys) ──────────────────
+#
+# Wires the dashboard "API Keys" panel (dashboard/index.html akLoad/Create/
+# Revoke/Rotate ~L18164–18215) to core/api_keys.py. The api_keys module
+# already implements key generation (wv_<token_hex>), SHA-256 storage,
+# revoke, rotate, list, and per-key sliding-window rate limiting — but the
+# 4 HTTP routes the panel calls were never mounted.
+#
+# Security note: the plaintext key is returned ONLY on create and rotate.
+# The list endpoint exposes metadata only (id, name, plan, request_count,
+# last_used, rate_limit, active) — never the hash and never the plaintext.
+
+@app.get("/api/apikeys")
+async def apikeys_list():
+    """List all issued customer API keys (metadata only — no secrets)."""
+    from core import api_keys as _api_keys
+    return {"keys": _api_keys.list_keys()}
+
+
+@app.post("/api/apikeys")
+async def apikeys_create(payload: dict):
+    """Mint a new API key. Returns the plaintext key — this is the only time
+    the operator can see it, so the dashboard shows it in a one-time banner."""
+    name = (payload.get("name") or "").strip()
+    plan = (payload.get("plan") or "free").strip()
+    if not name:
+        from fastapi import HTTPException
+        raise HTTPException(400, "name is required")
+    from core import api_keys as _api_keys
+    if plan not in _api_keys.PLAN_RATE_LIMITS:
+        from fastapi import HTTPException
+        raise HTTPException(400, f"unknown plan; valid: {list(_api_keys.PLAN_RATE_LIMITS)}")
+    result = _api_keys.create_key(name, plan)
+    _add_log(f"API key minted: {name} (plan={plan})", "INFO")
+    return result
+
+
+@app.delete("/api/apikeys/{key_id}")
+async def apikeys_revoke(key_id: str):
+    """Soft-revoke a key — sets active=0, future requests with the key are
+    rejected by verify_key(). Existing rows in api_keys are preserved for
+    audit (created_at, last_used, request_count remain intact)."""
+    from core import api_keys as _api_keys
+    _api_keys.revoke_key(key_id)
+    _add_log(f"API key revoked: {key_id}", "INFO")
+    return {"status": "ok", "id": key_id}
+
+
+@app.post("/api/apikeys/{key_id}/rotate")
+async def apikeys_rotate(key_id: str):
+    """Rotate a key: revokes the old one and mints a replacement with the
+    same name + plan. Returns the new plaintext key for the one-time banner."""
+    from core import api_keys as _api_keys
+    try:
+        result = _api_keys.rotate_key(key_id)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(404, str(e))
+    _add_log(f"API key rotated: old_id={key_id}", "INFO")
+    return result
+
+
 # ─── Command ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/command")
