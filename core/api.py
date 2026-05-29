@@ -1051,6 +1051,39 @@ async def serve_robots():
     return FileResponse(p, media_type="text/plain")
 
 
+@app.get("/manifest.json")
+async def serve_manifest():
+    """PWA manifest. Required for installability and silences the /admin console 404."""
+    from fastapi.responses import FileResponse, JSONResponse
+    p = ROOT / "frontend" / "manifest.json"
+    if not p.exists():
+        return JSONResponse({"name": "WheellsVerse"}, media_type="application/manifest+json")
+    return FileResponse(p, media_type="application/manifest+json")
+
+
+@app.get("/favicon.svg")
+async def serve_favicon_svg():
+    """Canonical favicon. Referenced from <link rel=icon type=image/svg+xml>."""
+    from fastapi.responses import FileResponse, Response
+    p = ROOT / "frontend" / "favicon.svg"
+    if not p.exists():
+        return Response(status_code=404)
+    return FileResponse(p, media_type="image/svg+xml")
+
+
+@app.get("/favicon.ico")
+async def serve_favicon_ico():
+    """Legacy favicon path — older crawlers and bookmark managers ignore the <link>
+    tag and request /favicon.ico directly. Serve the same SVG; Chromium and Safari
+    accept image/svg+xml here. Returns 204 if the SVG is missing rather than a 404
+    error so the console stays clean."""
+    from fastapi.responses import FileResponse, Response
+    p = ROOT / "frontend" / "favicon.svg"
+    if not p.exists():
+        return Response(status_code=204)
+    return FileResponse(p, media_type="image/svg+xml")
+
+
 @app.get("/{key}.txt")
 async def serve_indexnow_key(key: str):
     """IndexNow ownership verification endpoint.

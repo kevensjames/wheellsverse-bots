@@ -1,0 +1,19 @@
+{
+  "name": "WheellsVerse — AI Command Center",
+  "short_name": "WheellsVerse",
+  "description": "Operator console for the WheellsVerse bot fleet, NarAI, Nexora, KDP, and money operations.",
+  "start_url": "/admin",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0d0f14",
+  "theme_color": "#0d0f14",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any",
+      "purpose": "any maskable"
+    }
+  ]
+}
