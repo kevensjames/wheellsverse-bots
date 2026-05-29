@@ -14253,3 +14253,40 @@ async def public_chat(req: Request, body: _PublicChatBody):
 async def public_crypto():
     from core.integrations import get_integrations
     return get_integrations().get_crypto_prices()
+
+
+# ─── Mount domain routers ─────────────────────────────────────────────────────
+#
+# Many backend domains (code, builder, botctl, creative, github, kb, voice,
+# plus analytics/market/log/scheduler/stripe/notify) are implemented as
+# APIRouter instances in core/*_router.py but were never registered with the
+# FastAPI app. The frontend has been 404'ing against these the entire time.
+#
+# Mounted at end-of-file so any direct @app.{method} declared earlier wins on
+# conflict (FastAPI uses first-registered semantics). Each include_router is
+# guarded so a single broken router doesn't take down app startup — the error
+# is logged and the rest still mount.
+
+_ROUTER_MODULES = [
+    "code_router",        # /api/code         — AI code gen + run + save
+    "builder_router",     # /api/builder      — visual bot builder
+    "bot_router",         # /api/botctl       — bot control (start/stop/log)
+    "creative_router",    # /api/creative     — lyrics, novel, social pack, etc.
+    "github_router",      # /api/github       — repos, issues, prs, actions
+    "knowledge_router",   # /api/kb           — RAG knowledge base
+    "voice_router",       # /api/voice        — ElevenLabs / OpenAI TTS
+    "analytics_router",   # /api/analytics    — overview / bots / usage / timeline
+    "market_router",      # /api/market       — summary / stocks / crypto
+    "log_router",         # /api/logs         — search / sources / stats
+    "scheduler_router",   # /api/scheduler    — jobs CRUD + run-now
+    "stripe_router",      # /api/stripe       — plans / checkout / portal
+    "notify_router",      # /api/notify       — adds POST /api/notify (create) to the existing direct routes
+]
+
+for _modname in _ROUTER_MODULES:
+    try:
+        _mod = __import__(f"core.{_modname}", fromlist=["router"])
+        app.include_router(_mod.router)
+        _add_log(f"Router mounted: {_modname}", "INFO")
+    except Exception as _e:
+        _add_log(f"Router mount FAILED: {_modname} ({_e})", "WARN")
