@@ -25,6 +25,7 @@ enumeration. The full error body is logged at WARNING level for debugging.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import httpx
@@ -48,7 +49,29 @@ def _config_or_raise() -> None:
 
 
 def admin_client() -> Client:
-    """Lazy singleton. Service-role bypasses all RLS — never expose."""
+    """Lazy singleton. Service-role bypasses all RLS — never expose.
+
+    Layer-2 safety gate: if we detect we're running inside pytest
+    (`PYTEST_CURRENT_TEST` is set automatically by pytest per test),
+    refuse to construct the real client. Tests must go through
+    `conftest.fake_supabase_auth`'s monkeypatch. This catches anything
+    that bypasses the monkeypatch — including future regressions where
+    a test imports `create_user` by name into its own namespace, or a
+    direct call to `admin_client()` from a fixture that runs before
+    monkeypatch installs.
+
+    Conftest layer 1 (refuse-pytest-on-prod-DATABASE_URL) blocks the
+    common case; this layer is defense in depth for the edge case.
+    """
+    if os.environ.get("PYTEST_CURRENT_TEST") and not os.environ.get("PYTEST_ALLOW_REAL_SUPABASE"):
+        raise RuntimeError(
+            "supabase_auth.admin_client() invoked from inside pytest. "
+            "The fake_supabase_auth monkeypatch should have replaced every "
+            "caller. If you're seeing this, something is bypassing the "
+            "fixture (e.g. `from app.services.supabase_auth import create_user` "
+            "instead of module-level `supabase_auth.create_user`). Fix the "
+            "import, or set PYTEST_ALLOW_REAL_SUPABASE=1 (don't)."
+        )
     global _admin
     if _admin is None:
         _config_or_raise()

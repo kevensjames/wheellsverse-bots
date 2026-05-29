@@ -17,12 +17,51 @@ now mirrors prod shape:
 from __future__ import annotations
 
 import os
+import sys
 import time
 import uuid
 from typing import Any
 
 import jwt
 import pytest
+
+
+# ── Force APP_ENV=test so the Stage 6 `_cookie_secure()` helper returns
+# False during tests. The TestClient runs over http://testserver, and
+# browsers (httpx included) drop Set-Cookie responses with Secure=True on
+# non-HTTPS — which makes every cookie-dependent test fail with 401 once
+# APP_ENV=production is in backend/.env. Force test here, BEFORE any
+# `from app.config import settings` cache fires.
+os.environ["APP_ENV"] = "test"
+
+
+# ── Layer-1 safety gate: refuse to run pytest if DATABASE_URL points at prod.
+# Same idea as the Stage 3 tools-smoke safety gate. The monkeypatch fixture
+# below should prevent real Supabase writes, but if anything bypasses it
+# (transient state during a refactor, a future regression, direct-import
+# of supabase_auth.create_user), this gate is the last line of defense.
+#
+# We refuse if DATABASE_URL contains anything that looks like a Supabase or
+# pooler hostname. To run tests deliberately against prod (don't), the
+# operator has to explicitly unset DATABASE_URL or set PYTEST_ALLOW_PROD=1.
+_db_url = os.environ.get("DATABASE_URL", "")
+_PROD_MARKERS = ("supabase.com", "supabase.co", "pooler.supabase")
+if any(m in _db_url for m in _PROD_MARKERS) and not os.environ.get("PYTEST_ALLOW_PROD"):
+    sys.stderr.write("\n" + "=" * 64 + "\n")
+    sys.stderr.write("REFUSING TO RUN PYTEST: DATABASE_URL points at production.\n")
+    sys.stderr.write("\n")
+    sys.stderr.write("Tests write to public.profiles/conversations/messages and call\n")
+    sys.stderr.write("Supabase auth.admin.create_user. Running against prod corrupts\n")
+    sys.stderr.write("real customer data.\n")
+    sys.stderr.write("\n")
+    sys.stderr.write("To run tests:\n")
+    sys.stderr.write("  unset DATABASE_URL\n")
+    sys.stderr.write("  export TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/wheellsverse_test\n")
+    sys.stderr.write("  pytest ...\n")
+    sys.stderr.write("\n")
+    sys.stderr.write("Override (NOT recommended): PYTEST_ALLOW_PROD=1 pytest ...\n")
+    sys.stderr.write("=" * 64 + "\n")
+    sys.exit(1)
 from faker import Faker
 from fastapi.testclient import TestClient
 from sqlalchemy import (

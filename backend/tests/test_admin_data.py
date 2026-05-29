@@ -4,7 +4,11 @@ from app.config import settings
 from app.models.asset import Asset
 
 
-ADMIN_HEADERS = {"X-Admin-Token": settings.JWT_SECRET_KEY}
+# Path X / credential rotation: settings.admin_token is the canonical
+# property (prefers ADMIN_TOKEN, falls back to legacy JWT_SECRET_KEY).
+# Hardcoding settings.JWT_SECRET_KEY here started failing once we blanked
+# that env var as part of the leaked-credential rotation.
+ADMIN_HEADERS = {"X-Admin-Token": settings.admin_token}
 
 
 def test_ingest_all_requires_admin_token(client):
