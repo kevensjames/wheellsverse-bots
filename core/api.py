@@ -2088,6 +2088,141 @@ async def notify_delete(notification_id: str):
     return {"status": "ok", "deleted": notifier.delete_notification(notification_id)}
 
 
+# ─── Prompts library (CRUD over chat_db.prompts) ─────────────────────────────
+#
+# Frontend contract: dashboard/index.html promptLibLoad/Edit/Save/Delete/Use
+# (~L17448–17537). List endpoint accepts ?limit=N&search=&category= and
+# returns {prompts, categories}. The prompts table already exists at
+# chat_db.py:90 — no new schema required.
+
+def _prompt_row_to_dict(r) -> dict:
+    return {
+        "id": r[0], "title": r[1], "body": r[2], "category": r[3],
+        "tags": r[4], "use_count": r[5],
+        "created_at": r[6], "updated_at": r[7],
+        "is_public": bool(r[8]),
+    }
+
+
+@app.get("/api/prompts")
+async def prompts_list(limit: int = 200, search: str = "", category: str = ""):
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    q = "SELECT id,title,body,category,tags,use_count,created_at,updated_at,is_public FROM prompts WHERE 1=1"
+    params: list = []
+    if search:
+        q += " AND (title LIKE ? OR body LIKE ? OR tags LIKE ?)"
+        like = f"%{search}%"
+        params += [like, like, like]
+    if category:
+        q += " AND category = ?"
+        params.append(category)
+    q += " ORDER BY updated_at DESC LIMIT ?"
+    params.append(limit)
+    with _lock:
+        rows = conn.execute(q, params).fetchall()
+        cats = [r[0] for r in conn.execute(
+            "SELECT DISTINCT category FROM prompts ORDER BY category").fetchall()]
+    return {"prompts": [_prompt_row_to_dict(r) for r in rows], "categories": cats}
+
+
+@app.get("/api/prompts/{prompt_id}")
+async def prompts_get(prompt_id: str):
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    with _lock:
+        r = conn.execute(
+            "SELECT id,title,body,category,tags,use_count,created_at,updated_at,is_public "
+            "FROM prompts WHERE id=?", (prompt_id,)).fetchone()
+    if not r:
+        from fastapi import HTTPException
+        raise HTTPException(404, "prompt not found")
+    return _prompt_row_to_dict(r)
+
+
+@app.post("/api/prompts")
+async def prompts_create(payload: dict):
+    from core.chat_db import _get_conn, _lock, init_db
+    from datetime import datetime
+    import uuid
+    init_db()
+    title = (payload.get("title") or "").strip()
+    body = (payload.get("body") or "").strip()
+    if not title or not body:
+        from fastapi import HTTPException
+        raise HTTPException(400, "title and body are required")
+    pid = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    conn = _get_conn()
+    with _lock:
+        conn.execute(
+            "INSERT INTO prompts(id,title,body,category,tags,use_count,created_at,updated_at,is_public)"
+            " VALUES(?,?,?,?,?,0,?,?,0)",
+            (pid, title, body,
+             (payload.get("category") or "general").strip(),
+             (payload.get("tags") or "").strip(),
+             now, now))
+        conn.commit()
+    return {"status": "ok", "id": pid}
+
+
+@app.patch("/api/prompts/{prompt_id}")
+async def prompts_update(prompt_id: str, payload: dict):
+    from core.chat_db import _get_conn, _lock, init_db
+    from datetime import datetime
+    init_db()
+    fields, values = [], []
+    for k in ("title", "body", "category", "tags"):
+        if k in payload:
+            fields.append(f"{k}=?")
+            values.append((payload[k] or "").strip())
+    if not fields:
+        return {"status": "ok", "id": prompt_id, "updated": 0}
+    fields.append("updated_at=?")
+    values.append(datetime.utcnow().isoformat())
+    values.append(prompt_id)
+    conn = _get_conn()
+    with _lock:
+        cur = conn.execute(f"UPDATE prompts SET {','.join(fields)} WHERE id=?", values)
+        conn.commit()
+    if cur.rowcount == 0:
+        from fastapi import HTTPException
+        raise HTTPException(404, "prompt not found")
+    return {"status": "ok", "id": prompt_id, "updated": cur.rowcount}
+
+
+@app.delete("/api/prompts/{prompt_id}")
+async def prompts_delete(prompt_id: str):
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    with _lock:
+        cur = conn.execute("DELETE FROM prompts WHERE id=?", (prompt_id,))
+        conn.commit()
+    return {"status": "ok", "deleted": cur.rowcount}
+
+
+@app.post("/api/prompts/{prompt_id}/use")
+async def prompts_mark_used(prompt_id: str):
+    """Increment use_count and return the row so the frontend can paste body
+    into the AI chat input."""
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    with _lock:
+        conn.execute("UPDATE prompts SET use_count=use_count+1 WHERE id=?", (prompt_id,))
+        conn.commit()
+        r = conn.execute(
+            "SELECT id,title,body,category,tags,use_count,created_at,updated_at,is_public "
+            "FROM prompts WHERE id=?", (prompt_id,)).fetchone()
+    if not r:
+        from fastapi import HTTPException
+        raise HTTPException(404, "prompt not found")
+    return _prompt_row_to_dict(r)
+
+
 # ─── Command ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/command")
