@@ -401,17 +401,23 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 <!-- ══ LOGIN GATE ══════════════════════════════════════════════════════════ -->
 <div id="login-gate" style="position:fixed;inset:0;background:#0d0f14;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column">
-  <div style="background:#13161d;border:1px solid rgba(136,68,255,.3);border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">
-    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#6600cc,#00aaff);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px">⬡</div>
+  <form id="login-form" action="/api/auth/login" method="post" autocomplete="on"
+    onsubmit="event.preventDefault();doLogin();"
+    style="background:#13161d;border:1px solid rgba(136,68,255,.3);border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#6600cc,#00aaff);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px" aria-hidden="true">⬡</div>
     <div style="font-size:14px;font-weight:700;color:#cc88ff;letter-spacing:2px;margin-bottom:4px">WHEELLSVERSE</div>
     <div style="font-size:10px;color:rgba(136,68,255,.6);letter-spacing:2px;margin-bottom:28px">AI COMMAND CENTER</div>
-    <input id="login-pw" type="password" placeholder="Enter password"
+    <!-- Hidden username so password managers can key the saved credential to a user -->
+    <input type="text" name="username" value="admin" autocomplete="username"
+      aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;opacity:0">
+    <label for="login-pw" class="sr-only" style="position:absolute;left:-9999px">Password</label>
+    <input id="login-pw" name="password" type="password" placeholder="Enter password"
+      autocomplete="current-password" required
       style="width:100%;background:#1a1e28;border:1px solid rgba(136,68,255,.3);border-radius:9px;padding:12px 14px;color:#e0e6f0;font-family:inherit;font-size:13px;outline:none;margin-bottom:12px;text-align:center"
-      onkeydown="if(event.key==='Enter')doLogin()"
       onfocus="this.style.borderColor='#cc88ff'" onblur="this.style.borderColor='rgba(136,68,255,.3)'">
-    <button onclick="doLogin()" style="width:100%;padding:11px;background:linear-gradient(135deg,rgba(102,0,204,.4),rgba(0,170,255,.3));border:1px solid rgba(136,68,255,.4);border-radius:9px;color:#cc88ff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px">ENTER</button>
-    <div id="login-err" style="margin-top:10px;font-size:11px;color:#ff4444;min-height:16px"></div>
-  </div>
+    <button type="submit" style="width:100%;padding:11px;background:linear-gradient(135deg,rgba(102,0,204,.4),rgba(0,170,255,.3));border:1px solid rgba(136,68,255,.4);border-radius:9px;color:#cc88ff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px">ENTER</button>
+    <div id="login-err" role="alert" aria-live="polite" style="margin-top:10px;font-size:11px;color:#ff4444;min-height:16px"></div>
+  </form>
 </div>
 <script>
 (function(){
@@ -3524,7 +3530,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn bc2 bsm" onclick="toodleRefresh()">↺ Refresh</button>
-      <a href="http://localhost:8000/docs" target="_blank" class="btn bg2 bsm">📖 API Docs</a>
+      <a href="/docs" target="_blank" class="btn bg2 bsm">📖 API Docs</a>
     </div>
   </div>
 
@@ -6641,17 +6647,18 @@ function tvRender(){
         const bdr=edited?'rgba(255,180,0,.6)':'var(--border)';
         html+=`<div style="background:var(--bg2);border:1px solid ${bdr};border-radius:var(--r);padding:8px 10px" id="tv-card-${t.key}">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-            <span>${dot}</span>
-            <span style="font-family:monospace;font-size:10px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.key}">${t.key}</span>
+            <span aria-hidden="true">${dot}</span>
+            <label for="tv-inp-${t.key}" style="font-family:monospace;font-size:10px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.key}">${t.key}</label>
             ${t.is_secret?'<span style="font-size:8px;color:var(--text3);background:rgba(255,100,60,.1);border-radius:4px;padding:1px 5px">secret</span>':''}
             ${edited?'<span style="font-size:8px;color:#ffc040;background:rgba(255,180,0,.1);border-radius:4px;padding:1px 5px">edited</span>':''}
           </div>
           <div style="display:flex;gap:5px;align-items:center">
             <input type="${itype}" class="si2" style="flex:1;font-size:10px;font-family:monospace"
-              id="tv-inp-${t.key}" value="${esc(disp)}"
+              id="tv-inp-${t.key}" name="${t.key}" value="${esc(disp)}"
+              aria-label="${t.key}"
               placeholder="${hasVal?'(set — type to change)':'Enter value…'}"
               oninput="tvEdit('${t.key}',this.value)" autocomplete="off" spellcheck="false">
-            ${t.is_secret?`<button class="btn bgh" style="padding:2px 7px;font-size:10px;flex-shrink:0" onclick="tvToggleShow('${t.key}')">&#128065;</button>`:''}
+            ${t.is_secret?`<button type="button" class="btn bgh" style="padding:2px 7px;font-size:10px;flex-shrink:0" aria-label="Show or hide ${t.key}" onclick="tvToggleShow('${t.key}')">&#128065;</button>`:''}
           </div>
         </div>`;
       }
@@ -9909,7 +9916,7 @@ async function toodleRefresh(){
   const upt = document.getElementById('toodle-uptime');
   if(txt) txt.textContent = 'Checking API…';
   try {
-    const r = await fetch('http://localhost:8000/health', {signal: AbortSignal.timeout(3000)});
+    const r = await fetch('/api/health', {signal: AbortSignal.timeout(3000)});
     if(r.ok){
       const d = await r.json();
       if(dot){ dot.style.background='#44ff88'; dot.style.boxShadow='0 0 8px #44ff88'; }
