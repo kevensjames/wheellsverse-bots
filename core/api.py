@@ -2285,6 +2285,98 @@ async def apikeys_rotate(key_id: str):
     return result
 
 
+# ─── /api/memory/* — AI Chat panel conversation namespace ──────────────────
+#
+# The dashboard AI Chat panel calls /api/memory/conversations* but the
+# underlying CRUD lives at chat_db.{list,create,update}_conversation /
+# get_messages. These aliases bind the two without moving data. The
+# /api/memory/settings pair is a thin shim returning empty defaults so the
+# panel stops 404ing on init.
+
+@app.get("/api/memory/conversations")
+async def memory_list_conversations(limit: int = 60, search: str = ""):
+    from core import chat_db as _cdb
+    rows = _cdb.list_conversations(limit=limit, search=search or None)
+    return {"conversations": rows}
+
+
+@app.post("/api/memory/conversations")
+async def memory_create_conversation(payload: dict):
+    from core import chat_db as _cdb
+    cid = _cdb.create_conversation(
+        title=(payload.get("title") or "New Chat"),
+        system_prompt=payload.get("system_prompt"),
+        model=payload.get("model"),
+    )
+    return {"id": cid}
+
+
+@app.patch("/api/memory/conversations/{conv_id}")
+async def memory_update_conversation(conv_id: str, payload: dict):
+    from core import chat_db as _cdb
+    _cdb.update_conversation(
+        conversation_id=conv_id,
+        title=payload.get("title"),
+        system_prompt=payload.get("system_prompt"),
+        pinned=payload.get("pinned"),
+        model=payload.get("model"),
+    )
+    return {"status": "ok", "id": conv_id}
+
+
+@app.get("/api/memory/conversations/{conv_id}/messages")
+async def memory_get_messages(conv_id: str, limit: int = 200):
+    from core import chat_db as _cdb
+    return {"messages": _cdb.get_messages(conv_id, limit=limit)}
+
+
+@app.get("/api/memory/messages")
+async def memory_messages_legacy(conversation_id: str = "", limit: int = 200):
+    """Compat alias for older frontend calls that pass conversation_id as a
+    query string. Returns empty list when conversation_id is omitted."""
+    from core import chat_db as _cdb
+    if not conversation_id:
+        return {"messages": []}
+    return {"messages": _cdb.get_messages(conversation_id, limit=limit)}
+
+
+@app.get("/api/memory/settings")
+async def memory_get_settings():
+    """Settings bag for the AI Chat panel. Returns empty defaults — the
+    panel falls back to sensible behavior when settings are absent."""
+    return {}
+
+
+@app.patch("/api/memory/settings")
+async def memory_update_settings(payload: dict):
+    """No-op accept. When persistence is wired, drop the payload into
+    chat_db.get_setting / set_setting (those helpers already exist)."""
+    updates = payload.get("updates") or {}
+    return {"status": "ok", "received": len(updates)}
+
+
+# ─── /api/agent/* — minimal stubs while the real engine is being designed ──
+#
+# The Agent Mode panel expects a full SSE-streaming tool-use loop. That
+# needs a separate design pass (model choice, sandbox, cost ceiling, tool
+# registry) and is intentionally out of scope for this branch. These two
+# stubs surface a clean state instead of 404 noise:
+#   • GET /api/agent/runs → empty list, sidebar badge reads 'ready'
+#   • POST /api/agent/cancel/{id} → 200 OK no-op
+# POST /api/agent/run and GET /api/agent/stream/{id} are left unimplemented
+# on purpose — a partial stub there would attempt SSE on a fake run_id and
+# make the failure mode worse, not better.
+
+@app.get("/api/agent/runs")
+async def agent_runs_stub():
+    return {"runs": []}
+
+
+@app.post("/api/agent/cancel/{run_id}")
+async def agent_cancel_stub(run_id: str):
+    return {"status": "ok", "run_id": run_id, "note": "no-op stub"}
+
+
 # ─── Command ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/command")
