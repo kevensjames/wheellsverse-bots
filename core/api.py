@@ -2048,6 +2048,46 @@ async def update_tokens(payload: dict):
             "skipped": skipped, "unknown": unknown}
 
 
+# ─── Notifications ────────────────────────────────────────────────────────────
+#
+# Wires the dashboard notification center (dashboard/index.html ~17354–17412)
+# to core/notifier.py. The notifier module and the SQLite `notifications`
+# table (chat_db.py:114) have existed for some time but no HTTP routes were
+# ever mounted — every call from the bell-icon UI returned 404. These five
+# handlers are thin: real logic lives in core.notifier.
+
+@app.get("/api/notify")
+async def notify_list(limit: int = 30, unread_only: bool = False):
+    """List notifications, newest first. Frontend default limit is 30."""
+    from core import notifier
+    return {"notifications": notifier.get_notifications(unread_only=unread_only, limit=limit)}
+
+
+@app.get("/api/notify/count")
+async def notify_count():
+    """Unread count for the bell-icon badge. Frontend reads `data.unread`."""
+    from core import notifier
+    return {"unread": notifier.get_unread_count()}
+
+
+@app.post("/api/notify/read/{notification_id}")
+async def notify_mark_read(notification_id: str):
+    from core import notifier
+    return {"status": "ok", "marked": notifier.mark_read(notification_id)}
+
+
+@app.post("/api/notify/read-all")
+async def notify_mark_all_read():
+    from core import notifier
+    return {"status": "ok", "marked": notifier.mark_all_read()}
+
+
+@app.delete("/api/notify/{notification_id}")
+async def notify_delete(notification_id: str):
+    from core import notifier
+    return {"status": "ok", "deleted": notifier.delete_notification(notification_id)}
+
+
 # ─── Command ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/command")
