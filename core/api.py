@@ -1907,6 +1907,147 @@ async def update_setting(update: SettingUpdate):
     return {"status": "updated", "key": update.key}
 
 
+# ─── Tokens (richer, grouped view for the env-token editor UI) ──────────────
+#
+# Same underlying store as /api/settings (env + .env file) but shaped for the
+# dashboard token-vault panel: tokens are grouped by category → subcategory,
+# secret values are never returned over the wire (only has_value), and POST
+# accepts a bulk {updates:{KEY:val,...}} batch.
+#
+# Frontend contract: dashboard/index.html `tvLoad()` (~line 6577) consumes
+# {groups, total, filled, empty}; each group is {category, subcategory,
+# tokens:[{key, value, has_value, is_secret}]}.
+
+_TOKEN_TAXONOMY: list[tuple[str, str, list[str]]] = [
+    ("AI", "Anthropic",   ["ANTHROPIC_API_KEY"]),
+    ("AI", "OpenAI",      ["OPENAI_API_KEY", "OPENAI_MODEL"]),
+    ("AI", "ElevenLabs",  ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL"]),
+    ("AI", "HeyGen",      ["HEYGEN_API_KEY", "HEYGEN_AVATAR_ID", "HEYGEN_VOICE_ID"]),
+    ("Social", "Meta",    ["FACEBOOK_PAGE_TOKEN", "FACEBOOK_PAGE_ID", "FACEBOOK_APP_ID",
+                           "FACEBOOK_APP_SECRET", "INSTAGRAM_ACCOUNT_ID",
+                           "INSTAGRAM_PAGE_TOKEN", "META_APP_ID", "META_APP_SECRET"]),
+    ("Social", "Twitter", ["TWITTER_API_KEY", "TWITTER_API_SECRET", "TWITTER_ACCESS_TOKEN",
+                           "TWITTER_ACCESS_SECRET", "TWITTER_BEARER_TOKEN"]),
+    ("Social", "TikTok",  ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "TIKTOK_ACCESS_TOKEN"]),
+    ("Social", "Reddit",  ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USERNAME",
+                           "REDDIT_PASSWORD", "REDDIT_SUBREDDIT"]),
+    ("Messaging", "Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]),
+    ("Messaging", "WhatsApp", ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID",
+                               "WHATSAPP_VERIFY_TOKEN"]),
+    ("Messaging", "Email",    ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_FROM_NAME",
+                               "EMAIL_HOST", "EMAIL_PORT"]),
+    ("Content", "YouTube",    ["YOUTUBE_API_KEY", "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"]),
+    ("Content", "WordPress",  ["WORDPRESS_URL", "WORDPRESS_USERNAME", "WORDPRESS_PASSWORD"]),
+    ("Payments", "Stripe",    ["STRIPE_SECRET_KEY", "STRIPE_PUBLIC_KEY", "STRIPE_WEBHOOK_SECRET"]),
+    ("Marketing", "ConvertKit", ["CONVERTKIT_API_KEY", "CONVERTKIT_API_SECRET", "CONVERTKIT_FORM_ID"]),
+    ("Google", "Search",      ["SERPER_API_KEY", "GSC_PROPERTY_URL", "GOOGLE_SERVICE_ACCOUNT_JSON"]),
+    ("System", "Brand",       ["BRAND_NAME", "AUTHOR_NAME", "BRAND_NICHE", "CTA_URL"]),
+    ("System", "Engine",      ["DECISION_ENGINE_ENABLED", "DECISION_ENGINE_INTERVAL"]),
+    ("System", "Platform",    ["RAILWAY_PUBLIC_URL", "API_KEY", "DASHBOARD_PASSWORD"]),
+]
+
+_TOKEN_SECRET_HINTS = ("KEY", "SECRET", "TOKEN", "PASSWORD")
+
+
+def _is_secret_key(key: str) -> bool:
+    return any(hint in key.upper() for hint in _TOKEN_SECRET_HINTS)
+
+
+def _read_env_file() -> dict[str, str]:
+    """Parse the .env file into a dict. Returns {} if the file is missing."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return {}
+    out: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        k, _, v = s.partition("=")
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _write_env_value(key: str, value: str) -> None:
+    """Upsert a single key/value into .env. Mirrors the logic of POST /api/settings
+    but is callable inline for the bulk-update path."""
+    env_path = ROOT / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    new_lines, hit = [], False
+    for line in lines:
+        s = line.strip()
+        if s.startswith(f"{key}=") or s.startswith(f"{key} ="):
+            new_lines.append(f"{key}={value}")
+            hit = True
+        else:
+            new_lines.append(line)
+    if not hit:
+        new_lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    os.environ[key] = value
+
+
+@app.get("/api/tokens")
+async def get_tokens():
+    """Grouped view of environment tokens for the dashboard token-vault panel.
+
+    Secret values are NEVER returned in `value` (only `has_value` is set).
+    Non-secret values are returned in full so the operator can read and edit
+    them in place. Uses os.environ first, falls back to .env file."""
+    env_file = _read_env_file()
+    groups, total, filled = [], 0, 0
+    for category, subcategory, keys in _TOKEN_TAXONOMY:
+        tokens = []
+        for k in keys:
+            actual = os.getenv(k) or env_file.get(k, "")
+            has_value = bool(actual)
+            secret = _is_secret_key(k)
+            tokens.append({
+                "key": k,
+                "value": "" if secret else actual,
+                "has_value": has_value,
+                "is_secret": secret,
+            })
+            total += 1
+            if has_value:
+                filled += 1
+        groups.append({"category": category, "subcategory": subcategory, "tokens": tokens})
+    return {"groups": groups, "total": total, "filled": filled, "empty": total - filled}
+
+
+@app.post("/api/tokens")
+async def update_tokens(payload: dict):
+    """Bulk-write env tokens. Accepts {updates: {KEY: value, ...}}.
+
+    Empty-string values for keys not yet set are skipped (no-op rather than
+    persisting an empty assignment). Empty-string values for keys that DO have
+    a value overwrite them — operator intent is to clear the slot."""
+    updates = payload.get("updates") or {}
+    if not isinstance(updates, dict):
+        return {"status": "error", "saved": 0, "error": "updates must be an object"}
+
+    known = {k for _, _, keys in _TOKEN_TAXONOMY for k in keys}
+    saved, skipped, unknown = [], [], []
+    for raw_key, raw_val in updates.items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        if key not in known:
+            unknown.append(key)
+            continue
+        val = "" if raw_val is None else str(raw_val)
+        if val == "" and not os.getenv(key):
+            skipped.append(key)
+            continue
+        _write_env_value(key, val)
+        saved.append(key)
+
+    if saved:
+        _add_log(f"Tokens updated: {', '.join(saved)}", "INFO")
+    return {"status": "ok", "saved": len(saved), "saved_keys": saved,
+            "skipped": skipped, "unknown": unknown}
+
+
 # ─── Command ──────────────────────────────────────────────────────────────────
 
 @app.post("/api/command")
