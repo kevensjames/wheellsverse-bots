@@ -1,6 +1,7 @@
 from functools import lru_cache
 from typing import List
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -69,8 +70,17 @@ class Settings(BaseSettings):
     # Stripe billing (Stage 5)
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
-    STRIPE_PRICE_PRO: str = ""
-    STRIPE_PRICE_ELITE: str = ""
+    # Price IDs accept BOTH the canonical name AND the legacy name from the
+    # operator's existing .env (STRIPE_PRO_PRICE_ID, STRIPE_BOT_PACK_PRICE_ID).
+    # Pydantic-settings v2 AliasChoices picks whichever is set, canonical wins.
+    STRIPE_PRICE_PRO: str = Field(
+        default="",
+        validation_alias=AliasChoices("STRIPE_PRICE_PRO", "STRIPE_PRO_PRICE_ID"),
+    )
+    STRIPE_PRICE_ELITE: str = Field(
+        default="",
+        validation_alias=AliasChoices("STRIPE_PRICE_ELITE", "STRIPE_BOT_PACK_PRICE_ID"),
+    )
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/billing/success"
     STRIPE_CANCEL_URL: str = "http://localhost:5173/billing/cancel"
     BILLING_PUBLIC_UPGRADE_URL: str = "http://localhost:5173/pricing"
