@@ -9,7 +9,7 @@ from app.models.conversation import Conversation, Message
 from app.models.memory import Memory
 from app.models.prediction import Prediction
 from app.models.profile import Profile
-from app.models.subscription import Plan, Subscription
+from app.models.subscription import Subscription  # Plan removed: see app/services/billing/tiers.py
 from app.models.usage import UsageLog
 
 __all__ = [
@@ -20,7 +20,6 @@ __all__ = [
     "Conversation",
     "Memory",
     "Message",
-    "Plan",
     "Prediction",
     "PriceHistory",
     "Profile",

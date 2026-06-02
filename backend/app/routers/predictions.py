@@ -15,7 +15,8 @@ from app.database import get_db
 from app.dependencies.auth import get_current_user
 from app.models.asset import Asset
 from app.models.prediction import Prediction
-from app.models.subscription import Plan, Subscription
+from app.models.subscription import Subscription
+from app.services.billing import tiers
 from app.models.usage import UsageLog
 from app.dependencies.supabase_jwt import UserPrincipal as User  # Path X alias
 from app.schemas.prediction import PredictionResponse, PredictionStats, SignalCounts
@@ -36,18 +37,22 @@ except Exception:  # pragma: no cover
 
 # ---------- helpers ----------
 
-def _user_plan(db: Session, user: User) -> Plan | None:
-    """Resolve the user's active plan. Falls back to the 'free' plan row."""
+def _user_tier(db: Session, user: User) -> str:
+    """Resolve the user's tier code. Reads the profile.tier mirror first
+    (single query — the webhook keeps it in sync with the active sub);
+    falls back to a Subscription scan if the mirror is somehow empty."""
+    from app.models.profile import Profile  # local import: avoid circular
+
+    prof = db.get(Profile, user.id)
+    if prof and prof.tier:
+        return prof.tier
+    # Defensive fallback — should never hit if webhook ran
     sub = (
         db.query(Subscription)
         .filter(Subscription.user_id == user.id, Subscription.status == "active")
         .first()
     )
-    if sub:
-        plan = db.get(Plan, sub.plan_id)
-        if plan:
-            return plan
-    return db.query(Plan).filter(Plan.code == "free").first()
+    return sub.tier if sub else "free"
 
 
 def _today_start_utc() -> datetime:
@@ -56,9 +61,10 @@ def _today_start_utc() -> datetime:
 
 
 def _enforce_rate_limit(db: Session, user: User) -> None:
-    """Raise 402 if the caller has used up today's quota under their plan."""
-    plan = _user_plan(db, user)
-    limit = plan.predictions_per_day if plan else 3
+    """Raise 402 if the caller has used up today's quota for their tier."""
+    tier_code = _user_tier(db, user)
+    spec = tiers.get(tier_code) or tiers.get("free")
+    limit = spec.predictions_per_day if spec else 3
 
     used = (
         db.query(func.count(UsageLog.id))
@@ -76,7 +82,7 @@ def _enforce_rate_limit(db: Session, user: User) -> None:
             detail={
                 "error": "Daily prediction limit reached",
                 "limit": int(limit),
-                "plan": plan.code if plan else "free",
+                "plan": tier_code,
                 "action": "Upgrade to Pro for unlimited access",
                 "upgrade_url": settings.BILLING_PUBLIC_UPGRADE_URL,
             },

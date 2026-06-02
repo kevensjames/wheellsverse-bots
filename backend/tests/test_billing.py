@@ -11,7 +11,7 @@ from typing import Any
 from sqlalchemy import text
 
 from app.config import settings
-from app.models.subscription import Plan, Subscription
+from app.models.subscription import Subscription
 
 
 def _profile_stripe_id(db_session, user_id) -> str | None:
@@ -150,10 +150,7 @@ def test_webhook_checkout_completed_activates_sub(
 ):
     secret = "whsec_test_abc"
     monkeypatch.setattr(settings, "STRIPE_WEBHOOK_SECRET", secret)
-
-    # Seed the plan Stripe will reference
-    pro = db_session.query(Plan).filter(Plan.code == "pro").first()
-    assert pro is not None
+    monkeypatch.setattr(settings, "STRIPE_PRICE_PRO", "price_test_pro")
 
     data_obj = {
         "id": "cs_test_1",
@@ -182,7 +179,8 @@ def test_webhook_checkout_completed_activates_sub(
     assert sub is not None
     assert sub.status == "active"
     assert sub.stripe_subscription_id == "sub_test_1"
-    assert sub.plan_id == pro.id
+    assert sub.tier == "pro"
+    assert sub.stripe_price_id == "price_test_pro"
 
     # Path X: customer ID was backfilled on the profile row.
     assert _profile_stripe_id(db_session, free_user.id) == "cus_abc"

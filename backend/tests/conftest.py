@@ -355,12 +355,10 @@ def test_profile(db_session):
 
 
 @pytest.fixture
-def free_user(db_session, seeded_plans):
-    """Path X equivalent of the old free_user — a profiles row, no subscription.
-    Returned object has .id and .email attributes for backward compat with tests
-    that did ``free_user.id``."""
-
-    pid = _insert_profile(db_session, email="free@test.com")
+def free_user(db_session):
+    """Profile row at the free tier, no subscription. Returned object has .id
+    and .email for back-compat with tests that did ``free_user.id``."""
+    pid = _insert_profile(db_session, email="free@test.com", tier="free")
 
     class _Profile:
         def __init__(self, id, email):
@@ -371,13 +369,19 @@ def free_user(db_session, seeded_plans):
 
 
 @pytest.fixture
-def pro_user(db_session, seeded_plans):
-    """Path X equivalent of pro_user. Insert a profiles row + Pro subscription."""
+def pro_user(db_session):
+    """Profile row at pro tier + active Subscription. Mirrors what the webhook
+    handler does when checkout.session.completed fires."""
     from app.models.subscription import Subscription
 
     pid = _insert_profile(db_session, email="pro@test.com", tier="pro")
-    plan = seeded_plans["pro"]
-    db_session.add(Subscription(user_id=pid, plan_id=plan.id, status="active"))
+    db_session.add(Subscription(
+        user_id=pid,
+        tier="pro",
+        stripe_subscription_id=f"sub_test_pro_{pid}",
+        stripe_price_id="price_test_pro",
+        status="active",
+    ))
     db_session.commit()
 
     class _Profile:
@@ -400,18 +404,11 @@ def auth_headers():
 
 
 @pytest.fixture
-def seeded_plans(db_session):
-    from app.models.subscription import Plan
-
-    rows = [
-        {"code": "free", "name": "Free", "price_cents": 0, "predictions_per_day": 3, "sms_alerts": False},
-        {"code": "pro", "name": "Pro", "price_cents": 1900, "predictions_per_day": 999, "sms_alerts": False},
-        {"code": "elite", "name": "Elite", "price_cents": 4900, "predictions_per_day": 999, "sms_alerts": True},
-    ]
-    for row in rows:
-        db_session.add(Plan(**row))
-    db_session.commit()
-    return {p.code: p for p in db_session.query(Plan).all()}
+def seeded_plans():
+    """Kept as a no-op for backward-compat with any older tests that listed
+    it as a dependency. The Stage 5 plans table is gone (see
+    app/services/billing/tiers.py)."""
+    return {}
 
 
 @pytest.fixture

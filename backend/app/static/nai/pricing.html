@@ -37,7 +37,13 @@
         <button class="btn-primary" data-plan="pro" type="button">Subscribe to Pro</button>
       </div>
 
-      <div class="plan featured">
+      <!-- Elite plan hidden during Phase B launch. Tier mapping isn't
+           configured in Stripe (no real Max/Ultra recurring price set) and
+           the prod subscriptions.tier CHECK doesn't allow 'elite'. To
+           re-enable: create a Stripe price, set STRIPE_PRICE_MAX or
+           STRIPE_PRICE_ULTRA in backend/.env, update the data-plan attr
+           to "max" or "ultra", restart. -->
+      <!-- <div class="plan featured">
         <h2>Elite</h2>
         <div class="price">$49<small> / month</small></div>
         <ul>
@@ -47,7 +53,7 @@
           <li>Priority support</li>
         </ul>
         <button class="btn-primary" data-plan="elite" type="button">Subscribe to Elite</button>
-      </div>
+      </div> -->
     </div>
 
     <p class="alt-link">

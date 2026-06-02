@@ -77,10 +77,18 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("STRIPE_PRICE_PRO", "STRIPE_PRO_PRICE_ID"),
     )
+    # NOTE: "Elite" was Stage 5's marketing name. Prod schema's CHECK
+    # constraint allows tiers ('pro','max','ultra') — there is no 'elite'
+    # tier. The Elite button in /nai-ui/pricing.html is hidden until the
+    # operator creates real Max/Ultra recurring prices in Stripe and sets
+    # the corresponding env vars below. The BOT_PACK alias remains for
+    # backward-compat with the existing root .env but should not be relied on.
     STRIPE_PRICE_ELITE: str = Field(
         default="",
         validation_alias=AliasChoices("STRIPE_PRICE_ELITE", "STRIPE_BOT_PACK_PRICE_ID"),
     )
+    STRIPE_PRICE_MAX: str = ""
+    STRIPE_PRICE_ULTRA: str = ""
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/billing/success"
     STRIPE_CANCEL_URL: str = "http://localhost:5173/billing/cancel"
     BILLING_PUBLIC_UPGRADE_URL: str = "http://localhost:5173/pricing"
