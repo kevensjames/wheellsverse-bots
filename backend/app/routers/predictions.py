@@ -8,6 +8,7 @@ from typing import Optional
 import redis as redis_lib
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -123,11 +124,25 @@ def prediction_stats(db: Session = Depends(get_db)) -> PredictionStats:
             logger.warning("redis get failed: %s", e)
 
     since = datetime.now(timezone.utc) - timedelta(days=30)
-    rows = (
-        db.query(Prediction.signal, Prediction.confidence, Prediction.actual_outcome)
-        .filter(Prediction.created_at >= since)
-        .all()
-    )
+    try:
+        rows = (
+            db.query(Prediction.signal, Prediction.confidence, Prediction.actual_outcome)
+            .filter(Prediction.created_at >= since)
+            .all()
+        )
+    except ProgrammingError as e:
+        # Prod Supabase doesn't have the predictions table yet (feature shipped
+        # in code, table not migrated). Fail open with zeros so the landing
+        # page renders instead of 500ing on every visit.
+        db.rollback()
+        logger.warning("predictions table unavailable, returning zero stats: %s", e.orig)
+        return PredictionStats(
+            total_predictions=0,
+            by_signal=SignalCounts(BUY=0, SELL=0, HOLD=0),
+            closed_predictions=0,
+            win_rate=None,
+            avg_confidence=0.0,
+        )
 
     counts = {"BUY": 0, "SELL": 0, "HOLD": 0}
     wins = losses = closed = 0
