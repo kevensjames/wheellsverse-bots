@@ -1,8 +1,32 @@
-# NAI Phase B Launch — Handoff
+# KAI (née NAI) Launch — Handoff
 
-**Last updated:** 2026-06-03 04:57 UTC
-**Branch:** `feat/kdp-fillers`
-**State:** Live, paid traffic ready. Two operator items remaining (rotation queue + Stripe dashboard webhook event check).
+**Last updated:** 2026-06-03 10:55 UTC (post-Stage-8 rebrand)
+**Branch:** `feat/kdp-fillers` (7 commits ahead of main, unpushed)
+**Canonical domain:** `https://kai.wheellsverse.com`
+**State:** Live, paid traffic ready, fully rebranded NAI→KAI end-to-end.
+
+## What changed since last handoff (3b76f6f)
+
+- Stage 8 rebrand shipped (`74ee77d`): static text, Stripe products, API
+  dual-mount /kai/+/nai/, UI dual-mount /kai-ui/+/nai-ui/, kai.* DNS +
+  tunnel ingress, CF Page Rule 301 nai.*→kai.*, system prompt, launch
+  blog post — all KAI.
+- Supabase Auth email templates branded via Management API (4 subjects +
+  4 bodies, all "KAI").
+- Stripe webhook URL repointed nai.*/billing/webhook → kai.*/billing/webhook
+  (Stripe doesn't follow 301 on POST; live-signed payload verified 200
+  through the tunnel).
+- Bare-domain + common typos now redirect to chat UI (`4ab5ba7`):
+  `/`, `/login`, `/signup`, `/pricing` → 307 → `/kai-ui/...`
+  (was: bare domain showed `{"name":"...","version":"0.1.0"}` JSON blob).
+- Browser 404 → /kai-ui/ catch-all middleware (`7c2fc52`):
+  /chat, /dashboard, /account, /settings, /foo, /kai-ui/anything — any
+  navigation-style path (no .css/.js/.png extension, not in /kai/ /auth/
+  /billing/ etc.) sent to /kai-ui/ as a 307. Asset 404s and API 404s
+  stay loud.
+- Decision log: `docs/decisions/0010-rename-nai-to-kai.md`
+- Evidence: `evidence/stage_8_kai_rebrand_20260603T101310Z.log`
+- Tests: 157/157 still pass after all of the above.
 
 ---
 
