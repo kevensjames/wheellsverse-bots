@@ -1,8 +1,10 @@
-"""NAI API endpoints. Mount under /nai.
+"""Chat API endpoints. Mounted under both /kai (canonical) and /nai (legacy
+during the brand-transition window). The router itself defines no prefix —
+main.py wires it in twice with different prefixes.
 
 Two chat modes:
-- POST /nai/chat — full tool loop available, JSON in/out
-- GET  /nai/chat/stream — SSE token streaming, no tools (EventSource limitation)
+- POST /kai/chat — full tool loop available, JSON in/out  (legacy: /nai/chat)
+- GET  /kai/chat/stream — SSE token streaming, no tools (EventSource limit)
 """
 from __future__ import annotations
 
@@ -33,7 +35,7 @@ from app.services.tools import build_default_registry
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/nai", tags=["nai"])
+router = APIRouter(tags=["chat"])
 
 
 def _build_brain(session: Session) -> Brain:

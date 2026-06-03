@@ -58,13 +58,23 @@ app.include_router(auth.router)
 app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
-app.include_router(nai.router)
+# Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
+# canonical; /nai stays alive so any in-flight client (cached JS, open SSE
+# stream, third-party bookmark) keeps working until the legacy window closes.
+app.include_router(nai.router, prefix="/kai")
+app.include_router(nai.router, prefix="/nai")
 
-_NAI_STATIC = Path(__file__).parent / "static" / "nai"
-if _NAI_STATIC.exists():
+_STATIC_DIR = Path(__file__).parent / "static" / "nai"
+if _STATIC_DIR.exists():
+    # Same files served under both paths during the rename transition.
+    app.mount(
+        "/kai-ui",
+        StaticFiles(directory=str(_STATIC_DIR), html=True),
+        name="kai-ui",
+    )
     app.mount(
         "/nai-ui",
-        StaticFiles(directory=str(_NAI_STATIC), html=True),
+        StaticFiles(directory=str(_STATIC_DIR), html=True),
         name="nai-ui",
     )
 

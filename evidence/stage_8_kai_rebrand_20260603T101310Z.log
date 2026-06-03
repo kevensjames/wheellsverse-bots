@@ -1,0 +1,53 @@
+======================================================================
+Stage 8 — NAI → KAI rebrand evidence log
+Generated: 2026-06-03T10:13:10Z
+======================================================================
+
+--- 1. local endpoint matrix (after dual-mount) ---
+  /                                   -> 200
+  /docs                               -> 200
+  /kai-ui/pricing.html                -> 200
+  /nai-ui/pricing.html                -> 200
+  /billing/subscription               -> 401
+  /kai/conversations                  -> 401
+  /nai/conversations                  -> 401
+
+--- 2. KAI brand in static (must be present) ---
+  pricing.html title: 'Pricing — KAI'
+  pricing.html h1:    'KAI'
+
+--- 3. NAI brand strings in static (must be 0) ---
+  total NAI-leak files: 0
+
+--- 4. Stripe product names (live API) ---
+  prod_ULrJ6GwNtaY0cS       = 'KAI Ultra'
+  prod_ULrJJvqbrwk8Yn       = 'KAI Pro'
+  prod_ULrJw8YFLL87mI       = 'KAI Max'
+
+--- 5. CORS dual-origin (preflight against tunnel) ---
+  origin=https://kai.wheellsverse.com             -> ACAO='https://kai.wheellsverse.com'
+  origin=https://nai.wheellsverse.com             -> ACAO='https://nai.wheellsverse.com'
+  origin=https://evil.example.com                 -> http=400
+
+--- 6. system prompt (must contain KAI, not NAI) ---
+  contains 'You are KAI': True
+  contains 'You are NAI': False
+
+--- 7. Cloudflare DNS record for kai.wheellsverse.com ---
+  CNAME kai.wheellsverse.com -> 0e9ad2c3-b833-4c61-8b98-34f0449aa285.cfargotunnel.com proxied=True
+
+--- 8. Cloudflare Page Rule (currently DISABLED awaiting cloudflared reload) ---
+  rule id: d46101e355c672be924fce57d8dbcb0f
+  status:  disabled
+  target:  https://nai.wheellsverse.com/*
+  action:  https://kai.wheellsverse.com/$1  (status_code=301)
+
+--- 9. pytest result snapshot ---
+  157 passed in 18.52s (full backend/tests/, post-rebrand)
+
+--- 10. blog post evidence ---
+  file: outputs/marketing/launch/kai_launch_founder_origin.md
+  length: 5817 chars / 1048 words
+  NAI hits: 0  (must be 0)
+  KAI hits: 11
+  kai.wheellsverse.com hits: 6

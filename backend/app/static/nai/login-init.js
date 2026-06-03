@@ -9,5 +9,5 @@ bindAuthForm({
     email:    document.getElementById("email").value.trim(),
     password: document.getElementById("password").value,
   }),
-  successRedirect: "/nai-ui/",
+  successRedirect: "/kai-ui/",
 });

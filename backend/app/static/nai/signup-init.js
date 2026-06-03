@@ -12,5 +12,5 @@ bindAuthForm({
     password:  document.getElementById("password").value,
     full_name: document.getElementById("full_name").value.trim(),
   }),
-  successRedirect: "/nai-ui/",
+  successRedirect: "/kai-ui/",
 });

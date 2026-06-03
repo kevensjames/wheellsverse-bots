@@ -34,8 +34,8 @@ async function startCheckout(planCode) {
 
     if (resp.status === 401) {
       localStorage.setItem(PENDING_PLAN_KEY, planCode);
-      window.location.href = "/nai-ui/signup.html?next=" +
-        encodeURIComponent("/nai-ui/pricing.html");
+      window.location.href = "/kai-ui/signup.html?next=" +
+        encodeURIComponent("/kai-ui/pricing.html");
       return;
     }
 

@@ -1,8 +1,8 @@
-"""Builds NAI's system prompt for each turn."""
+"""Builds KAI's system prompt for each turn."""
 from __future__ import annotations
 
 
-BASE_SYSTEM_PROMPT = """You are NAI, a personal AI companion for the user.
+BASE_SYSTEM_PROMPT = """You are KAI, a personal AI companion for the user.
 
 You have persistent memory across sessions. When the user shares lasting facts,
 preferences, or important events, use the memory_tool to save them. When earlier

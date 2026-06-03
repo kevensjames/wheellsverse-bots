@@ -65,7 +65,7 @@ async function bindAuthForm({
 }
 
 // Optional helper for pages that should redirect to login when not authed.
-async function requireAuthOrRedirect(loginUrl = "/nai-ui/login.html") {
+async function requireAuthOrRedirect(loginUrl = "/kai-ui/login.html") {
   try {
     const resp = await fetch("/auth/me", { credentials: "include" });
     if (resp.ok) {
@@ -81,7 +81,7 @@ async function logout() {
   try {
     await fetch("/auth/logout", { method: "POST", credentials: "include" });
   } catch (_) { /* ignore — cookies still cleared on server attempt */ }
-  window.location.href = "/nai-ui/login.html";
+  window.location.href = "/kai-ui/login.html";
 }
 
 // Expose for inline scripts in HTML pages.

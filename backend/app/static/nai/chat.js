@@ -1,6 +1,6 @@
 // Vanilla JS chat client. Stage 6: cookie auth.
 //   - Tools off  → SSE stream via EventSource (cookies auto-sent same-origin)
-//   - Tools on   → POST /nai/chat (cookies auto-sent same-origin)
+//   - Tools on   → POST /kai/chat (cookies auto-sent same-origin)
 //
 // No JWT touches JS anymore. The server issues HttpOnly cookies on
 // /auth/login + /auth/signup; we never read them, only send them implicitly.
@@ -34,7 +34,7 @@ function setStatus(text) {
 
 async function sendWithTools(message) {
   setStatus("Thinking… (tools enabled)");
-  const resp = await fetch("/nai/chat", {
+  const resp = await fetch("/kai/chat", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -46,7 +46,7 @@ async function sendWithTools(message) {
     }),
   });
   if (resp.status === 401) {
-    window.location.href = "/nai-ui/login.html";
+    window.location.href = "/kai-ui/login.html";
     return;
   }
   if (!resp.ok) {
@@ -73,7 +73,7 @@ function sendStreaming(message) {
 
   // EventSource needs withCredentials=true to send cookies even on same-origin
   // for some browsers; setting it is safe everywhere.
-  const url = `/nai/chat/stream?${params.toString()}`;
+  const url = `/kai/chat/stream?${params.toString()}`;
   const evtSource = new EventSource(url, { withCredentials: true });
   const bubble = appendMessage("assistant", "");
 
@@ -145,4 +145,4 @@ if (els.logout) {
 }
 
 // On page load, confirm we're authenticated. If not, redirect to login.
-window.requireAuthOrRedirect("/nai-ui/login.html");
+window.requireAuthOrRedirect("/kai-ui/login.html");
