@@ -114,3 +114,31 @@ def version():
 @app.get("/health")
 def health():
     return {"status": "ok", "env": settings.APP_ENV}
+
+
+# Catch-all for unmatched GETs: if the client looks like a browser (Accept
+# header asks for HTML), send them to the chat app instead of a JSON 404.
+# Curl/Stripe/internal services still see 404 because they don't ask for
+# text/html. Mounted LAST so it doesn't shadow any defined route.
+from fastapi import Request  # noqa: E402  (intentional late import)
+
+
+_API_PREFIXES = ("/kai/", "/nai/", "/auth/", "/billing/", "/predictions/", "/admin/")
+_ASSET_EXTS = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
+               ".ico", ".webp", ".woff", ".woff2", ".ttf", ".map", ".html")
+
+
+@app.middleware("http")
+async def html_404_to_kai_ui(request: Request, call_next):
+    """If a browser hits a 404 on what looks like a navigation route,
+    bounce them to /kai-ui/. Asset 404s (.css, .js, etc.) and API 404s stay
+    as 404 so real missing-file bugs aren't silently masked."""
+    response = await call_next(request)
+    if response.status_code != 404 or request.method != "GET":
+        return response
+    if "text/html" not in (request.headers.get("accept") or ""):
+        return response
+    path = request.url.path
+    if path.startswith(_API_PREFIXES) or path.endswith(_ASSET_EXTS):
+        return response
+    return RedirectResponse(url="/kai-ui/", status_code=307)
