@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -81,6 +82,32 @@ if _STATIC_DIR.exists():
 
 @app.get("/")
 def root():
+    # Bare domain lands on the chat app. Visitors sharing the URL get a real
+    # landing page, not a version JSON blob.
+    return RedirectResponse(url="/kai-ui/", status_code=307)
+
+
+# Convenience routes — common URLs visitors type without the /kai-ui/ prefix.
+# 307 (Temporary Redirect) so client doesn't cache (we may move these around).
+@app.get("/login", include_in_schema=False)
+def _redirect_login():
+    return RedirectResponse(url="/kai-ui/login.html", status_code=307)
+
+
+@app.get("/signup", include_in_schema=False)
+def _redirect_signup():
+    return RedirectResponse(url="/kai-ui/signup.html", status_code=307)
+
+
+@app.get("/pricing", include_in_schema=False)
+def _redirect_pricing():
+    return RedirectResponse(url="/kai-ui/pricing.html", status_code=307)
+
+
+@app.get("/version", include_in_schema=False)
+def version():
+    # Old behaviour of GET / preserved here in case anything (monitors,
+    # uptime checks) was scraping the JSON.
     return {"name": settings.APP_NAME, "version": "0.1.0"}
 
 
