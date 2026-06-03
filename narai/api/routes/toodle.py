@@ -29,7 +29,7 @@ import json
 import logging
 import os
 import re
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
 from dotenv import load_dotenv
@@ -93,6 +93,66 @@ class KitWebhookEvent(Base):
     received_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+
+
+class ToodleEmailQueue(Base):
+    """
+    Per-subscriber email queue for Path B (SMTP-based nurture on free Kit).
+
+    Path B reframe: Kit free plan blocks sequence creation, but the v4 Subscribers
+    and Tags surfaces work fine. So Kit stays the audience-of-record, and this
+    queue + the SMTP dispatcher do the actual email sending on the right
+    per-subscriber cadence. Each capture inserts N rows here; the dispatcher
+    cron job sends each row when scheduled_for <= now.
+    """
+    __tablename__ = "toodle_email_queue"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    capture_id: Mapped[int] = mapped_column(Integer, index=True)
+    email: Mapped[str] = mapped_column(String(320), index=True)
+    first_name: Mapped[str] = mapped_column(String(128), default="")
+    sequence_slug: Mapped[str] = mapped_column(String(64), index=True)   # kdp_launch | welcome | ...
+    position: Mapped[int] = mapped_column(Integer)                       # 0-based index into sequence
+    scheduled_for: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    status: Mapped[str] = mapped_column(
+        String(16), default="pending", index=True
+    )  # pending | sent | failed | dry_run
+    sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
+# product_interest → (paste subdir, [(position, delay_value, delay_unit), ...])
+# Cadence MUST match the delay headers in out/kit_pastes/<slug>/*.txt files.
+# Long-tail is intentionally absent — it triggers on non-buyer status, which
+# requires Stripe/KDP purchase signals not wired yet.
+TOODLE_CADENCE: Dict[str, tuple[str, List[tuple[int, int, str]]]] = {
+    "kdp": ("kdp_launch", [
+        (0, 0, "hours"),
+        (1, 1, "days"),
+        (2, 3, "days"),
+        (3, 5, "days"),
+        (4, 7, "days"),
+    ]),
+    "welcome": ("welcome", [
+        (0, 0, "hours"),
+        (1, 2, "days"),
+    ]),
+    "default": ("welcome", [
+        (0, 0, "hours"),
+        (1, 2, "days"),
+    ]),
+}
+
+
+def _delay_seconds(value: int, unit: str) -> int:
+    return value * (3600 if unit == "hours" else 86400)
 
 
 # ── Resolver: name → ID maps for tags & sequences ─────────────────────────────
@@ -244,9 +304,10 @@ async def toodle_capture(req: CaptureRequest) -> CaptureResponse:
     elif sequence_id is None:
         notes.append(f"no sequence found for product_interest={req.product_interest!r}")
 
-    # 4) Persist
+    # 4) Persist + schedule SMTP nurture (Path B)
     row_status = "dry_run" if dry_run else ("subscribed" if subscriber_id else "error")
     error_msg = None if subscriber_id else json.dumps(sub_result)[:1000]
+    scheduled_emails = 0
     async with SessionLocal() as session:  # type: AsyncSession
         row = KitCapture(
             email=req.email_address,
@@ -262,6 +323,32 @@ async def toodle_capture(req: CaptureRequest) -> CaptureResponse:
         await session.commit()
         await session.refresh(row)
         capture_id = row.id
+
+        # Path B: schedule the SMTP nurture queue rows based on cadence
+        cadence_entry = TOODLE_CADENCE.get(
+            (req.product_interest or "default").lower()
+        )
+        if cadence_entry:
+            sequence_slug, cadence = cadence_entry
+            now = datetime.now(timezone.utc)
+            queue_status = "dry_run" if dry_run else "pending"
+            for position, delay_value, delay_unit in cadence:
+                session.add(ToodleEmailQueue(
+                    capture_id=capture_id,
+                    email=req.email_address,
+                    first_name=req.first_name or "",
+                    sequence_slug=sequence_slug,
+                    position=position,
+                    scheduled_for=now + timedelta(seconds=_delay_seconds(delay_value, delay_unit)),
+                    status=queue_status,
+                ))
+                scheduled_emails += 1
+            await session.commit()
+        else:
+            notes.append(f"no SMTP cadence for product_interest={req.product_interest!r}")
+
+    if scheduled_emails:
+        notes.append(f"scheduled {scheduled_emails} SMTP emails")
 
     log.info(
         "[toodle] capture email=%s source=%s product=%s sub_id=%s seq_id=%s tags=%s status=%s",
