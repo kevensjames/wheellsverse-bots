@@ -1,0 +1,29 @@
+{
+  "name": "KAI \u2014 your AI companion",
+  "short_name": "KAI",
+  "description": "GPT-4o + Claude on one bill. Memory, 200+ tools, $19/mo.",
+  "start_url": "/kai-ui/",
+  "scope": "/kai-ui/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0b0f",
+  "theme_color": "#4f8cff",
+  "icons": [
+    {
+      "src": "/kai-ui/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/kai-ui/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": [
+    "productivity",
+    "developer"
+  ]
+}
