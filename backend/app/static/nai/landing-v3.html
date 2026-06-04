@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KAI — companion AI (v3 preview)</title>
+  <meta name="description" content="GPT-4o + Claude. Memory. 200+ tools. $19/mo. No throttle." />
+  <link rel="stylesheet" href="landing-v3.css?v=20260604c" />
+</head>
+<body>
+  <div class="container">
+    <nav class="top">
+      <a class="logo" href="/">KAI</a>
+      <div class="links">
+        <a href="/kai-ui/pricing.html">pricing</a>
+        <a href="/kai-ui/login.html">login</a>
+      </div>
+    </nav>
+
+    <section class="shell hero">
+      <div class="shell-header">
+        <span class="dot"></span><span class="dot amber"></span><span class="dot green"></span>
+        <span class="name">kai@wheellsverse:~$</span>
+      </div>
+
+      <div class="prompt-line">
+        <span class="arrow">$</span>
+        <span class="cmd">ai_companion <span class="flag">--no-throttle --models gpt-4o,claude --memory structured</span></span>
+      </div>
+
+      <h1>
+        Two models.<br/>
+        One bill.<br/>
+        <span class="accent">Real memory.</span><span class="cursor"></span>
+      </h1>
+
+      <p class="tagline">
+        The chat app I built because ChatGPT kept throttling me mid-debug.
+      </p>
+
+      <ul class="specs">
+        <li><span class="key">models</span><span class="val">gpt-4o · claude</span></li>
+        <li><span class="key">memory</span><span class="val">structured · across chats</span></li>
+        <li><span class="key">tools</span><span class="val">200+ via composio</span></li>
+        <li><span class="key">price</span><span class="val">$19/mo · cancel anytime</span></li>
+        <li class="dim"><span class="key">infra</span><span class="val">one mac mini · one human</span></li>
+      </ul>
+
+      <div class="cta-row">
+        <a class="cta" href="/kai-ui/signup.html">start</a>
+        <a class="cta-secondary" href="/kai-ui/launch.html">read.md</a>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>why_this_exists</h2>
+      <p>
+        Tuesday, 11pm, 40 minutes into a Stripe webhook bug. Asked ChatGPT
+        for a second opinion. Got: <em>"You've reached your GPT-4 limit.
+        Try again in 3 hours."</em>
+      </p>
+      <p class="dim">
+        I was paying $20/mo for the privilege of being told to wait. That night I started building KAI.
+      </p>
+    </section>
+
+    <section class="block">
+      <h2>differentiators</h2>
+      <ul class="specs">
+        <li><span class="key">→ no throttle</span><span class="val">burn through 4k messages a week. we absorb the cost.</span></li>
+        <li><span class="key">→ dual model</span><span class="val">flip gpt ⇄ claude mid-thread. same memory, same bill.</span></li>
+        <li><span class="key">→ real memory</span><span class="val">structured. knows your repos, clients, regretted decisions.</span></li>
+        <li><span class="key">→ tool execution</span><span class="val">notion, linear, github, slack — real round-trips.</span></li>
+      </ul>
+    </section>
+
+    <div class="honest">
+      <strong>// disclosures.txt</strong>
+      <ul>
+        <li>no SOC 2 yet — don't use for regulated data</li>
+        <li>one-person on-call — server dies at 4am, it's down until i wake up</li>
+        <li>UI is functional, not pretty (this page is the prettiest part)</li>
+        <li>no voice or image gen in v1 — both on roadmap</li>
+      </ul>
+    </div>
+
+    <footer>
+      <div>
+        <a href="/kai-ui/pricing.html">pricing</a>
+        ·
+        <a href="/kai-ui/launch.html">launch_post.md</a>
+        ·
+        <a href="/kai-ui/login.html">login</a>
+        ·
+        <a href="/kai-ui/signup.html">signup</a>
+      </div>
+      <div style="margin-top:10px">
+        built · 2026-06-04 · kai.wheellsverse.com
+      </div>
+      <pre class="ascii">  ╭─ k ─ a ─ i ─╮
+  │ companion ai │
+  ╰──────────────╯</pre>
+    </footer>
+  </div>
+</body>
+</html>
