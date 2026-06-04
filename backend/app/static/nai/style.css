@@ -236,3 +236,22 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
   font-size: 13px;
 }
 .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
+
+/* Plan badge shown in the chat header once /billing/subscription resolves. */
+.plan-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  padding: 3px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+.plan-badge.plan-pro,
+.plan-badge.plan-max,
+.plan-badge.plan-ultra {
+  color: #fff;
+  background: var(--accent, #4f8cff);
+  border-color: var(--accent, #4f8cff);
+}

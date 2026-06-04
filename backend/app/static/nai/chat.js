@@ -146,3 +146,42 @@ if (els.logout) {
 
 // On page load, confirm we're authenticated. If not, redirect to login.
 window.requireAuthOrRedirect("/kai-ui/login.html");
+
+// Fetch current plan and update the header badge. Cheap call; runs once per
+// page load, again after the user returns from Stripe Checkout (?subscribed=1).
+async function refreshPlanBadge() {
+  const badge = document.getElementById("plan-badge");
+  const pricingLink = document.getElementById("pricing-link");
+  if (!badge) return;
+  try {
+    const r = await fetch("/billing/subscription", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const data = await r.json();
+    const plan = (data.plan_code || "free").toUpperCase();
+    badge.textContent = plan === "FREE" ? "FREE" : `${plan} ✓`;
+    badge.className = "plan-badge plan-" + plan.toLowerCase();
+    badge.hidden = false;
+    // Hide "Pricing" link once subscribed — no reason to upsell paying users.
+    if (pricingLink && plan !== "FREE") pricingLink.hidden = true;
+  } catch (e) {
+    // fail silently — badge stays hidden
+  }
+}
+refreshPlanBadge();
+
+// If we just returned from Stripe Checkout, poll briefly until the webhook
+// catches up. Stripe events usually land in <2s but can take up to ~10s
+// under load. Polling avoids a hard reload + lets the badge flip live.
+if (window.location.search.includes("subscribed=1")) {
+  let tries = 0;
+  const poll = setInterval(async () => {
+    tries += 1;
+    await refreshPlanBadge();
+    const badge = document.getElementById("plan-badge");
+    if (badge && !badge.hidden && !badge.textContent.startsWith("FREE")) {
+      clearInterval(poll);
+    } else if (tries >= 10) {
+      clearInterval(poll);
+    }
+  }, 1500);
+}
