@@ -1,7 +1,6 @@
 from functools import lru_cache
 from typing import List
 
-from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -70,23 +69,17 @@ class Settings(BaseSettings):
     # Stripe billing (Stage 5)
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
-    # Price IDs accept BOTH the canonical name AND the legacy name from the
-    # operator's existing .env (STRIPE_PRO_PRICE_ID, STRIPE_BOT_PACK_PRICE_ID).
-    # Pydantic-settings v2 AliasChoices picks whichever is set, canonical wins.
-    STRIPE_PRICE_PRO: str = Field(
-        default="",
-        validation_alias=AliasChoices("STRIPE_PRICE_PRO", "STRIPE_PRO_PRICE_ID"),
-    )
+    # Canonical names only. Legacy aliases (STRIPE_PRO_PRICE_ID,
+    # STRIPE_BOT_PACK_PRICE_ID) were dropped 2026-06-04 after they silently
+    # resolved to a stale $29 May-era price while the UI advertised $19 —
+    # see docs/decisions/0010-rename-nai-to-kai.md addendum.
+    STRIPE_PRICE_PRO: str = ""
     # NOTE: "Elite" was Stage 5's marketing name. Prod schema's CHECK
     # constraint allows tiers ('pro','max','ultra') — there is no 'elite'
-    # tier. The Elite button in /nai-ui/pricing.html is hidden until the
+    # tier. The Elite button in pricing.html stays hidden until the
     # operator creates real Max/Ultra recurring prices in Stripe and sets
-    # the corresponding env vars below. The BOT_PACK alias remains for
-    # backward-compat with the existing root .env but should not be relied on.
-    STRIPE_PRICE_ELITE: str = Field(
-        default="",
-        validation_alias=AliasChoices("STRIPE_PRICE_ELITE", "STRIPE_BOT_PACK_PRICE_ID"),
-    )
+    # the corresponding env vars below.
+    STRIPE_PRICE_ELITE: str = ""
     STRIPE_PRICE_MAX: str = ""
     STRIPE_PRICE_ULTRA: str = ""
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/billing/success"
