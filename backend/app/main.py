@@ -129,6 +129,23 @@ _ASSET_EXTS = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
 
 
 @app.middleware("http")
+async def kai_ui_cache_control(request: Request, call_next):
+    """Static assets under /kai-ui/ default to short cache + must-revalidate so
+    a fresh deploy reaches browsers within minutes instead of hours. Without
+    this, Cloudflare's default 4h browser TTL meant a UI ship took half a day
+    to propagate to phones that had already loaded the old version."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith(("/kai-ui/", "/nai-ui/")):
+        if path.endswith(".html") or path.rstrip("/").endswith(("/kai-ui", "/nai-ui")):
+            response.headers["Cache-Control"] = "no-cache, must-revalidate"
+        elif path.endswith((".js", ".css")):
+            # 60s + revalidate-via-etag. Browsers will fast-revalidate (304) most of the time.
+            response.headers["Cache-Control"] = "public, max-age=60, must-revalidate"
+    return response
+
+
+@app.middleware("http")
 async def html_404_to_kai_ui(request: Request, call_next):
     """If a browser hits a 404 on what looks like a navigation route,
     bounce them to /kai-ui/. Asset 404s (.css, .js, etc.) and API 404s stay
