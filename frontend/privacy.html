@@ -45,7 +45,19 @@ footer a{color:#00d4ff}
     <tr><td>Content data</td><td>AI-generated text and media you create on the platform</td><td>Serving your content back to you</td></tr>
     <tr><td>Technical data</td><td>IP address, browser type, device type, session data, cookies</td><td>Security, fraud prevention, analytics</td></tr>
     <tr><td>Email engagement</td><td>Email open rates and click data (via ConvertKit)</td><td>Improving our newsletters and alerts</td></tr>
+    <tr><td>Meta platform data</td><td>Facebook Page ID, Instagram account ID, ad account ID, IDs of campaigns/ad sets/ads we create on your behalf</td><td>Operating the Toodle Ads Agent: creating PAUSED ad campaigns on your behalf and showing their status</td></tr>
   </table>
+
+  <h2>1a. Meta / Facebook Data — Specific Disclosures</h2>
+  <p>When you connect a Meta (Facebook / Instagram) account to WheellsVerse, our Toodle Ads Agent uses Meta's Marketing API on your behalf. We disclose the following specifically to comply with Meta's Platform Terms:</p>
+  <ul>
+    <li><strong>Access tokens</strong> are used at request-time only. We do NOT persist Meta access tokens to durable storage. Each operation re-uses the token in-memory and discards it when the request completes.</li>
+    <li><strong>What we store:</strong> only the numeric IDs of the Facebook Page, ad account, and the ad objects (campaign / ad set / ad / creative / image-hash) we created at your request.</li>
+    <li><strong>What we never store:</strong> your audience data, lead lists, message threads, page insights beyond the campaign's own metrics, or any personal data about your customers/prospects.</li>
+    <li><strong>How long:</strong> stored IDs are retained while your account is active. On disconnect or data-deletion request, all stored IDs are purged within 30 days.</li>
+    <li><strong>Sharing:</strong> none. We do not share Meta-derived data with any third party.</li>
+    <li><strong>Data deletion:</strong> see Section 7 below, or POST a signed_request to our Meta callback at <code>/meta/data-deletion</code>. A confirmation code and status URL are returned.</li>
+  </ul>
 
   <h2>2. How We Use Your Data</h2>
   <ul>
