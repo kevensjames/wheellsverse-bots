@@ -24,7 +24,7 @@ from app.services import api_keys
 
 logger = logging.getLogger(__name__)
 
-_PAID_TIERS = {"pro", "max", "ultra"}
+_API_TIERS = {"max", "ultra"}  # Pro is web-only; API requires Max or Ultra.
 
 
 def require_api_key_user(
@@ -57,7 +57,7 @@ def require_api_key_user(
         # defend in depth.
         raise HTTPException(status_code=401, detail="key owner not found")
 
-    if (profile.tier or "free") not in _PAID_TIERS:
+    if (profile.tier or "free") not in _API_TIERS:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={

@@ -180,3 +180,45 @@ footer .footer-meta { margin-top: 14px; }
 
 /* full-width CTA button used inside the pricing card */
 .cta.cta-block { width: 100%; justify-content: center; margin-top: 8px; }
+
+/* 3-card pricing grid — Pro / Max / Ultra. Center card visually emphasized. */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  max-width: 980px;
+  margin: 0 auto 80px;
+}
+.pricing-grid .pricing-card {
+  max-width: none;
+  margin: 0;
+  padding: 32px 28px;
+}
+.pricing-grid .pricing-card .price {
+  font-size: 44px;
+}
+.pricing-grid .pricing-card-highlight {
+  border-color: var(--accent);
+  box-shadow: 0 0 32px var(--accent-glow);
+  transform: translateY(-4px);
+}
+.pricing-grid .pricing-card-highlight::after {
+  content: "Most popular for devs";
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+  z-index: 2;
+}
+@media (max-width: 720px) {
+  .pricing-grid .pricing-card-highlight { transform: none; }
+}

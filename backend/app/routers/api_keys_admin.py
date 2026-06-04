@@ -23,19 +23,19 @@ from app.services import api_keys
 
 router = APIRouter(prefix="/account/api-keys", tags=["api-keys"])
 
-_PAID_TIERS = {"pro", "max", "ultra"}
+_API_TIERS = {"max", "ultra"}  # Pro is web-only; API access starts at Max.
 
 
-def _require_paid(db: Session, user_id: uuid.UUID) -> Profile:
+def _require_api_tier(db: Session, user_id: uuid.UUID) -> Profile:
     profile = db.get(Profile, user_id)
     if profile is None:
         raise HTTPException(status_code=404, detail="profile not found")
     tier = (profile.tier or "free").lower()
-    if tier not in _PAID_TIERS:
+    if tier not in _API_TIERS:
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
             detail={
-                "error": "API key issuance requires a paid plan",
+                "error": "API access starts at the Max tier",
                 "current_tier": tier,
                 "upgrade_url": "/kai-ui/pricing.html",
             },
@@ -70,7 +70,7 @@ def create_api_key(
     user: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CreateKeyResponse:
-    _require_paid(db, user.id)
+    _require_api_tier(db, user.id)
     row, plaintext = api_keys.issue(db, user.id, label=body.label)
     return CreateKeyResponse(
         id=row.id,
@@ -86,7 +86,7 @@ def list_api_keys(
     user: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[KeyListItem]:
-    _require_paid(db, user.id)
+    _require_api_tier(db, user.id)
     rows = api_keys.list_active(db, user.id)
     return [
         KeyListItem(
@@ -106,7 +106,7 @@ def revoke_api_key(
     user: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _require_paid(db, user.id)
+    _require_api_tier(db, user.id)
     ok = api_keys.revoke(db, user.id, key_id)
     if not ok:
         raise HTTPException(status_code=404, detail="key not found")
