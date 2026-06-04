@@ -310,6 +310,8 @@ def _handle_checkout_completed(db: Session, data: dict[str, Any]) -> None:
     logger.info(
         "sub activated: user=%s tier=%s sub=%s", profile.id, tier_code, stripe_sub_id
     )
+    from app.services import observability
+    observability.alert_paid(profile.email, tier_code, stripe_sub_id or "")
 
 
 def _handle_sub_updated(db: Session, data: dict[str, Any]) -> None:
@@ -366,6 +368,8 @@ def _handle_sub_deleted(db: Session, data: dict[str, Any]) -> None:
         profile.tier = "free"
     db.commit()
     logger.info("sub canceled: %s", stripe_sub_id)
+    from app.services import observability
+    observability.alert_canceled(profile.email if profile else "?", stripe_sub_id)
 
 
 def _handle_payment_failed(db: Session, data: dict[str, Any]) -> None:
@@ -381,3 +385,8 @@ def _handle_payment_failed(db: Session, data: dict[str, Any]) -> None:
         return
     sub.status = "past_due"
     db.commit()
+    profile = db.get(Profile, sub.user_id)
+    from app.services import observability
+    observability.alert_payment_failed(
+        profile.email if profile else "?", stripe_sub_id
+    )

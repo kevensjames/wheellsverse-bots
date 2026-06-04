@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     def admin_token(self) -> str:
         return self.ADMIN_TOKEN or self.JWT_SECRET_KEY
 
+    # Telegram alerting — used by app.services.observability to notify the
+    # operator of signup / paid-conversion / cancellation events. Optional;
+    # if either is empty, alerts are silently skipped.
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
+
     # Stored as a plain CSV string — pydantic-settings 2.x tries to JSON-decode
     # List[str] fields from env, which breaks on "http://a,http://b". We parse
     # lazily via the `cors_origins` property below.

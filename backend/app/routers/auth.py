@@ -68,6 +68,10 @@ def signup(
         supabase_auth.create_user(email, body.password, full_name=body.full_name)
     except AuthError as e:
         raise _http_from_auth(e)
+    # Fire signup alert in the background — runs in a daemon thread, won't
+    # block the response or break if Telegram is unreachable.
+    from app.services import observability
+    observability.alert_signup(email)
     # Auto-login so the signup response carries usable cookies + tokens.
     try:
         tokens = supabase_auth.password_login(email, body.password)
