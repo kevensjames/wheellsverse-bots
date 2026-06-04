@@ -3,32 +3,254 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>KAI</title>
-  <link rel="stylesheet" href="style.css?v=20260604a" />
+  <title>KAI — your AI companion</title>
+  <meta name="description" content="GPT-4o and Claude on one bill. Memory across conversations. 200+ SaaS tools. $19/month, cancel anytime. Built by one person." />
+  <meta property="og:title" content="KAI — your AI companion" />
+  <meta property="og:description" content="GPT-4o + Claude on one bill. $19/month. Cancel anytime." />
+  <meta property="og:url" content="https://kai.wheellsverse.com/" />
+  <meta property="og:type" content="website" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="canonical" href="https://kai.wheellsverse.com/" />
+  <style>
+    :root {
+      --bg: #fafaf7;
+      --text: #15161a;
+      --muted: #6b7280;
+      --line: #e7e5e0;
+      --accent: #15161a;
+      --accent-alt: #00a37a;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
+    body {
+      font-family: ui-serif, Charter, "Iowan Old Style", Georgia, "Times New Roman", serif;
+      font-size: 18px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .container { max-width: 640px; margin: 0 auto; padding: 24px 24px 96px; }
+    nav.top {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 0 56px;
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+    }
+    nav.top a.logo {
+      font-weight: 700; font-size: 17px; letter-spacing: 0.04em;
+      color: var(--text); text-decoration: none;
+    }
+    nav.top .links { display: flex; gap: 18px; }
+    nav.top a { color: var(--muted); text-decoration: none; }
+    nav.top a:hover { color: var(--text); }
+
+    .hero h1 {
+      font-size: clamp(40px, 7vw, 68px);
+      line-height: 1.05;
+      letter-spacing: -0.02em;
+      margin: 0 0 24px;
+      font-weight: 600;
+    }
+    .hero .lede {
+      font-size: 22px;
+      color: #2a2c33;
+      margin: 0 0 32px;
+      line-height: 1.45;
+    }
+    .hero .price {
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 15px; color: var(--muted);
+      margin: 0 0 28px;
+    }
+    .hero .price strong { color: var(--text); font-weight: 600; }
+
+    .cta {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: var(--accent); color: #fff;
+      padding: 14px 22px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 15px; font-weight: 600;
+      transition: transform 0.1s ease, background 0.15s ease;
+    }
+    .cta:hover { background: #2a2c33; transform: translateY(-1px); }
+    .cta-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .cta-row .secondary {
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 14px; color: var(--muted); text-decoration: none;
+    }
+    .cta-row .secondary:hover { color: var(--text); }
+
+    .byline {
+      margin-top: 36px;
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 13px;
+      color: var(--muted);
+      letter-spacing: 0.01em;
+    }
+
+    section.why {
+      margin-top: 88px;
+      padding-top: 48px;
+      border-top: 1px solid var(--line);
+    }
+    section.why h2 {
+      font-size: 14px; text-transform: uppercase; letter-spacing: 0.14em;
+      color: var(--muted); margin: 0 0 24px;
+      font-family: ui-sans-serif, -apple-system, sans-serif; font-weight: 600;
+    }
+    section.why p { margin: 0 0 18px; font-size: 18px; color: #2a2c33; }
+    .quote {
+      font-style: italic;
+      color: #444;
+      border-left: 3px solid var(--accent-alt);
+      padding-left: 18px;
+      margin: 0 0 28px;
+    }
+    .differentiators {
+      list-style: none; padding: 0; margin: 28px 0 0;
+    }
+    .differentiators li {
+      padding: 16px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 17px; color: #2a2c33;
+    }
+    .differentiators li:last-child { border-bottom: none; }
+    .differentiators strong {
+      color: var(--text); font-weight: 600;
+      display: block; margin-bottom: 4px;
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      letter-spacing: -0.01em;
+    }
+    .read-more {
+      margin-top: 40px;
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 15px;
+    }
+    .read-more a {
+      color: var(--accent-alt); text-decoration: none; font-weight: 600;
+    }
+    .read-more a:hover { text-decoration: underline; }
+
+    section.honest {
+      margin-top: 72px; padding: 24px 28px;
+      background: #f3f1eb; border-radius: 10px;
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 14px; color: #444;
+      line-height: 1.6;
+    }
+    section.honest strong {
+      display: block; font-size: 12px; text-transform: uppercase;
+      letter-spacing: 0.14em; color: var(--muted); margin-bottom: 10px;
+    }
+    section.honest ul { margin: 0; padding-left: 18px; }
+    section.honest li { margin-bottom: 6px; }
+
+    footer {
+      margin-top: 80px; padding-top: 28px; border-top: 1px solid var(--line);
+      font-family: ui-sans-serif, -apple-system, sans-serif;
+      font-size: 13px; color: var(--muted);
+    }
+    footer a { color: var(--muted); text-decoration: none; }
+    footer a:hover { color: var(--text); }
+    footer .row1 { margin-bottom: 8px; }
+    footer .row1 a { margin-right: 14px; }
+
+    @media (max-width: 480px) {
+      .container { padding: 16px 20px 64px; }
+      nav.top { padding: 4px 0 40px; }
+      .hero .lede { font-size: 19px; }
+      section.why { margin-top: 64px; padding-top: 36px; }
+      section.honest { padding: 20px 22px; }
+    }
+  </style>
 </head>
 <body>
-  <header>
-    <h1>KAI</h1>
-    <div class="controls">
-      <label><input type="checkbox" id="use-tools" /> Use tools (no streaming)</label>
-      <label><input type="checkbox" id="prefer-local" /> Prefer local (Ollama)</label>
-      <button id="new-conv" type="button">New conversation</button>
-      <span id="plan-badge" class="plan-badge" hidden></span>
-      <a class="nav-link" id="pricing-link" href="/kai-ui/pricing.html">Pricing</a>
-      <button class="btn-ghost" id="logout-btn" type="button">Log out</button>
-    </div>
-  </header>
+  <div class="container">
+    <nav class="top">
+      <a class="logo" href="/">KAI</a>
+      <div class="links">
+        <a href="/kai-ui/pricing.html">Pricing</a>
+        <a href="/kai-ui/login.html">Log in</a>
+      </div>
+    </nav>
 
-  <main id="messages" aria-live="polite"></main>
+    <section class="hero">
+      <h1>Your AI companion.</h1>
+      <p class="lede">
+        GPT-4o and Claude on one bill. Memory that actually
+        remembers. 200+ tools via Composio.
+      </p>
+      <p class="price">
+        <strong>$19 / month.</strong> Cancel anytime. Same-day refund.
+      </p>
+      <div class="cta-row">
+        <a class="cta" href="/kai-ui/signup.html">Get started →</a>
+        <a class="secondary" href="/kai-ui/launch.html">Read the launch post</a>
+      </div>
+      <p class="byline">Built by one person, on a Mac mini.</p>
+    </section>
 
-  <form id="composer">
-    <textarea id="input" rows="2" placeholder="Type a message…" required></textarea>
-    <button type="submit" id="send">Send</button>
-  </form>
+    <section class="why">
+      <h2>Why this exists</h2>
+      <p class="quote">
+        It was a Tuesday. 40 minutes into debugging a Stripe webhook.
+        I asked ChatGPT for a second opinion. The reply: <em>"You've reached
+        your GPT-4 limit. Try again in 3 hours."</em> I was already paying $20/mo.
+      </p>
+      <p>So I built the chat I wished I had:</p>
+      <ul class="differentiators">
+        <li>
+          <strong>Two models, one chat.</strong>
+          Switch between GPT-4o and Claude mid-conversation. Same thread, same memory, same bill.
+        </li>
+        <li>
+          <strong>Real memory across chats.</strong>
+          Structured. It knows which repo you're on, which clients bill hourly, which dumb ideas you regretted last week — not the two-sentence "user is a developer" version.
+        </li>
+        <li>
+          <strong>200+ tools that actually execute.</strong>
+          Notion, Linear, GitHub, Slack, Calendar, Stripe — via Composio. Real round-trips, not "we can describe an API call you might want to make."
+        </li>
+        <li>
+          <strong>No throttle limits.</strong>
+          That's the whole point.
+        </li>
+      </ul>
+      <p class="read-more">
+        <a href="/kai-ui/launch.html">→ Read the full launch post</a>
+      </p>
+    </section>
 
-  <div id="status"></div>
+    <section class="honest">
+      <strong>What I'm not going to lie about</strong>
+      <ul>
+        <li>No SOC 2 yet. If you handle regulated data, don't use this.</li>
+        <li>One-person on-call. If the server dies at 4am Eastern, it's down until I wake up.</li>
+        <li>The UI is functional, not pretty. Optimized for "doesn't feel slow" before "looks like a SaaS landing page."</li>
+        <li>No voice, no image generation yet. On the roadmap, not in v1.</li>
+      </ul>
+    </section>
 
-  <script src="auth.js?v=20260604a"></script>
-  <script src="chat.js?v=20260604a"></script>
+    <footer>
+      <div class="row1">
+        <a href="/kai-ui/pricing.html">Pricing</a>
+        <a href="/kai-ui/launch.html">Launch post</a>
+        <a href="/kai-ui/login.html">Log in</a>
+        <a href="/kai-ui/signup.html">Sign up</a>
+      </div>
+      <div>
+        KAI · One person · One Mac mini · One inbox that I actually read.
+      </div>
+    </footer>
+  </div>
+  <script>
+    // If you already have a session, skip the landing and go straight to chat.
+    // /auth/me returns 200 + user JSON when logged in, 401 otherwise.
+    fetch("/auth/me", { credentials: "same-origin" })
+      .then(r => { if (r.ok) window.location.replace("/kai-ui/chat.html"); })
+      .catch(() => {});
+  </script>
 </body>
 </html>
