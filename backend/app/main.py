@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_data, auth, billing, nai, predictions
+from app.routers import admin_data, api_keys_admin, auth, billing, nai, predictions, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -59,6 +59,8 @@ app.include_router(auth.router)
 app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
+app.include_router(api_keys_admin.router)
+app.include_router(v1.router)
 # Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
 # canonical; /nai stays alive so any in-flight client (cached JS, open SSE
 # stream, third-party bookmark) keeps working until the legacy window closes.
@@ -123,7 +125,8 @@ def health():
 from fastapi import Request  # noqa: E402  (intentional late import)
 
 
-_API_PREFIXES = ("/kai/", "/nai/", "/auth/", "/billing/", "/predictions/", "/admin/")
+_API_PREFIXES = ("/kai/", "/nai/", "/auth/", "/billing/", "/predictions/",
+                 "/admin/", "/account/", "/v1/")
 _ASSET_EXTS = (".css", ".js", ".png", ".jpg", ".jpeg", ".gif", ".svg",
                ".ico", ".webp", ".woff", ".woff2", ".ttf", ".map", ".html")
 
