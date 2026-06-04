@@ -28,6 +28,36 @@
     </div>
   </header>
 
+  <!-- Past-due banner. Hidden by default; chat.js shows it if
+       /billing/subscription returns status="past_due". -->
+  <div id="payment-banner" class="payment-banner" hidden>
+    <span class="payment-banner-text">Your payment failed. Update your card to keep KAI working.</span>
+    <button class="btn-primary" id="payment-banner-fix" type="button">Update payment →</button>
+  </div>
+
+  <!-- Cancel-survey modal. Auto-shown by chat.js when URL has ?canceled=1
+       (which is what Stripe's billing portal redirects back to). One
+       question, no required free text, dismiss-able. -->
+  <div id="cancel-modal" class="modal-overlay" hidden>
+    <div class="modal-card">
+      <h2>Sorry to see you go.</h2>
+      <p>30-second question — what didn't work for you? (Helps me decide what to build next.)</p>
+      <form id="cancel-form">
+        <label class="radio"><input type="radio" name="reason" value="too_expensive" /> Too expensive</label>
+        <label class="radio"><input type="radio" name="reason" value="missing_feature" /> Missing a feature I needed</label>
+        <label class="radio"><input type="radio" name="reason" value="not_using" /> Wasn't using it enough</label>
+        <label class="radio"><input type="radio" name="reason" value="switched_to" /> Switched to another tool</label>
+        <label class="radio"><input type="radio" name="reason" value="bug" /> Something was broken</label>
+        <label class="radio"><input type="radio" name="reason" value="other" /> Other</label>
+        <textarea id="cancel-free-text" placeholder="Anything else (optional)…" maxlength="2000"></textarea>
+        <div class="modal-actions">
+          <button class="btn-ghost" type="button" id="cancel-modal-skip">Skip</button>
+          <button class="btn-primary" type="submit" id="cancel-modal-submit">Send feedback</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <main id="messages" aria-live="polite"></main>
 
   <form id="composer">

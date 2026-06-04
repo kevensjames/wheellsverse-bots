@@ -30,6 +30,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -172,6 +173,41 @@ def create_portal(
     except stripe_service.StripeError as e:
         raise HTTPException(status_code=502, detail=f"Stripe error: {e}")
     return PortalResponse(portal_url=portal_url)
+
+
+# ---------- cancel survey ----------
+
+
+class CancellationReasonRequest(BaseModel):
+    reason_code: str = Field(..., pattern=r"^(too_expensive|missing_feature|not_using|switched_to|bug|other)$")
+    free_text: str | None = Field(default=None, max_length=2000)
+
+
+@router.post("/cancellation-reason", status_code=status.HTTP_201_CREATED)
+def submit_cancellation_reason(
+    body: CancellationReasonRequest,
+    db: Session = Depends(get_db),
+    user: UserPrincipal = Depends(get_current_user),
+):
+    """User clicked Cancel in Stripe portal and returned to chat with
+    ?canceled=1 — modal asks why. Store one row per submission, no dedup."""
+    from app.models.cancellation_reason import CancellationReason
+    from app.services import observability
+    row = CancellationReason(
+        user_id=user.id,
+        reason_code=body.reason_code,
+        free_text=(body.free_text or "").strip() or None,
+    )
+    db.add(row)
+    db.commit()
+    # Operator alert — cancellation reason is the highest-value retention signal.
+    observability.notify(
+        f"🔍 <b>Cancel reason</b>\n"
+        f"user: {user.email or '?'}\n"
+        f"reason: {body.reason_code}\n"
+        + (f"<i>{body.free_text[:200] if body.free_text else ''}</i>" if body.free_text else "")
+    )
+    return {"received": True}
 
 
 # ---------- webhook ----------

@@ -6,6 +6,7 @@ from app.models.admin import AdminUser, AuditLog
 from app.models.alert import Alert, Watchlist
 from app.models.api_key import ApiKey
 from app.models.asset import Asset, PriceHistory
+from app.models.cancellation_reason import CancellationReason
 from app.models.conversation import Conversation, Message
 from app.models.memory import Memory
 from app.models.prediction import Prediction
@@ -19,6 +20,7 @@ __all__ = [
     "AuditLog",
     "Alert",
     "Asset",
+    "CancellationReason",
     "Conversation",
     "Memory",
     "Message",

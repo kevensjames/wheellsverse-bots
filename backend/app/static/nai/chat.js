@@ -152,22 +152,96 @@ window.requireAuthOrRedirect("/kai-ui/login.html");
 async function refreshPlanBadge() {
   const badge = document.getElementById("plan-badge");
   const pricingLink = document.getElementById("pricing-link");
+  const banner = document.getElementById("payment-banner");
   if (!badge) return;
   try {
     const r = await fetch("/billing/subscription", { credentials: "same-origin" });
     if (!r.ok) return;
     const data = await r.json();
     const plan = (data.plan_code || "free").toUpperCase();
+    const status = (data.status || "free").toLowerCase();
     badge.textContent = plan === "FREE" ? "FREE" : `${plan} ✓`;
     badge.className = "plan-badge plan-" + plan.toLowerCase();
     badge.hidden = false;
     // Hide "Pricing" link once subscribed — no reason to upsell paying users.
     if (pricingLink && plan !== "FREE") pricingLink.hidden = true;
+    // Past-due banner: show if Stripe says payment failed.
+    if (banner) banner.hidden = status !== "past_due";
   } catch (e) {
     // fail silently — badge stays hidden
   }
 }
+
+async function openBillingPortal() {
+  const btn = document.getElementById("payment-banner-fix");
+  if (btn) btn.disabled = true;
+  try {
+    const r = await fetch("/billing/portal", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+    });
+    if (!r.ok) {
+      alert("Couldn't open Stripe portal (HTTP " + r.status + "). Try again.");
+      return;
+    }
+    const data = await r.json();
+    if (data.portal_url) window.location.href = data.portal_url;
+  } catch (e) {
+    alert("Network error opening Stripe portal");
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+const _bannerBtn = document.getElementById("payment-banner-fix");
+if (_bannerBtn) _bannerBtn.addEventListener("click", openBillingPortal);
+
 refreshPlanBadge();
+
+// ── Cancel survey ────────────────────────────────────────────────────────
+// Fires when the user comes back from Stripe portal after canceling. Stripe
+// returns them to BILLING_PUBLIC_UPGRADE_URL, but the chat link includes
+// ?canceled=1 in some paths — we honor either.
+async function submitCancelReason(reasonCode, freeText) {
+  try {
+    await fetch("/billing/cancellation-reason", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason_code: reasonCode, free_text: freeText || null }),
+    });
+  } catch (e) { /* fail silently — survey is nice-to-have */ }
+}
+
+function hideCancelModal() {
+  const modal = document.getElementById("cancel-modal");
+  if (modal) modal.hidden = true;
+  if (history.replaceState) {
+    const u = new URL(window.location.href);
+    u.searchParams.delete("canceled");
+    history.replaceState({}, "", u.toString());
+  }
+}
+
+function wireCancelSurvey() {
+  const modal = document.getElementById("cancel-modal");
+  if (!modal) return;
+  if (!window.location.search.includes("canceled=1")) return;
+  modal.hidden = false;
+  const skipBtn = document.getElementById("cancel-modal-skip");
+  const form = document.getElementById("cancel-form");
+  if (skipBtn) skipBtn.addEventListener("click", hideCancelModal);
+  if (form) form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const selected = form.querySelector('input[name="reason"]:checked');
+    if (!selected) { alert("Pick one option, or click Skip."); return; }
+    const free = document.getElementById("cancel-free-text").value.trim();
+    await submitCancelReason(selected.value, free);
+    hideCancelModal();
+  });
+}
+wireCancelSurvey();
 
 // If we just returned from Stripe Checkout, poll briefly until the webhook
 // catches up. Stripe events usually land in <2s but can take up to ~10s

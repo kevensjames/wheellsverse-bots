@@ -237,6 +237,79 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .btn-ghost:hover { color: var(--text); border-color: var(--accent); }
 
+/* Past-due payment banner shown in chat.html when /billing/subscription
+   reports status="past_due". Loud but not alarming. */
+.payment-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(90deg, #3a1d24, #2a1419);
+  border: 1px solid #774455;
+  color: #ffdde0;
+  padding: 12px 18px;
+  border-radius: 8px;
+  margin: 10px 18px 0;
+  font-size: 14px;
+}
+.payment-banner-text { flex: 1; }
+.payment-banner .btn-primary {
+  background: #ff5577;
+  border: none;
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.payment-banner .btn-primary:hover { background: #ff6f88; }
+.payment-banner .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* Cancel-survey modal — shown when chat.js sees ?canceled=1 in URL. */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-card {
+  background: var(--panel, #181a22);
+  border: 1px solid var(--border, #242630);
+  border-radius: 12px;
+  padding: 28px 28px 22px;
+  max-width: 460px; width: 100%;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+.modal-card h2 { margin: 0 0 6px; font-size: 20px; color: var(--text, #e7ecf3); }
+.modal-card p { color: var(--muted, #8b94a3); font-size: 14px; margin: 0 0 18px; line-height: 1.5; }
+.modal-card .radio {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 0; font-size: 14px; color: var(--text, #e7ecf3); cursor: pointer;
+}
+.modal-card .radio input { accent-color: var(--accent, #4f8cff); }
+.modal-card textarea {
+  width: 100%; min-height: 70px; resize: vertical;
+  background: var(--bg, #0f1115);
+  border: 1px solid var(--border, #242630);
+  border-radius: 6px;
+  color: var(--text, #e7ecf3);
+  padding: 10px 12px;
+  font-size: 13px; font-family: inherit;
+  margin: 10px 0 16px;
+  box-sizing: border-box;
+}
+.modal-card .modal-actions {
+  display: flex; justify-content: flex-end; gap: 10px;
+}
+.modal-card .btn-primary {
+  background: var(--accent, #4f8cff); color: #fff; border: none;
+  padding: 9px 16px; border-radius: 6px; font-size: 14px; font-weight: 600;
+  cursor: pointer;
+}
+.modal-card .btn-primary:hover { filter: brightness(1.08); }
+
 /* Plan badge shown in the chat header once /billing/subscription resolves. */
 .plan-badge {
   font-size: 11px;
