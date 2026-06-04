@@ -155,13 +155,19 @@ class MetaAdsClient:
         special_ad_categories: Optional[List[str]] = None,
         status: str = "PAUSED",
     ) -> str:
+        import json as _json
+        # Meta requires special_ad_categories to be present even when empty
+        # (form-encoded Python lists get dropped — must send as a JSON string)
+        # AND when budget lives on the adset, requires explicit
+        # is_adset_budget_sharing_enabled boolean.
         data = self._post(
             f"/{self.acct}/campaigns",
             data={
                 "name": name,
                 "objective": objective,
                 "status": status,
-                "special_ad_categories": special_ad_categories or [],
+                "special_ad_categories": _json.dumps(special_ad_categories or []),
+                "is_adset_budget_sharing_enabled": "false",
             },
         )
         campaign_id = data.get("id")
@@ -190,6 +196,9 @@ class MetaAdsClient:
             "age_min": 25,
             "age_max": 55,
         }
+        # Meta now requires explicit Advantage+ targeting opt-in/out.
+        # 0 = keep our manual targeting, 1 = let Meta expand the audience.
+        target.setdefault("targeting_automation", {"advantage_audience": 0})
         payload: Dict[str, Any] = {
             "name": name,
             "campaign_id": campaign_id,
