@@ -310,6 +310,27 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .modal-card .btn-primary:hover { filter: brightness(1.08); }
 
+/* Composer row — doc attach picker + send button */
+.composer-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 8px;
+}
+.doc-attach-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--muted, #8b94a3);
+}
+.doc-attach {
+  background: var(--bg, #0f1115);
+  color: var(--text, #e7ecf3);
+  border: 1px solid var(--border, #242630);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-size: 12px;
+  max-width: 220px;
+}
+.doc-manage-link { color: var(--accent, #4f8cff); text-decoration: none; font-size: 11px; }
+.doc-manage-link:hover { text-decoration: underline; }
+
 /* Plan badge shown in the chat header once /billing/subscription resolves. */
 .plan-badge {
   font-size: 11px;

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Documents — KAI</title>
+  <link rel="stylesheet" href="style.css?v=20260604d" />
+  <link rel="stylesheet" href="documents.css?v=20260604d" />
+  <link rel="manifest" href="/kai-ui/manifest.json" />
+  <link rel="apple-touch-icon" href="/kai-ui/apple-touch-icon.png" />
+  <meta name="theme-color" content="#4f8cff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KAI" />
+</head>
+<body>
+  <header>
+    <h1>KAI</h1>
+    <nav class="subnav">
+      <a href="/kai-ui/chat.html">Chat</a>
+      <a href="/kai-ui/api-keys.html">API keys</a>
+      <button class="btn-ghost" id="logout-btn" type="button">Log out</button>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1>Documents</h1>
+    <p class="lede">
+      Upload PDFs or text files. Reference them in chat with the
+      attachment picker. v1 supports up to 50 documents per account
+      and ~50 pages each.
+    </p>
+
+    <div class="error-banner" id="error"></div>
+
+    <section class="upload-zone">
+      <input type="file" id="file-input" accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" hidden />
+      <button class="btn-primary" id="upload-btn" type="button">+ Upload a document</button>
+      <p class="upload-hint">PDF, TXT, or MD — up to 5 MB each.</p>
+    </section>
+
+    <section>
+      <h2>Your library</h2>
+      <ul class="doc-list" id="doc-list">
+        <li class="muted">Loading…</li>
+      </ul>
+    </section>
+
+    <p class="alt-link">
+      <a href="/kai-ui/chat.html">← Back to chat</a>
+    </p>
+  </main>
+
+  <script src="auth.js?v=20260604d"></script>
+  <script src="documents.js?v=20260604d"></script>
+</body>
+</html>

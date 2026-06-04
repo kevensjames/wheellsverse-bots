@@ -1,0 +1,54 @@
+/* /kai-ui/documents.html — paired styles. Inherits dark palette. */
+.page { max-width: 760px; margin: 24px auto; padding: 0 20px; }
+.page h1 { font-size: 28px; margin: 12px 0 6px; }
+.page h2 { font-size: 17px; margin: 28px 0 12px; }
+.page .lede { color: var(--muted, #8b94a3); font-size: 15px; line-height: 1.6; margin: 0 0 24px; }
+
+.upload-zone {
+  border: 2px dashed var(--border, #242630);
+  border-radius: 10px;
+  padding: 28px 24px;
+  text-align: center;
+  background: var(--panel, #181a22);
+  margin-bottom: 36px;
+}
+.upload-zone .btn-primary {
+  background: var(--accent, #4f8cff); color: #fff; border: none;
+  padding: 10px 18px; border-radius: 6px;
+  font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.upload-zone .btn-primary:hover { filter: brightness(1.08); }
+.upload-zone .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.upload-hint { margin: 10px 0 0; font-size: 13px; color: var(--muted, #8b94a3); }
+
+.doc-list { list-style: none; padding: 0; margin: 8px 0; }
+.doc-list li {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px; border: 1px solid var(--border, #242630);
+  border-radius: 8px; margin-bottom: 10px; background: var(--panel, #181a22);
+}
+.doc-list .meta { font-size: 14px; flex: 1; min-width: 0; }
+.doc-list .filename {
+  font-weight: 600; color: var(--text, #e7ecf3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block;
+}
+.doc-list .stamp { color: var(--muted, #8b94a3); font-size: 12px; margin-top: 4px; }
+.doc-list .muted { color: var(--muted, #8b94a3); padding: 14px 0; border: none; background: transparent; }
+.doc-list .delete-btn {
+  background: transparent; color: #ff6677; border: 1px solid #553344;
+  padding: 6px 10px; border-radius: 4px; font-size: 13px; cursor: pointer;
+  margin-left: 12px;
+}
+.doc-list .delete-btn:hover { background: #2a1419; }
+
+.error-banner {
+  display: none; padding: 12px 14px; border-radius: 6px;
+  background: #2a1419; color: #ffaaaa; border: 1px solid #553344;
+  margin: 0 0 16px; font-size: 14px;
+}
+.error-banner.shown { display: block; }
+
+.alt-link { margin-top: 36px; font-size: 14px; }
+.alt-link a { color: var(--muted, #8b94a3); text-decoration: none; }
+.alt-link a:hover { color: var(--text, #e7ecf3); }

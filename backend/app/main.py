@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_data, api_keys_admin, auth, billing, nai, predictions, v1
+from app.routers import admin_data, api_keys_admin, auth, billing, documents, nai, predictions, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -60,6 +60,7 @@ app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
 app.include_router(api_keys_admin.router)
+app.include_router(documents.router)
 app.include_router(v1.router)
 # Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
 # canonical; /nai stays alive so any in-flight client (cached JS, open SSE

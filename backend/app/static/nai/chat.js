@@ -102,20 +102,76 @@ function sendStreaming(message) {
   };
 }
 
+// ── Document attachment ─────────────────────────────────────────────────
+const _docTextCache = new Map();  // doc_id → full text
+
+async function loadDocPicker() {
+  const select = document.getElementById("doc-attach");
+  if (!select) return;
+  try {
+    const r = await fetch("/account/documents", { credentials: "same-origin" });
+    if (r.status === 402) {
+      // Free tier — keep the picker disabled with a note
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "(paid only)";
+      select.firstChild.replaceWith(opt);
+      select.disabled = true;
+      return;
+    }
+    if (!r.ok) return;
+    const items = await r.json();
+    // Keep the "— none —" option, append docs
+    for (const d of items) {
+      const opt = document.createElement("option");
+      opt.value = d.id;
+      opt.textContent = d.filename;
+      select.appendChild(opt);
+    }
+  } catch (e) { /* fail silently */ }
+}
+loadDocPicker();
+
+async function maybeFetchDocText(docId) {
+  if (_docTextCache.has(docId)) return _docTextCache.get(docId);
+  const r = await fetch("/account/documents/" + docId + "/text",
+                       { credentials: "same-origin" });
+  if (!r.ok) return null;
+  const data = await r.json();
+  _docTextCache.set(docId, data.text);
+  return data.text;
+}
+
+async function composeWithDoc(userMessage) {
+  const select = document.getElementById("doc-attach");
+  const docId = select && select.value;
+  if (!docId) return userMessage;
+  const text = await maybeFetchDocText(docId);
+  if (!text) return userMessage;
+  const opt = select.options[select.selectedIndex];
+  const fname = opt ? opt.textContent : "document";
+  return (
+    "Reference document (\"" + fname + "\"):\n" +
+    "---\n" + text + "\n---\n\n" +
+    "Question:\n" + userMessage
+  );
+}
+
 els.form.addEventListener("submit", async (e) => {
   e.preventDefault();
   const message = els.input.value.trim();
   if (!message) return;
 
-  appendMessage("user", message);
+  appendMessage("user", message);   // show ORIGINAL message in UI
   els.input.value = "";
   els.send.disabled = true;
 
   try {
+    const composed = await composeWithDoc(message);
     if (els.useTools.checked) {
-      await sendWithTools(message);
+      await sendWithTools(composed);
     } else {
-      sendStreaming(message);
+      sendStreaming(composed);
     }
   } finally {
     setTimeout(() => {

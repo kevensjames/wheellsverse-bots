@@ -8,6 +8,7 @@ from app.models.api_key import ApiKey
 from app.models.asset import Asset, PriceHistory
 from app.models.cancellation_reason import CancellationReason
 from app.models.conversation import Conversation, Message
+from app.models.document import KaiDocument
 from app.models.memory import Memory
 from app.models.prediction import Prediction
 from app.models.profile import Profile
@@ -22,6 +23,7 @@ __all__ = [
     "Asset",
     "CancellationReason",
     "Conversation",
+    "KaiDocument",
     "Memory",
     "Message",
     "Prediction",

@@ -22,6 +22,7 @@
       <label><input type="checkbox" id="prefer-local" /> Prefer local (Ollama)</label>
       <button id="new-conv" type="button">New conversation</button>
       <span id="plan-badge" class="plan-badge" hidden></span>
+      <a class="nav-link" href="/kai-ui/documents.html">Docs</a>
       <a class="nav-link" id="api-keys-link" href="/kai-ui/api-keys.html">API keys</a>
       <a class="nav-link" id="pricing-link" href="/kai-ui/pricing.html">Pricing</a>
       <button class="btn-ghost" id="logout-btn" type="button">Log out</button>
@@ -62,7 +63,16 @@
 
   <form id="composer">
     <textarea id="input" rows="2" placeholder="Type a message…" required></textarea>
-    <button type="submit" id="send">Send</button>
+    <div class="composer-row">
+      <label class="doc-attach-label">
+        Reference:
+        <select id="doc-attach" class="doc-attach">
+          <option value="">— none —</option>
+        </select>
+        <a href="/kai-ui/documents.html" class="doc-manage-link" title="Manage documents">+ upload</a>
+      </label>
+      <button type="submit" id="send">Send</button>
+    </div>
   </form>
 
   <div id="status"></div>
