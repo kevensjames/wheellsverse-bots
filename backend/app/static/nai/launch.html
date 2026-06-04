@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>I Built My Own ChatGPT Because Theirs Kept Throttling Me — KAI</title>
+  <meta name="description" content="A founder&#x27;s note on shipping KAI, what&#x27;s in it, and why $19/mo." />
+  <meta property="og:title" content="I Built My Own ChatGPT Because Theirs Kept Throttling Me" />
+  <meta property="og:description" content="A founder&#x27;s note on shipping KAI, what&#x27;s in it, and why $19/mo." />
+  <meta property="og:url" content="https://kai.wheellsverse.com/kai-ui/launch.html" />
+  <meta property="og:type" content="article" />
+  <link rel="canonical" href="https://kai.wheellsverse.com/kai-ui/launch.html" />
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 760px; margin: 40px auto; padding: 0 20px; line-height: 1.65; color: #1a1a2e; }
+    h1 { color: #0d0f14; font-size: 2.1em; margin-bottom: .2em; line-height: 1.2; }
+    h2 { color: #16213e; border-bottom: 2px solid #00d4ff; padding-bottom: .3em; margin-top: 1.8em; font-size: 1.4em; }
+    h3 { color: #16213e; margin-top: 1.4em; font-size: 1.15em; }
+    a { color: #0099bb; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    blockquote { margin: 1.4em 0; padding: 14px 20px; background: #f7f9fc; border-left: 4px solid #00d4ff; color: #444; font-style: italic; }
+    table { border-collapse: collapse; width: 100%; margin: 1.4em 0; font-size: .94em; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #eaeaea; }
+    th { background: #f7f9fc; }
+    code { background: #f0f2f5; padding: 1px 5px; border-radius: 3px; font-family: 'SF Mono', Menlo, monospace; font-size: 0.92em; }
+    hr { border: none; border-top: 1px solid #eaeaea; margin: 2em 0; }
+    .cta { background: linear-gradient(135deg, #0d0f14, #16213e); color: #fff; padding: 24px 28px; border-radius: 10px; margin: 32px 0; border-left: 4px solid #00d4ff; }
+    .cta h3 { color: #00d4ff; margin: 0 0 10px; border: none; }
+    .cta a { color: #00ff88; font-weight: 600; }
+    .byline { color: #888; font-size: .9em; margin-bottom: 2em; }
+    footer { margin-top: 50px; padding-top: 20px; border-top: 1px solid #eaeaea; color: #888; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <p class="byline"><a href="https://kai.wheellsverse.com">KAI</a> · 2026-06-04</p>
+  <h1>I Built My Own ChatGPT Because Theirs Kept Throttling Me</h1>
+<p>
+<em>A founder's note on shipping KAI, what's actually in it, and why $19/mo.</em> 
+</p>
+<hr/>
+<p>
+It was a Tuesday. I was 40 minutes into debugging a Stripe webhook signature 
+mismatch — the kind of bug where you're three browser tabs deep in their docs 
+and you've stopped trusting your own eyes. I asked ChatGPT for a second 
+opinion and it gave me the response I now hate more than the bug itself: 
+</p>
+<blockquote><em>You've reached the message limit for GPT-4. Please try again in 3 hours or upgrade.</em></blockquote>
+<p>
+I was already on GPT Plus. Twenty dollars a month. For the privilege of being 
+told to wait three hours during the one hour I actually needed it. 
+</p>
+<p>
+That night I started building KAI. 
+</p>
+<h2>What KAI Is (and Isn't)</h2>
+<p>
+KAI is a paid chat product at <a href="https://kai.wheellsverse.com">kai.wheellsverse.com</a>. 
+$19/month, cancel anytime, no annual lock-in. 
+</p>
+<p>
+It is <strong>not</strong>: a ChatGPT clone, an Anthropic reseller, a wrapper over a 
+single model's API. There are dozens of those and most of them are worse than 
+just paying OpenAI directly. 
+</p>
+<p>
+What it actually does that I couldn't get elsewhere for $19: 
+</p>
+<ol><li><strong>Both OpenAI and Anthropic, on the same chat.</strong> I switch between GPT-4o</li></ol>
+<p>
+   and Claude inside one conversation — same memory, same context, same 
+   thread. I built this because I was constantly copy-pasting between two 
+   tabs. When Claude is being weirdly preachy I flip to GPT mid-message. 
+   When GPT is being lazy I flip to Claude. The router knows. 
+</p>
+<ol><li><strong>Memory across conversations.</strong> ChatGPT's memory is two sentences of</li></ol>
+<p>
+   "user is a developer." KAI's memory is structured: it knows what repos 
+   I'm working on, what stack each one is on, which clients I bill hourly 
+   vs flat rate, and which of my dumber decisions I've already regretted 
+   so it doesn't recommend them again. I store the memory; OpenAI doesn't 
+   see it; I can wipe it. 
+</p>
+<ol><li><strong>Real tool access.</strong> Notion, GitHub, Linear, Slack, 200+ SaaS apps</li></ol>
+<p>
+   wired through Composio. Not "we can describe an API call you might 
+   want to make" — actual execution. I ship blog posts to my Notion CMS 
+   from inside the chat. I close Linear tickets. I push a TODO comment 
+   in code and 10 minutes later a Linear ticket exists. 
+</p>
+<ol><li><strong>Unlimited chat.</strong> No 3-hour cooldown. No GPT-3.5 fallback. No</li></ol>
+<p>
+   "limited responses." I burned 4,000 messages in week one debugging 
+   the auth layer. Cost me ~$11 in OpenAI tokens to serve. You pay $19, 
+   I pocket the difference, and we both stop losing afternoons to message 
+   caps. 
+</p>
+<h2>Why $19 and not free</h2>
+<p>
+I tried the free tier. Watched it for two weeks. Free users sent 
+embarrassingly few messages — most of them stopped after 2 days. People 
+who pay show up. People who pay tell me when something's broken. People 
+who pay don't try to scrape the system prompt and resell it. 
+</p>
+<p>
+$19 also covers actual costs. The marginal token spend per active user 
+is around $4–7/month. Stripe takes 3%. AWS-equivalent compute is whatever 
+my Mac mini's electricity bill divides into. The remaining margin pays 
+for the next feature instead of a marketing department. 
+</p>
+<h2>What I'm not going to lie about</h2>
+<p>
+KAI is a one-person product launched yesterday. Here's what that means: 
+</p>
+<ul><li>No SOC 2. No HIPAA. If you handle regulated data, don't use this yet.</li><li>I'm the only person on call. If the server is down at 4am Eastern,</li></ul>
+<p>
+  it's down until I wake up. (It hasn't been, but I'd rather you know.) 
+</p>
+<ul><li>The UI is functional, not pretty. I optimized for "doesn't feel slow"</li></ul>
+<p>
+  before "looks like a SaaS landing page." 
+</p>
+<ul><li>Some features I'd love to ship (voice, image gen, long-document RAG)</li></ul>
+<p>
+  are not in v1. They're on the roadmap. They are not in the product. 
+</p>
+<p>
+If those are dealbreakers, pay OpenAI directly. They have a UI team and 
+compliance officers and an actual support inbox. I have a Telegram bot 
+that pings me when the server logs an error. 
+</p>
+<h2>The honest comparison</h2>
+<table>
+<thead><tr><th></th><th>KAI</th><th>ChatGPT Plus</th><th>Claude.ai Pro</th></tr></thead>
+<tbody><tr><td>Monthly</td><td>$19</td><td>$20</td><td>$20</td></tr><tr><td>Message limits</td><td>none</td><td>yes (GPT-4)</td><td>yes (Claude 3 Opus)</td></tr><tr><td>Multiple model providers</td><td>yes</td><td>no</td><td>no</td></tr><tr><td>Persistent memory</td><td>yes (structured)</td><td>yes (basic)</td><td>no</td></tr><tr><td>Tool/SaaS execution</td><td>200+ via Composio</td><td>limited (GPTs)</td><td>limited (MCP)</td></tr><tr><td>Voice / image gen</td><td>no</td><td>yes</td><td>no</td></tr><tr><td>Mobile app</td><td>no (PWA)</td><td>yes</td><td>yes</td></tr><tr><td>One-person founder picks up the phone</td><td>yes</td><td>no</td><td>no</td></tr></tbody>
+</table>
+<p>
+If voice and image gen are the features you use, KAI is wrong for you. 
+If you bounce between Claude and GPT and want both on one bill with 
+memory and real tool execution, KAI is probably the right $19 you'll 
+spend this month. 
+</p>
+<h2>How to try it</h2>
+<p>
+<a href="https://kai.wheellsverse.com">kai.wheellsverse.com</a>. Sign up with an 
+email, $19/mo on Stripe, cancel any time from the dashboard. No annual 
+plan, no "starter discount that auto-upgrades to enterprise pricing" 
+trick. The price on the landing page is the price you pay. 
+</p>
+<p>
+If you sign up and it's wrong for you, email me from the address you 
+used. I'll refund you the same day and you can tell me what was missing. 
+</p>
+<h2>What you can do for me</h2>
+<p>
+If you build with KAI and ship something good, tell me. I'll add a 
+"made with KAI" wall on the site. I want to see what people make with 
+two models and a memory. 
+</p>
+<p>
+If you find a bug, the support email goes to my actual inbox, not a 
+help-desk queue. Response time is under 12 hours and I haven't slept 
+through one yet. 
+</p>
+<p>
+If you think this is a bad idea, also tell me. Building in public 
+includes accepting feedback from people who think you're wrong. 
+</p>
+<p>
+Now I need to go close out my Stripe dashboard before I cry. 
+</p>
+<p>
+— <em>Built by a one-person team. Hosted on a Mac mini. Powered by other people's models. Worth your $19, or your money back.</em> 
+</p>
+<hr/>
+<p>
+*This post was hand-written, not generated. The launch URL is real: 
+<a href="https://kai.wheellsverse.com">kai.wheellsverse.com</a>. The Mac mini detail 
+is also real.* 
+</p>
+  <div class="cta">
+    <h3>Try KAI — $19/month, cancel anytime</h3>
+    <p style="margin:0">If this post resonated, <a href="https://kai.wheellsverse.com/kai-ui/pricing.html">sign up at kai.wheellsverse.com</a>. Same-day refund if it's wrong for you.</p>
+  </div>
+  <footer>Built and run by one person. Email goes to a real inbox.</footer>
+</body>
+</html>
