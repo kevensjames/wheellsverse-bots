@@ -62,6 +62,13 @@ fi
 # Keep PATH sane for any subprocess uvicorn spawns.
 export PATH="$VENV/bin:$PATH"
 
+# Re-stamp static asset cache-busters with each asset's current mtime.
+# Prevents the "user has cached old JS but HTML still points at it" class
+# of bug (see commit b2b9af2 + scripts/stamp_static_assets.py header).
+# Failure here is non-fatal — old stamps still work, just less aggressively.
+"$VENV/bin/python" scripts/stamp_static_assets.py || \
+    echo "WARNING: stamp_static_assets.py failed; cache-busters may be stale" >&2
+
 # Exec — launchd captures stdout/stderr to the plist's *Path entries.
 exec "$VENV/bin/uvicorn" app.main:app \
     --host 127.0.0.1 \
