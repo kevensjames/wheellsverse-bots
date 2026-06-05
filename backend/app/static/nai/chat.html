@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KAI</title>
-  <link rel="stylesheet" href="style.css?v=ts-1780583872" />
+  <link rel="stylesheet" href="style.css?v=ts-1780650872" />
   <link rel="manifest" href="/kai-ui/manifest.json" />
   <link rel="apple-touch-icon" href="/kai-ui/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/kai-ui/icon-192.png" />
@@ -61,6 +61,17 @@
 
   <main id="messages" aria-live="polite"></main>
 
+  <!-- Starter prompts shown only when the chat is empty. chat.js hides
+       the wrapper as soon as the user sends or receives a message. -->
+  <div id="starter-prompts" class="starter-prompts">
+    <p class="starter-prompts-hint">Try one of these to get started:</p>
+    <button class="starter-chip" type="button" data-prompt="Help me debug this error: [paste here]">Debug an error</button>
+    <button class="starter-chip" type="button" data-prompt="Explain like I'm a senior engineer — what is [topic]?">Explain a concept</button>
+    <button class="starter-chip" type="button" data-prompt="Draft a Slack message to my team about [topic]. Keep it under 5 sentences and direct.">Draft a Slack message</button>
+    <button class="starter-chip" type="button" data-prompt="Summarize this in 3 bullets: [paste here]">Summarize text</button>
+    <button class="starter-chip" type="button" data-prompt="What does this Python function do? [paste here]">Explain code</button>
+  </div>
+
   <form id="composer">
     <textarea id="input" rows="2" placeholder="Type a message…" required></textarea>
     <div class="composer-row">
@@ -78,6 +89,6 @@
   <div id="status"></div>
 
   <script src="auth.js?v=ts-1780481212"></script>
-  <script src="chat.js?v=ts-1780583914"></script>
+  <script src="chat.js?v=ts-1780650858"></script>
 </body>
 </html>

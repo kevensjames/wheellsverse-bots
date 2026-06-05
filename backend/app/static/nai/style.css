@@ -331,6 +331,33 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
 .doc-manage-link { color: var(--accent, #4f8cff); text-decoration: none; font-size: 11px; }
 .doc-manage-link:hover { text-decoration: underline; }
 
+/* Starter prompts shown on empty chat */
+.starter-prompts {
+  display: flex; flex-wrap: wrap; gap: 8px;
+  align-items: center;
+  padding: 12px 18px 0;
+  max-width: 760px; margin: 0 auto;
+}
+.starter-prompts-hint {
+  margin: 0 6px 0 0; padding: 0;
+  font-size: 12px; color: var(--muted, #8b94a3);
+  width: 100%;
+}
+.starter-chip {
+  background: var(--panel, #181a22);
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px; font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease;
+}
+.starter-chip:hover {
+  border-color: var(--accent, #4f8cff);
+  background: rgba(79, 140, 255, 0.08);
+}
+
 /* Plan badge shown in the chat header once /billing/subscription resolves. */
 .plan-badge {
   font-size: 11px;

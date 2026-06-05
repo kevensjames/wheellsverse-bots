@@ -165,6 +165,7 @@ els.form.addEventListener("submit", async (e) => {
   appendMessage("user", message);   // show ORIGINAL message in UI
   els.input.value = "";
   els.send.disabled = true;
+  hideStarterPrompts();
 
   try {
     const composed = await composeWithDoc(message);
@@ -254,6 +255,34 @@ const _bannerBtn = document.getElementById("payment-banner-fix");
 if (_bannerBtn) _bannerBtn.addEventListener("click", openBillingPortal);
 
 refreshPlanBadge();
+
+// ── Starter prompts ─────────────────────────────────────────────────────
+// Shown on first load. Clicking a chip fills the composer + focuses it.
+// Hides itself after the first message is sent so returning users don't
+// see them every time.
+function wireStarterPrompts() {
+  const wrap = document.getElementById("starter-prompts");
+  if (!wrap) return;
+  const chips = wrap.querySelectorAll(".starter-chip");
+  chips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      const prompt = chip.getAttribute("data-prompt") || "";
+      els.input.value = prompt;
+      els.input.focus();
+      const m = prompt.match(/\[[^\]]+\]/);
+      if (m) {
+        const start = prompt.indexOf(m[0]);
+        els.input.setSelectionRange(start, start + m[0].length);
+      }
+    });
+  });
+}
+wireStarterPrompts();
+
+function hideStarterPrompts() {
+  const wrap = document.getElementById("starter-prompts");
+  if (wrap) wrap.hidden = true;
+}
 
 // ── Cancel survey ────────────────────────────────────────────────────────
 // Fires when the user comes back from Stripe portal after canceling. Stripe
