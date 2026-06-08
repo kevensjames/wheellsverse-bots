@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KAI</title>
-  <link rel="stylesheet" href="style.css?v=ts-1780650872" />
+  <link rel="stylesheet" href="style.css?v=ts-1780889542" />
   <link rel="manifest" href="/kai-ui/manifest.json" />
   <link rel="apple-touch-icon" href="/kai-ui/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/kai-ui/icon-192.png" />
@@ -56,6 +56,20 @@
           <button class="btn-primary" type="submit" id="cancel-modal-submit">Send feedback</button>
         </div>
       </form>
+
+      <!-- Winback offer revealed after the cancel reason is submitted.
+           Only shown if the user picked "too_expensive" (the offer
+           wouldn't change their mind for the other reasons). chat.js
+           handles the conditional show. -->
+      <div id="winback-offer" class="winback-offer" hidden>
+        <h3>Wait — would 50% off next month help?</h3>
+        <p>If price is the only thing holding you back, take half off
+           your next billing cycle. No questions asked.</p>
+        <div class="modal-actions">
+          <button class="btn-ghost" type="button" id="winback-decline">No thanks, continue canceling</button>
+          <button class="btn-primary" type="button" id="winback-accept">Yes — apply 50% off</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -89,6 +103,6 @@
   <div id="status"></div>
 
   <script src="auth.js?v=ts-1780481212"></script>
-  <script src="chat.js?v=ts-1780889191"></script>
+  <script src="chat.js?v=ts-1780889594"></script>
 </body>
 </html>

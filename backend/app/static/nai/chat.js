@@ -330,22 +330,87 @@ function hideCancelModal() {
   }
 }
 
-function wireCancelSurvey() {
+async function applyWinback() {
+  const btn = document.getElementById("winback-accept");
+  if (btn) { btn.disabled = true; btn.textContent = "Applying…"; }
+  try {
+    const r = await fetch("/billing/winback/apply-discount", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (!r.ok) {
+      alert("Couldn't apply discount (HTTP " + r.status + "). The cancellation can still proceed.");
+      return false;
+    }
+    const data = await r.json();
+    alert(data.message || "Discount applied. You're staying on Pro at 50% off next month.");
+    return true;
+  } catch (e) {
+    alert("Network error applying discount.");
+    return false;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Yes — apply 50% off"; }
+  }
+}
+
+async function wireCancelSurvey() {
   const modal = document.getElementById("cancel-modal");
   if (!modal) return;
-  if (!window.location.search.includes("canceled=1")) return;
+
+  // Gate 1: URL must have ?canceled=1 EXACTLY — proper param parsing, not
+  // a substring match (the old `.includes("canceled=1")` would match any
+  // URL containing that string anywhere, e.g. ?next=/canceled=1/foo).
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("canceled") !== "1") return;
+
+  // Gate 2: user must have HAD a subscription. A fresh signup with no
+  // billing history should never see a cancel survey — that's the bug
+  // we just fixed where signups were landing on the feedback modal.
+  // Check /billing/subscription: status must be canceled / past_due /
+  // active (anything except 'free').
+  try {
+    const r = await fetch("/billing/subscription", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const data = await r.json();
+    const status = (data.status || "free").toLowerCase();
+    if (status === "free") return;
+  } catch (e) {
+    return;  // fail closed — don't show the modal if we can't verify
+  }
+
   modal.hidden = false;
   const skipBtn = document.getElementById("cancel-modal-skip");
   const form = document.getElementById("cancel-form");
+  const offer = document.getElementById("winback-offer");
+  const acceptBtn = document.getElementById("winback-accept");
+  const declineBtn = document.getElementById("winback-decline");
+
   if (skipBtn) skipBtn.addEventListener("click", hideCancelModal);
+
   if (form) form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const selected = form.querySelector('input[name="reason"]:checked');
     if (!selected) { alert("Pick one option, or click Skip."); return; }
     const free = document.getElementById("cancel-free-text").value.trim();
     await submitCancelReason(selected.value, free);
-    hideCancelModal();
+
+    // If the reason is "too_expensive", reveal the winback offer and DON'T
+    // close the modal yet. Other reasons → just close (the offer wouldn't
+    // change their mind).
+    if (selected.value === "too_expensive" && offer) {
+      form.hidden = true;
+      offer.hidden = false;
+    } else {
+      hideCancelModal();
+    }
   });
+
+  if (acceptBtn) acceptBtn.addEventListener("click", async () => {
+    const ok = await applyWinback();
+    hideCancelModal();
+    if (ok) refreshPlanBadge();   // status may have flipped past_due → active
+  });
+  if (declineBtn) declineBtn.addEventListener("click", hideCancelModal);
 }
 wireCancelSurvey();
 

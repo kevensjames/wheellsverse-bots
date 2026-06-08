@@ -210,6 +210,88 @@ def submit_cancellation_reason(
     return {"received": True}
 
 
+# ---------- winback ----------
+
+
+WINBACK_COUPON_ID = "kai_winback_50off_1mo"
+
+
+class WinbackResponse(BaseModel):
+    applied: bool
+    coupon_id: str
+    message: str
+
+
+@router.post("/winback/apply-discount", response_model=WinbackResponse)
+def apply_winback_discount(
+    db: Session = Depends(get_db),
+    user: UserPrincipal = Depends(get_current_user),
+) -> WinbackResponse:
+    """Apply a 50%-off-next-month coupon to the user's active subscription.
+
+    Triggered from the cancel-survey modal's "Wait — get 50% off" button.
+    Idempotent at the Stripe level: re-applying the same coupon updates
+    rather than stacks. Returns 409 if the user has no Stripe customer
+    or no active sub.
+    """
+    profile = _load_profile_or_404(db, user.id)
+    if not profile.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No Stripe customer on file — nothing to discount.",
+        )
+    sub = (
+        db.query(Subscription)
+        .filter(
+            Subscription.user_id == user.id,
+            Subscription.status.in_(("active", "trialing")),
+        )
+        .order_by(Subscription.created_at.desc())
+        .first()
+    )
+    if sub is None or not sub.stripe_subscription_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="No active subscription to discount.",
+        )
+
+    # Apply via Stripe API: update the subscription's coupon field
+    import urllib.parse, urllib.request, urllib.error, json as _json
+    sk = settings.STRIPE_SECRET_KEY
+    if not sk:
+        raise HTTPException(status_code=503, detail="Stripe not configured")
+    body = urllib.parse.urlencode([("coupon", WINBACK_COUPON_ID)]).encode()
+    req = urllib.request.Request(
+        f"https://api.stripe.com/v1/subscriptions/{sub.stripe_subscription_id}",
+        data=body, method="POST",
+        headers={
+            "Authorization": f"Bearer {sk}",
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            _json.loads(r.read())
+    except urllib.error.HTTPError as e:
+        logger.warning("winback coupon apply failed: %s %s", e.code, e.read()[:200])
+        raise HTTPException(status_code=502, detail=f"Stripe error applying coupon")
+
+    # Operator alert — every winback save is signal
+    from app.services import observability
+    observability.notify(
+        f"💸 <b>Winback save</b>\n"
+        f"user: {user.email or '?'}\n"
+        f"coupon: {WINBACK_COUPON_ID} (50% off next month)\n"
+        f"sub: <code>{sub.stripe_subscription_id}</code>"
+    )
+
+    return WinbackResponse(
+        applied=True,
+        coupon_id=WINBACK_COUPON_ID,
+        message="50% off next month applied. Thank you for staying.",
+    )
+
+
 # ---------- webhook ----------
 
 

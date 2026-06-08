@@ -310,6 +310,28 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
 }
 .modal-card .btn-primary:hover { filter: brightness(1.08); }
 
+/* Winback offer revealed inside the cancel modal after user submits a
+   "too_expensive" reason. Accent border + slight glow to feel like a
+   deliberate offer, not a guilt-trip. */
+.winback-offer {
+  border: 1px solid var(--accent, #4f8cff);
+  border-radius: 8px;
+  padding: 16px 18px;
+  margin-top: 18px;
+  background: rgba(79, 140, 255, 0.06);
+}
+.winback-offer h3 {
+  margin: 0 0 6px;
+  color: var(--accent, #4f8cff);
+  font-size: 16px;
+}
+.winback-offer p {
+  margin: 0 0 14px;
+  font-size: 14px;
+  color: var(--muted, #8b94a3);
+  line-height: 1.5;
+}
+
 /* Composer row — doc attach picker + send button */
 .composer-row {
   display: flex; align-items: center; justify-content: space-between;
