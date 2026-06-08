@@ -300,6 +300,81 @@ function wireStarterPrompts() {
 }
 wireStarterPrompts();
 
+// ── Voice input (MediaRecorder → /kai/transcribe) ───────────────────────
+// Click mic → start recording, click again → stop + upload + fill input.
+// Requires HTTPS (we have it) + microphone permission (browser prompts once).
+(function wireMic() {
+  const btn = document.getElementById("mic-btn");
+  if (!btn) return;
+  let recorder = null;
+  let chunks = [];
+  let active = false;
+
+  async function start() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      chunks = [];
+      recorder.addEventListener("dataavailable", (e) => {
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      });
+      recorder.addEventListener("stop", async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        if (!chunks.length) return;
+        const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+        await uploadAndFill(blob);
+      });
+      recorder.start();
+      active = true;
+      btn.classList.add("mic-recording");
+      btn.textContent = "⏺";
+      setStatus("Recording… click mic again to stop");
+    } catch (e) {
+      alert("Microphone access denied or unavailable.");
+    }
+  }
+
+  function stop() {
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+    active = false;
+    btn.classList.remove("mic-recording");
+    btn.textContent = "🎤";
+    setStatus("Transcribing…");
+  }
+
+  async function uploadAndFill(blob) {
+    const fd = new FormData();
+    fd.append("file", blob, "voice.webm");
+    try {
+      const r = await fetch("/kai/transcribe", {
+        method: "POST",
+        credentials: "same-origin",
+        body: fd,
+      });
+      if (r.status === 402) {
+        alert("Voice input is a paid feature. Upgrade at /kai-ui/pricing.html");
+        setStatus("");
+        return;
+      }
+      if (!r.ok) {
+        setStatus("Transcription failed (HTTP " + r.status + ")");
+        return;
+      }
+      const data = await r.json();
+      const text = (data.text || "").trim();
+      if (!text) { setStatus("No speech detected."); return; }
+      // Append to existing input rather than overwrite — user might be mid-thought
+      els.input.value = (els.input.value.trim() ? els.input.value.trim() + " " : "") + text;
+      els.input.focus();
+      setStatus("");
+    } catch (e) {
+      setStatus("Network error during transcription");
+    }
+  }
+
+  btn.addEventListener("click", () => (active ? stop() : start()));
+})();
+
 function hideStarterPrompts() {
   const wrap = document.getElementById("starter-prompts");
   if (wrap) wrap.hidden = true;

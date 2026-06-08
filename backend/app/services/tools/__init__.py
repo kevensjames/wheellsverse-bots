@@ -14,6 +14,7 @@ from app.services.tools.composio_notion import NotionTool
 from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.registry import ToolRegistry
 from app.services.tools.trading_signal import TradingSignalTool
+from app.services.tools.web_fetch import WebFetchTool
 from app.services.tools.web_search import WebSearchTool
 
 
@@ -47,6 +48,8 @@ def build_default_registry(
 
     reg.register(MemoryTool())
     reg.register(TradingSignalTool())
+    # No env key required — pure-Python fetch + trafilatura extraction
+    reg.register(WebFetchTool())
 
     if include_composio:
         # Notion is the priority surface (Pattern A — dedicated tool).
@@ -75,6 +78,7 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "TradingSignalTool",
+    "WebFetchTool",
     "WebSearchTool",
     "build_default_registry",
 ]

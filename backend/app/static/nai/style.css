@@ -361,6 +361,29 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
 .doc-manage-link { color: var(--accent, #4f8cff); text-decoration: none; font-size: 11px; }
 .doc-manage-link:hover { text-decoration: underline; }
 
+/* Mic button — toggles a recording state with a red pulse when active */
+.mic-btn {
+  background: transparent;
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+}
+.mic-btn:hover { border-color: var(--accent, #4f8cff); }
+.mic-btn.mic-recording {
+  background: #ff5577;
+  color: #fff;
+  border-color: #ff5577;
+  animation: mic-pulse 1.2s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 85, 119, 0.5); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 85, 119, 0); }
+}
+
 /* Starter prompts shown on empty chat */
 .starter-prompts {
   display: flex; flex-wrap: wrap; gap: 8px;
