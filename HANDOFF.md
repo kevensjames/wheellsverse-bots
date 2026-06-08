@@ -1,11 +1,67 @@
-# KAI (née NAI) Launch — Handoff
+# KAI Launch — Handoff
 
-**Last updated:** 2026-06-03 10:55 UTC (post-Stage-8 rebrand)
-**Branch:** `feat/kdp-fillers` (7 commits ahead of main, unpushed)
+**Last updated:** 2026-06-07 23:30 UTC (post-RAG-v2 + winback + funnel fixes)
+**Branch:** `feat/kdp-fillers` (5 commits ahead of remote, **gitea unreachable for 36+ hours**)
 **Canonical domain:** `https://kai.wheellsverse.com`
-**State:** Live, paid traffic ready, fully rebranded NAI→KAI end-to-end.
+**State:** Live; feature-complete for post-launch sprint; awaiting real organic traffic to validate.
 
-## What changed since last handoff (3b76f6f)
+## ⚠️ Open infra issue
+
+**Gitea at `100.112.218.95:3000` has been unreachable for ~36+ hours of wall time across multiple sessions.** All retries time out at 4-75s. The host (a separate Mac mini) is either asleep, off-network, or its Gitea daemon failed. Five commits sit local-only:
+
+```
+d165f65 winback flow + cancel-survey bugfix (substring-match was firing for fresh signups)
+aa30be7 RAG v2: pgvector chunking + top-k retrieval
+45e9f40 nightly tier-mirror self-heal cron
+6ba9aff funnel: starter prompts + Supabase site_url fix
+8f3b29b auto-stamp ?v= with file mtime
+```
+
+Wake/repair the gitea host, then `git push origin feat/kdp-fillers`.
+
+## What changed since the last handoff (`3b76f6f`, 2026-06-03)
+
+### Launch-week sprint (8 features shipped)
+
+| Commit | Item | Why |
+|---|---|---|
+| `ce5bf3e` | Observability: Telegram alerts on signup/paid/cancel/payment-fail + `/admin/stats` JSON | Pre-traffic visibility |
+| `3a08d9f` | Facebook + Instagram launch posts published via Graph API + 1080×1080 cyan/dark IG image generated with PIL | Drive first traffic |
+| `8ea9be2` | PWA: manifest.json + 3 icon sizes + meta tags across all 6 HTML pages → installable on iOS/Android | Mobile retention |
+| `7085c86` | OpenAI-compat `/v1/chat/completions` + self-serve API keys at `/kai-ui/api-keys.html` (full vertical slice: migration + model + service + auth dep + 2 routers + UI) | Ultra-tier differentiator |
+| `10e6ed7` | Activated Max ($49) + Ultra ($99) Stripe tiers; API gated to Max+; 3-card pricing grid on landing | Real upgrade path |
+| `cd356d2` | Retention: past_due banner in chat + cancel survey modal + new `cancellation_reasons` table | Churn signal |
+| `8280c54` | RAG v1: `kai_documents` table + PDF/TXT/MD upload + library page at `/kai-ui/documents.html` + per-message reference picker | Common ChatGPT-parity feature |
+| `e76238f` → `251ad53` | New landing page (Modern SaaS Dark) as canonical at `/kai-ui/`; chat moved to `chat.html` | First-impression quality |
+
+### Cache-bust regression + structural fix (3 commits)
+
+`b2b9af2` was a manual bump; `8f3b29b` is the real fix — `scripts/stamp_static_assets.py` re-stamps `?v=ts-<mtime>` on every daemon boot via `deploy/start_nai.sh`. Bug class can't recur.
+
+### Funnel audit (2026-06-05)
+
+Walked the signup flow as a stranger. Found **three real launch-blockers**, all fixed via Supabase Management API + UI patches (`6ba9aff`):
+
+- `site_url` was `app.wheellsverse.com` (old TG bot domain) → fixed to `kai.wheellsverse.com`. Email confirmation links would have landed on the wrong site.
+- `uri_allow_list` didn't include `kai.wheellsverse.com/**` → added.
+- `mailer_autoconfirm: false` + broken email links = users stuck in a confirm loop → flipped to `true` for launch week (revisit when custom SMTP is wired).
+- Empty composer on first login = bounce-inducing → added 5 starter-prompt chips above the composer (Debug / Explain / Slack / Summarize / Code).
+
+### Operational backstops (`45e9f40`)
+
+Nightly LaunchAgent at 04:00 runs `scripts/heal_tier_mirror.py`. Resets `profiles.tier` to `'free'` for any row whose tier is paid but has no active sub. Fires a Telegram alert if it ever finds > 0 rows (signal that webhook is dropping events).
+
+### RAG v2 (`aa30be7`)
+
+`kai_doc_chunks` table with `vector(1536)` column + ivfflat index. Uploads now chunk into 800-char windows (200-char overlap), embed each via OpenAI `text-embedding-3-small` (~$0.0006 per 50-page doc), store as pgvector. Chat composer calls new `/account/documents/{id}/retrieve?q=…` endpoint to get top-5 chunks instead of dumping full text. Scales to docs of arbitrary size at ~100× lower per-query context cost.
+
+### Winback flow + cancel-survey bug (`d165f65`)
+
+Stripe coupon `kai_winback_50off_1mo` (50% off, duration=once) created via API. When a user picks "too_expensive" in the cancel survey, the modal reveals a "Wait — would 50% off next month help?" block. Accept → POST `/billing/winback/apply-discount` → applies coupon to their active sub + fires TG alert.
+
+**Bug caught and fixed in the same commit:** the cancel-survey gate was `window.location.search.includes("canceled=1")` (substring match) — fresh signups whose URL happened to contain that string anywhere would land on "Sorry to see you go." Fixed to (1) strict `URLSearchParams.get("canceled") === "1"` and (2) bail if `/billing/subscription` returns `status === "free"`. Defense-in-depth: bug can't recur even if a third weird URL slips through.
+
+### Carried over from the previous handoff (still true)
 
 - Stage 8 rebrand shipped (`74ee77d`): static text, Stripe products, API
   dual-mount /kai/+/nai/, UI dual-mount /kai-ui/+/nai-ui/, kai.* DNS +
