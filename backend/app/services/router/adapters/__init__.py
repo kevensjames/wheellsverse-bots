@@ -1,5 +1,6 @@
 from app.services.router.adapters.anthropic_adapter import AnthropicAdapter
 from app.services.router.adapters.base import PRICING, Adapter, calculate_cost
+from app.services.router.adapters.cloudflare_adapter import CloudflareAdapter
 from app.services.router.adapters.ollama_adapter import OllamaAdapter
 from app.services.router.adapters.openai_adapter import OpenAIAdapter
 from app.services.router.adapters.perplexity_adapter import PerplexityAdapter
@@ -7,6 +8,7 @@ from app.services.router.adapters.perplexity_adapter import PerplexityAdapter
 __all__ = [
     "Adapter",
     "AnthropicAdapter",
+    "CloudflareAdapter",
     "OllamaAdapter",
     "OpenAIAdapter",
     "PRICING",

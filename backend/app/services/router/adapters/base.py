@@ -20,6 +20,12 @@ PRICING: dict[str, tuple[float, float]] = {
     "sonar": (1.00, 1.00),
     # Ollama (local — no cost)
     "llama3.1:8b": (0.0, 0.0),
+    # Cloudflare Workers AI (edge-hosted Llama/Mistral). Per
+    # https://developers.cloudflare.com/workers-ai/platform/pricing/
+    # — free tier covers ~10K neurons/day, paid above that.
+    "@cf/meta/llama-3.1-8b-instruct": (0.28, 0.83),
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": (0.29, 2.25),
+    "@cf/mistralai/mistral-small-3.1-24b-instruct": (0.35, 0.56),
 }
 
 

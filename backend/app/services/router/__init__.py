@@ -4,6 +4,7 @@ from app.services.router.adapters import (
     PRICING,
     Adapter,
     AnthropicAdapter,
+    CloudflareAdapter,
     OllamaAdapter,
     OpenAIAdapter,
     PerplexityAdapter,
@@ -47,6 +48,10 @@ def build_default_router(session) -> Router:
         "anthropic": AnthropicAdapter,
         "perplexity": PerplexityAdapter,
         "ollama": OllamaAdapter,
+        # Cloudflare Workers AI — cheap edge inference (Llama/Mistral).
+        # Registered alongside the others; the intent classifier doesn't
+        # auto-route to it yet, but it's available for explicit selection.
+        "cloudflare": CloudflareAdapter,
     }
     adapters: dict[str, Adapter] = {}
     for name, cls in candidates.items():
@@ -61,6 +66,7 @@ def build_default_router(session) -> Router:
 __all__ = [
     "Adapter",
     "AnthropicAdapter",
+    "CloudflareAdapter",
     "CompletionResult",
     "Intent",
     "Message",
