@@ -87,7 +87,9 @@
           <tr><td>Multiple providers</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
           <tr><td>Structured memory</td><td class="check">✓</td><td>Basic</td><td class="cross">✗</td></tr>
           <tr><td>200+ tool execution</td><td class="check">✓</td><td>Limited (GPTs)</td><td>Limited (MCP)</td></tr>
-          <tr><td>Voice / image gen</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td></tr>
+          <tr><td>Voice input (Whisper)</td><td class="check kai-col">✓</td><td class="check">✓</td><td class="cross">✗</td></tr>
+          <tr><td>Image generation</td><td class="cross">✗</td><td class="check">✓</td><td class="cross">✗</td></tr>
+          <tr><td>URL fetch + read</td><td class="check kai-col">✓</td><td>Limited</td><td>Limited</td></tr>
           <tr><td>Founder picks up</td><td class="check">✓</td><td class="cross">✗</td><td class="cross">✗</td></tr>
         </tbody>
       </table>
@@ -145,8 +147,16 @@
         <p>It's down until I wake up. One-person on-call. Hasn't happened, but I'd rather you know.</p>
       </details>
       <details>
-        <summary>Why no voice / image gen?</summary>
-        <p>Both on the roadmap, not in v1. If those are your dealbreakers, pay OpenAI directly — they're great at it.</p>
+        <summary>Does KAI have voice input?</summary>
+        <p>Yes — paid tiers. Tap the mic in chat, talk, KAI transcribes via Whisper and drops the text into your message. Works on iOS Safari + Chrome. Free tier doesn't include it.</p>
+      </details>
+      <details>
+        <summary>Can KAI read URLs I paste?</summary>
+        <p>Yes. Send a link with "read this" or "summarize" and KAI fetches the page, extracts the main content, and answers from it. Works on articles, docs, blog posts, READMEs. JS-only SPAs (Twitter, some dashboards) don't extract cleanly.</p>
+      </details>
+      <details>
+        <summary>What about image generation?</summary>
+        <p>Not in v1 — still roadmap. If that's a dealbreaker, pay OpenAI directly; they're great at it. KAI focuses on the chat-with-tools loop, not media generation.</p>
       </details>
     </div>
 
