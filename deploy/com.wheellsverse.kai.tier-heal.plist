@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+    Nightly tier-mirror self-heal for KAI.
+
+    Runs scripts/heal_tier_mirror.py at 04:00 local time every day.
+    If it ever resets > 0 rows, the script fires a Telegram alert
+    (signal that the webhook pipeline is dropping events).
+
+    Install:
+        cp deploy/com.wheellsverse.kai.tier-heal.plist ~/Library/LaunchAgents/
+        launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.wheellsverse.kai.tier-heal.plist
+        launchctl enable  gui/$(id -u)/com.wheellsverse.kai.tier-heal
+
+    Tail the log:
+        tail -f ~/Library/Logs/wheellsverse/tier-heal.log
+
+    Uninstall:
+        launchctl bootout gui/$(id -u)/com.wheellsverse.kai.tier-heal
+        rm ~/Library/LaunchAgents/com.wheellsverse.kai.tier-heal.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wheellsverse.kai.tier-heal</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin/python</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/scripts/heal_tier_mirror.py</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jhonwheeler/wheellsverse_bots</string>
+
+    <!-- Daily at 04:00 local. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>4</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Don't run if the mac was asleep at the scheduled time — wait for
+         the next interval rather than retrying immediately on wake. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/tier-heal.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/tier-heal.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin:/usr/local/bin:/usr/bin:/bin</string>
+    </dict>
+</dict>
+</plist>
