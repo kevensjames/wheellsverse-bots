@@ -114,6 +114,34 @@ def get_text(
     return {"id": str(row.id), "filename": row.filename, "text": row.full_text}
 
 
+@router.get("/{doc_id}/retrieve")
+def retrieve_chunks(
+    doc_id: uuid.UUID,
+    q: str,
+    k: int = 5,
+    user: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """RAG v2: top-k chunks from this doc most relevant to query string q.
+
+    Used by chat.js when a doc is attached AND the doc is large enough that
+    full-text injection would blow the context window. Falls back to full
+    text if no chunks were indexed (failed embedding, etc.)."""
+    _require_paid(db, user.id)
+    row = documents.get_for_user(db, user.id, doc_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="document not found")
+    from app.services import rag
+    chunks = rag.retrieve(db, user_id=user.id, query=q, k=k, doc_id=doc_id)
+    return {
+        "doc_id": str(doc_id),
+        "filename": row.filename,
+        "query": q,
+        "chunks": chunks,
+        "context": rag.compose_context(chunks),
+    }
+
+
 @router.delete("/{doc_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_doc(
     doc_id: uuid.UUID,

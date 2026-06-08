@@ -126,6 +126,16 @@ def upload(
     db.add(row)
     db.commit()
     db.refresh(row)
+
+    # RAG v2: chunk + embed for retrieval. Failure here is non-fatal — the
+    # doc still works in v1's "prepend full text" mode if no chunks index.
+    try:
+        from app.services import rag
+        n_chunks = rag.index_document(db, row.id, user_id, text)
+        logger.info("indexed %d chunks for doc %s", n_chunks, row.id)
+    except Exception as e:
+        logger.warning("chunk indexing failed for doc %s: %s", row.id, e)
+
     return row
 
 

@@ -132,7 +132,22 @@ async function loadDocPicker() {
 }
 loadDocPicker();
 
+async function retrieveDocContext(docId, userMessage) {
+  // RAG v2: top-k chunks instead of full text. Cheap (~1 query embed)
+  // and scales to docs of any size without blowing the model's context.
+  const params = new URLSearchParams({ q: userMessage, k: "5" });
+  const r = await fetch(
+    "/account/documents/" + docId + "/retrieve?" + params.toString(),
+    { credentials: "same-origin" },
+  );
+  if (!r.ok) return null;
+  const data = await r.json();
+  return data.context || null;  // server-rendered prelude string
+}
+
 async function maybeFetchDocText(docId) {
+  // v1 fallback: full text. Kept for the case where retrieval returns
+  // nothing (e.g. embeddings failed during upload).
   if (_docTextCache.has(docId)) return _docTextCache.get(docId);
   const r = await fetch("/account/documents/" + docId + "/text",
                        { credentials: "same-origin" });
@@ -146,6 +161,12 @@ async function composeWithDoc(userMessage) {
   const select = document.getElementById("doc-attach");
   const docId = select && select.value;
   if (!docId) return userMessage;
+  // Try RAG v2 retrieval first
+  const ctx = await retrieveDocContext(docId, userMessage);
+  if (ctx) {
+    return ctx + "\nQuestion:\n" + userMessage;
+  }
+  // Fallback to v1 full-text injection
   const text = await maybeFetchDocText(docId);
   if (!text) return userMessage;
   const opt = select.options[select.selectedIndex];
