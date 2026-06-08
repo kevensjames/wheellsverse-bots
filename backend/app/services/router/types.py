@@ -9,6 +9,11 @@ from typing import Any
 class Intent(str, Enum):
     CODE = "code"
     REALTIME = "realtime"
+    # Short, low-reasoning requests where an 8B model is sufficient:
+    # definitions, summaries, translations, simple lookups. Routes to
+    # the cheapest adapter (Cloudflare Workers AI) to save cost on the
+    # long tail of trivial queries.
+    SIMPLE = "simple"
     GENERAL = "general"
 
 

@@ -26,15 +26,46 @@ _REALTIME_SIGNALS = (
     r"\brecent(ly)?\b", r"\b202[6-9]\b", r"\b203\d\b",
 )
 
+# Conservative SIMPLE signals — only match when the user is clearly asking
+# for something an 8B Llama can handle: definitions, summaries, translations,
+# spelling, simple yes/no. We deliberately keep this list small; false
+# positives route a complex query to the cheapest (weakest) model and
+# degrade UX. Pair with the length cap below — long messages stay GENERAL.
+_SIMPLE_SIGNALS = (
+    r"^\s*(what is|what's|whats)\b",
+    r"^\s*(define|definition of)\b",
+    r"^\s*(summari[sz]e|summary of|tl;?dr)\b",
+    r"^\s*translate\b",
+    r"^\s*spell\b",
+    r"^\s*list\s+(\d+|some|a few|the)\b",
+    r"^\s*(yes or no|true or false):",
+    r"^\s*synonyms? (for|of)\b",
+)
+
+# Max chars for a SIMPLE-eligible message. Longer than this almost always
+# means context or multi-step reasoning the cheap model will fumble.
+_SIMPLE_MAX_CHARS = 200
+
 
 def _matches_any(text: str, patterns: tuple[str, ...]) -> bool:
     return any(re.search(p, text, re.IGNORECASE) for p in patterns)
 
 
 def classify_intent(message: str) -> Intent:
-    """Single-pass classifier. Order matters — code is checked first (more specific)."""
+    """Single-pass classifier. Order matters:
+
+    1. CODE — most specific signals, checked first
+    2. REALTIME — needs fresh web data
+    3. SIMPLE — short, low-reasoning prompts (cheapest adapter)
+    4. GENERAL — default fallback
+
+    SIMPLE comes AFTER code/realtime so anything that looks like code or
+    needs fresh data isn't downgraded to the cheap model.
+    """
     if _matches_any(message, _CODE_SIGNALS):
         return Intent.CODE
     if _matches_any(message, _REALTIME_SIGNALS):
         return Intent.REALTIME
+    if len(message) <= _SIMPLE_MAX_CHARS and _matches_any(message, _SIMPLE_SIGNALS):
+        return Intent.SIMPLE
     return Intent.GENERAL

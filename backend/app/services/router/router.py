@@ -23,6 +23,11 @@ REQUIRED_ADAPTERS = frozenset({"openai"})
 TOOL_CAPABLE_ADAPTERS = frozenset({"openai", "anthropic"})
 DEFAULT_MAX_TOOL_ITERS = 5
 
+# Adapters that don't expose OpenAI-style tool_calls. If the chat loop
+# needs tools, we must NOT route to these — the request would silently
+# return text instead of a tool invocation, breaking the loop.
+TOOL_INCAPABLE_ADAPTERS = frozenset({"cloudflare", "perplexity", "ollama"})
+
 
 class Router:
     def __init__(
@@ -66,6 +71,8 @@ class Router:
             return self._get("anthropic", reason="intent=code")
         if intent == Intent.REALTIME:
             return self._get("perplexity", reason="intent=realtime")
+        if intent == Intent.SIMPLE:
+            return self._get("cloudflare", reason="intent=simple")
         return self.adapters["openai"]
 
     def complete(
@@ -197,6 +204,22 @@ class Router:
         )
         intent = classify_intent(user_last)
         adapter = self.select(intent, user_id, prefer_local)
+
+        # Guard: SIMPLE intent routes to cloudflare for cost savings, but
+        # cloudflare silently drops tools=. If a tool registry was provided
+        # AND the selected adapter is tool-incapable, swap to openai so the
+        # tool loop can actually work. Cost penalty is acceptable because
+        # the caller explicitly opted into tools.
+        if (
+            tool_registry is not None
+            and adapter.name in TOOL_INCAPABLE_ADAPTERS
+            and "openai" in self.adapters
+        ):
+            logger.info(
+                "chat: tools requested but %s is tool-incapable — "
+                "swapping to openai", adapter.name,
+            )
+            adapter = self.adapters["openai"]
 
         tool_capable = (
             adapter.name in TOOL_CAPABLE_ADAPTERS and tool_registry is not None

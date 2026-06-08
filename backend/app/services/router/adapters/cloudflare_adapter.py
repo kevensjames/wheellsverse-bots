@@ -17,9 +17,10 @@ What it's NOT good for:
     weaker than GPT-4o / Claude 3.5 Sonnet on complex tasks.
 
 How it fits in the router:
-  This adapter is REGISTERED but not auto-selected by default. Operators
-  can route specific intents to it via the Router's select() override,
-  or expose a "fast / cheap" toggle in the UI alongside "prefer local".
+  Auto-selected for Intent.SIMPLE (short definitions, summaries, simple
+  translations) — see Router.select(). The Router.chat() path also has a
+  guard that swaps to openai when a tool registry is provided, because
+  CF's chat API doesn't surface tool_calls.
 """
 from __future__ import annotations
 

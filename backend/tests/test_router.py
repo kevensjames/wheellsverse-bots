@@ -38,6 +38,7 @@ def adapters():
         "anthropic": MockAdapter("anthropic"),
         "perplexity": MockAdapter("perplexity"),
         "ollama": MockAdapter("ollama"),
+        "cloudflare": MockAdapter("cloudflare"),
     }
 
 
@@ -63,6 +64,16 @@ def test_realtime_routes_to_perplexity(router):
 
 def test_general_routes_to_openai(router):
     assert router.select(Intent.GENERAL, uuid.uuid4()).name == "openai"
+
+
+def test_simple_routes_to_cloudflare(router):
+    assert router.select(Intent.SIMPLE, uuid.uuid4()).name == "cloudflare"
+
+
+def test_simple_falls_back_to_openai_when_cloudflare_missing(fake_tracker):
+    """SIMPLE prefers cloudflare; without it, degrade to openai (don't crash)."""
+    r = Router(adapters={"openai": MockAdapter("openai")}, spend_tracker=fake_tracker)
+    assert r.select(Intent.SIMPLE, uuid.uuid4()).name == "openai"
 
 
 def test_prefer_local_overrides_intent(router):

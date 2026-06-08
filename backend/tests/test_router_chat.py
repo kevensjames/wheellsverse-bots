@@ -161,3 +161,48 @@ def test_chat_without_registry_skips_tools(tracker, ctx):
     )
     assert out.content == "hello"
     assert tracker.log_result.call_count == 1
+
+
+class ExplodingAdapter:
+    """Adapter that fails the test loudly if it's ever called.
+
+    Used to assert the tool-loop guard swapped *away* from this adapter
+    before completing — if we end up here, the guard is broken.
+    """
+    name = "cloudflare"
+    model = "@cf/meta/llama-3.1-8b-instruct"
+
+    def complete(self, messages, **kwargs):
+        raise AssertionError(
+            "cloudflare adapter was called with tools — guard failed"
+        )
+
+    def stream(self, messages, **kwargs) -> Iterator[str]:
+        raise AssertionError("cloudflare stream called unexpectedly")
+
+
+def test_chat_swaps_cloudflare_to_openai_when_tools_needed(tracker, ctx):
+    """SIMPLE intent normally routes to cloudflare, but cloudflare can't
+    do tools. When chat() is given a tool registry, the guard must swap
+    the adapter to openai before the loop starts."""
+    openai_adapter = ScriptedAdapter([_final("answered with tools-capable adapter")])
+    adapters = {
+        "openai": openai_adapter,
+        "anthropic": MagicMock(),
+        "perplexity": MagicMock(),
+        "ollama": MagicMock(),
+        "cloudflare": ExplodingAdapter(),
+    }
+    router = Router(adapters=adapters, spend_tracker=tracker)
+    reg = ToolRegistry()
+    reg.register(FakeTool({"ok": True}))
+
+    # "what is X" → Intent.SIMPLE → would normally route to cloudflare
+    out = router.chat(
+        user_id=ctx.user_id,
+        messages=[{"role": "user", "content": "what is the capital of france"}],
+        tool_registry=reg,
+        tool_context=ctx,
+    )
+    # If we got here without ExplodingAdapter firing, the guard worked.
+    assert out.content == "answered with tools-capable adapter"
