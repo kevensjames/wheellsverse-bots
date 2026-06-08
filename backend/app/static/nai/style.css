@@ -268,7 +268,15 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
 .payment-banner .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
 
 /* Cancel-survey modal — shown when chat.js sees ?canceled=1 in URL. */
-.modal-overlay {
+/* Global defense: ensure the [hidden] HTML attribute always wins over
+   any later rule that sets display. Without this, a class like
+   .modal-overlay {display:flex} silently overrides hidden because they
+   have equal CSS specificity (and the later rule wins). That was the
+   bug behind "cancel survey appears on every account" — the modal had
+   `hidden` set but was rendering flex anyway. */
+[hidden] { display: none !important; }
+
+.modal-overlay:not([hidden]) {
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(0, 0, 0, 0.6);
   display: flex; align-items: center; justify-content: center;
