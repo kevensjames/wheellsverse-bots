@@ -384,6 +384,23 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
   50%      { box-shadow: 0 0 0 6px rgba(255, 85, 119, 0); }
 }
 
+/* Speak button — small unobtrusive icon-button on assistant messages.
+   Sits inline at the end of the bubble so it doesn't take a whole row. */
+.speak-btn {
+  background: transparent;
+  border: none;
+  color: var(--muted, #8a909c);
+  padding: 0 0 0 6px;
+  margin-left: 4px;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 120ms ease;
+}
+.speak-btn:hover:not(:disabled) { opacity: 1; }
+.speak-btn:disabled { cursor: wait; opacity: 0.4; }
+
 /* Starter prompts shown on empty chat */
 .starter-prompts {
   display: flex; flex-wrap: wrap; gap: 8px;

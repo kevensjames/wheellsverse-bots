@@ -23,9 +23,72 @@ function appendMessage(role, content) {
   const div = document.createElement("div");
   div.className = `msg ${role}`;
   div.textContent = content;
+  if (role === "assistant") {
+    attachSpeakButton(div);
+  }
   els.messages.appendChild(div);
   els.messages.scrollTop = els.messages.scrollHeight;
   return div;
+}
+
+// Single audio element reused across all speak clicks. Stopping the
+// current audio when a new one starts prevents two utterances overlapping.
+let _ttsAudio = null;
+
+function attachSpeakButton(messageDiv) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "speak-btn";
+  btn.title = "Read aloud";
+  btn.textContent = "🔊";
+  btn.addEventListener("click", async () => {
+    // Pull whatever text is in the bubble RIGHT NOW (not at create time —
+    // streaming responses fill the bubble after creation, and the button
+    // should read whatever the user can currently see).
+    // Walk text only, excluding the button itself.
+    const text = Array.from(messageDiv.childNodes)
+      .filter((n) => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && !n.classList?.contains("speak-btn")))
+      .map((n) => n.textContent)
+      .join("")
+      .trim();
+    if (!text) return;
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      const resp = await fetch("/kai/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ text }),
+      });
+      if (resp.status === 402) {
+        btn.textContent = "💎";
+        btn.title = "Voice output requires a paid plan";
+        return;
+      }
+      if (!resp.ok) {
+        btn.textContent = "✗";
+        btn.title = `TTS error ${resp.status}`;
+        return;
+      }
+      const blob = await resp.blob();
+      if (_ttsAudio) {
+        _ttsAudio.pause();
+        URL.revokeObjectURL(_ttsAudio.src);
+      }
+      _ttsAudio = new Audio(URL.createObjectURL(blob));
+      _ttsAudio.onended = () => {
+        btn.textContent = "🔊";
+        btn.disabled = false;
+      };
+      await _ttsAudio.play();
+    } catch (e) {
+      btn.textContent = "✗";
+      btn.title = `TTS error: ${e.message}`;
+      btn.disabled = false;
+    }
+  });
+  messageDiv.appendChild(btn);
 }
 
 function setStatus(text) {
