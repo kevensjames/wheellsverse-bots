@@ -220,6 +220,9 @@ function activateTab(name) {
   } else if (name === "scanner") {
     // Lazy-load supreme data the first time the tab is opened.
     loadSupreme();
+  } else if (name === "brief") {
+    // Audit table fetches immediately; brief body waits for user click.
+    loadBriefAudit();
   }
 }
 
@@ -500,6 +503,156 @@ function renderSupremeHistory(rows) {
   }
 }
 
+// ─── daily brief ──────────────────────────────────────────────────
+
+async function generateBrief() {
+  const btn = $("#brief-generate-now");
+  const line = $("#brief-status-line");
+  if (!btn) return;
+  btn.disabled = true;
+  const old = btn.textContent;
+  btn.textContent = "generating…";
+  try {
+    const r = await fetch("/admin/briefing/generate", {
+      method: "POST",
+      headers: { "X-Admin-Token": getToken() },
+    });
+    if (r.status === 403) {
+      // Could be auth OR scope-not-enabled — show the message body so the
+      // operator knows which env var to flip.
+      const body = await r.json().catch(() => ({}));
+      if (line) line.textContent = body.detail || "auth/scope rejected";
+      return;
+    }
+    if (r.status === 401) {
+      clearToken();
+      showAuth("Token rejected.");
+      return;
+    }
+    if (!r.ok) {
+      const text = await r.text();
+      if (line) line.textContent = `error ${r.status}: ${text.slice(0, 120)}`;
+      return;
+    }
+    const brief = await r.json();
+    renderBrief(brief);
+    await loadBriefAudit();
+    if (line) line.textContent = "generated";
+  } catch (e) {
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = old;
+  }
+}
+
+function renderBrief(brief) {
+  if (!brief) return;
+
+  // Headline
+  $("#brief-headline-card").hidden = false;
+  $("#brief-headline").querySelector("strong").textContent = brief.headline || "";
+  const at = brief.generated_at ? `generated ${fmtTime(brief.generated_at)}` : "";
+  $("#brief-generated-at").textContent = at;
+
+  // Body cards
+  $("#brief-body").hidden = false;
+  $("#brief-users-total").textContent = brief.users.total;
+  $("#brief-users-24h").textContent = brief.users.last_24h;
+  $("#brief-users-7d").textContent = brief.users.last_7d;
+  $("#brief-subs-active").textContent = brief.revenue.active_subs;
+  $("#brief-subs-new24h").textContent = brief.revenue.new_subs_24h;
+  $("#brief-spend-today").textContent = fmtUSD(brief.spend.today_usd);
+  $("#brief-spend-7d").textContent = fmtUSD(brief.spend.last_7d_usd);
+
+  // Scanner snapshot
+  const sc = brief.scanner || {};
+  const scCard = $("#brief-scanner-card");
+  const scSum = $("#brief-scanner-summary");
+  const scHead = $("#brief-scanner-headlines");
+  scSum.replaceChildren();
+  scHead.replaceChildren();
+  if (!sc.has_scan) {
+    scCard.hidden = true;
+  } else {
+    scCard.hidden = false;
+    const counts = sc.severity_counts || {};
+    for (const sev of SEVERITY_ORDER) {
+      const n = counts[sev] || 0;
+      if (!n) continue;
+      const chip = document.createElement("span");
+      chip.className = "tier-chip";
+      chip.style.background = severityColor(sev);
+      chip.style.color = "#fff";
+      chip.textContent = `${SEVERITY_EMOJI[sev] || ""} ${sev} ${n}`;
+      scSum.appendChild(chip);
+    }
+    for (const f of (sc.headline_findings || [])) {
+      const row = document.createElement("div");
+      row.className = "supreme-finding";
+      row.style.borderLeft = `3px solid ${severityColor(f.severity)}`;
+      row.textContent = `[${(f.severity || "").toUpperCase()}] ${f.title || ""}`;
+      scHead.appendChild(row);
+    }
+  }
+
+  // Recent errors
+  const errs = brief.errors || {};
+  const errCard = $("#brief-errors-card");
+  const errBox = $("#brief-errors");
+  errBox.replaceChildren();
+  if (!errs.failure_count_24h) {
+    errCard.hidden = true;
+  } else {
+    errCard.hidden = false;
+    for (const e of (errs.recent || [])) {
+      const row = document.createElement("div");
+      row.className = "brief-error-row";
+      const meta = document.createElement("div");
+      meta.className = "brief-error-meta";
+      meta.textContent = `${fmtTime(e.at)} · ${e.adapter}/${e.model || "?"}`;
+      const msg = document.createElement("div");
+      msg.textContent = e.error || "";
+      row.appendChild(meta);
+      row.appendChild(msg);
+      errBox.appendChild(row);
+    }
+  }
+}
+
+async function loadBriefAudit() {
+  try {
+    const data = await apiGet("/admin/briefing/audit?limit=20");
+    renderBriefAudit(data.actions || []);
+  } catch (e) {
+    // Non-fatal; audit table just stays empty.
+  }
+}
+
+function renderBriefAudit(rows) {
+  const tbody = $("#brief-audit-table tbody");
+  if (!tbody) return;
+  tbody.replaceChildren();
+  if (!rows.length) {
+    tbody.appendChild(emptyRow(5, "no actions logged yet"));
+    return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    const whenCell = td(fmtTime(r.ts));
+    if (r.ts) whenCell.title = r.ts;
+    tr.appendChild(whenCell);
+    tr.appendChild(td(r.action || ""));
+    tr.appendChild(td(r.scope || ""));
+    tr.appendChild(td(r.actor || ""));
+    const ok = r.success ? "✓" : "✗";
+    const okCell = td(ok);
+    if (!r.success && r.error) okCell.title = r.error;
+    tr.appendChild(okCell);
+    tbody.appendChild(tr);
+  }
+}
+
 async function runSupremeScan() {
   const btn = $("#supreme-scan-now");
   const line = $("#supreme-status-line");
@@ -568,6 +721,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Supreme scanner
   $("#supreme-scan-now").addEventListener("click", runSupremeScan);
+
+  // Daily Brief
+  $("#brief-generate-now").addEventListener("click", generateBrief);
 
   if (getToken()) {
     refresh();

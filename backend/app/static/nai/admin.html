@@ -6,7 +6,7 @@
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1780979464" />
-  <link rel="stylesheet" href="admin.css?v=ts-1780988528" />
+  <link rel="stylesheet" href="admin.css?v=ts-1780989846" />
 </head>
 <body>
   <main class="admin-main">
@@ -16,6 +16,7 @@
         <button type="button" class="admin-tab is-active" data-tab="stats">Stats</button>
         <button type="button" class="admin-tab" data-tab="chat">Chat with KAI</button>
         <button type="button" class="admin-tab" data-tab="scanner">Scanner</button>
+        <button type="button" class="admin-tab" data-tab="brief">Brief</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -156,9 +157,73 @@
           </table>
         </div>
       </div><!-- /admin-pane-scanner -->
+
+      <!-- ─── Brief tab ─── -->
+      <div id="admin-pane-brief" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Daily Brief · operator chief-of-staff</h2>
+            <div class="admin-chat-tools">
+              <span id="brief-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="brief-generate-now" class="admin-btn admin-btn-primary">generate</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Composes today's state from KAI's own data: signups, revenue, spend,
+            scanner findings, recent errors. No external API calls. Runs through
+            the governance layer — every generation is logged at
+            <code>data/governance/audit.jsonl</code>. Requires scope
+            <code>KAI_SCOPE_BRIEFING_DAILY=1</code> in .env.
+          </p>
+        </div>
+
+        <div id="brief-headline-card" class="admin-card" hidden>
+          <h2>Headline</h2>
+          <div id="brief-headline" class="admin-stat-row"><strong></strong></div>
+          <div id="brief-generated-at" class="admin-hint brief-generated-at"></div>
+        </div>
+
+        <div class="admin-grid admin-grid-3" id="brief-body" hidden>
+          <div class="admin-card">
+            <h2>Users</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="brief-users-total">—</strong></div>
+            <div class="admin-stat-row"><span>last 24h</span><strong id="brief-users-24h">—</strong></div>
+            <div class="admin-stat-row"><span>last 7d</span><strong id="brief-users-7d">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Revenue</h2>
+            <div class="admin-stat-row"><span>active subs</span><strong id="brief-subs-active">—</strong></div>
+            <div class="admin-stat-row"><span>new 24h</span><strong id="brief-subs-new24h">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Spend</h2>
+            <div class="admin-stat-row"><span>today</span><strong id="brief-spend-today">—</strong></div>
+            <div class="admin-stat-row"><span>last 7d</span><strong id="brief-spend-7d">—</strong></div>
+          </div>
+        </div>
+
+        <div class="admin-card" id="brief-scanner-card" hidden>
+          <h2>Scanner snapshot</h2>
+          <div id="brief-scanner-summary" class="admin-stat-row admin-stat-tiers"></div>
+          <div id="brief-scanner-headlines"></div>
+        </div>
+
+        <div class="admin-card" id="brief-errors-card" hidden>
+          <h2>Recent failures (24h)</h2>
+          <div id="brief-errors"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Governance audit · most recent</h2>
+          <table class="admin-table" id="brief-audit-table">
+            <thead><tr><th>when</th><th>action</th><th>scope</th><th>actor</th><th>ok</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-brief -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1780988512" defer></script>
+  <script src="admin.js?v=ts-1780989901" defer></script>
 </body>
 </html>

@@ -220,6 +220,20 @@
   font-style: italic;
 }
 
+/* Brief tab — small overrides on top of the shared card grid */
+.brief-generated-at { margin-top: 6px; }
+.brief-error-row {
+  padding: 6px 0;
+  border-top: 1px solid var(--border, #242630);
+  font-size: 13px;
+}
+.brief-error-row:first-child { border-top: 0; }
+.brief-error-row .brief-error-meta {
+  color: var(--muted, #8a909c);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Supreme finding cards — left border encodes severity */
 .supreme-finding {
   background: var(--card-bg, #0f1116);
