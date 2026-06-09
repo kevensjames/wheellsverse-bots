@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KAI — operator dashboard</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="stylesheet" href="style.css?v=ts-1780979464" />
+  <link rel="stylesheet" href="admin.css?v=ts-1780983800" />
+</head>
+<body>
+  <main class="admin-main">
+    <header class="admin-header">
+      <h1>KAI · operator</h1>
+      <div class="admin-controls">
+        <span id="admin-as-of" class="admin-as-of">—</span>
+        <button id="admin-refresh" type="button" class="admin-btn">↻</button>
+        <button id="admin-logout" type="button" class="admin-btn admin-btn-ghost">sign out</button>
+      </div>
+    </header>
+
+    <section id="admin-auth" class="admin-card" hidden>
+      <h2>Admin token required</h2>
+      <p>This dashboard calls protected endpoints. Paste your <code>ADMIN_TOKEN</code> (matches the <code>X-Admin-Token</code> header).</p>
+      <form id="admin-auth-form" class="admin-auth-form">
+        <input id="admin-token-input" type="password" autocomplete="off" placeholder="ADMIN_TOKEN" />
+        <button type="submit" class="admin-btn admin-btn-primary">unlock</button>
+      </form>
+      <p id="admin-auth-err" class="admin-err"></p>
+    </section>
+
+    <section id="admin-body" hidden>
+      <!-- Top row: 3 stat cards -->
+      <div class="admin-grid admin-grid-3">
+        <div class="admin-card">
+          <h2>Users</h2>
+          <div class="admin-stat-row"><span>total</span> <strong id="stat-users-total">—</strong></div>
+          <div class="admin-stat-row"><span>last 24h</span> <strong id="stat-users-24h">—</strong></div>
+          <div class="admin-stat-row"><span>last 7d</span> <strong id="stat-users-7d">—</strong></div>
+          <div id="stat-users-by-tier" class="admin-stat-row admin-stat-tiers"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Subscriptions</h2>
+          <div class="admin-stat-row"><span>active</span> <strong id="stat-subs-active">—</strong></div>
+          <div class="admin-stat-row"><span>new 24h</span> <strong id="stat-subs-24h">—</strong></div>
+          <p class="admin-hint">
+            Manage in <a href="https://dashboard.stripe.com/subscriptions" target="_blank" rel="noopener">Stripe →</a>
+          </p>
+        </div>
+
+        <div class="admin-card">
+          <h2>LLM spend</h2>
+          <div class="admin-stat-row"><span>today</span> <strong id="stat-spend-today">—</strong></div>
+          <div class="admin-stat-row"><span>last 7d</span> <strong id="stat-spend-7d">—</strong></div>
+          <div class="admin-stat-row"><span>failures 24h</span> <strong id="stat-failures">—</strong></div>
+        </div>
+      </div>
+
+      <!-- Spend breakdown -->
+      <div class="admin-card">
+        <h2>Spend by adapter — last 7d</h2>
+        <table class="admin-table" id="admin-spend-table">
+          <thead><tr><th>adapter</th><th>calls</th><th>cost</th><th>share</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Recent signups -->
+      <div class="admin-card">
+        <h2>Recent signups</h2>
+        <table class="admin-table" id="admin-users-table">
+          <thead><tr><th>when</th><th>email</th><th>tier</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="admin-hint">
+          Need to comp / refund / ban? Do it in
+          <a href="https://supabase.com/dashboard/project/_/auth/users" target="_blank" rel="noopener">Supabase</a>
+          or <a href="https://dashboard.stripe.com/customers" target="_blank" rel="noopener">Stripe</a> — destructive
+          actions are intentionally not in this UI yet.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <script src="admin.js?v=ts-1780983764" defer></script>
+</body>
+</html>

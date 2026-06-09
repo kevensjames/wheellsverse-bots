@@ -1,0 +1,129 @@
+/* Admin dashboard — built on top of the shared style.css palette.
+   Stays intentionally minimal: this page is for the operator's eyes,
+   not customers, so layout > polish. */
+
+.admin-main {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 18px 60px;
+}
+
+.admin-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.admin-header h1 {
+  font-size: 18px; margin: 0; letter-spacing: 0.5px;
+}
+.admin-controls {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted, #8a909c); font-size: 12px;
+}
+.admin-as-of { font-variant-numeric: tabular-nums; }
+
+.admin-btn {
+  background: transparent;
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  padding: 4px 10px; border-radius: 6px;
+  cursor: pointer; font-size: 12px;
+}
+.admin-btn:hover { border-color: var(--accent, #4f8cff); }
+.admin-btn-primary {
+  background: var(--accent, #4f8cff); color: #fff; border-color: var(--accent, #4f8cff);
+}
+.admin-btn-ghost { color: var(--muted, #8a909c); }
+
+.admin-card {
+  background: var(--card-bg, #15171c);
+  border: 1px solid var(--border, #242630);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.admin-card h2 {
+  font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted, #8a909c);
+  margin: 0 0 12px;
+}
+
+.admin-grid { display: grid; gap: 16px; }
+.admin-grid-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 720px) {
+  .admin-grid-3 { grid-template-columns: 1fr; }
+}
+
+.admin-stat-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px solid var(--border, #242630);
+  font-size: 14px;
+}
+.admin-stat-row:first-of-type { border-top: 0; }
+.admin-stat-row span { color: var(--muted, #8a909c); }
+.admin-stat-row strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.admin-stat-tiers {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding-top: 10px; justify-content: flex-start;
+}
+.tier-chip {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  background: var(--border, #242630);
+  color: var(--text, #e7ecf3);
+}
+.tier-chip.tier-ultra { background: #6c4cf2; color: #fff; }
+.tier-chip.tier-max   { background: #4f8cff; color: #fff; }
+.tier-chip.tier-pro   { background: #23a36b; color: #fff; }
+.tier-chip.tier-free  { background: var(--border, #242630); color: var(--muted, #8a909c); }
+
+.admin-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.admin-table th, .admin-table td {
+  padding: 8px 10px; text-align: left;
+  border-bottom: 1px solid var(--border, #242630);
+}
+.admin-table th {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted, #8a909c);
+  font-weight: 500;
+}
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table td.dim { color: var(--muted, #8a909c); font-style: italic; }
+
+.admin-hint {
+  color: var(--muted, #8a909c); font-size: 12px;
+  margin: 10px 0 0;
+}
+.admin-hint a {
+  color: var(--accent, #4f8cff); text-decoration: none;
+}
+.admin-hint a:hover { text-decoration: underline; }
+
+/* Auth gate */
+.admin-auth-form {
+  display: flex; gap: 8px; margin-top: 12px;
+}
+.admin-auth-form input {
+  flex: 1;
+  background: var(--card-bg, #0f1116);
+  border: 1px solid var(--border, #242630);
+  border-radius: 6px;
+  color: var(--text, #e7ecf3);
+  padding: 8px 10px; font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.admin-auth-form input:focus {
+  outline: none; border-color: var(--accent, #4f8cff);
+}
+.admin-err {
+  color: #ff6b6b; font-size: 12px;
+  margin: 8px 0 0; min-height: 16px;
+}

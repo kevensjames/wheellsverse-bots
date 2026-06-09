@@ -127,3 +127,82 @@ def launch_stats(db: Session = Depends(get_db)):
             "new_24h": int(paid_24h),
         },
     }
+
+
+@router.get("/recent-users")
+def recent_users(limit: int = 20, db: Session = Depends(get_db)):
+    """Most recent signups for the operator dashboard. Limit clamped to
+    avoid pulling the whole table by accident."""
+    limit = max(1, min(int(limit), 100))
+    rows = (
+        db.query(Profile.id, Profile.email, Profile.tier, Profile.created_at)
+        .order_by(Profile.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "users": [
+            {
+                "id": str(r.id),
+                "email": r.email,
+                "tier": r.tier or "free",
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/spend")
+def spend_rollup(db: Session = Depends(get_db)):
+    """LLM-cost rollup: today + 7-day totals, broken down by adapter.
+
+    Reads llm_call_log directly (raw SQL — same pattern as SpendTracker).
+    Today = since 00:00 UTC. 7d = trailing 168 hours. Adapters are listed
+    in descending cost order so the most expensive shows first.
+    """
+    today = db.execute(
+        text(
+            """
+            SELECT adapter, COALESCE(SUM(cost_usd), 0) AS total, COUNT(*) AS calls
+            FROM llm_call_log
+            WHERE created_at >= DATE_TRUNC('day', NOW())
+            GROUP BY adapter
+            ORDER BY total DESC
+            """
+        )
+    ).all()
+    week = db.execute(
+        text(
+            """
+            SELECT adapter, COALESCE(SUM(cost_usd), 0) AS total, COUNT(*) AS calls
+            FROM llm_call_log
+            WHERE created_at >= NOW() - INTERVAL '7 days'
+            GROUP BY adapter
+            ORDER BY total DESC
+            """
+        )
+    ).all()
+    failures_24h = db.execute(
+        text(
+            """
+            SELECT COUNT(*) AS n
+            FROM llm_call_log
+            WHERE success = FALSE
+              AND created_at >= NOW() - INTERVAL '24 hours'
+            """
+        )
+    ).scalar() or 0
+    return {
+        "today": [
+            {"adapter": r.adapter, "cost_usd": float(r.total), "calls": int(r.calls)}
+            for r in today
+        ],
+        "last_7d": [
+            {"adapter": r.adapter, "cost_usd": float(r.total), "calls": int(r.calls)}
+            for r in week
+        ],
+        "today_total_usd": sum(float(r.total) for r in today),
+        "last_7d_total_usd": sum(float(r.total) for r in week),
+        "failures_24h": int(failures_24h),
+    }
