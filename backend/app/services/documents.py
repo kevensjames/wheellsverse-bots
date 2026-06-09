@@ -1,22 +1,29 @@
-"""Document upload + library service for RAG v1.
+"""Document upload + library service for RAG.
 
-Supported input formats (v1):
-  - text/plain
-  - text/markdown
-  - application/pdf  (extracted via PyPDF2)
+Supported input formats:
+  - text/plain, text/markdown          (decode bytes)
+  - application/pdf                    (pypdf — pure-python, no ML)
+  - .docx (Word)                       (python-docx)
+  - .xlsx (Excel)                      (openpyxl — sheet+cell flatten)
+  - .pptx (PowerPoint)                 (python-pptx — slide text flatten)
 
 We extract text at upload time, never re-parse the original. Storage is
 just the extracted text + the original filename for display. We DON'T
-store the raw PDF bytes — that would 5–20× the storage cost for zero
-value (we can't re-extract a different shape from the same PDF).
+store the raw bytes — that would 5–20× the storage cost for zero value.
 
-Limits (v1):
+Why these parsers and not docling? Docling does layout-aware extraction
+with IBM ML models (~1GB venv, 5-30s/page on CPU). For prose-heavy chat
+uploads (the 95% case) deterministic parsers are faster and cheaper.
+If a user shows up with complex-table PDFs, we can add docling as an
+opt-in `advanced=true` flag without rewriting this dispatcher.
+
+Limits:
   - max file size 5 MB before extraction
   - max extracted text 200_000 chars after extraction (~50 pages)
   - per-user document quota 50
 
-Future v2 adds chunk-level embeddings + retrieval; today's flow prepends
-the full text to a chat message that explicitly references the doc.
+RAG v2 chunks + embeds for retrieval; if indexing fails the doc still
+works in v1's "prepend full text" mode.
 """
 from __future__ import annotations
 
@@ -41,8 +48,10 @@ class DocumentError(ValueError):
 
 
 def _extract_pdf(data: bytes) -> str:
+    # pypdf is the maintained successor to PyPDF2 — same API style,
+    # better tolerance for malformed PDFs, faster on large files.
     try:
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError as e:  # pragma: no cover — should be in venv
         raise DocumentError("PDF support not installed on server") from e
     try:
@@ -55,6 +64,74 @@ def _extract_pdf(data: bytes) -> str:
         return "\n\n".join(parts)
     except Exception as e:
         raise DocumentError(f"could not parse PDF: {e}") from e
+
+
+def _extract_docx(data: bytes) -> str:
+    try:
+        import docx  # python-docx
+    except ImportError as e:  # pragma: no cover
+        raise DocumentError("Word support not installed on server") from e
+    try:
+        d = docx.Document(io.BytesIO(data))
+    except Exception as e:
+        raise DocumentError(f"could not parse Word doc: {e}") from e
+    parts: list[str] = []
+    # Paragraphs in body order
+    for p in d.paragraphs:
+        t = (p.text or "").strip()
+        if t:
+            parts.append(t)
+    # Tables flattened row-by-row as tab-separated cells — keeps reading
+    # order coherent in the extracted text.
+    for table in d.tables:
+        for row in table.rows:
+            cells = [(c.text or "").strip() for c in row.cells]
+            line = "\t".join(c for c in cells if c)
+            if line:
+                parts.append(line)
+    return "\n".join(parts)
+
+
+def _extract_xlsx(data: bytes) -> str:
+    try:
+        import openpyxl
+    except ImportError as e:  # pragma: no cover
+        raise DocumentError("Excel support not installed on server") from e
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(data), data_only=True, read_only=True)
+    except Exception as e:
+        raise DocumentError(f"could not parse Excel workbook: {e}") from e
+    parts: list[str] = []
+    for ws in wb.worksheets:
+        parts.append(f"# Sheet: {ws.title}")
+        for row in ws.iter_rows(values_only=True):
+            cells = ["" if v is None else str(v) for v in row]
+            line = "\t".join(cells).rstrip("\t")
+            if line.strip():
+                parts.append(line)
+    wb.close()
+    return "\n".join(parts)
+
+
+def _extract_pptx(data: bytes) -> str:
+    try:
+        from pptx import Presentation
+    except ImportError as e:  # pragma: no cover
+        raise DocumentError("PowerPoint support not installed on server") from e
+    try:
+        prs = Presentation(io.BytesIO(data))
+    except Exception as e:
+        raise DocumentError(f"could not parse PowerPoint deck: {e}") from e
+    parts: list[str] = []
+    for idx, slide in enumerate(prs.slides, start=1):
+        parts.append(f"## Slide {idx}")
+        for shape in slide.shapes:
+            if not hasattr(shape, "text"):
+                continue
+            t = (shape.text or "").strip()
+            if t:
+                parts.append(t)
+    return "\n".join(parts)
 
 
 def _extract_text(data: bytes) -> str:
@@ -89,16 +166,36 @@ def upload(
         raise DocumentError("empty file")
 
     mime = (mime_type or "").lower().strip()
-    if mime == "application/pdf" or filename.lower().endswith(".pdf"):
+    fname_lower = filename.lower()
+    # Dispatch on extension when available (more reliable than MIME — browsers
+    # often send application/octet-stream for .docx/.xlsx/.pptx) with a MIME
+    # fallback for clients that do send the right Content-Type.
+    if mime == "application/pdf" or fname_lower.endswith(".pdf"):
         text = _extract_pdf(data)
         mime = "application/pdf"
-    elif mime.startswith("text/") or filename.lower().endswith((".txt", ".md", ".markdown")):
+    elif fname_lower.endswith(".docx") or mime == (
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    ):
+        text = _extract_docx(data)
+        mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    elif fname_lower.endswith(".xlsx") or mime == (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ):
+        text = _extract_xlsx(data)
+        mime = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    elif fname_lower.endswith(".pptx") or mime == (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    ):
+        text = _extract_pptx(data)
+        mime = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    elif mime.startswith("text/") or fname_lower.endswith((".txt", ".md", ".markdown")):
         text = _extract_text(data)
         if not mime:
             mime = "text/plain"
     else:
         raise DocumentError(
-            f"unsupported file type {mime!r}; v1 supports PDF + text + markdown"
+            f"unsupported file type {mime!r}; supported: PDF, Word (.docx), "
+            f"Excel (.xlsx), PowerPoint (.pptx), text, markdown"
         )
 
     text = (text or "").strip()

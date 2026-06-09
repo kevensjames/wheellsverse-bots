@@ -30,6 +30,15 @@ tenacity==9.0.0
 # predictions (Stage 4)
 ta==0.11.0
 
+# document upload parsers — lighter-than-docling default path. Same format
+# coverage (PDF / Word / Excel / PowerPoint), deterministic, no ML inference.
+# If a user genuinely needs layout-aware table extraction, we can add
+# `docling` as an opt-in heavy path later (~1GB venv growth, slow per-page).
+pypdf==6.13.1
+python-docx==1.2.0
+python-pptx==1.0.2
+openpyxl==3.1.5
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0
