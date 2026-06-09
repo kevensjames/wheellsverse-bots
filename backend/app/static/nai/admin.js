@@ -217,6 +217,7 @@ function activateTab(name) {
   if (name === "chat") {
     const input = $("#admin-chat-input");
     if (input) input.focus();
+    loadPresets();
   } else if (name === "scanner") {
     // Lazy-load supreme data the first time the tab is opened.
     loadSupreme();
@@ -231,12 +232,14 @@ function activateTab(name) {
 let adminConversationId = null;
 
 async function adminChatPost(message) {
+  const presetSel = $("#admin-preset-select");
   const body = {
     message,
     conversation_id: adminConversationId,
     use_tools: !$("#admin-no-tools").checked,
     prefer_local: $("#admin-prefer-local").checked,
     max_tokens: 2048,
+    preset_id: presetSel && presetSel.value ? presetSel.value : null,
   };
   const r = await fetch("/admin/kai-chat", {
     method: "POST",
@@ -300,6 +303,7 @@ async function sendChat(e) {
     adminConversationId = resp.conversation_id;
     const msg = resp.message || {};
     const meta = [
+      resp.preset_id && `preset=${resp.preset_id}`,
       msg.adapter && `adapter=${msg.adapter}`,
       msg.model && `model=${msg.model}`,
       typeof resp.total_cost_usd === "number" && `cost=$${resp.total_cost_usd.toFixed(4)}`,
@@ -326,6 +330,37 @@ function resetChat() {
   if (list) list.replaceChildren();
   setChatStatus("");
   $("#admin-chat-input").focus();
+}
+
+// ─── expert-agent presets ──────────────────────────────────────────
+
+let presetsLoaded = false;
+
+async function loadPresets() {
+  if (presetsLoaded) return;
+  const sel = $("#admin-preset-select");
+  if (!sel) return;
+  try {
+    const data = await apiGet("/admin/presets");
+    const presets = data.presets || [];
+    // Keep the "no preset" option; append each loaded preset after.
+    for (const p of presets) {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      // Render: "💻 Software Engineer — Senior engineer. Code with..."
+      const desc = p.description ? ` — ${p.description}` : "";
+      opt.textContent = `${p.icon || ""} ${p.name}${desc}`.trim();
+      opt.title = p.system_prompt_preview || "";
+      sel.appendChild(opt);
+    }
+    presetsLoaded = true;
+  } catch (e) {
+    // Non-fatal — dropdown just stays with the "no preset" default.
+    if (e instanceof AuthError) {
+      clearToken();
+      showAuth("Token rejected.");
+    }
+  }
 }
 
 // ─── supreme scanner ───────────────────────────────────────────────

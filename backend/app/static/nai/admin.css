@@ -151,6 +151,20 @@
   margin: 0;
   accent-color: var(--accent, #4f8cff);
 }
+.admin-preset-select {
+  background: var(--card-bg, #0f1116);
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 180px;
+}
+.admin-preset-select:focus {
+  outline: none; border-color: var(--accent, #4f8cff);
+}
 
 .admin-chat-messages {
   flex: 1;

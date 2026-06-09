@@ -42,12 +42,27 @@ Guidelines:
 """
 
 
-def build_system_prompt(memory_preamble: str = "") -> str:
-    """Prepend retrieved-memory preamble to the base system prompt.
+def build_system_prompt(memory_preamble: str = "", persona_prompt: str = "") -> str:
+    """Compose the system prompt from up to three layers.
 
-    The preamble comes from ``build_memory_preamble`` and is already formatted
-    as 'Relevant memories about the user: …'. Empty string → just the base.
+    Order (top-of-prompt to bottom):
+      1. persona_prompt — optional, from an expert-agent preset (SWE,
+         Marketing, Legal Researcher, etc.). Empty when no preset is active.
+      2. memory_preamble — from build_memory_preamble; 'Relevant memories
+         about the user: …'. Empty for first-message-in-conversation
+         and for users with no stored memories.
+      3. BASE_SYSTEM_PROMPT — the KAI baseline persona that every reply
+         goes through regardless of preset.
+
+    Layering this way lets a preset shape WHO KAI is (persona / tone / tool
+    discipline) without overriding the baseline rules about how to handle
+    memory and tools. The persona prompt sits FIRST so model attention
+    treats it as the primary identity; the baseline is the safety net.
     """
-    if not memory_preamble:
-        return BASE_SYSTEM_PROMPT
-    return memory_preamble + "\n\n" + BASE_SYSTEM_PROMPT
+    parts = []
+    if persona_prompt:
+        parts.append(persona_prompt.strip())
+    if memory_preamble:
+        parts.append(memory_preamble.strip())
+    parts.append(BASE_SYSTEM_PROMPT)
+    return "\n\n".join(parts)

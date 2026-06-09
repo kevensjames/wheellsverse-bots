@@ -148,8 +148,14 @@ class Brain:
         use_tools: bool = False,
         prefer_local: bool = False,
         max_tokens: int = 1024,
+        persona_prompt: str = "",
     ) -> tuple[Conversation, Message, float]:
-        """Non-streaming chat. Returns (conversation, assistant_message, total_cost)."""
+        """Non-streaming chat. Returns (conversation, assistant_message, total_cost).
+
+        ``persona_prompt`` is an optional expert-agent preset prompt
+        (SWE / Marketing / Legal Researcher / etc.). Empty = no preset,
+        chat uses the bare KAI baseline.
+        """
         conv = self.get_or_create_conversation(user_id, conversation_id)
         history = self._recent_history(conv.id)
         history.append({"role": "user", "content": user_message})
@@ -160,7 +166,7 @@ class Brain:
         memory_preamble = build_memory_preamble(
             self.session, user_id, user_message, k=3
         )
-        system = build_system_prompt(memory_preamble)
+        system = build_system_prompt(memory_preamble, persona_prompt=persona_prompt)
 
         if use_tools:
             ctx = ToolContext(user_id=user_id, session=self.session)

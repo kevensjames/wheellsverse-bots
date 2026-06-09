@@ -6,7 +6,7 @@
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1780979464" />
-  <link rel="stylesheet" href="admin.css?v=ts-1780989846" />
+  <link rel="stylesheet" href="admin.css?v=ts-1781045332" />
 </head>
 <body>
   <main class="admin-main">
@@ -96,6 +96,11 @@
           <div class="admin-chat-toolbar">
             <h2>Operator chat · full power</h2>
             <div class="admin-chat-tools">
+              <label title="Pick an expert-agent preset (system prompt + tool whitelist)">
+                <select id="admin-preset-select" class="admin-preset-select">
+                  <option value="">no preset (bare KAI)</option>
+                </select>
+              </label>
               <label title="Route to local Ollama instead of cloud providers">
                 <input type="checkbox" id="admin-prefer-local"> local
               </label>
@@ -224,6 +229,6 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1780989901" defer></script>
+  <script src="admin.js?v=ts-1781045380" defer></script>
 </body>
 </html>

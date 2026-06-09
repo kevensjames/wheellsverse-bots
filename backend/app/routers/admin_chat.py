@@ -125,6 +125,10 @@ class AdminChatRequest(BaseModel):
     # privacy-sensitive prompts (e.g. dumping production data into chat).
     prefer_local: bool = False
     max_tokens: int = 2048
+    # Optional expert-agent preset id (swe / marketing / finance / research /
+    # legal_research). When set, prepends a persona system prompt + filters
+    # the tool registry to the preset's whitelist. None = bare KAI.
+    preset_id: str | None = None
 
 
 @router.post("/kai-chat")
@@ -133,10 +137,36 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
         prof = _resolve_operator_profile(session)
     except OperatorNotConfigured as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+    # ─── preset handling ─────────────────────────────────────────────
+    # If the operator selected an expert-agent preset, look it up + apply:
+    #   - filter the tool registry to the preset's whitelist
+    #   - prepend the preset's system_prompt to KAI's baseline
+    # Unknown preset_id is a 400 (not silent fallback) so a typo in the UI
+    # surfaces as an error instead of degrading to bare KAI.
+    persona_prompt = ""
+    registry = build_default_registry()
+    preset_id_used: str | None = None
+    if req.preset_id:
+        from app.services.presets import filter_registry, get_preset
+        preset = get_preset(req.preset_id)
+        if preset is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"unknown preset_id={req.preset_id!r}; see GET /admin/presets",
+            )
+        persona_prompt = preset.system_prompt
+        registry = filter_registry(registry, preset)
+        preset_id_used = preset.id
+        logger.info(
+            "admin_chat: preset=%s applied (tools kept=%d, persona prompt %d chars)",
+            preset.id, len(registry._tools), len(persona_prompt),
+        )
+
     brain = Brain(
         session=session,
         router=build_default_router(session),
-        registry=build_default_registry(),
+        registry=registry,
     )
     try:
         conv, msg, cost = brain.chat(
@@ -146,6 +176,7 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             use_tools=req.use_tools,
             prefer_local=req.prefer_local,
             max_tokens=req.max_tokens,
+            persona_prompt=persona_prompt,
         )
     except ValueError as e:
         # Brain raises ValueError for unknown conversation_id etc.
@@ -163,4 +194,7 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             "model": getattr(msg, "model", None),
         },
         "total_cost_usd": cost,
+        # Surface the preset id back so the dashboard can show
+        # "preset=swe" in the response meta line for confirmation.
+        "preset_id": preset_id_used,
     }
