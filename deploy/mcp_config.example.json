@@ -1,0 +1,22 @@
+{
+  "_comment_": "Copy this file to mcp_config.json at the repo root (or set KAI_MCP_CONFIG_PATH) to enable MCP. Each server entry mirrors Claude Desktop's claude_desktop_config.json shape — paste any known config directly. Servers are spawned per tool call (no persistent connection in v1).",
+
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/Users/jhonwheeler/wheellsverse_bots/data"
+      ]
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    },
+    "git": {
+      "command": "uvx",
+      "args": ["mcp-server-git", "--repository", "/Users/jhonwheeler/wheellsverse_bots"]
+    }
+  }
+}
