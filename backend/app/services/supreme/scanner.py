@@ -241,42 +241,30 @@ class ApiReachabilityScanner(Scanner):
 
 
 class EnvCompletenessScanner(Scanner):
+    """Check that required env vars are present in the DAEMON's live env.
+
+    Reads os.environ directly rather than parsing .env files — KAI may
+    pull env from multiple files (root .env + backend/.env), shell
+    inheritance, or launchd plist. os.environ is the only place that
+    reflects what the code actually sees.
+    """
+
     def scan(self) -> list[Finding]:
         findings: list[Finding] = []
-        env_path = _REPO_ROOT / ".env"
-        if not env_path.exists():
-            findings.append(Finding(
-                id="env-missing",
-                severity="critical",
-                category="env_completeness",
-                title=".env file missing",
-                detail=f"Expected at {env_path}",
-            ))
-            return findings
-
-        env_vars: dict[str, str] = {}
-        try:
-            for line in env_path.read_text(errors="replace").splitlines():
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                k, v = line.split("=", 1)
-                env_vars[k.strip()] = v.strip()
-        except Exception as e:
-            logger.warning("supreme: could not parse .env: %s", e)
-            return findings
-
         for api_name, cfg in self.smap.get("apis", {}).items():
             if not cfg.get("critical"):
                 continue
-            missing = [k for k in cfg.get("env_keys", []) if not env_vars.get(k)]
+            missing = [
+                k for k in cfg.get("env_keys", [])
+                if not (os.environ.get(k) or "").strip()
+            ]
             if missing:
                 findings.append(Finding(
                     id=f"env-{api_name}",
                     severity="high",
                     category="env_completeness",
                     title=f"{api_name} env vars missing or empty",
-                    detail=f"Missing/empty: {', '.join(missing)}",
+                    detail=f"Missing/empty in os.environ: {', '.join(missing)}",
                 ))
         return findings
 

@@ -38,7 +38,10 @@ python:
 # restart_command (optional) → admin can deep-link to copy-paste it.
 services:
   - name: kai
-    process: "uvicorn app.main:app"
+    # process: field omitted — pgrep -f from inside the daemon doesn't
+    # reliably match the daemon's own command line on macOS. The port
+    # check below is a stronger liveness signal anyway (open listening
+    # port = actually serving, vs running-but-stuck).
     port: 8001
     health_url: http://localhost:8001/health
     restart_command: "launchctl kickstart -k gui/$(id -u)/com.wheellsverse.nai"
