@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_chat, admin_data, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
+from app.routers import admin_chat, admin_data, admin_supreme, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -35,6 +35,21 @@ app = FastAPI(
     version="0.1.0",
     debug=settings.DEBUG,
 )
+
+
+# KAI Supreme scheduler — opt-in via KAI_SUPREME_ENABLED=1. Background
+# thread runs scan cycles every N seconds while the daemon is alive,
+# replacing the standalone WheellsverseNarAISupreme.app Login Item.
+@app.on_event("startup")
+def _start_supreme():
+    from app.services.supreme.scheduler import start as _start
+    _start()
+
+
+@app.on_event("shutdown")
+def _stop_supreme():
+    from app.services.supreme.scheduler import stop as _stop
+    _stop()
 
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
@@ -60,6 +75,7 @@ app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
 app.include_router(admin_chat.router)
+app.include_router(admin_supreme.router)
 app.include_router(api_keys_admin.router)
 app.include_router(documents.router)
 app.include_router(transcribe.router)

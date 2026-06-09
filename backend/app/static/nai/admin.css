@@ -220,6 +220,50 @@
   font-style: italic;
 }
 
+/* Supreme finding cards — left border encodes severity */
+.supreme-finding {
+  background: var(--card-bg, #0f1116);
+  padding: 10px 12px 10px 14px;
+  margin: 10px 0;
+  border-radius: 6px;
+}
+.supreme-finding-header {
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.supreme-finding-sev { font-weight: 600; }
+.supreme-finding-cat { color: var(--muted, #8a909c); }
+.supreme-finding-title {
+  font-size: 14px; font-weight: 600;
+  margin-top: 4px;
+  color: var(--text, #e7ecf3);
+}
+.supreme-finding-detail {
+  color: var(--muted, #8a909c);
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.supreme-finding-fix {
+  margin-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text, #e7ecf3);
+}
+.supreme-finding-evidence {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+  color: var(--muted, #8a909c);
+}
+
 /* Auth gate */
 .admin-auth-form {
   display: flex; gap: 8px; margin-top: 12px;

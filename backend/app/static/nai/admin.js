@@ -217,6 +217,9 @@ function activateTab(name) {
   if (name === "chat") {
     const input = $("#admin-chat-input");
     if (input) input.focus();
+  } else if (name === "scanner") {
+    // Lazy-load supreme data the first time the tab is opened.
+    loadSupreme();
   }
 }
 
@@ -322,6 +325,211 @@ function resetChat() {
   $("#admin-chat-input").focus();
 }
 
+// ─── supreme scanner ───────────────────────────────────────────────
+
+const SEVERITY_ORDER = ["critical", "high", "medium", "low"];
+const SEVERITY_EMOJI = { critical: "🔴", high: "🟠", medium: "🟡", low: "🟢" };
+
+async function loadSupreme() {
+  try {
+    const [status, latest, history] = await Promise.all([
+      apiGet("/admin/supreme/status"),
+      apiGet("/admin/supreme/latest"),
+      apiGet("/admin/supreme/history?limit=20"),
+    ]);
+    renderSupremeStatus(status);
+    renderSupremeLatest(latest.proposal);
+    renderSupremeHistory(history.proposals);
+  } catch (e) {
+    if (e instanceof AuthError) {
+      clearToken();
+      showAuth("Token rejected.");
+    } else {
+      const line = $("#supreme-status-line");
+      if (line) line.textContent = `error: ${e.message}`;
+    }
+  }
+}
+
+function renderSupremeStatus(s) {
+  const line = $("#supreme-status-line");
+  if (!line) return;
+  const parts = [
+    s.scheduler_running ? "scheduler ON" : "scheduler OFF (set KAI_SUPREME_ENABLED=1)",
+    `interval ${Math.round((s.scan_interval_seconds || 0) / 60)}min`,
+    s.map_loaded ? `map v${s.map_version}` : "no map",
+    `alerts ≥ ${s.telegram_notify_severity}`,
+  ];
+  line.textContent = parts.join(" · ");
+}
+
+function renderSupremeLatest(proposal) {
+  const sevRow = $("#supreme-severity-row");
+  const findings = $("#supreme-findings");
+  const tsEl = $("#supreme-latest-ts");
+  if (!sevRow || !findings || !tsEl) return;
+  sevRow.replaceChildren();
+  findings.replaceChildren();
+
+  if (!proposal) {
+    tsEl.textContent = "no scans yet — click 'scan now' to start";
+    return;
+  }
+  tsEl.textContent = fmtTime(proposal.scanned_at) + " · " + (proposal.finding_count ?? 0) + " findings";
+  tsEl.title = proposal.scanned_at || "";
+
+  // Severity chips
+  const counts = proposal.severity_counts || {};
+  let any = false;
+  for (const sev of SEVERITY_ORDER) {
+    const n = counts[sev] || 0;
+    if (!n) continue;
+    any = true;
+    const chip = document.createElement("span");
+    chip.className = "tier-chip";
+    chip.textContent = `${SEVERITY_EMOJI[sev] || ""} ${sev} ${n}`;
+    chip.style.background = severityColor(sev);
+    chip.style.color = "#fff";
+    sevRow.appendChild(chip);
+  }
+  if (!any) {
+    const ok = document.createElement("span");
+    ok.className = "tier-chip";
+    ok.textContent = "✓ all clear";
+    ok.style.background = "#23a36b";
+    ok.style.color = "#fff";
+    sevRow.appendChild(ok);
+  }
+
+  // Findings list — sorted by severity then category
+  const sorted = (proposal.findings || []).slice().sort((a, b) => {
+    const ai = SEVERITY_ORDER.indexOf(a.severity);
+    const bi = SEVERITY_ORDER.indexOf(b.severity);
+    return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+  });
+  for (const f of sorted) {
+    findings.appendChild(renderFinding(f));
+  }
+}
+
+function renderFinding(f) {
+  const wrap = document.createElement("div");
+  wrap.className = "supreme-finding";
+  wrap.style.borderLeft = `3px solid ${severityColor(f.severity)}`;
+
+  const header = document.createElement("div");
+  header.className = "supreme-finding-header";
+  const sev = document.createElement("span");
+  sev.className = "supreme-finding-sev";
+  sev.style.color = severityColor(f.severity);
+  sev.textContent = (SEVERITY_EMOJI[f.severity] || "") + " " + (f.severity || "").toUpperCase();
+  header.appendChild(sev);
+
+  const cat = document.createElement("span");
+  cat.className = "supreme-finding-cat";
+  cat.textContent = f.category || "";
+  header.appendChild(cat);
+
+  const title = document.createElement("div");
+  title.className = "supreme-finding-title";
+  title.textContent = f.title || "";
+
+  wrap.appendChild(header);
+  wrap.appendChild(title);
+
+  if (f.detail) {
+    const d = document.createElement("div");
+    d.className = "supreme-finding-detail";
+    d.textContent = f.detail;
+    wrap.appendChild(d);
+  }
+  if (f.proposed_fix) {
+    const pf = document.createElement("div");
+    pf.className = "supreme-finding-fix";
+    pf.textContent = "→ Fix: " + f.proposed_fix;
+    wrap.appendChild(pf);
+  }
+  if (f.evidence) {
+    const ev = document.createElement("pre");
+    ev.className = "supreme-finding-evidence";
+    ev.textContent = f.evidence;
+    wrap.appendChild(ev);
+  }
+  return wrap;
+}
+
+function severityColor(sev) {
+  return ({ critical: "#ff3b3b", high: "#ff8c1a", medium: "#f0c419", low: "#23a36b" })[sev] || "#666";
+}
+
+function renderSupremeHistory(rows) {
+  const tbody = $("#supreme-history-table tbody");
+  if (!tbody) return;
+  tbody.replaceChildren();
+  if (!rows.length) {
+    tbody.appendChild(emptyRow(3, "no scans recorded yet"));
+    return;
+  }
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+
+    const whenCell = td(fmtTime(r.scanned_at));
+    if (r.scanned_at) whenCell.title = r.scanned_at;
+    tr.appendChild(whenCell);
+    tr.appendChild(td(String(r.finding_count || 0)));
+
+    const sevCell = document.createElement("td");
+    const counts = r.severity_counts || {};
+    let chipAdded = false;
+    for (const sev of SEVERITY_ORDER) {
+      const n = counts[sev] || 0;
+      if (!n) continue;
+      const c = document.createElement("span");
+      c.className = "tier-chip";
+      c.style.background = severityColor(sev);
+      c.style.color = "#fff";
+      c.style.marginRight = "4px";
+      c.textContent = `${sev} ${n}`;
+      sevCell.appendChild(c);
+      chipAdded = true;
+    }
+    if (!chipAdded) sevCell.textContent = "all clear";
+    tr.appendChild(sevCell);
+
+    tbody.appendChild(tr);
+  }
+}
+
+async function runSupremeScan() {
+  const btn = $("#supreme-scan-now");
+  const line = $("#supreme-status-line");
+  if (!btn) return;
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = "scanning…";
+  try {
+    const r = await fetch("/admin/supreme/scan", {
+      method: "POST",
+      headers: { "X-Admin-Token": getToken() },
+    });
+    if (r.status === 403 || r.status === 401) throw new AuthError("auth rejected");
+    if (!r.ok) throw new Error(`scan ${r.status}`);
+    const data = await r.json();
+    if (line) line.textContent = `scan complete · ${data.finding_count} findings · ${data.proposal_name}`;
+    await loadSupreme();
+  } catch (e) {
+    if (e instanceof AuthError) {
+      clearToken();
+      showAuth("Token rejected.");
+    } else if (line) {
+      line.textContent = `error: ${e.message}`;
+    }
+  } finally {
+    btn.disabled = false;
+    btn.textContent = oldText;
+  }
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -357,6 +565,9 @@ document.addEventListener("DOMContentLoaded", () => {
       sendChat();
     }
   });
+
+  // Supreme scanner
+  $("#supreme-scan-now").addEventListener("click", runSupremeScan);
 
   if (getToken()) {
     refresh();

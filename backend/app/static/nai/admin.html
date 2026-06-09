@@ -6,7 +6,7 @@
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1780979464" />
-  <link rel="stylesheet" href="admin.css?v=ts-1780985525" />
+  <link rel="stylesheet" href="admin.css?v=ts-1780988528" />
 </head>
 <body>
   <main class="admin-main">
@@ -15,6 +15,7 @@
       <nav class="admin-tabs" id="admin-tabs" hidden>
         <button type="button" class="admin-tab is-active" data-tab="stats">Stats</button>
         <button type="button" class="admin-tab" data-tab="chat">Chat with KAI</button>
+        <button type="button" class="admin-tab" data-tab="scanner">Scanner</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -120,9 +121,44 @@
           </form>
         </div>
       </div><!-- /admin-pane-chat -->
+
+      <!-- ─── Scanner tab ─── -->
+      <div id="admin-pane-scanner" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>KAI Supreme · empire scanner</h2>
+            <div class="admin-chat-tools">
+              <span id="supreme-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="supreme-scan-now" class="admin-btn admin-btn-primary">scan now</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Process / port / log / API / env / disk / git health checks every
+            15 min. Findings stored as JSON proposals in <code>data/supreme/proposals/</code>.
+            Telegram alerts on medium+ if <code>TELEGRAM_BOT_TOKEN</code> set.
+          </p>
+        </div>
+
+        <div class="admin-card">
+          <h2>Latest scan</h2>
+          <div id="supreme-latest-meta" class="admin-stat-row">
+            <span>scanned at</span><strong id="supreme-latest-ts">—</strong>
+          </div>
+          <div id="supreme-severity-row" class="admin-stat-row admin-stat-tiers"></div>
+          <div id="supreme-findings"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent scans</h2>
+          <table class="admin-table" id="supreme-history-table">
+            <thead><tr><th>when</th><th>findings</th><th>severity</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-scanner -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1780985503" defer></script>
+  <script src="admin.js?v=ts-1780988512" defer></script>
 </body>
 </html>
