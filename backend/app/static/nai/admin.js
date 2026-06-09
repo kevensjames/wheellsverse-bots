@@ -192,6 +192,7 @@ async function refresh() {
 
 function showAuth(errMsg) {
   $("#admin-body").hidden = true;
+  $("#admin-tabs").hidden = true;
   $("#admin-auth").hidden = false;
   const errEl = $("#admin-auth-err");
   if (errEl) errEl.textContent = errMsg || "";
@@ -201,6 +202,124 @@ function showAuth(errMsg) {
 function showBody() {
   $("#admin-auth").hidden = true;
   $("#admin-body").hidden = false;
+  $("#admin-tabs").hidden = false;
+}
+
+// ─── tabs ──────────────────────────────────────────────────────────
+
+function activateTab(name) {
+  document.querySelectorAll(".admin-tab").forEach((btn) => {
+    btn.classList.toggle("is-active", btn.dataset.tab === name);
+  });
+  document.querySelectorAll(".admin-pane").forEach((pane) => {
+    pane.hidden = pane.id !== `admin-pane-${name}`;
+  });
+  if (name === "chat") {
+    const input = $("#admin-chat-input");
+    if (input) input.focus();
+  }
+}
+
+// ─── operator chat ─────────────────────────────────────────────────
+
+let adminConversationId = null;
+
+async function adminChatPost(message) {
+  const body = {
+    message,
+    conversation_id: adminConversationId,
+    use_tools: !$("#admin-no-tools").checked,
+    prefer_local: $("#admin-prefer-local").checked,
+    max_tokens: 2048,
+  };
+  const r = await fetch("/admin/kai-chat", {
+    method: "POST",
+    headers: {
+      "X-Admin-Token": getToken(),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 403 || r.status === 401) {
+    throw new AuthError(`auth rejected (${r.status})`);
+  }
+  if (!r.ok) {
+    const text = await r.text();
+    throw new Error(text || `chat error ${r.status}`);
+  }
+  return r.json();
+}
+
+function appendChatMessage(role, text, meta) {
+  const list = $("#admin-chat-messages");
+  if (!list) return;
+  const wrap = document.createElement("div");
+  wrap.className = `admin-chat-msg admin-chat-msg-${role}`;
+
+  const bubble = document.createElement("div");
+  bubble.className = "admin-chat-bubble";
+  bubble.textContent = text;
+  wrap.appendChild(bubble);
+
+  if (meta) {
+    const m = document.createElement("div");
+    m.className = "admin-chat-meta";
+    m.textContent = meta;
+    wrap.appendChild(m);
+  }
+
+  list.appendChild(wrap);
+  list.scrollTop = list.scrollHeight;
+}
+
+function setChatStatus(text) {
+  const el = $("#admin-chat-status");
+  if (el) el.textContent = text || "";
+}
+
+async function sendChat(e) {
+  if (e) e.preventDefault();
+  const input = $("#admin-chat-input");
+  const sendBtn = $("#admin-chat-send");
+  const text = (input.value || "").trim();
+  if (!text) return;
+
+  appendChatMessage("user", text);
+  input.value = "";
+  sendBtn.disabled = true;
+  setChatStatus("thinking…");
+
+  try {
+    const resp = await adminChatPost(text);
+    adminConversationId = resp.conversation_id;
+    const msg = resp.message || {};
+    const meta = [
+      msg.adapter && `adapter=${msg.adapter}`,
+      msg.model && `model=${msg.model}`,
+      typeof resp.total_cost_usd === "number" && `cost=$${resp.total_cost_usd.toFixed(4)}`,
+    ].filter(Boolean).join(" · ");
+    appendChatMessage("assistant", msg.content || "(empty response)", meta);
+    setChatStatus("");
+  } catch (err) {
+    if (err instanceof AuthError) {
+      clearToken();
+      showAuth("Token rejected. Re-enter to continue.");
+    } else {
+      appendChatMessage("assistant", `⚠️ ${err.message}`);
+      setChatStatus("");
+    }
+  } finally {
+    sendBtn.disabled = false;
+    input.focus();
+  }
+}
+
+function resetChat() {
+  adminConversationId = null;
+  const list = $("#admin-chat-messages");
+  if (list) list.replaceChildren();
+  setChatStatus("");
+  $("#admin-chat-input").focus();
 }
 
 // ─── boot ──────────────────────────────────────────────────────────
@@ -219,6 +338,24 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#admin-logout").addEventListener("click", () => {
     clearToken();
     showAuth("");
+  });
+
+  // Tabs
+  document.querySelectorAll(".admin-tab").forEach((btn) => {
+    btn.addEventListener("click", () => activateTab(btn.dataset.tab));
+  });
+
+  // Chat
+  $("#admin-chat-form").addEventListener("submit", sendChat);
+  $("#admin-chat-new").addEventListener("click", resetChat);
+
+  // Cmd/Ctrl + Enter sends — Enter alone inserts a newline (preserves the
+  // multiline-prompt pattern from the main /kai-ui/chat.html input).
+  $("#admin-chat-input").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
+      ev.preventDefault();
+      sendChat();
+    }
   });
 
   if (getToken()) {

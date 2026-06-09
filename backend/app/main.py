@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_data, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
+from app.routers import admin_chat, admin_data, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -59,6 +59,7 @@ app.include_router(auth.router)
 app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
+app.include_router(admin_chat.router)
 app.include_router(api_keys_admin.router)
 app.include_router(documents.router)
 app.include_router(transcribe.router)
@@ -107,6 +108,15 @@ def _redirect_signup():
 @app.get("/pricing", include_in_schema=False)
 def _redirect_pricing():
     return RedirectResponse(url="/kai-ui/pricing.html", status_code=307)
+
+
+@app.get("/admin", include_in_schema=False)
+def _redirect_admin():
+    # Operator dashboard at a clean URL — kai.wheellsverse.com/admin
+    # serves the same page as /kai-ui/admin.html. Auth happens client-side
+    # via X-Admin-Token; this redirect itself is intentionally open so a
+    # 404 doesn't leak "no admin here" to fingerprinters.
+    return RedirectResponse(url="/kai-ui/admin.html", status_code=307)
 
 
 @app.get("/version", include_in_schema=False)

@@ -6,15 +6,19 @@
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1780979464" />
-  <link rel="stylesheet" href="admin.css?v=ts-1780983800" />
+  <link rel="stylesheet" href="admin.css?v=ts-1780985525" />
 </head>
 <body>
   <main class="admin-main">
     <header class="admin-header">
       <h1>KAI · operator</h1>
+      <nav class="admin-tabs" id="admin-tabs" hidden>
+        <button type="button" class="admin-tab is-active" data-tab="stats">Stats</button>
+        <button type="button" class="admin-tab" data-tab="chat">Chat with KAI</button>
+      </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
-        <button id="admin-refresh" type="button" class="admin-btn">↻</button>
+        <button id="admin-refresh" type="button" class="admin-btn" title="Refresh stats">↻</button>
         <button id="admin-logout" type="button" class="admin-btn admin-btn-ghost">sign out</button>
       </div>
     </header>
@@ -30,6 +34,8 @@
     </section>
 
     <section id="admin-body" hidden>
+      <!-- ─── Stats tab ─── -->
+      <div id="admin-pane-stats" class="admin-pane">
       <!-- Top row: 3 stat cards -->
       <div class="admin-grid admin-grid-3">
         <div class="admin-card">
@@ -80,9 +86,43 @@
           actions are intentionally not in this UI yet.
         </p>
       </div>
+      </div><!-- /admin-pane-stats -->
+
+      <!-- ─── Chat tab ─── -->
+      <div id="admin-pane-chat" class="admin-pane" hidden>
+        <div class="admin-card admin-chat-card">
+          <div class="admin-chat-toolbar">
+            <h2>Operator chat · full power</h2>
+            <div class="admin-chat-tools">
+              <label title="Route to local Ollama instead of cloud providers">
+                <input type="checkbox" id="admin-prefer-local"> local
+              </label>
+              <label title="Disable tool use (faster, no side effects)">
+                <input type="checkbox" id="admin-no-tools"> no tools
+              </label>
+              <button type="button" id="admin-chat-new" class="admin-btn">new chat</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            All tools enabled (web_fetch, memory, MCP, Composio). No tier
+            limits. Spend still logged — visible on the Stats tab.
+          </p>
+
+          <div id="admin-chat-messages" class="admin-chat-messages" aria-live="polite"></div>
+
+          <form id="admin-chat-form" class="admin-chat-form">
+            <textarea id="admin-chat-input" rows="3"
+              placeholder="Ask KAI anything. Try: 'fetch https://news.ycombinator.com and summarize the top story' or 'remember that today is launch day'"></textarea>
+            <div class="admin-chat-send-row">
+              <span id="admin-chat-status" class="admin-chat-status"></span>
+              <button type="submit" id="admin-chat-send" class="admin-btn admin-btn-primary">send</button>
+            </div>
+          </form>
+        </div>
+      </div><!-- /admin-pane-chat -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1780983764" defer></script>
+  <script src="admin.js?v=ts-1780985503" defer></script>
 </body>
 </html>
