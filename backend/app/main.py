@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_briefing, admin_chat, admin_data, admin_failures, admin_kg, admin_presets, admin_supreme, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
+from app.routers import admin_briefing, admin_chat, admin_data, admin_failures, admin_kg, admin_presets, admin_research, admin_supreme, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -51,6 +51,23 @@ def _stop_supreme():
     from app.services.supreme.scheduler import stop as _stop
     _stop()
 
+
+# Continuous Research scheduler — opt-in via KAI_RESEARCH_ENABLED=1.
+# Background thread runs one cycle per day at the configured UTC hour
+# (KAI_RESEARCH_HOUR_UTC, default 8). Fetches HN+arXiv+GH-trending,
+# scores against KAI_RESEARCH_INTERESTS, persists a digest, Telegram
+# alert on HIGH items.
+@app.on_event("startup")
+def _start_research():
+    from app.services.research.scheduler import start as _start
+    _start()
+
+
+@app.on_event("shutdown")
+def _stop_research():
+    from app.services.research.scheduler import stop as _stop
+    _stop()
+
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -80,6 +97,7 @@ app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)
 app.include_router(admin_kg.router)
 app.include_router(admin_failures.router)
+app.include_router(admin_research.router)
 app.include_router(api_keys_admin.router)
 app.include_router(documents.router)
 app.include_router(transcribe.router)
