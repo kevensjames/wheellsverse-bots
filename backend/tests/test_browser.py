@@ -102,6 +102,26 @@ def test_check_url_blocks_non_allowlisted():
         bc.check_url("https://evil.com/steal")
 
 
+def test_check_url_defaults_bare_host_to_https():
+    # operator types "example.com" with no scheme → normalized to https
+    assert bc.check_url("example.com") == "https://example.com"
+    assert bc.check_url("example.com/path?q=1") == "https://example.com/path?q=1"
+
+
+def test_check_url_bare_non_allowlisted_gives_truthful_reason():
+    # "app.wheellsverse.com/admin" (no scheme, not allowlisted) must report the
+    # ALLOWLIST reason, not a confusing scheme error.
+    with pytest.raises(bc.BrowserPolicyError, match="not allowlisted"):
+        bc.check_url("app.wheellsverse.com/admin")
+
+
+def test_normalization_does_not_mask_dangerous_schemes():
+    # scheme-bearing inputs keep their scheme and are still rejected as schemes
+    for url in ("javascript:alert(1)", "data:text/html,<h1>x</h1>", "file:///etc/passwd"):
+        with pytest.raises(bc.BrowserPolicyError, match="scheme"):
+            bc.check_url(url)
+
+
 def test_check_url_empty_allowlist_blocks_everything(monkeypatch):
     monkeypatch.setenv("KAI_BROWSER_ALLOWLIST", "")
     with pytest.raises(bc.BrowserPolicyError, match="allowlist is empty"):

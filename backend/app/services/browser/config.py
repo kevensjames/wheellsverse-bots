@@ -22,7 +22,13 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import re
 from urllib.parse import urlsplit
+
+# Matches a leading "scheme:" (http:, https:, file:, javascript:, data:, …).
+# Used to tell a real scheme from a bare host so we only default-prepend
+# https:// to scheme-less input (and never mask a dangerous scheme).
+_HAS_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*:")
 
 # Defaults are conservative; every value is env-overridable.
 DEFAULT_PAGE_TIMEOUT_MS = 15_000   # page load
@@ -104,6 +110,14 @@ def check_url(url: str, *, allow: list[str] | None = None) -> str:
     url = (url or "").strip()
     if not url:
         raise BrowserPolicyError("empty url")
+
+    # Operator convenience: a bare host like "example.com" or
+    # "example.com/path" has no scheme, which urlsplit can't host-parse. Default
+    # it to https. We ONLY prepend when there's no leading "scheme:" at all — so
+    # javascript:/file:/data: keep their scheme and get rejected below, never
+    # masked into an https URL.
+    if not _HAS_SCHEME_RE.match(url):
+        url = "https://" + url
 
     parts = urlsplit(url)
     scheme = (parts.scheme or "").lower()
