@@ -190,3 +190,7 @@ audit*.txt
 suppreme-audit*.txt
 /products/
 /tools/
+
+# SiteBoost generated artifacts (created by pipeline runs)
+data/launches/siteboost/runs/
+data/launches/siteboost/scans/

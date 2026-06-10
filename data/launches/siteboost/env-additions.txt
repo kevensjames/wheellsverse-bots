@@ -1,0 +1,17 @@
+# SiteBoost env additions — append to .env after reviewing.
+# Do NOT paste the line marked __REPLACE__ as-is; substitute your real address.
+
+# ─── SiteBoost defaults (Claude-suggested 2026-06-03) ───────────────────────
+SITEBOOST_OUTBOUND_DOMAIN=hello.wheellsverse.com
+SITEBOOST_BRAND=SiteBoost AI
+SITEBOOST_INTAKE_URL=https://hello.wheellsverse.com/intake
+SITEBOOST_PREVIEW_URL=https://preview.wheellsverse.com
+SITEBOOST_SMTP_USER=hello@wheellsverse.com
+
+# CAN-SPAM requires a real, deliverable mailing address in every cold email.
+# Replace the next line's value with your real address before sending the first cold mail.
+# Format: "Name · Street · City, ST ZIP · Country"
+SITEBOOST_PHYSICAL_ADDRESS=__REPLACE_BEFORE_FIRST_SEND__
+
+# Append safely with: cat data/launches/siteboost/env-additions.txt >> .env
+# Then edit the SITEBOOST_PHYSICAL_ADDRESS line to your real address.

@@ -1520,6 +1520,16 @@ async def serve_wvkey_admin():
     return _serve_frontend("admin/wvkey.html", cache=False)
 
 
+
+
+@app.get("/admin/siteboost", response_class=HTMLResponse)
+async def serve_siteboost_admin():
+    """SiteBoost control panel — operator surface for the local-prospect outbound
+    product. Drives scans, sequences, selftest, blocklist from the browser.
+    API at /api/narai/siteboost/*. Auth via X-API-Key (same as the rest of /admin)."""
+    return _serve_frontend("admin/siteboost.html", cache=False)
+
+
 async def _serve_old_dashboard():
     html_path = ROOT / "dashboard" / "index.html"
     if not html_path.exists():
@@ -13777,6 +13787,13 @@ try:
     app.include_router(_smt_billing_webhook_rt)                  # /shopify/billing/webhook
     app.include_router(_smt_billing_api_rt, prefix="/api/narai") # /api/narai/shopify/billing/*
     app.include_router(_smt_admin_rt)                            # /api/narai/shopify/merchants
+
+    # SiteBoost admin API — control panel for the local-prospect outbound product
+    try:
+        from narai.api.routes.siteboost_admin import router as _siteboost_admin_rt
+        app.include_router(_siteboost_admin_rt)                  # /api/narai/siteboost/*
+    except Exception as _sb_exc:
+        logging.getLogger("api").warning(f"siteboost_admin router skipped: {_sb_exc}")
     logger.info("NarAI multi-tenant Shopify routes loaded")
 except Exception as _e:
     logger.warning(f"NarAI multi-tenant Shopify not loaded: {_e}")

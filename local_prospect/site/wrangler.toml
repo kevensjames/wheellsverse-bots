@@ -1,0 +1,50 @@
+# Cloudflare Pages config for hosting SiteBoost previews + marketing site.
+#
+# Two deployment targets covered:
+#   - preview.wheellsverse.com   — generated prospect previews (auto-published per campaign)
+#   - hello.wheellsverse.com     — public marketing site (landing/pricing/thanks)
+#
+# Setup (one-time):
+#   1. npm install -g wrangler
+#   2. wrangler login
+#   3. wrangler pages project create siteboost-previews --production-branch=main
+#   4. wrangler pages project create siteboost-site --production-branch=main
+#   5. In Cloudflare dashboard → Pages → siteboost-previews → Custom Domains
+#      → add `preview.wheellsverse.com` (CNAME auto-configured)
+#   6. Same for siteboost-site → add `hello.wheellsverse.com`
+#
+# Deploy a campaign's previews:
+#   cd data/launches/siteboost/runs/2026-06-02-boston-ma/03-previews/
+#   wrangler pages deploy . --project-name=siteboost-previews
+#
+# Deploy the marketing site:
+#   cd local_prospect/site/
+#   wrangler pages deploy . --project-name=siteboost-site
+
+name = "siteboost-site"
+compatibility_date = "2026-04-01"
+pages_build_output_dir = "."
+
+# Cache rules — preview HTML changes frequently, static site rarely
+[[redirects]]
+from = "/preview/*"
+to = "https://preview.wheellsverse.com/:splat"
+status = 301
+
+# Build settings (Cloudflare Pages auto-detects static; no build step needed)
+[build]
+command = ""
+publish = "."
+
+# Security headers (matches awesome-secure-defaults guidance for static sites)
+[[headers]]
+for = "/*"
+[headers.values]
+X-Frame-Options = "DENY"
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "geolocation=(), camera=(), microphone=()"
+# CSP allows inline styles (we use them in the templates) but blocks scripts
+# from unknown origins. Tighten if you add external scripts later.
+Content-Security-Policy = "default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'"
+Strict-Transport-Security = "max-age=31536000; includeSubDomains"

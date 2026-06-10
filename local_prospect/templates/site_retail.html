@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ BUSINESS_NAME }}</title>
+<meta name="description" content="{{ HERO_SUB }}">
+<style>
+:root { --bg:#fdf6f0; --primary:#8b4513; --accent:#d2691e; --text:#2a1a0a; --muted:#7a6a5a; --card:#fff; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:'Lora',Georgia,serif; line-height:1.6; }
+nav { background:var(--card); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; border-bottom:2px solid var(--accent); }
+nav .logo { font-weight:700; font-size:1.5rem; color:var(--primary); letter-spacing:1px; }
+nav a { color:var(--primary); text-decoration:none; font-weight:600; }
+.hero { padding:100px 24px; text-align:center; background:var(--card); }
+.hero h1 { font-size:clamp(2rem,5vw,3.5rem); margin-bottom:16px; color:var(--primary); font-style:italic; }
+.hero p { font-size:1.2rem; max-width:600px; margin:0 auto 40px; color:var(--muted); }
+.cta { display:inline-block; padding:16px 40px; background:var(--accent); color:#fff; text-decoration:none; font-weight:600; border-radius:0; border:2px solid var(--accent); transition:all .2s; letter-spacing:1px; text-transform:uppercase; font-size:.95rem; }
+.cta:hover { background:transparent; color:var(--accent); }
+section { padding:64px 24px; max-width:1200px; margin:0 auto; }
+h2 { font-size:2.2rem; color:var(--primary); margin-bottom:24px; text-align:center; font-style:italic; }
+.about { font-size:1.1rem; max-width:700px; margin:0 auto; color:var(--muted); text-align:center; line-height:1.8; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:32px; margin-top:48px; }
+.card { background:var(--card); padding:40px 32px; text-align:center; box-shadow:0 4px 20px rgba(139,69,19,.08); border-bottom:3px solid var(--accent); }
+.card h3 { color:var(--primary); margin-bottom:16px; font-size:1.3rem; font-style:italic; }
+.card p { color:var(--muted); }
+.visit { background:var(--primary); color:#fff; text-align:center; padding:80px 24px; }
+.visit h2 { color:#fff; }
+.visit p { margin:16px 0; opacity:.95; }
+.visit a { color:#fdf6f0; text-decoration:none; font-size:1.3rem; font-weight:700; }
+footer { background:#3d2510; padding:32px 24px; text-align:center; color:#c9b89a; font-size:.9rem; }
+.badge { position:fixed; bottom:20px; right:20px; background:var(--primary); color:#fff; padding:8px 16px; border-radius:0; font-size:.85rem; font-family:system-ui; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">{{ BUSINESS_NAME }}</span>
+  <a href="tel:{{ PHONE }}">{{ PHONE }}</a>
+</nav>
+
+<header class="hero">
+  <h1>{{ HERO_HEADLINE }}</h1>
+  <p>{{ HERO_SUB }}</p>
+  <a href="tel:{{ PHONE }}" class="cta">{{ CTA_TEXT }}</a>
+</header>
+
+<section>
+  <h2>Our Story</h2>
+  <p class="about">{{ ABOUT_PARAGRAPH }}</p>
+</section>
+
+<section>
+  <h2>What You'll Find</h2>
+  <div class="cards">
+    {{ CARDS_HTML }}
+  </div>
+</section>
+
+<section class="visit">
+  <h2>Visit Us</h2>
+  <p>{{ ADDRESS }}</p>
+  <p><a href="tel:{{ PHONE }}">{{ PHONE }}</a></p>
+</section>
+
+<footer>
+  &copy; {{ YEAR }} {{ BUSINESS_NAME }}<br>
+  <span style="opacity:.5;">Site by SiteBoost AI · preview only</span>
+</footer>
+
+<div class="badge">Preview by SiteBoost</div>
+
+</body>
+</html>

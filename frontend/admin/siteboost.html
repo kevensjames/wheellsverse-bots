@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<base target="_top"/>
+<title>SiteBoost — Control Panel</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
+<style>
+  :root {
+    --bg:#05070d; --panel:#0b0f1a; --panel2:#11172a; --border:#1a2036;
+    --text:#e8edf5; --muted:#8a95a8; --accent:#4df4a5;
+    --warn:#ffb547; --err:#ff5b6e; --purple:#a389f4; --cyan:#5be7ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;min-height:100vh}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:rgba(11,15,26,.6);backdrop-filter:blur(8px);position:sticky;top:0;z-index:10}
+  .brand{font-weight:700;font-size:18px;letter-spacing:.3px}
+  .brand .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;box-shadow:0 0 12px var(--accent);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .topnav a{color:var(--muted);text-decoration:none;margin-left:18px;font-size:13px}
+  .topnav a:hover{color:var(--text)}
+  .wrap{max-width:1280px;margin:0 auto;padding:32px 28px 80px}
+  h1{font-size:28px;font-weight:600;margin:0 0 6px}
+  .sub{color:var(--muted);margin-bottom:32px;font-size:14px}
+  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin:32px 0 14px;font-weight:500;display:flex;align-items:center;justify-content:space-between}
+  .section-title button{background:var(--accent);border:none;color:#000;font-weight:700;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.5px}
+  .section-title button:hover{filter:brightness(1.1)}
+  .section-title button.outline{background:transparent;color:var(--text);border:1px solid var(--border)}
+  .section-title button.outline:hover{border-color:var(--accent);color:var(--accent)}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:8px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .stat-num{font-size:24px;font-weight:700;color:var(--accent);font-feature-settings:'tnum'}
+  .stat-num.purple{color:var(--purple)} .stat-num.cyan{color:var(--cyan)} .stat-num.warn{color:var(--warn)} .stat-num.err{color:var(--err)}
+  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-top:4px}
+
+  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}
+  @media (max-width:720px){.grid-2{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px}
+  .card h3{margin:0 0 14px;font-size:14px;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:1px}
+
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:1px;padding:8px 10px;border-bottom:1px solid var(--border);font-weight:500}
+  td{padding:10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
+  tr:hover td{background:rgba(77,244,165,.04)}
+  tr:last-child td{border-bottom:none}
+  .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
+  .badge.ok{background:rgba(77,244,165,.15);color:var(--accent)}
+  .badge.warn{background:rgba(255,181,71,.15);color:var(--warn)}
+  .badge.err{background:rgba(255,91,110,.15);color:var(--err)}
+  .badge.dry{background:rgba(163,137,244,.15);color:var(--purple)}
+
+  .row-actions a{color:var(--cyan);text-decoration:none;font-size:12px;margin-right:12px}
+  .row-actions a:hover{color:var(--accent)}
+
+  .check-line{padding:7px 0;font-size:13px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)}
+  .check-line:last-child{border-bottom:none}
+  .check-line .label{color:var(--text)}
+  .check-line .val{font-family:'JetBrains Mono',monospace;font-size:11px}
+  .check-line.fail .val{color:var(--err)}
+  .check-line.ok .val{color:var(--accent)}
+
+  .blockers-list{margin:0;padding-left:18px;color:var(--warn);font-size:13px;line-height:1.7}
+
+  /* Modal */
+  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal-backdrop.show{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
+  .modal h2{margin:0 0 6px;font-size:20px}
+  .modal .sub{margin-bottom:20px;font-size:13px}
+  .field{margin-bottom:14px;display:block}
+  .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;font-weight:600}
+  .field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
+  .field input:focus,.field select:focus{border-color:var(--accent)}
+  .field .hint{margin-top:5px;font-size:11px;color:var(--muted)}
+  .checkbox{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text)}
+  .checkbox input{width:18px;height:18px;cursor:pointer}
+  .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
+  .modal-actions button{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit}
+  .btn-cancel{background:transparent;color:var(--muted);border:1px solid var(--border)!important}
+  .btn-primary{background:var(--accent);color:#000}
+  .btn-warn{background:var(--warn);color:#000}
+
+  .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
+  pre.log{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);overflow-x:auto;max-height:280px;overflow-y:auto;white-space:pre-wrap}
+
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--text);padding:14px 22px;border-radius:10px;font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .toast.err{border-color:var(--err);color:var(--err)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="pulse"></span>SiteBoost · Control Panel</div>
+  <nav class="topnav">
+    <a href="/admin">← Command Center</a>
+    <a href="/admin/siteboost?refresh=1">Refresh</a>
+    <a href="https://github.com/kevensjames/wheellsverse-bots" target="_blank" rel="noopener">GitHub</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <h1>SiteBoost</h1>
+  <div class="sub">Local-business outbound: scan Google Maps → generate previews → 3-touch cold email → close at $497.</div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-num" id="s-runs">—</div><div class="stat-label">Campaigns</div></div>
+    <div class="stat"><div class="stat-num cyan" id="s-places">—</div><div class="stat-label">Places scanned</div></div>
+    <div class="stat"><div class="stat-num purple" id="s-emails">—</div><div class="stat-label">Emails sent</div></div>
+    <div class="stat"><div class="stat-num warn" id="s-blocked">—</div><div class="stat-label">Blocklist size</div></div>
+    <div class="stat"><div class="stat-num err" id="s-blockers">—</div><div class="stat-label">Launch blockers</div></div>
+  </div>
+
+  <div class="section-title">
+    Quick actions
+    <span>
+      <button onclick="openScanModal()">+ New scan</button>
+      <button class="outline" onclick="runSelftest()">Run selftest</button>
+    </span>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <h3>Launch readiness</h3>
+      <div id="readiness">loading…</div>
+    </div>
+    <div class="card">
+      <h3>Blockers</h3>
+      <div id="blockers">loading…</div>
+    </div>
+  </div>
+
+  <div class="section-title">Recent campaigns</div>
+  <div class="card" style="padding:0">
+    <table>
+      <thead>
+        <tr><th>Run</th><th>Previews</th><th>Sequences</th><th>Mode</th><th>Actions</th></tr>
+      </thead>
+      <tbody id="runs-tbody">
+        <tr><td colspan="5" class="empty">loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- New-scan modal ─────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="scan-modal">
+  <div class="modal">
+    <h2>Start a new scan</h2>
+    <div class="sub">Default mode is <strong>dry-run</strong> — no API cost, uses fake fixtures. Toggle LIVE only when ready.</div>
+    <label class="field">
+      <label>Location</label>
+      <input id="f-loc" type="text" placeholder="Boston, MA" value="Boston, MA">
+      <div class="hint">US city + state, or ZIP. EU is auto-rejected.</div>
+    </label>
+    <label class="field">
+      <label>Radius (meters)</label>
+      <input id="f-rad" type="number" value="5000" min="500" max="50000" step="500">
+    </label>
+    <label class="field">
+      <label>Limit</label>
+      <input id="f-lim" type="number" value="30" min="1" max="200">
+    </label>
+    <label class="field">
+      <label>Categories (comma-separated, optional)</label>
+      <input id="f-cats" type="text" placeholder="restaurant,salon,plumber,dentist">
+      <div class="hint">Leave blank to use the default 20-category mix.</div>
+    </label>
+    <label class="checkbox" style="margin:14px 0">
+      <input id="f-live" type="checkbox">
+      <span>LIVE mode (uses real Google Places + Hunter APIs — costs apply)</span>
+    </label>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeScanModal()">Cancel</button>
+      <button class="btn-primary" id="btn-start-scan" onclick="startScan()">Start scan</button>
+    </div>
+    <pre class="log" id="scan-log" style="display:none;margin-top:14px"></pre>
+  </div>
+</div>
+
+<!-- Selftest result modal -->
+<div class="modal-backdrop" id="selftest-modal">
+  <div class="modal">
+    <h2 id="selftest-title">Selftest result</h2>
+    <div class="sub" id="selftest-sub">—</div>
+    <pre class="log" id="selftest-log">running…</pre>
+    <div class="modal-actions">
+      <button class="btn-primary" onclick="closeSelftestModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = '/api/narai/siteboost';
+
+// ── Admin auth (shared with the rest of /admin/*) ────────────────────────
+function getAuthHeaders() {
+  const u = new URL(location.href);
+  const fromUrl = u.searchParams.get('key');
+  if (fromUrl) {
+    sessionStorage.setItem('admin_api_key', fromUrl);
+    u.searchParams.delete('key');
+    history.replaceState({}, '', u.toString());
+  }
+  let key = sessionStorage.getItem('admin_api_key');
+  if (!key) {
+    key = prompt('Admin API key (X-API-Key):');
+    if (!key) return null;
+    key = key.trim();
+    sessionStorage.setItem('admin_api_key', key);
+  }
+  return {'X-API-Key': key};
+}
+
+async function api(path, opts = {}) {
+  const h = getAuthHeaders();
+  if (!h) throw new Error('no auth');
+  const headers = {...(opts.headers||{}), ...h};
+  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+  const r = await fetch(API + path, {...opts, headers});
+  if (r.status === 401) {
+    sessionStorage.removeItem('admin_api_key');
+    toast('Unauthorized — refresh and re-enter key', true);
+    throw new Error('401');
+  }
+  return r;
+}
+
+function toast(msg, isErr) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('err', !!isErr);
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ── Dashboard load ────────────────────────────────────────────────────────
+async function loadDashboard() {
+  try {
+    const r = await api('/dashboard');
+    const d = await r.json();
+
+    document.getElementById('s-runs').textContent = d.runs_count || 0;
+    const st = d.state || {};
+    document.getElementById('s-places').textContent = st.places_scanned || 0;
+    document.getElementById('s-emails').textContent = st.emails_sent || 0;
+    document.getElementById('s-blocked').textContent = (st.blocked_emails || 0) + (st.blocked_domains || 0);
+    document.getElementById('s-blockers').textContent = (d.blockers || []).length;
+
+    // Readiness card — env + DNS
+    const env = d.env || {};
+    const dns = d.dns || {};
+    const req = env.required || {};
+    const dnsChecks = dns.checks || {};
+    const readiness = document.getElementById('readiness');
+    readiness.innerHTML = '';
+    const all = [];
+    for (const k of Object.keys(req)) all.push(['env: ' + k, req[k]]);
+    for (const k of Object.keys(dnsChecks)) all.push(['dns: ' + k, dnsChecks[k]]);
+    if (!all.length) { readiness.innerHTML = '<div class="empty">no checks yet</div>'; }
+    for (const [label, ok] of all) {
+      const row = document.createElement('div');
+      row.className = 'check-line ' + (ok ? 'ok' : 'fail');
+      row.innerHTML = '<span class="label">' + label + '</span><span class="val">' + (ok ? '✓ SET' : '✗ missing') + '</span>';
+      readiness.appendChild(row);
+    }
+
+    // Blockers card
+    const blockers = document.getElementById('blockers');
+    if (!d.blockers || !d.blockers.length) {
+      blockers.innerHTML = '<div style="color:var(--accent);font-size:14px">✓ No blockers — ready to launch.</div>';
+    } else {
+      blockers.innerHTML = '<ul class="blockers-list">' +
+        d.blockers.map(b => '<li>' + escHtml(b) + '</li>').join('') + '</ul>';
+    }
+  } catch (e) {
+    toast('Failed to load dashboard: ' + e.message, true);
+  }
+}
+
+async function loadRuns() {
+  try {
+    const r = await api('/runs');
+    const d = await r.json();
+    const tbody = document.getElementById('runs-tbody');
+    if (!d.runs || !d.runs.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">no campaigns yet — start a scan to create one</td></tr>';
+      return;
+    }
+    tbody.innerHTML = d.runs.map(r => `
+      <tr>
+        <td><code style="font-size:11px">${escHtml(r.run_id)}</code></td>
+        <td>${r.n_previews}</td>
+        <td>${r.n_sequences}</td>
+        <td>${r.is_dry_run
+              ? '<span class="badge dry">Dry-run</span>'
+              : '<span class="badge ok">Live</span>'}</td>
+        <td class="row-actions">
+          <a href="#" onclick="viewSequences('${escAttr(r.run_id)}'); return false">Sequences</a>
+          <a href="#" onclick="viewReport('${escAttr(r.run_id)}'); return false">Report</a>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {
+    toast('Failed to load runs: ' + e.message, true);
+  }
+}
+
+// ── Actions ───────────────────────────────────────────────────────────────
+function openScanModal() {
+  document.getElementById('scan-modal').classList.add('show');
+  document.getElementById('scan-log').style.display = 'none';
+  document.getElementById('btn-start-scan').disabled = false;
+  document.getElementById('btn-start-scan').textContent = 'Start scan';
+}
+function closeScanModal() {
+  document.getElementById('scan-modal').classList.remove('show');
+}
+
+let _scanPollTimer = null;
+async function startScan() {
+  const btn = document.getElementById('btn-start-scan');
+  const log = document.getElementById('scan-log');
+  btn.disabled = true;
+  btn.textContent = 'Starting…';
+  log.style.display = 'block';
+  log.textContent = 'submitting…';
+
+  const body = {
+    location: document.getElementById('f-loc').value.trim(),
+    radius_m: parseInt(document.getElementById('f-rad').value, 10),
+    limit:    parseInt(document.getElementById('f-lim').value, 10),
+    live:     document.getElementById('f-live').checked,
+  };
+  const cats = document.getElementById('f-cats').value.trim();
+  if (cats) body.categories = cats.split(',').map(s => s.trim()).filter(Boolean);
+
+  let task_id;
+  try {
+    const r = await api('/scan', {method: 'POST', body: JSON.stringify(body)});
+    if (!r.ok) { log.textContent = 'Error ' + r.status + ': ' + (await r.text()).slice(0, 400); btn.disabled = false; btn.textContent = 'Start scan'; return; }
+    const data = await r.json();
+    task_id = data.task_id;
+    log.textContent = 'Queued · task_id=' + task_id + '\n\nPolling status…';
+  } catch (e) {
+    log.textContent = 'Failed to start: ' + e.message;
+    btn.disabled = false; btn.textContent = 'Start scan';
+    return;
+  }
+
+  // Poll the task every 2 seconds
+  if (_scanPollTimer) clearInterval(_scanPollTimer);
+  _scanPollTimer = setInterval(async () => {
+    try {
+      const r = await api('/scan/' + task_id);
+      const t = await r.json();
+      log.textContent = `Status: ${t.status}\nLocation: ${t.location}\nLive mode: ${t.live}\nLimit: ${t.limit}\n\n` +
+        (t.stdout_tail ? '── stdout ──\n' + t.stdout_tail + '\n' : '') +
+        (t.stderr_tail ? '── stderr ──\n' + t.stderr_tail + '\n' : '');
+      log.scrollTop = log.scrollHeight;
+      if (t.status === 'succeeded' || t.status === 'failed') {
+        clearInterval(_scanPollTimer);
+        btn.disabled = false;
+        btn.textContent = 'Start another';
+        toast(t.status === 'succeeded' ? 'Scan complete ✓' : 'Scan failed ✗', t.status !== 'succeeded');
+        loadDashboard(); loadRuns();
+      }
+    } catch (e) {
+      log.textContent += '\nPoll error: ' + e.message;
+    }
+  }, 2000);
+}
+
+async function runSelftest() {
+  const m = document.getElementById('selftest-modal');
+  const log = document.getElementById('selftest-log');
+  const title = document.getElementById('selftest-title');
+  const sub = document.getElementById('selftest-sub');
+  m.classList.add('show');
+  log.textContent = 'running 49-check selftest (5-10s)…';
+  title.textContent = 'Selftest running…';
+  sub.textContent = '—';
+
+  try {
+    const r = await api('/selftest', {method: 'POST'});
+    const d = await r.json();
+    title.textContent = d.ok ? '✓ Selftest passed' : '✗ Selftest failed';
+    sub.textContent = `${d.passed}/${d.total} checks passed · ${d.failed} failed · exit ${d.exit_code}`;
+    log.textContent = d.tail || '(no output)';
+  } catch (e) {
+    title.textContent = '✗ Selftest error';
+    sub.textContent = e.message;
+  }
+}
+function closeSelftestModal() {
+  document.getElementById('selftest-modal').classList.remove('show');
+}
+
+async function viewSequences(runId) {
+  try {
+    const r = await api('/sequences/' + runId);
+    const d = await r.json();
+    if (!d.sequences || !d.sequences.length) { toast('No sequences in this run'); return; }
+    const w = window.open('', '_blank');
+    if (!w) { toast('Pop-up blocked — allow pop-ups', true); return; }
+    const html = `<!doctype html><html><head><title>Sequences · ${escHtml(runId)}</title>
+      <style>body{font-family:system-ui;background:#05070d;color:#e8edf5;padding:24px;line-height:1.5}
+      .seq{background:#0b0f1a;border:1px solid #1a2036;border-radius:10px;padding:18px;margin-bottom:18px}
+      .seq h2{margin:0 0 8px;font-size:15px;color:#5be7ff}
+      .touch{margin:14px 0;padding:14px;background:#11172a;border-radius:8px}
+      .touch h3{margin:0 0 8px;font-size:13px;color:#4df4a5}
+      .subj{color:#a389f4;font-weight:600;margin-bottom:6px}
+      pre{white-space:pre-wrap;font-family:inherit;font-size:13px;color:#c9d1d9;margin:0}</style></head>
+      <body><h1>Sequences for ${escHtml(runId)} (${d.sequences.length} prospects)</h1>` +
+      d.sequences.map(s => `
+        <div class="seq"><h2>${escHtml(s.business_name||'?')} · ${escHtml(s.to_email||'?')}</h2>
+        ${(s.touches||[]).map((t, i) => `
+          <div class="touch"><h3>Touch ${i+1} · day ${t.day}</h3>
+          <div class="subj">${escHtml(t.subject||'')}</div>
+          <pre>${escHtml(t.body||'')}</pre></div>`).join('')}
+        </div>`).join('') + '</body></html>';
+    w.document.write(html); w.document.close();
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+async function viewReport(runId) {
+  try {
+    const r = await api('/runs/' + runId);
+    const d = await r.json();
+    const w = window.open('', '_blank');
+    if (!w) { toast('Pop-up blocked — allow pop-ups', true); return; }
+    w.document.write(`<!doctype html><html><head><title>${escHtml(runId)}</title>
+      <style>body{font-family:system-ui;background:#05070d;color:#e8edf5;padding:24px;max-width:900px;margin:auto}
+      pre{white-space:pre-wrap;background:#0b0f1a;border:1px solid #1a2036;border-radius:8px;padding:18px}</style>
+      </head><body><h1>${escHtml(runId)}</h1><pre>${escHtml(d.report_md || '(no report)')}</pre></body></html>`);
+    w.document.close();
+  } catch (e) { toast('Failed: ' + e.message, true); }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+function escHtml(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
+function escAttr(s){return String(s??'').replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
+
+// Boot
+loadDashboard();
+loadRuns();
+</script>
+</body>
+</html>
