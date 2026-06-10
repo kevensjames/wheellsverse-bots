@@ -52,6 +52,7 @@ PRESETS: list[PresetSpec] = [
             "web_fetch",
             "web_search",
             "memory",
+            "kg_query",
             "mcp_filesystem__*",
             "mcp_git__*",
         ],
@@ -112,12 +113,15 @@ PRESETS: list[PresetSpec] = [
             "claim — link the URL when you have one. Prefer primary "
             "sources (papers, official docs, regulatory filings) over "
             "secondary (blog summaries, AI-generated articles). Flag "
-            "when you're synthesizing vs. quoting."
+            "when you're synthesizing vs. quoting. When the operator "
+            "mentions specific entities, check kg_query first for facts "
+            "KAI already knows."
         ),
         tool_whitelist=[
             "web_search",
             "web_fetch",
             "memory",
+            "kg_query",
         ],
     ),
     PresetSpec(

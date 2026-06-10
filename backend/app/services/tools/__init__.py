@@ -11,6 +11,7 @@ from app.services.tools.base import (
 )
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
+from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.registry import ToolRegistry
 from app.services.tools.trading_signal import TradingSignalTool
@@ -56,6 +57,10 @@ def build_default_registry(
     reg.register(TradingSignalTool())
     # No env key required — pure-Python fetch + trafilatura extraction
     reg.register(WebFetchTool())
+    # Knowledge graph — SQLite-backed, ships with the daemon. No env key.
+    # Always registered: the KG db auto-creates on first use, so the tool
+    # is functional from day one even with an empty graph.
+    reg.register(KGQueryTool())
 
     if include_composio:
         # Notion is the priority surface (Pattern A — dedicated tool).
@@ -88,6 +93,7 @@ def build_default_registry(
 
 __all__ = [
     "ComposioTool",
+    "KGQueryTool",
     "MemoryTool",
     "NotionTool",
     "Tool",
