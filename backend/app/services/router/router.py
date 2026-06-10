@@ -284,6 +284,31 @@ class Router:
             for tc in result.tool_calls:
                 tool_result = tool_registry.execute(tc.name, tc.arguments, tool_context)
                 tool_result.call_id = tc.id
+                # Auto-record tool failures so the next chat with a similar
+                # prompt can warn the user. Silent — never break the chat
+                # loop if the failure log itself fails to write.
+                if tool_result.is_error:
+                    try:
+                        from app.services.failure_memory import record_failure
+                        err_blob = tool_result.output if isinstance(
+                            tool_result.output, dict
+                        ) else {"error": str(tool_result.output)}
+                        record_failure(
+                            prompt=user_last,
+                            detail=str(err_blob.get("error", "")) or "tool returned error",
+                            category="tool_error",
+                            tool_name=tc.name,
+                            user_id=str(user_id),
+                            context={
+                                "arguments": _safe_args(tc.arguments),
+                                "adapter": adapter.name,
+                                "model": adapter.model,
+                            },
+                        )
+                    except Exception as fm_err:
+                        logger.warning(
+                            "failure_memory: record_failure swallowed: %s", fm_err,
+                        )
                 msgs.append(
                     {
                         "role": "tool",
@@ -298,3 +323,23 @@ class Router:
             f"last response had "
             f"{len(last_result.tool_calls) if last_result else 0} tool calls"
         )
+
+
+def _safe_args(arguments) -> dict:
+    """Strip secrets + truncate long values before logging tool arguments
+    to the failure log. Mirrors the redaction the governance audit log does,
+    so this can't accidentally land an API key in a grep-able file."""
+    SECRET_KEY_PATTERNS = (
+        "password", "secret", "token", "api_key", "apikey", "auth",
+        "x-admin-token", "cookie", "bearer",
+    )
+    if not isinstance(arguments, dict):
+        return {"_raw": str(arguments)[:200]}
+    out = {}
+    for k, v in arguments.items():
+        if any(p in str(k).lower() for p in SECRET_KEY_PATTERNS):
+            out[k] = "<redacted>"
+            continue
+        s = str(v)
+        out[k] = s if len(s) <= 300 else s[:300] + f"… ({len(s)} chars)"
+    return out

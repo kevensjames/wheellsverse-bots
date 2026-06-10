@@ -11,6 +11,7 @@ from app.services.tools.base import (
 )
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
+from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.registry import ToolRegistry
@@ -61,6 +62,9 @@ def build_default_registry(
     # Always registered: the KG db auto-creates on first use, so the tool
     # is functional from day one even with an empty graph.
     reg.register(KGQueryTool())
+    # Failure log — JSONL-backed, ships with the daemon. KAI can look up
+    # similar past failures to avoid repeating them.
+    reg.register(FailureLookupTool())
 
     if include_composio:
         # Notion is the priority surface (Pattern A — dedicated tool).
@@ -93,6 +97,7 @@ def build_default_registry(
 
 __all__ = [
     "ComposioTool",
+    "FailureLookupTool",
     "KGQueryTool",
     "MemoryTool",
     "NotionTool",

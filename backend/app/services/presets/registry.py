@@ -53,6 +53,7 @@ PRESETS: list[PresetSpec] = [
             "web_search",
             "memory",
             "kg_query",
+            "failure_lookup",
             "mcp_filesystem__*",
             "mcp_git__*",
         ],
