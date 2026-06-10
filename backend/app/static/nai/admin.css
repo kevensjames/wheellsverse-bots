@@ -312,3 +312,50 @@
   color: #ff6b6b; font-size: 12px;
   margin: 8px 0 0; min-height: 16px;
 }
+
+/* KG triple-add form — three side-by-side inputs that wrap on narrow screens */
+.kg-triple-row {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.kg-triple-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Research / Failures tab panels — score chips reuse the severity palette */
+.severity-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.severity-chip.high   { background: rgba(255, 107, 107, .18); color: #ff6b6b; }
+.severity-chip.medium { background: rgba(255, 196, 0, .18);   color: #ffc400; }
+.severity-chip.low    { background: rgba(79, 140, 255, .15);  color: #4f8cff; }
+.severity-chip.none   { background: rgba(138, 144, 156, .15); color: #8a909c; }
+
+.research-item-row,
+.failure-item-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #242630);
+  font-size: 12px;
+}
+.research-item-row:last-child,
+.failure-item-row:last-child {
+  border-bottom: 0;
+}
+.research-item-row a {
+  color: var(--accent, #4f8cff);
+  text-decoration: none;
+}
+.research-item-row a:hover { text-decoration: underline; }
+.research-item-source {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted, #8a909c);
+  letter-spacing: 0.6px;
+  margin-right: 6px;
+}

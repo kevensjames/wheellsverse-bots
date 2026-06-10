@@ -6,7 +6,7 @@
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1780979464" />
-  <link rel="stylesheet" href="admin.css?v=ts-1781045332" />
+  <link rel="stylesheet" href="admin.css?v=ts-1781064848" />
 </head>
 <body>
   <main class="admin-main">
@@ -17,6 +17,9 @@
         <button type="button" class="admin-tab" data-tab="chat">Chat with KAI</button>
         <button type="button" class="admin-tab" data-tab="scanner">Scanner</button>
         <button type="button" class="admin-tab" data-tab="brief">Brief</button>
+        <button type="button" class="admin-tab" data-tab="kg">Knowledge</button>
+        <button type="button" class="admin-tab" data-tab="failures">Failures</button>
+        <button type="button" class="admin-tab" data-tab="research">Research</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -226,9 +229,138 @@
           </table>
         </div>
       </div><!-- /admin-pane-brief -->
+
+      <!-- ─── Knowledge Graph tab ─── -->
+      <div id="admin-pane-kg" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Knowledge Graph · what KAI knows about your world</h2>
+            <div class="admin-chat-tools">
+              <span id="kg-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="kg-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            SQLite-backed entity + relation store. Teach KAI a triple via
+            the form below, or via chat: "remember that Jhon owns KAI"
+            (use the SWE preset — its <code>kg_query</code> tool surfaces facts).
+          </p>
+        </div>
+
+        <div class="admin-grid admin-grid-3">
+          <div class="admin-card">
+            <h2>Entities</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="kg-entity-count">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Relations</h2>
+            <div class="admin-stat-row"><span>distinct</span><strong id="kg-relation-count">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Edges</h2>
+            <div class="admin-stat-row"><span>by relation</span><strong id="kg-edge-count">—</strong></div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Teach KAI a new triple</h2>
+          <form id="kg-add-form" class="admin-chat-form">
+            <div class="admin-chat-send-row kg-triple-row">
+              <input type="text" id="kg-src" placeholder="entity (e.g. Jhon)" class="admin-token-input kg-triple-input" />
+              <input type="text" id="kg-rel" placeholder="relation (e.g. owns)" class="admin-token-input kg-triple-input" />
+              <input type="text" id="kg-dst" placeholder="entity (e.g. KAI)" class="admin-token-input kg-triple-input" />
+              <button type="submit" class="admin-btn admin-btn-primary">add (auto-approved)</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-card">
+          <h2>Edges by relation</h2>
+          <table class="admin-table" id="kg-relations-table">
+            <thead><tr><th>relation</th><th>count</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-kg -->
+
+      <!-- ─── Failures tab ─── -->
+      <div id="admin-pane-failures" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Failure log · what KAI has tried and broken</h2>
+            <div class="admin-chat-tools">
+              <span id="failures-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="failures-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Tool errors during chat are auto-recorded here, then surfaced
+            into the next chat's system prompt when a similar prompt comes
+            in. KAI's <code>failure_lookup</code> tool also queries this log.
+          </p>
+        </div>
+
+        <div class="admin-grid admin-grid-3">
+          <div class="admin-card">
+            <h2>Recent (24h)</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="failures-total">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>By category</h2>
+            <div id="failures-by-cat" class="admin-stat-row admin-stat-tiers"></div>
+          </div>
+          <div class="admin-card">
+            <h2>Top failing tools</h2>
+            <div id="failures-by-tool"></div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent failures</h2>
+          <table class="admin-table" id="failures-table">
+            <thead><tr><th>when</th><th>category</th><th>tool</th><th>prompt</th><th>detail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-failures -->
+
+      <!-- ─── Research tab ─── -->
+      <div id="admin-pane-research" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Continuous Research · daily HN+arXiv+GitHub scan</h2>
+            <div class="admin-chat-tools">
+              <span id="research-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="research-run-now" class="admin-btn admin-btn-primary">run now</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Polls HN top + arXiv cs.AI + GitHub trending daily, scores
+            against <code>KAI_RESEARCH_INTERESTS</code>, persists digests.
+            Telegram alerts on HIGH-relevance items.
+          </p>
+        </div>
+
+        <div class="admin-card" id="research-latest-card" hidden>
+          <h2>Latest digest</h2>
+          <div id="research-latest-meta" class="admin-stat-row">
+            <span>generated</span><strong id="research-latest-ts">—</strong>
+          </div>
+          <div id="research-severity-row" class="admin-stat-row admin-stat-tiers"></div>
+          <div id="research-items"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent digests</h2>
+          <table class="admin-table" id="research-history-table">
+            <thead><tr><th>when</th><th>fetched</th><th>severity counts</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-research -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781045380" defer></script>
+  <script src="admin.js?v=ts-1781065005" defer></script>
 </body>
 </html>

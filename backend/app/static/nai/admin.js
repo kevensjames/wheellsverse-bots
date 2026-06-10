@@ -38,6 +38,32 @@ async function apiGet(path) {
   return r.json();
 }
 
+// Mirror of apiGet for POSTs. Pass an object as `body`; gets JSON-encoded.
+// Pass null/undefined for no-body POSTs (e.g. /admin/research/run-now).
+async function apiPost(path, body) {
+  const init = {
+    method: "POST",
+    headers: { "X-Admin-Token": getToken() },
+  };
+  if (body !== null && body !== undefined) {
+    init.headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(body);
+  }
+  const r = await fetch(path, init);
+  if (r.status === 403 || r.status === 401) {
+    throw new AuthError(`auth rejected (${r.status})`);
+  }
+  if (!r.ok) {
+    let detail = "";
+    try {
+      const j = await r.json();
+      detail = j.detail ? `: ${j.detail}` : "";
+    } catch (_) { /* non-JSON body — ignore */ }
+    throw new Error(`${path} returned ${r.status}${detail}`);
+  }
+  return r.json();
+}
+
 class AuthError extends Error {}
 
 function fmtUSD(n) {
@@ -224,6 +250,14 @@ function activateTab(name) {
   } else if (name === "brief") {
     // Audit table fetches immediately; brief body waits for user click.
     loadBriefAudit();
+  } else if (name === "kg") {
+    loadKgStats();
+  } else if (name === "failures") {
+    loadFailures();
+  } else if (name === "research") {
+    loadResearchStatus();
+    loadResearchLatest();
+    loadResearchHistory();
   }
 }
 
@@ -361,6 +395,283 @@ async function loadPresets() {
       showAuth("Token rejected.");
     }
   }
+}
+
+// ─── knowledge graph ──────────────────────────────────────────────
+
+async function loadKgStats() {
+  const line = $("#kg-status-line");
+  try {
+    if (line) line.textContent = "loading…";
+    const stats = await apiGet("/admin/kg/stats");
+    setText("kg-entity-count", stats.entity_count);
+    setText("kg-relation-count", stats.relation_count_distinct);
+    const totalEdges = (stats.edge_count_by_relation || [])
+      .reduce((sum, r) => sum + (r.count || 0), 0);
+    setText("kg-edge-count", totalEdges);
+
+    const tbody = $("#kg-relations-table tbody");
+    if (tbody) {
+      tbody.replaceChildren();
+      for (const row of stats.edge_count_by_relation || []) {
+        const tr = document.createElement("tr");
+        tr.appendChild(td(row.relation));
+        tr.appendChild(td(String(row.count)));
+        tbody.appendChild(tr);
+      }
+      if (!(stats.edge_count_by_relation || []).length) {
+        const tr = document.createElement("tr");
+        const cell = td("KG is empty — teach KAI a triple above, or via chat.");
+        cell.colSpan = 2;
+        cell.classList.add("admin-hint");
+        tr.appendChild(cell);
+        tbody.appendChild(tr);
+      }
+    }
+    if (line) line.textContent = "up-to-date";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function addKgTriple(ev) {
+  ev.preventDefault();
+  const src = ($("#kg-src").value || "").trim();
+  const rel = ($("#kg-rel").value || "").trim();
+  const dst = ($("#kg-dst").value || "").trim();
+  if (!src || !rel || !dst) return;
+  const line = $("#kg-status-line");
+  try {
+    if (line) line.textContent = `adding (${src} ${rel} ${dst})…`;
+    await apiPost("/admin/kg/add-edge", {
+      src, relation: rel, dst, approved: true,
+    });
+    $("#kg-src").value = ""; $("#kg-rel").value = ""; $("#kg-dst").value = "";
+    if (line) line.textContent = "triple added";
+    loadKgStats();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+// ─── failures ──────────────────────────────────────────────────────
+
+async function loadFailures() {
+  const line = $("#failures-status-line");
+  try {
+    if (line) line.textContent = "loading…";
+    const [stats, recent] = await Promise.all([
+      apiGet("/admin/failures/stats"),
+      apiGet("/admin/failures/recent?limit=30"),
+    ]);
+    setText("failures-total", stats.total_recent);
+
+    const catBox = $("#failures-by-cat");
+    if (catBox) {
+      catBox.replaceChildren();
+      for (const [cat, n] of Object.entries(stats.by_category || {})) {
+        const chip = document.createElement("span");
+        chip.className = "severity-chip low";
+        chip.textContent = `${cat}: ${n}`;
+        catBox.appendChild(chip);
+      }
+      if (!Object.keys(stats.by_category || {}).length) {
+        catBox.textContent = "no failures recorded";
+      }
+    }
+
+    const toolBox = $("#failures-by-tool");
+    if (toolBox) {
+      toolBox.replaceChildren();
+      for (const [tool, n] of Object.entries(stats.by_tool || {})) {
+        const row = document.createElement("div");
+        row.className = "admin-stat-row";
+        const a = document.createElement("span"); a.textContent = tool;
+        const b = document.createElement("strong"); b.textContent = String(n);
+        row.appendChild(a); row.appendChild(b);
+        toolBox.appendChild(row);
+      }
+    }
+
+    const tbody = $("#failures-table tbody");
+    if (tbody) {
+      tbody.replaceChildren();
+      for (const f of recent.failures || []) {
+        const tr = document.createElement("tr");
+        tr.appendChild(td((f.when || "").replace("T", " ").slice(0, 19)));
+        tr.appendChild(td(f.category || ""));
+        tr.appendChild(td(f.tool_name || "—"));
+        tr.appendChild(td(truncate(f.prompt || "", 80)));
+        tr.appendChild(td(truncate(f.detail || "", 120)));
+        tbody.appendChild(tr);
+      }
+      if (!(recent.failures || []).length) {
+        const tr = document.createElement("tr");
+        const c = td("no failures recorded — KAI hasn't broken anything yet");
+        c.colSpan = 5; c.classList.add("admin-hint");
+        tr.appendChild(c);
+        tbody.appendChild(tr);
+      }
+    }
+    if (line) line.textContent = "up-to-date";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+// ─── research ──────────────────────────────────────────────────────
+
+async function loadResearchStatus() {
+  const line = $("#research-status-line");
+  try {
+    const s = await apiGet("/admin/research/status");
+    const bits = [
+      s.scheduler_running ? "scheduler: on" : "scheduler: off",
+      `${(s.interests || []).length} interests`,
+      s.telegram_enabled ? "telegram: on" : "telegram: off",
+    ];
+    if (line) line.textContent = bits.join(" · ");
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function loadResearchLatest() {
+  try {
+    const data = await apiGet("/admin/research/latest");
+    renderResearchLatest(data.digest);
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+async function loadResearchHistory() {
+  try {
+    const data = await apiGet("/admin/research/digests?limit=20");
+    renderResearchHistory(data.digests || []);
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+function renderResearchLatest(digest) {
+  const card = $("#research-latest-card");
+  if (!digest) {
+    if (card) card.hidden = true;
+    return;
+  }
+  if (card) card.hidden = false;
+
+  setText("research-latest-ts",
+    (digest.generated_at || "").replace("T", " ").slice(0, 19) + " UTC");
+
+  const sev = $("#research-severity-row");
+  if (sev) {
+    sev.replaceChildren();
+    for (const k of ["high", "medium", "low", "none"]) {
+      const n = (digest.severity_counts || {})[k] || 0;
+      const chip = document.createElement("span");
+      chip.className = `severity-chip ${k}`;
+      chip.textContent = `${k}: ${n}`;
+      sev.appendChild(chip);
+    }
+  }
+
+  const box = $("#research-items");
+  if (box) {
+    box.replaceChildren();
+    let printed = 0;
+    for (const src of ["hn", "arxiv", "gh_trending"]) {
+      const items = (digest.top_by_source || {})[src] || [];
+      for (const it of items) {
+        const row = document.createElement("div");
+        row.className = "research-item-row";
+        const srcBadge = document.createElement("span");
+        srcBadge.className = "research-item-source";
+        srcBadge.textContent = src;
+        const sevBadge = document.createElement("span");
+        sevBadge.className = `severity-chip ${it.severity || "none"}`;
+        sevBadge.textContent = (it.score ?? 0).toFixed(2);
+        const link = document.createElement("a");
+        link.href = it.url || "#"; link.target = "_blank"; link.rel = "noopener";
+        link.textContent = it.title || "(untitled)";
+        row.appendChild(srcBadge);
+        row.appendChild(sevBadge);
+        row.appendChild(document.createTextNode(" "));
+        row.appendChild(link);
+        if (it.summary) {
+          const s = document.createElement("div");
+          s.style.color = "var(--muted, #8a909c)";
+          s.style.fontSize = "11px";
+          s.style.marginTop = "2px";
+          s.textContent = truncate(it.summary, 200);
+          row.appendChild(s);
+        }
+        box.appendChild(row);
+        printed++;
+      }
+    }
+    if (printed === 0) {
+      box.textContent = "no items in this digest";
+    }
+  }
+}
+
+function renderResearchHistory(digests) {
+  const tbody = $("#research-history-table tbody");
+  if (!tbody) return;
+  tbody.replaceChildren();
+  for (const d of digests) {
+    const tr = document.createElement("tr");
+    tr.appendChild(td((d.generated_at || "").replace("T", " ").slice(0, 19)));
+    tr.appendChild(td(String(d.total_items_fetched ?? 0)));
+    const counts = d.severity_counts || {};
+    const bits = ["high", "medium", "low"]
+      .map(k => `${k}: ${counts[k] ?? 0}`)
+      .join(" · ");
+    tr.appendChild(td(bits));
+    tbody.appendChild(tr);
+  }
+  if (!digests.length) {
+    const tr = document.createElement("tr");
+    const c = td("no digests yet — click 'run now' to generate one");
+    c.colSpan = 3; c.classList.add("admin-hint");
+    tr.appendChild(c);
+    tbody.appendChild(tr);
+  }
+}
+
+async function runResearchNow() {
+  const btn = $("#research-run-now");
+  const line = $("#research-status-line");
+  try {
+    if (btn) btn.disabled = true;
+    if (line) line.textContent = "running cycle (fetching HN+arXiv+GH)…";
+    const result = await apiPost("/admin/research/run-now", {});
+    if (line) {
+      line.textContent =
+        `cycle ${result.id} · fetched ${result.total_items_fetched} · ` +
+        `high ${result.high_count}`;
+    }
+    loadResearchLatest();
+    loadResearchHistory();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+// Tiny helper only the new tabs use. `td()` and `setText()` already
+// exist above; we reuse those.
+function truncate(s, n) {
+  if (!s) return "";
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
 }
 
 // ─── supreme scanner ───────────────────────────────────────────────
@@ -759,6 +1070,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Daily Brief
   $("#brief-generate-now").addEventListener("click", generateBrief);
+
+  // Knowledge graph
+  const kgRefresh = $("#kg-refresh");
+  if (kgRefresh) kgRefresh.addEventListener("click", loadKgStats);
+  const kgForm = $("#kg-add-form");
+  if (kgForm) kgForm.addEventListener("submit", addKgTriple);
+
+  // Failures
+  const failRefresh = $("#failures-refresh");
+  if (failRefresh) failRefresh.addEventListener("click", loadFailures);
+
+  // Research
+  const researchRun = $("#research-run-now");
+  if (researchRun) researchRun.addEventListener("click", runResearchNow);
 
   if (getToken()) {
     refresh();
