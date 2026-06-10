@@ -258,6 +258,8 @@ function activateTab(name) {
     loadResearchStatus();
     loadResearchLatest();
     loadResearchHistory();
+  } else if (name === "self-correction") {
+    loadSelfCorrection();
   }
 }
 
@@ -267,6 +269,7 @@ let adminConversationId = null;
 
 async function adminChatPost(message) {
   const presetSel = $("#admin-preset-select");
+  const selfCorrect = $("#admin-self-correct");
   const body = {
     message,
     conversation_id: adminConversationId,
@@ -274,6 +277,7 @@ async function adminChatPost(message) {
     prefer_local: $("#admin-prefer-local").checked,
     max_tokens: 2048,
     preset_id: presetSel && presetSel.value ? presetSel.value : null,
+    self_correct: !!(selfCorrect && selfCorrect.checked),
   };
   const r = await fetch("/admin/kai-chat", {
     method: "POST",
@@ -336,11 +340,13 @@ async function sendChat(e) {
     const resp = await adminChatPost(text);
     adminConversationId = resp.conversation_id;
     const msg = resp.message || {};
+    const sc = resp.self_correction;
     const meta = [
       resp.preset_id && `preset=${resp.preset_id}`,
       msg.adapter && `adapter=${msg.adapter}`,
       msg.model && `model=${msg.model}`,
       typeof resp.total_cost_usd === "number" && `cost=$${resp.total_cost_usd.toFixed(4)}`,
+      sc && `self-corrected: iters=${sc.iterations}${sc.was_revised ? " ✎revised" : ""} sev=${sc.final_severity}`,
     ].filter(Boolean).join(" · ");
     appendChatMessage("assistant", msg.content || "(empty response)", meta);
     setChatStatus("");
@@ -672,6 +678,67 @@ async function runResearchNow() {
 function truncate(s, n) {
   if (!s) return "";
   return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+// ─── self-correction ──────────────────────────────────────────────
+
+async function loadSelfCorrection() {
+  const line = $("#sc-status-line");
+  try {
+    if (line) line.textContent = "loading…";
+    const [stats, events] = await Promise.all([
+      apiGet("/admin/self-correction/stats"),
+      apiGet("/admin/self-correction/events?limit=30"),
+    ]);
+    setText("sc-total", stats.total_recent);
+    setText("sc-revisions", stats.revisions_applied);
+    setText("sc-avg-iters", stats.avg_iterations);
+    setText("sc-cost",
+      typeof stats.total_cost_usd === "number"
+        ? `$${stats.total_cost_usd.toFixed(4)}`
+        : "—");
+
+    const sevBox = $("#sc-by-severity");
+    if (sevBox) {
+      sevBox.replaceChildren();
+      const entries = Object.entries(stats.by_final_severity || {});
+      if (!entries.length) {
+        sevBox.textContent = "no events yet";
+      } else {
+        for (const [sev, n] of entries) {
+          const chip = document.createElement("span");
+          chip.className = `severity-chip ${sev === "critical" ? "high" : sev}`;
+          chip.textContent = `${sev}: ${n}`;
+          sevBox.appendChild(chip);
+        }
+      }
+    }
+
+    const tbody = $("#sc-events-table tbody");
+    if (tbody) {
+      tbody.replaceChildren();
+      for (const ev of events.events || []) {
+        const tr = document.createElement("tr");
+        tr.appendChild(td((ev.ts || "").replace("T", " ").slice(0, 19)));
+        tr.appendChild(td(String(ev.iterations ?? 0)));
+        tr.appendChild(td(ev.was_revised ? "✎ yes" : "—"));
+        tr.appendChild(td(ev.final_severity || "none"));
+        tr.appendChild(td(truncate(ev.user_message || "", 100)));
+        tbody.appendChild(tr);
+      }
+      if (!(events.events || []).length) {
+        const tr = document.createElement("tr");
+        const c = td("no events yet — opt in via the self-correct checkbox in chat");
+        c.colSpan = 5; c.classList.add("admin-hint");
+        tr.appendChild(c);
+        tbody.appendChild(tr);
+      }
+    }
+    if (line) line.textContent = "up-to-date";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
 }
 
 // ─── supreme scanner ───────────────────────────────────────────────
@@ -1084,6 +1151,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // Research
   const researchRun = $("#research-run-now");
   if (researchRun) researchRun.addEventListener("click", runResearchNow);
+
+  // Self-Correction
+  const scRefresh = $("#sc-refresh");
+  if (scRefresh) scRefresh.addEventListener("click", loadSelfCorrection);
 
   if (getToken()) {
     refresh();

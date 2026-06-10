@@ -129,6 +129,14 @@ class AdminChatRequest(BaseModel):
     # legal_research). When set, prepends a persona system prompt + filters
     # the tool registry to the preset's whitelist. None = bare KAI.
     preset_id: str | None = None
+    # Self-correction: opt-in critic + reviser pass on KAI's draft reply
+    # BEFORE the response is returned. Adds ~1-2 LLM calls per turn (~$0.001
+    # extra on the cheap critic + reviser path). Off by default to keep
+    # the cost predictable.
+    self_correct: bool = False
+    # Max critique-revise iterations when self_correct=True. Default 1
+    # (one critique + at most one revision). Hard-capped at 3.
+    self_correct_max_iterations: int = 1
 
 
 @router.post("/kai-chat")
@@ -185,11 +193,59 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
         logger.exception("admin chat failed")
         raise HTTPException(status_code=502, detail=f"chat error: {e}")
 
+    # ─── self-correction (opt-in) ────────────────────────────────────
+    # Critic + reviser pass on the draft reply. Adds 1-2 LLM calls;
+    # the critic uses the CHEAP adapter, the reviser reuses whatever
+    # produced the draft. Fail-open everywhere — a broken critic must
+    # never block a real reply.
+    correction_meta: dict | None = None
+    final_content = msg.content
+    if req.self_correct:
+        try:
+            from app.services.self_correction import run_correction_loop
+            router_obj = brain.router
+            adapters = getattr(router_obj, "adapters", {}) or {}
+            original_adapter = (
+                adapters.get(getattr(msg, "adapter", None))
+                or next(iter(adapters.values()), None)
+            )
+            corr = run_correction_loop(
+                user_message=req.message,
+                initial_draft=msg.content or "",
+                router=router_obj,
+                original_adapter=original_adapter,
+                max_iterations=req.self_correct_max_iterations,
+                prefer_local=req.prefer_local,
+            )
+            final_content = corr.final_text or msg.content
+            cost = (cost or 0.0) + (corr.total_cost or 0.0)
+            correction_meta = {
+                "iterations": corr.iterations,
+                "was_revised": corr.was_revised,
+                "final_severity": (
+                    corr.verdicts[-1].severity if corr.verdicts else "none"
+                ),
+                "critic_cost_usd": round(corr.total_cost, 6),
+            }
+            # If revised, persist the corrected text back to the saved message
+            # so the conversation history reflects what the operator actually
+            # saw, not the pre-revision draft.
+            if corr.was_revised and msg.content != final_content:
+                msg.content = final_content
+                try:
+                    session.commit()
+                except Exception as e:
+                    logger.warning("self_correction: persist revised text failed: %s", e)
+                    session.rollback()
+        except Exception as e:
+            # Hard-fail-open: log + return the original draft.
+            logger.warning("self_correction: loop crashed, returning draft: %s", e)
+
     return {
         "conversation_id": str(conv.id),
         "message": {
             "role": msg.role,
-            "content": msg.content,
+            "content": final_content,
             "adapter": getattr(msg, "adapter", None),
             "model": getattr(msg, "model", None),
         },
@@ -197,4 +253,7 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
         # Surface the preset id back so the dashboard can show
         # "preset=swe" in the response meta line for confirmation.
         "preset_id": preset_id_used,
+        # Set only when self_correct=True. None otherwise so existing
+        # clients that don't look for it are unaffected.
+        "self_correction": correction_meta,
     }

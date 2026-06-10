@@ -20,6 +20,7 @@
         <button type="button" class="admin-tab" data-tab="kg">Knowledge</button>
         <button type="button" class="admin-tab" data-tab="failures">Failures</button>
         <button type="button" class="admin-tab" data-tab="research">Research</button>
+        <button type="button" class="admin-tab" data-tab="self-correction">Self-Correction</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -109,6 +110,9 @@
               </label>
               <label title="Disable tool use (faster, no side effects)">
                 <input type="checkbox" id="admin-no-tools"> no tools
+              </label>
+              <label title="Self-correction: critic + reviser pass before reply (~+$0.001)">
+                <input type="checkbox" id="admin-self-correct"> self-correct
               </label>
               <button type="button" id="admin-chat-new" class="admin-btn">new chat</button>
             </div>
@@ -358,9 +362,52 @@
           </table>
         </div>
       </div><!-- /admin-pane-research -->
+
+      <!-- ─── Self-Correction tab ─── -->
+      <div id="admin-pane-self-correction" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Self-Correction · KAI judges its own work</h2>
+            <div class="admin-chat-tools">
+              <span id="sc-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="sc-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Opt in per chat via the "self-correct" checkbox above the chat
+            input. Adds a critic + reviser pass before reply (~+$0.001).
+            Every event logged here for audit.
+          </p>
+        </div>
+
+        <div class="admin-grid admin-grid-3">
+          <div class="admin-card">
+            <h2>Recent corrections</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="sc-total">—</strong></div>
+            <div class="admin-stat-row"><span>revisions applied</span><strong id="sc-revisions">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Avg iterations</h2>
+            <div class="admin-stat-row"><span>per turn</span><strong id="sc-avg-iters">—</strong></div>
+            <div class="admin-stat-row"><span>critic spend</span><strong id="sc-cost">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>By final severity</h2>
+            <div id="sc-by-severity" class="admin-stat-row admin-stat-tiers"></div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent events</h2>
+          <table class="admin-table" id="sc-events-table">
+            <thead><tr><th>when</th><th>iters</th><th>revised</th><th>severity</th><th>user prompt</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-self-correction -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781065005" defer></script>
+  <script src="admin.js?v=ts-1781066219" defer></script>
 </body>
 </html>
