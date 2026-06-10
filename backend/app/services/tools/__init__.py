@@ -14,6 +14,7 @@ from app.services.tools.composio_notion import NotionTool
 from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.memory_tool import MemoryTool
+from app.services.tools.plan_query import PlanQueryTool
 from app.services.tools.registry import ToolRegistry
 from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.web_fetch import WebFetchTool
@@ -65,6 +66,9 @@ def build_default_registry(
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up
     # similar past failures to avoid repeating them.
     reg.register(FailureLookupTool())
+    # Long-term plans — SQLite-backed, ships with the daemon. READ-ONLY tool;
+    # plan creation/execution goes through the audited admin endpoints.
+    reg.register(PlanQueryTool())
 
     if include_composio:
         # Notion is the priority surface (Pattern A — dedicated tool).
@@ -101,6 +105,7 @@ __all__ = [
     "KGQueryTool",
     "MemoryTool",
     "NotionTool",
+    "PlanQueryTool",
     "Tool",
     "ToolCall",
     "ToolContext",

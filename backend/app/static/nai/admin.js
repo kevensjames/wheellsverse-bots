@@ -260,6 +260,8 @@ function activateTab(name) {
     loadResearchHistory();
   } else if (name === "self-correction") {
     loadSelfCorrection();
+  } else if (name === "planning") {
+    loadPlanning();
   }
 }
 
@@ -1096,6 +1098,265 @@ async function runSupremeScan() {
   }
 }
 
+// ─── planning ──────────────────────────────────────────────────────
+
+let planningSelectedId = null;
+
+async function loadPlanning() {
+  await Promise.all([loadPlanningStats(), loadPlanningList()]);
+  if (planningSelectedId) loadPlanningDetail(planningSelectedId);
+}
+
+async function loadPlanningStats() {
+  const line = $("#planning-status-line");
+  try {
+    const s = await apiGet("/admin/planning/stats");
+    if (line) {
+      line.textContent =
+        `${s.total} plan(s) · ${s.active} active · ${s.blocked} blocked · ${s.done} done`;
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function loadPlanningList() {
+  const tbody = $("#planning-list-table tbody");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/planning/list?limit=100");
+    tbody.replaceChildren();
+    for (const p of data.plans || []) {
+      const tr = document.createElement("tr");
+      tr.className = "admin-row-clickable";
+      if (p.id === planningSelectedId) tr.classList.add("is-active");
+      tr.appendChild(td(`#${p.id}`));
+      tr.appendChild(td(truncate(p.title, 48)));
+      const stc = td(""); stc.appendChild(planStatusChip(p.status)); tr.appendChild(stc);
+      tr.addEventListener("click", () => selectPlan(p.id));
+      tbody.appendChild(tr);
+    }
+    if (!(data.plans || []).length) {
+      const tr = document.createElement("tr");
+      const c = td("no plans yet — propose one above");
+      c.colSpan = 3; c.classList.add("admin-hint");
+      tr.appendChild(c); tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+function selectPlan(id) {
+  planningSelectedId = id;
+  loadPlanningList();          // re-highlight the selected row
+  loadPlanningDetail(id);
+}
+
+async function loadPlanningDetail(id) {
+  const box = $("#planning-detail");
+  if (!box) return;
+  try {
+    const data = await apiGet(`/admin/planning/${id}`);
+    renderPlanDetail(box, data.plan, data.recent_runs || []);
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    box.replaceChildren();
+    const h = document.createElement("p");
+    h.className = "admin-hint"; h.textContent = `error: ${e.message}`;
+    box.appendChild(h);
+  }
+}
+
+function renderPlanDetail(box, plan, runs) {
+  box.replaceChildren();
+  const h = document.createElement("h2");
+  h.textContent = `#${plan.id} ${plan.title}`;
+  box.appendChild(h);
+  const statusP = document.createElement("p");
+  statusP.appendChild(planStatusChip(plan.status));
+  box.appendChild(statusP);
+
+  const actions = document.createElement("div");
+  actions.className = "admin-chat-tools";
+  const canApprove = plan.status === "draft" || plan.status === "blocked";
+  const canExecute = plan.status === "approved" || plan.status === "executing";
+  const canRevise = plan.status === "blocked";
+  actions.appendChild(planActionBtn("Approve", canApprove, () => doPlanAction(plan.id, "approve")));
+  actions.appendChild(planActionBtn("Execute next step", canExecute, () => doPlanAction(plan.id, "execute-next")));
+  actions.appendChild(planActionBtn("Propose revision", canRevise, () => doPlanRevise(plan.id)));
+  box.appendChild(actions);
+
+  const stepTbl = document.createElement("table");
+  stepTbl.className = "admin-table";
+  stepTbl.appendChild(tableHead(["#", "action", "kind", "status", "branch"]));
+  const sb = document.createElement("tbody");
+  for (const s of plan.steps || []) {
+    const tr = document.createElement("tr");
+    tr.appendChild(td(String(s.seq)));
+    tr.appendChild(td(s.action));
+    tr.appendChild(td(s.kind + (s.tool_name ? `:${s.tool_name}` : "")));
+    const stc = td(""); stc.appendChild(stepStatusChip(s.status)); tr.appendChild(stc);
+    const branch = s.on_fail ? `fail→${s.on_fail}` : (s.on_done ? `done→${s.on_done}` : "—");
+    tr.appendChild(td(branch));
+    sb.appendChild(tr);
+  }
+  stepTbl.appendChild(sb);
+  box.appendChild(stepTbl);
+
+  if (runs.length) {
+    const rh = document.createElement("h2"); rh.textContent = "Run history";
+    box.appendChild(rh);
+    const rt = document.createElement("table"); rt.className = "admin-table";
+    rt.appendChild(tableHead(["step", "status", "output / error"]));
+    const rb = document.createElement("tbody");
+    for (const r of runs) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(`#${r.seq}`));
+      tr.appendChild(td(r.status));
+      tr.appendChild(td(truncate(r.error || r.output || "", 140)));
+      rb.appendChild(tr);
+    }
+    rt.appendChild(rb); box.appendChild(rt);
+  }
+
+  const rev = document.createElement("div");
+  rev.id = "planning-revision"; box.appendChild(rev);
+}
+
+function planActionBtn(label, enabled, handler) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "admin-btn"; b.textContent = label;
+  b.disabled = !enabled;
+  if (enabled) b.addEventListener("click", handler);
+  return b;
+}
+
+async function doPlanAction(id, action) {
+  const line = $("#planning-status-line");
+  try {
+    if (line) line.textContent = `${action}…`;
+    const out = await apiPost(`/admin/planning/${id}/${action}`, { approved: true });
+    if (action === "execute-next" && out.result && line) {
+      line.textContent = out.result.note || "step run";
+    }
+    await loadPlanningStats();
+    await loadPlanningList();
+    loadPlanningDetail(id);
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function doPlanRevise(id) {
+  const line = $("#planning-status-line");
+  try {
+    if (line) line.textContent = "proposing revision…";
+    const out = await apiPost(`/admin/planning/${id}/revise`, { approved: true });
+    renderRevisionProposal(out);
+    if (line) line.textContent = "revision proposed — review below";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+function renderRevisionProposal(out) {
+  const box = $("#planning-revision");
+  if (!box) return;
+  box.replaceChildren();
+  const h = document.createElement("h2"); h.textContent = "Proposed revision";
+  box.appendChild(h);
+  const d = document.createElement("p");
+  d.className = "admin-hint"; d.textContent = out.diagnosis || "";
+  box.appendChild(d);
+  const ol = document.createElement("ol");
+  for (const s of out.proposed_steps || []) {
+    const li = document.createElement("li"); li.textContent = s.action;
+    ol.appendChild(li);
+  }
+  box.appendChild(ol);
+  if ((out.proposed_steps || []).length) {
+    const apply = document.createElement("button");
+    apply.type = "button"; apply.className = "admin-btn";
+    apply.textContent = "Apply revision (replace steps)";
+    apply.addEventListener("click", () => applyRevision(out.plan_id, out.proposed_steps));
+    box.appendChild(apply);
+  }
+}
+
+async function applyRevision(id, steps) {
+  const line = $("#planning-status-line");
+  try {
+    await apiPost(`/admin/planning/${id}/steps`, { steps, approved: true });
+    await loadPlanningList();
+    loadPlanningDetail(id);
+    if (line) line.textContent = "revision applied — re-approve to run";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function createPlan(ev) {
+  if (ev) ev.preventDefault();
+  const goal = ($("#planning-goal").value || "").trim();
+  const title = ($("#planning-title").value || "").trim();
+  const line = $("#planning-status-line");
+  if (!goal) { if (line) line.textContent = "enter a goal first"; return; }
+  const btn = $("#planning-create-btn");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "proposing…"; }
+    const out = await apiPost("/admin/planning/create", {
+      goal, title: title || null, approved: true,
+    });
+    $("#planning-goal").value = ""; $("#planning-title").value = "";
+    await loadPlanningStats();
+    await loadPlanningList();
+    if (out.plan && out.plan.id) selectPlan(out.plan.id);
+    if (line) {
+      line.textContent =
+        `plan #${out.plan.id} drafted (${(out.plan.steps || []).length} steps) — review & approve`;
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
+function planStatusChip(status) {
+  const span = document.createElement("span");
+  span.className = `severity-chip plan-${status}`;
+  span.textContent = status;
+  return span;
+}
+
+function stepStatusChip(status) {
+  const span = document.createElement("span");
+  span.className = `severity-chip step-${status}`;
+  span.textContent = status;
+  return span;
+}
+
+// Build a <thead> from column labels using textContent (no innerHTML) so the
+// dashboard stays XSS-safe by construction.
+function tableHead(cols) {
+  const thead = document.createElement("thead");
+  const tr = document.createElement("tr");
+  for (const c of cols) {
+    const th = document.createElement("th");
+    th.textContent = c;
+    tr.appendChild(th);
+  }
+  thead.appendChild(tr);
+  return thead;
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1155,6 +1416,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Self-Correction
   const scRefresh = $("#sc-refresh");
   if (scRefresh) scRefresh.addEventListener("click", loadSelfCorrection);
+
+  // Planning
+  const planRefresh = $("#planning-refresh");
+  if (planRefresh) planRefresh.addEventListener("click", loadPlanning);
+  const planForm = $("#planning-create-form");
+  if (planForm) planForm.addEventListener("submit", createPlan);
 
   if (getToken()) {
     refresh();
