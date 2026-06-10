@@ -1,6 +1,7 @@
 import logging
 import os
 
+from app.services.browser.config import browser_enabled as _browser_enabled
 from app.services.tools.base import (
     Tool,
     ToolCall,
@@ -9,6 +10,7 @@ from app.services.tools.base import (
     ToolLoopExceededError,
     ToolResult,
 )
+from app.services.tools.browser_tool import BrowserTool
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
 from app.services.tools.failure_lookup import FailureLookupTool
@@ -69,6 +71,16 @@ def build_default_registry(
     # Long-term plans — SQLite-backed, ships with the daemon. READ-ONLY tool;
     # plan creation/execution goes through the audited admin endpoints.
     reg.register(PlanQueryTool())
+    # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
+    # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
+    # enforced inside the tool. No browser is launched unless this is on.
+    if _browser_enabled():
+        try:
+            reg.register(BrowserTool())
+        except RuntimeError as e:
+            logger.warning("tools: skipping browser — %s", e)
+    else:
+        logger.info("tools: browser skipped (KAI_BROWSER_ENABLED not set)")
 
     if include_composio:
         # Notion is the priority surface (Pattern A — dedicated tool).
@@ -100,6 +112,7 @@ def build_default_registry(
 
 
 __all__ = [
+    "BrowserTool",
     "ComposioTool",
     "FailureLookupTool",
     "KGQueryTool",

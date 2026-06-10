@@ -262,6 +262,8 @@ function activateTab(name) {
     loadSelfCorrection();
   } else if (name === "planning") {
     loadPlanning();
+  } else if (name === "browser") {
+    loadBrowser();
   }
 }
 
@@ -1357,6 +1359,126 @@ function tableHead(cols) {
   return thead;
 }
 
+// ─── browser (computer-control) ──────────────────────────────────────
+
+async function loadBrowser() {
+  await Promise.all([loadBrowserStatus(), loadBrowserLog()]);
+}
+
+async function loadBrowserStatus() {
+  const line = $("#browser-status-line");
+  const box = $("#browser-config");
+  try {
+    const s = await apiGet("/admin/browser/status");
+    if (line) {
+      line.textContent = s.enabled
+        ? `enabled · ${(s.allowlist || []).length} allowlisted · ${s.stats.total} action(s)`
+        : "disabled (KAI_BROWSER_ENABLED off)";
+    }
+    if (box) {
+      box.replaceChildren();
+      const chip = (label, val) => {
+        const span = document.createElement("span");
+        span.className = "severity-chip";
+        span.textContent = `${label}: ${val}`;
+        return span;
+      };
+      box.appendChild(chip("enabled", s.enabled ? "yes" : "no"));
+      box.appendChild(chip("headless", s.headless ? "yes" : "no"));
+      box.appendChild(chip("allowlist", (s.allowlist || []).join(", ") || "(empty)"));
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function loadBrowserLog() {
+  const tbody = $("#browser-log-table tbody");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/browser/log?limit=100");
+    tbody.replaceChildren();
+    for (const a of data.actions || []) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td((a.ts || "").replace("T", " ").slice(0, 19)));
+      tr.appendChild(td(a.kind || ""));
+      tr.appendChild(td(a.status || ""));
+      tr.appendChild(td(truncate(a.url || "", 50)));
+      tr.appendChild(td(truncate(a.detail || "", 80)));
+      tbody.appendChild(tr);
+    }
+    if (!(data.actions || []).length) {
+      const tr = document.createElement("tr");
+      const c = td("no actions yet"); c.colSpan = 5; c.classList.add("admin-hint");
+      tr.appendChild(c); tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+async function browserNavigate(ev) {
+  if (ev) ev.preventDefault();
+  const url = ($("#browser-url").value || "").trim();
+  const line = $("#browser-status-line");
+  const out = $("#browser-result");
+  if (!url) { if (line) line.textContent = "enter a URL"; return; }
+  const btn = $("#browser-nav-btn");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "reading…"; }
+    const data = await apiPost("/admin/browser/navigate", { url });
+    renderBrowserResult(out, data.result);
+    if (line) line.textContent = "read ok";
+    loadBrowserLog();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (out) {
+      out.replaceChildren();
+      const p = document.createElement("p");
+      p.className = "admin-err"; p.textContent = e.message;
+      out.appendChild(p);
+    }
+    if (line) line.textContent = "blocked / error";
+    loadBrowserLog();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
+// NB: external page content is rendered with textContent ONLY (never
+// innerHTML) so a malicious allowlisted page can't inject markup/script
+// into the operator dashboard.
+function renderBrowserResult(box, result) {
+  if (!box) return;
+  box.replaceChildren();
+  if (!result) return;
+  const h = document.createElement("h3");
+  h.textContent = result.title || "(no title)";
+  box.appendChild(h);
+  const u = document.createElement("p");
+  u.className = "admin-hint"; u.textContent = result.url || "";
+  box.appendChild(u);
+  const pre = document.createElement("pre");
+  pre.className = "admin-pre";
+  pre.textContent = (result.text || "").slice(0, 2000);
+  box.appendChild(pre);
+  if ((result.links || []).length) {
+    const lh = document.createElement("p");
+    lh.className = "admin-hint";
+    lh.textContent = `${result.links.length} link(s):`;
+    box.appendChild(lh);
+    const ul = document.createElement("ul");
+    for (const l of result.links.slice(0, 20)) {
+      const li = document.createElement("li");
+      li.textContent = `${(l.text || "").slice(0, 60)} — ${l.href || ""}`;
+      ul.appendChild(li);
+    }
+    box.appendChild(ul);
+  }
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1422,6 +1544,12 @@ document.addEventListener("DOMContentLoaded", () => {
   if (planRefresh) planRefresh.addEventListener("click", loadPlanning);
   const planForm = $("#planning-create-form");
   if (planForm) planForm.addEventListener("submit", createPlan);
+
+  // Browser (computer-control)
+  const browserRefresh = $("#browser-refresh");
+  if (browserRefresh) browserRefresh.addEventListener("click", loadBrowser);
+  const browserForm = $("#browser-nav-form");
+  if (browserForm) browserForm.addEventListener("submit", browserNavigate);
 
   if (getToken()) {
     refresh();

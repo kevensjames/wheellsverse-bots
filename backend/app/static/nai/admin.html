@@ -22,6 +22,7 @@
         <button type="button" class="admin-tab" data-tab="research">Research</button>
         <button type="button" class="admin-tab" data-tab="self-correction">Self-Correction</button>
         <button type="button" class="admin-tab" data-tab="planning">Plans</button>
+        <button type="button" class="admin-tab" data-tab="browser">Browser</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -444,9 +445,42 @@
           </div>
         </div>
       </div><!-- /admin-pane-planning -->
+
+      <div id="admin-pane-browser" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Browser · KAI computer-control (read + propose)</h2>
+            <div class="admin-chat-tools">
+              <span id="browser-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="browser-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            v1 envelope: KAI navigates <strong>allowlisted</strong> domains and
+            READS them; write actions (click/type/submit) are proposed only,
+            never executed. Kill-switch <code>KAI_BROWSER_ENABLED</code>, scope
+            <code>KAI_SCOPE_BROWSER</code>, SSRF-guarded; every action logged below.
+          </p>
+          <div id="browser-config" class="admin-stat-row admin-stat-tiers"></div>
+          <form id="browser-nav-form" class="admin-plan-create">
+            <input type="text" id="browser-url"
+              placeholder="https://example.com  (allowlisted domains only)" />
+            <button type="submit" id="browser-nav-btn" class="admin-btn">Read page</button>
+          </form>
+          <div id="browser-result"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Action log</h2>
+          <table class="admin-table" id="browser-log-table">
+            <thead><tr><th>when</th><th>kind</th><th>status</th><th>url</th><th>detail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-browser -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781092905" defer></script>
+  <script src="admin.js?v=ts-1781095765" defer></script>
 </body>
 </html>
