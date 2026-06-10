@@ -34,7 +34,11 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 # - style-src 'self':           style.css served from /nai-ui/
 # - img-src 'self' data:        data: URIs allowed for tiny inline icons
 # - connect-src 'self':         fetch + EventSource on same origin
-# - frame-ancestors 'none':     clickjacking defense (with X-Frame-Options)
+# - frame-ancestors 'self' + wheellsverse:  clickjacking defense, with an
+#   explicit allowlist for KAI's own embeds inside the WheellsVerse AI
+#   Command Center at app.wheellsverse.com. The Command Center iframes
+#   /admin from kai.wheellsverse.com — different origin, needs allowlist.
+#   Modern browsers use this directive in place of X-Frame-Options.
 # - form-action 'self':         no off-domain form posts
 # - base-uri 'self':            block <base> injection redirecting relative URLs
 # - object-src 'none':          no plugins
@@ -44,7 +48,7 @@ _CSP = (
     "style-src 'self'; "
     "img-src 'self' data:; "
     "connect-src 'self'; "
-    "frame-ancestors 'none'; "
+    "frame-ancestors 'self' https://app.wheellsverse.com https://wheellsverse.com; "
     "form-action 'self'; "
     "base-uri 'self'; "
     "object-src 'none'"
@@ -91,10 +95,16 @@ class SecurityHeadersMiddleware:
                 # the response didn't already set them — last-write-wins on
                 # collision favors whatever the route explicitly chose.
                 existing = {name.lower() for name, _ in headers}
+                # X-Frame-Options removed: it has no cross-origin allowlist
+                # mode (only DENY or SAMEORIGIN), and the AI Command Center
+                # at app.wheellsverse.com needs to iframe KAI from
+                # kai.wheellsverse.com. CSP frame-ancestors above is the
+                # modern equivalent and DOES support per-origin allowlists.
+                # Browsers since 2018 (Chrome 55+, FF 58+, Safari 11+) prefer
+                # frame-ancestors over X-Frame-Options when both are present.
                 additions: list[tuple[bytes, bytes]] = [
                     (b"content-security-policy", _CSP.encode()),
                     (b"x-content-type-options", b"nosniff"),
-                    (b"x-frame-options", b"DENY"),
                     (b"referrer-policy", b"strict-origin-when-cross-origin"),
                     (b"permissions-policy", _PERMISSIONS_POLICY.encode()),
                 ]
