@@ -1951,7 +1951,76 @@ async function runDigest() {
 
 // ─── boot ──────────────────────────────────────────────────────────
 
+// ── Dashboard version watcher ───────────────────────────────────────
+// The dashboard is a single static page; switching tabs is client-side, so
+// an already-open dashboard never re-fetches admin.html and silently runs a
+// stale build after a deploy (you ship a feature, the open tab doesn't show
+// it until a manual reload). We detect that: each asset is stamped
+// ?v=ts-<mtime> by scripts/stamp_static_assets.py, and GET /version reports
+// admin.js's current mtime as `build`. If the server's build is newer than
+// the one we loaded with, show a one-click reload bar. Fail-safe: any
+// parse/fetch hiccup just skips the check (never a false "reload" prompt).
+const LOADED_BUILD = (() => {
+  const el = document.querySelector('script[src*="admin.js"]');
+  const m = el && el.getAttribute("src").match(/[?&]v=ts-(\d+)/);
+  return m ? parseInt(m[1], 10) : null;
+})();
+let _reloadBannerShown = false;
+
+async function checkDashboardVersion() {
+  if (!LOADED_BUILD || _reloadBannerShown) return;
+  try {
+    const r = await fetch("/version", { cache: "no-store" });
+    if (!r.ok) return;
+    const data = await r.json();
+    if (typeof data.build === "number" && data.build > LOADED_BUILD) {
+      showReloadBanner();
+    }
+  } catch (_e) {
+    /* offline / transient — try again on the next tick */
+  }
+}
+
+function showReloadBanner() {
+  if (_reloadBannerShown) return;
+  _reloadBannerShown = true;
+  const bar = document.createElement("div");
+  bar.id = "kai-reload-banner";
+  bar.style.cssText =
+    "position:fixed;top:0;left:0;right:0;z-index:9999;background:#1d4ed8;" +
+    "color:#fff;font:600 14px/1.4 system-ui,sans-serif;padding:10px 16px;" +
+    "display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.3)";
+  const msg = document.createElement("span");
+  msg.textContent = "🔄 A newer dashboard version is available.";
+  msg.style.flex = "1";
+  const reload = document.createElement("button");
+  reload.textContent = "Reload now";
+  reload.style.cssText =
+    "background:#fff;color:#1d4ed8;border:0;border-radius:6px;padding:6px 14px;" +
+    "font-weight:700;cursor:pointer";
+  reload.addEventListener("click", () => location.reload());
+  const dismiss = document.createElement("button");
+  dismiss.textContent = "✕";
+  dismiss.title = "Dismiss";
+  dismiss.style.cssText =
+    "background:transparent;color:#fff;border:0;font-size:16px;cursor:pointer";
+  dismiss.addEventListener("click", () => bar.remove());
+  bar.append(msg, reload, dismiss);
+  document.body.prepend(bar);
+}
+
+function initVersionWatcher() {
+  // Check on load, when the tab regains focus, and on a slow background poll.
+  checkDashboardVersion();
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") checkDashboardVersion();
+  });
+  setInterval(checkDashboardVersion, 90_000);
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  initVersionWatcher();
+
   $("#admin-auth-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const t = $("#admin-token-input").value.trim();

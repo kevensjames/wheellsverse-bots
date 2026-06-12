@@ -164,11 +164,28 @@ def _redirect_admin():
     return RedirectResponse(url="/kai-ui/admin.html", status_code=307)
 
 
+def _dashboard_build() -> int:
+    """mtime of admin.js — the canonical 'dashboard build' stamp.
+
+    scripts/stamp_static_assets.py bakes this same mtime into the page's
+    ?v=ts-<mtime> cache-buster. The dashboard reads the value it loaded with
+    and polls this endpoint; if `build` is newer, it offers a one-click reload
+    (see initVersionWatcher in admin.js). Fail-soft to 0 so /version never
+    breaks if the asset is missing.
+    """
+    try:
+        from pathlib import Path
+        p = Path(__file__).resolve().parent / "static" / "nai" / "admin.js"
+        return int(p.stat().st_mtime)
+    except Exception:
+        return 0
+
+
 @app.get("/version", include_in_schema=False)
 def version():
     # Old behaviour of GET / preserved here in case anything (monitors,
     # uptime checks) was scraping the JSON.
-    return {"name": settings.APP_NAME, "version": "0.1.0"}
+    return {"name": settings.APP_NAME, "version": "0.1.0", "build": _dashboard_build()}
 
 
 @app.get("/health")
