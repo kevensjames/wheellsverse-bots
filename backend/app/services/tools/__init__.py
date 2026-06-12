@@ -2,6 +2,7 @@ import logging
 import os
 
 from app.services.browser.config import browser_enabled as _browser_enabled
+from app.services.tools.audit_query import AuditQueryTool
 from app.services.tools.base import (
     Tool,
     ToolCall,
@@ -79,6 +80,8 @@ def build_default_registry(
     # Digital twin — read-only; the operator self-model KAI consults.
     # SQLite-backed, ships with the daemon. No env key.
     reg.register(TwinQueryTool())
+    # Self-audit — read-only; KAI reports its own subsystem health on request.
+    reg.register(AuditQueryTool())
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -120,6 +123,7 @@ def build_default_registry(
 
 
 __all__ = [
+    "AuditQueryTool",
     "BrowserTool",
     "ComposioTool",
     "FailureLookupTool",

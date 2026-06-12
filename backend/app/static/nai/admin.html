@@ -25,6 +25,7 @@
         <button type="button" class="admin-tab" data-tab="browser">Browser</button>
         <button type="button" class="admin-tab" data-tab="learning">Learning</button>
         <button type="button" class="admin-tab" data-tab="twin">Twin</button>
+        <button type="button" class="admin-tab" data-tab="audit">Audit</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -594,9 +595,41 @@
           </div>
         </div>
       </div><!-- /admin-pane-twin -->
+
+      <div id="admin-pane-audit" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Audit · KAI self-audit</h2>
+            <div class="admin-chat-tools">
+              <span id="audit-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="audit-run" class="admin-btn">▶ run audit</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Live introspection of every KAI subsystem: which features are enabled
+            (scope flags), how many records each has stored, runtime (LLM keys,
+            browser kill-switches), and any issues. Read-only.
+          </p>
+          <div id="audit-runtime" class="admin-stat-row admin-stat-tiers"></div>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Subsystems</h2>
+            <table class="admin-table" id="audit-subs-table">
+              <thead><tr><th>subsystem</th><th>scope</th><th>on</th><th>records</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Issues</h2>
+            <ul id="audit-issues"></ul>
+          </div>
+        </div>
+      </div><!-- /admin-pane-audit -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781234661" defer></script>
+  <script src="admin.js?v=ts-1781256817" defer></script>
 </body>
 </html>

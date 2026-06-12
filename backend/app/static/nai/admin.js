@@ -268,6 +268,8 @@ function activateTab(name) {
     loadLearning();
   } else if (name === "twin") {
     loadTwin();
+  } else if (name === "audit") {
+    loadAudit();
   }
 }
 
@@ -1843,6 +1845,71 @@ async function draftAsOperator(ev) {
   }
 }
 
+// ─── audit (KAI self-audit) ──────────────────────────────────────────
+
+function auditChip(v) {
+  const e = document.createElement("span");
+  e.className = "severity-chip " + (v === true ? "low" : (v === false ? "high" : ""));
+  e.textContent = v === true ? "on" : (v === false ? "off" : "n/a");
+  return e;
+}
+
+async function loadAudit() {
+  const line = $("#audit-status-line");
+  try {
+    if (line) line.textContent = "auditing…";
+    const a = await apiGet("/admin/audit/run");
+    const s = a.summary || {};
+    const rt = a.runtime || {};
+    if (line) {
+      line.textContent =
+        `${s.scoped_enabled}/${s.scoped_total} scoped features ON · ${s.total_records} records`;
+    }
+    const rtbox = $("#audit-runtime");
+    if (rtbox) {
+      rtbox.replaceChildren();
+      const chip = (l, v) => {
+        const e = document.createElement("span");
+        e.className = "severity-chip"; e.textContent = `${l}: ${v}`;
+        return e;
+      };
+      rtbox.appendChild(chip("OpenAI key", rt.openai_key_set ? "yes" : "no"));
+      rtbox.appendChild(chip("Anthropic key", rt.anthropic_key_set ? "yes" : "no"));
+      rtbox.appendChild(chip("browser", rt.browser_enabled ? "on" : "off"));
+      rtbox.appendChild(chip("browser writes", rt.browser_write_enabled ? "on" : "off"));
+    }
+    const tb = $("#audit-subs-table tbody");
+    if (tb) {
+      tb.replaceChildren();
+      for (const x of a.subsystems || []) {
+        const tr = document.createElement("tr");
+        tr.appendChild(td(x.name));
+        tr.appendChild(td(x.scope || "—"));
+        const on = td(""); on.appendChild(auditChip(x.scope_enabled)); tr.appendChild(on);
+        tr.appendChild(td(String(x.records)));
+        tb.appendChild(tr);
+      }
+    }
+    const ul = $("#audit-issues");
+    if (ul) {
+      ul.replaceChildren();
+      for (const i of a.issues || []) {
+        const li = document.createElement("li");
+        li.textContent = i;
+        ul.appendChild(li);
+      }
+      if (!(a.issues || []).length) {
+        const li = document.createElement("li");
+        li.className = "admin-hint"; li.textContent = "no issues 🎉";
+        ul.appendChild(li);
+      }
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1934,6 +2001,10 @@ document.addEventListener("DOMContentLoaded", () => {
   if (twinEntryForm) twinEntryForm.addEventListener("submit", addTwinEntry);
   const twinDraftForm = $("#twin-draft-form");
   if (twinDraftForm) twinDraftForm.addEventListener("submit", draftAsOperator);
+
+  // Audit (KAI self-audit)
+  const auditRun = $("#audit-run");
+  if (auditRun) auditRun.addEventListener("click", loadAudit);
 
   if (getToken()) {
     refresh();
