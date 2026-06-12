@@ -36,9 +36,15 @@ def test_security_headers_set_in_non_prod():
     assert "content-security-policy" in h
     assert "default-src 'self'" in h["content-security-policy"]
     assert "script-src 'self'" in h["content-security-policy"]
-    assert "frame-ancestors 'none'" in h["content-security-policy"]
+    # frame-ancestors is an allowlist (not 'none') so the AI Command Center at
+    # app.wheellsverse.com can iframe KAI cross-origin (commit 48ddb16).
+    assert "frame-ancestors 'self' https://app.wheellsverse.com https://wheellsverse.com" \
+        in h["content-security-policy"]
     assert h.get("x-content-type-options") == "nosniff"
-    assert h.get("x-frame-options") == "DENY"
+    # X-Frame-Options is intentionally NOT set — it has only DENY/SAMEORIGIN
+    # (no cross-origin allowlist), which would block the Command Center iframe.
+    # CSP frame-ancestors above is the modern, allowlist-capable replacement.
+    assert "x-frame-options" not in h
     assert h.get("referrer-policy") == "strict-origin-when-cross-origin"
     assert "camera=()" in h.get("permissions-policy", "")
     # Critical: HSTS must NOT be set in dev — browsers would pin HTTP→HTTPS
@@ -92,8 +98,11 @@ def test_real_app_has_security_headers():
     r = client.get("/health")
     assert r.status_code == 200
     assert "content-security-policy" in r.headers
+    assert "frame-ancestors" in r.headers["content-security-policy"]
     assert r.headers.get("x-content-type-options") == "nosniff"
-    assert r.headers.get("x-frame-options") == "DENY"
+    # X-Frame-Options intentionally removed in favor of CSP frame-ancestors
+    # (cross-origin allowlist for the AI Command Center iframe).
+    assert "x-frame-options" not in r.headers
 
 
 def test_static_html_pages_get_headers():

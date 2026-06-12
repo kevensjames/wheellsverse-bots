@@ -7,7 +7,9 @@ browser-security audit (Mozilla Observatory, Lighthouse, securityheaders.com):
 - Content-Security-Policy    — strict; whitelists same-origin scripts/styles
                                and inline-style for the dark-mode CSS variables.
 - X-Content-Type-Options     — `nosniff`, every response.
-- X-Frame-Options            — `DENY`; reinforced by CSP frame-ancestors.
+- X-Frame-Options            — intentionally NOT set; CSP frame-ancestors (with
+                               a cross-origin allowlist) replaces it so the AI
+                               Command Center can iframe KAI cross-origin.
 - Referrer-Policy            — strict-origin-when-cross-origin.
 - Permissions-Policy         — disable camera / mic / geo / etc. by default.
 
