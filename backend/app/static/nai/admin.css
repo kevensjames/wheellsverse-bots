@@ -359,3 +359,67 @@
   letter-spacing: 0.6px;
   margin-right: 6px;
 }
+
+/* ───────────────────────────────────────────────────────────────────
+   Phone layout (≤640px). Everything here is additive — the desktop view
+   above is unchanged. Goals: the 13-tab nav becomes a full-width swipeable
+   strip, all multi-column grids stack, wide tables scroll inside their card
+   instead of overflowing the page, tap targets grow, and forms go vertical.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .admin-main { padding: 14px 12px 48px; }
+
+  /* Header: title + controls stay on row 1 (space-between); the tab bar
+     drops to a full-width row 2 that scrolls horizontally (swipe). */
+  .admin-header { flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .admin-header h1 { font-size: 16px; }
+
+  .admin-tabs {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 2px;
+    padding-bottom: 4px;
+    scrollbar-width: none;              /* Firefox: hide the bar, keep the swipe */
+  }
+  .admin-tabs::-webkit-scrollbar { display: none; }  /* WebKit/Blink */
+  .admin-tab {
+    flex: 0 0 auto;                     /* don't shrink — overflow & scroll */
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Stack every multi-column grid. */
+  .admin-grid-2, .admin-grid-3 { grid-template-columns: 1fr; }
+  .admin-grid { gap: 12px; }
+
+  /* Roomier tap targets for buttons. */
+  .admin-btn { padding: 8px 12px; font-size: 13px; }
+
+  /* Tighten cards; let any too-wide table scroll inside its card rather
+     than push the whole page sideways. */
+  .admin-card { padding: 14px; overflow-x: auto; }
+  .admin-table { font-size: 12px; }
+  .admin-table th, .admin-table td { padding: 7px 8px; }
+
+  /* Inline create/action forms (planning / learning / twin) stack vertically
+     with full-width controls (the shared class has no desktop rule). */
+  .admin-plan-create { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .admin-plan-create > * { width: 100%; box-sizing: border-box; }
+
+  /* Chat: use more of the narrow width; shrink reserved height a little. */
+  .admin-chat-card { min-height: 60vh; }
+  .admin-chat-bubble { max-width: 94%; font-size: 15px; }
+  .admin-chat-tools { gap: 10px; row-gap: 8px; }
+  .admin-preset-select { min-width: 0; width: 100%; }
+
+  /* Auth gate: stack input + unlock so neither is squeezed. */
+  .admin-auth-form { flex-direction: column; }
+
+  /* The version-reload banner sits at the very top — keep its text from
+     crowding the buttons on a narrow bar. */
+  #kai-reload-banner { font-size: 13px; padding: 9px 12px; gap: 8px; }
+}

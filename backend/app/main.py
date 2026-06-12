@@ -181,18 +181,22 @@ def _redirect_admin():
 
 
 def _dashboard_build() -> int:
-    """mtime of admin.js — the canonical 'dashboard build' stamp.
+    """Newest mtime among the dashboard's own assets (admin.js + admin.css) —
+    the canonical 'dashboard build' stamp.
 
-    scripts/stamp_static_assets.py bakes this same mtime into the page's
-    ?v=ts-<mtime> cache-buster. The dashboard reads the value it loaded with
-    and polls this endpoint; if `build` is newer, it offers a one-click reload
-    (see initVersionWatcher in admin.js). Fail-soft to 0 so /version never
-    breaks if the asset is missing.
+    scripts/stamp_static_assets.py bakes these same mtimes into the page's
+    ?v=ts-<mtime> cache-busters. The client takes the max of the stamps IT
+    loaded and polls this endpoint; if the server's is newer, it offers a
+    one-click reload (see initVersionWatcher in admin.js). Taking the max over
+    JS *and* CSS means a CSS-only deploy also triggers the banner. Fail-soft
+    to 0 so /version never breaks if an asset is missing.
     """
     try:
         from pathlib import Path
-        p = Path(__file__).resolve().parent / "static" / "nai" / "admin.js"
-        return int(p.stat().st_mtime)
+        base = Path(__file__).resolve().parent / "static" / "nai"
+        mtimes = [int((base / name).stat().st_mtime)
+                  for name in ("admin.js", "admin.css") if (base / name).exists()]
+        return max(mtimes) if mtimes else 0
     except Exception:
         return 0
 

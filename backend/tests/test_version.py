@@ -15,12 +15,14 @@ def test_version_includes_build(client):
     assert body["build"] >= 0
 
 
-def test_dashboard_build_matches_admin_js_mtime():
-    # The build stamp must equal admin.js's mtime — the same number the
-    # stamper bakes into ?v=ts-<mtime> — or the client comparison is bogus.
+def test_dashboard_build_is_max_asset_mtime():
+    # The build stamp must equal the NEWEST of admin.js / admin.css mtimes —
+    # the same numbers the stamper bakes into ?v=ts-<mtime> — so the client's
+    # max-of-loaded-stamps comparison is exact (covers JS- and CSS-only ships).
     from pathlib import Path
 
     from app.main import _dashboard_build
 
-    p = Path(__file__).resolve().parents[1] / "app" / "static" / "nai" / "admin.js"
-    assert _dashboard_build() == int(p.stat().st_mtime)
+    base = Path(__file__).resolve().parents[1] / "app" / "static" / "nai"
+    expected = max(int((base / n).stat().st_mtime) for n in ("admin.js", "admin.css"))
+    assert _dashboard_build() == expected

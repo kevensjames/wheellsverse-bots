@@ -2096,9 +2096,18 @@ async function runDigest() {
 // the one we loaded with, show a one-click reload bar. Fail-safe: any
 // parse/fetch hiccup just skips the check (never a false "reload" prompt).
 const LOADED_BUILD = (() => {
-  const el = document.querySelector('script[src*="admin.js"]');
-  const m = el && el.getAttribute("src").match(/[?&]v=ts-(\d+)/);
-  return m ? parseInt(m[1], 10) : null;
+  // Max of the ?v=ts-<mtime> stamps we loaded for the dashboard's own assets
+  // (admin.js + admin.css), so a CSS-only deploy also triggers the banner.
+  // Mirrors _dashboard_build() on the server — same max, so they're equal at
+  // rest and diverge only when a file actually changes (no false positives).
+  const stamps = [];
+  for (const sel of ['script[src*="admin.js"]', 'link[href*="admin.css"]']) {
+    const el = document.querySelector(sel);
+    const attr = el && (el.getAttribute("src") || el.getAttribute("href"));
+    const m = attr && attr.match(/[?&]v=ts-(\d+)/);
+    if (m) stamps.push(parseInt(m[1], 10));
+  }
+  return stamps.length ? Math.max(...stamps) : null;
 })();
 let _reloadBannerShown = false;
 
