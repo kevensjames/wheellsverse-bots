@@ -20,6 +20,7 @@ from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.plan_query import PlanQueryTool
 from app.services.tools.registry import ToolRegistry
 from app.services.tools.trading_signal import TradingSignalTool
+from app.services.tools.twin_query import TwinQueryTool
 from app.services.tools.web_fetch import WebFetchTool
 from app.services.tools.web_search import WebSearchTool
 
@@ -75,6 +76,9 @@ def build_default_registry(
     # Learning — read-only; reports lessons KAI has learned from feedback.
     # SQLite-backed, ships with the daemon. No env key.
     reg.register(LearningQueryTool())
+    # Digital twin — read-only; the operator self-model KAI consults.
+    # SQLite-backed, ships with the daemon. No env key.
+    reg.register(TwinQueryTool())
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -132,6 +136,7 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "TradingSignalTool",
+    "TwinQueryTool",
     "WebFetchTool",
     "WebSearchTool",
     "build_default_registry",

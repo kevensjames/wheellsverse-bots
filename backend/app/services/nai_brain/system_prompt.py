@@ -69,15 +69,28 @@ def build_system_prompt(
     """
     if lessons_preamble is None:
         lessons_preamble = _auto_lessons_preamble()
+    twin = _auto_twin_preamble()
     parts = []
     if persona_prompt:
         parts.append(persona_prompt.strip())
+    if twin:
+        parts.append(twin.strip())
     if lessons_preamble:
         parts.append(lessons_preamble.strip())
     if memory_preamble:
         parts.append(memory_preamble.strip())
     parts.append(BASE_SYSTEM_PROMPT)
     return "\n\n".join(parts)
+
+
+def _auto_twin_preamble() -> str:
+    """Pull the operator self-model (if KAI_SCOPE_TWIN is on). Lazy + fail-open
+    so nai_brain never hard-depends on the twin module."""
+    try:
+        from app.services.twin.injection import twin_preamble
+        return twin_preamble()
+    except Exception:
+        return ""
 
 
 def _auto_lessons_preamble() -> str:

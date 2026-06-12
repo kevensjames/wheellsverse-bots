@@ -266,6 +266,8 @@ function activateTab(name) {
     loadBrowser();
   } else if (name === "learning") {
     loadLearning();
+  } else if (name === "twin") {
+    loadTwin();
   }
 }
 
@@ -1628,6 +1630,163 @@ async function synthesizeLessons() {
   }
 }
 
+// ─── twin (digital twin) ──────────────────────────────────────────────
+
+async function loadTwin() {
+  await Promise.all([loadTwinStats(), loadTwinProfile()]);
+}
+
+async function loadTwinStats() {
+  const line = $("#twin-status-line");
+  const box = $("#twin-stats");
+  try {
+    const s = await apiGet("/admin/twin/stats");
+    if (line) line.textContent = `${s.active_entries} active entry(ies) · ${s.drafts} draft(s)`;
+    if (box) {
+      box.replaceChildren();
+      const chip = (l, v) => {
+        const e = document.createElement("span");
+        e.className = "severity-chip"; e.textContent = `${l}: ${v}`;
+        return e;
+      };
+      const sec = s.active_by_section || {};
+      for (const k of ["identity", "voice", "values", "preferences", "goals"]) {
+        box.appendChild(chip(k, sec[k] || 0));
+      }
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function loadTwinProfile() {
+  const tbody = $("#twin-profile-table tbody");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/twin/profile?limit=200");
+    tbody.replaceChildren();
+    let shown = 0;
+    for (const en of data.entries || []) {
+      if (en.status === "archived") continue;
+      shown++;
+      const tr = document.createElement("tr");
+      tr.appendChild(td(en.section));
+      tr.appendChild(td(en.text));
+      const st = td(""); st.appendChild(twinChip(en.status)); tr.appendChild(st);
+      const act = td("");
+      if (en.status === "proposed") {
+        act.appendChild(lessonBtn("✓ activate", () => twinEntryAction(en.id, "activate")));
+      }
+      act.appendChild(lessonBtn("✕ archive", () => twinEntryAction(en.id, "archive")));
+      tr.appendChild(act);
+      tbody.appendChild(tr);
+    }
+    if (!shown) {
+      const tr = document.createElement("tr");
+      const c = td("no profile yet — add entries or ⚗ suggest from KG");
+      c.colSpan = 4; c.classList.add("admin-hint");
+      tr.appendChild(c); tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+function twinChip(status) {
+  const e = document.createElement("span");
+  e.className = `severity-chip twin-${status}`;
+  e.textContent = status;
+  return e;
+}
+
+async function twinEntryAction(id, action) {
+  const line = $("#twin-status-line");
+  try {
+    if (line) line.textContent = `${action}…`;
+    await apiPost(`/admin/twin/entries/${id}/${action}`, { approved: true });
+    await loadTwinStats();
+    loadTwinProfile();
+    if (line) line.textContent = `entry ${action}d`;
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function addTwinEntry(ev) {
+  if (ev) ev.preventDefault();
+  const section = $("#twin-entry-section").value;
+  const text = ($("#twin-entry-text").value || "").trim();
+  const line = $("#twin-status-line");
+  if (!text) { if (line) line.textContent = "enter some text"; return; }
+  try {
+    await apiPost("/admin/twin/entries", { section, text });
+    $("#twin-entry-text").value = "";
+    await loadTwinStats();
+    loadTwinProfile();
+    if (line) line.textContent = "entry added";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function suggestTwin() {
+  const line = $("#twin-status-line");
+  const btn = $("#twin-suggest");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "suggesting…"; }
+    const out = await apiPost("/admin/twin/suggest", { max_entries: 8, approved: true });
+    if (line) line.textContent = out.note || `proposed ${(out.proposed || []).length}`;
+    await loadTwinStats();
+    loadTwinProfile();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
+async function draftAsOperator(ev) {
+  if (ev) ev.preventDefault();
+  const task = ($("#twin-draft-task").value || "").trim();
+  const line = $("#twin-status-line");
+  const out = $("#twin-draft-result");
+  if (!task) { if (line) line.textContent = "enter a task"; return; }
+  const btn = $("#twin-draft-btn");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "drafting…"; }
+    const data = await apiPost("/admin/twin/draft", { task });
+    if (out) {
+      out.replaceChildren();
+      const lbl = document.createElement("p");
+      lbl.className = "admin-hint";
+      lbl.textContent = "DRAFT (review before using — KAI does not send it):";
+      out.appendChild(lbl);
+      const pre = document.createElement("pre");
+      pre.className = "admin-pre";
+      pre.textContent = data.draft || "(empty)";
+      out.appendChild(pre);
+    }
+    if (line) line.textContent = data.note || "drafted";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (out) {
+      out.replaceChildren();
+      const p = document.createElement("p");
+      p.className = "admin-err"; p.textContent = e.message;
+      out.appendChild(p);
+    }
+    if (line) line.textContent = "error";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1707,6 +1866,16 @@ document.addEventListener("DOMContentLoaded", () => {
   if (learnSynth) learnSynth.addEventListener("click", synthesizeLessons);
   const learnFbForm = $("#learning-fb-form");
   if (learnFbForm) learnFbForm.addEventListener("submit", addFeedback);
+
+  // Twin (digital twin)
+  const twinRefresh = $("#twin-refresh");
+  if (twinRefresh) twinRefresh.addEventListener("click", loadTwin);
+  const twinSuggest = $("#twin-suggest");
+  if (twinSuggest) twinSuggest.addEventListener("click", suggestTwin);
+  const twinEntryForm = $("#twin-entry-form");
+  if (twinEntryForm) twinEntryForm.addEventListener("submit", addTwinEntry);
+  const twinDraftForm = $("#twin-draft-form");
+  if (twinDraftForm) twinDraftForm.addEventListener("submit", draftAsOperator);
 
   if (getToken()) {
     refresh();

@@ -24,6 +24,7 @@
         <button type="button" class="admin-tab" data-tab="planning">Plans</button>
         <button type="button" class="admin-tab" data-tab="browser">Browser</button>
         <button type="button" class="admin-tab" data-tab="learning">Learning</button>
+        <button type="button" class="admin-tab" data-tab="twin">Twin</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -524,9 +525,59 @@
           </div>
         </div>
       </div><!-- /admin-pane-learning -->
+
+      <div id="admin-pane-twin" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Twin · operator self-model + draft-in-voice</h2>
+            <div class="admin-chat-tools">
+              <span id="twin-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="twin-suggest" class="admin-btn">⚗ suggest from KG</button>
+              <button type="button" id="twin-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            A structured model of YOU (identity / voice / values / preferences /
+            goals). Active entries inject into KAI's prompt so it knows its
+            principal (scope <code>KAI_SCOPE_TWIN</code>). KAI can also draft text
+            in your voice — drafts only, never sent. KAI-suggested entries need
+            your approval before they go active.
+          </p>
+          <div id="twin-stats" class="admin-stat-row admin-stat-tiers"></div>
+          <form id="twin-entry-form" class="admin-plan-create">
+            <select id="twin-entry-section">
+              <option value="identity">identity</option>
+              <option value="voice">voice</option>
+              <option value="values">values</option>
+              <option value="preferences">preferences</option>
+              <option value="goals">goals</option>
+            </select>
+            <input type="text" id="twin-entry-text" placeholder="A fact about you (e.g. 'Direct, no fluff')" />
+            <button type="submit" id="twin-entry-btn" class="admin-btn">Add to profile</button>
+          </form>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Profile</h2>
+            <table class="admin-table" id="twin-profile-table">
+              <thead><tr><th>section</th><th>entry</th><th>status</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Draft in your voice</h2>
+            <form id="twin-draft-form" class="admin-plan-create">
+              <input type="text" id="twin-draft-task" placeholder="e.g. 'reply to an investor asking for an update'" />
+              <button type="submit" id="twin-draft-btn" class="admin-btn">Draft</button>
+            </form>
+            <div id="twin-draft-result"></div>
+          </div>
+        </div>
+      </div><!-- /admin-pane-twin -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781226234" defer></script>
+  <script src="admin.js?v=ts-1781230669" defer></script>
 </body>
 </html>
