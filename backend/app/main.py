@@ -68,6 +68,22 @@ def _stop_research():
     from app.services.research.scheduler import stop as _stop
     _stop()
 
+
+# Operator Digest scheduler — opt-in via KAI_DIGEST_SCHEDULER_ENABLED=1.
+# Background thread sends the cross-subsystem digest to Telegram once per day
+# at KAI_DIGEST_HOUR_UTC (default 13). No startup send (Telegram is noisy);
+# each cycle also re-checks KAI_SCOPE_DIGEST.
+@app.on_event("startup")
+def _start_digest_scheduler():
+    from app.services.digest.scheduler import start as _start
+    _start()
+
+
+@app.on_event("shutdown")
+def _stop_digest_scheduler():
+    from app.services.digest.scheduler import stop as _stop
+    _stop()
+
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

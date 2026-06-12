@@ -139,3 +139,55 @@ def test_admin_run_success(client, monkeypatch, _isolated_audit):
     body = r.json()
     assert body["digest"].startswith("Today")
     assert body["sent"] is True
+
+
+# ─── scheduler (daily auto-send) ─────────────────────────────────────
+
+from app.services.digest import scheduler as dsched  # noqa: E402
+
+
+def test_scheduler_disabled_by_default(monkeypatch):
+    monkeypatch.delenv("KAI_DIGEST_SCHEDULER_ENABLED", raising=False)
+    assert dsched.start() is False
+    assert dsched.is_running() is False
+
+
+def test_scheduler_hour_parsing(monkeypatch):
+    monkeypatch.setenv("KAI_DIGEST_HOUR_UTC", "20")
+    assert dsched._scheduled_hour() == 20
+    monkeypatch.setenv("KAI_DIGEST_HOUR_UTC", "99")   # clamped to 23
+    assert dsched._scheduled_hour() == 23
+    monkeypatch.setenv("KAI_DIGEST_HOUR_UTC", "abc")  # bad → default 13
+    assert dsched._scheduled_hour() == 13
+
+
+def test_scheduler_status_reflects_env(monkeypatch):
+    monkeypatch.setenv("KAI_DIGEST_SCHEDULER_ENABLED", "1")
+    monkeypatch.setenv("KAI_DIGEST_HOUR_UTC", "9")
+    monkeypatch.setenv("KAI_SCOPE_DIGEST", "1")
+    st = dsched.status()
+    assert st["enabled"] is True and st["hour_utc"] == 9 and st["scope_on"] is True
+    assert st["running"] is False  # not started here
+
+
+def test_scheduler_start_stop(monkeypatch):
+    monkeypatch.setenv("KAI_DIGEST_SCHEDULER_ENABLED", "1")
+    monkeypatch.delenv("KAI_SCOPE_DIGEST", raising=False)  # scope off → loop won't send
+    try:
+        assert dsched.start() is True
+        assert dsched.is_running() is True
+        assert dsched.start() is False  # idempotent: already running
+    finally:
+        dsched.stop()
+    assert dsched.is_running() is False
+
+
+def test_run_digest_cycle_failsoft(monkeypatch):
+    # if DB wiring blows up, the cycle returns a skipped result — never raises
+    # (so the scheduler loop survives a transient failure).
+    import app.database as database
+    monkeypatch.setattr(database, "SessionLocal",
+                        lambda: (_ for _ in ()).throw(RuntimeError("no db")))
+    out = dg.run_digest_cycle(deliver=False)
+    assert out["sent"] is False
+    assert "error" in out

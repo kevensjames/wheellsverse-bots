@@ -40,6 +40,14 @@ def digest_latest() -> dict[str, Any]:
     return {"digest": rows[0] if rows else None}
 
 
+@router.get("/scheduler")
+def digest_scheduler_status() -> dict[str, Any]:
+    """Is the daily auto-send cron live? (KAI_DIGEST_SCHEDULER_ENABLED +
+    KAI_DIGEST_HOUR_UTC + KAI_SCOPE_DIGEST)."""
+    from app.services.digest.scheduler import status
+    return status()
+
+
 class RunRequest(BaseModel):
     deliver: bool = True          # push to Telegram
     prefer_local: bool = False

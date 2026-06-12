@@ -133,6 +133,31 @@ def send_digest(*, router, user_id, deliver: bool = True,
             "cost_usd": built["cost_usd"], "snapshot": built["snapshot"]}
 
 
+def run_digest_cycle(*, deliver: bool = True) -> dict[str, Any]:
+    """Self-contained digest run for the scheduler thread: opens its own DB
+    session, builds the router + resolves the operator, sends + logs. Used by
+    services/digest/scheduler.py (the request path uses the @audited endpoint
+    instead). Fail-soft: any wiring error degrades to a skipped result rather
+    than crashing the scheduler loop.
+    """
+    from app.database import SessionLocal
+    from app.routers.admin_chat import _resolve_operator_profile
+    from app.services.router import build_default_router
+
+    session = None
+    try:
+        session = SessionLocal()
+        rt = build_default_router(session)
+        prof = _resolve_operator_profile(session)
+        return send_digest(router=rt, user_id=prof.id, deliver=deliver)
+    except Exception as e:
+        logger.warning("digest: scheduled cycle failed: %s", e)
+        return {"digest": "", "sent": False, "cost_usd": 0.0, "error": str(e)}
+    finally:
+        if session is not None:
+            session.close()
+
+
 def list_digests(limit: int = 20) -> list[dict[str, Any]]:
     if not DIGEST_LOG_PATH.exists():
         return []
