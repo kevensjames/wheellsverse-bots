@@ -6,7 +6,7 @@
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1780979464" />
-  <link rel="stylesheet" href="admin.css?v=ts-1781285220" />
+  <link rel="stylesheet" href="admin.css?v=ts-1781285947" />
 </head>
 <body>
   <main class="admin-main">
@@ -130,12 +130,12 @@
           <div id="admin-chat-messages" class="admin-chat-messages" aria-live="polite"></div>
 
           <form id="admin-chat-form" class="admin-chat-form">
-            <textarea id="admin-chat-input" rows="3"
-              placeholder="Ask KAI anything. Try: 'fetch https://news.ycombinator.com and summarize the top story' or 'remember that today is launch day'"></textarea>
-            <div class="admin-chat-send-row">
-              <span id="admin-chat-status" class="admin-chat-status"></span>
-              <button type="submit" id="admin-chat-send" class="admin-btn admin-btn-primary">send</button>
+            <div class="admin-chat-inputrow">
+              <textarea id="admin-chat-input" rows="1"
+                placeholder="Ask KAI…  (Enter sends · Shift+Enter = new line)"></textarea>
+              <button type="submit" id="admin-chat-send" class="admin-chat-send" aria-label="Send" title="Send (Enter)">➤</button>
             </div>
+            <span id="admin-chat-status" class="admin-chat-status"></span>
           </form>
         </div>
       </div><!-- /admin-pane-chat -->
@@ -657,6 +657,6 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781285314" defer></script>
+  <script src="admin.js?v=ts-1781286001" defer></script>
 </body>
 </html>

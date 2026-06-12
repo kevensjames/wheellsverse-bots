@@ -234,9 +234,16 @@ function showBody() {
 // ─── tabs ──────────────────────────────────────────────────────────
 
 function activateTab(name) {
+  let active = null;
   document.querySelectorAll(".admin-tab").forEach((btn) => {
-    btn.classList.toggle("is-active", btn.dataset.tab === name);
+    const on = btn.dataset.tab === name;
+    btn.classList.toggle("is-active", on);
+    if (on) active = btn;
   });
+  // On the narrow mobile tab-strip, keep the selected tab in view.
+  if (active && active.scrollIntoView) {
+    active.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+  }
   document.querySelectorAll(".admin-pane").forEach((pane) => {
     pane.hidden = pane.id !== `admin-pane-${name}`;
   });
@@ -344,6 +351,7 @@ async function sendChat(e) {
 
   appendChatMessage("user", text);
   input.value = "";
+  autoGrowChatInput();          // shrink the box back to one line
   sendBtn.disabled = true;
   setChatStatus("thinking…");
 
@@ -380,7 +388,18 @@ function resetChat() {
   const list = $("#admin-chat-messages");
   if (list) list.replaceChildren();
   setChatStatus("");
-  $("#admin-chat-input").focus();
+  const input = $("#admin-chat-input");
+  if (input) { input.value = ""; autoGrowChatInput(); input.focus(); }
+}
+
+// Auto-grow the chat textarea to fit its content, capped (then it scrolls).
+// Cap matches the CSS max-height so the visible box and the scroll threshold
+// agree.
+function autoGrowChatInput() {
+  const ta = $("#admin-chat-input");
+  if (!ta) return;
+  ta.style.height = "auto";
+  ta.style.height = Math.min(ta.scrollHeight, 160) + "px";
 }
 
 // ─── expert-agent presets ──────────────────────────────────────────
@@ -2189,14 +2208,19 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#admin-chat-form").addEventListener("submit", sendChat);
   $("#admin-chat-new").addEventListener("click", resetChat);
 
-  // Cmd/Ctrl + Enter sends — Enter alone inserts a newline (preserves the
-  // multiline-prompt pattern from the main /kai-ui/chat.html input).
-  $("#admin-chat-input").addEventListener("keydown", (ev) => {
-    if (ev.key === "Enter" && (ev.metaKey || ev.ctrlKey)) {
-      ev.preventDefault();
-      sendChat();
-    }
-  });
+  // Enter sends; Shift+Enter inserts a newline. (isComposing guards IME so
+  // confirming a candidate doesn't fire a send.) The input auto-grows as you
+  // type up to a few lines, then scrolls.
+  const chatInput = $("#admin-chat-input");
+  if (chatInput) {
+    chatInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+        ev.preventDefault();
+        sendChat();
+      }
+    });
+    chatInput.addEventListener("input", autoGrowChatInput);
+  }
 
   // Supreme scanner
   $("#supreme-scan-now").addEventListener("click", runSupremeScan);

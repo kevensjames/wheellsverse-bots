@@ -232,7 +232,34 @@
 .admin-chat-status {
   color: var(--muted, #8a909c); font-size: 12px;
   font-style: italic;
+  margin-top: 4px;
 }
+
+/* Messaging-style composer: one auto-growing input + a round send button.
+   Enter sends, Shift+Enter = newline (see admin.js). */
+.admin-chat-inputrow {
+  display: flex; align-items: flex-end; gap: 8px;
+}
+.admin-chat-inputrow textarea {
+  flex: 1 1 auto; width: auto;
+  min-height: 44px; max-height: 160px;
+  resize: none;                 /* JS auto-grows the height */
+  overflow-y: auto;
+  line-height: 1.4;
+}
+.admin-chat-send {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--accent, #4f8cff); color: #fff;
+  border: none; cursor: pointer;
+  font-size: 17px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: filter .15s, transform .05s;
+}
+.admin-chat-send:hover { filter: brightness(1.08); }
+.admin-chat-send:active { transform: scale(0.94); }
+.admin-chat-send:disabled { opacity: .45; cursor: default; }
 
 /* Brief tab — small overrides on top of the shared card grid */
 .brief-generated-at { margin-top: 6px; }
@@ -418,6 +445,31 @@
 
   /* Auth gate: stack input + unlock so neither is squeezed. */
   .admin-auth-form { flex-direction: column; }
+
+  /* Tabs read as tappable chips; the active one is filled (a thin underline is
+     hard to spot on a small swipe strip), and tabs scroll-snap into place. */
+  .admin-tabs { scroll-snap-type: x proximity; }
+  .admin-tab {
+    scroll-snap-align: center;
+    border: 1px solid var(--border, #242630);
+    border-radius: 999px;
+    background: var(--card-bg, #15171c);
+    min-height: 36px;
+  }
+  .admin-tab.is-active {
+    background: var(--accent, #4f8cff);
+    color: #fff;
+    border-color: var(--accent, #4f8cff);
+  }
+
+  /* Roomier reading: bump the smallest text + give content a little air. */
+  .admin-stat-row { font-size: 15px; padding: 8px 0; }
+  .admin-hint { font-size: 13px; }
+  .admin-chat-meta { font-size: 11px; }
+
+  /* Chat composer sized for thumbs; 16px input avoids iOS focus-zoom. */
+  .admin-chat-send { width: 46px; height: 46px; font-size: 18px; }
+  .admin-chat-inputrow textarea { font-size: 16px; }
 
   /* The version-reload banner sits at the very top — keep its text from
      crowding the buttons on a narrow bar. */
