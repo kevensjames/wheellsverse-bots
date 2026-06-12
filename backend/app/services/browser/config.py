@@ -108,6 +108,36 @@ def _is_blocked_ip(host: str) -> bool:
     )
 
 
+def request_blocked_reason(
+    url: str, *, allow: list[str] | None = None, is_main_nav: bool = False
+) -> str | None:
+    """Per-request policy for the runtime nav guard (envelope-B v2).
+
+    Returns a short reason string if the request should be BLOCKED, else None.
+    - EVERY request (nav or sub-resource): block non-http(s) schemes + localhost
+      + private/loopback/reserved IPs (SSRF — e.g. a malicious allowlisted page
+      fetching http://169.254.169.254/ via an <img>).
+    - MAIN-FRAME NAVIGATIONS additionally: the destination host must be
+      allowlisted (a click can't navigate the page off-allowlist).
+    Sub-resources to public, non-allowlisted hosts (CDNs, fonts) are allowed so
+    pages still render.
+    """
+    parts = urlsplit(url)
+    scheme = (parts.scheme or "").lower()
+    if scheme not in ("http", "https"):
+        return f"scheme {scheme or '(none)'!r} not allowed"
+    host = (parts.hostname or "").lower()
+    if not host:
+        return "no host"
+    if host == "localhost" or host.endswith(".localhost"):
+        return "localhost blocked (SSRF)"
+    if _is_blocked_ip(host):
+        return f"private/loopback IP {host} blocked (SSRF)"
+    if is_main_nav and not host_allowed(host, allow):
+        return f"{host} not allowlisted (navigation blocked)"
+    return None
+
+
 def check_url(url: str, *, allow: list[str] | None = None) -> str:
     """Validate a navigation target against the full policy. Returns the
     normalized URL on success; raises BrowserPolicyError otherwise.

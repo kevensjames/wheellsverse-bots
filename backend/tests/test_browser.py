@@ -393,6 +393,33 @@ def test_admin_execute_no_approval_409(client, monkeypatch, _isolated_audit):
     assert r.status_code == 409
 
 
+# ─── envelope B v2: per-request nav-guard policy ─────────────────────
+
+
+_ALLOW = ["example.com", "news.ycombinator.com"]
+
+
+@pytest.mark.parametrize("url,is_nav,should_block", [
+    ("https://example.com/page", True, False),       # allowlisted nav → allow
+    ("https://www.example.com/x", True, False),      # allowlisted subdomain nav → allow
+    ("https://iana.org/help", True, True),           # off-allowlist NAV → block
+    ("https://iana.org/logo.png", False, False),     # off-allowlist SUB-RESOURCE → allow (render)
+    ("http://169.254.169.254/latest", False, True),  # cloud-metadata sub-resource → block (SSRF)
+    ("http://localhost/x", False, True),             # localhost sub-resource → block
+    ("http://10.0.0.1/x", True, True),               # private IP nav → block
+    ("javascript:alert(1)", True, True),             # bad scheme → block
+])
+def test_request_blocked_reason(url, is_nav, should_block):
+    reason = bc.request_blocked_reason(url, allow=_ALLOW, is_main_nav=is_nav)
+    assert (reason is not None) == should_block, f"{url} nav={is_nav} → {reason!r}"
+
+
+def test_request_blocked_reason_offallowlist_subresource_allowed():
+    # a CDN/font on a public non-allowlisted host must NOT be blocked (pages render)
+    assert bc.request_blocked_reason("https://cdn.jsdelivr.net/x.js",
+                                     allow=_ALLOW, is_main_nav=False) is None
+
+
 def test_admin_execute_success_stubbed(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")

@@ -145,6 +145,11 @@ def _audited_execute(*, url: str, actions: list[dict]) -> dict[str, Any]:
             url=final_url, detail=detail,
             proposed={"type": r.get("type"), "selector": r.get("selector")},
         )
+    for b in out.get("blocked_navigations", []):
+        log.record_action(
+            kind="blocked", status="blocked", url=b.get("url", ""),
+            detail=f"nav blocked: {b.get('reason', 'off-allowlist')}",
+        )
     return out
 
 

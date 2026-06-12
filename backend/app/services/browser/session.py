@@ -99,6 +99,34 @@ def _launch(p):
     return p.chromium.launch(headless=config.headless(), args=_LAUNCH_ARGS)
 
 
+def _install_guard(page, allow, blocked: list[dict]) -> None:
+    """Envelope-B v2 runtime guard: intercept every request and abort
+    off-allowlist MAIN-FRAME navigations + any private-IP/SSRF request. Blocked
+    navigations are recorded in `blocked` so the result can report them. Install
+    BEFORE goto so the entry load + its redirects + sub-resources are all guarded.
+    """
+    def _handler(route, request):
+        try:
+            try:
+                is_nav = request.is_navigation_request() and request.frame == page.main_frame
+            except Exception:
+                is_nav = False
+            reason = config.request_blocked_reason(request.url, allow=allow, is_main_nav=is_nav)
+            if reason is not None:
+                if is_nav:
+                    blocked.append({"url": request.url, "reason": reason})
+                route.abort()
+                return
+            route.continue_()
+        except Exception:  # pragma: no cover - never let the guard wedge a page
+            try:
+                route.continue_()
+            except Exception:
+                pass
+
+    page.route("**/*", _handler)
+
+
 def _read_sync(url: str, page_timeout_ms: int) -> dict[str, Any]:
     try:
         from playwright.sync_api import sync_playwright
@@ -111,6 +139,8 @@ def _read_sync(url: str, page_timeout_ms: int) -> dict[str, Any]:
                 ctx = browser.new_context()  # ephemeral — no profile, no cookies
                 ctx.set_default_timeout(config.action_timeout_ms())
                 page = ctx.new_page()
+                blocked: list[dict] = []
+                _install_guard(page, config.allowlist(), blocked)
                 page.goto(url, wait_until="domcontentloaded", timeout=page_timeout_ms)
                 title = page.title()
                 try:
@@ -125,7 +155,8 @@ def _read_sync(url: str, page_timeout_ms: int) -> dict[str, Any]:
                     )
                 except Exception:
                     links = []
-                return {"url": page.url, "title": title, "text": text, "links": links}
+                return {"url": page.url, "title": title, "text": text,
+                        "links": links, "blocked_navigations": blocked}
             finally:
                 browser.close()
     except BrowserUnavailable:
@@ -146,6 +177,8 @@ def _execute_sync(url: str, actions: list[dict], page_timeout_ms: int) -> dict[s
                 ctx = browser.new_context()  # ephemeral — no profile, no cookies
                 ctx.set_default_timeout(config.action_timeout_ms())
                 page = ctx.new_page()
+                blocked: list[dict] = []
+                _install_guard(page, config.allowlist(), blocked)
                 page.goto(url, wait_until="domcontentloaded", timeout=page_timeout_ms)
                 results: list[dict[str, Any]] = []
                 for a in actions:
@@ -166,7 +199,8 @@ def _execute_sync(url: str, actions: list[dict], page_timeout_ms: int) -> dict[s
                     }
                 except Exception:
                     final = {"url": page.url, "title": "", "text": ""}
-                return {"results": results, "final": final}
+                return {"results": results, "final": final,
+                        "blocked_navigations": blocked}
             finally:
                 browser.close()
     except BrowserUnavailable:
@@ -202,6 +236,7 @@ def _screenshot_sync(url: str, out_path: str, page_timeout_ms: int) -> str:
                 ctx = browser.new_context()
                 ctx.set_default_timeout(config.action_timeout_ms())
                 page = ctx.new_page()
+                _install_guard(page, config.allowlist(), [])
                 page.goto(url, wait_until="domcontentloaded", timeout=page_timeout_ms)
                 page.screenshot(path=out_path, full_page=True)
                 return out_path

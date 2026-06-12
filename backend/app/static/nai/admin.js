@@ -1528,6 +1528,14 @@ async function browserExecute(ev) {
         ul.appendChild(li);
       }
       out.appendChild(ul);
+      const bn = data.blocked_navigations || [];
+      if (bn.length) {
+        const w = document.createElement("p");
+        w.className = "admin-err";
+        w.textContent = "⛔ blocked off-allowlist navigation: " +
+          bn.map((x) => x.url).join(", ");
+        out.appendChild(w);
+      }
     }
     if (line) line.textContent = "executed";
     loadBrowserLog();
