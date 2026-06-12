@@ -23,6 +23,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 import uuid
@@ -138,7 +139,7 @@ def _run_pipeline_task(task_id: str, location: str, radius_m: int,
     with _TASKS_LOCK:
         _TASKS[task_id]["status"] = "running"
 
-    cmd: list[str] = [".venv/bin/python3", "scripts/local_prospect_run.py",
+    cmd: list[str] = [sys.executable, "scripts/local_prospect_run.py",
                       "--all", "--location", location,
                       "--radius", str(radius_m), "--limit", str(limit)]
     if categories:
@@ -192,7 +193,7 @@ def dashboard(_=Depends(verify_admin_api_key)) -> dict:
     env_status: dict[str, Any] = {}
     try:
         proc = subprocess.run(
-            [".venv/bin/python3", "scripts/siteboost_status.py", "--json"],
+            [sys.executable, "scripts/siteboost_status.py", "--json"],
             cwd=ROOT, capture_output=True, text=True, timeout=20,
         )
         if proc.returncode in (0, 1) and proc.stdout:
