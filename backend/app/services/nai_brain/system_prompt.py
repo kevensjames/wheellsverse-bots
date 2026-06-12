@@ -42,16 +42,24 @@ Guidelines:
 """
 
 
-def build_system_prompt(memory_preamble: str = "", persona_prompt: str = "") -> str:
-    """Compose the system prompt from up to three layers.
+def build_system_prompt(
+    memory_preamble: str = "",
+    persona_prompt: str = "",
+    lessons_preamble: str | None = None,
+) -> str:
+    """Compose the system prompt from up to four layers.
 
     Order (top-of-prompt to bottom):
       1. persona_prompt — optional, from an expert-agent preset (SWE,
          Marketing, Legal Researcher, etc.). Empty when no preset is active.
-      2. memory_preamble — from build_memory_preamble; 'Relevant memories
+      2. lessons_preamble — operator-approved 'lessons learned' from the
+         continuous-learning loop. Pass None (default) to auto-pull the
+         active lessons; gated by KAI_SCOPE_LEARNING and fail-open (→ "").
+         Pass "" explicitly to disable (used in tests).
+      3. memory_preamble — from build_memory_preamble; 'Relevant memories
          about the user: …'. Empty for first-message-in-conversation
          and for users with no stored memories.
-      3. BASE_SYSTEM_PROMPT — the KAI baseline persona that every reply
+      4. BASE_SYSTEM_PROMPT — the KAI baseline persona that every reply
          goes through regardless of preset.
 
     Layering this way lets a preset shape WHO KAI is (persona / tone / tool
@@ -59,10 +67,25 @@ def build_system_prompt(memory_preamble: str = "", persona_prompt: str = "") -> 
     memory and tools. The persona prompt sits FIRST so model attention
     treats it as the primary identity; the baseline is the safety net.
     """
+    if lessons_preamble is None:
+        lessons_preamble = _auto_lessons_preamble()
     parts = []
     if persona_prompt:
         parts.append(persona_prompt.strip())
+    if lessons_preamble:
+        parts.append(lessons_preamble.strip())
     if memory_preamble:
         parts.append(memory_preamble.strip())
     parts.append(BASE_SYSTEM_PROMPT)
     return "\n\n".join(parts)
+
+
+def _auto_lessons_preamble() -> str:
+    """Pull active continuous-learning lessons (if the feature is on). Lazy
+    import + fail-open so nai_brain never hard-depends on the learning module
+    and a learning error can't break prompt assembly."""
+    try:
+        from app.services.learning.injection import active_lessons_preamble
+        return active_lessons_preamble()
+    except Exception:
+        return ""

@@ -264,6 +264,8 @@ function activateTab(name) {
     loadPlanning();
   } else if (name === "browser") {
     loadBrowser();
+  } else if (name === "learning") {
+    loadLearning();
   }
 }
 
@@ -1479,6 +1481,153 @@ function renderBrowserResult(box, result) {
   }
 }
 
+// ─── learning (continuous learning) ──────────────────────────────────
+
+async function loadLearning() {
+  await Promise.all([loadLearningStats(), loadLearningLessons(), loadLearningFeedback()]);
+}
+
+async function loadLearningStats() {
+  const line = $("#learning-status-line");
+  const box = $("#learning-stats");
+  try {
+    const s = await apiGet("/admin/learning/stats");
+    if (line) {
+      line.textContent = `${s.feedback_total} feedback · ${s.active_lessons} active lesson(s)`;
+    }
+    if (box) {
+      box.replaceChildren();
+      const chip = (label, val) => {
+        const e = document.createElement("span");
+        e.className = "severity-chip";
+        e.textContent = `${label}: ${val}`;
+        return e;
+      };
+      const fb = s.feedback_by_rating || {};
+      const lp = s.lessons_by_status || {};
+      box.appendChild(chip("👍", fb.up || 0));
+      box.appendChild(chip("👎", fb.down || 0));
+      box.appendChild(chip("proposed", lp.proposed || 0));
+      box.appendChild(chip("active", lp.active || 0));
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function loadLearningLessons() {
+  const tbody = $("#learning-lessons-table tbody");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/learning/lessons?limit=100");
+    tbody.replaceChildren();
+    for (const L of data.lessons || []) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(`#${L.id}`));
+      tr.appendChild(td(L.text));
+      const st = td(""); st.appendChild(lessonChip(L.status)); tr.appendChild(st);
+      const act = td("");
+      if (L.status === "proposed") {
+        act.appendChild(lessonBtn("✓ activate", () => lessonAction(L.id, "activate")));
+        act.appendChild(lessonBtn("✕ dismiss", () => lessonAction(L.id, "dismiss")));
+      } else if (L.status === "active") {
+        act.appendChild(lessonBtn("✕ dismiss", () => lessonAction(L.id, "dismiss")));
+      }
+      tr.appendChild(act);
+      tbody.appendChild(tr);
+    }
+    if (!(data.lessons || []).length) {
+      const tr = document.createElement("tr");
+      const c = td("no lessons yet — add feedback, then ⚗ synthesize");
+      c.colSpan = 4; c.classList.add("admin-hint");
+      tr.appendChild(c); tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+async function loadLearningFeedback() {
+  const tbody = $("#learning-fb-table tbody");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/learning/feedback?limit=50");
+    tbody.replaceChildren();
+    for (const f of data.feedback || []) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(f.rating === "up" ? "👍" : "👎"));
+      tr.appendChild(td(truncate(f.note || "", 90)));
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+function lessonChip(status) {
+  const e = document.createElement("span");
+  e.className = `severity-chip lesson-${status}`;
+  e.textContent = status;
+  return e;
+}
+
+function lessonBtn(label, handler) {
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "admin-btn"; b.textContent = label;
+  b.addEventListener("click", handler);
+  return b;
+}
+
+async function lessonAction(id, action) {
+  const line = $("#learning-status-line");
+  try {
+    if (line) line.textContent = `${action}…`;
+    await apiPost(`/admin/learning/lessons/${id}/${action}`, { approved: true });
+    await loadLearningStats();
+    loadLearningLessons();
+    if (line) line.textContent = `lesson ${action}d`;
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function addFeedback(ev) {
+  if (ev) ev.preventDefault();
+  const rating = $("#learning-fb-rating").value;
+  const note = ($("#learning-fb-note").value || "").trim();
+  const line = $("#learning-status-line");
+  try {
+    await apiPost("/admin/learning/feedback", { rating, note });
+    $("#learning-fb-note").value = "";
+    await loadLearningStats();
+    loadLearningFeedback();
+    if (line) line.textContent = "feedback added";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function synthesizeLessons() {
+  const line = $("#learning-status-line");
+  const btn = $("#learning-synthesize");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "synthesizing…"; }
+    const out = await apiPost("/admin/learning/synthesize", { max_lessons: 5, approved: true });
+    if (line) line.textContent = out.note || `proposed ${(out.proposed || []).length}`;
+    await loadLearningStats();
+    loadLearningLessons();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1550,6 +1699,14 @@ document.addEventListener("DOMContentLoaded", () => {
   if (browserRefresh) browserRefresh.addEventListener("click", loadBrowser);
   const browserForm = $("#browser-nav-form");
   if (browserForm) browserForm.addEventListener("submit", browserNavigate);
+
+  // Learning (continuous learning)
+  const learnRefresh = $("#learning-refresh");
+  if (learnRefresh) learnRefresh.addEventListener("click", loadLearning);
+  const learnSynth = $("#learning-synthesize");
+  if (learnSynth) learnSynth.addEventListener("click", synthesizeLessons);
+  const learnFbForm = $("#learning-fb-form");
+  if (learnFbForm) learnFbForm.addEventListener("submit", addFeedback);
 
   if (getToken()) {
     refresh();

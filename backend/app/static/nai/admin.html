@@ -23,6 +23,7 @@
         <button type="button" class="admin-tab" data-tab="self-correction">Self-Correction</button>
         <button type="button" class="admin-tab" data-tab="planning">Plans</button>
         <button type="button" class="admin-tab" data-tab="browser">Browser</button>
+        <button type="button" class="admin-tab" data-tab="learning">Learning</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -478,9 +479,54 @@
           </table>
         </div>
       </div><!-- /admin-pane-browser -->
+
+      <div id="admin-pane-learning" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Learning · KAI improves from feedback</h2>
+            <div class="admin-chat-tools">
+              <span id="learning-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="learning-synthesize" class="admin-btn">⚗ synthesize lessons</button>
+              <button type="button" id="learning-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Give 👍/👎 feedback on KAI's behavior. KAI distills it into proposed
+            lessons; you approve which go live, and active lessons inject into
+            KAI's system prompt (scope <code>KAI_SCOPE_LEARNING</code>; every
+            activation audited &amp; reversible).
+          </p>
+          <div id="learning-stats" class="admin-stat-row admin-stat-tiers"></div>
+          <form id="learning-fb-form" class="admin-plan-create">
+            <select id="learning-fb-rating">
+              <option value="down">👎 down</option>
+              <option value="up">👍 up</option>
+            </select>
+            <input type="text" id="learning-fb-note" placeholder="What should change? (note)" />
+            <button type="submit" id="learning-fb-btn" class="admin-btn">Add feedback</button>
+          </form>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Lessons</h2>
+            <table class="admin-table" id="learning-lessons-table">
+              <thead><tr><th>#</th><th>lesson</th><th>status</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Recent feedback</h2>
+            <table class="admin-table" id="learning-fb-table">
+              <thead><tr><th>rating</th><th>note</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /admin-pane-learning -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781095765" defer></script>
+  <script src="admin.js?v=ts-1781226234" defer></script>
 </body>
 </html>

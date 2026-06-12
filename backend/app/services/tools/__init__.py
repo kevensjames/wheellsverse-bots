@@ -15,6 +15,7 @@ from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
 from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.kg_query import KGQueryTool
+from app.services.tools.learning_query import LearningQueryTool
 from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.plan_query import PlanQueryTool
 from app.services.tools.registry import ToolRegistry
@@ -71,6 +72,9 @@ def build_default_registry(
     # Long-term plans — SQLite-backed, ships with the daemon. READ-ONLY tool;
     # plan creation/execution goes through the audited admin endpoints.
     reg.register(PlanQueryTool())
+    # Learning — read-only; reports lessons KAI has learned from feedback.
+    # SQLite-backed, ships with the daemon. No env key.
+    reg.register(LearningQueryTool())
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -116,6 +120,7 @@ __all__ = [
     "ComposioTool",
     "FailureLookupTool",
     "KGQueryTool",
+    "LearningQueryTool",
     "MemoryTool",
     "NotionTool",
     "PlanQueryTool",
