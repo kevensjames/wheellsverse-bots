@@ -4,6 +4,13 @@
 
 .admin-main {
   max-width: 1080px;
+  width: 100%;
+  /* The shared <body> is display:flex; a flex item defaults to min-width:auto,
+     which refuses to shrink below its content and overflows narrow viewports
+     (the whole page rendered at 1080px on a phone). min-width:0 lets it shrink
+     to the viewport. */
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   padding: 24px 18px 60px;
 }
