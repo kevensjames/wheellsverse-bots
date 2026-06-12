@@ -81,6 +81,15 @@ def learning_stats() -> dict[str, Any]:
     return storage.stats()
 
 
+@router.get("/review")
+def learning_review(window_days: int = 14, min_after_samples: int = 3) -> dict[str, Any]:
+    """Auto-tuning: per-active-lesson effectiveness + retirement suggestions.
+    Pure read (no mutation/LLM) — the actual retire goes through the audited
+    dismiss endpoint, so this is admin-token only, same as /stats."""
+    from app.services.learning import evaluate_lessons
+    return evaluate_lessons(window_days=window_days, min_after_samples=min_after_samples)
+
+
 # ─── audited actions ─────────────────────────────────────────────────
 
 

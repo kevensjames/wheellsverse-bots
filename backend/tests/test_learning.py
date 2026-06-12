@@ -14,6 +14,7 @@ from app.config import settings
 from app.services.learning import storage as ls
 from app.services.learning import synthesis as lsyn
 from app.services.learning import injection as linj
+from app.services.learning import tuning as ltun
 
 ADMIN_HEADERS = {"X-Admin-Token": settings.admin_token}
 
@@ -204,6 +205,73 @@ def test_synthesis_caps_at_max():
     assert len(out["proposed"]) == 3
 
 
+# ─── auto-tuning (evaluate_lessons) ──────────────────────────────────
+
+
+def test_evaluate_no_active_lessons():
+    ls.add_lesson("just proposed")  # proposed, not active
+    out = ltun.evaluate_lessons()
+    assert out["evaluated"] == [] and out["recommend_retire"] == []
+
+
+def test_evaluate_insufficient_data():
+    lesson = ls.add_lesson("x")
+    ls.set_lesson_status(lesson.id, "active")  # active now, no feedback after
+    out = ltun.evaluate_lessons()
+    row = next(r for r in out["evaluated"] if r["id"] == lesson.id)
+    assert row["verdict"] == "insufficient_data"
+    assert row["recommend_retire"] is False
+
+
+def test_evaluate_worsening_recommends_retire(monkeypatch):
+    # before: 4 feedback, 1 down (25%)
+    monkeypatch.setattr(ls, "_now", lambda: "2026-05-01T00:00:00+00:00")
+    for _ in range(3):
+        ls.record_feedback(rating="up")
+    ls.record_feedback(rating="down")
+    lesson = ls.add_lesson("be terse")
+    # activate
+    monkeypatch.setattr(ls, "_now", lambda: "2026-05-15T00:00:00+00:00")
+    ls.set_lesson_status(lesson.id, "active")
+    # after: 4 feedback, 3 down (75%) → down-rate rose → worsening
+    monkeypatch.setattr(ls, "_now", lambda: "2026-05-20T00:00:00+00:00")
+    for _ in range(3):
+        ls.record_feedback(rating="down")
+    ls.record_feedback(rating="up")
+    out = ltun.evaluate_lessons(window_days=30, min_after_samples=3)
+    row = next(r for r in out["evaluated"] if r["id"] == lesson.id)
+    assert row["verdict"] == "worsening"
+    assert row["recommend_retire"] is True
+    assert lesson.id in out["recommend_retire"]
+
+
+def test_evaluate_improving_keeps_lesson(monkeypatch):
+    # before: 3/4 down (75%)
+    monkeypatch.setattr(ls, "_now", lambda: "2026-05-01T00:00:00+00:00")
+    for _ in range(3):
+        ls.record_feedback(rating="down")
+    ls.record_feedback(rating="up")
+    lesson = ls.add_lesson("lead with the answer")
+    monkeypatch.setattr(ls, "_now", lambda: "2026-05-15T00:00:00+00:00")
+    ls.set_lesson_status(lesson.id, "active")
+    # after: 1/4 down (25%) → down-rate fell → improving
+    monkeypatch.setattr(ls, "_now", lambda: "2026-05-20T00:00:00+00:00")
+    for _ in range(3):
+        ls.record_feedback(rating="up")
+    ls.record_feedback(rating="down")
+    out = ltun.evaluate_lessons(window_days=30, min_after_samples=3)
+    row = next(r for r in out["evaluated"] if r["id"] == lesson.id)
+    assert row["verdict"] == "improving"
+    assert row["recommend_retire"] is False
+
+
+def test_activate_stamps_activated_at():
+    lesson = ls.add_lesson("x")
+    assert "activated_at" not in lesson.meta
+    ls.set_lesson_status(lesson.id, "active")
+    assert ls.get_lesson(lesson.id).meta.get("activated_at")
+
+
 # ─── injection gating ────────────────────────────────────────────────
 
 
@@ -286,6 +354,12 @@ def test_tool_stats_action():
     assert out["feedback_total"] == 1
 
 
+def test_tool_review_action():
+    a = ls.add_lesson("Be concise"); ls.set_lesson_status(a.id, "active")
+    out = LearningQueryTool().execute(_ctx(), action="review")
+    assert out["action"] == "review" and "evaluated" in out and "caveat" in out
+
+
 def test_tool_unknown_action():
     with pytest.raises(ToolError):
         LearningQueryTool().execute(_ctx(), action="bogus")
@@ -318,6 +392,18 @@ def _patch_llm(monkeypatch, content, *, cost=0.002):
 
 def test_admin_stats_requires_token(client):
     assert client.get("/admin/learning/stats").status_code == 403
+
+
+def test_admin_review_requires_token(client):
+    assert client.get("/admin/learning/review").status_code == 403
+
+
+def test_admin_review_returns_evaluation(client):
+    a = ls.add_lesson("Be concise"); ls.set_lesson_status(a.id, "active")
+    r = client.get("/admin/learning/review", headers=ADMIN_HEADERS)
+    assert r.status_code == 200
+    body = r.json()
+    assert "evaluated" in body and "recommend_retire" in body and "caveat" in body
 
 
 def test_admin_feedback_record_and_list(client):

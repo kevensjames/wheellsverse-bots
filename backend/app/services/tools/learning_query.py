@@ -6,12 +6,14 @@ Actions:
   lessons  — list lessons (optional status: proposed/active/dismissed)
   feedback — recent thumbs up/down + notes
   stats    — counts (feedback by rating, lessons by status, active lessons)
+  review   — auto-tuning: which active lessons appear to be helping vs which
+             should be reviewed for retirement (correlational)
 """
 from __future__ import annotations
 
 from typing import Any
 
-from app.services.learning import storage
+from app.services.learning import evaluate_lessons, storage
 from app.services.tools.base import ToolContext, ToolError
 
 
@@ -23,14 +25,16 @@ class LearningQueryTool:
         "active = currently applied, proposed = awaiting operator approval, "
         "dismissed).\n"
         "  feedback — recent thumbs up/down the operator gave, with notes.\n"
-        "  stats    — counts: feedback by rating, lessons by status."
+        "  stats    — counts: feedback by rating, lessons by status.\n"
+        "  review   — effectiveness check: which active lessons seem to help "
+        "vs should be reviewed for retirement (correlational, not causal)."
     )
     parameters = {
         "type": "object",
         "properties": {
             "action": {
                 "type": "string",
-                "enum": ["lessons", "feedback", "stats"],
+                "enum": ["lessons", "feedback", "stats", "review"],
                 "description": "Which query to run.",
             },
             "status": {
@@ -71,4 +75,6 @@ class LearningQueryTool:
             }
         if action == "stats":
             return {"action": "stats", **storage.stats()}
-        raise ToolError(f"unknown action {action!r}; use lessons|feedback|stats")
+        if action == "review":
+            return {"action": "review", **evaluate_lessons()}
+        raise ToolError(f"unknown action {action!r}; use lessons|feedback|stats|review")

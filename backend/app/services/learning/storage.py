@@ -197,10 +197,23 @@ def set_lesson_status(lesson_id: int, status: str) -> Lesson:
     status = _validate_status(status)
     now = _now()
     with _conn() as c:
-        cur = c.execute(
-            "UPDATE lessons SET status = ?, updated_at = ? WHERE id = ?",
-            (status, now, lesson_id),
-        )
+        if status == "active":
+            # Stamp activation time in meta so auto-tuning (tuning.py) can
+            # measure the feedback trend before vs after the lesson went live.
+            row = c.execute("SELECT meta FROM lessons WHERE id = ?", (lesson_id,)).fetchone()
+            if row is None:
+                raise ValueError(f"no lesson with id {lesson_id}")
+            meta = json.loads(row["meta"]) if row["meta"] else {}
+            meta["activated_at"] = now
+            cur = c.execute(
+                "UPDATE lessons SET status = ?, meta = ?, updated_at = ? WHERE id = ?",
+                (status, json.dumps(meta, default=str), now, lesson_id),
+            )
+        else:
+            cur = c.execute(
+                "UPDATE lessons SET status = ?, updated_at = ? WHERE id = ?",
+                (status, now, lesson_id),
+            )
         if cur.rowcount == 0:
             raise ValueError(f"no lesson with id {lesson_id}")
     updated = get_lesson(lesson_id)

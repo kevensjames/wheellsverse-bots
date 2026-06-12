@@ -11,6 +11,8 @@ activation is @audited (KAI changes its own guidance only with approval).
   synthesis  — feedback + tool/LLM failures + self-correction events → proposed
                lessons via the LLM (v2: 3 signals, each tagged by source)
   injection  — active lessons → system-prompt preamble (loop closes here)
+  tuning     — measure active-lesson effectiveness (before/after down-rate) →
+               propose retirement; operator approves the dismiss (loop tightens)
 """
 from app.services.learning.storage import (  # noqa: F401
     LEARNING_DB_PATH,
@@ -28,6 +30,7 @@ from app.services.learning.storage import (  # noqa: F401
 )
 from app.services.learning.synthesis import synthesize_lessons  # noqa: F401
 from app.services.learning.injection import active_lessons_preamble  # noqa: F401
+from app.services.learning.tuning import evaluate_lessons  # noqa: F401
 
 __all__ = [
     "LEARNING_DB_PATH",
@@ -37,6 +40,7 @@ __all__ = [
     "Lesson",
     "active_lessons_preamble",
     "add_lesson",
+    "evaluate_lessons",
     "get_lesson",
     "list_feedback",
     "list_lessons",

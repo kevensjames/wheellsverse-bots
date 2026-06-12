@@ -1697,6 +1697,66 @@ async function synthesizeLessons() {
   }
 }
 
+async function reviewLessons() {
+  const line = $("#learning-status-line");
+  const btn = $("#learning-review-btn");
+  const box = $("#learning-review");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "reviewing…"; }
+    const out = await apiGet("/admin/learning/review");
+    renderLearningReview(box, out);
+    if (line) {
+      const n = (out.recommend_retire || []).length;
+      line.textContent = `${out.summary.active_lessons} active lesson(s) · ${n} suggested for retirement`;
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
+function renderLearningReview(box, out) {
+  if (!box) return;
+  box.textContent = "";
+  const rows = out.evaluated || [];
+  if (!rows.length) {
+    const p = document.createElement("p");
+    p.className = "admin-hint";
+    p.textContent = "No active lessons to review yet.";
+    box.appendChild(p);
+    return;
+  }
+  const pct = (v) => (v === null || v === undefined) ? "—" : `${Math.round(v * 100)}%`;
+  const tbl = document.createElement("table");
+  tbl.className = "admin-table";
+  const thead = document.createElement("thead");
+  const htr = document.createElement("tr");
+  ["#", "lesson", "verdict", "👎 before→after", ""].forEach((h) => {
+    const th = document.createElement("th"); th.textContent = h; htr.appendChild(th);
+  });
+  thead.appendChild(htr);
+  tbl.appendChild(thead);
+  const tb = document.createElement("tbody");
+  rows.forEach((r) => {
+    const tr = document.createElement("tr");
+    tr.appendChild(td(`#${r.id}`));
+    tr.appendChild(td(truncate(r.text, 56)));
+    tr.appendChild(td(r.verdict));
+    tr.appendChild(td(`${pct(r.down_rate_before)}→${pct(r.down_rate_after)}`));
+    tr.appendChild(td(r.recommend_retire ? "⚠ review for retirement" : "keep"));
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+  box.appendChild(tbl);
+  const cap = document.createElement("p");
+  cap.className = "admin-hint";
+  cap.textContent = out.caveat || "";
+  box.appendChild(cap);
+}
+
 // ─── twin (digital twin) ──────────────────────────────────────────────
 
 async function loadTwin() {
@@ -2099,6 +2159,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (learnRefresh) learnRefresh.addEventListener("click", loadLearning);
   const learnSynth = $("#learning-synthesize");
   if (learnSynth) learnSynth.addEventListener("click", synthesizeLessons);
+  const learnReview = $("#learning-review-btn");
+  if (learnReview) learnReview.addEventListener("click", reviewLessons);
   const learnFbForm = $("#learning-fb-form");
   if (learnFbForm) learnFbForm.addEventListener("submit", addFeedback);
 
