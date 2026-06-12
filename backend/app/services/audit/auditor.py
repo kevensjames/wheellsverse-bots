@@ -63,6 +63,9 @@ SUBSYSTEMS: list[dict[str, Any]] = [
     {"key": "supreme", "name": "Supreme scanner", "scope": None,
      "tab": "scanner", "router": "/admin/supreme", "store": None, "kind": None,
      "desc": "15-min empire health scan (process/port/log/api/disk/git)"},
+    {"key": "digest", "name": "Operator Digest", "scope": "digest",
+     "tab": "brief", "router": "/admin/digest", "store": "digest/digests.jsonl",
+     "kind": "jsonl", "desc": "proactive cross-subsystem synthesis pushed to Telegram"},
 ]
 
 

@@ -179,6 +179,22 @@
       <div id="admin-pane-brief" class="admin-pane" hidden>
         <div class="admin-card">
           <div class="admin-chat-toolbar">
+            <h2>🔔 Operator Digest · cross-subsystem → Telegram</h2>
+            <div class="admin-chat-tools">
+              <span id="digest-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="digest-run" class="admin-btn admin-btn-primary">generate + send</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            KAI synthesizes audit health + blocked plans + negative feedback +
+            twin/learning state into a short "what needs attention" digest and
+            pushes it to Telegram (scope <code>KAI_SCOPE_DIGEST</code>; distinct
+            from the business Daily Brief below).
+          </p>
+          <pre id="digest-output" class="admin-pre"></pre>
+        </div>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
             <h2>Daily Brief · operator chief-of-staff</h2>
             <div class="admin-chat-tools">
               <span id="brief-status-line" class="admin-chat-status">—</span>
@@ -630,6 +646,6 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781256817" defer></script>
+  <script src="admin.js?v=ts-1781270420" defer></script>
 </body>
 </html>

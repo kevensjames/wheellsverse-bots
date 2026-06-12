@@ -250,6 +250,7 @@ function activateTab(name) {
   } else if (name === "brief") {
     // Audit table fetches immediately; brief body waits for user click.
     loadBriefAudit();
+    loadDigestLatest();
   } else if (name === "kg") {
     loadKgStats();
   } else if (name === "failures") {
@@ -1918,6 +1919,36 @@ async function loadAudit() {
   }
 }
 
+// ─── operator digest (Brief tab) ─────────────────────────────────────
+
+async function loadDigestLatest() {
+  try {
+    const d = await apiGet("/admin/digest/latest");
+    const out = $("#digest-output");
+    if (out && d.digest) out.textContent = d.digest.digest || "";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+async function runDigest() {
+  const line = $("#digest-status-line");
+  const out = $("#digest-output");
+  const btn = $("#digest-run");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "synthesizing…"; }
+    const d = await apiPost("/admin/digest/run", { deliver: true, approved: true });
+    if (out) out.textContent = d.digest || "";
+    if (line) line.textContent = d.sent ? "sent to Telegram ✓" : "generated (Telegram not sent)";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 // ─── boot ──────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -1959,6 +1990,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Daily Brief
   $("#brief-generate-now").addEventListener("click", generateBrief);
+  const digestRun = $("#digest-run");
+  if (digestRun) digestRun.addEventListener("click", runDigest);
 
   // Knowledge graph
   const kgRefresh = $("#kg-refresh");
