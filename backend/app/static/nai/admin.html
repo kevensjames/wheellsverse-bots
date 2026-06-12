@@ -473,6 +473,25 @@
         </div>
 
         <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Execute write sequence · envelope B (approved)</h2>
+          </div>
+          <p class="admin-hint">
+            Operator-only: runs a sequence of write actions on one allowlisted
+            page, then closes. Requires <code>KAI_BROWSER_WRITE_ENABLED=1</code>.
+            KAI proposes (see log); you execute here. Actions = JSON array of
+            <code>{type, selector, value}</code> (type ∈ click/type/submit/select).
+          </p>
+          <form id="browser-exec-form" class="admin-plan-create">
+            <input type="text" id="browser-exec-url" placeholder="https://example.com  (allowlisted)" />
+            <textarea id="browser-exec-actions" rows="3"
+              placeholder='[{"type":"type","selector":"#q","value":"kai"},{"type":"click","selector":"#go"}]'></textarea>
+            <button type="submit" id="browser-exec-btn" class="admin-btn">Execute (approved)</button>
+          </form>
+          <div id="browser-exec-result"></div>
+        </div>
+
+        <div class="admin-card">
           <h2>Action log</h2>
           <table class="admin-table" id="browser-log-table">
             <thead><tr><th>when</th><th>kind</th><th>status</th><th>url</th><th>detail</th></tr></thead>
@@ -578,6 +597,6 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781230669" defer></script>
+  <script src="admin.js?v=ts-1781234661" defer></script>
 </body>
 </html>

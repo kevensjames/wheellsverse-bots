@@ -25,7 +25,7 @@ BROWSER_LOG_PATH = Path(
 )
 BROWSER_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
 
-KINDS = ("navigate", "screenshot", "propose_write", "blocked")
+KINDS = ("navigate", "screenshot", "propose_write", "execute_write", "blocked")
 STATUSES = ("ok", "blocked", "error")
 
 

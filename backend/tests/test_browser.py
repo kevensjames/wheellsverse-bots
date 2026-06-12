@@ -323,3 +323,87 @@ def test_admin_propose_success(client, monkeypatch, _isolated_audit):
     assert r.status_code == 200
     assert "DRY RUN" in r.json()["note"]
     assert blog.list_actions()[0]["kind"] == "propose_write"
+
+
+# ─── envelope B: write execution (gates fire before any browser launch) ──
+
+
+def test_write_enabled_default_off(monkeypatch):
+    monkeypatch.delenv("KAI_BROWSER_WRITE_ENABLED", raising=False)
+    assert bc.write_enabled() is False
+
+
+def test_execute_actions_blocked_when_writes_disabled(monkeypatch):
+    # browser enabled + allowlisted, but write kill-switch off → raise, no launch
+    monkeypatch.delenv("KAI_BROWSER_WRITE_ENABLED", raising=False)
+    with pytest.raises(bc.BrowserPolicyError, match="writes are disabled"):
+        bsession.execute_actions("https://example.com",
+                                 [{"type": "click", "selector": "#x"}])
+
+
+def test_execute_actions_bad_action_type(monkeypatch):
+    monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
+    with pytest.raises(bc.BrowserPolicyError, match="not allowed"):
+        bsession.execute_actions("https://example.com",
+                                 [{"type": "evileval", "selector": "#x"}])
+
+
+def test_execute_actions_non_allowlisted(monkeypatch):
+    monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
+    with pytest.raises(bc.BrowserPolicyError):
+        bsession.execute_actions("https://evil.com",
+                                 [{"type": "click", "selector": "#x"}])
+
+
+def test_execute_actions_empty(monkeypatch):
+    monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
+    with pytest.raises(bc.BrowserPolicyError, match="no actions"):
+        bsession.execute_actions("https://example.com", [])
+
+
+def test_admin_execute_write_disabled_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.delenv("KAI_BROWSER_WRITE_ENABLED", raising=False)
+    r = client.post("/admin/browser/execute", headers=ADMIN_HEADERS,
+                    json={"url": "https://example.com",
+                          "actions": [{"type": "click", "selector": "#x"}],
+                          "approved": True})
+    assert r.status_code == 403
+    assert "writes are disabled" in r.json()["detail"]
+
+
+def test_admin_execute_scope_off_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
+    monkeypatch.delenv("KAI_SCOPE_BROWSER", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_BROWSER_EXECUTE", raising=False)
+    r = client.post("/admin/browser/execute", headers=ADMIN_HEADERS,
+                    json={"url": "https://example.com",
+                          "actions": [{"type": "click", "selector": "#x"}],
+                          "approved": True})
+    assert r.status_code == 403
+
+
+def test_admin_execute_no_approval_409(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    r = client.post("/admin/browser/execute", headers=ADMIN_HEADERS,
+                    json={"url": "https://example.com",
+                          "actions": [{"type": "click", "selector": "#x"}],
+                          "approved": False})
+    assert r.status_code == 409
+
+
+def test_admin_execute_success_stubbed(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setattr(bsession, "execute_actions", lambda url, actions: {
+        "results": [{"type": "click", "selector": "#more", "ok": True}],
+        "final": {"url": "https://example.com/more", "title": "More", "text": "ok"},
+    })
+    r = client.post("/admin/browser/execute", headers=ADMIN_HEADERS,
+                    json={"url": "https://example.com",
+                          "actions": [{"type": "click", "selector": "#more"}],
+                          "approved": True})
+    assert r.status_code == 200
+    assert r.json()["final"]["url"] == "https://example.com/more"
+    assert blog.list_actions()[0]["kind"] == "execute_write"

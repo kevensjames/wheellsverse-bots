@@ -51,6 +51,18 @@ def browser_enabled() -> bool:
     return _is_env_truthy("KAI_BROWSER_ENABLED")
 
 
+# Envelope B: actions KAI may execute (operator-approved). Deliberately narrow —
+# no file uploads, downloads, navigation-by-script, or JS eval.
+WRITE_ACTION_TYPES = ("click", "type", "submit", "select")
+
+
+def write_enabled() -> bool:
+    """SECOND kill-switch, default OFF — gates WRITE execution specifically.
+    Even with the browser enabled, executing clicks/types/submits requires this
+    deliberate extra opt-in (KAI_BROWSER_WRITE_ENABLED=1). Reads are unaffected."""
+    return _is_env_truthy("KAI_BROWSER_WRITE_ENABLED")
+
+
 def headless() -> bool:
     """Headless by default; KAI_BROWSER_HEADED=1 to watch (debugging only)."""
     return not _is_env_truthy("KAI_BROWSER_HEADED")

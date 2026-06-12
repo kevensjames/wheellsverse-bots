@@ -51,6 +51,38 @@ def screenshot(url: str, out_path: str) -> str:
     return _run_in_thread(_screenshot_sync, (url, out_path, page_to), overall_s)
 
 
+def execute_actions(url: str, actions: list[dict]) -> dict[str, Any]:
+    """Envelope B: navigate to `url` and run a SEQUENCE of write actions
+    (click/type/submit/select) in ONE ephemeral session, then return the final
+    page state. Re-validates policy + the write kill-switch defensively, and
+    validates every action type before launching. Stops at the first failure.
+
+    Returns {"results": [{type, selector, ok, error?}], "final": {url,title,text}}.
+    """
+    url = config.check_url(url)  # enabled + scheme + ssrf + allowlist
+    if not config.write_enabled():
+        raise config.BrowserPolicyError(
+            "browser writes are disabled (set KAI_BROWSER_WRITE_ENABLED=1)"
+        )
+    norm: list[dict[str, Any]] = []
+    for a in actions or []:
+        t = (str(a.get("type") or "")).strip().lower()
+        if t not in config.WRITE_ACTION_TYPES:
+            raise config.BrowserPolicyError(
+                f"action type {t!r} not allowed — use {config.WRITE_ACTION_TYPES}"
+            )
+        norm.append({
+            "type": t,
+            "selector": (str(a.get("selector") or "")).strip(),
+            "value": a.get("value"),
+        })
+    if not norm:
+        raise config.BrowserPolicyError("no actions to execute")
+    page_to = config.page_timeout_ms()
+    overall_s = page_to / 1000 + len(norm) * (config.action_timeout_ms() / 1000) + 5
+    return _run_in_thread(_execute_sync, (url, norm, page_to), overall_s)
+
+
 # ─── internals (run inside the worker thread) ───────────────────────
 
 
@@ -100,6 +132,62 @@ def _read_sync(url: str, page_timeout_ms: int) -> dict[str, Any]:
         raise
     except Exception as e:
         raise BrowserUnavailable(f"navigation failed: {e}")
+
+
+def _execute_sync(url: str, actions: list[dict], page_timeout_ms: int) -> dict[str, Any]:
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception as e:
+        raise BrowserUnavailable(f"playwright not available: {e}")
+    try:
+        with sync_playwright() as p:
+            browser = _launch(p)
+            try:
+                ctx = browser.new_context()  # ephemeral — no profile, no cookies
+                ctx.set_default_timeout(config.action_timeout_ms())
+                page = ctx.new_page()
+                page.goto(url, wait_until="domcontentloaded", timeout=page_timeout_ms)
+                results: list[dict[str, Any]] = []
+                for a in actions:
+                    rec = {"type": a["type"], "selector": a["selector"]}
+                    try:
+                        _perform(page, a)
+                        rec["ok"] = True
+                    except Exception as e:
+                        rec["ok"] = False
+                        rec["error"] = str(e)[:300]
+                        results.append(rec)
+                        break  # stop at first failure — don't barrel through a broken flow
+                    results.append(rec)
+                try:
+                    final = {
+                        "url": page.url, "title": page.title(),
+                        "text": page.inner_text("body")[: config.MAX_TEXT_CHARS],
+                    }
+                except Exception:
+                    final = {"url": page.url, "title": "", "text": ""}
+                return {"results": results, "final": final}
+            finally:
+                browser.close()
+    except BrowserUnavailable:
+        raise
+    except Exception as e:
+        raise BrowserUnavailable(f"execute failed: {e}")
+
+
+def _perform(page, action: dict) -> None:
+    """Run one validated action against the live page."""
+    t, selector, value = action["type"], action["selector"], action.get("value")
+    if not selector:
+        raise ValueError(f"{t} requires a selector")
+    if t == "type":
+        page.fill(selector, "" if value is None else str(value))
+    elif t == "select":
+        page.select_option(selector, "" if value is None else str(value))
+    elif t in ("click", "submit"):
+        page.click(selector)
+    else:  # pragma: no cover - guarded earlier
+        raise ValueError(f"unknown action type {t}")
 
 
 def _screenshot_sync(url: str, out_path: str, page_timeout_ms: int) -> str:

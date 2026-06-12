@@ -70,6 +70,19 @@ class ProposeRequest(BaseModel):
     approved: bool = False
 
 
+class ActionIn(BaseModel):
+    type: str                    # click / type / submit / select
+    selector: str
+    value: str | None = None
+
+
+class ExecuteRequest(BaseModel):
+    """Envelope B: a sequence of write actions on one allowlisted page."""
+    url: str
+    actions: list[ActionIn]
+    approved: bool = False
+
+
 # ─── audited actions ─────────────────────────────────────────────────
 
 
@@ -111,6 +124,30 @@ def _audited_propose(
 # ─── write routes ────────────────────────────────────────────────────
 
 
+@audited(scope="browser.execute", destructive=True)
+def _audited_execute(*, url: str, actions: list[dict]) -> dict[str, Any]:
+    try:
+        out = session.execute_actions(url, actions)
+    except config.BrowserPolicyError as e:
+        log.record_action(kind="blocked", status="blocked", url=url, detail=str(e))
+        raise
+    except session.BrowserUnavailable as e:
+        log.record_action(kind="execute_write", status="error", url=url, detail=str(e))
+        raise
+    final_url = out.get("final", {}).get("url", url)
+    for r in out.get("results", []):
+        ok = bool(r.get("ok"))
+        detail = f"{r.get('type')} {r.get('selector')}"
+        if not ok:
+            detail += f" → {r.get('error', 'failed')}"
+        log.record_action(
+            kind="execute_write", status=("ok" if ok else "error"),
+            url=final_url, detail=detail,
+            proposed={"type": r.get("type"), "selector": r.get("selector")},
+        )
+    return out
+
+
 def _guard(fn, **kwargs):
     try:
         return fn(**kwargs)
@@ -137,4 +174,20 @@ def browser_propose(body: ProposeRequest):
         _audited_propose,
         action_type=body.action_type, selector=body.selector, value=body.value,
         description=body.description, url=body.url, approved=body.approved,
+    )
+
+
+@router.post("/execute")
+def browser_execute(body: ExecuteRequest):
+    """Envelope B — EXECUTE a sequence of write actions (operator-approved only).
+    Triple-gated: KAI_BROWSER_WRITE_ENABLED (here) + KAI_SCOPE_BROWSER + approved
+    (in @audited). KAI proposes via the tool; only this operator endpoint executes."""
+    if not config.write_enabled():
+        raise HTTPException(
+            status_code=403,
+            detail="browser writes are disabled (set KAI_BROWSER_WRITE_ENABLED=1)",
+        )
+    return _guard(
+        _audited_execute, url=body.url,
+        actions=[a.model_dump() for a in body.actions], approved=body.approved,
     )

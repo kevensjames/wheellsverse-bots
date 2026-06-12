@@ -15,6 +15,7 @@ submit) but v1 NEVER executes them. Hardened by:
 """
 from app.services.browser.config import (  # noqa: F401
     MAX_TEXT_CHARS,
+    WRITE_ACTION_TYPES,
     BrowserPolicyError,
     action_timeout_ms,
     allowlist,
@@ -23,6 +24,7 @@ from app.services.browser.config import (  # noqa: F401
     headless,
     host_allowed,
     page_timeout_ms,
+    write_enabled,
 )
 from app.services.browser.log import (  # noqa: F401
     BROWSER_LOG_PATH,
@@ -33,6 +35,7 @@ from app.services.browser.log import (  # noqa: F401
 )
 from app.services.browser.session import (  # noqa: F401
     BrowserUnavailable,
+    execute_actions,
     read_page,
     screenshot,
 )
@@ -47,6 +50,7 @@ __all__ = [
     "allowlist",
     "browser_enabled",
     "check_url",
+    "execute_actions",
     "headless",
     "host_allowed",
     "list_actions",
@@ -55,4 +59,6 @@ __all__ = [
     "record_action",
     "screenshot",
     "stats",
+    "write_enabled",
+    "WRITE_ACTION_TYPES",
 ]

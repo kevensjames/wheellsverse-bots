@@ -1483,6 +1483,62 @@ function renderBrowserResult(box, result) {
   }
 }
 
+// Envelope B: execute a write sequence (operator-approved). External page
+// content rendered via textContent only (no innerHTML).
+async function browserExecute(ev) {
+  if (ev) ev.preventDefault();
+  const url = ($("#browser-exec-url").value || "").trim();
+  const raw = ($("#browser-exec-actions").value || "").trim();
+  const line = $("#browser-status-line");
+  const out = $("#browser-exec-result");
+  const showErr = (msg) => {
+    if (!out) return;
+    out.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "admin-err"; p.textContent = msg;
+    out.appendChild(p);
+  };
+  if (!url) { if (line) line.textContent = "enter a URL"; return; }
+  let actions;
+  try {
+    actions = JSON.parse(raw);
+    if (!Array.isArray(actions)) throw new Error("actions must be a JSON array");
+  } catch (e) {
+    showErr("bad actions JSON: " + e.message);
+    return;
+  }
+  const btn = $("#browser-exec-btn");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "executing…"; }
+    const data = await apiPost("/admin/browser/execute", { url, actions, approved: true });
+    if (out) {
+      out.replaceChildren();
+      const h = document.createElement("p");
+      h.className = "admin-hint";
+      h.textContent = "executed → " + ((data.final && data.final.url) || "");
+      out.appendChild(h);
+      const ul = document.createElement("ul");
+      for (const r of data.results || []) {
+        const li = document.createElement("li");
+        li.textContent = `${r.ok ? "✓" : "✕"} ${r.type} ${r.selector}` +
+          (r.ok ? "" : ` — ${r.error || "failed"}`);
+        ul.appendChild(li);
+      }
+      out.appendChild(ul);
+    }
+    if (line) line.textContent = "executed";
+    loadBrowserLog();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    showErr(e.message);
+    if (line) line.textContent = "error";
+    loadBrowserLog();
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 // ─── learning (continuous learning) ──────────────────────────────────
 
 async function loadLearning() {
@@ -1858,6 +1914,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (browserRefresh) browserRefresh.addEventListener("click", loadBrowser);
   const browserForm = $("#browser-nav-form");
   if (browserForm) browserForm.addEventListener("submit", browserNavigate);
+  const browserExecForm = $("#browser-exec-form");
+  if (browserExecForm) browserExecForm.addEventListener("submit", browserExecute);
 
   // Learning (continuous learning)
   const learnRefresh = $("#learning-refresh");
