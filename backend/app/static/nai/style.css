@@ -455,6 +455,22 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
    (>640px) keeps its side-by-side layout.
    ─────────────────────────────────────────────────────────────────── */
 @media (max-width: 640px) {
+  /* Header: the control cluster (.controls has no flex-wrap) overflowed the
+     right edge (Log out cut off) and labels wrapped mid-word. Give it full
+     width so it drops below the title and wraps cleanly, and keep each control
+     on one line. */
+  header { padding: 10px 12px; }
+  .controls {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    font-size: 12px;
+  }
+  .controls label,
+  .controls .nav-link,
+  .controls .btn-ghost,
+  .controls button { white-space: nowrap; }
+
   form#composer {
     flex-direction: column;
     align-items: stretch;
