@@ -10,6 +10,8 @@ never sent). Gated by KAI_SCOPE_TWIN.
   storage   — profile entries + draft history (SQLite sidecar)
   composer  — compose_profile (pure) + suggest_entries (KG facts → proposed)
   draft     — draft_as_operator (generate in the operator's voice)
+  decide    — decide_as_operator (predict the operator's choice — ADVISORY,
+              never executes; logged to data/twin/decisions.jsonl)
   injection — active profile → system-prompt preamble (always-on, scope-gated)
 """
 from app.services.twin.storage import (  # noqa: F401
@@ -28,6 +30,7 @@ from app.services.twin.storage import (  # noqa: F401
 )
 from app.services.twin.composer import compose_profile, suggest_entries  # noqa: F401
 from app.services.twin.draft import draft_as_operator  # noqa: F401
+from app.services.twin.decide import decide_as_operator, list_decisions  # noqa: F401
 from app.services.twin.injection import twin_preamble  # noqa: F401
 
 __all__ = [
@@ -39,8 +42,10 @@ __all__ = [
     "add_draft",
     "add_entry",
     "compose_profile",
+    "decide_as_operator",
     "draft_as_operator",
     "get_entry",
+    "list_decisions",
     "list_drafts",
     "list_entries",
     "set_entry_status",

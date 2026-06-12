@@ -1914,6 +1914,61 @@ async function draftAsOperator(ev) {
   }
 }
 
+async function decideAsOperator(ev) {
+  if (ev) ev.preventDefault();
+  const question = ($("#twin-decide-question").value || "").trim();
+  const line = $("#twin-status-line");
+  const out = $("#twin-decide-result");
+  if (!question) { if (line) line.textContent = "enter a decision"; return; }
+  const btn = $("#twin-decide-btn");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "predicting…"; }
+    const data = await apiPost("/admin/twin/decide", { question });
+    if (out) {
+      out.replaceChildren();
+      const lbl = document.createElement("p");
+      lbl.className = "admin-hint";
+      lbl.textContent = "ADVISORY prediction — KAI's guess at YOUR call. Nothing is executed.";
+      out.appendChild(lbl);
+      const dec = document.createElement("p");
+      dec.innerHTML = "";
+      const strong = document.createElement("strong");
+      strong.textContent = data.decision || "(no decision)";
+      dec.appendChild(strong);
+      const conf = document.createElement("span");
+      conf.className = "admin-hint";
+      conf.textContent = `  · confidence: ${data.confidence || "?"}`;
+      dec.appendChild(conf);
+      out.appendChild(dec);
+      if (data.rationale) {
+        const pre = document.createElement("pre");
+        pre.className = "admin-pre";
+        pre.textContent = data.rationale;
+        out.appendChild(pre);
+      }
+      if (Array.isArray(data.caveats) && data.caveats.length) {
+        const cap = document.createElement("p");
+        cap.className = "admin-hint";
+        cap.textContent = "caveats: " + data.caveats.join("; ");
+        out.appendChild(cap);
+      }
+    }
+    if (line) line.textContent = data.note || "predicted";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (out) {
+      out.replaceChildren();
+      const p = document.createElement("p");
+      p.className = "admin-err"; p.textContent = e.message;
+      out.appendChild(p);
+    }
+    if (line) line.textContent = "error";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 // ─── audit (KAI self-audit) ──────────────────────────────────────────
 
 function auditChip(v) {
@@ -2173,6 +2228,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (twinEntryForm) twinEntryForm.addEventListener("submit", addTwinEntry);
   const twinDraftForm = $("#twin-draft-form");
   if (twinDraftForm) twinDraftForm.addEventListener("submit", draftAsOperator);
+  const twinDecideForm = $("#twin-decide-form");
+  if (twinDecideForm) twinDecideForm.addEventListener("submit", decideAsOperator);
 
   // Audit (KAI self-audit)
   const auditRun = $("#audit-run");

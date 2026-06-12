@@ -15,6 +15,7 @@ from app.config import settings
 from app.services.twin import storage as ts
 from app.services.twin import composer as tcomp
 from app.services.twin import draft as tdraft
+from app.services.twin import decide as tdecide
 from app.services.twin import injection as tinj
 
 ADMIN_HEADERS = {"X-Admin-Token": settings.admin_token}
@@ -23,6 +24,8 @@ ADMIN_HEADERS = {"X-Admin-Token": settings.admin_token}
 @pytest.fixture(autouse=True)
 def _isolated_twin_db(tmp_path, monkeypatch):
     monkeypatch.setattr(ts, "TWIN_DB_PATH", tmp_path / "twin.db")
+    # decide-as-operator logs to a JSONL sidecar — isolate it too
+    monkeypatch.setattr(tdecide, "DECIDE_LOG_PATH", tmp_path / "decisions.jsonl")
     yield
 
 
@@ -156,6 +159,57 @@ def test_draft_router_crash_failsoft():
     r = MagicMock(); r.complete.side_effect = RuntimeError("down")
     out = tdraft.draft_as_operator(router=r, user_id=uuid.uuid4(), task="x")
     assert out["draft"] == "" and "unavailable" in out["note"]
+
+
+# ─── decide-as-operator (ADVISORY) ───────────────────────────────────
+
+
+def test_decide_as_operator_happy():
+    ts.add_entry("values", "Ships fast, prefers reversible bets")
+    r = _router('{"decision":"Ship the MVP now","rationale":"bias to action",'
+                '"confidence":"high","caveats":["revisit if churn spikes"]}')
+    out = tdecide.decide_as_operator(
+        router=r, user_id=uuid.uuid4(), question="Ship now or wait a week?")
+    assert out["decision"] == "Ship the MVP now"
+    assert out["confidence"] == "high"
+    assert out["caveats"] == ["revisit if churn spikes"]
+    assert out["advisory"] is True            # never executes — advisory flag
+    assert "not executed" in out["note"]
+    assert len(tdecide.list_decisions()) == 1  # logged for calibration
+
+
+def test_decide_empty_question_raises():
+    with pytest.raises(ValueError):
+        tdecide.decide_as_operator(router=MagicMock(), user_id=uuid.uuid4(), question="  ")
+
+
+def test_decide_router_crash_failsoft():
+    r = MagicMock(); r.complete.side_effect = RuntimeError("down")
+    out = tdecide.decide_as_operator(router=r, user_id=uuid.uuid4(), question="x?")
+    assert out["decision"] == "" and out["advisory"] is True
+    assert "unavailable" in out["note"]
+
+
+def test_decide_unstructured_kept_as_rationale():
+    r = _router("I think you'd just ship it, you always do.")  # not JSON
+    out = tdecide.decide_as_operator(router=r, user_id=uuid.uuid4(), question="ship?")
+    assert out["decision"] == "(see rationale)"
+    assert "ship it" in out["rationale"]
+    assert out["confidence"] == "low"
+
+
+def test_decide_invalid_confidence_defaults_low():
+    r = _router('{"decision":"yes","rationale":"because","confidence":"certain"}')
+    out = tdecide.decide_as_operator(router=r, user_id=uuid.uuid4(), question="q?")
+    assert out["confidence"] == "low"   # 'certain' isn't a valid level → low
+
+
+def test_decide_options_and_context_accepted():
+    r = _router('{"decision":"Option B","confidence":"medium"}')
+    out = tdecide.decide_as_operator(
+        router=r, user_id=uuid.uuid4(), question="which vendor?",
+        options=["Vendor A", "Vendor B"], context="B is cheaper")
+    assert out["decision"] == "Option B"
 
 
 # ─── injection gating ────────────────────────────────────────────────
@@ -324,3 +378,30 @@ def test_admin_draft_success(client, monkeypatch, _isolated_audit):
                     json={"task": "reply to the team"})
     assert r.status_code == 200
     assert r.json()["draft"].startswith("Hey team")
+
+
+def test_admin_decide_scope_off_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.delenv("KAI_SCOPE_TWIN", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_TWIN_DECIDE", raising=False)
+    r = client.post("/admin/twin/decide", headers=ADMIN_HEADERS, json={"question": "ship?"})
+    assert r.status_code == 403
+
+
+def test_admin_decide_success(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    ts.add_entry("values", "Bias to action")
+    _patch_llm(monkeypatch, '{"decision":"Ship now","confidence":"high","rationale":"r"}')
+    r = client.post("/admin/twin/decide", headers=ADMIN_HEADERS,
+                    json={"question": "ship now or wait?"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["decision"] == "Ship now" and body["advisory"] is True
+
+
+def test_admin_decisions_list(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    _patch_llm(monkeypatch, '{"decision":"yes","confidence":"low"}')
+    client.post("/admin/twin/decide", headers=ADMIN_HEADERS, json={"question": "q?"})
+    r = client.get("/admin/twin/decisions", headers=ADMIN_HEADERS)
+    assert r.status_code == 200
+    assert r.json()["count"] == 1

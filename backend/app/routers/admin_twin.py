@@ -12,6 +12,10 @@ Audited actions (KAI_SCOPE_TWIN):
   POST /admin/twin/entries/{id}/archive    retire an entry; destructive=True
   POST /admin/twin/draft               draft text in the operator's voice (DRAFT
                                        only, never sent); destructive=False
+  POST /admin/twin/decide              predict the operator's decision (ADVISORY
+                                       only — never executes/authorizes anything);
+                                       destructive=False
+  GET  /admin/twin/decisions           log of past advisory predictions
 """
 from __future__ import annotations
 
@@ -27,8 +31,9 @@ from app.dependencies.admin import require_admin_token
 from app.routers.admin_chat import OperatorNotConfigured, _resolve_operator_profile
 from app.services.governance import PendingApproval, ScopeDenied, audited
 from app.services.router import build_default_router
+from app.services.twin import decide as twin_decide
 from app.services.twin import draft as twin_draft
-from app.services.twin import storage, suggest_entries
+from app.services.twin import list_decisions, storage, suggest_entries
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +62,12 @@ def twin_profile(section: str | None = None, status: str | None = None, limit: i
 def twin_drafts(limit: int = 50):
     rows = storage.list_drafts(limit=limit)
     return {"count": len(rows), "drafts": [d.as_dict() for d in rows]}
+
+
+@router.get("/decisions")
+def twin_decisions(limit: int = 50):
+    rows = list_decisions(limit=limit)
+    return {"count": len(rows), "decisions": rows}
 
 
 @router.get("/stats")
@@ -94,6 +105,14 @@ class DraftRequest(BaseModel):
     approved: bool = False
 
 
+class DecideRequest(BaseModel):
+    question: str
+    options: list[str] | None = None
+    context: str = ""
+    prefer_local: bool = False
+    approved: bool = False
+
+
 @audited(scope="twin.suggest", destructive=False)
 def _audited_suggest(*, max_entries: int, prefer_local: bool, session: Session) -> dict[str, Any]:
     rt = build_default_router(session)
@@ -119,6 +138,18 @@ def _audited_draft(*, task: str, prefer_local: bool, session: Session) -> dict[s
     prof = _resolve_operator_profile(session)
     return twin_draft.draft_as_operator(
         router=rt, user_id=prof.id, task=task, prefer_local=prefer_local,
+    )
+
+
+@audited(scope="twin.decide", destructive=False)
+def _audited_decide(*, question: str, options, context: str, prefer_local: bool,
+                    session: Session) -> dict[str, Any]:
+    # ADVISORY only — predicts the operator's choice; executes nothing.
+    rt = build_default_router(session)
+    prof = _resolve_operator_profile(session)
+    return twin_decide.decide_as_operator(
+        router=rt, user_id=prof.id, question=question, options=options,
+        context=context, prefer_local=prefer_local,
     )
 
 
@@ -154,4 +185,11 @@ def twin_archive(entry_id: int, body: ApproveRequest):
 @router.post("/draft")
 def twin_draft_endpoint(body: DraftRequest, session: Session = Depends(get_db)):
     return _guard(_audited_draft, task=body.task, prefer_local=body.prefer_local,
+                  session=session, approved=body.approved)
+
+
+@router.post("/decide")
+def twin_decide_endpoint(body: DecideRequest, session: Session = Depends(get_db)):
+    return _guard(_audited_decide, question=body.question, options=body.options,
+                  context=body.context, prefer_local=body.prefer_local,
                   session=session, approved=body.approved)
