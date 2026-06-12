@@ -446,3 +446,34 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
   background: var(--accent, #4f8cff);
   border-color: var(--accent, #4f8cff);
 }
+
+/* ───────────────────────────────────────────────────────────────────
+   Phone layout (≤640px). The chat composer (#composer) is display:flex with
+   no flex-direction, so on a narrow screen the textarea sat SIDE-BY-SIDE with
+   the Reference/🎤/Send controls and got squished to ~100px — you could barely
+   type. Stack it: full-width input on top, the controls row beneath. Desktop
+   (>640px) keeps its side-by-side layout.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  form#composer {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+  }
+  textarea#input {
+    flex: none;                /* don't grow vertically — fixed ~2 rows */
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 52px;
+    font-size: 16px;           /* 16px stops iOS from zooming on focus */
+  }
+  .composer-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 0;
+  }
+  .doc-attach { max-width: 140px; }
+  button#send { padding: 11px 22px; font-size: 15px; }  /* bigger tap target */
+  .mic-btn { padding: 8px 12px; }
+}
