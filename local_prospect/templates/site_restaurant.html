@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ BUSINESS_NAME }}</title>
+<meta name="description" content="{{ HERO_SUB }}">
+<style>
+:root { --bg:#1a0f08; --accent:#e6a85c; --text:#fefefe; --muted:#c4a484; --card:#2a1810; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:Georgia,serif; line-height:1.6; }
+.hero { min-height:80vh; padding:80px 24px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; background:linear-gradient(135deg,#1a0f08,#2a1810); }
+h1 { font-size:clamp(2rem,6vw,4rem); margin-bottom:16px; color:var(--accent); }
+.hero p { font-size:1.25rem; max-width:600px; margin-bottom:32px; color:var(--muted); }
+.cta { display:inline-block; padding:16px 40px; background:var(--accent); color:var(--bg); text-decoration:none; font-weight:700; border-radius:4px; transition:transform .2s; }
+.cta:hover { transform:translateY(-2px); }
+section { padding:64px 24px; max-width:1200px; margin:0 auto; }
+.about { text-align:center; font-size:1.1rem; max-width:700px; margin:0 auto; }
+h2 { font-size:2rem; color:var(--accent); text-align:center; margin-bottom:40px; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:24px; }
+.card { background:var(--card); padding:32px; border-radius:8px; border-left:4px solid var(--accent); }
+.card h3 { color:var(--accent); margin-bottom:12px; font-size:1.4rem; }
+.contact { background:var(--card); text-align:center; }
+.contact a { color:var(--accent); text-decoration:none; font-size:1.3rem; }
+footer { background:#0a0604; padding:32px 24px; text-align:center; color:var(--muted); font-size:.9rem; }
+.badge { position:fixed; bottom:20px; right:20px; background:#000; color:var(--accent); padding:8px 16px; border-radius:20px; font-size:.85rem; font-family:system-ui; box-shadow:0 4px 20px rgba(0,0,0,.5); }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <h1>{{ HERO_HEADLINE }}</h1>
+  <p>{{ HERO_SUB }}</p>
+  <a href="tel:{{ PHONE }}" class="cta">{{ CTA_TEXT }}</a>
+</header>
+
+<section>
+  <h2>About Us</h2>
+  <p class="about">{{ ABOUT_PARAGRAPH }}</p>
+</section>
+
+<section>
+  <h2>What We Offer</h2>
+  <div class="cards">
+    {{ CARDS_HTML }}
+  </div>
+</section>
+
+<section class="contact">
+  <h2>Find Us</h2>
+  <p>{{ ADDRESS }}</p>
+  <p style="margin-top:16px;"><a href="tel:{{ PHONE }}">{{ PHONE }}</a></p>
+</section>
+
+<footer>
+  &copy; {{ YEAR }} {{ BUSINESS_NAME }}. All rights reserved.<br>
+  <span style="opacity:.6;">Site by SiteBoost AI · preview only</span>
+</footer>
+
+<div class="badge">Preview by SiteBoost</div>
+
+</body>
+</html>

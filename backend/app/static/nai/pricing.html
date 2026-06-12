@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pricing — KAI</title>
+  <link rel="stylesheet" href="style.css?v=ts-1781289856" />
+  <link rel="manifest" href="/kai-ui/manifest.json" />
+  <link rel="apple-touch-icon" href="/kai-ui/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/kai-ui/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/kai-ui/icon-512.png" />
+  <meta name="theme-color" content="#4f8cff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KAI" />
+</head>
+<body>
+  <header>
+    <h1>KAI</h1>
+    <nav class="subnav">
+      <a href="/kai-ui/">Chat</a>
+      <a href="/kai-ui/login.html">Log in</a>
+      <a href="/kai-ui/signup.html">Sign up</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1>Choose your plan</h1>
+    <p class="lede">
+      Companion AI for thinking, building, and shipping. Cancel anytime.
+    </p>
+
+    <div class="error-banner" id="error"></div>
+
+    <div class="plans">
+      <div class="plan">
+        <h2>Pro</h2>
+        <div class="price">$19<small> / month</small></div>
+        <ul>
+          <li>Unlimited chats</li>
+          <li>GPT-4o + Claude (one bill)</li>
+          <li>Memory across conversations</li>
+          <li>Notion + 200 SaaS tools (Composio)</li>
+        </ul>
+        <button class="btn-primary" data-plan="pro" type="button">Subscribe to Pro</button>
+      </div>
+
+      <div class="plan featured">
+        <h2>Max</h2>
+        <div class="price">$49<small> / month</small></div>
+        <ul>
+          <li>Everything in Pro</li>
+          <li><strong>API access</strong> — drop-in OpenAI replacement</li>
+          <li>Self-serve API keys</li>
+          <li>For Cursor / Continue / scripts</li>
+        </ul>
+        <button class="btn-primary" data-plan="max" type="button">Subscribe to Max</button>
+      </div>
+
+      <div class="plan">
+        <h2>Ultra</h2>
+        <div class="price">$99<small> / month</small></div>
+        <ul>
+          <li>Everything in Max</li>
+          <li><strong>Priority support</strong> — 12h response from me</li>
+          <li>Direct line for features + bugs</li>
+        </ul>
+        <button class="btn-primary" data-plan="ultra" type="button">Subscribe to Ultra</button>
+      </div>
+    </div>
+
+    <p class="alt-link">
+      Already subscribed? <a href="/kai-ui/">Open the chat</a>
+    </p>
+  </main>
+
+  <script src="auth.js"></script>
+  <script src="pricing.js"></script>
+</body>
+</html>

@@ -456,8 +456,7 @@ function handleSubmit(e){{
         output_dir = output_dir or (ROOT / "outputs" / "reports")
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        from core.llm_client import safe_openai_call
 
         try:
             prompt = f"""Create a lead magnet outline for: "{topic}"
@@ -479,10 +478,11 @@ Format as JSON:
     ...
   ]
 }}"""
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
+            resp = safe_openai_call(
                 messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o-mini",
                 max_tokens=1200, temperature=0.7,
+                bot_name="monetization",
             )
             raw = resp.choices[0].message.content.strip()
             raw = raw.lstrip("```json").lstrip("```").rstrip("```").strip()

@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SiteBoost — Tell us about your business</title>
+<style>
+:root { --bg:#f7f9fc; --primary:#1a4d8f; --accent:#ff6b35; --text:#1a1a1a; --muted:#6b7280; --card:#fff; --border:#e5e7eb; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; line-height:1.5; padding:24px; }
+.container { max-width:680px; margin:0 auto; }
+header { text-align:center; margin-bottom:32px; }
+header h1 { color:var(--primary); font-size:1.8rem; margin-bottom:8px; }
+header p { color:var(--muted); font-size:1rem; }
+.progress { background:var(--card); padding:12px 16px; border-radius:8px; margin-bottom:24px; display:flex; gap:8px; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,.05); }
+.progress-bar { flex:1; height:8px; background:var(--border); border-radius:4px; overflow:hidden; }
+.progress-fill { height:100%; background:var(--accent); width:20%; transition:width .3s; }
+.progress-text { font-size:.85rem; color:var(--muted); font-weight:600; }
+form { background:var(--card); padding:32px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+.field { margin-bottom:24px; }
+label { display:block; font-weight:600; margin-bottom:6px; font-size:.95rem; color:var(--text); }
+label .req { color:var(--accent); }
+.hint { font-size:.85rem; color:var(--muted); margin-bottom:8px; }
+input[type=text], input[type=tel], input[type=email], input[type=url], textarea, select {
+  width:100%; padding:12px 14px; border:1px solid var(--border); border-radius:6px;
+  font-size:1rem; font-family:inherit; background:#fafafa; transition:border-color .15s;
+}
+input:focus, textarea:focus, select:focus { outline:none; border-color:var(--primary); background:#fff; }
+textarea { min-height:90px; resize:vertical; }
+.row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.upload-zone { border:2px dashed var(--border); border-radius:8px; padding:24px; text-align:center; cursor:pointer; transition:border-color .15s; background:#fafafa; }
+.upload-zone:hover { border-color:var(--primary); }
+.upload-zone p { color:var(--muted); font-size:.9rem; }
+.actions { display:flex; gap:12px; justify-content:space-between; align-items:center; margin-top:32px; padding-top:24px; border-top:1px solid var(--border); }
+.btn { padding:12px 24px; border-radius:6px; font-weight:600; font-size:1rem; cursor:pointer; border:none; font-family:inherit; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:#e55a26; }
+.btn-secondary { background:transparent; color:var(--muted); }
+.footer-note { text-align:center; color:var(--muted); font-size:.85rem; margin-top:24px; }
+@media (max-width:560px) { .row { grid-template-columns:1fr; } form { padding:20px; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Tell us about your business</h1>
+  <p>5 minutes. Live in 48 hours.</p>
+</header>
+
+<div class="progress">
+  <span class="progress-text">Section 1 of 5</span>
+  <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+</div>
+
+<!--
+  IMPORTANT: This form posts to your intake handler. Two ways to wire it:
+    (1) Tally.so or Google Forms — replace <form action> with their endpoint
+    (2) Self-host — POST to hello.wheellsverse.com/api/intake which writes to data/launches/siteboost/intakes/<customer_id>.json
+
+  The customer_id query param comes from the Stripe checkout success URL.
+-->
+<form action="/api/intake" method="POST" enctype="multipart/form-data">
+
+  <input type="hidden" name="customer_id" id="customer_id" value="">
+
+  <!-- Section 1: Identity -->
+  <h2 style="color:#1a4d8f; margin-bottom:16px; font-size:1.2rem;">1. Your business basics</h2>
+
+  <div class="field">
+    <label>Business name <span class="req">*</span></label>
+    <div class="hint">Exactly how it should appear on your site.</div>
+    <input type="text" name="business_name" required>
+  </div>
+
+  <div class="row">
+    <div class="field">
+      <label>Phone number <span class="req">*</span></label>
+      <input type="tel" name="phone" required placeholder="(555) 123-4567">
+    </div>
+    <div class="field">
+      <label>Email for your site</label>
+      <div class="hint">Where customers should email you.</div>
+      <input type="email" name="business_email" placeholder="info@yourbusiness.com">
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Street address</label>
+    <input type="text" name="address" placeholder="123 Main St, City, State ZIP">
+  </div>
+
+  <!-- Section 2: What you do -->
+  <h2 style="color:#1a4d8f; margin-top:32px; margin-bottom:16px; font-size:1.2rem;">2. What you do</h2>
+
+  <div class="field">
+    <label>One-sentence description <span class="req">*</span></label>
+    <div class="hint">Like a friend would describe your business.</div>
+    <textarea name="one_liner" required placeholder="We're a family-owned bakery in the North End serving fresh Italian pastries since 1987."></textarea>
+  </div>
+
+  <div class="field">
+    <label>Your top 3 services or products <span class="req">*</span></label>
+    <div class="hint">One per line. Just names — we'll write the descriptions.</div>
+    <textarea name="top_services" required placeholder="Wedding cakes&#10;Cannoli &amp; Italian pastries&#10;Catering for events"></textarea>
+  </div>
+
+  <!-- Section 3: Hours + service area -->
+  <h2 style="color:#1a4d8f; margin-top:32px; margin-bottom:16px; font-size:1.2rem;">3. Hours &amp; service area</h2>
+
+  <div class="field">
+    <label>Hours <span class="req">*</span></label>
+    <div class="hint">Free-form is fine. Example: "Mon-Fri 9-5, Sat 10-3, Closed Sun"</div>
+    <textarea name="hours" required></textarea>
+  </div>
+
+  <div class="field">
+    <label>Service area</label>
+    <div class="hint">Cities or radius from your address. Skip if customers come to you.</div>
+    <input type="text" name="service_area" placeholder="Within 15 miles of Boston, MA">
+  </div>
+
+  <!-- Section 4: Photos -->
+  <h2 style="color:#1a4d8f; margin-top:32px; margin-bottom:16px; font-size:1.2rem;">4. Photos (optional)</h2>
+  <p class="hint" style="margin-bottom:12px;">Up to 6 photos. Phone snapshots are fine — interior, products, your team, your work. Skip if you don't have any handy; we'll use stock photos that match your category.</p>
+
+  <div class="upload-zone" onclick="document.getElementById('photos').click()">
+    <p>Click to upload photos (or drag &amp; drop)</p>
+    <p style="font-size:.8rem; margin-top:4px;">JPG, PNG, HEIC · max 10MB each</p>
+  </div>
+  <input type="file" name="photos" id="photos" multiple accept="image/*" style="display:none">
+
+  <!-- Section 5: Domain + extras -->
+  <h2 style="color:#1a4d8f; margin-top:32px; margin-bottom:16px; font-size:1.2rem;">5. Domain</h2>
+
+  <div class="field">
+    <label>Do you already own a domain?</label>
+    <select name="has_domain" id="hasDomain">
+      <option value="no">No — please register one for me ($12/year added to invoice)</option>
+      <option value="yes">Yes — I'll provide login</option>
+      <option value="unsure">Not sure — let's discuss</option>
+    </select>
+  </div>
+
+  <div class="field" id="domainField">
+    <label>Preferred domain name</label>
+    <div class="hint">Example: yourbusiness.com — we'll check availability if you don't have it yet.</div>
+    <input type="text" name="domain_preference" placeholder="yourbusiness.com">
+  </div>
+
+  <div class="field">
+    <label>Anything else?</label>
+    <div class="hint">Brand colors, things to AVOID, competitor sites you like, etc.</div>
+    <textarea name="notes"></textarea>
+  </div>
+
+  <div class="actions">
+    <button type="button" class="btn btn-secondary" onclick="window.history.back()">Cancel</button>
+    <button type="submit" class="btn btn-primary">Submit → Site live in 48 hours</button>
+  </div>
+
+</form>
+
+<p class="footer-note">
+  Questions? Email <a href="mailto:jay@hello.wheellsverse.com" style="color:var(--primary);">jay@hello.wheellsverse.com</a>
+  or text <a href="tel:" style="color:var(--primary);">your SiteBoost number</a>.
+</p>
+
+</div>
+
+<script>
+// Read customer_id from URL ?customer=xxx and inject into hidden field
+const params = new URLSearchParams(window.location.search);
+const customerId = params.get("customer") || "anonymous";
+document.getElementById("customer_id").value = customerId;
+
+// Simple progress bar fills as fields get filled
+const inputs = document.querySelectorAll("input[required], textarea[required]");
+const required = inputs.length;
+function updateProgress() {
+  const filled = Array.from(inputs).filter(i => i.value.trim()).length;
+  const pct = Math.round((filled / required) * 100);
+  document.getElementById("progressFill").style.width = pct + "%";
+  document.querySelector(".progress-text").textContent = `${filled} of ${required} required filled`;
+}
+inputs.forEach(i => i.addEventListener("input", updateProgress));
+updateProgress();
+</script>
+
+</body>
+</html>

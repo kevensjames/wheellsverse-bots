@@ -1846,19 +1846,22 @@ Current: mood={mood} | energy={round(energy * 100)}% | uptime_sessions={run_coun
         tool_results_summary = []
 
         try:
-            import anthropic as _anthropic
-            _ac = _anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
+            # Route through claude_logged.create — handles cloud Anthropic
+            # AND local Ollama (with tool_use↔tool_calls translation in the
+            # shim). When LLM_BACKEND=ollama, qwen2.5:7b serves the tool loop.
+            from core.claude_logged import create as claude_create
 
             # ── Agentic loop: let NarAI call tools until she gives a final reply ──
             current_messages = list(history)
             for _loop in range(4):  # max 4 tool calls per turn
-                msg = _ac.messages.create(
+                msg = claude_create(
                     model="claude-haiku-4-5-20251001",
                     system=system_prompt,
                     messages=current_messages,
                     tools=self._VOICE_TOOLS,
                     max_tokens=600,
                     temperature=0.85,
+                    bot_name="narai_voice_chat",
                 )
 
                 # Collect any text from this response
@@ -1866,7 +1869,7 @@ Current: mood={mood} | energy={round(energy * 100)}% | uptime_sessions={run_coun
 
                 if msg.stop_reason == "tool_use":
                     # Execute each tool call
-                    tool_calls = [b for b in msg.content if b.type == "tool_use"]
+                    tool_calls = [b for b in msg.content if getattr(b, "type", None) == "tool_use"]
                     tool_results = []
                     for tc in tool_calls:
                         self.logger.info("NarAI tool call: %s %s", tc.name, tc.input)
@@ -1889,14 +1892,16 @@ Current: mood={mood} | energy={round(energy * 100)}% | uptime_sessions={run_coun
 
         except Exception as e:
             self.logger.warning("voice_chat anthropic error: %s", e)
+            # Fallback through the wrapper — routes to cloud OpenAI or local
+            # Ollama based on LLM_BACKEND env. No tools, no agentic loop.
             try:
-                import os as _os
-                from openai import OpenAI as _OAI
-                _oai = _OAI(api_key=_os.getenv("OPENAI_API_KEY", ""))
-                _r = _oai.chat.completions.create(
-                    model="gpt-4o-mini", max_tokens=300,
+                from core.llm_client import safe_openai_call
+                _r = safe_openai_call(
                     messages=[{"role": "system", "content": system_prompt},
-                               {"role": "user",   "content": text}]
+                              {"role": "user", "content": text}],
+                    model="gpt-4o-mini",
+                    max_tokens=300,
+                    bot_name="narai_voice_fallback",
                 )
                 response = (_r.choices[0].message.content or "").strip()
             except Exception:
@@ -2008,14 +2013,14 @@ Write ONE opening sentence — your greeting for THIS session. Make it:
 This is spoken out loud. Make it feel alive and real."""
 
         try:
-            import anthropic as _a
-            _ac = _a.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-            msg = _ac.messages.create(
+            from core.claude_logged import create as claude_create
+            msg = claude_create(
                 model="claude-haiku-4-5-20251001",
                 system=system_prompt,
                 messages=[{"role": "user", "content": "Start the session."}],
                 max_tokens=120,
                 temperature=0.95,
+                bot_name="narai_voice_greeting",
             )
             greeting = msg.content[0].text if msg.content else ""
         except Exception:
@@ -2636,13 +2641,13 @@ Rules:
             import time
             client = _OAI(api_key=os.getenv("OPENAI_API_KEY"))
             img = client.images.generate(
-                model="dall-e-3",
+                model="gpt-image-1",
                 prompt=(
                     f"Professional social media post image for: {topic}. "
                     "Dark futuristic tech aesthetic, cyan and gold glowing accents, "
                     "WheellsVerse AI brand. No text overlays."
                 ),
-                size="1024x1024", quality="standard", n=1,
+                size="1024x1024", quality="high", n=1,
             )
             image_url = img.data[0].url
             caption = (

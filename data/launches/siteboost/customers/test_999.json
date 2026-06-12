@@ -1,0 +1,12 @@
+{
+  "customer_id": "test_999",
+  "history": [
+    {
+      "event": "welcome_sent",
+      "ts": "2026-06-03 06:19:41",
+      "to": "test@example.com",
+      "dry_run": true,
+      "smtp": true
+    }
+  ]
+}

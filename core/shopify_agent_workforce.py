@@ -154,14 +154,14 @@ class BaseShopifyAgent:
 
     def _ai_call(self, prompt: str, system: str = "You are an expert AI assistant.", max_tokens: int = 1500) -> str:
         """AI call with OpenAI primary + Claude fallback, handles quota errors gracefully."""
-        # Try OpenAI first
+        # Try OpenAI first (routes via wrapper — Ollama when LLM_BACKEND=ollama)
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            from core.llm_client import safe_openai_call
+            resp = safe_openai_call(
                 messages=[{"role": "system", "content": system}, {"role": "user", "content": prompt}],
+                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
                 max_tokens=max_tokens,
+                bot_name="shopify_agent_workforce",
             )
             return resp.choices[0].message.content.strip()
         except Exception as e:

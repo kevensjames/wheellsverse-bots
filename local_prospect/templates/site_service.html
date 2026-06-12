@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{{ BUSINESS_NAME }}</title>
+<meta name="description" content="{{ HERO_SUB }}">
+<style>
+:root { --bg:#f7f9fc; --primary:#1a4d8f; --accent:#ff6b35; --text:#1a1a1a; --muted:#6b7280; --card:#ffffff; }
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif; line-height:1.6; }
+nav { background:var(--card); padding:16px 24px; box-shadow:0 1px 3px rgba(0,0,0,.08); display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:10; }
+nav .logo { font-weight:700; font-size:1.3rem; color:var(--primary); }
+nav .nav-cta { padding:10px 20px; background:var(--accent); color:#fff; text-decoration:none; border-radius:4px; font-weight:600; font-size:.95rem; }
+.hero { padding:80px 24px; text-align:center; background:linear-gradient(135deg,var(--primary),#2563eb); color:#fff; }
+.hero h1 { font-size:clamp(2rem,5vw,3.5rem); margin-bottom:16px; }
+.hero p { font-size:1.2rem; max-width:600px; margin:0 auto 32px; opacity:.95; }
+.cta { display:inline-block; padding:16px 40px; background:var(--accent); color:#fff; text-decoration:none; font-weight:700; border-radius:6px; font-size:1.1rem; box-shadow:0 4px 14px rgba(255,107,53,.4); }
+section { padding:64px 24px; max-width:1200px; margin:0 auto; }
+h2 { font-size:2.2rem; color:var(--primary); margin-bottom:16px; text-align:center; }
+.about { font-size:1.1rem; max-width:700px; margin:0 auto; color:var(--muted); text-align:center; }
+.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:24px; margin-top:48px; }
+.card { background:var(--card); padding:32px; border-radius:8px; box-shadow:0 2px 8px rgba(0,0,0,.06); border-top:4px solid var(--accent); }
+.card h3 { color:var(--primary); margin-bottom:12px; font-size:1.3rem; }
+.card p { color:var(--muted); }
+.contact { background:var(--primary); color:#fff; text-align:center; }
+.contact h2 { color:#fff; }
+.contact a { color:var(--accent); text-decoration:none; font-size:1.4rem; font-weight:700; }
+footer { background:#0a1f3d; padding:32px 24px; text-align:center; color:#9ca3af; font-size:.9rem; }
+.badge { position:fixed; bottom:20px; right:20px; background:var(--primary); color:#fff; padding:8px 16px; border-radius:20px; font-size:.85rem; box-shadow:0 4px 20px rgba(0,0,0,.2); }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="logo">{{ BUSINESS_NAME }}</span>
+  <a href="tel:{{ PHONE }}" class="nav-cta">{{ PHONE }}</a>
+</nav>
+
+<header class="hero">
+  <h1>{{ HERO_HEADLINE }}</h1>
+  <p>{{ HERO_SUB }}</p>
+  <a href="tel:{{ PHONE }}" class="cta">{{ CTA_TEXT }}</a>
+</header>
+
+<section>
+  <h2>About Us</h2>
+  <p class="about">{{ ABOUT_PARAGRAPH }}</p>
+</section>
+
+<section>
+  <h2>Our Services</h2>
+  <div class="cards">
+    {{ CARDS_HTML }}
+  </div>
+</section>
+
+<section class="contact">
+  <h2>Get in Touch</h2>
+  <p style="opacity:.9; margin-bottom:16px;">{{ ADDRESS }}</p>
+  <a href="tel:{{ PHONE }}">{{ PHONE }}</a>
+</section>
+
+<footer>
+  &copy; {{ YEAR }} {{ BUSINESS_NAME }} · Licensed & Insured<br>
+  <span style="opacity:.6;">Site by SiteBoost AI · preview only</span>
+</footer>
+
+<div class="badge">Preview by SiteBoost</div>
+
+</body>
+</html>

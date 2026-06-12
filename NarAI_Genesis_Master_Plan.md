@@ -60,11 +60,11 @@ Status legend:
 - [ ] Prompt library stored in DB — not surveyed
 
 **Credential storage rule (non-negotiable):**
-- All API keys live ONLY in `narai_godmode` Fernet vault
+- All API keys live ONLY in `narai.godmode` Fernet vault
 - Backend reads them at runtime via env var injection
 - Never paste keys into chat, screenshots, code, git, or this plan file
 - If a key leaks: revoke at the provider, rotate in the vault, redeploy
-- Rotation log lives at `narai_godmode/rotations.log`
+- Rotation log lives at `narai/godmode/rotations.log`
 
 ---
 
@@ -186,7 +186,7 @@ Status legend:
 
 These exist in the repo but aren't in any phase. Worth surfacing for future audits:
 
-- `narai_godmode/` — Fernet credential vault + browser adapters (amazon_kdp, canva, google, linkedin, meta, tiktok, x_twitter)
+- `narai/godmode/` — Fernet credential vault + browser adapters (amazon_kdp, canva, google, linkedin, meta, tiktok, x_twitter)
 - `backend/` — separate FastAPI scaffold (S0–S5 trade-saas) with Alembic migrations and ML predictor
 - `trade-app/` + `wheelsverse/` — two React app shells
 - `second_brain_inbox/` — uncommitted; has Dockerfile + railway.json + frontend/api (likely separate Railway service)
@@ -242,7 +242,7 @@ Six secrets were exposed in chat during this session and must be rotated:
 | Telegram webhook secret (`7d7fddbd…`) | Railway CLI dump | regenerate, update Railway + `setWebhook` |
 | Discord bot token (`MTQ5OTMx…`) | User paste | discord.com/developers/applications/1499316945059840100/bot → Reset |
 
-After rotating each: log in `narai_godmode/rotations.log` with date + reason "leaked in chat 2026-04-30", redeploy.
+After rotating each: log in `narai/godmode/rotations.log` with date + reason "leaked in chat 2026-04-30", redeploy.
 
 ---
 

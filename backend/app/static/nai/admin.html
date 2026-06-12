@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>KAI — operator dashboard</title>
+  <meta name="robots" content="noindex,nofollow" />
+  <link rel="stylesheet" href="style.css?v=ts-1781289856" />
+  <link rel="stylesheet" href="admin.css?v=ts-1781286555" />
+</head>
+<body>
+  <main class="admin-main">
+    <header class="admin-header">
+      <h1>KAI · operator</h1>
+      <nav class="admin-tabs" id="admin-tabs" hidden>
+        <button type="button" class="admin-tab is-active" data-tab="stats">Stats</button>
+        <button type="button" class="admin-tab" data-tab="chat">Chat with KAI</button>
+        <button type="button" class="admin-tab" data-tab="scanner">Scanner</button>
+        <button type="button" class="admin-tab" data-tab="brief">Brief</button>
+        <button type="button" class="admin-tab" data-tab="kg">Knowledge</button>
+        <button type="button" class="admin-tab" data-tab="failures">Failures</button>
+        <button type="button" class="admin-tab" data-tab="research">Research</button>
+        <button type="button" class="admin-tab" data-tab="self-correction">Self-Correction</button>
+        <button type="button" class="admin-tab" data-tab="planning">Plans</button>
+        <button type="button" class="admin-tab" data-tab="browser">Browser</button>
+        <button type="button" class="admin-tab" data-tab="learning">Learning</button>
+        <button type="button" class="admin-tab" data-tab="twin">Twin</button>
+        <button type="button" class="admin-tab" data-tab="audit">Audit</button>
+      </nav>
+      <div class="admin-controls">
+        <span id="admin-as-of" class="admin-as-of">—</span>
+        <button id="admin-refresh" type="button" class="admin-btn" title="Refresh stats">↻</button>
+        <button id="admin-logout" type="button" class="admin-btn admin-btn-ghost">sign out</button>
+      </div>
+    </header>
+
+    <section id="admin-auth" class="admin-card" hidden>
+      <h2>Admin token required</h2>
+      <p>This dashboard calls protected endpoints. Paste your <code>ADMIN_TOKEN</code> (matches the <code>X-Admin-Token</code> header).</p>
+      <form id="admin-auth-form" class="admin-auth-form">
+        <input id="admin-token-input" type="password" autocomplete="off" placeholder="ADMIN_TOKEN" />
+        <button type="submit" class="admin-btn admin-btn-primary">unlock</button>
+      </form>
+      <p id="admin-auth-err" class="admin-err"></p>
+    </section>
+
+    <section id="admin-body" hidden>
+      <!-- ─── Stats tab ─── -->
+      <div id="admin-pane-stats" class="admin-pane">
+      <!-- Top row: 3 stat cards -->
+      <div class="admin-grid admin-grid-3">
+        <div class="admin-card">
+          <h2>Users</h2>
+          <div class="admin-stat-row"><span>total</span> <strong id="stat-users-total">—</strong></div>
+          <div class="admin-stat-row"><span>last 24h</span> <strong id="stat-users-24h">—</strong></div>
+          <div class="admin-stat-row"><span>last 7d</span> <strong id="stat-users-7d">—</strong></div>
+          <div id="stat-users-by-tier" class="admin-stat-row admin-stat-tiers"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Subscriptions</h2>
+          <div class="admin-stat-row"><span>active</span> <strong id="stat-subs-active">—</strong></div>
+          <div class="admin-stat-row"><span>new 24h</span> <strong id="stat-subs-24h">—</strong></div>
+          <p class="admin-hint">
+            Manage in <a href="https://dashboard.stripe.com/subscriptions" target="_blank" rel="noopener">Stripe →</a>
+          </p>
+        </div>
+
+        <div class="admin-card">
+          <h2>LLM spend</h2>
+          <div class="admin-stat-row"><span>today</span> <strong id="stat-spend-today">—</strong></div>
+          <div class="admin-stat-row"><span>last 7d</span> <strong id="stat-spend-7d">—</strong></div>
+          <div class="admin-stat-row"><span>failures 24h</span> <strong id="stat-failures">—</strong></div>
+        </div>
+      </div>
+
+      <!-- Spend breakdown -->
+      <div class="admin-card">
+        <h2>Spend by adapter — last 7d</h2>
+        <table class="admin-table" id="admin-spend-table">
+          <thead><tr><th>adapter</th><th>calls</th><th>cost</th><th>share</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <!-- Recent signups -->
+      <div class="admin-card">
+        <h2>Recent signups</h2>
+        <table class="admin-table" id="admin-users-table">
+          <thead><tr><th>when</th><th>email</th><th>tier</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="admin-hint">
+          Need to comp / refund / ban? Do it in
+          <a href="https://supabase.com/dashboard/project/_/auth/users" target="_blank" rel="noopener">Supabase</a>
+          or <a href="https://dashboard.stripe.com/customers" target="_blank" rel="noopener">Stripe</a> — destructive
+          actions are intentionally not in this UI yet.
+        </p>
+      </div>
+      </div><!-- /admin-pane-stats -->
+
+      <!-- ─── Chat tab ─── -->
+      <div id="admin-pane-chat" class="admin-pane" hidden>
+        <div class="admin-card admin-chat-card">
+          <div class="admin-chat-toolbar">
+            <h2>Operator chat · full power</h2>
+            <div class="admin-chat-tools">
+              <label title="Pick an expert-agent preset (system prompt + tool whitelist)">
+                <select id="admin-preset-select" class="admin-preset-select">
+                  <option value="">no preset (bare KAI)</option>
+                </select>
+              </label>
+              <label title="Route to local Ollama instead of cloud providers">
+                <input type="checkbox" id="admin-prefer-local"> local
+              </label>
+              <label title="Disable tool use (faster, no side effects)">
+                <input type="checkbox" id="admin-no-tools"> no tools
+              </label>
+              <label title="Self-correction: critic + reviser pass before reply (~+$0.001)">
+                <input type="checkbox" id="admin-self-correct"> self-correct
+              </label>
+              <button type="button" id="admin-chat-new" class="admin-btn">new chat</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            All tools enabled (web_fetch, memory, MCP, Composio). No tier
+            limits. Spend still logged — visible on the Stats tab.
+          </p>
+
+          <div id="admin-chat-messages" class="admin-chat-messages" aria-live="polite"></div>
+
+          <form id="admin-chat-form" class="admin-chat-form">
+            <div class="admin-chat-inputrow">
+              <textarea id="admin-chat-input" rows="1"
+                placeholder="Ask KAI…  (Enter sends · Shift+Enter = new line)"></textarea>
+              <button type="submit" id="admin-chat-send" class="admin-chat-send" aria-label="Send" title="Send (Enter)">➤</button>
+            </div>
+            <span id="admin-chat-status" class="admin-chat-status"></span>
+          </form>
+        </div>
+      </div><!-- /admin-pane-chat -->
+
+      <!-- ─── Scanner tab ─── -->
+      <div id="admin-pane-scanner" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>KAI Supreme · empire scanner</h2>
+            <div class="admin-chat-tools">
+              <span id="supreme-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="supreme-scan-now" class="admin-btn admin-btn-primary">scan now</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Process / port / log / API / env / disk / git health checks every
+            15 min. Findings stored as JSON proposals in <code>data/supreme/proposals/</code>.
+            Telegram alerts on medium+ if <code>TELEGRAM_BOT_TOKEN</code> set.
+          </p>
+        </div>
+
+        <div class="admin-card">
+          <h2>Latest scan</h2>
+          <div id="supreme-latest-meta" class="admin-stat-row">
+            <span>scanned at</span><strong id="supreme-latest-ts">—</strong>
+          </div>
+          <div id="supreme-severity-row" class="admin-stat-row admin-stat-tiers"></div>
+          <div id="supreme-findings"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent scans</h2>
+          <table class="admin-table" id="supreme-history-table">
+            <thead><tr><th>when</th><th>findings</th><th>severity</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-scanner -->
+
+      <!-- ─── Brief tab ─── -->
+      <div id="admin-pane-brief" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>🔔 Operator Digest · cross-subsystem → Telegram</h2>
+            <div class="admin-chat-tools">
+              <span id="digest-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="digest-run" class="admin-btn admin-btn-primary">generate + send</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            KAI synthesizes audit health + blocked plans + negative feedback +
+            twin/learning state into a short "what needs attention" digest and
+            pushes it to Telegram (scope <code>KAI_SCOPE_DIGEST</code>; distinct
+            from the business Daily Brief below).
+          </p>
+          <pre id="digest-output" class="admin-pre"></pre>
+        </div>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Daily Brief · operator chief-of-staff</h2>
+            <div class="admin-chat-tools">
+              <span id="brief-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="brief-generate-now" class="admin-btn admin-btn-primary">generate</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Composes today's state from KAI's own data: signups, revenue, spend,
+            scanner findings, recent errors. No external API calls. Runs through
+            the governance layer — every generation is logged at
+            <code>data/governance/audit.jsonl</code>. Requires scope
+            <code>KAI_SCOPE_BRIEFING_DAILY=1</code> in .env.
+          </p>
+        </div>
+
+        <div id="brief-headline-card" class="admin-card" hidden>
+          <h2>Headline</h2>
+          <div id="brief-headline" class="admin-stat-row"><strong></strong></div>
+          <div id="brief-generated-at" class="admin-hint brief-generated-at"></div>
+        </div>
+
+        <div class="admin-grid admin-grid-3" id="brief-body" hidden>
+          <div class="admin-card">
+            <h2>Users</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="brief-users-total">—</strong></div>
+            <div class="admin-stat-row"><span>last 24h</span><strong id="brief-users-24h">—</strong></div>
+            <div class="admin-stat-row"><span>last 7d</span><strong id="brief-users-7d">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Revenue</h2>
+            <div class="admin-stat-row"><span>active subs</span><strong id="brief-subs-active">—</strong></div>
+            <div class="admin-stat-row"><span>new 24h</span><strong id="brief-subs-new24h">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Spend</h2>
+            <div class="admin-stat-row"><span>today</span><strong id="brief-spend-today">—</strong></div>
+            <div class="admin-stat-row"><span>last 7d</span><strong id="brief-spend-7d">—</strong></div>
+          </div>
+        </div>
+
+        <div class="admin-card" id="brief-scanner-card" hidden>
+          <h2>Scanner snapshot</h2>
+          <div id="brief-scanner-summary" class="admin-stat-row admin-stat-tiers"></div>
+          <div id="brief-scanner-headlines"></div>
+        </div>
+
+        <div class="admin-card" id="brief-errors-card" hidden>
+          <h2>Recent failures (24h)</h2>
+          <div id="brief-errors"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Governance audit · most recent</h2>
+          <table class="admin-table" id="brief-audit-table">
+            <thead><tr><th>when</th><th>action</th><th>scope</th><th>actor</th><th>ok</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-brief -->
+
+      <!-- ─── Knowledge Graph tab ─── -->
+      <div id="admin-pane-kg" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Knowledge Graph · what KAI knows about your world</h2>
+            <div class="admin-chat-tools">
+              <span id="kg-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="kg-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            SQLite-backed entity + relation store. Teach KAI a triple via
+            the form below, or via chat: "remember that Jhon owns KAI"
+            (use the SWE preset — its <code>kg_query</code> tool surfaces facts).
+          </p>
+        </div>
+
+        <div class="admin-grid admin-grid-3">
+          <div class="admin-card">
+            <h2>Entities</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="kg-entity-count">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Relations</h2>
+            <div class="admin-stat-row"><span>distinct</span><strong id="kg-relation-count">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Edges</h2>
+            <div class="admin-stat-row"><span>by relation</span><strong id="kg-edge-count">—</strong></div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Teach KAI a new triple</h2>
+          <form id="kg-add-form" class="admin-chat-form">
+            <div class="admin-chat-send-row kg-triple-row">
+              <input type="text" id="kg-src" placeholder="entity (e.g. Jhon)" class="admin-token-input kg-triple-input" />
+              <input type="text" id="kg-rel" placeholder="relation (e.g. owns)" class="admin-token-input kg-triple-input" />
+              <input type="text" id="kg-dst" placeholder="entity (e.g. KAI)" class="admin-token-input kg-triple-input" />
+              <button type="submit" class="admin-btn admin-btn-primary">add (auto-approved)</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="admin-card">
+          <h2>Edges by relation</h2>
+          <table class="admin-table" id="kg-relations-table">
+            <thead><tr><th>relation</th><th>count</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-kg -->
+
+      <!-- ─── Failures tab ─── -->
+      <div id="admin-pane-failures" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Failure log · what KAI has tried and broken</h2>
+            <div class="admin-chat-tools">
+              <span id="failures-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="failures-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Tool errors during chat are auto-recorded here, then surfaced
+            into the next chat's system prompt when a similar prompt comes
+            in. KAI's <code>failure_lookup</code> tool also queries this log.
+          </p>
+        </div>
+
+        <div class="admin-grid admin-grid-3">
+          <div class="admin-card">
+            <h2>Recent (24h)</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="failures-total">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>By category</h2>
+            <div id="failures-by-cat" class="admin-stat-row admin-stat-tiers"></div>
+          </div>
+          <div class="admin-card">
+            <h2>Top failing tools</h2>
+            <div id="failures-by-tool"></div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent failures</h2>
+          <table class="admin-table" id="failures-table">
+            <thead><tr><th>when</th><th>category</th><th>tool</th><th>prompt</th><th>detail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-failures -->
+
+      <!-- ─── Research tab ─── -->
+      <div id="admin-pane-research" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Continuous Research · daily HN+arXiv+GitHub scan</h2>
+            <div class="admin-chat-tools">
+              <span id="research-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="research-run-now" class="admin-btn admin-btn-primary">run now</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Polls HN top + arXiv cs.AI + GitHub trending daily, scores
+            against <code>KAI_RESEARCH_INTERESTS</code>, persists digests.
+            Telegram alerts on HIGH-relevance items.
+          </p>
+        </div>
+
+        <div class="admin-card" id="research-latest-card" hidden>
+          <h2>Latest digest</h2>
+          <div id="research-latest-meta" class="admin-stat-row">
+            <span>generated</span><strong id="research-latest-ts">—</strong>
+          </div>
+          <div id="research-severity-row" class="admin-stat-row admin-stat-tiers"></div>
+          <div id="research-items"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent digests</h2>
+          <table class="admin-table" id="research-history-table">
+            <thead><tr><th>when</th><th>fetched</th><th>severity counts</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-research -->
+
+      <!-- ─── Self-Correction tab ─── -->
+      <div id="admin-pane-self-correction" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Self-Correction · KAI judges its own work</h2>
+            <div class="admin-chat-tools">
+              <span id="sc-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="sc-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Opt in per chat via the "self-correct" checkbox above the chat
+            input. Adds a critic + reviser pass before reply (~+$0.001).
+            Every event logged here for audit.
+          </p>
+        </div>
+
+        <div class="admin-grid admin-grid-3">
+          <div class="admin-card">
+            <h2>Recent corrections</h2>
+            <div class="admin-stat-row"><span>total</span><strong id="sc-total">—</strong></div>
+            <div class="admin-stat-row"><span>revisions applied</span><strong id="sc-revisions">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>Avg iterations</h2>
+            <div class="admin-stat-row"><span>per turn</span><strong id="sc-avg-iters">—</strong></div>
+            <div class="admin-stat-row"><span>critic spend</span><strong id="sc-cost">—</strong></div>
+          </div>
+          <div class="admin-card">
+            <h2>By final severity</h2>
+            <div id="sc-by-severity" class="admin-stat-row admin-stat-tiers"></div>
+          </div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Recent events</h2>
+          <table class="admin-table" id="sc-events-table">
+            <thead><tr><th>when</th><th>iters</th><th>revised</th><th>severity</th><th>user prompt</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-self-correction -->
+
+      <div id="admin-pane-planning" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Plans · KAI's long-term goals</h2>
+            <div class="admin-chat-tools">
+              <span id="planning-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="planning-remediate-btn" class="admin-btn" title="Scan KAI's detected issues and draft fix-plans">🛠 propose remediations</button>
+              <button type="button" id="planning-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            KAI breaks a goal into ordered steps; you approve, then run them one
+            at a time. A failed step blocks the plan and KAI can propose a
+            revision. Every action is audit-logged (scope <code>planning.*</code>);
+            set <code>KAI_SCOPE_PLANNING=1</code> to enable.
+          </p>
+          <form id="planning-create-form" class="admin-plan-create">
+            <textarea id="planning-goal" rows="2"
+              placeholder="Goal — e.g. 'launch a KDP book about urban beekeeping'"></textarea>
+            <input type="text" id="planning-title" placeholder="Optional title" />
+            <button type="submit" id="planning-create-btn" class="admin-btn">Propose plan</button>
+          </form>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Plans</h2>
+            <table class="admin-table" id="planning-list-table">
+              <thead><tr><th>#</th><th>title</th><th>status</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card" id="planning-detail">
+            <h2>Select a plan</h2>
+            <p class="admin-hint">Pick a plan on the left to see its steps and run it.</p>
+          </div>
+        </div>
+      </div><!-- /admin-pane-planning -->
+
+      <div id="admin-pane-browser" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Browser · KAI computer-control (read + propose)</h2>
+            <div class="admin-chat-tools">
+              <span id="browser-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="browser-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            v1 envelope: KAI navigates <strong>allowlisted</strong> domains and
+            READS them; write actions (click/type/submit) are proposed only,
+            never executed. Kill-switch <code>KAI_BROWSER_ENABLED</code>, scope
+            <code>KAI_SCOPE_BROWSER</code>, SSRF-guarded; every action logged below.
+          </p>
+          <div id="browser-config" class="admin-stat-row admin-stat-tiers"></div>
+          <form id="browser-nav-form" class="admin-plan-create">
+            <input type="text" id="browser-url"
+              placeholder="https://example.com  (allowlisted domains only)" />
+            <button type="submit" id="browser-nav-btn" class="admin-btn">Read page</button>
+          </form>
+          <div id="browser-result"></div>
+        </div>
+
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Execute write sequence · envelope B (approved)</h2>
+          </div>
+          <p class="admin-hint">
+            Operator-only: runs a sequence of write actions on one allowlisted
+            page, then closes. Requires <code>KAI_BROWSER_WRITE_ENABLED=1</code>.
+            KAI proposes (see log); you execute here. Actions = JSON array of
+            <code>{type, selector, value}</code> (type ∈ click/type/submit/select).
+          </p>
+          <form id="browser-exec-form" class="admin-plan-create">
+            <input type="text" id="browser-exec-url" placeholder="https://example.com  (allowlisted)" />
+            <textarea id="browser-exec-actions" rows="3"
+              placeholder='[{"type":"type","selector":"#q","value":"kai"},{"type":"click","selector":"#go"}]'></textarea>
+            <button type="submit" id="browser-exec-btn" class="admin-btn">Execute (approved)</button>
+          </form>
+          <div id="browser-exec-result"></div>
+        </div>
+
+        <div class="admin-card">
+          <h2>Action log</h2>
+          <table class="admin-table" id="browser-log-table">
+            <thead><tr><th>when</th><th>kind</th><th>status</th><th>url</th><th>detail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-browser -->
+
+      <div id="admin-pane-learning" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Learning · KAI improves from feedback</h2>
+            <div class="admin-chat-tools">
+              <span id="learning-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="learning-synthesize" class="admin-btn">⚗ synthesize lessons</button>
+              <button type="button" id="learning-review-btn" class="admin-btn">📊 review effectiveness</button>
+              <button type="button" id="learning-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Give 👍/👎 feedback on KAI's behavior. KAI distills it into proposed
+            lessons; you approve which go live, and active lessons inject into
+            KAI's system prompt (scope <code>KAI_SCOPE_LEARNING</code>; every
+            activation audited &amp; reversible).
+          </p>
+          <div id="learning-stats" class="admin-stat-row admin-stat-tiers"></div>
+          <form id="learning-fb-form" class="admin-plan-create">
+            <select id="learning-fb-rating">
+              <option value="down">👎 down</option>
+              <option value="up">👍 up</option>
+            </select>
+            <input type="text" id="learning-fb-note" placeholder="What should change? (note)" />
+            <button type="submit" id="learning-fb-btn" class="admin-btn">Add feedback</button>
+          </form>
+          <div id="learning-review"></div>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Lessons</h2>
+            <table class="admin-table" id="learning-lessons-table">
+              <thead><tr><th>#</th><th>lesson</th><th>status</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Recent feedback</h2>
+            <table class="admin-table" id="learning-fb-table">
+              <thead><tr><th>rating</th><th>note</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div><!-- /admin-pane-learning -->
+
+      <div id="admin-pane-twin" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Twin · operator self-model + draft-in-voice</h2>
+            <div class="admin-chat-tools">
+              <span id="twin-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="twin-suggest" class="admin-btn">⚗ suggest from KG</button>
+              <button type="button" id="twin-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            A structured model of YOU (identity / voice / values / preferences /
+            goals). Active entries inject into KAI's prompt so it knows its
+            principal (scope <code>KAI_SCOPE_TWIN</code>). KAI can also draft text
+            in your voice — drafts only, never sent. KAI-suggested entries need
+            your approval before they go active.
+          </p>
+          <div id="twin-stats" class="admin-stat-row admin-stat-tiers"></div>
+          <form id="twin-entry-form" class="admin-plan-create">
+            <select id="twin-entry-section">
+              <option value="identity">identity</option>
+              <option value="voice">voice</option>
+              <option value="values">values</option>
+              <option value="preferences">preferences</option>
+              <option value="goals">goals</option>
+            </select>
+            <input type="text" id="twin-entry-text" placeholder="A fact about you (e.g. 'Direct, no fluff')" />
+            <button type="submit" id="twin-entry-btn" class="admin-btn">Add to profile</button>
+          </form>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Profile</h2>
+            <table class="admin-table" id="twin-profile-table">
+              <thead><tr><th>section</th><th>entry</th><th>status</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Draft in your voice</h2>
+            <form id="twin-draft-form" class="admin-plan-create">
+              <input type="text" id="twin-draft-task" placeholder="e.g. 'reply to an investor asking for an update'" />
+              <button type="submit" id="twin-draft-btn" class="admin-btn">Draft</button>
+            </form>
+            <div id="twin-draft-result"></div>
+          </div>
+          <div class="admin-card">
+            <h2>Decide as me <span class="admin-hint">(advisory — KAI predicts, never acts)</span></h2>
+            <form id="twin-decide-form" class="admin-plan-create">
+              <input type="text" id="twin-decide-question" placeholder="A decision you face, e.g. 'ship the MVP now or wait a week?'" />
+              <button type="submit" id="twin-decide-btn" class="admin-btn">Predict my call</button>
+            </form>
+            <div id="twin-decide-result"></div>
+          </div>
+        </div>
+      </div><!-- /admin-pane-twin -->
+
+      <div id="admin-pane-audit" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Audit · KAI self-audit</h2>
+            <div class="admin-chat-tools">
+              <span id="audit-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="audit-run" class="admin-btn">▶ run audit</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Live introspection of every KAI subsystem: which features are enabled
+            (scope flags), how many records each has stored, runtime (LLM keys,
+            browser kill-switches), and any issues. Read-only.
+          </p>
+          <div id="audit-runtime" class="admin-stat-row admin-stat-tiers"></div>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Subsystems</h2>
+            <table class="admin-table" id="audit-subs-table">
+              <thead><tr><th>subsystem</th><th>scope</th><th>on</th><th>records</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Issues</h2>
+            <ul id="audit-issues"></ul>
+          </div>
+        </div>
+      </div><!-- /admin-pane-audit -->
+    </section>
+  </main>
+
+  <script src="admin.js?v=ts-1781286001" defer></script>
+</body>
+</html>

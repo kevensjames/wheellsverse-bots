@@ -142,6 +142,45 @@ begin
 end;
 $$;
 
+-- ─── ATOMIC QUOTA INCREMENT (Week 2) ────────────────────────────────────────
+-- Used by FastAPI chat routes to atomically increment a user's daily message
+-- count AND lazily reset it when the date rolls over — eliminates the
+-- read-modify-write race that the previous Python-side check had.
+--
+-- Returns the new count. Caller checks against TIER_CONFIG[tier].messages_day
+-- to decide 402 or proceed. Set NARAI_QUOTA_ENABLED=true in env once this
+-- function exists on the live DB.
+create or replace function public.increment_message_usage(p_user_id uuid)
+returns int language plpgsql as $$
+declare new_count int;
+begin
+  update public.profiles
+  set messages_used_today = case
+        when last_reset_date < current_date then 1
+        else messages_used_today + 1
+      end,
+      last_reset_date = current_date
+  where id = p_user_id
+  returning messages_used_today into new_count;
+  return new_count;
+end;
+$$;
+
+-- ─── PERSONALITY PRESET (Week 4-B) ──────────────────────────────────────────
+-- Per-user NarAI personality archetype (companion / coach / coder / writer /
+-- trader / strategist). Read by narai/api/dependencies/personality.py and
+-- injected into the chat system prompt via
+-- narai.core.identity.build_system_prompt(personality_modifier=...).
+--
+-- Backend reads default to "companion" if column is missing (fail-open),
+-- so the code can ship before this migration lands. Writes will 503 until
+-- the migration is applied.
+alter table public.profiles add column if not exists personality text
+  check (personality in (
+    'companion', 'coach', 'coder', 'writer', 'trader', 'strategist'
+  ))
+  default 'companion';
+
 -- ─── DONE ────────────────────────────────────────────────────────────────────
 -- After running this:
 -- 1. Go to Supabase → Settings → API

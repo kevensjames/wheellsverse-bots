@@ -502,8 +502,7 @@ class DMReplyEngine:
                          intent: str, platform: str) -> Optional[str]:
         """Generate an on-brand reply using GPT-4o."""
         try:
-            import openai
-            client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            from core.llm_client import safe_openai_call
 
             # Build conversation history for context
             history_msgs = []
@@ -542,11 +541,12 @@ Never mention you're an AI unless they ask directly."""
             messages.extend(history_msgs[:-1])  # history except last (already in prompt)
             messages.append({"role": "user", "content": text})
 
-            resp = client.chat.completions.create(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
+            resp = safe_openai_call(
                 messages=messages,
+                model=os.getenv("OPENAI_MODEL", "gpt-4o"),
                 max_tokens=200,
                 temperature=0.75,
+                bot_name="dm_reply",
             )
             return resp.choices[0].message.content.strip()
 

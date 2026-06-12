@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+NAI LaunchAgent.
+
+Install:
+    cp deploy/launchd/com.wheellsverse.nai.plist ~/Library/LaunchAgents/
+    launchctl load -w ~/Library/LaunchAgents/com.wheellsverse.nai.plist
+
+Verify:
+    launchctl list | grep wheellsverse
+    curl -f http://127.0.0.1:8001/docs
+
+If status is non-zero, see deploy/start_nai.sh's TCC note + 0006 decision log.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wheellsverse.nai</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jhonwheeler/wheellsverse_bots/deploy/start_nai.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jhonwheeler/wheellsverse_bots</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!--
+        KeepAlive as a dict (not a plain <true/>) so `launchctl stop`
+        actually stops the daemon. With a bare <true/>, launchd would
+        restart it immediately on every stop, making maintenance impossible.
+        SuccessfulExit=false means: clean exit -> stay stopped.
+        Crashed=true        means: nonzero exit -> restart.
+    -->
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+        <key>Crashed</key>
+        <true/>
+    </dict>
+
+    <!-- Prevent tight restart loops if uvicorn fails repeatedly. -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/nai.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/nai.stderr.log</string>
+
+    <!--
+        Interactive = same QoS as a foreground app. Keeps the API
+        responsive instead of being deprioritized by macOS power-management.
+    -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

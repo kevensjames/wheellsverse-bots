@@ -220,7 +220,7 @@
       let email = '';
       try {
         const { createClient } = await import('https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm');
-        const sb = createClient('%%SUPABASE_URL%%', '%%SUPABASE_ANON_KEY%%');
+        const sb = createClient('https://rqcngphvpjcscculehph.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxY25ncGh2cGpjc2NjdWxlaHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNTE5MTcsImV4cCI6MjA5MTkyNzkxN30.DqwQGJ3p8rQ2mGCHmbHIppzOf95kLmuOQ7P7NYl_bTI');
         const { data: { session } } = await sb.auth.getSession();
         if (session?.user?.email) email = session.user.email;
       } catch (e) { /* fall through to prompt */ }

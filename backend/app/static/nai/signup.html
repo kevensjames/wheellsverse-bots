@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sign up — KAI</title>
+  <link rel="stylesheet" href="style.css?v=ts-1781289856" />
+  <link rel="manifest" href="/kai-ui/manifest.json" />
+  <link rel="apple-touch-icon" href="/kai-ui/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/kai-ui/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="512x512" href="/kai-ui/icon-512.png" />
+  <meta name="theme-color" content="#4f8cff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KAI" />
+</head>
+<body>
+  <header>
+    <h1>KAI</h1>
+    <nav class="subnav">
+      <a href="/kai-ui/pricing.html">Pricing</a>
+      <a href="/kai-ui/login.html">Log in</a>
+    </nav>
+  </header>
+
+  <main>
+    <form class="auth-card" id="signup-form" novalidate>
+      <h1>Create your account</h1>
+      <p class="muted">Start chatting with your Companion AI in seconds.</p>
+
+      <div class="error-banner" id="error"></div>
+
+      <div class="field">
+        <label for="full_name">Name</label>
+        <input id="full_name" name="full_name" type="text" autocomplete="name" required minlength="1" maxlength="120" />
+      </div>
+      <div class="field">
+        <label for="email">Email</label>
+        <input id="email" name="email" type="email" autocomplete="email" required />
+      </div>
+      <div class="field">
+        <label for="password">Password (min 8 chars)</label>
+        <input id="password" name="password" type="password" autocomplete="new-password" required minlength="8" />
+      </div>
+
+      <button class="btn-primary" id="submit" type="submit">Create account</button>
+
+      <p class="alt-link">Already have an account? <a href="/kai-ui/login.html">Log in</a></p>
+    </form>
+  </main>
+
+  <script src="auth.js"></script>
+  <script src="signup-init.js"></script>
+</body>
+</html>

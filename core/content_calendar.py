@@ -315,15 +315,16 @@ class ContentCalendar:
         if not item.content:
             try:
                 from core.personality import get_prompt
-                from openai import OpenAI
+                from core.llm_client import safe_openai_call
                 system = get_prompt(item.platform, item.topic)
-                resp = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "")).chat.completions.create(
-                    model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
+                resp = safe_openai_call(
                     messages=[
                         {"role": "system", "content": system},
                         {"role": "user", "content": f"Write a {item.platform} post about: {item.topic}"},
                     ],
+                    model=os.getenv("OPENAI_MODEL_FAST", "gpt-4o-mini"),
                     max_tokens=300, temperature=0.8,
+                    bot_name="content_calendar",
                 )
                 item.content = resp.choices[0].message.content.strip()
             except Exception as e:

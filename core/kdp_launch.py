@@ -98,7 +98,7 @@ def launch_book(
     # ── 3. Social fan-out (optional) ────────────────────────────────────
     if auto_post_social:
         try:
-            from narai_godmode.launch import post_to_all
+            from narai.godmode.launch import post_to_all
             social = post_to_all(
                 title=title, genre=genre,
                 ebook_url=result["ebook"].get("kdp_url", ""),
@@ -194,7 +194,7 @@ if __name__ == "__main__":
     p.add_argument("--visible", action="store_true", help="Show browser window")
     p.add_argument("--no-publish", action="store_true", help="Stop before clicking Publish")
     p.add_argument("--auto-post", action="store_true",
-                   help="After launch, fan out posts to X/FB/IG via narai_godmode")
+                   help="After launch, fan out posts to X/FB/IG via narai.godmode")
     args = p.parse_args()
 
     headless = not args.visible

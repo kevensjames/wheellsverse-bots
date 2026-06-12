@@ -1,0 +1,266 @@
+════════════════════════════════════════════════════════════════
+VERIFY_STAGE.SH — Independent Stage Verifier
+Stage: 1
+Timestamp: 20260520T112901Z
+Repo: /Volumes/Wheellsverse/wheellsverse_bots
+Script: ./deploy/verify_stage.sh
+User: jhonwheeler
+Host: Jhons-Mac-mini.local
+════════════════════════════════════════════════════════════════
+
+─── Environment baseline ───
+
+>>> CHECK [1]: git: HEAD commit
+>>> CMD: git rev-parse HEAD
+82ebe5feae1e76d5adcadb4b13e76899d371c140
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [2]: git: branch
+>>> CMD: git rev-parse --abbrev-ref HEAD
+feat/app-store-readiness-check
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [3]: git: clean tree
+>>> CMD: bash -c test -z "$(git status --porcelain)"
+
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [4]: python: version
+>>> CMD: python --version
+Python 3.11.15
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [5]: venv: active
+>>> CMD: bash -c test -n "${VIRTUAL_ENV:-}"
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Stage 1 — Memory Layer ───
+
+>>> CHECK [6]: model: import
+>>> CMD: python -c from app.models.memory import Memory
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/__init__.py", line 1, in <module>
+    from app.models.admin import AdminUser, AuditLog
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/admin.py", line 10, in <module>
+    from app.database import Base
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/database.py", line 4, in <module>
+    from app.config import settings
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 69, in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 66, in get_settings
+    return Settings()
+           ^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic_settings/main.py", line 152, in __init__
+    super().__init__(
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic/main.py", line 212, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+DATABASE_URL
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+JWT_SECRET_KEY
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [7]: embeddings: import
+>>> CMD: python -c from app.services.memory.embeddings import embed_one, embed_many
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/services/memory/__init__.py", line 2, in <module>
+    from app.services.memory.retrieval import (
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/services/memory/retrieval.py", line 16, in <module>
+    from app.models.memory import MEMORY_TYPES
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/__init__.py", line 1, in <module>
+    from app.models.admin import AdminUser, AuditLog
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/admin.py", line 10, in <module>
+    from app.database import Base
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/database.py", line 4, in <module>
+    from app.config import settings
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 69, in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 66, in get_settings
+    return Settings()
+           ^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic_settings/main.py", line 152, in __init__
+    super().__init__(
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic/main.py", line 212, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+DATABASE_URL
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+JWT_SECRET_KEY
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [8]: store: import
+>>> CMD: python -c from app.services.memory.store import add_memory, search_memories
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/services/memory/__init__.py", line 2, in <module>
+    from app.services.memory.retrieval import (
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/services/memory/retrieval.py", line 16, in <module>
+    from app.models.memory import MEMORY_TYPES
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/__init__.py", line 1, in <module>
+    from app.models.admin import AdminUser, AuditLog
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/admin.py", line 10, in <module>
+    from app.database import Base
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/database.py", line 4, in <module>
+    from app.config import settings
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 69, in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 66, in get_settings
+    return Settings()
+           ^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic_settings/main.py", line 152, in __init__
+    super().__init__(
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic/main.py", line 212, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+DATABASE_URL
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+JWT_SECRET_KEY
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [9]: retrieval: import
+>>> CMD: python -c from app.services.memory.retrieval import search_memories, format_for_prompt
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/services/memory/__init__.py", line 2, in <module>
+    from app.services.memory.retrieval import (
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/services/memory/retrieval.py", line 16, in <module>
+    from app.models.memory import MEMORY_TYPES
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/__init__.py", line 1, in <module>
+    from app.models.admin import AdminUser, AuditLog
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/admin.py", line 10, in <module>
+    from app.database import Base
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/database.py", line 4, in <module>
+    from app.config import settings
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 69, in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 66, in get_settings
+    return Settings()
+           ^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic_settings/main.py", line 152, in __init__
+    super().__init__(
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic/main.py", line 212, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+DATABASE_URL
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+JWT_SECRET_KEY
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [10]: shim: services.narai.memory works
+>>> CMD: python -c from services.narai.memory import Memory
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+  File "/Volumes/Wheellsverse/wheellsverse_bots/services/narai/memory/__init__.py", line 20, in <module>
+    from app.models.memory import EMBEDDING_DIMENSIONS, MEMORY_TYPES, Memory  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/__init__.py", line 1, in <module>
+    from app.models.admin import AdminUser, AuditLog
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/models/admin.py", line 10, in <module>
+    from app.database import Base
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/database.py", line 4, in <module>
+    from app.config import settings
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 69, in <module>
+    settings = get_settings()
+               ^^^^^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/backend/app/config.py", line 66, in get_settings
+    return Settings()
+           ^^^^^^^^^^
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic_settings/main.py", line 152, in __init__
+    super().__init__(
+  File "/Volumes/Wheellsverse/wheellsverse_bots/.venv/lib/python3.11/site-packages/pydantic/main.py", line 212, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 2 validation errors for Settings
+DATABASE_URL
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+JWT_SECRET_KEY
+  Field required [type=missing, input_value={'STRIPE_SECRET_KEY': 'rk...685cb8e65d3eaac4322839'}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.9/v/missing
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [11]: schema: memories table exists
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"
+
+>>> CHECK [12]: schema: ivfflat index exists
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"
+
+>>> CHECK [13]: embeddings: real call returns 1536-dim
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${OPENAI_API_KEY:-}"
+
+>>> CHECK [14]: tests: pytest memory
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}" && test -n "${OPENAI_API_KEY:-}"
+
+>>> CHECK [15]: decision log: 0002 committed
+>>> CMD: test -f docs/decisions/0002-memory-layer.md
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Summary ───
+Total checks:  15
+Passed:        5
+Failed:        6
+Deferred:      4
+
+FAILED CHECKS:
+  - git: clean tree
+  - model: import
+  - embeddings: import
+  - store: import
+  - retrieval: import
+  - shim: services.narai.memory works
+
+DEFERRED CHECKS:
+  - schema: memories table exists :: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"
+  - schema: ivfflat index exists :: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}"
+  - embeddings: real call returns 1536-dim :: precondition failed: test -n "${OPENAI_API_KEY:-}"
+  - tests: pytest memory :: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}" && test -n "${OPENAI_API_KEY:-}"
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): 1297e2423e04f45fed6ffcb82494687b031403961ae0ab7b1e3ff2ce5c87dc67
+Generated: 2026-05-20T11:29:04Z
+
+Evidence written to: /Volumes/Wheellsverse/wheellsverse_bots/evidence/stage_1_20260520T112901Z.log
+SHA256: 1297e2423e04f45fed6ffcb82494687b031403961ae0ab7b1e3ff2ce5c87dc67
+
+════════════════════════════════════════════════════════════════
+VERDICT: STAGE 1 — FAIL (6 check(s) failed)
+════════════════════════════════════════════════════════════════

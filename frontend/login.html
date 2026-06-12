@@ -134,8 +134,8 @@
 <!-- Supabase JS -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-  const SUPABASE_URL  = '%%SUPABASE_URL%%';
-  const SUPABASE_ANON = '%%SUPABASE_ANON_KEY%%';
+  const SUPABASE_URL  = 'https://rqcngphvpjcscculehph.supabase.co';
+  const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxY25ncGh2cGpjc2NjdWxlaHBoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNTE5MTcsImV4cCI6MjA5MTkyNzkxN30.DqwQGJ3p8rQ2mGCHmbHIppzOf95kLmuOQ7P7NYl_bTI';
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
   function showError(msg){
@@ -151,12 +151,19 @@
 
   async function signIn(){
     hideError();setLoading(true);
-    const email=document.getElementById('email').value.trim();
-    const password=document.getElementById('password').value;
-    if(!email||!password){showError('Please enter your email and password');setLoading(false);return}
-    const {error}=await sb.auth.signInWithPassword({email,password});
-    if(error){showError(error.message);setLoading(false);return}
-    window.location.href='/chat'
+    try {
+      const email=document.getElementById('email').value.trim();
+      const password=document.getElementById('password').value;
+      if(!email||!password){showError('Please enter your email and password');return}
+      const {error}=await sb.auth.signInWithPassword({email,password});
+      if(error){showError(error.message);return}
+      window.location.href='/chat'
+    } catch (err) {
+      console.error('Sign-in error:', err);
+      alert('Sign-in failed: ' + (err.message || 'Unknown error. Please try again.'));
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function signInGoogle(){

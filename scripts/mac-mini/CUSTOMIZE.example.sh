@@ -61,7 +61,7 @@ if ! grep -qF "$ALIAS_MARKER" "$HOME/.zshrc" 2>/dev/null; then
   cat >> "$HOME/.zshrc" <<'ZSHRC'
 
 # WheellsVerse aliases — added by CUSTOMIZE.sh
-alias wv='cd /Volumes/Wheellsverse/wheellsverse_bots && source .venv-mini/bin/activate'
+alias wv='cd /Users/jhonwheeler/wheellsverse_bots && source .venv-mini/bin/activate'
 alias wvtest='wv && python -m pytest -q'
 alias wvup='wv && railway up'
 alias wvlogs='wv && railway logs --service wheellsverse-v2'

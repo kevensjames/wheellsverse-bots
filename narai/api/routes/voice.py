@@ -19,6 +19,7 @@ from pathlib import Path
 from fastapi import APIRouter, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 
+from infra.brain.interface import BrainClient
 from narai.api.auth import require_auth  # noqa: F401 (re-used below)
 from narai.voice.session import VoiceSession
 from narai.voice.stt import get_stt
@@ -77,7 +78,12 @@ async def voice_ws(
     await websocket.accept()
     logger.info(f"voice WS connected: sub={sub}")
 
-    # 2. Pick providers. Edge TTS is the default (free, no key) — ElevenLabs
+    # 2. Per-socket BrainClient. WebSocket connections are long-lived, so a
+    # single instance per session gives implicit caching without touching
+    # the chat-route TTLCache.
+    brain = BrainClient(user_id=sub, mode="narai")
+
+    # 3. Pick providers. Edge TTS is the default (free, no key) — ElevenLabs
     # can be enabled by setting NARAI_TTS_PROVIDER=elevenlabs + the API key.
     stt = get_stt(os.getenv("NARAI_STT_PROVIDER", "openai"))
     tts_client = get_tts(os.getenv("NARAI_TTS_PROVIDER", "edge"))
@@ -85,11 +91,13 @@ async def voice_ws(
     async def tts_fn(text: str) -> bytes:
         return await tts_client.synthesize(text)
 
-    # 3. Wrap the shared chat pipeline so VoiceSession can call it.
+    # 4. Wrap the shared chat pipeline so VoiceSession can call it.
     from narai.api.routes.chat import run_pipeline_async
 
     async def handle_turn_fn(user_id: str, message: str) -> tuple[str, str]:
-        result = await run_pipeline_async(user_id=user_id, user_message=message)
+        result = await run_pipeline_async(
+            brain=brain, user_id=user_id, user_message=message
+        )
         return result["reply"], result["mode"]
 
     session = VoiceSession(

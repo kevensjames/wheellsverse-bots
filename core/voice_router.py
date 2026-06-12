@@ -20,7 +20,10 @@ logger = logging.getLogger("voice_router")
 router = APIRouter(prefix="/api/voice", tags=["voice"])
 
 VOICE_ENABLED = os.getenv("VOICE_ENABLED", "true").lower() == "true"
-TTS_PROVIDER = os.getenv("TTS_PROVIDER", "auto").lower()  # auto | elevenlabs | openai | browser
+TTS_PROVIDER = os.getenv("TTS_PROVIDER", "auto").lower()  # auto | local | elevenlabs | openai | browser
+
+# When LLM_BACKEND=ollama, default TTS_PROVIDER=auto should prefer local first.
+_LOCAL_LLM = (os.getenv("LLM_BACKEND") or "").strip().lower() in ("ollama", "local", "lmstudio", "llamacpp")
 
 
 class SpeakRequest(BaseModel):
@@ -33,16 +36,22 @@ class SpeakRequest(BaseModel):
 def voice_status():
     has_elevenlabs = bool(os.getenv("ELEVENLABS_API_KEY"))
     has_openai = bool(os.getenv("OPENAI_API_KEY"))
+    from core import local_tts
+    has_local = local_tts.is_available()
     provider = (
+        "local" if TTS_PROVIDER == "local" and has_local else
+        "local" if TTS_PROVIDER == "auto" and _LOCAL_LLM and has_local else
         "elevenlabs" if (TTS_PROVIDER == "elevenlabs" and has_elevenlabs) else
         "elevenlabs" if (TTS_PROVIDER == "auto" and has_elevenlabs) else
         "openai" if (TTS_PROVIDER == "openai" and has_openai) else
         "openai" if (TTS_PROVIDER == "auto" and has_openai) else
+        "local" if has_local else
         "browser"
     )
     return {
         "enabled": VOICE_ENABLED,
         "provider": provider,
+        "has_local": has_local,
         "has_elevenlabs": has_elevenlabs,
         "has_openai": has_openai,
     }
@@ -60,6 +69,25 @@ async def voice_speak(req: SpeakRequest):
 
     if not VOICE_ENABLED:
         raise HTTPException(status_code=503, detail="Voice disabled — set VOICE_ENABLED=true")
+
+    # ── Local Piper TTS ───────────────────────────────────────────────────────
+    # Prefer local when explicitly requested OR when local-LLM mode is on
+    # (LLM_BACKEND=ollama) and a Piper voice is available.
+    try_local = (
+        TTS_PROVIDER == "local"
+        or (TTS_PROVIDER == "auto" and _LOCAL_LLM)
+    )
+    if try_local:
+        try:
+            from core import local_tts
+            if local_tts.is_available():
+                audio_bytes = local_tts.synthesize_mp3(text)
+                return StreamingResponse(
+                    io.BytesIO(audio_bytes), media_type="audio/mpeg",
+                    headers={"Content-Length": str(len(audio_bytes)), "X-TTS-Provider": "local"},
+                )
+        except Exception as e:
+            logger.warning(f"[voice] Local Piper TTS failed: {e}")
 
     # ── ElevenLabs ────────────────────────────────────────────────────────────
     el_key = os.getenv("ELEVENLABS_API_KEY", "")

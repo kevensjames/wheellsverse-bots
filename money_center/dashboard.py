@@ -382,7 +382,7 @@ def add_asset():
       <div class="form-row"><label>Days to first revenue</label><input name="eta_days" type="number" value="30"></div>
       <div class="form-row"><label>Run command</label><input name="run_command" placeholder="python /path/to/run.py"></div>
       <div class="form-row"><label>Stop command</label><input name="stop_command" placeholder="pkill -f 'run.py'"></div>
-      <div class="form-row"><label>Working directory</label><input name="working_dir" value="/Volumes/Wheellsverse/wheellsverse_bots"></div>
+      <div class="form-row"><label>Working directory</label><input name="working_dir" value="/Users/jhonwheeler/wheellsverse_bots"></div>
       <div class="form-row"><label>Tags (comma-separated)</label><input name="tags" placeholder="ai, automation, saas"></div>
       <div class="form-row"><label>Notes</label><textarea name="notes" rows="3"></textarea></div>
       <button class="btn btn-start" type="submit">✓ Save Asset</button>

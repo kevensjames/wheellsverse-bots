@@ -2,6 +2,6 @@
   "description": "Compliance & Watchdog Agent — monitors agent health, reviews content for FTC/platform policy compliance, alerts on issues. Runs hourly.",
   "ai_provider": "claude",
   "enabled": true,
-  "schedule": "@every_hour",
+  "schedule": "@daily",
   "action": "health_check"
 }

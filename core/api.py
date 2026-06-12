@@ -8,6 +8,7 @@ Serves the web dashboard + REST endpoints for all bot operations.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import logging.handlers
@@ -201,7 +202,7 @@ async def verify_api_key(request: Request):
         or request.headers.get("x-api-key")
         or request.query_params.get("api_key")
     )
-    if key != _API_KEY:
+    if not key or not hmac.compare_digest(key, _API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -766,6 +767,22 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # HSTS — browsers remember to upgrade to HTTPS for 1 year.
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # CSP — admin/dashboard surfaces use inline JS+CSS, Google Fonts, and Shopify's image CDN.
+    # 'unsafe-inline' is required for the current admin pages; tightening to nonces is a separate refactor.
+    if request.url.path.startswith("/admin") or request.url.path == "/dashboard":
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "img-src 'self' https://cdn.shopify.com data: blob:; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com; "
+            "script-src 'self' 'unsafe-inline'; "
+            "connect-src 'self'; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
     # Prevent Fastly/CDN from caching API responses (especially 404s)
     if request.url.path.startswith("/api/") or request.url.path in ("/", "/landing"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -1164,6 +1181,20 @@ async def serve_admin_shopify():
     return _serve_frontend("admin/shopify.html", cache=False)
 
 
+# IMPORTANT: literal sub-paths must be registered BEFORE the {merchant_id}
+# param route below, otherwise FastAPI binds them as a merchant ID lookup.
+@app.get("/admin/shopify/revenue", response_class=HTMLResponse)
+async def serve_admin_shopify_revenue():
+    """Revenue dashboard — MRR by plan tier, paid-vs-free split."""
+    return _serve_frontend("admin/shopify-revenue.html", cache=False)
+
+
+@app.get("/admin/shopify/{merchant_id}", response_class=HTMLResponse)
+async def serve_admin_shopify_detail(merchant_id: str):
+    """Merchant detail — info, products, events, billing for one shop."""
+    return _serve_frontend("admin/shopify-detail.html", cache=False)
+
+
 # ─── NarAI User API ───────────────────────────────────────────────────────────
 
 from fastapi import Header
@@ -1511,6 +1542,25 @@ async def serve_theme_picker():
     Holographic-Drift / Bio-Synthetic). Pick one, then we convert it into a
     full Shopify theme."""
     return _serve_frontend("admin/theme-picker.html", cache=False)
+
+
+@app.get("/admin/wvkey", response_class=HTMLResponse)
+async def serve_wvkey_admin():
+    """wvkey vault info/runbook page. The vault itself lives on the Mac mini
+    host (~/.config/wvkey/vault.enc) with the master password in macOS Keychain
+    — this page is a launcher + documentation surface, NOT a remote vault UI.
+    Phase 2 (not built) would add a Mac-mini→Supabase status manifest sync."""
+    return _serve_frontend("admin/wvkey.html", cache=False)
+
+
+
+
+@app.get("/admin/siteboost", response_class=HTMLResponse)
+async def serve_siteboost_admin():
+    """SiteBoost control panel — operator surface for the local-prospect outbound
+    product. Drives scans, sequences, selftest, blocklist from the browser.
+    API at /api/narai/siteboost/*. Auth via X-API-Key (same as the rest of /admin)."""
+    return _serve_frontend("admin/siteboost.html", cache=False)
 
 
 async def _serve_old_dashboard():
@@ -3415,13 +3465,13 @@ Write a report with:
 Keep total length under 600 words. Use clean HTML with inline styles. No markdown."""
 
     import os
-    from openai import OpenAI
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    from core.llm_client import safe_openai_call
+    resp = safe_openai_call(
         messages=[{"role": "user", "content": prompt}],
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         max_tokens=1500,
         temperature=0.6,
+        bot_name="api_weekly_report",
     )
     import re as _re
     html = resp.choices[0].message.content.strip()
@@ -4139,12 +4189,13 @@ Rules:
 
 Return ONLY the 7 tweets, separated by "---" on its own line. No other text."""
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    resp = client.chat.completions.create(
-        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+    from core.llm_client import safe_openai_call
+    resp = safe_openai_call(
         messages=[{"role": "user", "content": prompt}],
+        model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
         max_tokens=900,
         temperature=0.8,
+        bot_name="api_tweets",
     )
     raw = resp.choices[0].message.content.strip()
     tweets = [t.strip() for t in raw.split("---") if t.strip()]
@@ -4933,7 +4984,7 @@ async def google_oauth_url(request: Request):
     """Return the consent URL to redirect the user to."""
     import secrets, time as _t
     try:
-        from narai_godmode.adapters.google import build_authorization_url
+        from narai.godmode.adapters.google import build_authorization_url
     except Exception as e:
         return {"error": f"Google adapter import failed: {e}"}
 
@@ -4974,7 +5025,7 @@ async def google_oauth_callback(request: Request, code: str = "", error: str = "
 
     redirect_uri = _google_redirect_uri(request)
     try:
-        from narai_godmode.adapters.google import exchange_code, whoami
+        from narai.godmode.adapters.google import exchange_code, whoami
         exchange_code(code, redirect_uri)
         try:
             email = whoami().get("email", "(unknown)")
@@ -4998,7 +5049,7 @@ async def google_oauth_callback(request: Request, code: str = "", error: str = "
 async def google_status():
     """Report Google OAuth connection status with reconnect detection."""
     try:
-        from narai_godmode.adapters.google import (
+        from narai.godmode.adapters.google import (
             _load_creds_from_vault, whoami, needs_reconsent, GoogleReauthRequired,
         )
         # Option 2: if the refresh flag is set, tell dashboard to show reconnect banner.
@@ -6416,12 +6467,12 @@ def _generate_reddit_post(title: str, category: str, url: str) -> Dict:
         '{"reddit_title":"<post title max 200 chars>","body":"<self-post body 150-250 words>","niche":"' + niche + '"}'
     )
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": prompt}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=500, temperature=0.75,
+            bot_name="api_reddit",
         )
         import re as _re
         raw = resp.choices[0].message.content.strip()
@@ -6780,12 +6831,12 @@ def _generate_tiktok_script(title: str, category: str, url: str,
         '{"hook":"<15-second attention-grabbing opening line>","script":"<45-second main content, 3-4 sentences>","caption":"<TikTok caption max 150 chars with emoji>","hashtags":["<tag1>","<tag2>","<tag3>","<tag4>","<tag5>"]}'
     )
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": prompt}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=400, temperature=0.8,
+            bot_name="api_tiktok",
         )
         import re as _re
         raw = resp.choices[0].message.content.strip()
@@ -6990,12 +7041,12 @@ async def generate_newsletter():
         "Keep it under 400 words. Use inline CSS. Make it look premium."
     )
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[{"role": "user", "content": prompt}],
+            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             max_tokens=1200, temperature=0.7,
+            bot_name="api_newsletter",
         )
         raw = resp.choices[0].message.content.strip()
     except Exception as e:
@@ -7205,11 +7256,13 @@ def _generate_ad_copy(product: str, ad_type: str, cta_url: str, tone: str, platf
         f"Return ONLY the ad copy, no labels or explanation."
     )
 
-    resp = openai.chat.completions.create(
-        model=model,
+    from core.llm_client import safe_openai_call
+    resp = safe_openai_call(
         messages=[{"role": "user", "content": prompt}],
+        model=model,
         max_tokens=300,
         temperature=0.85,
+        bot_name="api_ads",
     )
     return resp.choices[0].message.content.strip()
 
@@ -8527,14 +8580,14 @@ async def narai_generate_image(req: NarAIImageRequest):
     prompt = req.prompt.strip()[:800]
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt required")
-    allowed_sizes = {"1024x1024", "1792x1024", "1024x1792"}
+    allowed_sizes = {"1024x1024", "1536x1024", "1024x1536"}
     size = req.size if req.size in allowed_sizes else "1024x1024"
-    quality = req.quality if req.quality in {"standard", "hd"} else "standard"
+    quality = req.quality if req.quality in {"low", "medium", "high"} else "high"
     try:
         from openai import OpenAI as _OAI
         client = _OAI(api_key=os.getenv("OPENAI_API_KEY", ""))
         resp = client.images.generate(
-            model="dall-e-3",
+            model="gpt-image-1",
             prompt=prompt,
             size=size,
             quality=quality,
@@ -9283,6 +9336,21 @@ async def stripe_webhook(request: Request):
                 )
     except Exception as _ds_err:
         _add_log(f"discord_subscription dispatch failed: {_ds_err}", "WARNING")
+
+    # NAI tier-upgrade bridge — Stripe → Supabase profiles.tier (Week 3).
+    # Acts only on prices matching STRIPE_PRICE_PRO / MAX / ULTRA. Other
+    # prices (Shopify-merchant, Bot Pack, Telegram, Discord) are skipped
+    # silently by the module's price-id filter.
+    try:
+        from narai.integrations import nai_subscription as _nai
+        if etype == "checkout.session.completed":
+            _nai.handle_checkout_completed(data)
+        elif etype in ("customer.subscription.created", "customer.subscription.updated"):
+            _nai.handle_subscription_updated(data)
+        elif etype == "customer.subscription.deleted":
+            _nai.handle_subscription_deleted(data)
+    except Exception as _nai_err:
+        _add_log(f"nai_subscription dispatch failed: {_nai_err}", "WARNING")
 
     # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
     if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
@@ -13935,16 +14003,18 @@ async def email_subscribe(req: SubscribeRequest):
 _v2_auth_loaded = False
 try:
     from pydantic import BaseModel as _V2BaseModel
-    from narai.api.auth import create_token as _v2_create_token, verify_password as _v2_verify_password
+    from narai.api.auth import create_token as _v2_create_token, sign_in_with_supabase as _v2_signin
 
     class _V2LoginRequest(_V2BaseModel):
+        email: str
         password: str
 
     @app.post("/api/v2/narai/auth/login")
     def _v2_login(req: _V2LoginRequest) -> dict:
-        if not _v2_verify_password(req.password):
-            raise HTTPException(status_code=401, detail="Wrong password")
-        return {"token": _v2_create_token()}
+        user_id = _v2_signin(req.email, req.password)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        return {"token": _v2_create_token(user_id)}
 
     @app.get("/api/v2/narai/health")
     def _v2_health() -> dict:
@@ -13960,6 +14030,7 @@ if _v2_auth_loaded:
         from narai.api.routes.chat import rt as _v2_chat_rt
         from narai.api.routes.memory import rag_rt as _v2_rag_rt, rt as _v2_memory_rt
         from narai.api.routes.skills_route import rt as _v2_skills_rt
+        from narai.api.routes.personality import rt as _v2_personality_rt
         from narai.core.db import init_db as _v2_init_db
         from infra.brain.resilience import breaker_status as _v2_breaker_status
 
@@ -13967,6 +14038,7 @@ if _v2_auth_loaded:
         app.include_router(_v2_memory_rt, prefix="/api/v2/narai")
         app.include_router(_v2_rag_rt, prefix="/api/v2/narai")
         app.include_router(_v2_skills_rt, prefix="/api/v2/narai")
+        app.include_router(_v2_personality_rt, prefix="/api/v2/narai")
 
         # init_db is async; register it on FastAPI's startup so it runs inside
         # the event loop. Calling asyncio.run() here fails when uvicorn imports
@@ -14218,6 +14290,13 @@ try:
     app.include_router(_smt_billing_webhook_rt)                  # /shopify/billing/webhook
     app.include_router(_smt_billing_api_rt, prefix="/api/narai") # /api/narai/shopify/billing/*
     app.include_router(_smt_admin_rt)                            # /api/narai/shopify/merchants
+
+    # SiteBoost admin API — control panel for the local-prospect outbound product
+    try:
+        from narai.api.routes.siteboost_admin import router as _siteboost_admin_rt
+        app.include_router(_siteboost_admin_rt)                  # /api/narai/siteboost/*
+    except Exception as _sb_exc:
+        logging.getLogger("api").warning(f"siteboost_admin router skipped: {_sb_exc}")
     logger.info("NarAI multi-tenant Shopify routes loaded")
 except Exception as _e:
     logger.warning(f"NarAI multi-tenant Shopify not loaded: {_e}")
@@ -14306,6 +14385,29 @@ async def bug_hunter_scan(background_tasks: BackgroundTasks):
 
     background_tasks.add_task(_scan)
     return {"status": "started", "message": "Bug hunter scan started in background"}
+
+
+# ── Whop integration status (admin-gated by global X-API-Key middleware) ─────
+
+@app.get("/api/whop/status")
+async def whop_status():
+    """Whop connection health: auth + which permission tiers are reachable.
+    Mirrors the same shape as NARAI's /api/narai/whop/health so a single
+    frontend can consume either endpoint."""
+    try:
+        from narai.integrations.whop import WhopClient
+    except ImportError as e:
+        return {"auth": "fail", "errors": [f"whop integration unavailable: {e}"]}
+
+    try:
+        async with WhopClient() as c:
+            return await c.health()
+    except Exception as e:
+        return {
+            "auth": "fail",
+            "errors": [str(e)],
+            "endpoint": "https://api.whop.com/public-graphql",
+        }
 
 
 # ── Public landing-page endpoints (no auth, IP rate-limited) ─────────────────

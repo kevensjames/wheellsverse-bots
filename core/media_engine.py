@@ -62,12 +62,11 @@ def _dalle3(prompt: str, size: str = "1024x1024", quality: str = "standard") -> 
     try:
         import urllib.request
         body = json.dumps({
-            "model": "dall-e-3",
+            "model": "gpt-image-1",
             "prompt": prompt,
             "n": 1,
             "size": size,
-            "quality": quality,
-            "response_format": "url",
+            "quality": "high",
         }).encode()
         req = urllib.request.Request(
             DALLE_URL,
