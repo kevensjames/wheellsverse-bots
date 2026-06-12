@@ -4,6 +4,9 @@
 # ============================================================
 
 # Core AI
+# The daemon's LLM router calls the OpenAI SDK directly
+# (backend/app/services/router/adapters/openai_adapter.py). Pinned to the
+# tested 1.x line — NOT because of litellm (see the litellm note below).
 openai>=1.30.0,<2.0.0
 
 # Environment management
@@ -136,12 +139,18 @@ passlib[bcrypt]>=1.7.4
 PyJWT>=2.8.0
 
 # ── NarAI v2 chat/memory/rag pipeline (Steps 1–7) ────────────────────────────
-# chromadb backs the episode store and RAG; litellm is the LLM router;
+# chromadb backs the episode store and RAG;
 # sqlalchemy[asyncio]+aiosqlite back the facts/patterns SQL store.
 chromadb>=0.5.0
-litellm==1.80.0   # PINNED: 1.83+ requires openai>=2.x which conflicts with `openai<2.0.0` two lines apart in this file.
-                   # The working venv has used 1.80.0 since the openai pin was set. Holding 1.80.0 keeps the file
-                   # reproducible (pip install -r resolves without resolver errors).
+# litellm is used ONLY by infra/brain/router.py + a few operator-run scripts
+# (backfill_owner_user_id, mac-mini restore, feedback/ingest_github_events) —
+# NOT the backend daemon, which calls the OpenAI SDK directly. So it does NOT
+# constrain the daemon's openai pin (the earlier "conflict" was an artifact of
+# treating a script-only dep as a daemon dep). Held at 1.80.0 to coexist with
+# the daemon's tested openai 1.x; the GHSA-jjhc-v7c2-5hh6 advisory affects only
+# those operator-run script paths (no public surface). Bumping to >=1.83.0
+# requires openai>=2.x — do that only as a deliberate openai 2.x migration.
+litellm==1.80.0
                    # TODO(Phase B): bump openai to 2.x + litellm to >=1.83.0 (GHSA-jjhc-v7c2-5hh6 — Critical + 3 High
                    # advisories survive through 1.80). Requires re-testing Stage 2 adapters against the openai 2.x API.
 sqlalchemy[asyncio]>=2.0.0
