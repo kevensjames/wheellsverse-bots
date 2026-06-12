@@ -6,10 +6,11 @@ fails. Sidecar SQLite storage (data/planning/planning.db) — no Supabase
 migration risk. Scope-gated via KAI_SCOPE_PLANNING (default-off).
 
 Public API (mirrors the other sidecar features' __init__ re-exports):
-  storage   — Plan/Step/StepRun + CRUD
-  planner   — generate_plan / propose_steps (goal → steps via the LLM)
-  executor  — execute_next (run one step, advance state) + make_llm_runner
-  revision  — propose_revision (diagnose a failure, propose revised steps)
+  storage     — Plan/Step/StepRun + CRUD
+  planner     — generate_plan / propose_steps (goal → steps via the LLM)
+  executor    — execute_next (run one step, advance state) + make_llm_runner
+  revision    — propose_revision (diagnose a failure, propose revised steps)
+  remediation — propose_remediations (detected issues → draft plans; proactive)
 """
 from app.services.planning.storage import (  # noqa: F401
     PLAN_STATUSES,
@@ -46,6 +47,7 @@ from app.services.planning.executor import (  # noqa: F401
     parse_directive,
 )
 from app.services.planning.revision import propose_revision  # noqa: F401
+from app.services.planning.remediation import propose_remediations  # noqa: F401
 
 __all__ = [
     "PLAN_STATUSES",
@@ -70,6 +72,7 @@ __all__ = [
     "next_pending_step",
     "parse_directive",
     "parse_steps_json",
+    "propose_remediations",
     "propose_revision",
     "propose_steps",
     "replace_steps",

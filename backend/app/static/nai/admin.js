@@ -1338,6 +1338,26 @@ async function createPlan(ev) {
   }
 }
 
+async function remediatePlans() {
+  const line = $("#planning-status-line");
+  const btn = $("#planning-remediate-btn");
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "scanning…"; }
+    const out = await apiPost("/admin/planning/remediate", { max_plans: 2, approved: true });
+    await loadPlanningStats();
+    await loadPlanningList();
+    const plans = out.proposed_plans || [];
+    if (plans.length && plans[0].plan_id) selectPlan(plans[0].plan_id);
+    if (line) line.textContent = out.note || `proposed ${plans.length} plan(s)`;
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 function planStatusChip(status) {
   const span = document.createElement("span");
   span.className = `severity-chip plan-${status}`;
@@ -2198,6 +2218,8 @@ document.addEventListener("DOMContentLoaded", () => {
   // Planning
   const planRefresh = $("#planning-refresh");
   if (planRefresh) planRefresh.addEventListener("click", loadPlanning);
+  const planRemediate = $("#planning-remediate-btn");
+  if (planRemediate) planRemediate.addEventListener("click", remediatePlans);
   const planForm = $("#planning-create-form");
   if (planForm) planForm.addEventListener("submit", createPlan);
 

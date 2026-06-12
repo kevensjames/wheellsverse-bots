@@ -817,3 +817,73 @@ def test_admin_revise_proposes(client, monkeypatch, _isolated_audit):
     body = r.json()
     assert "outline" in body["diagnosis"]
     assert body["proposed_steps"][0]["action"] == "outline"
+
+
+# ─── remediation (proactive: detected issues → draft plans) ──────────
+
+from app.services.planning import remediation as prem  # noqa: E402
+
+
+def _steps_router(steps_json='{"steps":[{"action":"do x","kind":"chat"}]}', *, cost=0.001):
+    r = MagicMock()
+    r.complete.return_value = SimpleNamespace(content=steps_json, total_cost_usd=cost)
+    return r
+
+
+def test_remediation_gather_defensive():
+    # reads real subsystems (audit/failures/learning/planning) — must never raise
+    assert isinstance(prem._gather_issues(), list)
+
+
+def test_remediation_goal_for_kinds():
+    assert "recurring failure" in prem._goal_for({"kind": "failure", "detail": "x"})
+    assert "audit issue" in prem._goal_for({"kind": "audit", "detail": "y"})
+    assert "underperforming" in prem._goal_for({"kind": "lesson", "detail": "z"})
+    assert "blocked" in prem._goal_for({"kind": "blocked_plan", "detail": "w"})
+
+
+def test_propose_remediations_no_issues(monkeypatch):
+    monkeypatch.setattr(prem, "_gather_issues", lambda *a, **k: [])
+    out = prem.propose_remediations(router=MagicMock(), user_id=uuid.uuid4())
+    assert out["proposed_plans"] == [] and out["issues_found"] == 0
+    assert "nothing to remediate" in out["note"]
+
+
+def test_propose_remediations_drafts_a_plan(monkeypatch):
+    monkeypatch.setattr(prem, "_gather_issues", lambda *a, **k: [
+        {"kind": "failure", "weight": 3, "detail": "tool_error [twitter] ×2: 401"}])
+    out = prem.propose_remediations(router=_steps_router(), user_id=uuid.uuid4(), max_plans=1)
+    assert out["issues_found"] == 1 and len(out["proposed_plans"]) == 1
+    p = out["proposed_plans"][0]
+    assert p["status"] == "draft" and p["issue_kind"] == "failure"
+    # persisted as an inert draft tagged as a remediation
+    plan = pl.get_plan(p["plan_id"])
+    assert plan.status == "draft" and plan.meta.get("remediation") is True
+
+
+def test_propose_remediations_caps_at_max_plans(monkeypatch):
+    monkeypatch.setattr(prem, "_gather_issues", lambda *a, **k: [
+        {"kind": "failure", "weight": 3, "detail": f"f{i}"} for i in range(5)])
+    out = prem.propose_remediations(router=_steps_router(), user_id=uuid.uuid4(), max_plans=2)
+    assert len(out["proposed_plans"]) == 2  # capped, even though 5 issues found
+    assert out["issues_found"] == 5
+
+
+def test_admin_remediate_scope_off_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.delenv("KAI_SCOPE_PLANNING", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_PLANNING_REMEDIATE", raising=False)
+    r = client.post("/admin/planning/remediate", headers=ADMIN_HEADERS, json={})
+    assert r.status_code == 403
+
+
+def test_admin_remediate_propose_only_no_approval(client, monkeypatch, _isolated_audit):
+    # destructive=False → works WITHOUT approved=true (drafts are inert)
+    monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setattr(prem, "_gather_issues", lambda *a, **k: [
+        {"kind": "audit", "weight": 2, "detail": "X: scope off"}])
+    _patch_llm(monkeypatch, '{"steps":[{"action":"flip the flag","kind":"chat"}]}')
+    r = client.post("/admin/planning/remediate", headers=ADMIN_HEADERS, json={"max_plans": 1})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["issues_found"] == 1
+    assert body["proposed_plans"][0]["status"] == "draft"

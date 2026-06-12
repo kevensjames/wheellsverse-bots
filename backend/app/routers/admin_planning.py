@@ -12,6 +12,11 @@ Write endpoints (each @audited, destructive=True, gated by KAI_SCOPE_PLANNING):
   POST /admin/planning/{id}/execute-next run ONE pending step, advance the plan
   POST /admin/planning/{id}/revise      propose a revision for a blocked plan
 
+Proactive (destructive=False — proposes inert draft plans only):
+  POST /admin/planning/remediate        scan KAI's detected issues (audit/
+                                        failures/lessons/blocked) → draft a plan
+                                        per top issue (operator approves to run)
+
 The LLM-touching actions (create / execute-next / revise) build the router
 and resolve the operator profile INSIDE the @audited function, so a scope-
 denied or pending-approval call short-circuits before any model cost.
@@ -29,7 +34,7 @@ from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.routers.admin_chat import OperatorNotConfigured, _resolve_operator_profile
 from app.services.governance import PendingApproval, ScopeDenied, audited
-from app.services.planning import executor as ex, planner, revision, storage
+from app.services.planning import executor as ex, planner, remediation, revision, storage
 from app.services.router import build_default_router
 from app.services.tools import build_default_registry
 from app.services.tools.base import ToolContext
@@ -120,6 +125,12 @@ class ReviseRequest(BaseModel):
     approved: bool = False
 
 
+class RemediateRequest(BaseModel):
+    max_plans: int = 2
+    prefer_local: bool = False
+    approved: bool = False
+
+
 # ─── audited core actions ────────────────────────────────────────────
 
 
@@ -184,6 +195,19 @@ def _audited_revise(
     )
 
 
+@audited(scope="planning.remediate", destructive=False)
+def _audited_remediate(
+    *, max_plans: int, prefer_local: bool, session: Session
+) -> dict[str, Any]:
+    # destructive=False: drafts are inert. Each draft still needs a separate
+    # planning.approve (destructive=True) before any step executes.
+    rt = build_default_router(session)
+    prof = _resolve_operator_profile(session)
+    return remediation.propose_remediations(
+        router=rt, user_id=prof.id, max_plans=max_plans, prefer_local=prefer_local,
+    )
+
+
 # ─── write routes ────────────────────────────────────────────────────
 
 
@@ -243,5 +267,14 @@ def planning_revise(
     return _guard(
         _audited_revise,
         plan_id=plan_id, prefer_local=body.prefer_local,
+        session=session, approved=body.approved,
+    )
+
+
+@router.post("/remediate")
+def planning_remediate(body: RemediateRequest, session: Session = Depends(get_db)):
+    return _guard(
+        _audited_remediate,
+        max_plans=body.max_plans, prefer_local=body.prefer_local,
         session=session, approved=body.approved,
     )
