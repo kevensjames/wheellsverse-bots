@@ -87,9 +87,16 @@ write execution). All 9 scoped features are **enabled in production**.
   **2 `test_security_headers` are stale** — they assert `frame-ancestors 'none'`
   but commit `48ddb16` deliberately changed CSP to allow the app.wheellsverse.com
   iframe. The 2 stale tests should be updated to match reality.
-- **`.env` WORDPRESS_TOKEN landmine** — an unescaped `(` aborts `set -a; . .env`,
-  so any var defined *after* it never reaches the daemon. All KAI flags are
-  deliberately placed *before* it; quote the value to remove the hazard.
+- **`.env` landmine (PARTIALLY addressed 2026-06-12)** — WORDPRESS_TOKEN (line
+  ~246) has an unescaped `(` that aborts `set -a; . .env`. **Do NOT just "quote
+  it"** — that unblocks the rest of `.env`, which contains other shell-hostile
+  values (`NARAI_PASSWORD_HASH=$2b$…` bcrypt → `set -u` unbound-var → silent
+  wrapper crash); it took prod down 2026-06-12 and was reverted. WORDPRESS_TOKEN
+  is unused by the daemon anyway. The only daemon-relevant trapped var
+  (`TELEGRAM_BOT_TOKEN`/`CHAT_ID`) was **moved above the landmine** → Telegram
+  alerts now send. Proper full fix = a literal dotenv loader in
+  `deploy/start_nai.sh` (no shell eval), deferred. See
+  memory/kai_env_landmine_2026_06_12.md.
 - **Browser envelope B v1 limit** — the allowlist gates the *entry* URL only; a
   click can navigate off-allowlist (post-nav targets aren't re-checked). Safe in
   v1 (operator approves each sequence; no autonomous loop) but the obvious v2.
@@ -104,8 +111,10 @@ computer-control, learning, twin shipped; openai-2.x + Gitea-registry resolved
 as no-ops. Optional upgrades, in rough value order:
 
 1. **Top up Anthropic** (operator) — lifts quality across every feature.
-2. **Fix the 2 stale CSP tests + quote WORDPRESS_TOKEN** — makes the suite +
-   `.env` trustworthy (small, high hygiene).
+2. **Fix the 2 stale CSP tests** — makes the suite trustworthy (small). (Note:
+   do NOT "quote WORDPRESS_TOKEN" — it crashes startup; the proper `.env` fix is
+   a literal dotenv loader in `start_nai.sh`. Telegram alerts already freed
+   2026-06-12 by moving those tokens above the landmine.)
 3. **Browser envelope B v2** — re-validate post-click navigation against the
    allowlist.
 4. **Learning auto-tuning / extra inputs** — feed failures + self-correction
