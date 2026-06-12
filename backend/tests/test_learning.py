@@ -21,6 +21,12 @@ ADMIN_HEADERS = {"X-Admin-Token": settings.admin_token}
 @pytest.fixture(autouse=True)
 def _isolated_learning_db(tmp_path, monkeypatch):
     monkeypatch.setattr(ls, "LEARNING_DB_PATH", tmp_path / "learning.db")
+    # v2 synthesis also reads failures + self-correction events — isolate those
+    # paths too so tests never pick up the repo's real data/ logs.
+    from app.services.failure_memory import storage as _fstore
+    from app.services.self_correction import loop as _scloop
+    monkeypatch.setattr(_fstore, "FAILURE_LOG_PATH", tmp_path / "failures.jsonl")
+    monkeypatch.setattr(_scloop, "EVENTS_PATH", tmp_path / "sc_events.jsonl")
     yield
 
 
@@ -90,10 +96,76 @@ def _router(content, *, cost=0.002):
     return r
 
 
-def test_synthesis_no_feedback_returns_empty():
+def test_synthesis_no_signals_returns_empty():
+    # v2: empty feedback AND failures AND self-correction → nothing to learn
     out = lsyn.synthesize_lessons(router=MagicMock(), user_id=uuid.uuid4())
     assert out["proposed"] == []
-    assert "no feedback" in out["note"]
+    assert "nothing to learn" in out["note"]
+
+
+def test_synthesis_learns_from_failures_only():
+    # no feedback — a recurring tool failure alone should drive a lesson
+    from app.services import failure_memory
+    failure_memory.record_failure(
+        prompt="post the launch tweet", detail="401 Unauthorized from X API",
+        category="tool_error", tool_name="twitter_post",
+    )
+    r = _router('{"lessons":[{"text":"Refresh the X token before posting",'
+                '"source":"failure"}]}')
+    out = lsyn.synthesize_lessons(router=r, user_id=uuid.uuid4())
+    assert out["proposed"][0]["text"].startswith("Refresh")
+    assert out["proposed"][0]["source"] == "failure"
+    assert "1 failure" in out["note"]
+
+
+def test_synthesis_learns_from_self_correction_only():
+    # no feedback — a critic-caught + revised draft should drive a lesson
+    from app.services.self_correction import loop as sc_loop
+    with sc_loop.EVENTS_PATH.open("w") as fp:
+        import json as _json
+        fp.write(_json.dumps({
+            "user_message": "summarize the audit", "was_revised": True,
+            "final_severity": "major",
+            "verdicts": [{"critique": "draft was far too long", "severity": "major"}],
+        }) + "\n")
+    r = _router('{"lessons":[{"text":"Keep summaries under 5 lines",'
+                '"source":"self_correction"}]}')
+    out = lsyn.synthesize_lessons(router=r, user_id=uuid.uuid4())
+    assert out["proposed"][0]["source"] == "self_correction"
+    assert "1 self-correction" in out["note"]
+
+
+def test_synthesis_skips_ok_self_correction_events():
+    # cheap-path events (ok / not revised) carry no signal → not fed → no learn
+    from app.services.self_correction import loop as sc_loop
+    with sc_loop.EVENTS_PATH.open("w") as fp:
+        import json as _json
+        fp.write(_json.dumps({
+            "user_message": "hi", "was_revised": False, "final_severity": "none",
+            "verdicts": [{"critique": "", "severity": "none"}],
+        }) + "\n")
+    out = lsyn.synthesize_lessons(router=MagicMock(), user_id=uuid.uuid4())
+    assert out["proposed"] == []
+    assert "nothing to learn" in out["note"]
+
+
+def test_synthesis_invalid_source_defaults_mixed():
+    ls.record_feedback(rating="down", note="x")
+    r = _router('{"lessons":[{"text":"Do better","source":"banana"}]}')
+    out = lsyn.synthesize_lessons(router=r, user_id=uuid.uuid4())
+    assert out["proposed"][0]["source"] == "mixed"
+
+
+def test_synthesis_can_disable_extra_sources():
+    # a failure exists, but both extra sources are off and there's no feedback
+    from app.services import failure_memory
+    failure_memory.record_failure(prompt="x", detail="boom", category="tool_error")
+    out = lsyn.synthesize_lessons(
+        router=MagicMock(), user_id=uuid.uuid4(),
+        include_failures=False, include_self_correction=False,
+    )
+    assert out["proposed"] == []
+    assert "nothing to learn" in out["note"]
 
 
 def test_synthesis_happy_stores_proposed():

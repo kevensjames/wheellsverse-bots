@@ -7,8 +7,10 @@ Reads + feedback capture (admin-token only; low-risk):
   GET  /admin/learning/stats      counts
 
 Audited actions (KAI_SCOPE_LEARNING):
-  POST /admin/learning/synthesize        feedback → PROPOSED lessons (LLM);
-                                         destructive=False (proposing only)
+  POST /admin/learning/synthesize        feedback + failures + self-correction
+                                         → PROPOSED lessons (LLM, v2); each
+                                         tagged by source; destructive=False
+                                         (proposing only)
   POST /admin/learning/lessons/{id}/activate   approve a lesson → it injects
                                          into KAI's prompt; destructive=True
   POST /admin/learning/lessons/{id}/dismiss    retire a lesson; destructive=True
@@ -89,15 +91,21 @@ class ApproveRequest(BaseModel):
 class SynthesizeRequest(BaseModel):
     max_lessons: int = 5
     prefer_local: bool = False
+    include_failures: bool = True            # v2: also learn from tool/LLM errors
+    include_self_correction: bool = True     # v2: also learn from critic-caught fixes
     approved: bool = False
 
 
 @audited(scope="learning.synthesize", destructive=False)
-def _audited_synthesize(*, max_lessons: int, prefer_local: bool, session: Session) -> dict[str, Any]:
+def _audited_synthesize(
+    *, max_lessons: int, prefer_local: bool, include_failures: bool,
+    include_self_correction: bool, session: Session,
+) -> dict[str, Any]:
     rt = build_default_router(session)
     prof = _resolve_operator_profile(session)
     return synthesize_lessons(
         router=rt, user_id=prof.id, max_lessons=max_lessons, prefer_local=prefer_local,
+        include_failures=include_failures, include_self_correction=include_self_correction,
     )
 
 
@@ -128,7 +136,9 @@ def _guard(fn, **kwargs):
 def learning_synthesize(body: SynthesizeRequest, session: Session = Depends(get_db)):
     return _guard(
         _audited_synthesize, max_lessons=body.max_lessons,
-        prefer_local=body.prefer_local, session=session, approved=body.approved,
+        prefer_local=body.prefer_local, include_failures=body.include_failures,
+        include_self_correction=body.include_self_correction,
+        session=session, approved=body.approved,
     )
 
 

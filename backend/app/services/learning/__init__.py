@@ -1,13 +1,15 @@
-"""KAI continuous learning (v1: feedback → lessons → operator-approved injection).
+"""KAI continuous learning (v2: feedback + failures + self-correction → lessons
+→ operator-approved injection).
 
 The closed loop the roadmap's learning system needs, scoped to one session:
-capture explicit feedback (👍/👎 + notes), synthesize PROPOSED lessons from it,
+capture signals about KAI's behavior, synthesize PROPOSED lessons from them,
 and — once the operator APPROVES a lesson (→ active) — inject it into KAI's
 system prompt so behavior actually improves. Gated by KAI_SCOPE_LEARNING;
 activation is @audited (KAI changes its own guidance only with approval).
 
   storage    — feedback + lessons CRUD (SQLite sidecar)
-  synthesis  — feedback → proposed lessons via the LLM
+  synthesis  — feedback + tool/LLM failures + self-correction events → proposed
+               lessons via the LLM (v2: 3 signals, each tagged by source)
   injection  — active lessons → system-prompt preamble (loop closes here)
 """
 from app.services.learning.storage import (  # noqa: F401
