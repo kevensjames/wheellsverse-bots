@@ -14,6 +14,7 @@ from app.services.tools.base import (
 from app.services.tools.browser_tool import BrowserTool
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
+from app.services.tools.document_search import DocumentSearchTool
 from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.learning_query import LearningQueryTool
@@ -68,6 +69,10 @@ def build_default_registry(
     # Always registered: the KG db auto-creates on first use, so the tool
     # is functional from day one even with an empty graph.
     reg.register(KGQueryTool())
+    # Document search (RAG) — semantic search over the user's indexed documents
+    # via pgvector. Ships always; degrades gracefully to "no results" when the
+    # knowledge base is empty or embeddings are unavailable.
+    reg.register(DocumentSearchTool())
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up
     # similar past failures to avoid repeating them.
     reg.register(FailureLookupTool())

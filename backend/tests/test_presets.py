@@ -17,11 +17,28 @@ from app.services.tools.registry import ToolRegistry
 # ─── registry: shape + lookup ────────────────────────────────────────
 
 
-def test_list_presets_ships_five():
+def test_list_presets_ships_expected_set():
     rows = list_presets()
-    assert len(rows) == 5
     ids = {p.id for p in rows}
-    assert ids == {"swe", "marketing", "finance", "research", "legal_research"}
+    # original 5 + 4 professional-domain research agents
+    assert ids == {
+        "swe", "marketing", "finance", "research", "legal_research",
+        "medical_research", "dental_research", "engineering", "accounting",
+    }
+    assert len(rows) == 9
+
+
+def test_domain_agents_are_research_not_advice_and_grounded():
+    # The regulated-profession presets must (a) frame as RESEARCH not advice and
+    # (b) be wired to the knowledge base (document_search) for citations.
+    for pid in ("medical_research", "dental_research", "engineering", "accounting"):
+        p = get_preset(pid)
+        assert p is not None, pid
+        assert "document_search" in p.tool_whitelist, pid
+        sp = p.system_prompt.lower()
+        assert "research" in sp, pid
+        # each defers to a licensed professional / is not a substitute
+        assert ("licensed" in sp) or ("not a substitute" in sp) or ("not a " in sp), pid
 
 
 def test_get_preset_known():
@@ -230,14 +247,17 @@ def test_admin_presets_list_requires_token(client):
     assert r.status_code == 403
 
 
-def test_admin_presets_list_returns_five(client, _scope_on, _isolated_audit):
+def test_admin_presets_list_returns_all(client, _scope_on, _isolated_audit):
     r = client.get("/admin/presets", headers=ADMIN_HEADERS)
     assert r.status_code == 200
     body = r.json()
     assert "presets" in body
-    assert len(body["presets"]) == 5
+    assert len(body["presets"]) == 9
     ids = {p["id"] for p in body["presets"]}
-    assert ids == {"swe", "marketing", "finance", "research", "legal_research"}
+    assert ids == {
+        "swe", "marketing", "finance", "research", "legal_research",
+        "medical_research", "dental_research", "engineering", "accounting",
+    }
 
 
 def test_admin_presets_list_audited(
