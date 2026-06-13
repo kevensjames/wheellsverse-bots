@@ -20,7 +20,9 @@ from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.learning_query import LearningQueryTool
 from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.plan_query import PlanQueryTool
+from app.services.tools.pubmed_search import PubMedSearchTool
 from app.services.tools.registry import ToolRegistry
+from app.services.tools.suggest_agent import SuggestAgentTool
 from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.twin_query import TwinQueryTool
 from app.services.tools.verify_claim import VerifyClaimTool
@@ -77,6 +79,11 @@ def build_default_registry(
     # Claim verification (RAG-grounded fact-check) — checks a claim against the
     # user's indexed documents + returns a confidence + citations. Ships always.
     reg.register(VerifyClaimTool())
+    # PubMed (NCBI E-utilities) — live, official, keyless biomedical literature
+    # search returning citable results. The reference external-knowledge connector.
+    reg.register(PubMedSearchTool())
+    # Super-router — recommend the best domain expert (preset) for a question.
+    reg.register(SuggestAgentTool())
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up
     # similar past failures to avoid repeating them.
     reg.register(FailureLookupTool())

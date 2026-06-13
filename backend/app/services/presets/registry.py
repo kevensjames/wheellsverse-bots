@@ -166,15 +166,17 @@ PRESETS: list[PresetSpec] = [
             "citations, and clearly separate established consensus from "
             "preliminary or contested findings. Prefer primary sources "
             "(trials, systematic reviews, official guidelines) over secondary. "
-            "Call document_search first to ground answers in the user's own "
-            "references and cite passages as [source: <filename> #<position>]. "
-            "If asked 'what should I/my patient do', decline and direct them to "
-            "a licensed clinician. End substantive answers with: 'Informational "
+            "Call pubmed_search for peer-reviewed literature (cite as "
+            "[PMID <id>]) and document_search to ground answers in the user's "
+            "own references (cite as [source: <filename> #<position>]). If asked "
+            "'what should I/my patient do', decline and direct them to a "
+            "licensed clinician. End substantive answers with: 'Informational "
             "only — not a substitute for professional medical judgment.'"
         ),
         tool_whitelist=[
             "document_search",
             "verify_claim",
+            "pubmed_search",
             "web_search",
             "web_fetch",
             "memory",
@@ -203,6 +205,7 @@ PRESETS: list[PresetSpec] = [
         tool_whitelist=[
             "document_search",
             "verify_claim",
+            "pubmed_search",
             "web_search",
             "web_fetch",
             "memory",
