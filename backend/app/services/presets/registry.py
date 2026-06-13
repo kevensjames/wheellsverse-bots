@@ -120,6 +120,7 @@ PRESETS: list[PresetSpec] = [
         ),
         tool_whitelist=[
             "document_search",
+            "verify_claim",
             "web_search",
             "web_fetch",
             "memory",
@@ -144,6 +145,7 @@ PRESETS: list[PresetSpec] = [
         ),
         tool_whitelist=[
             "document_search",
+            "verify_claim",
             "web_search",
             "web_fetch",
             "memory",
@@ -172,6 +174,7 @@ PRESETS: list[PresetSpec] = [
         ),
         tool_whitelist=[
             "document_search",
+            "verify_claim",
             "web_search",
             "web_fetch",
             "memory",
@@ -199,6 +202,7 @@ PRESETS: list[PresetSpec] = [
         ),
         tool_whitelist=[
             "document_search",
+            "verify_claim",
             "web_search",
             "web_fetch",
             "memory",
@@ -226,6 +230,7 @@ PRESETS: list[PresetSpec] = [
         ),
         tool_whitelist=[
             "document_search",
+            "verify_claim",
             "web_search",
             "web_fetch",
             "memory",
@@ -252,6 +257,7 @@ PRESETS: list[PresetSpec] = [
         ),
         tool_whitelist=[
             "document_search",
+            "verify_claim",
             "web_search",
             "web_fetch",
             "memory",

@@ -23,6 +23,7 @@ from app.services.tools.plan_query import PlanQueryTool
 from app.services.tools.registry import ToolRegistry
 from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.twin_query import TwinQueryTool
+from app.services.tools.verify_claim import VerifyClaimTool
 from app.services.tools.web_fetch import WebFetchTool
 from app.services.tools.web_search import WebSearchTool
 
@@ -73,6 +74,9 @@ def build_default_registry(
     # via pgvector. Ships always; degrades gracefully to "no results" when the
     # knowledge base is empty or embeddings are unavailable.
     reg.register(DocumentSearchTool())
+    # Claim verification (RAG-grounded fact-check) — checks a claim against the
+    # user's indexed documents + returns a confidence + citations. Ships always.
+    reg.register(VerifyClaimTool())
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up
     # similar past failures to avoid repeating them.
     reg.register(FailureLookupTool())
