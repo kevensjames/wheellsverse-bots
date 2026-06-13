@@ -13,6 +13,17 @@
 (function () {
   "use strict";
 
+  // Register the network-first service worker so the INSTALLED (home-screen)
+  // PWA always fetches the latest build instead of serving iOS's sticky stale
+  // snapshot. Failure is non-fatal — the page works fine without it.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker
+        .register("/kai-ui/sw.js", { scope: "/kai-ui/" })
+        .catch(function () {});
+    });
+  }
+
   function collectStamps(doc) {
     var out = {};
     doc.querySelectorAll("script[src], link[href]").forEach(function (el) {
