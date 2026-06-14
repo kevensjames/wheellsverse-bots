@@ -15747,7 +15747,7 @@ async function saCreateDiscount() {
   if (!title || !code || !pct) { res.textContent = '⚠️ Fill in all fields'; res.style.color='#ffa500'; return; }
   res.textContent = 'Creating…'; res.style.color = 'var(--text3)';
   try {
-    const d = await api('/api/shopify/discount', {method:'POST', body:JSON.stringify({title, code, percent_off:pct, usage_limit:limit})});
+    const d = await api('/api/shopify/discount', 'POST', {title, code, percent_off:pct, usage_limit:limit});
     if (d.success || d.discount_code) {
       res.textContent = `✅ Created: ${d.discount_code || code}`; res.style.color='#44ff88';
       toast(`✅ Discount ${code} created!`, 'success');
@@ -15760,7 +15760,7 @@ async function saCreateDiscount() {
 async function saQuickDiscount(code, label, pct, limit) {
   toast(`Creating ${code}…`, 'info');
   try {
-    const d = await api('/api/shopify/discount', {method:'POST', body:JSON.stringify({title:label, code, percent_off:pct, usage_limit:limit})});
+    const d = await api('/api/shopify/discount', 'POST', {title:label, code, percent_off:pct, usage_limit:limit});
     if (d.success || d.discount_code) toast(`✅ ${code} created!`, 'success');
     else toast(`❌ ${d.error || 'Failed'}`, 'error');
   } catch(e) { toast(`❌ ${e.message}`, 'error'); }
