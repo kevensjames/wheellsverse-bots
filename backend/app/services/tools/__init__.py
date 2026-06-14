@@ -12,6 +12,7 @@ from app.services.tools.base import (
     ToolResult,
 )
 from app.services.tools.browser_tool import BrowserTool
+from app.services.tools.clinicaltrials_search import ClinicalTrialsSearchTool
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
 from app.services.tools.courtlistener_search import CourtListenerSearchTool
@@ -91,6 +92,8 @@ def build_default_registry(
     reg.register(CourtListenerSearchTool())
     # WHO Global Health Observatory indicator search (medical) — official OData.
     reg.register(WhoSearchTool())
+    # ClinicalTrials.gov (NIH/NLM) trial registry search (medical) — official v2.
+    reg.register(ClinicalTrialsSearchTool())
     # Super-router — recommend the best domain expert (preset) for a question.
     reg.register(SuggestAgentTool())
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up

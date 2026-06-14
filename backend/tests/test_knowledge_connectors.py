@@ -121,3 +121,31 @@ def test_who_parses_indicators(monkeypatch):
 def test_who_blank_query_raises():
     with pytest.raises(ToolError):
         WhoSearchTool().execute(_ctx(), query="  ")
+
+
+# ─── ClinicalTrials.gov ──────────────────────────────────────────────
+
+from app.services.tools.clinicaltrials_search import ClinicalTrialsSearchTool  # noqa: E402
+
+_CT = {"studies": [
+    {"protocolSection": {
+        "identificationModule": {"nctId": "NCT05934526", "briefTitle": "Seralutinib in adult PAH"},
+        "statusModule": {"overallStatus": "COMPLETED"},
+        "designModule": {"phases": ["PHASE2"]},
+    }},
+]}
+
+
+def test_clinicaltrials_parses_study(monkeypatch):
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(_CT))
+    out = ClinicalTrialsSearchTool().execute(_ctx(), query="hypertension")
+    assert out["count"] == 1
+    r = out["results"][0]
+    assert r["nct"] == "NCT05934526" and r["status"] == "COMPLETED" and r["phase"] == "PHASE2"
+    assert r["url"] == "https://clinicaltrials.gov/study/NCT05934526"
+    assert "NCT" in out["note"]
+
+
+def test_clinicaltrials_blank_query_raises():
+    with pytest.raises(ToolError):
+        ClinicalTrialsSearchTool().execute(_ctx(), query="")

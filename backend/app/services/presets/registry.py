@@ -179,6 +179,7 @@ PRESETS: list[PresetSpec] = [
             "verify_claim",
             "pubmed_search",
             "who_search",
+            "clinicaltrials_search",
             "web_search",
             "web_fetch",
             "memory",

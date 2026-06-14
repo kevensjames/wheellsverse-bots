@@ -37,7 +37,7 @@ function appendMessage(role, content) {
 // below the message, so the professional layer's sourcing is visible at a
 // glance instead of buried in the text. Idempotent: removes a prior chip row
 // before re-rendering (streaming calls it once at the end).
-function renderCitations(messageDiv, text) {
+function renderCitations(messageDiv, text, routedLabel) {
   if (!messageDiv) return;
   const old = messageDiv.querySelector(":scope > .citation-chips");
   if (old) old.remove();
@@ -57,17 +57,25 @@ function renderCitations(messageDiv, text) {
     const name = (m[1] || "").trim();
     if (name) add(m[2] ? `${name} #${m[2]}` : name, null);
   }
-  if (!cites.length) return;
+  if (!cites.length && !routedLabel) return;
   const row = document.createElement("div");
   row.className = "citation-chips";
-  const lbl = document.createElement("span");
-  lbl.className = "citation-chips-label";
-  lbl.textContent = "Sources:";
-  row.appendChild(lbl);
-  const g = document.createElement("span");
-  g.className = "cite-chip grounded-chip";
-  g.textContent = `✓ ${cites.length} source${cites.length > 1 ? "s" : ""}`;
-  row.appendChild(g);
+  if (routedLabel) {
+    const r = document.createElement("span");
+    r.className = "cite-chip routed-chip";
+    r.textContent = `🧭 ${routedLabel}`;
+    row.appendChild(r);
+  }
+  if (cites.length) {
+    const lbl = document.createElement("span");
+    lbl.className = "citation-chips-label";
+    lbl.textContent = "Sources:";
+    row.appendChild(lbl);
+    const g = document.createElement("span");
+    g.className = "cite-chip grounded-chip";
+    g.textContent = `✓ ${cites.length} source${cites.length > 1 ? "s" : ""}`;
+    row.appendChild(g);
+  }
   cites.forEach((c) => {
     const el = document.createElement(c.href ? "a" : "span");
     el.className = "cite-chip";
@@ -168,7 +176,8 @@ async function sendWithTools(message) {
   }
   const data = await resp.json();
   conversationId = data.conversation_id;
-  renderCitations(appendMessage("assistant", data.message.content), data.message.content);
+  const routed = data.auto_routed && data.preset_id ? data.preset_id.replace(/_/g, " ") : null;
+  renderCitations(appendMessage("assistant", data.message.content), data.message.content, routed);
   setStatus(
     `adapter=${data.message.adapter || "?"} cost=$${data.total_cost_usd.toFixed(4)}`
   );
