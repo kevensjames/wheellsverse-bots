@@ -31,6 +31,48 @@ function appendMessage(role, content) {
   return div;
 }
 
+// Turn inline citation markers an agent emits — [PMID 12345678] and
+// [source: filename #pos] / [From "filename" #pos] — into clickable chips
+// below the message, so the professional layer's sourcing is visible at a
+// glance instead of buried in the text. Idempotent: removes a prior chip row
+// before re-rendering (streaming calls it once at the end).
+function renderCitations(messageDiv, text) {
+  if (!messageDiv) return;
+  const old = messageDiv.querySelector(":scope > .citation-chips");
+  if (old) old.remove();
+  const cites = [];
+  const seen = new Set();
+  const add = (label, href) => {
+    const key = label.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    cites.push({ label, href });
+  };
+  let m;
+  const pmid = /\[\s*PMID:?\s*(\d+)\s*\]/gi;
+  while ((m = pmid.exec(text))) add(`PMID ${m[1]}`, `https://pubmed.ncbi.nlm.nih.gov/${m[1]}/`);
+  const src = /\[\s*(?:source:\s*|From\s*")\s*([^\]"#]+?)["']?\s*(?:,?\s*(?:chunk\s*)?#\s*(\d+))?\s*\]/gi;
+  while ((m = src.exec(text))) {
+    const name = (m[1] || "").trim();
+    if (name) add(m[2] ? `${name} #${m[2]}` : name, null);
+  }
+  if (!cites.length) return;
+  const row = document.createElement("div");
+  row.className = "citation-chips";
+  const lbl = document.createElement("span");
+  lbl.className = "citation-chips-label";
+  lbl.textContent = "Sources:";
+  row.appendChild(lbl);
+  cites.forEach((c) => {
+    const el = document.createElement(c.href ? "a" : "span");
+    el.className = "cite-chip";
+    el.textContent = c.label;
+    if (c.href) { el.href = c.href; el.target = "_blank"; el.rel = "noopener"; }
+    row.appendChild(el);
+  });
+  messageDiv.appendChild(row);
+}
+
 // Single audio element reused across all speak clicks. Stopping the
 // current audio when a new one starts prevents two utterances overlapping.
 let _ttsAudio = null;
@@ -47,7 +89,7 @@ function attachSpeakButton(messageDiv) {
     // should read whatever the user can currently see).
     // Walk text only, excluding the button itself.
     const text = Array.from(messageDiv.childNodes)
-      .filter((n) => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && !n.classList?.contains("speak-btn")))
+      .filter((n) => n.nodeType === Node.TEXT_NODE || (n.nodeType === Node.ELEMENT_NODE && !n.classList?.contains("speak-btn") && !n.classList?.contains("citation-chips")))
       .map((n) => n.textContent)
       .join("")
       .trim();
@@ -120,7 +162,7 @@ async function sendWithTools(message) {
   }
   const data = await resp.json();
   conversationId = data.conversation_id;
-  appendMessage("assistant", data.message.content);
+  renderCitations(appendMessage("assistant", data.message.content), data.message.content);
   setStatus(
     `adapter=${data.message.adapter || "?"} cost=$${data.total_cost_usd.toFixed(4)}`
   );
@@ -151,6 +193,7 @@ function sendStreaming(message) {
       els.messages.scrollTop = els.messages.scrollHeight;
     } else if (data.type === "done") {
       evtSource.close();
+      renderCitations(bubble, bubble.textContent);
       setStatus("Done");
     } else if (data.type === "error") {
       bubble.textContent += `\n[error: ${data.error}]`;
