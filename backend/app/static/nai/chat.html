@@ -20,6 +20,7 @@
     <div class="controls">
       <label><input type="checkbox" id="use-tools" /> Use tools (no streaming)</label>
       <label><input type="checkbox" id="prefer-local" /> Prefer local (Ollama)</label>
+      <label title="Auto-pick the best expert (medical, legal, engineering, …) for your question"><input type="checkbox" id="auto-route" /> Expert auto-route</label>
       <button id="new-conv" type="button">New conversation</button>
       <span id="plan-badge" class="plan-badge" hidden></span>
       <a class="nav-link" href="/kai-ui/documents.html">Docs</a>
@@ -104,7 +105,7 @@
   <div id="status"></div>
 
   <script src="auth.js?v=ts-1780481212"></script>
-  <script src="chat.js?v=ts-1781404906"></script>
+  <script src="chat.js?v=ts-1781410359"></script>
   <!-- Auto-reload watcher: pops a "new version" banner when a newer build ships
        so chat.html stops silently running a stale page. Self-contained. -->
   <script src="reload-watcher.js?v=ts-1781320887" defer></script>

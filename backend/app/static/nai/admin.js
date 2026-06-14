@@ -297,6 +297,7 @@ async function adminChatPost(message) {
     preset_id: presetSel && presetSel.value ? presetSel.value : null,
     auto_route: !!$("#admin-auto-route")?.checked,
     self_correct: !!(selfCorrect && selfCorrect.checked),
+    verify: !!$("#admin-verify")?.checked,
   };
   const r = await fetch("/admin/kai-chat", {
     method: "POST",
@@ -349,12 +350,21 @@ function extractConfidence(text) {
 // Append the "badges" row under an assistant answer: which expert handled it
 // (routed), a self-rated confidence, a grounding indicator (✓ N sources), and
 // the citation chips.
-function renderAssistantExtras(wrap, text, presetLabel, confLevel) {
+function renderAssistantExtras(wrap, text, presetLabel, confLevel, verification) {
   const cites = parseCitations(text);
-  if (!presetLabel && !confLevel && !cites.length) return;
+  if (!presetLabel && !confLevel && !verification && !cites.length) return;
   const row = document.createElement("div");
   row.className = "citation-chips";
-  if (confLevel) {
+  // Real grounded verification (verify=on) takes precedence over the agent's
+  // self-rating: show "verified: <verdict>" colored by the grounded confidence.
+  if (verification && verification.verdict) {
+    const v = document.createElement("span");
+    const lvl = verification.confidence || "low";
+    v.className = `cite-chip conf-chip conf-${lvl}`;
+    v.title = verification.reason || "";
+    v.textContent = `verified: ${verification.verdict} (${lvl})`;
+    row.appendChild(v);
+  } else if (confLevel) {
     const c = document.createElement("span");
     c.className = `cite-chip conf-chip conf-${confLevel}`;
     c.textContent = `confidence: ${confLevel}`;
@@ -382,7 +392,7 @@ function renderAssistantExtras(wrap, text, presetLabel, confLevel) {
   wrap.appendChild(row);
 }
 
-function appendChatMessage(role, text, meta, presetLabel) {
+function appendChatMessage(role, text, meta, presetLabel, verification) {
   const list = $("#admin-chat-messages");
   if (!list) return;
   const wrap = document.createElement("div");
@@ -402,7 +412,7 @@ function appendChatMessage(role, text, meta, presetLabel) {
   wrap.appendChild(bubble);
 
   if (role === "assistant") {
-    renderAssistantExtras(wrap, displayText, presetLabel, confLevel);
+    renderAssistantExtras(wrap, displayText, presetLabel, confLevel, verification);
   }
 
   if (meta) {
@@ -453,7 +463,7 @@ async function sendChat(e) {
       presetLabel = opt ? opt.textContent.split(" — ")[0].trim() : resp.preset_id;
       if (resp.auto_routed) presetLabel = "🧭 " + presetLabel;
     }
-    appendChatMessage("assistant", msg.content || "(empty response)", meta, presetLabel);
+    appendChatMessage("assistant", msg.content || "(empty response)", meta, presetLabel, resp.verification);
     setChatStatus("");
   } catch (err) {
     if (err instanceof AuthError) {

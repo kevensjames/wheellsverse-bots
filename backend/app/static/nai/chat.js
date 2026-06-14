@@ -12,6 +12,7 @@ const els = {
   send:     document.getElementById("send"),
   useTools: document.getElementById("use-tools"),
   local:    document.getElementById("prefer-local"),
+  autoRoute: document.getElementById("auto-route"),
   newConv:  document.getElementById("new-conv"),
   status:   document.getElementById("status"),
   logout:   document.getElementById("logout-btn"),
@@ -152,6 +153,7 @@ async function sendWithTools(message) {
       conversation_id: conversationId,
       use_tools: true,
       prefer_local: els.local.checked,
+      auto_route: !!(els.autoRoute && els.autoRoute.checked),
     }),
   });
   if (resp.status === 401) {
@@ -300,7 +302,9 @@ els.form.addEventListener("submit", async (e) => {
 
   try {
     const composed = await composeWithDoc(message);
-    if (els.useTools.checked) {
+    // Auto-route needs the non-stream path (the streaming brain can't apply a
+    // persona), so expert routing implies tools-mode.
+    if (els.useTools.checked || (els.autoRoute && els.autoRoute.checked)) {
       await sendWithTools(composed);
     } else {
       sendStreaming(composed);

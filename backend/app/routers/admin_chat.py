@@ -141,6 +141,11 @@ class AdminChatRequest(BaseModel):
     # Max critique-revise iterations when self_correct=True. Default 1
     # (one critique + at most one revision). Hard-capped at 3.
     self_correct_max_iterations: int = 1
+    # Verification-confidence: opt-in. After the reply, check it against the
+    # user's indexed documents (grounding.verify_statement) and return a REAL
+    # grounded verdict + confidence (vs the agent's self-rated tag). One extra
+    # LLM call; off by default.
+    verify: bool = False
 
 
 # Appended to a GROUNDED expert agent's persona (one that can search the
@@ -284,6 +289,25 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             # Hard-fail-open: log + return the original draft.
             logger.warning("self_correction: loop crashed, returning draft: %s", e)
 
+    # ─── verification-confidence (opt-in) ────────────────────────────
+    # Check the final reply against the user's indexed docs for a REAL grounded
+    # verdict + confidence. Fail-soft — never blocks the reply.
+    verification = None
+    if req.verify:
+        try:
+            from app.services import grounding
+            v = grounding.verify_statement(
+                db=session, router=rt, user_id=prof.id, statement=final_content,
+            )
+            verification = {
+                "verdict": v.get("verdict"),
+                "confidence": v.get("confidence"),
+                "reason": v.get("reason", ""),
+                "sources_checked": v.get("sources_checked", 0),
+            }
+        except Exception as e:
+            logger.warning("admin_chat: verification failed: %s", e)
+
     return {
         "conversation_id": str(conv.id),
         "message": {
@@ -293,6 +317,8 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             "model": getattr(msg, "model", None),
         },
         "total_cost_usd": cost,
+        # Real grounded verification (set only when verify=True). None otherwise.
+        "verification": verification,
         # Surface the preset id back so the dashboard can show
         # "preset=swe" in the response meta line for confirmation.
         "preset_id": preset_id_used,
