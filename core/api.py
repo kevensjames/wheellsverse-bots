@@ -2461,6 +2461,13 @@ async def health():
         pass
 
     uptime = int(time.time() - _server_start)
+    build_time = ""
+    bt_file = ROOT / "BUILD_TIME"
+    if bt_file.exists():
+        try:
+            build_time = bt_file.read_text().strip()
+        except Exception:
+            pass
     return {
         "status":   "ok" if memory_ok else "degraded",
         "uptime":   uptime,
@@ -2468,6 +2475,8 @@ async def health():
         "browser":  browser_ok,
         "version":  "nexora-v6-agent-workforce",
         "git_sha":  _GIT_SHA,
+        "build_time": build_time,
+        "deploy_id": os.getenv("RAILWAY_DEPLOYMENT_ID", "")[:12],
         "nx_routes": True,
         "narai_autopilot": True,
         "system": {
