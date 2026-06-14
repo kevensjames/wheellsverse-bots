@@ -52,7 +52,24 @@ def chat(
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> ChatResponse:
-    brain = _build_brain(session)
+    rt = build_default_router(session)
+    registry = build_default_registry()
+    persona_prompt = ""
+    preset_id_used: str | None = None
+    auto_routed = False
+    # Opt-in super-router: pick + apply the best domain expert for this message.
+    if request.auto_route:
+        from app.services.agent_router import classify_domain
+        routed = classify_domain(router=rt, user_id=current_user.id, question=request.message)
+        if routed.get("preset_id"):
+            from app.services.presets import filter_registry, get_preset
+            preset = get_preset(routed["preset_id"])
+            if preset is not None:
+                persona_prompt = preset.system_prompt
+                registry = filter_registry(registry, preset)
+                preset_id_used = preset.id
+                auto_routed = True
+    brain = Brain(session=session, router=rt, registry=registry)
     try:
         conv, msg, cost = brain.chat(
             user_id=current_user.id,
@@ -61,6 +78,7 @@ def chat(
             use_tools=request.use_tools,
             prefer_local=request.prefer_local,
             max_tokens=request.max_tokens,
+            persona_prompt=persona_prompt,
         )
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -68,6 +86,8 @@ def chat(
         conversation_id=conv.id,
         message=MessageOut.model_validate(msg),
         total_cost_usd=cost,
+        preset_id=preset_id_used,
+        auto_routed=auto_routed,
     )
 
 

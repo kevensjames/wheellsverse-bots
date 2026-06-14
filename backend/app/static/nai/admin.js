@@ -295,7 +295,9 @@ async function adminChatPost(message) {
     prefer_local: $("#admin-prefer-local").checked,
     max_tokens: 2048,
     preset_id: presetSel && presetSel.value ? presetSel.value : null,
+    auto_route: !!$("#admin-auto-route")?.checked,
     self_correct: !!(selfCorrect && selfCorrect.checked),
+    verify: !!$("#admin-verify")?.checked,
   };
   const r = await fetch("/admin/kai-chat", {
     method: "POST",
@@ -315,16 +317,103 @@ async function adminChatPost(message) {
   return r.json();
 }
 
-function appendChatMessage(role, text, meta) {
+// Extract citation markers an agent emits — [PMID 123], [source: file #N],
+// [From "file", chunk #N], [SEC: …], [<case>, <citation>] — into chips. The
+// first three get links/labels; we keep it simple + deduped.
+function parseCitations(text) {
+  const cites = [];
+  const seen = new Set();
+  const add = (label, href) => {
+    const k = label.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    cites.push({ label, href });
+  };
+  let m;
+  const pmid = /\[\s*PMID:?\s*(\d+)\s*\]/gi;
+  while ((m = pmid.exec(text))) add(`PMID ${m[1]}`, `https://pubmed.ncbi.nlm.nih.gov/${m[1]}/`);
+  const src = /\[\s*(?:source:\s*|From\s*")\s*([^\]"#]+?)["']?\s*(?:,?\s*(?:chunk\s*)?#\s*(\d+))?\s*\]/gi;
+  while ((m = src.exec(text))) { const n = (m[1] || "").trim(); if (n) add(m[2] ? `${n} #${m[2]}` : n, null); }
+  return cites;
+}
+
+// Pull a self-rated [confidence: high|medium|low] tag out of an answer (grounded
+// agents emit it). Returns the level + the text with every such tag removed so
+// the raw tag never shows to the operator.
+function extractConfidence(text) {
+  const m = text.match(/\[\s*confidence:\s*(high|medium|low)\s*\]/i);
+  const level = m ? m[1].toLowerCase() : null;
+  const clean = text.replace(/\s*\[\s*confidence:\s*(?:high|medium|low)\s*\]\s*/gi, " ").trim();
+  return { level, clean };
+}
+
+// Append the "badges" row under an assistant answer: which expert handled it
+// (routed), a self-rated confidence, a grounding indicator (✓ N sources), and
+// the citation chips.
+function renderAssistantExtras(wrap, text, presetLabel, confLevel, verification) {
+  const cites = parseCitations(text);
+  if (!presetLabel && !confLevel && !verification && !cites.length) return;
+  const row = document.createElement("div");
+  row.className = "citation-chips";
+  // Real grounded verification (verify=on) takes precedence over the agent's
+  // self-rating: show "verified: <verdict>" colored by the grounded confidence.
+  if (verification && verification.verdict) {
+    const v = document.createElement("span");
+    const lvl = verification.confidence || "low";
+    v.className = `cite-chip conf-chip conf-${lvl}`;
+    v.title = verification.reason || "";
+    v.textContent = `verified: ${verification.verdict} (${lvl})`;
+    row.appendChild(v);
+  } else if (confLevel) {
+    const c = document.createElement("span");
+    c.className = `cite-chip conf-chip conf-${confLevel}`;
+    c.textContent = `confidence: ${confLevel}`;
+    row.appendChild(c);
+  }
+  if (presetLabel) {
+    const r = document.createElement("span");
+    r.className = "cite-chip routed-chip";
+    r.textContent = `routed: ${presetLabel}`;
+    row.appendChild(r);
+  }
+  if (cites.length) {
+    const g = document.createElement("span");
+    g.className = "cite-chip grounded-chip";
+    g.textContent = `✓ ${cites.length} source${cites.length > 1 ? "s" : ""}`;
+    row.appendChild(g);
+  }
+  cites.forEach((c) => {
+    const el = document.createElement(c.href ? "a" : "span");
+    el.className = "cite-chip";
+    el.textContent = c.label;
+    if (c.href) { el.href = c.href; el.target = "_blank"; el.rel = "noopener"; }
+    row.appendChild(el);
+  });
+  wrap.appendChild(row);
+}
+
+function appendChatMessage(role, text, meta, presetLabel, verification) {
   const list = $("#admin-chat-messages");
   if (!list) return;
   const wrap = document.createElement("div");
   wrap.className = `admin-chat-msg admin-chat-msg-${role}`;
 
+  let displayText = text;
+  let confLevel = null;
+  if (role === "assistant") {
+    const c = extractConfidence(text);
+    displayText = c.clean;
+    confLevel = c.level;
+  }
+
   const bubble = document.createElement("div");
   bubble.className = "admin-chat-bubble";
-  bubble.textContent = text;
+  bubble.textContent = displayText;
   wrap.appendChild(bubble);
+
+  if (role === "assistant") {
+    renderAssistantExtras(wrap, displayText, presetLabel, confLevel, verification);
+  }
 
   if (meta) {
     const m = document.createElement("div");
@@ -367,7 +456,14 @@ async function sendChat(e) {
       typeof resp.total_cost_usd === "number" && `cost=$${resp.total_cost_usd.toFixed(4)}`,
       sc && `self-corrected: iters=${sc.iterations}${sc.was_revised ? " ✎revised" : ""} sev=${sc.final_severity}`,
     ].filter(Boolean).join(" · ");
-    appendChatMessage("assistant", msg.content || "(empty response)", meta);
+    let presetLabel = null;
+    if (resp.preset_id) {
+      const sel = $("#admin-preset-select");
+      const opt = sel && Array.from(sel.options).find((o) => o.value === resp.preset_id);
+      presetLabel = opt ? opt.textContent.split(" — ")[0].trim() : resp.preset_id;
+      if (resp.auto_routed) presetLabel = "🧭 " + presetLabel;
+    }
+    appendChatMessage("assistant", msg.content || "(empty response)", meta, presetLabel, resp.verification);
     setChatStatus("");
   } catch (err) {
     if (err instanceof AuthError) {

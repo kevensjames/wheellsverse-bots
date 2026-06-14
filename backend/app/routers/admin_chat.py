@@ -129,6 +129,10 @@ class AdminChatRequest(BaseModel):
     # legal_research). When set, prepends a persona system prompt + filters
     # the tool registry to the preset's whitelist. None = bare KAI.
     preset_id: str | None = None
+    # Super-router: when no preset is explicitly selected, classify the message
+    # and auto-apply the best-fitting expert agent. Opt-in (default off) so the
+    # bare-KAI default is unchanged. Ignored if preset_id is set.
+    auto_route: bool = False
     # Self-correction: opt-in critic + reviser pass on KAI's draft reply
     # BEFORE the response is returned. Adds ~1-2 LLM calls per turn (~$0.001
     # extra on the cheap critic + reviser path). Off by default to keep
@@ -137,6 +141,23 @@ class AdminChatRequest(BaseModel):
     # Max critique-revise iterations when self_correct=True. Default 1
     # (one critique + at most one revision). Hard-capped at 3.
     self_correct_max_iterations: int = 1
+    # Verification-confidence: opt-in. After the reply, check it against the
+    # user's indexed documents (grounding.verify_statement) and return a REAL
+    # grounded verdict + confidence (vs the agent's self-rated tag). One extra
+    # LLM call; off by default.
+    verify: bool = False
+
+
+# Appended to a GROUNDED expert agent's persona (one that can search the
+# knowledge base) so each answer self-rates how well its cited sources support
+# it. The dashboard parses the trailing tag into a colored confidence badge and
+# strips it from the shown text.
+_CONFIDENCE_INSTRUCTION = (
+    "\n\nAt the very end of your reply, on its own line, output exactly one tag "
+    "[confidence: high|medium|low] reflecting how well your CITED SOURCES support "
+    "the answer — 'high' only when directly backed by citations, 'low' when you "
+    "could not ground it."
+)
 
 
 @router.post("/kai-chat")
@@ -154,26 +175,53 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
     # surfaces as an error instead of degrading to bare KAI.
     persona_prompt = ""
     registry = build_default_registry()
+    rt = build_default_router(session)
     preset_id_used: str | None = None
-    if req.preset_id:
+    auto_routed = False
+
+    # Super-router: no preset chosen + auto_route on → classify → pick the best
+    # expert. classify_domain validates against the catalog (hallucinated/empty
+    # → None), so effective_preset_id is always a real id or None.
+    effective_preset_id = req.preset_id
+    if effective_preset_id is None and req.auto_route:
+        from app.services.agent_router import classify_domain
+        routed = classify_domain(router=rt, user_id=prof.id, question=req.message)
+        if routed.get("preset_id"):
+            effective_preset_id = routed["preset_id"]
+            auto_routed = True
+            logger.info("admin_chat: auto-routed to %s (confidence=%s)",
+                        effective_preset_id, routed.get("confidence"))
+
+    if effective_preset_id:
         from app.services.presets import filter_registry, get_preset
-        preset = get_preset(req.preset_id)
+        preset = get_preset(effective_preset_id)
         if preset is None:
-            raise HTTPException(
-                status_code=400,
-                detail=f"unknown preset_id={req.preset_id!r}; see GET /admin/presets",
+            # Manual id typo → 400; an auto-routed id is pre-validated, so this
+            # only fires for a bad explicit preset_id.
+            if auto_routed:
+                logger.warning("admin_chat: auto-routed id %r not found — ignoring", effective_preset_id)
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"unknown preset_id={req.preset_id!r}; see GET /admin/presets",
+                )
+        else:
+            persona_prompt = preset.system_prompt
+            # Grounded agents (those wired to the knowledge base) self-rate
+            # confidence so the dashboard can badge it.
+            if "document_search" in (preset.tool_whitelist or []):
+                persona_prompt += _CONFIDENCE_INSTRUCTION
+            registry = filter_registry(registry, preset)
+            preset_id_used = preset.id
+            logger.info(
+                "admin_chat: preset=%s applied%s (tools kept=%d, persona prompt %d chars)",
+                preset.id, " [auto]" if auto_routed else "",
+                len(registry._tools), len(persona_prompt),
             )
-        persona_prompt = preset.system_prompt
-        registry = filter_registry(registry, preset)
-        preset_id_used = preset.id
-        logger.info(
-            "admin_chat: preset=%s applied (tools kept=%d, persona prompt %d chars)",
-            preset.id, len(registry._tools), len(persona_prompt),
-        )
 
     brain = Brain(
         session=session,
-        router=build_default_router(session),
+        router=rt,
         registry=registry,
     )
     try:
@@ -241,6 +289,25 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             # Hard-fail-open: log + return the original draft.
             logger.warning("self_correction: loop crashed, returning draft: %s", e)
 
+    # ─── verification-confidence (opt-in) ────────────────────────────
+    # Check the final reply against the user's indexed docs for a REAL grounded
+    # verdict + confidence. Fail-soft — never blocks the reply.
+    verification = None
+    if req.verify:
+        try:
+            from app.services import grounding
+            v = grounding.verify_statement(
+                db=session, router=rt, user_id=prof.id, statement=final_content,
+            )
+            verification = {
+                "verdict": v.get("verdict"),
+                "confidence": v.get("confidence"),
+                "reason": v.get("reason", ""),
+                "sources_checked": v.get("sources_checked", 0),
+            }
+        except Exception as e:
+            logger.warning("admin_chat: verification failed: %s", e)
+
     return {
         "conversation_id": str(conv.id),
         "message": {
@@ -250,9 +317,13 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             "model": getattr(msg, "model", None),
         },
         "total_cost_usd": cost,
+        # Real grounded verification (set only when verify=True). None otherwise.
+        "verification": verification,
         # Surface the preset id back so the dashboard can show
         # "preset=swe" in the response meta line for confirmation.
         "preset_id": preset_id_used,
+        # True when the super-router auto-selected the preset (vs operator picking).
+        "auto_routed": auto_routed,
         # Set only when self_correct=True. None otherwise so existing
         # clients that don't look for it are unaffected.
         "self_correction": correction_meta,

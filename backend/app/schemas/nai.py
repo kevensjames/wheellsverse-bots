@@ -14,6 +14,9 @@ class ChatRequest(BaseModel):
     use_tools: bool = False
     prefer_local: bool = False
     max_tokens: int = Field(default=1024, ge=64, le=4096)
+    # Opt-in super-router: auto-pick a domain expert (preset) for this message.
+    # Default off — ordinary chat is unchanged. Applied on this (non-stream) path.
+    auto_route: bool = False
 
 
 class MessageOut(BaseModel):
@@ -36,6 +39,9 @@ class ChatResponse(BaseModel):
     conversation_id: uuid.UUID
     message: MessageOut
     total_cost_usd: float  # sum of LLM call costs for this turn
+    # Set when auto_route picked a domain expert for this turn (else None/False).
+    preset_id: str | None = None
+    auto_routed: bool = False
 
 
 class ConversationOut(BaseModel):

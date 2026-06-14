@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>KAI — operator dashboard</title>
   <meta name="robots" content="noindex,nofollow" />
-  <link rel="stylesheet" href="style.css?v=ts-1781289856" />
+  <link rel="stylesheet" href="style.css?v=ts-1781406183" />
   <link rel="stylesheet" href="admin.css?v=ts-1781286555" />
 </head>
 <body>
@@ -118,6 +118,12 @@
               </label>
               <label title="Self-correction: critic + reviser pass before reply (~+$0.001)">
                 <input type="checkbox" id="admin-self-correct"> self-correct
+              </label>
+              <label title="Super-router: auto-pick the best expert agent when no preset is selected">
+                <input type="checkbox" id="admin-auto-route"> auto-route
+              </label>
+              <label title="Verify the reply against your indexed documents → a real grounded confidence (~+1 LLM call)">
+                <input type="checkbox" id="admin-verify"> verify
               </label>
               <button type="button" id="admin-chat-new" class="admin-btn">new chat</button>
             </div>
@@ -657,6 +663,6 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781286001" defer></script>
+  <script src="admin.js?v=ts-1781410203" defer></script>
 </body>
 </html>

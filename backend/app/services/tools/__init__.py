@@ -14,15 +14,22 @@ from app.services.tools.base import (
 from app.services.tools.browser_tool import BrowserTool
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
+from app.services.tools.courtlistener_search import CourtListenerSearchTool
+from app.services.tools.document_search import DocumentSearchTool
 from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.learning_query import LearningQueryTool
 from app.services.tools.memory_tool import MemoryTool
 from app.services.tools.plan_query import PlanQueryTool
+from app.services.tools.pubmed_search import PubMedSearchTool
 from app.services.tools.registry import ToolRegistry
+from app.services.tools.sec_edgar_search import SecEdgarSearchTool
+from app.services.tools.suggest_agent import SuggestAgentTool
 from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.twin_query import TwinQueryTool
+from app.services.tools.verify_claim import VerifyClaimTool
 from app.services.tools.web_fetch import WebFetchTool
+from app.services.tools.who_search import WhoSearchTool
 from app.services.tools.web_search import WebSearchTool
 
 
@@ -68,6 +75,24 @@ def build_default_registry(
     # Always registered: the KG db auto-creates on first use, so the tool
     # is functional from day one even with an empty graph.
     reg.register(KGQueryTool())
+    # Document search (RAG) — semantic search over the user's indexed documents
+    # via pgvector. Ships always; degrades gracefully to "no results" when the
+    # knowledge base is empty or embeddings are unavailable.
+    reg.register(DocumentSearchTool())
+    # Claim verification (RAG-grounded fact-check) — checks a claim against the
+    # user's indexed documents + returns a confidence + citations. Ships always.
+    reg.register(VerifyClaimTool())
+    # PubMed (NCBI E-utilities) — live, official, keyless biomedical literature
+    # search returning citable results. The reference external-knowledge connector.
+    reg.register(PubMedSearchTool())
+    # SEC EDGAR full-text filing search (finance/accounting) + CourtListener case
+    # law (legal) — same live-official-API connector pattern as PubMed.
+    reg.register(SecEdgarSearchTool())
+    reg.register(CourtListenerSearchTool())
+    # WHO Global Health Observatory indicator search (medical) — official OData.
+    reg.register(WhoSearchTool())
+    # Super-router — recommend the best domain expert (preset) for a question.
+    reg.register(SuggestAgentTool())
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up
     # similar past failures to avoid repeating them.
     reg.register(FailureLookupTool())

@@ -447,6 +447,45 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
   border-color: var(--accent, #4f8cff);
 }
 
+/* Citation chips — rendered under an answer from [PMID …] / [source: file #N]
+   markers, so the professional layer's sourcing is visible at a glance. */
+.citation-chips {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  margin-top: 8px;
+}
+.citation-chips-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--muted, #8b94a3);
+}
+.cite-chip {
+  display: inline-block;
+  padding: 2px 9px; border-radius: 999px;
+  font-size: 12px; line-height: 1.5;
+  background: rgba(79, 140, 255, 0.14);
+  border: 1px solid rgba(79, 140, 255, 0.35);
+  color: var(--accent, #4f8cff);
+  text-decoration: none;
+  font-variant-numeric: tabular-nums;
+}
+a.cite-chip:hover { background: rgba(79, 140, 255, 0.24); text-decoration: none; }
+/* Grounding indicator (✓ N sources) — answer is backed by cited sources. */
+.cite-chip.grounded-chip {
+  background: rgba(35, 163, 107, 0.16);
+  border-color: rgba(35, 163, 107, 0.4);
+  color: #23a36b;
+}
+/* Which expert agent handled the answer. */
+.cite-chip.routed-chip {
+  background: rgba(108, 76, 242, 0.16);
+  border-color: rgba(108, 76, 242, 0.4);
+  color: #a99bf5;
+}
+/* Self-rated answer confidence (grounded agents). */
+.cite-chip.conf-chip { font-weight: 600; }
+.cite-chip.conf-high   { background: rgba(35, 163, 107, 0.16); border-color: rgba(35, 163, 107, 0.4); color: #23a36b; }
+.cite-chip.conf-medium { background: rgba(255, 196, 0, 0.14);  border-color: rgba(255, 196, 0, 0.4);  color: #ffc400; }
+.cite-chip.conf-low    { background: rgba(255, 107, 107, 0.16); border-color: rgba(255, 107, 107, 0.4); color: #ff6b6b; }
+
 /* ───────────────────────────────────────────────────────────────────
    Phone layout (≤640px). The chat composer (#composer) is display:flex with
    no flex-direction, so on a narrow screen the textarea sat SIDE-BY-SIDE with
