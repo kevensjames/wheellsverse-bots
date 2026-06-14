@@ -1084,6 +1084,25 @@ async def serve_favicon_ico():
     return FileResponse(p, media_type="image/svg+xml")
 
 
+@app.get("/sw.js")
+async def serve_service_worker():
+    """PWA service worker. dashboard/index.html:17572 registers this at /sw.js.
+    Was 404 before this route landed — silent fail since the registration
+    .catch() swallowed the error, but visible in DevTools and blocks PWA
+    install-enhancement and offline caching."""
+    from fastapi.responses import FileResponse, Response
+    p = ROOT / "frontend" / "sw.js"
+    if not p.exists():
+        return Response(status_code=404)
+    # Scope: serve with no-cache so SW updates land on next visit
+    return FileResponse(
+        p,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate",
+                 "Service-Worker-Allowed": "/"},
+    )
+
+
 @app.get("/{key}.txt")
 async def serve_indexnow_key(key: str):
     """IndexNow ownership verification endpoint.
