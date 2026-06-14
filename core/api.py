@@ -13500,14 +13500,42 @@ async def sa_funnel():
 
 @app.get("/api/sa/trend-scan")
 async def sa_trend_scan_get():
+    """Cached read of the trend scan. Even refresh=False can be slow if
+    the cache is cold, so we offload to a worker thread with a tight
+    timeout — keeps the event loop free for everyone else."""
+    import asyncio
     from core.viral_trend_engine import run_trend_scan
-    opps = run_trend_scan(refresh=False)
+    try:
+        opps = await asyncio.wait_for(
+            asyncio.to_thread(run_trend_scan, refresh=False),
+            timeout=8.0,
+        )
+    except asyncio.TimeoutError:
+        return {"opportunities": [], "count": 0,
+                "stale": True, "error": "scan timeout (>8s) — try POST to refresh"}
     return {"opportunities": opps, "count": len(opps)}
+
 
 @app.post("/api/sa/trend-scan")
 async def sa_trend_scan_post():
+    """Force-refresh trend scan. Real work happens here (scraping +
+    classification + ranking) — can legitimately take 20-25s. Still
+    capped at 30s and run off-thread so we never block the event loop.
+
+    TODO(phase-b): convert to BackgroundTasks pattern with a job_id
+    return like /api/shopify/agents/dispatch. Polled via GET /jobs/{id}.
+    The synchronous request shape here is a holdover from before async
+    handling existed in this codebase."""
+    import asyncio
     from core.viral_trend_engine import run_trend_scan
-    opps = run_trend_scan(refresh=True)
+    try:
+        opps = await asyncio.wait_for(
+            asyncio.to_thread(run_trend_scan, refresh=True),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        return {"opportunities": [], "count": 0,
+                "error": "refresh timeout (>30s) — backend scrape exceeded budget"}
     return {"opportunities": opps, "count": len(opps)}
 
 @app.get("/api/sa/performance")
