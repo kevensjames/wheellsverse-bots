@@ -53,6 +53,36 @@ class Router:
         )
         return self.adapters["openai"]
 
+    def _runtime_fallback(self, failed: Adapter) -> Adapter | None:
+        """When a LOCAL adapter (ollama) fails at runtime — a timeout, a
+        connection refusal, a wedged model — return the cloud adapter to retry
+        on, or None when there's no distinct fallback.
+
+        This is the runtime complement to ``_get``: ``_get`` covers "Ollama
+        isn't configured", this covers "Ollama is configured but unresponsive".
+        Together they make prefer_local genuinely fail-soft — critical now that
+        local is the operator's default, since a hung local model must never
+        hang the chat; it should just be slower, then yield to cloud."""
+        if (
+            failed.name == "ollama"
+            and "openai" in self.adapters
+            and self.adapters["openai"] is not failed
+        ):
+            return self.adapters["openai"]
+        return None
+
+    def _log_failure_safe(self, *, user_id, adapter: Adapter, error: str) -> None:
+        """Record an adapter failure, best-effort. Spend logging hits the DB,
+        and a logging hiccup must NEVER defeat the runtime fallback or mask the
+        original adapter error — so swallow logging errors here."""
+        try:
+            self.spend.log_call(
+                user_id=user_id, adapter=adapter.name, model=adapter.model,
+                success=False, error_message=error,
+            )
+        except Exception as log_err:  # pragma: no cover - defensive
+            logger.warning("router: spend.log_call swallowed: %s", log_err)
+
     def select(
         self,
         intent: Intent,
@@ -102,14 +132,22 @@ class Router:
                 msgs, max_tokens=max_tokens, temperature=temperature, system=system
             )
         except Exception as e:
-            self.spend.log_call(
-                user_id=user_id,
-                adapter=adapter.name,
-                model=adapter.model,
-                success=False,
-                error_message=str(e),
+            self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e))
+            fb = self._runtime_fallback(adapter)
+            if fb is None:
+                raise
+            logger.warning(
+                "router: local adapter %s failed (%s) — retrying on %s",
+                adapter.name, e, fb.name,
             )
-            raise
+            adapter = fb
+            try:
+                result = adapter.complete(
+                    msgs, max_tokens=max_tokens, temperature=temperature, system=system
+                )
+            except Exception as e2:
+                self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e2))
+                raise
 
         self.spend.log_result(user_id, result)
         return result

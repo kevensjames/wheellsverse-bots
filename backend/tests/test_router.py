@@ -129,6 +129,69 @@ def test_complete_logs_failure(adapters, fake_tracker):
     assert fake_tracker.log_call.call_args.kwargs["success"] is False
 
 
+# ─── runtime fallback: local adapter fails → retry on cloud ──────────
+
+
+def _boom(name):
+    class _B(MockAdapter):
+        def complete(self, messages, **kwargs):
+            raise RuntimeError(f"{name} down")
+    return _B(name)
+
+
+def test_runtime_fallback_helper(router):
+    # only a failing LOCAL adapter has a distinct cloud fallback
+    assert router._runtime_fallback(router.adapters["ollama"]).name == "openai"
+    assert router._runtime_fallback(router.adapters["openai"]) is None
+    assert router._runtime_fallback(router.adapters["anthropic"]) is None
+
+
+def test_prefer_local_failure_falls_back_to_cloud(adapters, fake_tracker):
+    # a wedged/failing local model must NOT propagate — retry once on openai
+    adapters["ollama"] = _boom("ollama")
+    r = Router(adapters=adapters, spend_tracker=fake_tracker)
+    result = r.complete(
+        user_id=uuid.uuid4(),
+        messages=[{"role": "user", "content": "hi"}],
+        prefer_local=True,
+    )
+    assert result.content == "reply-from-openai"  # fell back to cloud
+    # the local failure was logged before the cloud retry succeeded
+    assert fake_tracker.log_call.call_args_list[0].kwargs["success"] is False
+    fake_tracker.log_result.assert_called_once()
+
+
+def test_prefer_local_fallback_also_failing_raises(adapters, fake_tracker):
+    # if cloud ALSO fails, propagate — no infinite retry, both failures logged
+    adapters["ollama"] = _boom("ollama")
+    adapters["openai"] = _boom("openai")
+    r = Router(adapters=adapters, spend_tracker=fake_tracker)
+    with pytest.raises(RuntimeError):
+        r.complete(
+            user_id=uuid.uuid4(),
+            messages=[{"role": "user", "content": "hi"}],
+            prefer_local=True,
+        )
+    assert fake_tracker.log_call.call_count >= 2
+
+
+def test_cloud_failure_does_not_fall_back(adapters, fake_tracker):
+    # openai failing is terminal (it IS the fallback target) — no silent loop
+    adapters["openai"] = _boom("openai")
+    r = Router(adapters=adapters, spend_tracker=fake_tracker)
+    with pytest.raises(RuntimeError):
+        r.complete(user_id=uuid.uuid4(), messages=[{"role": "user", "content": "hi"}])
+
+
+def test_ollama_timeout_env_configurable(monkeypatch):
+    from app.services.router.adapters.ollama_adapter import OllamaAdapter
+    monkeypatch.setenv("OLLAMA_TIMEOUT", "30")
+    assert OllamaAdapter().timeout == 30.0
+    monkeypatch.delenv("OLLAMA_TIMEOUT", raising=False)
+    assert OllamaAdapter().timeout == 120.0
+    assert OllamaAdapter(timeout=7).timeout == 7.0  # explicit arg still wins
+
+
 def test_stream_yields_deltas(router):
     deltas = list(
         router.stream(

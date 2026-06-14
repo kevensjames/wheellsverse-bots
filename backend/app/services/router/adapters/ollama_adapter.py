@@ -19,11 +19,18 @@ class OllamaAdapter:
         self,
         model: str | None = None,
         host: str | None = None,
-        timeout: float = 120.0,
+        timeout: float | None = None,
     ):
         self.model = model or os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
         self.host = host or os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
-        self.timeout = timeout
+        # Env-configurable so the operator can fail fast on a wedged/slow local
+        # model and let the router fall back to cloud (Router._runtime_fallback),
+        # instead of hanging the chat for the full default window. Default 120s
+        # preserves prior behaviour for long local generations.
+        self.timeout = (
+            timeout if timeout is not None
+            else float(os.environ.get("OLLAMA_TIMEOUT", "120"))
+        )
 
     @staticmethod
     def _build(messages: list[dict], system: str | None) -> list[dict]:
