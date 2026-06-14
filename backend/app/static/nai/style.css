@@ -468,6 +468,18 @@ button#send:disabled { opacity: 0.5; cursor: not-allowed; }
   font-variant-numeric: tabular-nums;
 }
 a.cite-chip:hover { background: rgba(79, 140, 255, 0.24); text-decoration: none; }
+/* Grounding indicator (✓ N sources) — answer is backed by cited sources. */
+.cite-chip.grounded-chip {
+  background: rgba(35, 163, 107, 0.16);
+  border-color: rgba(35, 163, 107, 0.4);
+  color: #23a36b;
+}
+/* Which expert agent handled the answer. */
+.cite-chip.routed-chip {
+  background: rgba(108, 76, 242, 0.16);
+  border-color: rgba(108, 76, 242, 0.4);
+  color: #a99bf5;
+}
 
 /* ───────────────────────────────────────────────────────────────────
    Phone layout (≤640px). The chat composer (#composer) is display:flex with

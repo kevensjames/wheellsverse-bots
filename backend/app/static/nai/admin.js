@@ -315,7 +315,56 @@ async function adminChatPost(message) {
   return r.json();
 }
 
-function appendChatMessage(role, text, meta) {
+// Extract citation markers an agent emits — [PMID 123], [source: file #N],
+// [From "file", chunk #N], [SEC: …], [<case>, <citation>] — into chips. The
+// first three get links/labels; we keep it simple + deduped.
+function parseCitations(text) {
+  const cites = [];
+  const seen = new Set();
+  const add = (label, href) => {
+    const k = label.toLowerCase();
+    if (seen.has(k)) return;
+    seen.add(k);
+    cites.push({ label, href });
+  };
+  let m;
+  const pmid = /\[\s*PMID:?\s*(\d+)\s*\]/gi;
+  while ((m = pmid.exec(text))) add(`PMID ${m[1]}`, `https://pubmed.ncbi.nlm.nih.gov/${m[1]}/`);
+  const src = /\[\s*(?:source:\s*|From\s*")\s*([^\]"#]+?)["']?\s*(?:,?\s*(?:chunk\s*)?#\s*(\d+))?\s*\]/gi;
+  while ((m = src.exec(text))) { const n = (m[1] || "").trim(); if (n) add(m[2] ? `${n} #${m[2]}` : n, null); }
+  return cites;
+}
+
+// Append the "badges" row under an assistant answer: which expert handled it
+// (routed), a grounding indicator (✓ N sources), and the citation chips.
+function renderAssistantExtras(wrap, text, presetLabel) {
+  const cites = parseCitations(text);
+  if (!presetLabel && !cites.length) return;
+  const row = document.createElement("div");
+  row.className = "citation-chips";
+  if (presetLabel) {
+    const r = document.createElement("span");
+    r.className = "cite-chip routed-chip";
+    r.textContent = `routed: ${presetLabel}`;
+    row.appendChild(r);
+  }
+  if (cites.length) {
+    const g = document.createElement("span");
+    g.className = "cite-chip grounded-chip";
+    g.textContent = `✓ ${cites.length} source${cites.length > 1 ? "s" : ""}`;
+    row.appendChild(g);
+  }
+  cites.forEach((c) => {
+    const el = document.createElement(c.href ? "a" : "span");
+    el.className = "cite-chip";
+    el.textContent = c.label;
+    if (c.href) { el.href = c.href; el.target = "_blank"; el.rel = "noopener"; }
+    row.appendChild(el);
+  });
+  wrap.appendChild(row);
+}
+
+function appendChatMessage(role, text, meta, presetLabel) {
   const list = $("#admin-chat-messages");
   if (!list) return;
   const wrap = document.createElement("div");
@@ -325,6 +374,10 @@ function appendChatMessage(role, text, meta) {
   bubble.className = "admin-chat-bubble";
   bubble.textContent = text;
   wrap.appendChild(bubble);
+
+  if (role === "assistant") {
+    renderAssistantExtras(wrap, text, presetLabel);
+  }
 
   if (meta) {
     const m = document.createElement("div");
@@ -367,7 +420,13 @@ async function sendChat(e) {
       typeof resp.total_cost_usd === "number" && `cost=$${resp.total_cost_usd.toFixed(4)}`,
       sc && `self-corrected: iters=${sc.iterations}${sc.was_revised ? " ✎revised" : ""} sev=${sc.final_severity}`,
     ].filter(Boolean).join(" · ");
-    appendChatMessage("assistant", msg.content || "(empty response)", meta);
+    let presetLabel = null;
+    if (resp.preset_id) {
+      const sel = $("#admin-preset-select");
+      const opt = sel && Array.from(sel.options).find((o) => o.value === resp.preset_id);
+      presetLabel = opt ? opt.textContent.split(" — ")[0].trim() : resp.preset_id;
+    }
+    appendChatMessage("assistant", msg.content || "(empty response)", meta, presetLabel);
     setChatStatus("");
   } catch (err) {
     if (err instanceof AuthError) {

@@ -63,6 +63,10 @@ function renderCitations(messageDiv, text) {
   lbl.className = "citation-chips-label";
   lbl.textContent = "Sources:";
   row.appendChild(lbl);
+  const g = document.createElement("span");
+  g.className = "cite-chip grounded-chip";
+  g.textContent = `✓ ${cites.length} source${cites.length > 1 ? "s" : ""}`;
+  row.appendChild(g);
   cites.forEach((c) => {
     const el = document.createElement(c.href ? "a" : "span");
     el.className = "cite-chip";
