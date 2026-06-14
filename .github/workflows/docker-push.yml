@@ -35,6 +35,8 @@ jobs:
           tags: |
             ghcr.io/kevensjames/wheellsverse-bots:latest
             ghcr.io/kevensjames/wheellsverse-bots:${{ github.sha }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           no-cache: true
 
       - name: Make package public
