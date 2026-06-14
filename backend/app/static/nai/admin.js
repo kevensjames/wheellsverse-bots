@@ -1473,6 +1473,36 @@ async function remediatePlans() {
   }
 }
 
+async function scoutIntegrate(e) {
+  if (e) e.preventDefault();
+  const line = $("#planning-status-line");
+  const btn = $("#planning-integrate-btn");
+  const input = $("#planning-capability");
+  const capability = input ? input.value.trim() : "";
+  if (!capability) {
+    if (line) line.textContent = "enter a capability to scout";
+    return;
+  }
+  const old = btn ? btn.textContent : "";
+  try {
+    if (btn) { btn.disabled = true; btn.textContent = "scouting…"; }
+    const out = await apiPost("/admin/planning/scout-integrate", {
+      capability, max_plans: 1, approved: true,
+    });
+    await loadPlanningStats();
+    await loadPlanningList();
+    const plans = out.proposed_plans || [];
+    if (plans.length && plans[0].plan_id) selectPlan(plans[0].plan_id);
+    if (line) line.textContent = out.note || `proposed ${plans.length} plan(s)`;
+    if (input && plans.length) input.value = "";
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = old; }
+  }
+}
+
 function planStatusChip(status) {
   const span = document.createElement("span");
   span.className = `severity-chip plan-${status}`;
@@ -2351,6 +2381,8 @@ document.addEventListener("DOMContentLoaded", () => {
   if (planRemediate) planRemediate.addEventListener("click", remediatePlans);
   const planForm = $("#planning-create-form");
   if (planForm) planForm.addEventListener("submit", createPlan);
+  const planIntegrate = $("#planning-integrate-form");
+  if (planIntegrate) planIntegrate.addEventListener("submit", scoutIntegrate);
 
   // Browser (computer-control)
   const browserRefresh = $("#browser-refresh");

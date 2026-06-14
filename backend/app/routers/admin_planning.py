@@ -16,6 +16,10 @@ Proactive (destructive=False — proposes inert draft plans only):
   POST /admin/planning/remediate        scan KAI's detected issues (audit/
                                         failures/lessons/blocked) → draft a plan
                                         per top issue (operator approves to run)
+  POST /admin/planning/scout-integrate  scout GitHub for a capability → draft an
+                                        integration plan for the top safely-
+                                        adoptable repo (reference design only;
+                                        operator approves to run; never installs)
 
 The LLM-touching actions (create / execute-next / revise) build the router
 and resolve the operator profile INSIDE the @audited function, so a scope-
@@ -34,7 +38,14 @@ from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.routers.admin_chat import OperatorNotConfigured, _resolve_operator_profile
 from app.services.governance import PendingApproval, ScopeDenied, audited
-from app.services.planning import executor as ex, planner, remediation, revision, storage
+from app.services.planning import (
+    executor as ex,
+    integration,
+    planner,
+    remediation,
+    revision,
+    storage,
+)
 from app.services.router import build_default_router
 from app.services.tools import build_default_registry
 from app.services.tools.base import ToolContext
@@ -131,6 +142,15 @@ class RemediateRequest(BaseModel):
     approved: bool = False
 
 
+class ScoutIntegrateRequest(BaseModel):
+    capability: str
+    max_plans: int = 1
+    min_stars: int = 100
+    language: str | None = None
+    prefer_local: bool = False
+    approved: bool = False
+
+
 # ─── audited core actions ────────────────────────────────────────────
 
 
@@ -208,6 +228,23 @@ def _audited_remediate(
     )
 
 
+@audited(scope="planning.scout", destructive=False)
+def _audited_scout_integrate(
+    *, capability: str, max_plans: int, min_stars: int, language: str | None,
+    prefer_local: bool, session: Session,
+) -> dict[str, Any]:
+    # destructive=False: discovery is read-only and the drafted plan is inert.
+    # Each draft still needs a separate planning.approve (destructive=True)
+    # before any step runs — and no step ever runs downloaded code.
+    rt = build_default_router(session)
+    prof = _resolve_operator_profile(session)
+    return integration.propose_integrations(
+        capability, router=rt, user_id=prof.id, session=session,
+        max_plans=max_plans, min_stars=min_stars, language=language,
+        prefer_local=prefer_local,
+    )
+
+
 # ─── write routes ────────────────────────────────────────────────────
 
 
@@ -277,4 +314,16 @@ def planning_remediate(body: RemediateRequest, session: Session = Depends(get_db
         _audited_remediate,
         max_plans=body.max_plans, prefer_local=body.prefer_local,
         session=session, approved=body.approved,
+    )
+
+
+@router.post("/scout-integrate")
+def planning_scout_integrate(
+    body: ScoutIntegrateRequest, session: Session = Depends(get_db)
+):
+    return _guard(
+        _audited_scout_integrate,
+        capability=body.capability, max_plans=body.max_plans,
+        min_stars=body.min_stars, language=body.language,
+        prefer_local=body.prefer_local, session=session, approved=body.approved,
     )

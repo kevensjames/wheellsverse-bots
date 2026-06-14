@@ -887,3 +887,104 @@ def test_admin_remediate_propose_only_no_approval(client, monkeypatch, _isolated
     body = r.json()
     assert body["issues_found"] == 1
     assert body["proposed_plans"][0]["status"] == "draft"
+
+
+# ─── integration scout (capability → draft integration plan) ─────────
+
+from app.services.planning import integration as pint  # noqa: E402
+
+
+def _candidate(**over):
+    base = {
+        "repo": "All-Hands-AI/OpenHands",
+        "url": "https://github.com/All-Hands-AI/OpenHands",
+        "stars": 40000, "license": "MIT (permissive)",
+        "recommendation": "evaluate",
+    }
+    base.update(over)
+    return base
+
+
+def test_integration_goal_for_references_repo():
+    g = pint._goal_for("agent memory", _candidate())
+    assert "All-Hands-AI/OpenHands" in g
+    # the goal must forbid running the repo's code — reference design only
+    assert "REFERENCE DESIGN" in g and "NOT by cloning" in g
+    assert "Do NOT download or execute external code" in g
+
+
+def test_propose_integrations_empty_capability_raises():
+    with pytest.raises(ValueError):
+        pint.propose_integrations(
+            "  ", router=MagicMock(), user_id=uuid.uuid4(), session=MagicMock()
+        )
+
+
+def test_propose_integrations_no_candidates(monkeypatch):
+    monkeypatch.setattr(pint, "_scout", lambda *a, **k: [])
+    out = pint.propose_integrations(
+        "obscure", router=MagicMock(), user_id=uuid.uuid4(), session=MagicMock()
+    )
+    assert out["proposed_plans"] == [] and out["candidates_found"] == 0
+    assert "no GitHub repos matched" in out["note"]
+
+
+def test_propose_integrations_all_avoid_drafts_nothing(monkeypatch):
+    # avoid-tier (no license / archived) is never proposed
+    monkeypatch.setattr(pint, "_scout", lambda *a, **k: [_candidate(recommendation="avoid")])
+    out = pint.propose_integrations(
+        "x", router=_steps_router(), user_id=uuid.uuid4(), session=MagicMock()
+    )
+    assert out["proposed_plans"] == [] and out["candidates_found"] == 1
+    assert "safely adoptable" in out["note"]
+
+
+def test_propose_integrations_drafts_inert_plan(monkeypatch):
+    monkeypatch.setattr(pint, "_scout", lambda *a, **k: [_candidate()])
+    out = pint.propose_integrations(
+        "agent memory", router=_steps_router(), user_id=uuid.uuid4(),
+        session=MagicMock(), max_plans=1,
+    )
+    assert out["candidates_found"] == 1 and len(out["proposed_plans"]) == 1
+    p = out["proposed_plans"][0]
+    assert p["status"] == "draft" and p["candidate_repo"] == "All-Hands-AI/OpenHands"
+    # persisted as an inert draft tagged as an integration
+    plan = pl.get_plan(p["plan_id"])
+    assert plan.status == "draft" and plan.meta.get("integration") is True
+    assert plan.meta.get("capability") == "agent memory"
+
+
+def test_propose_integrations_caps_at_max_plans(monkeypatch):
+    monkeypatch.setattr(pint, "_scout", lambda *a, **k: [
+        _candidate(repo=f"acme/repo{i}") for i in range(4)])
+    out = pint.propose_integrations(
+        "x", router=_steps_router(), user_id=uuid.uuid4(),
+        session=MagicMock(), max_plans=1,
+    )
+    assert len(out["proposed_plans"]) == 1 and out["candidates_found"] == 4
+
+
+def test_admin_scout_integrate_scope_off_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.delenv("KAI_SCOPE_PLANNING", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_PLANNING_SCOUT", raising=False)
+    r = client.post(
+        "/admin/planning/scout-integrate", headers=ADMIN_HEADERS,
+        json={"capability": "agent memory"},
+    )
+    assert r.status_code == 403
+
+
+def test_admin_scout_integrate_propose_only_no_approval(client, monkeypatch, _isolated_audit):
+    # destructive=False → works WITHOUT approved=true (discovery read-only, draft inert)
+    monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setattr(pint, "_scout", lambda *a, **k: [_candidate()])
+    _patch_llm(monkeypatch, '{"steps":[{"action":"read router.py","kind":"chat"}]}')
+    r = client.post(
+        "/admin/planning/scout-integrate", headers=ADMIN_HEADERS,
+        json={"capability": "agent memory", "max_plans": 1},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["candidates_found"] == 1
+    assert body["proposed_plans"][0]["status"] == "draft"
+    assert body["proposed_plans"][0]["candidate_repo"] == "All-Hands-AI/OpenHands"
