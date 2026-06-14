@@ -28,7 +28,28 @@ _ROUTER_SYSTEM = (
     '{"preset_id": "<one id from the catalog, or null>", '
     '"confidence": "high|medium|low", "reason": "short justification"}\n'
     "Choose the MOST SPECIFIC matching domain. Use null only when no agent "
-    "clearly fits (ordinary general-purpose chat). No commentary outside the JSON."
+    "clearly fits (ordinary general-purpose chat). No commentary outside the JSON.\n"
+    "\n"
+    "Disambiguation (descriptions overlap — use these rules):\n"
+    "- accounting: financial statements, GAAP/IFRS, tax, SEC filings (10-K/10-Q/"
+    "8-K), audits, revenue recognition, bookkeeping.\n"
+    "- finance: markets, investing, valuation, economics, portfolios.\n"
+    "- legal_research: law, statutes, case law, contracts, litigation, rights "
+    "(NOT financial filings — those are accounting).\n"
+    "- medical_research: clinical/biomedical/health, drugs, diagnoses, treatments.\n"
+    "- dental_research: teeth, oral health, dentistry.\n"
+    "- engineering: physical/electrical/mechanical design, standards, calculations.\n"
+    "- swe: writing or debugging software/code, architecture.\n"
+    "- marketing: copy, campaigns, growth, social.\n"
+    "- research: general factual/literature research when no specific domain fits.\n"
+    "\n"
+    "Examples:\n"
+    "- 'What does a 10-K say about revenue recognition?' -> accounting\n"
+    "- 'first-line treatment for stage II hypertension' -> medical_research\n"
+    "- 'is this NDA clause enforceable?' -> legal_research\n"
+    "- 'cantilever beam deflection formula' -> engineering\n"
+    "- 'write a launch tweet' -> marketing\n"
+    "- 'how is the weather today?' -> null"
 )
 
 
