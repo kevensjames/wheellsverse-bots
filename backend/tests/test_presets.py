@@ -20,12 +20,13 @@ from app.services.tools.registry import ToolRegistry
 def test_list_presets_ships_expected_set():
     rows = list_presets()
     ids = {p.id for p in rows}
-    # original 5 + 4 professional-domain research agents
+    # original 5 + 4 professional-domain research agents + self-improvement scout
     assert ids == {
         "swe", "marketing", "finance", "research", "legal_research",
         "medical_research", "dental_research", "engineering", "accounting",
+        "self_improvement",
     }
-    assert len(rows) == 9
+    assert len(rows) == 10
 
 
 def test_domain_agents_are_research_not_advice_and_grounded():
@@ -252,11 +253,12 @@ def test_admin_presets_list_returns_all(client, _scope_on, _isolated_audit):
     assert r.status_code == 200
     body = r.json()
     assert "presets" in body
-    assert len(body["presets"]) == 9
+    assert len(body["presets"]) == 10
     ids = {p["id"] for p in body["presets"]}
     assert ids == {
         "swe", "marketing", "finance", "research", "legal_research",
         "medical_research", "dental_research", "engineering", "accounting",
+        "self_improvement",
     }
 
 

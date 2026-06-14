@@ -110,8 +110,8 @@
                   <option value="">no preset (bare KAI)</option>
                 </select>
               </label>
-              <label title="Route to local Ollama instead of cloud providers">
-                <input type="checkbox" id="admin-prefer-local"> local
+              <label title="Route to local Ollama by default (private + free). Falls back to cloud when Ollama is down or a tool is needed. Uncheck to force cloud.">
+                <input type="checkbox" id="admin-prefer-local" checked> local
               </label>
               <label title="Disable tool use (faster, no side effects)">
                 <input type="checkbox" id="admin-no-tools"> no tools

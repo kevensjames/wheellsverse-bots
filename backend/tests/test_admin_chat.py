@@ -164,8 +164,21 @@ def test_admin_chat_happy_path(client, mock_brain):
     assert body["message"]["content"] == "hello from KAI"
     assert body["message"]["adapter"] == "openai"
     assert body["total_cost_usd"] == pytest.approx(0.0042)
-    # Confirm the call went to Brain with use_tools=True by default
+    # Defaults: tools on, AND prefer_local on — the operator dashboard runs
+    # KAI on local Ollama by default (private + free; router falls back to
+    # cloud when Ollama is down or a tool is needed).
     assert mock_brain.captured["use_tools"] is True
+    assert mock_brain.captured["prefer_local"] is True
+
+
+def test_admin_chat_can_force_cloud(client, mock_brain):
+    # Operator unchecks "local" → prefer_local=False is honored (force cloud).
+    r = client.post(
+        "/admin/kai-chat",
+        json={"message": "hi", "prefer_local": False},
+        headers=ADMIN_HEADERS,
+    )
+    assert r.status_code == 200
     assert mock_brain.captured["prefer_local"] is False
 
 

@@ -18,6 +18,7 @@ from app.services.tools.composio_notion import NotionTool
 from app.services.tools.courtlistener_search import CourtListenerSearchTool
 from app.services.tools.document_search import DocumentSearchTool
 from app.services.tools.failure_lookup import FailureLookupTool
+from app.services.tools.github_scout import GithubScoutTool
 from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.learning_query import LearningQueryTool
 from app.services.tools.memory_tool import MemoryTool
@@ -110,6 +111,12 @@ def build_default_registry(
     reg.register(TwinQueryTool())
     # Self-audit — read-only; KAI reports its own subsystem health on request.
     reg.register(AuditQueryTool())
+    # Capability scout — read-only GitHub repo search + adoption assessment.
+    # Surfaces open-source projects that could extend KAI and PROPOSES them
+    # (license/maintenance/risk/recommendation). Never installs or runs code —
+    # adoption stays propose-then-approve. No env key (GITHUB_TOKEN optional
+    # only to lift the search rate limit).
+    reg.register(GithubScoutTool())
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -155,6 +162,7 @@ __all__ = [
     "BrowserTool",
     "ComposioTool",
     "FailureLookupTool",
+    "GithubScoutTool",
     "KGQueryTool",
     "LearningQueryTool",
     "MemoryTool",

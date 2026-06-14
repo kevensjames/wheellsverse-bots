@@ -121,9 +121,13 @@ class AdminChatRequest(BaseModel):
     conversation_id: _uuid.UUID | None = None
     # Tools on by default — the whole point of admin chat is full power.
     use_tools: bool = True
-    # prefer_local routes through Ollama. Off by default; flip on for
-    # privacy-sensitive prompts (e.g. dumping production data into chat).
-    prefer_local: bool = False
+    # prefer_local routes through Ollama (local LLM). DEFAULT ON for the
+    # operator dashboard: KAI's own chat runs on-device by default for
+    # privacy + zero marginal cost. Fail-soft — the router falls back to
+    # cloud when Ollama is down (router._get) and auto-escalates to cloud
+    # for tool-using turns (Ollama is tool-incapable in the router). The
+    # operator can uncheck "local" to force cloud for a given turn.
+    prefer_local: bool = True
     max_tokens: int = 2048
     # Optional expert-agent preset id (swe / marketing / finance / research /
     # legal_research). When set, prepends a persona system prompt + filters
