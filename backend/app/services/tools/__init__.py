@@ -29,6 +29,7 @@ from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.twin_query import TwinQueryTool
 from app.services.tools.verify_claim import VerifyClaimTool
 from app.services.tools.web_fetch import WebFetchTool
+from app.services.tools.who_search import WhoSearchTool
 from app.services.tools.web_search import WebSearchTool
 
 
@@ -88,6 +89,8 @@ def build_default_registry(
     # law (legal) — same live-official-API connector pattern as PubMed.
     reg.register(SecEdgarSearchTool())
     reg.register(CourtListenerSearchTool())
+    # WHO Global Health Observatory indicator search (medical) — official OData.
+    reg.register(WhoSearchTool())
     # Super-router — recommend the best domain expert (preset) for a question.
     reg.register(SuggestAgentTool())
     # Failure log — JSONL-backed, ships with the daemon. KAI can look up

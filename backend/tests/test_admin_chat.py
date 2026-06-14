@@ -131,11 +131,12 @@ def mock_brain(monkeypatch, db_session):
             pass
 
         def chat(self, *, user_id, conversation_id, user_message,
-                 use_tools, prefer_local, max_tokens):
+                 use_tools, prefer_local, max_tokens, persona_prompt=None, **kw):
             captured["user_id"] = user_id
             captured["message"] = user_message
             captured["use_tools"] = use_tools
             captured["prefer_local"] = prefer_local
+            captured["persona_prompt"] = persona_prompt
             return fake_conv, fake_msg, fake_cost
 
     monkeypatch.setattr(ac, "Brain", FakeBrain)
@@ -182,6 +183,36 @@ def test_admin_chat_forwards_flags(client, mock_brain):
     assert r.status_code == 200
     assert mock_brain.captured["use_tools"] is False
     assert mock_brain.captured["prefer_local"] is True
+
+
+def test_admin_chat_auto_routes_when_no_preset(client, mock_brain, monkeypatch):
+    # auto_route + no preset → classify_domain picks an expert → it's applied +
+    # surfaced in the response (preset_id + auto_routed).
+    import app.services.agent_router as ar
+    import app.services.presets as presets
+    monkeypatch.setattr(ar, "classify_domain",
+                        lambda **k: {"preset_id": "medical_research", "confidence": "high", "reason": "clinical"})
+    # registry is a MagicMock under mock_brain; don't actually filter it
+    monkeypatch.setattr(presets, "filter_registry", lambda reg, preset: reg)
+    r = client.post(
+        "/admin/kai-chat",
+        json={"message": "first-line treatment for stage II hypertension?", "auto_route": True},
+        headers=ADMIN_HEADERS,
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["preset_id"] == "medical_research"
+    assert body["auto_routed"] is True
+
+
+def test_admin_chat_no_auto_route_stays_bare(client, mock_brain):
+    r = client.post(
+        "/admin/kai-chat",
+        json={"message": "hi", "auto_route": False},
+        headers=ADMIN_HEADERS,
+    )
+    assert r.status_code == 200
+    assert r.json()["preset_id"] is None and r.json()["auto_routed"] is False
 
 
 def _seed_operator(db_session):

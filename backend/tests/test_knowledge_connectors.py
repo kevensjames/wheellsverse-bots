@@ -95,3 +95,29 @@ def test_courtlistener_no_results(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp({"results": []}))
     out = CourtListenerSearchTool().execute(_ctx(), query="zzz")
     assert out["count"] == 0 and out["results"] == []
+
+
+# ─── WHO GHO ─────────────────────────────────────────────────────────
+
+from app.services.tools.who_search import WhoSearchTool  # noqa: E402
+
+_WHO = {"value": [
+    {"IndicatorCode": "NCD_HYP_PREVALENCE_A",
+     "IndicatorName": "Hypertension among adults 30-79, prevalence, age-standardized"},
+    {"IndicatorCode": "NCD_HYP_CONTROL_C", "IndicatorName": "Hypertension: effective treatment coverage"},
+]}
+
+
+def test_who_parses_indicators(monkeypatch):
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(_WHO))
+    out = WhoSearchTool().execute(_ctx(), query="hypertension")
+    assert out["count"] == 2
+    r = out["results"][0]
+    assert r["code"] == "NCD_HYP_PREVALENCE_A" and "Hypertension" in r["name"]
+    assert "ghoapi.azureedge.net/api/NCD_HYP_PREVALENCE_A" in r["url"]
+    assert "WHO GHO" in out["note"]
+
+
+def test_who_blank_query_raises():
+    with pytest.raises(ToolError):
+        WhoSearchTool().execute(_ctx(), query="  ")

@@ -178,6 +178,7 @@ PRESETS: list[PresetSpec] = [
             "document_search",
             "verify_claim",
             "pubmed_search",
+            "who_search",
             "web_search",
             "web_fetch",
             "memory",

@@ -295,6 +295,7 @@ async function adminChatPost(message) {
     prefer_local: $("#admin-prefer-local").checked,
     max_tokens: 2048,
     preset_id: presetSel && presetSel.value ? presetSel.value : null,
+    auto_route: !!$("#admin-auto-route")?.checked,
     self_correct: !!(selfCorrect && selfCorrect.checked),
   };
   const r = await fetch("/admin/kai-chat", {
@@ -335,13 +336,30 @@ function parseCitations(text) {
   return cites;
 }
 
+// Pull a self-rated [confidence: high|medium|low] tag out of an answer (grounded
+// agents emit it). Returns the level + the text with every such tag removed so
+// the raw tag never shows to the operator.
+function extractConfidence(text) {
+  const m = text.match(/\[\s*confidence:\s*(high|medium|low)\s*\]/i);
+  const level = m ? m[1].toLowerCase() : null;
+  const clean = text.replace(/\s*\[\s*confidence:\s*(?:high|medium|low)\s*\]\s*/gi, " ").trim();
+  return { level, clean };
+}
+
 // Append the "badges" row under an assistant answer: which expert handled it
-// (routed), a grounding indicator (✓ N sources), and the citation chips.
-function renderAssistantExtras(wrap, text, presetLabel) {
+// (routed), a self-rated confidence, a grounding indicator (✓ N sources), and
+// the citation chips.
+function renderAssistantExtras(wrap, text, presetLabel, confLevel) {
   const cites = parseCitations(text);
-  if (!presetLabel && !cites.length) return;
+  if (!presetLabel && !confLevel && !cites.length) return;
   const row = document.createElement("div");
   row.className = "citation-chips";
+  if (confLevel) {
+    const c = document.createElement("span");
+    c.className = `cite-chip conf-chip conf-${confLevel}`;
+    c.textContent = `confidence: ${confLevel}`;
+    row.appendChild(c);
+  }
   if (presetLabel) {
     const r = document.createElement("span");
     r.className = "cite-chip routed-chip";
@@ -370,13 +388,21 @@ function appendChatMessage(role, text, meta, presetLabel) {
   const wrap = document.createElement("div");
   wrap.className = `admin-chat-msg admin-chat-msg-${role}`;
 
+  let displayText = text;
+  let confLevel = null;
+  if (role === "assistant") {
+    const c = extractConfidence(text);
+    displayText = c.clean;
+    confLevel = c.level;
+  }
+
   const bubble = document.createElement("div");
   bubble.className = "admin-chat-bubble";
-  bubble.textContent = text;
+  bubble.textContent = displayText;
   wrap.appendChild(bubble);
 
   if (role === "assistant") {
-    renderAssistantExtras(wrap, text, presetLabel);
+    renderAssistantExtras(wrap, displayText, presetLabel, confLevel);
   }
 
   if (meta) {
@@ -425,6 +451,7 @@ async function sendChat(e) {
       const sel = $("#admin-preset-select");
       const opt = sel && Array.from(sel.options).find((o) => o.value === resp.preset_id);
       presetLabel = opt ? opt.textContent.split(" — ")[0].trim() : resp.preset_id;
+      if (resp.auto_routed) presetLabel = "🧭 " + presetLabel;
     }
     appendChatMessage("assistant", msg.content || "(empty response)", meta, presetLabel);
     setChatStatus("");
