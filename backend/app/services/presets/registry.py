@@ -146,6 +146,7 @@ PRESETS: list[PresetSpec] = [
         tool_whitelist=[
             "document_search",
             "verify_claim",
+            "courtlistener_search",
             "web_search",
             "web_fetch",
             "memory",
@@ -261,6 +262,7 @@ PRESETS: list[PresetSpec] = [
         tool_whitelist=[
             "document_search",
             "verify_claim",
+            "sec_edgar_search",
             "web_search",
             "web_fetch",
             "memory",
