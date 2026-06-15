@@ -1329,7 +1329,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <div style="font-size:32px">🛡️</div>
       <div style="flex:1">
         <div style="font-size:18px;font-weight:700;color:#a855f7">SUPREMA Autorepair</div>
-        <div style="font-size:11px;color:var(--text2)">Workspace-wide auto-healing · 6 projects · 11 patterns · daily 06:00 cron</div>
+        <div style="font-size:11px;color:var(--text2)">Workspace-wide auto-healing · 6 projects · 12 patterns · daily 06:00 cron</div>
       </div>
       <button onclick="suprRescan(this)" style="padding:8px 16px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);border-radius:8px;color:#a855f7;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🔄 Scan now</button>
     </div>
@@ -1394,7 +1394,12 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       function renderFinding(f, idx) {
         const sev = { high: '🔴', medium: '🟡', low: '🔵' }[f.severity] || '⚪';
         const ev = esc((f.evidence || '').slice(0, 200));
-        const canFix = AUTO_SAFE_PATTERNS.has(f.pattern);
+        // Hide Fix button for data-bearing files (.db / .sqlite / .pkl / .bin)
+        // — the fixer refuses to auto-untrack these so showing the button
+        // would confuse the operator.
+        const loc = String(f.location || '');
+        const isDataFile = /\.(db|sqlite\d?|pkl|bin)(:|$)/i.test(loc);
+        const canFix = AUTO_SAFE_PATTERNS.has(f.pattern) && !isDataFile;
         const fixBtn = canFix
           ? '<button onclick="suprFixOne(' + idx + ', this)" style="margin-left:8px;padding:3px 10px;background:rgba(68,255,136,.12);border:1px solid rgba(68,255,136,.3);border-radius:6px;color:#44ff88;font-family:inherit;font-size:9px;font-weight:700;cursor:pointer">Fix</button>'
           : '';

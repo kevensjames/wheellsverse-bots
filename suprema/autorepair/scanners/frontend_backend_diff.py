@@ -140,15 +140,40 @@ def scan(project: Path, live_url: str | None = None) -> list[dict]:
 
     if not fe:
         return []
+
+    # A captured URL is "prefix-matched" if any backend route starts with
+    # this URL plus '/' — meaning the frontend likely does string-concat
+    # like fetch('/api/x/' + id) and my regex captured only the literal
+    # head. Drop these as false positives.
+    be_paths_by_method: dict[str, list[str]] = {}
+    for m, p in be:
+        be_paths_by_method.setdefault(m, []).append(p)
+
+    def _is_prefix_of_real_route(method: str, path: str) -> bool:
+        prefix = path.rstrip("/") + "/"
+        for p in be_paths_by_method.get(method, []):
+            if p.startswith(prefix):
+                return True
+        return False
+
     missing = sorted(fe - be)
     findings: list[dict] = []
     for method, path in missing:
-        # Skip non-API resources and likely-dynamic-path artifacts
+        # Skip non-API resources
         if not path.startswith("/api"):
+            continue
+        # Skip template-literal truncations: my regex sometimes captures
+        # mid-${expr}, leaving '$' in the normalized path. Those are
+        # scanner artifacts, not real bugs.
+        if "$" in path:
+            continue
+        # Skip URLs that are prefix-matched by a real backend route
+        # (string-concat artifacts like `fetch('/api/x/' + id)`).
+        if _is_prefix_of_real_route(method, path):
             continue
         loc_file, loc_line = fe_locations.get((method, path), ("(unknown)", 0))
         findings.append({
-            "severity": "low",  # high false-positive rate; human triage needed
+            "severity": "low",  # human triage still needed for the survivors
             "location": f"{loc_file}:{loc_line}",
             "evidence": f"{method} {path}  (called from frontend, no matching @app route)",
             "fix_payload": {"method": method, "path": path},

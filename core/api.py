@@ -888,12 +888,19 @@ async def store_redeliver(order_id: str = Query(...)):
         return {"ok": False, "error": "shop_not_configured"}
 
     try:
+        # urllib.request.urlopen is sync — offload to a worker thread so we
+        # don't block the asyncio event loop while Shopify responds (15s
+        # worst case would otherwise stall every other request on the
+        # server). Caught by SUPREMA sync_io_in_async_handler scanner.
+        import asyncio as _asyncio
         req = urllib.request.Request(
             f"https://{shop}/admin/api/2024-01/orders/{order_id}.json",
             headers={"X-Shopify-Access-Token": token},
         )
-        with urllib.request.urlopen(req, timeout=15) as r:
-            order = _json.loads(r.read())["order"]
+        def _fetch_order():
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return _json.loads(r.read())["order"]
+        order = await _asyncio.to_thread(_fetch_order)
     except Exception as e:
         return {"ok": False, "error": f"order_lookup_failed: {e}"}
 

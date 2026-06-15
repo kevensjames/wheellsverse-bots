@@ -196,9 +196,12 @@ async def process_due(
                 continue
 
             try:
-                # In-process throttle: never faster than MIN_INTERVAL_SECONDS
+                # In-process throttle: never faster than MIN_INTERVAL_SECONDS.
+                # Use asyncio.sleep (not time.sleep) — we're inside an async
+                # handler and time.sleep blocks the event loop for the whole
+                # server. Caught by SUPREMA sync_io_in_async_handler scanner.
                 if sent > 0:
-                    time.sleep(MIN_INTERVAL_SECONDS)
+                    await asyncio.sleep(MIN_INTERVAL_SECONDS)
                 # SMTP is sync; offload so the event loop isn't blocked
                 await asyncio.to_thread(
                     _send_smtp, row.email, subject, body_plain, body_html
