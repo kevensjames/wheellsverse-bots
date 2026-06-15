@@ -1366,7 +1366,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       let _suprLoaded = false;
       window.suprLoad = async function() {
         try {
-          const r = await fetch('/api/suprema/status').then(x => x.json());
+          const headers = (typeof authH === 'function') ? authH() : {};
+          const r = await fetch('/api/suprema/status', { headers }).then(x => x.json());
           const last = r.started_at ? new Date(r.started_at).toLocaleString() : '(no scan yet)';
           document.getElementById('supr-last').textContent = last;
           document.getElementById('supr-count').textContent = r.findings_count ?? 0;
@@ -1418,7 +1419,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         const orig = btn.textContent;
         btn.textContent = '⏳ Scanning…'; btn.disabled = true;
         try {
-          const r = await fetch('/api/suprema/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+          const headers = (typeof authH === 'function')
+            ? Object.assign(authH(), { 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          const r = await fetch('/api/suprema/scan', { method: 'POST', headers });
           const data = await r.json();
           if (data.status === 'ok') {
             if (typeof toast === 'function') toast('✓ Scan complete', 'success');
