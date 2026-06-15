@@ -1,13 +1,13 @@
 {
-  "started_at": "2026-06-15T09:11:14Z",
-  "elapsed_s": 2.47,
-  "findings_count": 35,
+  "started_at": "2026-06-15T09:23:14Z",
+  "elapsed_s": 2.5,
+  "findings_count": 31,
   "findings": [
     {
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9867",
+      "location": "dashboard/index.html:9870",
       "evidence": "DELETE /api/kdp/queue/{p}  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "DELETE",
@@ -18,7 +18,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9851",
+      "location": "dashboard/index.html:9854",
       "evidence": "DELETE /api/kdp/registry/{p}  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "DELETE",
@@ -29,7 +29,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:14033",
+      "location": "dashboard/index.html:14036",
       "evidence": "GET /api/canva/export  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -40,7 +40,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:7950",
+      "location": "dashboard/index.html:7953",
       "evidence": "GET /api/integrations/{p}  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -51,7 +51,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:10863",
+      "location": "dashboard/index.html:10866",
       "evidence": "GET /api/money/record  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -73,7 +73,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:14155",
+      "location": "dashboard/index.html:14158",
       "evidence": "GET /api/notion/page  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -84,7 +84,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:8387",
+      "location": "dashboard/index.html:8390",
       "evidence": "GET /api/pipeline/batch  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -95,7 +95,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:8993",
+      "location": "dashboard/index.html:8996",
       "evidence": "GET /api/reddit/blitz/reset  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -106,7 +106,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9132",
+      "location": "dashboard/index.html:9135",
       "evidence": "GET /api/tiktok/blitz/done  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -117,7 +117,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9136",
+      "location": "dashboard/index.html:9139",
       "evidence": "GET /api/tiktok/blitz/reset  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -128,7 +128,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:8928",
+      "location": "dashboard/index.html:8931",
       "evidence": "GET /api/twitter/blitz/reset  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -139,7 +139,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:13890",
+      "location": "dashboard/index.html:13893",
       "evidence": "GET /api/wordpress/post  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
@@ -150,7 +150,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:8827",
+      "location": "dashboard/index.html:8830",
       "evidence": "POST /api/bots/writing/46_blog_writer/run  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "POST",
@@ -161,7 +161,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9860",
+      "location": "dashboard/index.html:9863",
       "evidence": "POST /api/kdp/queue/{p}/publish  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "POST",
@@ -172,7 +172,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9842",
+      "location": "dashboard/index.html:9845",
       "evidence": "POST /api/kdp/registry  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "POST",
@@ -194,7 +194,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:17325",
+      "location": "dashboard/index.html:17328",
       "evidence": "POST /api/narai/stream  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "POST",
@@ -205,7 +205,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:10088",
+      "location": "dashboard/index.html:10091",
       "evidence": "POST /api/narai/tool  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "POST",
@@ -216,7 +216,7 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:17485",
+      "location": "dashboard/index.html:17488",
       "evidence": "POST /api/narai/upload  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "POST",
@@ -246,54 +246,10 @@
       }
     },
     {
-      "pattern": "hardcoded_localhost",
-      "project": "wheellsverse-bots",
-      "severity": "medium",
-      "location": "frontend/nexora/subscribe.html:174",
-      "evidence": "http://localhost:5050",
-      "fix_payload": {
-        "file": "frontend/nexora/subscribe.html",
-        "match": "http://localhost:5050"
-      }
-    },
-    {
-      "pattern": "hardcoded_localhost",
-      "project": "wheellsverse-bots",
-      "severity": "medium",
-      "location": "frontend/nexora/fan.html:168",
-      "evidence": "http://localhost:5050",
-      "fix_payload": {
-        "file": "frontend/nexora/fan.html",
-        "match": "http://localhost:5050"
-      }
-    },
-    {
-      "pattern": "hardcoded_localhost",
-      "project": "wheellsverse-bots",
-      "severity": "medium",
-      "location": "frontend/nexora/live.html:147",
-      "evidence": "http://localhost:5050",
-      "fix_payload": {
-        "file": "frontend/nexora/live.html",
-        "match": "http://localhost:5050"
-      }
-    },
-    {
-      "pattern": "hardcoded_localhost",
-      "project": "wheellsverse-bots",
-      "severity": "medium",
-      "location": "frontend/nexora/creator.html:485",
-      "evidence": "http://localhost:5050",
-      "fix_payload": {
-        "file": "frontend/nexora/creator.html",
-        "match": "http://localhost:5050"
-      }
-    },
-    {
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14401",
+      "location": "core/api.py:14409",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -304,7 +260,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14451",
+      "location": "core/api.py:14459",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -315,7 +271,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14458",
+      "location": "core/api.py:14466",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -326,7 +282,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14618",
+      "location": "core/api.py:14626",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -399,6 +355,6 @@
   "llm_triage": null,
   "_sync": {
     "source": "/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json",
-    "synced_at": "2026-06-15T09:11:14Z"
+    "synced_at": "2026-06-15T09:23:14Z"
   }
 }
