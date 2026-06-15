@@ -1536,14 +1536,37 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         }
         btn.textContent = orig; btn.disabled = false;
       };
-      const _origNav = window.nav;
-      if (_origNav) {
-        window.nav = function(p) {
-          const r = _origNav.apply(this, arguments);
-          if (p === 'suprema' && !_suprLoaded) suprLoad();
-          return r;
-        };
-      }
+      // The dashboard's nav() function is defined later in the file than this
+      // IIFE runs. Poll until it's available, then wrap it so clicking
+      // SUPREMA in the sidebar triggers suprLoad() on first open.
+      let _wrapAttempts = 0;
+      const _tryWrapNav = () => {
+        if (typeof window.nav === 'function') {
+          const _origNav = window.nav;
+          window.nav = function(p) {
+            const r = _origNav.apply(this, arguments);
+            if (p === 'suprema' && !_suprLoaded) suprLoad();
+            return r;
+          };
+          return;
+        }
+        if (++_wrapAttempts < 200) setTimeout(_tryWrapNav, 50);  // up to 10s
+      };
+      _tryWrapNav();
+
+      // Belt-and-suspenders: if the page-suprema element becomes visible via
+      // other code paths (deep-link, programmatic nav before our wrap fires),
+      // still load on visibility.
+      document.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('page-suprema');
+        if (!el) return;
+        const obs = new MutationObserver(() => {
+          if (el.classList.contains('active') && !_suprLoaded) suprLoad();
+        });
+        obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+        // If page-suprema is already active when DOM ready, load immediately
+        if (el.classList.contains('active')) suprLoad();
+      });
     })();
   </script>
 </div>
