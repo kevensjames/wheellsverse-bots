@@ -2438,6 +2438,104 @@ async def auth_login(req: LoginRequest):
     return {"ok": False}
 
 
+# ─── SUPREMA autorepair panel (served under /admin → SUPREMA tab) ─────────
+#
+# State JSON files written by the daily 06:00 cron on the Mac mini:
+#   /Volumes/Wheellsverse/suprema/autorepair/state/last-run.json   (canonical)
+#   wheellsverse-bots/suprema/autorepair/state/last-run.json       (vendored)
+#
+# The dashboard panel only needs READ access. The /scan endpoint shells
+# out to the CLI when invoked from the panel — graceful no-op if the
+# package isn't importable in this container (e.g. partial deploy).
+
+_SUPREMA_STATE_CANDIDATES = (
+    Path("/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json"),
+    ROOT / "suprema" / "autorepair" / "state" / "last-run.json",
+)
+_SUPREMA_PATTERNS_COUNT = 11  # bumped when catalog grows
+
+
+def _suprema_state_file() -> Path | None:
+    for p in _SUPREMA_STATE_CANDIDATES:
+        if p.is_file():
+            return p
+    return None
+
+
+@app.get("/api/suprema/status")
+async def suprema_status():
+    """Last-run summary for the SUPREMA autorepair panel. Reads the JSON
+    state file written by the daily cron; returns an empty-but-valid shape
+    when no scan has happened yet so the panel renders cleanly."""
+    import json
+    state_file = _suprema_state_file()
+    if not state_file:
+        return {
+            "started_at": None,
+            "findings_count": 0,
+            "findings": [],
+            "fixes_attempted": 0,
+            "fixes_succeeded": 0,
+            "patterns_total": _SUPREMA_PATTERNS_COUNT,
+            "message": ("No scan state yet. The Mac mini's daily cron "
+                        "(06:00 local) writes here on each run."),
+        }
+    try:
+        data = json.loads(state_file.read_text(encoding="utf-8"))
+        data["patterns_total"] = _SUPREMA_PATTERNS_COUNT
+        # Cap findings to keep the API response under ~200KB
+        if len(data.get("findings", [])) > 200:
+            data["findings"] = data["findings"][:200]
+            data["truncated"] = True
+        return data
+    except Exception as e:
+        return {"error": str(e), "patterns_total": _SUPREMA_PATTERNS_COUNT,
+                "findings_count": 0, "findings": []}
+
+
+@app.post("/api/suprema/scan")
+async def suprema_scan():
+    """Trigger a fresh scan via the autorepair CLI. The package must be
+    importable from this process. Runs scan-only (no fix) to keep the
+    panel button safe."""
+    import asyncio
+    import subprocess
+    import sys
+
+    # Locate suprema package — prefer vendored copy, then workspace canonical
+    candidates = [
+        ROOT,                                        # vendored under wheellsverse-bots/
+        Path("/Volumes/Wheellsverse"),               # workspace canonical
+    ]
+    suprema_root = next((p for p in candidates if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "error": "suprema package not found on disk"}
+
+    cmd = [sys.executable, "-m", "suprema.autorepair.cli", "scan", "--json"]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(suprema_root) + ":" + env.get("PYTHONPATH", "")
+    env["SUPREMA_STDOUT"] = "0"
+
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(subprocess.run, cmd,
+                              cwd=str(suprema_root),
+                              env=env,
+                              capture_output=True, text=True, timeout=180),
+            timeout=200.0,
+        )
+    except asyncio.TimeoutError:
+        return {"status": "error", "error": "scan timeout (>180s)"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+    if result.returncode != 0:
+        return {"status": "error",
+                "stderr": (result.stderr or "")[-500:],
+                "stdout_tail": (result.stdout or "")[-200:]}
+    return {"status": "ok", "elapsed": "scan complete — refresh status to view"}
+
+
 @app.get("/api/health")
 async def health():
     import platform

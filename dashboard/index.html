@@ -503,6 +503,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('creative')" id="nav-creative" style="background:linear-gradient(90deg,rgba(255,136,0,.1),transparent);border-left:2px solid #ff8800;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎨</span><span style="color:#ff9922;font-weight:700">Creative Tools</span></div>
     <!-- KAI operator dashboard — embedded via iframe, served by kai.wheellsverse.com -->
     <div class="nav-item" onclick="nav('kai')" id="nav-kai" style="background:linear-gradient(90deg,rgba(79,140,255,.22),rgba(0,204,255,.08));border-left:2px solid #4f8cff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#4f8cff;font-weight:700">KAI</span><span style="margin-left:auto;font-size:8px;color:#4f8cff;background:rgba(79,140,255,.15);border-radius:10px;padding:1px 6px">NEW</span></div>
+    <!-- SUPREMA autorepair — workspace healing system (11 patterns, daily 06:00 cron) -->
+    <div class="nav-item" onclick="nav('suprema')" id="nav-suprema" style="background:linear-gradient(90deg,rgba(168,85,247,.22),rgba(139,92,246,.08));border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛡️</span><span style="color:#a855f7;font-weight:700">SUPREMA</span><span style="margin-left:auto;font-size:8px;color:#a855f7;background:rgba(168,85,247,.15);border-radius:10px;padding:1px 6px">NEW</span></div>
 
     <!-- Bot Control + Code Studio -->
     <div class="nav-sec" style="color:rgba(0,204,255,.6);font-size:8px;letter-spacing:2.5px">CONTROL</div>
@@ -1318,6 +1320,127 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
           title="KAI operator dashboard"
           style="width:100%;height:100%;border:0;background:#0d0f14;display:block"
           allow="clipboard-read; clipboard-write; microphone"></iframe>
+</div>
+
+<!-- ══ SUPREMA AUTOREPAIR ════════════════════════════════════════════════ -->
+<div class="page" id="page-suprema" style="padding:24px;height:100vh;overflow:auto;background:#0d0f14">
+  <div style="background:linear-gradient(135deg,rgba(168,85,247,.12),rgba(139,92,246,.04));border:1px solid rgba(168,85,247,.3);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <div style="font-size:32px">🛡️</div>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:700;color:#a855f7">SUPREMA Autorepair</div>
+        <div style="font-size:11px;color:var(--text2)">Workspace-wide auto-healing · 6 projects · 11 patterns · daily 06:00 cron</div>
+      </div>
+      <button onclick="suprRescan(this)" style="padding:8px 16px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);border-radius:8px;color:#a855f7;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🔄 Scan now</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Last run</div><div style="font-size:14px;font-weight:700;color:var(--text)" id="supr-last">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Open findings</div><div style="font-size:14px;font-weight:700;color:var(--text)" id="supr-count">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Auto-fixed</div><div style="font-size:14px;font-weight:700;color:#44ff88" id="supr-fixed">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Patterns</div><div style="font-size:14px;font-weight:700;color:#a855f7" id="supr-patterns">11</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">📊 Findings by pattern</div>
+      <div id="supr-by-pattern" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">📁 Findings by project</div>
+      <div id="supr-by-project" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+
+  <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">🔍 Latest scan — findings</div>
+    <div id="supr-findings" style="max-height:50vh;overflow:auto"></div>
+  </div>
+
+  <div style="margin-top:20px;padding:12px;background:rgba(168,85,247,.05);border-left:3px solid rgba(168,85,247,.4);border-radius:0 8px 8px 0;font-size:10px;color:var(--text2);line-height:1.6">
+    <strong style="color:#a855f7">How this works:</strong> A launchd cron runs <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">suprema-autorepair fix --commit --notify</code> daily at 06:00 local on the Mac mini. Auto-safe patterns get fixed in atomic <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">chore(autorepair):</code> commits; review-tier findings get reported to Telegram. Pre-commit hooks installed in all 6 SUPREMA project repos prevent the same bug class from re-entering manually.
+  </div>
+
+  <script>
+    (function() {
+      let _suprLoaded = false;
+      window.suprLoad = async function() {
+        try {
+          const r = await fetch('/api/suprema/status').then(x => x.json());
+          const last = r.started_at ? new Date(r.started_at).toLocaleString() : '(no scan yet)';
+          document.getElementById('supr-last').textContent = last;
+          document.getElementById('supr-count').textContent = r.findings_count ?? 0;
+          document.getElementById('supr-fixed').textContent = (r.fixes_succeeded ?? 0) + '/' + (r.fixes_attempted ?? 0);
+          document.getElementById('supr-patterns').textContent = r.patterns_total ?? 11;
+          const findings = r.findings || [];
+          const byPattern = {}, byProject = {};
+          for (const f of findings) {
+            byPattern[f.pattern] = (byPattern[f.pattern] || 0) + 1;
+            byProject[f.project] = (byProject[f.project] || 0) + 1;
+          }
+          const sortDesc = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
+          const renderBar = ([k, v], max) => {
+            const pct = max ? Math.round((v / max) * 100) : 0;
+            return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(168,85,247,.06);border-radius:6px;font-size:11px">' +
+              '<span style="flex:1;color:var(--text)">' + k + '</span>' +
+              '<div style="width:60px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#a855f7"></div></div>' +
+              '<span style="min-width:24px;text-align:right;font-weight:700;color:#a855f7">' + v + '</span>' +
+              '</div>';
+          };
+          const pp = sortDesc(byPattern), proj = sortDesc(byProject);
+          const maxP = pp[0]?.[1] || 1, maxJ = proj[0]?.[1] || 1;
+          document.getElementById('supr-by-pattern').innerHTML = pp.length ? pp.map(e => renderBar(e, maxP)).join('') :
+            '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ No findings — workspace clean</div>';
+          document.getElementById('supr-by-project').innerHTML = proj.length ? proj.map(e => renderBar(e, maxJ)).join('') :
+            '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ All 6 projects clean</div>';
+          const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
+          document.getElementById('supr-findings').innerHTML = findings.length ? findings.slice(0, 50).map(f => {
+            const sev = { high: '🔴', medium: '🟡', low: '🔵' }[f.severity] || '⚪';
+            const ev = esc((f.evidence || '').slice(0, 160));
+            return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px">' +
+              '<div style="display:flex;align-items:center;gap:8px">' +
+              '<span>' + sev + '</span>' +
+              '<span style="color:#a855f7;font-weight:600">[' + esc(f.pattern) + ']</span>' +
+              '<span style="color:var(--text2);font-size:10px">' + esc(f.project) + '</span>' +
+              '<span style="margin-left:auto;color:var(--text3);font-family:monospace;font-size:10px">' + esc(f.location) + '</span>' +
+              '</div>' +
+              (ev ? '<div style="margin-left:24px;margin-top:4px;color:var(--text3);font-size:10px;font-family:monospace">↳ ' + ev + '</div>' : '') +
+              '</div>';
+          }).join('') + (findings.length > 50 ? '<div style="padding:10px;text-align:center;color:var(--text3);font-size:10px">+' + (findings.length - 50) + ' more (see logs)</div>' : '') :
+            '<div style="padding:30px;text-align:center;color:#44ff88;font-size:12px">✓ No open findings — workspace clean</div>';
+          _suprLoaded = true;
+        } catch (e) {
+          document.getElementById('supr-findings').innerHTML =
+            '<div style="padding:20px;color:#ff6060;font-size:11px">Error loading SUPREMA state: ' + (e.message || e) + '<br><span style="color:var(--text3)">State files are populated by the daily 06:00 cron on the Mac mini. If you have never run a scan, this is expected.</span></div>';
+        }
+      };
+      window.suprRescan = async function(btn) {
+        const orig = btn.textContent;
+        btn.textContent = '⏳ Scanning…'; btn.disabled = true;
+        try {
+          const r = await fetch('/api/suprema/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+          const data = await r.json();
+          if (data.status === 'ok') {
+            if (typeof toast === 'function') toast('✓ Scan complete', 'success');
+            await suprLoad();
+          } else {
+            if (typeof toast === 'function') toast('Scan: ' + (data.error || data.stderr || 'failed'), 'error');
+          }
+        } catch (e) {
+          if (typeof toast === 'function') toast('Scan failed: ' + e.message, 'error');
+        }
+        btn.textContent = orig; btn.disabled = false;
+      };
+      const _origNav = window.nav;
+      if (_origNav) {
+        window.nav = function(p) {
+          const r = _origNav.apply(this, arguments);
+          if (p === 'suprema' && !_suprLoaded) suprLoad();
+          return r;
+        };
+      }
+    })();
+  </script>
 </div>
 
 <!-- ══ OVERVIEW ══════════════════════════════════════════════════════════ -->
@@ -6491,7 +6614,7 @@ curl -X POST /v1/bots/run \
 const API=window.location.origin;
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
+const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',suprema:'🛡️ SUPREMA — Workspace Autorepair · 11 patterns · daily cron',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
