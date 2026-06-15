@@ -91,7 +91,11 @@ def _is_inside_safe_wrapper(call_node: ast.Call, ancestors: list[ast.AST]) -> bo
 def _scan_async_def(fn: ast.AsyncFunctionDef, src_path: str) -> list[dict]:
     findings: list[dict] = []
 
-    # Walk with a parent stack so we can detect "inside safe wrapper" calls
+    # Walk with a parent stack so we can detect "inside safe wrapper" calls.
+    # CRITICAL: do NOT descend into nested FunctionDef / AsyncFunctionDef /
+    # Lambda bodies — a blocking call inside a nested sync function is fine
+    # because the operator presumably calls it via asyncio.to_thread(). False
+    # positives in that case obscure real bugs.
     stack: list[ast.AST] = []
 
     class Walker(ast.NodeVisitor):
@@ -101,6 +105,14 @@ def _scan_async_def(fn: ast.AsyncFunctionDef, src_path: str) -> list[dict]:
                 super().generic_visit(node)
             finally:
                 stack.pop()
+
+        # Stop descent at nested function / lambda boundaries
+        def visit_FunctionDef(self, node):  # nested sync def
+            return
+        def visit_AsyncFunctionDef(self, node):  # nested async def (rare)
+            return
+        def visit_Lambda(self, node):
+            return
 
         def visit_Call(self, node: ast.Call):
             chain = _attr_chain(node.func)
@@ -123,7 +135,11 @@ def _scan_async_def(fn: ast.AsyncFunctionDef, src_path: str) -> list[dict]:
                     break
             self.generic_visit(node)
 
-    Walker().visit(fn)
+    # Walk only the body (not decorators or args), and only the top-level
+    # function body — nested defs are visited by the outer ast.walk() loop
+    # in scan() so they'd be checked independently if they ARE async.
+    for stmt in fn.body:
+        Walker().visit(stmt)
     return findings
 
 
