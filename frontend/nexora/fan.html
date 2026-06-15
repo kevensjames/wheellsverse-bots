@@ -166,7 +166,7 @@ nav{background:rgba(6,8,16,0.95);border-bottom:1px solid var(--border);padding:0
 <script>
 const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
   ? 'http://localhost:5050'
-  : 'https://grateful-flexibility-production.up.railway.app';
+  : '';  // same-origin in prod (app.wheellsverse.com)
 
 let FAN_TOKEN = localStorage.getItem('nx_fan_token') || '';
 let FAN_EMAIL = '';
