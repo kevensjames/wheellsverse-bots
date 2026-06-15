@@ -35,6 +35,30 @@ def _candidate_files(project: Path) -> list[Path]:
     return out
 
 
+_DEV_CONDITIONAL_MARKERS = (
+    "hostname === 'localhost'",
+    'hostname === "localhost"',
+    "hostname === '127.0.0.1'",
+    'hostname === "127.0.0.1"',
+    "process.env.NODE_ENV",
+    "NODE_ENV !== 'production'",
+    'NODE_ENV !== "production"',
+    "if (dev)",
+    "if (DEV)",
+    "// dev only",
+    "// DEV ONLY",
+    "/* dev */",
+)
+
+
+def _is_dev_gated(lines: list[str], line_idx: int, window: int = 4) -> bool:
+    """Look at the preceding `window` lines for a dev-mode conditional
+    that would short-circuit this localhost reference in production."""
+    lo = max(0, line_idx - window)
+    ctx = "\n".join(lines[lo:line_idx + 1])
+    return any(marker in ctx for marker in _DEV_CONDITIONAL_MARKERS)
+
+
 def scan(project: Path, live_url: str | None = None) -> list[dict]:
     findings: list[dict] = []
     for f in _candidate_files(project):
@@ -42,12 +66,16 @@ def scan(project: Path, live_url: str | None = None) -> list[dict]:
             content = f.read_text(encoding="utf-8", errors="replace")
         except Exception:
             continue
+        lines = content.splitlines()
         for m in LOCALHOST_RE.finditer(content):
             line = content[:m.start()].count("\n") + 1
-            # Skip if the surrounding context says "dev only" or is inside a
-            # comment marker the regex won't naturally consume.
-            line_text = content.splitlines()[line - 1] if line - 1 < len(content.splitlines()) else ""
+            # Same-line dev marker (legacy check)
+            line_text = lines[line - 1] if line - 1 < len(lines) else ""
             if "dev only" in line_text.lower() or "// dev" in line_text.lower():
+                continue
+            # Window check: was this reference made unreachable in prod by
+            # a `hostname === 'localhost'` ternary or NODE_ENV guard above?
+            if _is_dev_gated(lines, line - 1):
                 continue
             findings.append({
                 "severity": "medium",

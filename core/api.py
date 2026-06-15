@@ -2466,7 +2466,15 @@ _SUPREMA_STATE_CANDIDATES = (
     # prod panel; only exists in containers and is wiped on each deploy.
     ROOT / "suprema" / "autorepair" / "state" / "last-run.json",
 )
-_SUPREMA_PATTERNS_COUNT = 12  # bumped when catalog grows
+def _suprema_patterns_count() -> int:
+    """Read live from the autorepair catalog so we never have to bump
+    a constant when adding a new pattern. Falls back to 14 if the
+    package isn't importable."""
+    try:
+        from suprema.autorepair.engine import CATALOG
+        return len(CATALOG)
+    except Exception:
+        return 14
 
 
 def _suprema_state_file() -> Path | None:
@@ -2490,20 +2498,20 @@ async def suprema_status():
             "findings": [],
             "fixes_attempted": 0,
             "fixes_succeeded": 0,
-            "patterns_total": _SUPREMA_PATTERNS_COUNT,
+            "patterns_total": _suprema_patterns_count(),
             "message": ("No scan state yet. The Mac mini's daily cron "
                         "(06:00 local) writes here on each run."),
         }
     try:
         data = json.loads(state_file.read_text(encoding="utf-8"))
-        data["patterns_total"] = _SUPREMA_PATTERNS_COUNT
+        data["patterns_total"] = _suprema_patterns_count()
         # Cap findings to keep the API response under ~200KB
         if len(data.get("findings", [])) > 200:
             data["findings"] = data["findings"][:200]
             data["truncated"] = True
         return data
     except Exception as e:
-        return {"error": str(e), "patterns_total": _SUPREMA_PATTERNS_COUNT,
+        return {"error": str(e), "patterns_total": _suprema_patterns_count(),
                 "findings_count": 0, "findings": []}
 
 

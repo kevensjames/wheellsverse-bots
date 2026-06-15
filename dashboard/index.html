@@ -1329,7 +1329,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
       <div style="font-size:32px">🛡️</div>
       <div style="flex:1">
         <div style="font-size:18px;font-weight:700;color:#a855f7">SUPREMA Autorepair</div>
-        <div style="font-size:11px;color:var(--text2)">Workspace-wide auto-healing · 6 projects · 12 patterns · daily 06:00 cron</div>
+        <div style="font-size:11px;color:var(--text2)">Workspace-wide auto-healing · 6 projects · <span id="supr-patterns-inline">14</span> patterns · daily 06:00 cron</div>
       </div>
       <button onclick="suprRescan(this)" style="padding:8px 16px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);border-radius:8px;color:#a855f7;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🔄 Scan now</button>
     </div>
@@ -1483,7 +1483,10 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
           document.getElementById('supr-last').textContent = last;
           document.getElementById('supr-count').textContent = r.findings_count ?? 0;
           document.getElementById('supr-fixed').textContent = (r.fixes_succeeded ?? 0) + '/' + (r.fixes_attempted ?? 0);
-          document.getElementById('supr-patterns').textContent = r.patterns_total ?? 12;
+          const patternsTotal = r.patterns_total ?? 14;
+          document.getElementById('supr-patterns').textContent = patternsTotal;
+          const inlineEl = document.getElementById('supr-patterns-inline');
+          if (inlineEl) inlineEl.textContent = patternsTotal;
 
           _suprState.findings = r.findings || [];
 
