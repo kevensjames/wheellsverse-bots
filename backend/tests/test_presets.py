@@ -21,12 +21,13 @@ def test_list_presets_ships_expected_set():
     rows = list_presets()
     ids = {p.id for p in rows}
     # original 5 + 4 professional-domain research agents + self-improvement scout
+    # + CRM/Sales
     assert ids == {
         "swe", "marketing", "finance", "research", "legal_research",
         "medical_research", "dental_research", "engineering", "accounting",
-        "self_improvement",
+        "self_improvement", "crm",
     }
-    assert len(rows) == 10
+    assert len(rows) == 11
 
 
 def test_domain_agents_are_research_not_advice_and_grounded():
@@ -253,12 +254,12 @@ def test_admin_presets_list_returns_all(client, _scope_on, _isolated_audit):
     assert r.status_code == 200
     body = r.json()
     assert "presets" in body
-    assert len(body["presets"]) == 10
+    assert len(body["presets"]) == 11
     ids = {p["id"] for p in body["presets"]}
     assert ids == {
         "swe", "marketing", "finance", "research", "legal_research",
         "medical_research", "dental_research", "engineering", "accounting",
-        "self_improvement",
+        "self_improvement", "crm",
     }
 
 
