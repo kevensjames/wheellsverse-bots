@@ -136,10 +136,25 @@ passlib[bcrypt]>=1.7.4
 PyJWT>=2.8.0
 
 # ── NarAI v2 chat/memory/rag pipeline (Steps 1–7) ────────────────────────────
-# chromadb backs the episode store and RAG; litellm is the LLM router;
-# sqlalchemy[asyncio]+aiosqlite back the facts/patterns SQL store.
+# chromadb backs the episode store and RAG; sqlalchemy[asyncio]+aiosqlite back
+# the facts/patterns SQL store.
+#
+# NOTE: litellm has been REMOVED from this requirements file. The 2026-06-12
+# decoupling decision in session memory ("openai 2.x migration → decoupled
+# litellm; daemon stays openai 1.109; DON'T redo the 2.x bump") was reverted
+# accidentally by the security bump commit ea848b7. As of litellm 1.83.x the
+# package requires openai>=2.8.0 and httpx==0.28.1, which is mutually
+# exclusive with `openai>=1.30.0,<2.0.0` pinned at line 7. The result was a
+# pip ResolutionImpossible that blocked the build entirely.
+#
+# Impact: infra/brain/router.py:7 (`import litellm`) will raise ImportError
+# at runtime. BrainClient consumers — currently /api/public/chat and a few
+# internal narai paths — will fail with 500 until one of these lands:
+#   (a) openai is bumped to 2.x (real refactor, breaking changes),
+#   (b) litellm is re-vendored into infra/brain with its own constrained env,
+#   (c) a litellm version compatible with openai 1.x is found and pinned.
+# TODO(post-phase-a): pick one of (a)/(b)/(c) and re-introduce the dep.
 chromadb>=0.5.0
-litellm>=1.83.0   # GHSA-jjhc-v7c2-5hh6 (Critical) + 3 High advisories survive through 1.80; bumping floor
 sqlalchemy[asyncio]>=2.0.0
 aiosqlite>=0.20.0
 
