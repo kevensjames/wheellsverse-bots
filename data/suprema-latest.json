@@ -1,6 +1,6 @@
 {
-  "started_at": "2026-06-15T08:56:18Z",
-  "elapsed_s": 1.74,
+  "started_at": "2026-06-15T09:03:36Z",
+  "elapsed_s": 1.86,
   "findings_count": 40,
   "findings": [
     {
@@ -454,6 +454,6 @@
   "llm_triage": null,
   "_sync": {
     "source": "/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json",
-    "synced_at": "2026-06-15T08:56:18Z"
+    "synced_at": "2026-06-15T09:03:36Z"
   }
 }
