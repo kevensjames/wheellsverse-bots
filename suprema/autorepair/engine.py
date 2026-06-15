@@ -122,6 +122,12 @@ CATALOG: dict[str, dict[str, Any]] = {
         "safety":  "auto-safe",
         "title":   "Runtime state / logs / secrets committed to git",
     },
+    "sync_io_in_async_handler": {
+        "scanner": "scanners.sync_io_in_async_handler",
+        "fixer":   None,           # rewrites are too context-sensitive for auto-fix
+        "safety":  "review",
+        "title":   "Synchronous blocking I/O inside an async function — blocks the event loop",
+    },
 }
 
 
@@ -417,6 +423,20 @@ def run_cycle(do_fix: bool = True, dry_run: bool = False,
     log.info(f"cycle done in {summary['elapsed_s']}s — "
              f"{summary['findings_count']} findings, "
              f"{summary['fixes_succeeded']}/{summary['fixes_attempted']} auto-fixed")
+
+    # Sync state to wheellsverse-bots so the prod /admin SUPREMA panel can
+    # display this data. Non-fatal: if push fails, state still lives locally.
+    if os.getenv("SUPREMA_SKIP_STATE_SYNC", "").strip() not in ("1", "true"):
+        try:
+            from suprema.autorepair import state_sync
+            sync_result = state_sync.sync_to_wheellsverse_bots(LAST_RUN)
+            if sync_result.get("ok"):
+                log.info(f"state-sync: {sync_result.get('message') or 'pushed'}")
+            else:
+                log.warning(f"state-sync failed: {sync_result.get('reason')}")
+        except Exception as e:
+            log.warning(f"state-sync crashed: {e}")
+
     return summary
 
 

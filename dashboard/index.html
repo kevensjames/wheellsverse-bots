@@ -1353,7 +1353,13 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   </div>
 
   <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
-    <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">🔍 Latest scan — findings</div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:700;color:var(--text)">🔍 Findings</div>
+      <select id="supr-filter-project" onchange="suprApplyFilters()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:4px 8px;font-family:inherit"><option value="">All projects</option></select>
+      <select id="supr-filter-pattern" onchange="suprApplyFilters()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:4px 8px;font-family:inherit"><option value="">All patterns</option></select>
+      <select id="supr-filter-severity" onchange="suprApplyFilters()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:4px 8px;font-family:inherit"><option value="">All severities</option><option value="high">🔴 High only</option><option value="medium">🟡 Medium only</option><option value="low">🔵 Low only</option></select>
+      <span id="supr-filter-count" style="margin-left:auto;font-size:10px;color:var(--text3)">—</span>
+    </div>
     <div id="supr-findings" style="max-height:50vh;overflow:auto"></div>
   </div>
 
@@ -1364,6 +1370,106 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   <script>
     (function() {
       let _suprLoaded = false;
+      // Cache of last-loaded state — used by filter handlers + Fix button
+      let _suprState = { findings: [], catalog: {} };
+      // Patterns currently considered auto-safe (for Fix button visibility)
+      const AUTO_SAFE_PATTERNS = new Set([
+        'missing_pwa_manifest', 'missing_service_worker', 'missing_favicon',
+        'malformed_api_helper_call', 'committed_runtime_state',
+      ]);
+
+      const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;');
+
+      function renderBar([k, v], max, onclick) {
+        const pct = max ? Math.round((v / max) * 100) : 0;
+        const handler = onclick ? ' onclick="' + onclick + '"' : '';
+        const cursor = onclick ? 'cursor:pointer;' : '';
+        return '<div' + handler + ' style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(168,85,247,.06);border-radius:6px;font-size:11px;' + cursor + 'transition:background .15s" onmouseover="this.style.background=\'rgba(168,85,247,.12)\'" onmouseout="this.style.background=\'rgba(168,85,247,.06)\'">' +
+          '<span style="flex:1;color:var(--text)">' + esc(k) + '</span>' +
+          '<div style="width:60px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#a855f7"></div></div>' +
+          '<span style="min-width:24px;text-align:right;font-weight:700;color:#a855f7">' + v + '</span>' +
+          '</div>';
+      }
+
+      function renderFinding(f, idx) {
+        const sev = { high: '🔴', medium: '🟡', low: '🔵' }[f.severity] || '⚪';
+        const ev = esc((f.evidence || '').slice(0, 200));
+        const canFix = AUTO_SAFE_PATTERNS.has(f.pattern);
+        const fixBtn = canFix
+          ? '<button onclick="suprFixOne(' + idx + ', this)" style="margin-left:8px;padding:3px 10px;background:rgba(68,255,136,.12);border:1px solid rgba(68,255,136,.3);border-radius:6px;color:#44ff88;font-family:inherit;font-size:9px;font-weight:700;cursor:pointer">Fix</button>'
+          : '';
+        return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px" data-pattern="' + esc(f.pattern) + '" data-project="' + esc(f.project) + '" data-severity="' + esc(f.severity) + '">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span>' + sev + '</span>' +
+          '<span style="color:#a855f7;font-weight:600;cursor:pointer" onclick="suprFilterByPattern(\'' + esc(f.pattern) + '\')">[' + esc(f.pattern) + ']</span>' +
+          '<span style="color:var(--text2);font-size:10px;cursor:pointer" onclick="suprFilterByProject(\'' + esc(f.project) + '\')">' + esc(f.project) + '</span>' +
+          '<span style="margin-left:auto;color:var(--text3);font-family:monospace;font-size:10px">' + esc(f.location) + '</span>' +
+          fixBtn +
+          '</div>' +
+          (ev ? '<div style="margin-left:24px;margin-top:4px;color:var(--text3);font-size:10px;font-family:monospace">↳ ' + ev + '</div>' : '') +
+          '</div>';
+      }
+
+      function applyFiltersToRender() {
+        const proj = document.getElementById('supr-filter-project').value;
+        const pat = document.getElementById('supr-filter-pattern').value;
+        const sev = document.getElementById('supr-filter-severity').value;
+        const visible = _suprState.findings
+          .map((f, i) => ({ f, i }))
+          .filter(({ f }) =>
+            (!proj || f.project === proj) &&
+            (!pat || f.pattern === pat) &&
+            (!sev || f.severity === sev)
+          );
+        document.getElementById('supr-filter-count').textContent =
+          visible.length + ' of ' + _suprState.findings.length + ' shown';
+        const slice = visible.slice(0, 80);
+        document.getElementById('supr-findings').innerHTML = slice.length
+          ? slice.map(({ f, i }) => renderFinding(f, i)).join('') +
+            (visible.length > 80 ? '<div style="padding:10px;text-align:center;color:var(--text3);font-size:10px">+' + (visible.length - 80) + ' more — narrow your filter</div>' : '')
+          : '<div style="padding:30px;text-align:center;color:#44ff88;font-size:12px">✓ No findings match this filter</div>';
+      }
+
+      window.suprApplyFilters = applyFiltersToRender;
+      window.suprFilterByProject = (proj) => {
+        document.getElementById('supr-filter-project').value = proj;
+        applyFiltersToRender();
+        document.getElementById('supr-findings').scrollIntoView({ behavior: 'smooth' });
+      };
+      window.suprFilterByPattern = (pat) => {
+        document.getElementById('supr-filter-pattern').value = pat;
+        applyFiltersToRender();
+        document.getElementById('supr-findings').scrollIntoView({ behavior: 'smooth' });
+      };
+
+      window.suprFixOne = async function(idx, btn) {
+        const f = _suprState.findings[idx];
+        if (!f) return;
+        const orig = btn.textContent;
+        btn.textContent = '⏳…'; btn.disabled = true;
+        try {
+          const headers = (typeof authH === 'function')
+            ? Object.assign(authH(), { 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          const r = await fetch('/api/suprema/fix', {
+            method: 'POST', headers,
+            body: JSON.stringify({ pattern: f.pattern, project: f.project, location: f.location })
+          });
+          const data = await r.json();
+          if (data.status === 'ok' || data.success) {
+            if (typeof toast === 'function') toast('✓ Fixed: ' + f.pattern, 'success');
+            btn.textContent = '✓ Done';
+            btn.style.background = 'rgba(68,255,136,.25)';
+          } else {
+            if (typeof toast === 'function') toast('Fix: ' + (data.message || data.error || 'failed'), 'error');
+            btn.textContent = orig; btn.disabled = false;
+          }
+        } catch (e) {
+          if (typeof toast === 'function') toast('Fix failed: ' + e.message, 'error');
+          btn.textContent = orig; btn.disabled = false;
+        }
+      };
+
       window.suprLoad = async function() {
         try {
           const headers = (typeof authH === 'function') ? authH() : {};
@@ -1372,47 +1478,42 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
           document.getElementById('supr-last').textContent = last;
           document.getElementById('supr-count').textContent = r.findings_count ?? 0;
           document.getElementById('supr-fixed').textContent = (r.fixes_succeeded ?? 0) + '/' + (r.fixes_attempted ?? 0);
-          document.getElementById('supr-patterns').textContent = r.patterns_total ?? 11;
-          const findings = r.findings || [];
+          document.getElementById('supr-patterns').textContent = r.patterns_total ?? 12;
+
+          _suprState.findings = r.findings || [];
+
           const byPattern = {}, byProject = {};
-          for (const f of findings) {
+          for (const f of _suprState.findings) {
             byPattern[f.pattern] = (byPattern[f.pattern] || 0) + 1;
             byProject[f.project] = (byProject[f.project] || 0) + 1;
           }
           const sortDesc = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
-          const renderBar = ([k, v], max) => {
-            const pct = max ? Math.round((v / max) * 100) : 0;
-            return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(168,85,247,.06);border-radius:6px;font-size:11px">' +
-              '<span style="flex:1;color:var(--text)">' + k + '</span>' +
-              '<div style="width:60px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#a855f7"></div></div>' +
-              '<span style="min-width:24px;text-align:right;font-weight:700;color:#a855f7">' + v + '</span>' +
-              '</div>';
-          };
           const pp = sortDesc(byPattern), proj = sortDesc(byProject);
+
+          // Populate filter dropdowns
+          const sel = (id, items, defaultLabel) => {
+            const el = document.getElementById(id);
+            const cur = el.value;
+            el.innerHTML = '<option value="">' + defaultLabel + '</option>' +
+              items.map(k => '<option value="' + esc(k) + '">' + esc(k) + '</option>').join('');
+            if (items.includes(cur)) el.value = cur;
+          };
+          sel('supr-filter-project', proj.map(([k]) => k), 'All projects (' + Object.keys(byProject).length + ')');
+          sel('supr-filter-pattern', pp.map(([k]) => k), 'All patterns (' + Object.keys(byPattern).length + ')');
+
           const maxP = pp[0]?.[1] || 1, maxJ = proj[0]?.[1] || 1;
-          document.getElementById('supr-by-pattern').innerHTML = pp.length ? pp.map(e => renderBar(e, maxP)).join('') :
-            '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ No findings — workspace clean</div>';
-          document.getElementById('supr-by-project').innerHTML = proj.length ? proj.map(e => renderBar(e, maxJ)).join('') :
-            '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ All 6 projects clean</div>';
-          const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-          document.getElementById('supr-findings').innerHTML = findings.length ? findings.slice(0, 50).map(f => {
-            const sev = { high: '🔴', medium: '🟡', low: '🔵' }[f.severity] || '⚪';
-            const ev = esc((f.evidence || '').slice(0, 160));
-            return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px">' +
-              '<div style="display:flex;align-items:center;gap:8px">' +
-              '<span>' + sev + '</span>' +
-              '<span style="color:#a855f7;font-weight:600">[' + esc(f.pattern) + ']</span>' +
-              '<span style="color:var(--text2);font-size:10px">' + esc(f.project) + '</span>' +
-              '<span style="margin-left:auto;color:var(--text3);font-family:monospace;font-size:10px">' + esc(f.location) + '</span>' +
-              '</div>' +
-              (ev ? '<div style="margin-left:24px;margin-top:4px;color:var(--text3);font-size:10px;font-family:monospace">↳ ' + ev + '</div>' : '') +
-              '</div>';
-          }).join('') + (findings.length > 50 ? '<div style="padding:10px;text-align:center;color:var(--text3);font-size:10px">+' + (findings.length - 50) + ' more (see logs)</div>' : '') :
-            '<div style="padding:30px;text-align:center;color:#44ff88;font-size:12px">✓ No open findings — workspace clean</div>';
+          document.getElementById('supr-by-pattern').innerHTML = pp.length
+            ? pp.map(e => renderBar(e, maxP, 'suprFilterByPattern(\'' + esc(e[0]) + '\')')).join('')
+            : '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ No findings — workspace clean</div>';
+          document.getElementById('supr-by-project').innerHTML = proj.length
+            ? proj.map(e => renderBar(e, maxJ, 'suprFilterByProject(\'' + esc(e[0]) + '\')')).join('')
+            : '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ All 6 projects clean</div>';
+
+          applyFiltersToRender();
           _suprLoaded = true;
         } catch (e) {
           document.getElementById('supr-findings').innerHTML =
-            '<div style="padding:20px;color:#ff6060;font-size:11px">Error loading SUPREMA state: ' + (e.message || e) + '<br><span style="color:var(--text3)">State files are populated by the daily 06:00 cron on the Mac mini. If you have never run a scan, this is expected.</span></div>';
+            '<div style="padding:20px;color:#ff6060;font-size:11px">Error loading SUPREMA state: ' + (e.message || e) + '<br><span style="color:var(--text3)">State is populated by the daily 06:00 cron on the Mac mini, then synced to this repo as data/suprema-latest.json. Click "Scan now" to populate immediately.</span></div>';
         }
       };
       window.suprRescan = async function(btn) {

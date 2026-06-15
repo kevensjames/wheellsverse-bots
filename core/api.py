@@ -2449,10 +2449,17 @@ async def auth_login(req: LoginRequest):
 # package isn't importable in this container (e.g. partial deploy).
 
 _SUPREMA_STATE_CANDIDATES = (
+    # Synced state file — written by state_sync after each cron cycle,
+    # committed to the repo, deployed to prod. This is the canonical source
+    # for the panel in production.
+    ROOT / "data" / "suprema-latest.json",
+    # Canonical local state — used when running locally from the Mac mini.
     Path("/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json"),
+    # Vendored runtime state — written when someone clicks "Scan now" on the
+    # prod panel; only exists in containers and is wiped on each deploy.
     ROOT / "suprema" / "autorepair" / "state" / "last-run.json",
 )
-_SUPREMA_PATTERNS_COUNT = 11  # bumped when catalog grows
+_SUPREMA_PATTERNS_COUNT = 12  # bumped when catalog grows
 
 
 def _suprema_state_file() -> Path | None:
@@ -2534,6 +2541,129 @@ async def suprema_scan():
                 "stderr": (result.stderr or "")[-500:],
                 "stdout_tail": (result.stdout or "")[-200:]}
     return {"status": "ok", "elapsed": "scan complete — refresh status to view"}
+
+
+@app.post("/api/suprema/fix")
+async def suprema_fix(payload: dict):
+    """Apply a single auto-safe fix from the panel's per-finding 'Fix' button.
+
+    Body: {pattern: str, project: str, location: str}
+
+    Implementation: find a fresh scan, locate the matching finding by
+    (pattern, project, location), dispatch its fixer if the pattern is
+    auto-safe. Atomic — one finding, one fix, one commit (if successful).
+
+    Returns {status, message, commit_sha?, risk_notes?}.
+    """
+    import asyncio
+    import sys
+
+    pattern = (payload.get("pattern") or "").strip()
+    project = (payload.get("project") or "").strip()
+    location = (payload.get("location") or "").strip()
+    if not pattern or not project:
+        return {"status": "error", "message": "pattern and project required"}
+
+    # Locate suprema package — vendored first, then workspace canonical
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "message": "suprema package not found"}
+
+    # Run inline rather than subprocess — we need the engine for fixer dispatch
+    sys.path.insert(0, str(suprema_root))
+    try:
+        try:
+            from suprema.autorepair import engine as supr_engine
+            from suprema.autorepair import auto_commit as supr_commit
+        except ImportError as e:
+            return {"status": "error", "message": f"engine import failed: {e}"}
+
+        meta = supr_engine.CATALOG.get(pattern)
+        if not meta:
+            return {"status": "error", "message": f"unknown pattern: {pattern}"}
+        if meta["safety"] != "auto-safe":
+            return {"status": "error",
+                    "message": f"pattern safety={meta['safety']}; not auto-fixable"}
+        if not meta.get("fixer"):
+            return {"status": "error", "message": "pattern has no registered fixer"}
+
+        # Run only THIS pattern's scanner on the project to locate the finding
+        proj_path = supr_engine.project_path(project)
+        if not proj_path.is_dir():
+            return {"status": "error", "message": f"project not found: {project}"}
+
+        try:
+            scanner_mod = supr_engine._load(meta["scanner"])
+            results = await asyncio.wait_for(
+                asyncio.to_thread(scanner_mod.scan, proj_path,
+                                  supr_engine.LIVE_URLS.get(project)),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            return {"status": "error", "message": "scan timed out (>60s)"}
+        except Exception as e:
+            return {"status": "error", "message": f"scan crashed: {e}"}
+
+        # Match by location (most stable identifier)
+        match = next((r for r in results
+                     if (isinstance(r, dict) and r.get("location") == location)),
+                    None)
+        if not match:
+            return {"status": "error",
+                    "message": "finding not found at that location anymore "
+                               "— may have been fixed by another run"}
+
+        # Build a Finding and dispatch the fixer
+        finding = supr_engine.Finding(
+            pattern=pattern, project=project,
+            severity=match.get("severity", "medium"),
+            location=match.get("location", ""),
+            evidence=match.get("evidence", ""),
+            fix_payload=match.get("fix_payload", {}),
+        )
+        try:
+            fixer_mod = supr_engine._load(meta["fixer"])
+            res = await asyncio.wait_for(
+                asyncio.to_thread(fixer_mod.apply, proj_path, finding),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            return {"status": "error", "message": "fixer timed out (>60s)"}
+        except Exception as e:
+            return {"status": "error", "message": f"fixer crashed: {e}"}
+
+        if not isinstance(res, supr_engine.FixResult):
+            if isinstance(res, dict):
+                res = supr_engine.FixResult(**res)
+            else:
+                return {"status": "error",
+                        "message": f"fixer returned unexpected type {type(res).__name__}"}
+
+        if not res.success:
+            return {"status": "error", "message": res.message,
+                    "risk_notes": res.risk_notes}
+
+        # Commit atomically per-project
+        if res.changed_files:
+            cmt = supr_commit.commit_changes(
+                proj_path, res.changed_files, pattern,
+                f"- {pattern}: {res.message}\n  via /admin SUPREMA panel",
+            )
+            return {
+                "status": "ok",
+                "message": res.message,
+                "changed_files": res.changed_files,
+                "commit_sha": cmt.get("commit_sha"),
+                "commit_message": cmt.get("message"),
+                "risk_notes": res.risk_notes,
+            }
+        return {"status": "ok", "message": res.message,
+                "risk_notes": res.risk_notes}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
 
 
 @app.get("/api/health")
