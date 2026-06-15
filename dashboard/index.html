@@ -1403,6 +1403,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         const fixBtn = canFix
           ? '<button onclick="suprFixOne(' + idx + ', this)" style="margin-left:8px;padding:3px 10px;background:rgba(68,255,136,.12);border:1px solid rgba(68,255,136,.3);border-radius:6px;color:#44ff88;font-family:inherit;font-size:9px;font-weight:700;cursor:pointer">Fix</button>'
           : '';
+        const suppressBtn = '<button onclick="suprSuppressOne(' + idx + ', this)" title="Won\'t fix — hide this finding" style="margin-left:4px;padding:3px 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text3);font-family:inherit;font-size:9px;cursor:pointer">✕ Hide</button>';
         return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px" data-pattern="' + esc(f.pattern) + '" data-project="' + esc(f.project) + '" data-severity="' + esc(f.severity) + '">' +
           '<div style="display:flex;align-items:center;gap:8px">' +
           '<span>' + sev + '</span>' +
@@ -1410,6 +1411,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
           '<span style="color:var(--text2);font-size:10px;cursor:pointer" onclick="suprFilterByProject(\'' + esc(f.project) + '\')">' + esc(f.project) + '</span>' +
           '<span style="margin-left:auto;color:var(--text3);font-family:monospace;font-size:10px">' + esc(f.location) + '</span>' +
           fixBtn +
+          suppressBtn +
           '</div>' +
           (ev ? '<div style="margin-left:24px;margin-top:4px;color:var(--text3);font-size:10px;font-family:monospace">↳ ' + ev + '</div>' : '') +
           '</div>';
@@ -1445,6 +1447,41 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         document.getElementById('supr-filter-pattern').value = pat;
         applyFiltersToRender();
         document.getElementById('supr-findings').scrollIntoView({ behavior: 'smooth' });
+      };
+
+      window.suprSuppressOne = async function(idx, btn) {
+        const f = _suprState.findings[idx];
+        if (!f) return;
+        const reason = prompt('Why are you suppressing this finding?\n\n' +
+                              f.pattern + '  ' + f.location +
+                              '\n\n(Hit Cancel to abort)', '');
+        if (reason === null) return;
+        const row = btn.closest('div[data-pattern]');
+        const orig = btn.textContent;
+        btn.textContent = '⏳…'; btn.disabled = true;
+        try {
+          const headers = (typeof authH === 'function')
+            ? Object.assign(authH(), { 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          const r = await fetch('/api/suprema/suppress', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              pattern: f.pattern, project: f.project,
+              location: f.location, reason: reason,
+            })
+          });
+          const data = await r.json();
+          if (data.status === 'ok' || data.status === 'already_suppressed') {
+            if (typeof toast === 'function') toast('✓ Suppressed', 'success');
+            if (row) row.style.display = 'none';
+          } else {
+            if (typeof toast === 'function') toast('Suppress: ' + (data.message || 'failed'), 'error');
+            btn.textContent = orig; btn.disabled = false;
+          }
+        } catch (e) {
+          if (typeof toast === 'function') toast('Suppress failed: ' + e.message, 'error');
+          btn.textContent = orig; btn.disabled = false;
+        }
       };
 
       window.suprFixOne = async function(idx, btn) {

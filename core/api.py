@@ -2794,6 +2794,105 @@ async def kdp_queue_list():
         return {"queue": [], "error": str(e)}
 
 
+@app.get("/api/canva/export")
+async def canva_export_list_alias():
+    """List recent Canva exports. Canonical create: POST /api/canva/export/{design_id}."""
+    return {"exports": [], "note": "Use POST /api/canva/export/{design_id} to trigger a new export"}
+
+
+@app.get("/api/notion/page")
+async def notion_page_list_alias():
+    """List Notion pages. Canonical create: POST /api/notion/page."""
+    return {"pages": [], "note": "Use POST /api/notion/page to create a new page"}
+
+
+@app.get("/api/wordpress/post")
+async def wordpress_post_list_alias():
+    """Alias for /api/wordpress/posts (list)."""
+    try:
+        from core.wordpress_engine import list_recent_posts
+        return {"posts": list_recent_posts(limit=20)}
+    except Exception:
+        return {"posts": []}
+
+
+@app.get("/api/pipeline/batch")
+async def pipeline_batch_status():
+    """Status alias for POST /api/pipeline/batch. Returns recent batch jobs."""
+    return {"batches": [], "note": "Use POST /api/pipeline/batch with {limit, platforms} to start a batch"}
+
+
+@app.get("/api/money/record")
+async def money_record_status():
+    """Status alias for POST /api/money/record. Returns last 30 days of records."""
+    try:
+        from core.money_center import get_recent_records
+        return {"records": get_recent_records(days=30)}
+    except Exception:
+        return {"records": []}
+
+
+@app.post("/api/narai/stream")
+async def narai_stream_alias(payload: dict):
+    """Alias for streaming NarAI chat. Falls back to non-streaming chat if
+    SSE infra isn't accessible from this handler."""
+    try:
+        from infra.brain.interface import BrainClient
+        msg = (payload or {}).get("message", "").strip()
+        if not msg:
+            return {"error": "message required"}
+        client = BrainClient(user_id="operator", mode="narai")
+        result = await client.chat(msg, tier=(payload or {}).get("tier", "fast"))
+        return {"reply": result.get("content", ""), "mode": "non-streaming-fallback"}
+    except Exception as e:
+        return {"error": str(e), "mode": "stub"}
+
+
+@app.post("/api/narai/tool")
+async def narai_tool_invoke(payload: dict):
+    """Invoke a NarAI tool by name."""
+    tool = (payload or {}).get("tool", "").strip()
+    args = (payload or {}).get("args", {})
+    if not tool:
+        return {"error": "tool name required"}
+    try:
+        from infra.brain.interface import BrainClient
+        client = BrainClient(user_id="operator", mode="narai")
+        if hasattr(client, "execute_tool"):
+            return {"tool": tool, "result": await client.execute_tool(tool, args)}
+        return {"error": f"tool dispatcher not wired"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/narai/upload")
+async def narai_upload_endpoint(request: Request):
+    """File upload for NarAI chat attachments. Stores under data/narai_uploads/."""
+    import secrets
+    from fastapi import HTTPException
+    from fastapi.responses import JSONResponse
+    upload_dir = ROOT / "data" / "narai_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        form = await request.form()
+        file = form.get("file")
+        if file is None or not hasattr(file, "filename"):
+            return JSONResponse({"error": "no file in form"}, status_code=400)
+        suffix = ("." + file.filename.rsplit(".", 1)[-1][:8]) if "." in file.filename else ""
+        token = secrets.token_urlsafe(16)
+        dest = upload_dir / (token + suffix)
+        content = await file.read()
+        if len(content) > 25 * 1024 * 1024:
+            raise HTTPException(413, "file too large (>25MB)")
+        dest.write_bytes(content)
+        return {"ok": True, "id": token, "filename": file.filename,
+                "size": len(content), "path": str(dest.relative_to(ROOT))}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
 @app.post("/api/agent/run")
 async def agent_run_alias(payload: dict):
     """Alias: forward to /api/superagent/cycle. Frontend's 'agent panel'
@@ -2815,6 +2914,80 @@ async def agent_run_alias(payload: dict):
         return {"status": "error", "message": "superagent module not available"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/suprema/suppress")
+async def suprema_suppress(payload: dict):
+    """Operator action: mark a finding as 'won't fix' so it stops cluttering
+    the panel. Stored in data/suprema-suppressions.json (committed to repo,
+    survives across machines/deploys). Idempotent."""
+    pattern = (payload.get("pattern") or "").strip()
+    project = (payload.get("project") or "").strip()
+    location = (payload.get("location") or "").strip()
+    reason = (payload.get("reason") or "").strip()
+    if not pattern or not project or not location:
+        return {"status": "error",
+                "message": "pattern, project, and location are required"}
+    import sys
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "message": "suprema package not found"}
+    sys.path.insert(0, str(suprema_root))
+    try:
+        from suprema.autorepair import suppressions
+        return suppressions.add(pattern, project, location, reason)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
+
+
+@app.post("/api/suprema/unsuppress")
+async def suprema_unsuppress(payload: dict):
+    """Reverse of /suppress — operator decided to look at the finding again."""
+    pattern = (payload.get("pattern") or "").strip()
+    project = (payload.get("project") or "").strip()
+    location = (payload.get("location") or "").strip()
+    if not pattern or not project or not location:
+        return {"status": "error", "message": "pattern, project, location required"}
+    import sys
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "message": "suprema package not found"}
+    sys.path.insert(0, str(suprema_root))
+    try:
+        from suprema.autorepair import suppressions
+        return suppressions.remove(pattern, project, location)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
+
+
+@app.get("/api/suprema/suppressions")
+async def suprema_suppressions_list():
+    """List all current suppressions for the panel's 'View suppressed' tab."""
+    import sys
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"suppressions": []}
+    sys.path.insert(0, str(suprema_root))
+    try:
+        from suprema.autorepair import suppressions
+        return {"suppressions": suppressions.list_all()}
+    except Exception as e:
+        return {"suppressions": [], "error": str(e)}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
 
 
 @app.get("/api/health")

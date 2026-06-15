@@ -408,11 +408,23 @@ def run_cycle(do_fix: bool = True, dry_run: bool = False,
                 triage_results[i], "as_dict") else triage_results[i]
         findings_with_triage.append(d)
 
+    # Apply operator suppressions — split into visible vs hidden so the
+    # panel renders cleanly but suppressed items remain auditable.
+    try:
+        from suprema.autorepair import suppressions
+        visible, hidden = suppressions.filter_findings(findings_with_triage)
+    except Exception as e:
+        log.warning(f"suppressions module unavailable: {e}")
+        visible, hidden = findings_with_triage, []
+
     summary = {
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(start)),
         "elapsed_s": round(time.time() - start, 2),
-        "findings_count": len(findings),
-        "findings": findings_with_triage,
+        "findings_count": len(visible),
+        "findings_total": len(findings_with_triage),
+        "findings_suppressed": len(hidden),
+        "findings": visible,
+        "findings_hidden": hidden,
         "fixes_attempted": len(fix_outcomes),
         "fixes_succeeded": sum(1 for _, r in fix_outcomes if r.success),
         "fix_outcomes": [{"finding": f.as_dict(), "result": r.as_dict()}
