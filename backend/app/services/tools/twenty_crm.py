@@ -28,6 +28,31 @@ _SINGULAR = {
 }
 _ACTIONS = {"list", "get", "create"}
 _TIMEOUT = 20
+# Record keys that are bookkeeping, not user-meaningful content.
+_META_KEYS = {
+    "id", "createdAt", "updatedAt", "deletedAt", "position",
+    "searchVector", "__typename", "createdBy", "updatedBy",
+}
+
+
+def _is_empty(v: Any) -> bool:
+    """Recursively true for None/""/[]/{} and nested structures whose values
+    are ALL empty (e.g. Twenty's address with every subfield blank)."""
+    if v is None or v == "" or v == [] or v == {}:
+        return True
+    if isinstance(v, dict):
+        return all(_is_empty(x) for x in v.values())
+    if isinstance(v, list):
+        return all(_is_empty(x) for x in v)
+    return False
+
+
+def _saved_fields(record: Any) -> list[str]:
+    """The fields actually populated on a record — so KAI reports what Twenty
+    really stored, not attributes the model imagines."""
+    if not isinstance(record, dict):
+        return []
+    return sorted(k for k, v in record.items() if k not in _META_KEYS and not _is_empty(v))
 # Twenty Cloud sits behind Cloudflare, which blocks the default Python-urllib
 # User-Agent (Error 1010). Send an identifying UA so first-party API calls with
 # a valid key get through.
@@ -98,8 +123,13 @@ class TwentyCrmTool:
                 raise ToolError("record_id is required for action=get")
             url = f"{base}/rest/{obj}/{urllib.parse.quote(rid)}"
             data = self._request("GET", url, key)
-            return {"action": "get", "object": obj, "record": self._extract(data, obj),
-                    "note": f"Twenty: fetched {obj} {rid}."}
+            record = self._extract(data, obj)
+            return {
+                "action": "get", "object": obj, "record": record,
+                "saved_fields": _saved_fields(record),
+                "note": f"Twenty: fetched {obj} {rid}. Report ONLY fields present "
+                        "in 'record'; do not infer or add attributes.",
+            }
 
         # create
         body = kwargs.get("data")
@@ -107,8 +137,21 @@ class TwentyCrmTool:
             raise ToolError("data (object) is required for action=create")
         url = f"{base}/rest/{obj}"
         data = self._request("POST", url, key, body=body)
-        return {"action": "create", "object": obj, "record": self._extract(data, obj),
-                "note": f"Twenty: created a {_SINGULAR.get(obj, obj)}."}
+        record = self._extract(data, obj)
+        saved = _saved_fields(record)
+        rid = record.get("id") if isinstance(record, dict) else None
+        return {
+            "action": "create", "object": obj, "record": record,
+            "saved_fields": saved,
+            "note": (
+                f"Twenty: created a {_SINGULAR.get(obj, obj)}"
+                + (f" (id={rid})" if rid else "")
+                + f". FIELDS ACTUALLY SAVED: {saved or ['(only system defaults)']}. "
+                "Report ONLY these saved fields to the operator — do NOT claim any "
+                "other attributes (description, industry, location, etc.) were set; "
+                "they were not."
+            ),
+        }
 
     @staticmethod
     def _request(method: str, url: str, key: str, body: dict | None = None) -> dict[str, Any]:

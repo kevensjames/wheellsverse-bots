@@ -83,7 +83,11 @@ def test_create_person(monkeypatch):
     def _open(req, timeout=None):
         seen["method"] = req.method
         seen["body"] = json.loads(req.data)
-        return _Resp({"data": {"person": {"id": "new1"}}})
+        # Twenty echoes the stored record: name set, address all-empty.
+        return _Resp({"data": {"person": {
+            "id": "new1", "name": {"firstName": "Grace", "lastName": "Hopper"},
+            "city": "", "jobTitle": "",
+        }}})
     monkeypatch.setattr("urllib.request.urlopen", _open)
     out = TwentyCrmTool().execute(
         _ctx(), action="create", object="people",
@@ -92,6 +96,24 @@ def test_create_person(monkeypatch):
     assert seen["method"] == "POST"
     assert seen["body"]["name"]["firstName"] == "Grace"
     assert out["record"]["id"] == "new1"
+    # anti-fabrication grounding: only the truly-saved field is reported
+    assert out["saved_fields"] == ["name"]
+    assert "Report ONLY these saved fields" in out["note"]
+
+
+def test_create_grounding_excludes_empty_nested(monkeypatch):
+    # mirrors the real "Acme" case: only name saved, everything else blank
+    _configured(monkeypatch)
+    monkeypatch.setattr("urllib.request.urlopen", lambda req, timeout=None: _Resp(
+        {"data": {"company": {
+            "id": "c9", "name": "Acme",
+            "address": {"addressCity": "", "addressState": "", "addressLat": None},
+            "annualRevenue": {"amountMicros": None, "currencyCode": ""},
+            "domainName": {"primaryLinkUrl": "", "secondaryLinks": []},
+        }}}))
+    out = TwentyCrmTool().execute(_ctx(), action="create", object="companies",
+                                  data={"name": "Acme"})
+    assert out["saved_fields"] == ["name"]  # NOT address/annualRevenue/domainName
 
 
 def test_create_requires_data(monkeypatch):
