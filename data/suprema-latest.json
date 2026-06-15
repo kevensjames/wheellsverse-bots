@@ -1,7 +1,7 @@
 {
-  "started_at": "2026-06-15T08:52:22Z",
-  "elapsed_s": 1.72,
-  "findings_count": 41,
+  "started_at": "2026-06-15T08:56:18Z",
+  "elapsed_s": 1.74,
+  "findings_count": 40,
   "findings": [
     {
       "pattern": "frontend_backend_diff",
@@ -445,18 +445,6 @@
         "gitignore_pattern": "**/*.db",
         "description": "database file"
       }
-    },
-    {
-      "pattern": "sync_io_in_async_handler",
-      "project": "wheellsverse-bots",
-      "severity": "high",
-      "location": "core/api.py:901",
-      "evidence": "async def store_redeliver() calls urllib.request.urlopen() \u2014 urllib.request.urlopen is sync",
-      "fix_payload": {
-        "function": "store_redeliver",
-        "blocking_call": "urllib.request.urlopen",
-        "line": 901
-      }
     }
   ],
   "fixes_attempted": 0,
@@ -466,6 +454,6 @@
   "llm_triage": null,
   "_sync": {
     "source": "/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json",
-    "synced_at": "2026-06-15T08:52:22Z"
+    "synced_at": "2026-06-15T08:56:18Z"
   }
 }
