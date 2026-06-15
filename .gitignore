@@ -163,3 +163,15 @@ frontend/blog/_archive/
 # Uncomment after auditing which posts are hand-curated:
 # frontend/blog/*.html
 # !frontend/blog/index.html
+
+# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
+**/*storage_state.json
+
+# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
+**/progress.json
+
+# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
+**/*.log
+
+# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
+**/session.json
