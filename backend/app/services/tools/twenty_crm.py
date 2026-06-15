@@ -28,6 +28,10 @@ _SINGULAR = {
 }
 _ACTIONS = {"list", "get", "create"}
 _TIMEOUT = 20
+# Twenty Cloud sits behind Cloudflare, which blocks the default Python-urllib
+# User-Agent (Error 1010). Send an identifying UA so first-party API calls with
+# a valid key get through.
+_UA = "KAI-CRM/1.0 (+https://wheellsverse.com)"
 
 
 class TwentyCrmTool:
@@ -108,7 +112,10 @@ class TwentyCrmTool:
 
     @staticmethod
     def _request(method: str, url: str, key: str, body: dict | None = None) -> dict[str, Any]:
-        headers = {"Authorization": f"Bearer {key}", "Accept": "application/json"}
+        headers = {
+            "Authorization": f"Bearer {key}", "Accept": "application/json",
+            "User-Agent": _UA,
+        }
         payload = None
         if body is not None:
             payload = json.dumps(body).encode()
