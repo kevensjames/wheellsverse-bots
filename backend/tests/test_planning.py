@@ -9,6 +9,7 @@ Mirrors the test conventions of test_kg.py / test_self_correction.py:
 """
 from __future__ import annotations
 
+import json
 import uuid
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -988,3 +989,78 @@ def test_admin_scout_integrate_propose_only_no_approval(client, monkeypatch, _is
     assert body["candidates_found"] == 1
     assert body["proposed_plans"][0]["status"] == "draft"
     assert body["proposed_plans"][0]["candidate_repo"] == "All-Hands-AI/OpenHands"
+
+
+# ─── draft-adapter (KAI writes its OWN native tool as a reviewable artifact) ──
+
+from app.services import adapter_codegen as acg  # noqa: E402
+
+_GOOD_DRAFT = json.dumps({
+    "filename": "app/services/tools/twenty_crm.py",
+    "tool_class_name": "TwentyCrmTool",
+    "code": "class TwentyCrmTool:\n    name = 'twenty_crm'\n    def execute(self, ctx, **kw):\n        return {'ok': True}\n",
+    "rationale": "Talks to a Twenty CRM instance.",
+    "how_to_register": "reg.register(TwentyCrmTool())",
+    "risks": "needs an API key",
+})
+
+
+def test_draft_adapter_empty_capability_raises():
+    with pytest.raises(ValueError):
+        acg.draft_adapter("  ", router=MagicMock(), user_id=uuid.uuid4())
+
+
+def test_draft_adapter_generates_and_persists(monkeypatch, tmp_path):
+    monkeypatch.setattr(acg, "_DRAFTS", tmp_path)
+    out = acg.draft_adapter(
+        "CRM integration", router=_planner_router(_GOOD_DRAFT),
+        user_id=uuid.uuid4(), reference_repo="twentyhq/twenty",
+    )
+    assert out["parses"] is True
+    assert out["tool_class_name"] == "TwentyCrmTool"
+    assert "DRAFT ONLY" in out["note"]
+    # the artifact was written to the drafts dir (NOT the import path)
+    assert (tmp_path / "crm_integration" / "adapter.py").exists()
+
+
+def test_draft_adapter_flags_syntax_error(monkeypatch, tmp_path):
+    monkeypatch.setattr(acg, "_DRAFTS", tmp_path)
+    bad = json.dumps({"code": "def broken(:\n  pass", "tool_class_name": "X"})
+    out = acg.draft_adapter("x", router=_planner_router(bad), user_id=uuid.uuid4())
+    assert out["parses"] is False and "syntax error" in out["note"]
+
+
+def test_draft_adapter_no_code_failsoft(monkeypatch, tmp_path):
+    monkeypatch.setattr(acg, "_DRAFTS", tmp_path)
+    out = acg.draft_adapter("x", router=_planner_router("sorry, prose only"),
+                            user_id=uuid.uuid4())
+    assert out["code"] == "" and "did not return usable code" in out["note"]
+
+
+def test_admin_draft_adapter_scope_off_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.delenv("KAI_SCOPE_PLANNING", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_PLANNING_DRAFT", raising=False)
+    p = pl.create_plan("Integrate CRM", "CRM integration",
+                       meta={"capability": "CRM integration"})
+    r = client.post(f"/admin/planning/{p.id}/draft-adapter",
+                    headers=ADMIN_HEADERS, json={})
+    assert r.status_code == 403
+
+
+def test_admin_draft_adapter_writes_reviewable_draft(client, monkeypatch, tmp_path, _isolated_audit):
+    # destructive=False → no approval needed; returns code, never executes it
+    monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setattr(acg, "_DRAFTS", tmp_path)
+    _patch_llm(monkeypatch, _GOOD_DRAFT)
+    p = pl.create_plan(
+        "Integrate: CRM (ref: twentyhq/twenty)", "CRM integration",
+        meta={"integration": True, "capability": "CRM integration",
+              "candidate_repo": "twentyhq/twenty"},
+    )
+    r = client.post(f"/admin/planning/{p.id}/draft-adapter",
+                    headers=ADMIN_HEADERS, json={})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["parses"] is True
+    assert body["tool_class_name"] == "TwentyCrmTool"
+    assert "DRAFT ONLY" in body["note"]

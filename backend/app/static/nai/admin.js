@@ -1310,6 +1310,9 @@ function renderPlanDetail(box, plan, runs) {
   actions.appendChild(planActionBtn("Approve", canApprove, () => doPlanAction(plan.id, "approve")));
   actions.appendChild(planActionBtn("Execute next step", canExecute, () => doPlanAction(plan.id, "execute-next")));
   actions.appendChild(planActionBtn("Propose revision", canRevise, () => doPlanRevise(plan.id)));
+  // KAI writes its OWN native tool for this capability as a reviewable draft
+  // (never executed/applied). Most meaningful on integration plans.
+  actions.appendChild(planActionBtn("✍️ draft native adapter", true, () => doDraftAdapter(plan.id)));
   box.appendChild(actions);
 
   const stepTbl = document.createElement("table");
@@ -1347,6 +1350,53 @@ function renderPlanDetail(box, plan, runs) {
 
   const rev = document.createElement("div");
   rev.id = "planning-revision"; box.appendChild(rev);
+
+  const draftOut = document.createElement("div");
+  draftOut.id = "planning-draft-output"; box.appendChild(draftOut);
+}
+
+async function doDraftAdapter(id) {
+  const line = $("#planning-status-line");
+  const out = $("#planning-draft-output");
+  if (out) out.replaceChildren();
+  try {
+    if (line) line.textContent = "KAI is drafting a native adapter…";
+    const d = await apiPost(`/admin/planning/${id}/draft-adapter`, {});
+    if (line) line.textContent = d.note || "draft ready";
+    if (!out) return;
+    const h = document.createElement("h2");
+    h.textContent = `✍️ Draft adapter${d.tool_class_name ? " · " + d.tool_class_name : ""}`;
+    out.appendChild(h);
+    const meta = document.createElement("p");
+    meta.className = "admin-hint";
+    meta.textContent =
+      `${d.filename || "(no filename)"} · ${d.parses ? "parses ✓" : "⚠ syntax error"}` +
+      (d.rationale ? ` — ${d.rationale}` : "");
+    out.appendChild(meta);
+    // Code shown via textContent in a <pre> — XSS-safe, never executed.
+    const pre = document.createElement("pre");
+    pre.className = "admin-code";
+    pre.style.cssText =
+      "white-space:pre-wrap;overflow:auto;max-height:420px;background:#0b1020;" +
+      "color:#d6e2ff;padding:12px;border-radius:8px;font-size:12px";
+    pre.textContent = d.code || "(no code returned)";
+    out.appendChild(pre);
+    if (d.how_to_register) {
+      const reg = document.createElement("p");
+      reg.className = "admin-hint";
+      reg.textContent = "Register: " + d.how_to_register;
+      out.appendChild(reg);
+    }
+    const note = document.createElement("p");
+    note.className = "admin-hint";
+    note.textContent =
+      "⚠ DRAFT ONLY — KAI wrote this; it is NOT applied or run. Review it, then " +
+      "apply via normal git review/commit if you want it live.";
+    out.appendChild(note);
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
 }
 
 function planActionBtn(label, enabled, handler) {

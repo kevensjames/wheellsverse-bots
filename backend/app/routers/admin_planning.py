@@ -20,6 +20,10 @@ Proactive (destructive=False — proposes inert draft plans only):
                                         integration plan for the top safely-
                                         adoptable repo (reference design only;
                                         operator approves to run; never installs)
+  POST /admin/planning/{id}/draft-adapter  KAI writes a NATIVE KAI tool for the
+                                        plan's capability as a reviewable draft
+                                        artifact (never executed/applied — the
+                                        operator applies via normal git review)
 
 The LLM-touching actions (create / execute-next / revise) build the router
 and resolve the operator profile INSIDE the @audited function, so a scope-
@@ -37,6 +41,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.routers.admin_chat import OperatorNotConfigured, _resolve_operator_profile
+from app.services import adapter_codegen
 from app.services.governance import PendingApproval, ScopeDenied, audited
 from app.services.planning import (
     executor as ex,
@@ -151,6 +156,11 @@ class ScoutIntegrateRequest(BaseModel):
     approved: bool = False
 
 
+class DraftAdapterRequest(BaseModel):
+    prefer_local: bool = False
+    approved: bool = False
+
+
 # ─── audited core actions ────────────────────────────────────────────
 
 
@@ -245,6 +255,30 @@ def _audited_scout_integrate(
     )
 
 
+@audited(scope="planning.draft", destructive=False)
+def _audited_draft_adapter(
+    *, plan_id: int, prefer_local: bool, session: Session,
+) -> dict[str, Any]:
+    # destructive=False: KAI WRITES a native-tool draft to a drafts dir (NOT the
+    # import path) for the operator to review. It is never executed, applied,
+    # or registered — applying it to the live tree stays a human git action.
+    plan = storage.get_plan(plan_id)
+    if plan is None:
+        raise ValueError(f"no plan with id {plan_id}")
+    meta = plan.meta or {}
+    capability = (meta.get("capability") or plan.goal or "").strip()
+    if not capability:
+        raise ValueError("plan has no capability/goal to implement")
+    rt = build_default_router(session)
+    prof = _resolve_operator_profile(session)
+    return adapter_codegen.draft_adapter(
+        capability, router=rt, user_id=prof.id,
+        reference_repo=meta.get("candidate_repo"),
+        reference_url=meta.get("candidate_url"),
+        prefer_local=prefer_local,
+    )
+
+
 # ─── write routes ────────────────────────────────────────────────────
 
 
@@ -326,4 +360,15 @@ def planning_scout_integrate(
         capability=body.capability, max_plans=body.max_plans,
         min_stars=body.min_stars, language=body.language,
         prefer_local=body.prefer_local, session=session, approved=body.approved,
+    )
+
+
+@router.post("/{plan_id}/draft-adapter")
+def planning_draft_adapter(
+    plan_id: int, body: DraftAdapterRequest, session: Session = Depends(get_db)
+):
+    return _guard(
+        _audited_draft_adapter,
+        plan_id=plan_id, prefer_local=body.prefer_local,
+        session=session, approved=body.approved,
     )
