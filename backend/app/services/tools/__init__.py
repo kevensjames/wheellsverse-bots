@@ -28,6 +28,7 @@ from app.services.tools.registry import ToolRegistry
 from app.services.tools.sec_edgar_search import SecEdgarSearchTool
 from app.services.tools.suggest_agent import SuggestAgentTool
 from app.services.tools.trading_signal import TradingSignalTool
+from app.services.tools.twenty_crm import TwentyCrmTool
 from app.services.tools.twin_query import TwinQueryTool
 from app.services.tools.verify_claim import VerifyClaimTool
 from app.services.tools.web_fetch import WebFetchTool
@@ -117,6 +118,13 @@ def build_default_registry(
     # adoption stays propose-then-approve. No env key (GITHUB_TOKEN optional
     # only to lift the search rate limit).
     reg.register(GithubScoutTool())
+    # Twenty CRM — read/write a self-hosted Twenty instance over its REST API.
+    # Registered only when configured, so it's inert until the operator points
+    # it at a CRM. KAI talks to Twenty over HTTP; it never runs Twenty's code.
+    if os.environ.get("TWENTY_API_URL") and os.environ.get("TWENTY_API_KEY"):
+        reg.register(TwentyCrmTool())
+    else:
+        logger.info("tools: twenty_crm skipped (TWENTY_API_URL/TWENTY_API_KEY not set)")
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -176,6 +184,7 @@ __all__ = [
     "ToolRegistry",
     "ToolResult",
     "TradingSignalTool",
+    "TwentyCrmTool",
     "TwinQueryTool",
     "WebFetchTool",
     "WebSearchTool",

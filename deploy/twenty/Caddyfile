@@ -1,0 +1,6 @@
+# Caddy reverse proxy for self-hosted Twenty → automatic HTTPS.
+# Replace crm.yourdomain.com with your domain (DNS A record → this host's IP).
+# Run: sudo caddy run --config ./Caddyfile   (or install caddy as a service)
+crm.yourdomain.com {
+	reverse_proxy localhost:3000
+}
