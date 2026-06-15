@@ -42,6 +42,9 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.json
+# Whitelist: SUPREMA autorepair state sync — committed so the prod
+# /admin SUPREMA panel reads it on every redeploy.
+!data/suprema-latest.json
 data/narai_memory/
 data/narai_products/
 data/narai_skills/

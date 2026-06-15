@@ -1,0 +1,593 @@
+{
+  "started_at": "2026-06-15T08:36:33Z",
+  "elapsed_s": 1.55,
+  "findings_count": 52,
+  "findings": [
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9839",
+      "evidence": "DELETE /api/kdp/queue/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "DELETE",
+        "path": "/api/kdp/queue/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9823",
+      "evidence": "DELETE /api/kdp/registry/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "DELETE",
+        "path": "/api/kdp/registry/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:16755",
+      "evidence": "GET /api/botctl  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/botctl"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:16768",
+      "evidence": "GET /api/botctl/log  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/botctl/log"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:14005",
+      "evidence": "GET /api/canva/export  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/canva/export"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:16813",
+      "evidence": "GET /api/code/file  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/code/file"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:18396",
+      "evidence": "GET /api/github/actions/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/github/actions/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:18350",
+      "evidence": "GET /api/github/issues/${repo.replace(  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/github/issues/${repo.replace("
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:18381",
+      "evidence": "GET /api/github/prs/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/github/prs/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:7922",
+      "evidence": "GET /api/integrations/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/integrations/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9767",
+      "evidence": "GET /api/kdp/queue  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/kdp/queue"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:10835",
+      "evidence": "GET /api/money/record  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/money/record"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:12507",
+      "evidence": "GET /api/narai  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/narai"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:16114",
+      "evidence": "GET /api/narai/sched  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/narai/sched"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/admin/index.html:209",
+      "evidence": "GET /api/narai/shopify/merchants  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/narai/shopify/merchants"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:14142",
+      "evidence": "GET /api/notion/database  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/notion/database"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:14127",
+      "evidence": "GET /api/notion/page  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/notion/page"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:10204",
+      "evidence": "GET /api/nx/creator  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/nx/creator"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8359",
+      "evidence": "GET /api/pipeline/batch  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/pipeline/batch"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8965",
+      "evidence": "GET /api/reddit/blitz/reset  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/reddit/blitz/reset"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:18485",
+      "evidence": "GET /api/stripe/portal  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/stripe/portal"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9104",
+      "evidence": "GET /api/tiktok/blitz/done  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/tiktok/blitz/done"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9108",
+      "evidence": "GET /api/tiktok/blitz/reset  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/tiktok/blitz/reset"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8900",
+      "evidence": "GET /api/twitter/blitz/reset  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/twitter/blitz/reset"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:13862",
+      "evidence": "GET /api/wordpress/post  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/wordpress/post"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:16134",
+      "evidence": "PATCH /api/narai/sched/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "PATCH",
+        "path": "/api/narai/sched/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:17823",
+      "evidence": "POST /api/agent/run  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/agent/run"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8799",
+      "evidence": "POST /api/bots/writing/46_blog_writer/run  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/bots/writing/46_blog_writer/run"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:18368",
+      "evidence": "POST /api/github/issues/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/github/issues/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9832",
+      "evidence": "POST /api/kdp/queue/{p}/publish  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/kdp/queue/{p}/publish"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9814",
+      "evidence": "POST /api/kdp/registry  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/kdp/registry"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:16144",
+      "evidence": "POST /api/narai/sched/{p}/trigger  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/narai/sched/{p}/trigger"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/admin/shopify.html:176",
+      "evidence": "POST /api/narai/shopify/merchants/{p}/test-product  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/narai/shopify/merchants/{p}/test-product"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:17297",
+      "evidence": "POST /api/narai/stream  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/narai/stream"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:10060",
+      "evidence": "POST /api/narai/tool  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/narai/tool"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:17457",
+      "evidence": "POST /api/narai/upload  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/narai/upload"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/insider.html:190",
+      "evidence": "POST /api/v2/narai/insider/lead  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/v2/narai/insider/lead"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/insider.html:238",
+      "evidence": "POST /api/v2/narai/telegram/subscription/checkout  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/v2/narai/telegram/subscription/checkout"
+      }
+    },
+    {
+      "pattern": "hardcoded_localhost",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "frontend/nexora/subscribe.html:174",
+      "evidence": "http://localhost:5050",
+      "fix_payload": {
+        "file": "frontend/nexora/subscribe.html",
+        "match": "http://localhost:5050"
+      }
+    },
+    {
+      "pattern": "hardcoded_localhost",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "frontend/nexora/fan.html:168",
+      "evidence": "http://localhost:5050",
+      "fix_payload": {
+        "file": "frontend/nexora/fan.html",
+        "match": "http://localhost:5050"
+      }
+    },
+    {
+      "pattern": "hardcoded_localhost",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "frontend/nexora/live.html:147",
+      "evidence": "http://localhost:5050",
+      "fix_payload": {
+        "file": "frontend/nexora/live.html",
+        "match": "http://localhost:5050"
+      }
+    },
+    {
+      "pattern": "hardcoded_localhost",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "frontend/nexora/creator.html:485",
+      "evidence": "http://localhost:5050",
+      "fix_payload": {
+        "file": "frontend/nexora/creator.html",
+        "match": "http://localhost:5050"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14258",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14308",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14315",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14475",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/inbox/routes.py:155",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/inbox/routes.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "narai/data/chroma/chroma.sqlite3",
+      "evidence": "tracked SQLite database",
+      "fix_payload": {
+        "file": "narai/data/chroma/chroma.sqlite3",
+        "gitignore_pattern": "**/*.sqlite",
+        "description": "SQLite database"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "narai/data/narai.db",
+      "evidence": "tracked database file",
+      "fix_payload": {
+        "file": "narai/data/narai.db",
+        "gitignore_pattern": "**/*.db",
+        "description": "database file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "narai/marketing/autopilot.db",
+      "evidence": "tracked database file",
+      "fix_payload": {
+        "file": "narai/marketing/autopilot.db",
+        "gitignore_pattern": "**/*.db",
+        "description": "database file"
+      }
+    },
+    {
+      "pattern": "sync_io_in_async_handler",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "core/api.py:895",
+      "evidence": "async def store_redeliver() calls urllib.request.urlopen() \u2014 urllib.request.urlopen is sync",
+      "fix_payload": {
+        "function": "store_redeliver",
+        "blocking_call": "urllib.request.urlopen",
+        "line": 895
+      }
+    },
+    {
+      "pattern": "sync_io_in_async_handler",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "core/toodle_dispatcher.py:201",
+      "evidence": "async def process_due() calls time.sleep() \u2014 time.sleep blocks the event loop",
+      "fix_payload": {
+        "function": "process_due",
+        "blocking_call": "time.sleep",
+        "line": 201
+      }
+    }
+  ],
+  "fixes_attempted": 0,
+  "fixes_succeeded": 0,
+  "fix_outcomes": [],
+  "dry_run": false,
+  "llm_triage": null,
+  "_sync": {
+    "source": "/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json",
+    "synced_at": "2026-06-15T08:36:33Z"
+  }
+}
