@@ -2673,6 +2673,142 @@ async def suprema_fix(payload: dict):
             sys.path.remove(str(suprema_root))
 
 
+# ─── Aliases / minimal endpoints surfaced by SUPREMA frontend_backend_diff ──
+#
+# These four were in the panel's findings list as "called from frontend, no
+# matching @app route". Each is either an alias to an existing handler with
+# a different method/path, or a minimal stub that satisfies the frontend
+# contract. Documented inline so future engineers can find the canonical
+# handler easily.
+
+@app.get("/api/stripe/portal")
+async def stripe_portal_get(return_url: str = ""):
+    """GET alias for the existing POST /api/stripe/portal handler in
+    core/stripe_router.py. Frontend triggers this via a regular link/button
+    click that expects a 302-or-JSON response containing a portal URL —
+    so we accept GET, default return_url to the dashboard."""
+    try:
+        from core.stripe_engine import create_portal_session
+        import os
+        base = os.getenv("DASHBOARD_URL", "https://app.wheellsverse.com")
+        ret = return_url or f"{base}/admin"
+        # We don't have an authenticated user-email context here without
+        # adding session lookup; the existing POST route accepts {user_email}
+        # in the body. For the GET alias, surface a friendly error if email
+        # context isn't available — operator should use the POST form for
+        # the real flow.
+        user_email = os.getenv("OPERATOR_EMAIL", "").strip()
+        if not user_email:
+            return {
+                "status": "needs_user_context",
+                "message": "Set OPERATOR_EMAIL env var, or use POST /api/stripe/portal "
+                           "with {user_email, return_url}",
+            }
+        url = create_portal_session(user_email, ret)
+        return {"url": url}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/narai/sched")
+async def narai_sched_list_alias():
+    """Alias: frontend calls /api/narai/sched but the canonical handler is
+    /api/scheduler/jobs (per the workspace's scheduler subsystem)."""
+    try:
+        from core.scheduler_router import router as _sched_router  # noqa
+    except ImportError:
+        pass
+    # Forward to the scheduler list — keep response shape simple
+    try:
+        sched = _get_scheduler()
+        jobs = sched.get_jobs() if hasattr(sched, "get_jobs") else []
+        return {"schedules": [
+            {"id": getattr(j, "id", ""),
+             "name": getattr(j, "name", ""),
+             "next_run": str(getattr(j, "next_run_time", "")),
+             "trigger": str(getattr(j, "trigger", ""))}
+            for j in jobs
+        ]}
+    except Exception as e:
+        return {"schedules": [], "note": f"scheduler unavailable: {e}"}
+
+
+@app.post("/api/narai/sched/{sched_id}/trigger")
+async def narai_sched_trigger_alias(sched_id: str):
+    """Manually fire a scheduled narai job. Delegates to APScheduler's
+    modify_job/run_job pattern — runs the job immediately regardless of
+    its trigger."""
+    try:
+        sched = _get_scheduler()
+        if not hasattr(sched, "get_job"):
+            return {"status": "error", "message": "scheduler not available"}
+        job = sched.get_job(sched_id)
+        if not job:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"schedule '{sched_id}' not found")
+        # Modify to run immediately
+        from datetime import datetime, timezone
+        sched.modify_job(sched_id, next_run_time=datetime.now(timezone.utc))
+        return {"status": "ok", "fired": sched_id, "at": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.patch("/api/narai/sched/{sched_id}")
+async def narai_sched_patch_alias(sched_id: str, payload: dict):
+    """Update a scheduled narai job — enable/disable/reschedule."""
+    try:
+        sched = _get_scheduler()
+        if "paused" in payload:
+            if payload["paused"]:
+                sched.pause_job(sched_id)
+            else:
+                sched.resume_job(sched_id)
+        return {"status": "ok", "id": sched_id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/kdp/queue")
+async def kdp_queue_list():
+    """KDP publishing queue — list books awaiting upload. The KDP subsystem
+    keeps its queue in data/kdp_queue.json (created lazily by the KDP
+    uploader). Returns empty array if no queue file yet."""
+    import json
+    queue_file = ROOT / "data" / "kdp_queue.json"
+    if not queue_file.is_file():
+        return {"queue": [], "count": 0}
+    try:
+        data = json.loads(queue_file.read_text(encoding="utf-8"))
+        items = data if isinstance(data, list) else data.get("queue", [])
+        return {"queue": items, "count": len(items)}
+    except Exception as e:
+        return {"queue": [], "error": str(e)}
+
+
+@app.post("/api/agent/run")
+async def agent_run_alias(payload: dict):
+    """Alias: forward to /api/superagent/cycle. Frontend's 'agent panel'
+    expects {task} → {run_id, status} but the existing superagent runs a
+    single cycle per call. Wrapping for compatibility."""
+    task = (payload or {}).get("task", "").strip()
+    if not task:
+        return {"status": "error", "message": "task required"}
+    try:
+        # Reuse superagent infrastructure
+        from core.superagent import run_cycle as _superagent_cycle
+        import uuid
+        run_id = str(uuid.uuid4())[:12]
+        # Fire-and-forget — the frontend polls /api/agent/runs / cancel
+        import asyncio
+        asyncio.create_task(asyncio.to_thread(_superagent_cycle, task))
+        return {"run_id": run_id, "status": "started", "task": task}
+    except ImportError:
+        return {"status": "error", "message": "superagent module not available"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.get("/api/health")
 async def health():
     import platform

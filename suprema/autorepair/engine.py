@@ -128,6 +128,18 @@ CATALOG: dict[str, dict[str, Any]] = {
         "safety":  "review",
         "title":   "Synchronous blocking I/O inside an async function — blocks the event loop",
     },
+    "anthropic_credit_low": {
+        "scanner": "scanners.anthropic_credit_low",
+        "fixer":   None,           # top-up is operator action
+        "safety":  "review",
+        "title":   "Anthropic API credit low / exhausted — LLM endpoints will fail",
+    },
+    "deploy_freshness_diff": {
+        "scanner": "scanners.deploy_freshness_diff",
+        "fixer":   None,           # deploys are operator-triggered
+        "safety":  "review",
+        "title":   "Local main is ahead of what's deployed — operator forgot to ship",
+    },
 }
 
 
