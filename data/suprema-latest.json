@@ -1,7 +1,7 @@
 {
-  "started_at": "2026-06-15T09:03:36Z",
-  "elapsed_s": 1.86,
-  "findings_count": 40,
+  "started_at": "2026-06-15T09:11:14Z",
+  "elapsed_s": 2.47,
+  "findings_count": 35,
   "findings": [
     {
       "pattern": "frontend_backend_diff",
@@ -51,33 +51,11 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:9795",
-      "evidence": "GET /api/kdp/queue  (called from frontend, no matching @app route)",
-      "fix_payload": {
-        "method": "GET",
-        "path": "/api/kdp/queue"
-      }
-    },
-    {
-      "pattern": "frontend_backend_diff",
-      "project": "wheellsverse-bots",
-      "severity": "low",
       "location": "dashboard/index.html:10863",
       "evidence": "GET /api/money/record  (called from frontend, no matching @app route)",
       "fix_payload": {
         "method": "GET",
         "path": "/api/money/record"
-      }
-    },
-    {
-      "pattern": "frontend_backend_diff",
-      "project": "wheellsverse-bots",
-      "severity": "low",
-      "location": "dashboard/index.html:16142",
-      "evidence": "GET /api/narai/sched  (called from frontend, no matching @app route)",
-      "fix_payload": {
-        "method": "GET",
-        "path": "/api/narai/sched"
       }
     },
     {
@@ -128,17 +106,6 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:18513",
-      "evidence": "GET /api/stripe/portal  (called from frontend, no matching @app route)",
-      "fix_payload": {
-        "method": "GET",
-        "path": "/api/stripe/portal"
-      }
-    },
-    {
-      "pattern": "frontend_backend_diff",
-      "project": "wheellsverse-bots",
-      "severity": "low",
       "location": "dashboard/index.html:9132",
       "evidence": "GET /api/tiktok/blitz/done  (called from frontend, no matching @app route)",
       "fix_payload": {
@@ -183,28 +150,6 @@
       "pattern": "frontend_backend_diff",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "dashboard/index.html:16162",
-      "evidence": "PATCH /api/narai/sched/{p}  (called from frontend, no matching @app route)",
-      "fix_payload": {
-        "method": "PATCH",
-        "path": "/api/narai/sched/{p}"
-      }
-    },
-    {
-      "pattern": "frontend_backend_diff",
-      "project": "wheellsverse-bots",
-      "severity": "low",
-      "location": "dashboard/index.html:17851",
-      "evidence": "POST /api/agent/run  (called from frontend, no matching @app route)",
-      "fix_payload": {
-        "method": "POST",
-        "path": "/api/agent/run"
-      }
-    },
-    {
-      "pattern": "frontend_backend_diff",
-      "project": "wheellsverse-bots",
-      "severity": "low",
       "location": "dashboard/index.html:8827",
       "evidence": "POST /api/bots/writing/46_blog_writer/run  (called from frontend, no matching @app route)",
       "fix_payload": {
@@ -232,17 +177,6 @@
       "fix_payload": {
         "method": "POST",
         "path": "/api/kdp/registry"
-      }
-    },
-    {
-      "pattern": "frontend_backend_diff",
-      "project": "wheellsverse-bots",
-      "severity": "low",
-      "location": "dashboard/index.html:16172",
-      "evidence": "POST /api/narai/sched/{p}/trigger  (called from frontend, no matching @app route)",
-      "fix_payload": {
-        "method": "POST",
-        "path": "/api/narai/sched/{p}/trigger"
       }
     },
     {
@@ -359,7 +293,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14265",
+      "location": "core/api.py:14401",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -370,7 +304,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14315",
+      "location": "core/api.py:14451",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -381,7 +315,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14322",
+      "location": "core/api.py:14458",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -392,7 +326,7 @@
       "pattern": "fastapi_deprecated_event_handler",
       "project": "wheellsverse-bots",
       "severity": "low",
-      "location": "core/api.py:14482",
+      "location": "core/api.py:14618",
       "evidence": "event handler 'startup' \u2014 migrate to lifespan",
       "fix_payload": {
         "file": "core/api.py",
@@ -445,6 +379,17 @@
         "gitignore_pattern": "**/*.db",
         "description": "database file"
       }
+    },
+    {
+      "pattern": "anthropic_credit_low",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "https://api.anthropic.com/v1/messages (HTTP 400)",
+      "evidence": "Anthropic API credit low/exhausted \u2014 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_i",
+      "fix_payload": {
+        "action": "top_up",
+        "http_code": 400
+      }
     }
   ],
   "fixes_attempted": 0,
@@ -454,6 +399,6 @@
   "llm_triage": null,
   "_sync": {
     "source": "/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json",
-    "synced_at": "2026-06-15T09:03:36Z"
+    "synced_at": "2026-06-15T09:11:14Z"
   }
 }
