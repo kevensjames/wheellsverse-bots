@@ -19,6 +19,7 @@ from app.services.tools.courtlistener_search import CourtListenerSearchTool
 from app.services.tools.document_search import DocumentSearchTool
 from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.github_scout import GithubScoutTool
+from app.services.tools.image_gen import ImageGenTool
 from app.services.tools.kg_query import KGQueryTool
 from app.services.tools.learning_query import LearningQueryTool
 from app.services.tools.memory_tool import MemoryTool
@@ -30,6 +31,7 @@ from app.services.tools.site_builder import SiteBuilderTool
 from app.services.tools.suggest_agent import SuggestAgentTool
 from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.twenty_crm import TwentyCrmTool
+from app.services.tools.video_gen import VideoGenTool
 from app.services.tools.twin_query import TwinQueryTool
 from app.services.tools.verify_claim import VerifyClaimTool
 from app.services.tools.web_fetch import WebFetchTool
@@ -129,6 +131,16 @@ def build_default_registry(
     # Site builder — KAI generates HTML pages/sections in the WheellsVerse style
     # as reviewable DRAFTS (never auto-publishes). No env key (uses the router).
     reg.register(SiteBuilderTool())
+    # Image generation — local SDXL-Turbo (core/local_image.py). Free, on-device,
+    # no API quota. Registered always; execute() fail-softs if diffusers/torch
+    # aren't installed on the host.
+    reg.register(ImageGenTool())
+    # Video generation — Runway ML (core/video_engine.py). Registered ONLY when
+    # RUNWAYML_API_KEY is set (slow + costs credits, so opt-in by config).
+    if os.environ.get("RUNWAYML_API_KEY"):
+        reg.register(VideoGenTool())
+    else:
+        logger.info("tools: video_gen skipped (RUNWAYML_API_KEY not set)")
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -175,6 +187,7 @@ __all__ = [
     "ComposioTool",
     "FailureLookupTool",
     "GithubScoutTool",
+    "ImageGenTool",
     "KGQueryTool",
     "LearningQueryTool",
     "MemoryTool",
@@ -191,6 +204,7 @@ __all__ = [
     "TradingSignalTool",
     "TwentyCrmTool",
     "TwinQueryTool",
+    "VideoGenTool",
     "WebFetchTool",
     "WebSearchTool",
     "build_default_registry",

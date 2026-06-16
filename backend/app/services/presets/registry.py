@@ -79,6 +79,8 @@ PRESETS: list[PresetSpec] = [
             "notion",
             "twenty_crm",
             "site_builder",
+            "image_gen",
+            "video_gen",
             "memory",
         ],
     ),
