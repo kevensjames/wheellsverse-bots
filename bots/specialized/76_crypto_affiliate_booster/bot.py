@@ -12,8 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "76_crypto_affiliate_booster"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 CRYPTO_ANGLES = [
@@ -56,8 +71,9 @@ class CryptoAffiliateBoosterBot(BaseBot):
 
 ## Primary Affiliate Links
 - **Coinbase** ({COINBASE_URL}): Get $10 in BTC when you sign up and buy $100+
-- **Robinhood** ({ROBINHOOD_URL}): Trade crypto + stocks with no commissions
-- **Crypto books** (https://www.amazon.com/s?k=cryptocurrency+2025&tag={AMAZON_TAG}): Learning resources
+- **Robinhood** ({WEBULL_URL}): Trade crypto + stocks with no commissions
+# OLD: - **Crypto books** (https://www.amazon.com/s?k=cryptocurrency+2025&tag={AMAZON_TAG}): Learning resources
+- **Crypto books** ({_utm('amazon_crypto')}): Learning resources
 
 ## Focus Platform: {platform_focus.title()}
 

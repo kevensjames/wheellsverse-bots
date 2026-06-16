@@ -12,8 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "78_side_hustle_affiliate_bot"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 SIDE_HUSTLE_TOPICS = [
@@ -68,9 +83,10 @@ Category: {hustle_label}
 
 ## Affiliate Integration
 Naturally include these where relevant to the hustle type:
-- **Robinhood** ({ROBINHOOD_URL}): For investment-related side hustles (free stock for new users)
+- **Robinhood** ({WEBULL_URL}): For investment-related side hustles (free stock for new users)
 - **Coinbase** ({COINBASE_URL}): For crypto side hustles (earn $10 in BTC when you sign up)
-- **Amazon tools/books** (https://www.amazon.com/s?k=side+hustle+tools+2025&tag={AMAZON_TAG}): For equipment, books, or learning resources
+# OLD: - **Amazon tools/books** (https://www.amazon.com/s?k=side+hustle+tools+2025&tag={AMAZON_TAG}): For equipment, books, or learning resources
+- **Amazon tools/books** ({_utm('amazon_side_hustle')}): For equipment, books, or learning resources
 
 ## Article Requirements
 - **Length:** 900-1100 words

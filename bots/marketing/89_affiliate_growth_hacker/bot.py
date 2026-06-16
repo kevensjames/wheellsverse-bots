@@ -14,15 +14,35 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with network-specific
+# fallbacks. Per affiliate_swap_2026_05_29 every CTA now routes to the owned
+# digital product (stan.store) or blog with UTM tagging by old partner key.
+_BOT = "89_affiliate_growth_hacker"
+_CAMP = "affiliate_swap_2026_05_29"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 AMAZON_TAG2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
-CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
-CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
-JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
-APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+# OLD: CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
+CLICKBANK_URL = _utm("click_bank")
+# OLD: CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
+CONVERTKIT_URL = _utm("convert_kit")
+# OLD: JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
+JASPER_URL = _utm("jasp")
+# OLD: APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
+APPSUMO_URL = _utm("app_sumo")
+# OLD: CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = _utm("cta", medium="blog", base=_BLOG)
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 
 HIGH_INTENT_ANGLES = [
@@ -75,7 +95,7 @@ You know these programs inside-out and have genuine enthusiasm for their value."
 | Program | Link | Commission |
 |---------|------|-----------|
 | Coinbase | {COINBASE_URL} | $10 per signup |
-| Robinhood | {ROBINHOOD_URL} | Free stock (~$3-225 value) |
+| Webull | {WEBULL_URL} | Free stock (~$3-225 value) |
 | Amazon Books/Tools | tag={AMAZON_TAG} | 1-10% per sale |
 | ClickBank (high ticket) | {CLICKBANK_URL} | 50-75% commission |
 | ConvertKit (email) | {CONVERTKIT_URL} | 30% recurring |

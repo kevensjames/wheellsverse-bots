@@ -12,8 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "71_crypto_content_creator"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 CRYPTO_TOPICS = [
@@ -77,8 +92,9 @@ Structure your article as follows:
 
 **4. Affiliate Integration** (natural, value-adding mentions):
    - [Coinbase]({COINBASE_URL}): When discussing where to buy/trade crypto — mention the sign-up bonus
-   - [Robinhood]({ROBINHOOD_URL}): When discussing stock + crypto investing together
-   - [Crypto books on Amazon](https://www.amazon.com/s?k=cryptocurrency+investing+beginners&tag={AMAZON_TAG}): When recommending learning resources
+   - [Robinhood]({WEBULL_URL}): When discussing stock + crypto investing together
+   # OLD: - [Crypto books on Amazon](https://www.amazon.com/s?k=cryptocurrency+investing+beginners&tag={AMAZON_TAG}): When recommending learning resources
+   - [Crypto books on Amazon]({_utm('amazon_crypto_investing')}): When recommending learning resources
 
 **5. Key Takeaways** (3-5 bullet points summarizing the main points)
 

@@ -12,8 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "72_stock_investing_content_creator"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 STOCK_TOPICS = [
@@ -75,9 +90,10 @@ AUDIENCE LEVEL: {audience_level}
    - Data points and statistics (use realistic estimates)
 
 **4. Tool & Platform Recommendations** (natural, helpful context):
-   - [Robinhood]({ROBINHOOD_URL}): Best for commission-free stock + ETF investing — mention free stock for new users
+   - [Robinhood]({WEBULL_URL}): Best for commission-free stock + ETF investing — mention free stock for new users
    - [Coinbase]({COINBASE_URL}): If the topic touches crypto as part of a diversified portfolio
-   - [Investment books on Amazon](https://www.amazon.com/s?k=stock+investing+beginners+books&tag={AMAZON_TAG}): For readers who want to go deeper
+   # OLD: - [Investment books on Amazon](https://www.amazon.com/s?k=stock+investing+beginners+books&tag={AMAZON_TAG}): For readers who want to go deeper
+   - [Investment books on Amazon]({_utm('amazon_stock_investing')}): For readers who want to go deeper
 
 **5. Quick-Start Action Plan** (3-5 concrete steps readers can take today)
 

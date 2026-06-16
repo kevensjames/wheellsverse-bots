@@ -42,14 +42,31 @@ class CryptoInvestingAffiliateBotBot(BaseBot):
 
         result = self.ai(prompt, system=system_str, max_tokens=2000)
 
+        # OLD footer linked to /go/coinbase, /go/webull (with "Robinhood" anchor),
+        # OLD and Amazon ?tag=wheellsverse-20. Per affiliate_swap_pass2_2026_06_02
+        # OLD all 3 destinations route to the owned digital product with UTM
+        # OLD tagging by source partner key; anchor text is neutralized.
+        _BOT_83 = "83_crypto_investing_affiliate_bot"
+        _CAMP_83 = "affiliate_swap_pass2_2026_06_02"
+        _STAN_83 = "https://stan.store/Wheellsverse"
+
+        def _u83(content: str) -> str:
+            return f"{_STAN_83}?utm_source={_BOT_83}&utm_medium=content&utm_campaign={_CAMP_83}&utm_content={content}"
+
         header = "# Exploring the World of Crypto Investing\n"
+        # OLD: footer = (
+        # OLD:     "## Start Your Crypto Journey Today!\n\n"
+        # OLD:     "Sign up with [Coinbase](https://app.wheellsverse.com/go/coinbase) "
+        # OLD:     "in the stock market as well, consider using [Robinhood](https://app.wheellsverse.com/go/webull) "
+        # OLD:     "[Amazon](https://www.amazon.com/s?k=crypto+investing+books&tag=wheellsverse-20) to stay ahead..."
+        # OLD: )
         footer = (
             "## Start Your Crypto Journey Today!\n\n"
-            "Sign up with [Coinbase](https://app.wheellsverse.com/go/coinbase) "
-            "to buy, sell, and manage your cryptocurrency portfolio with ease. For those interested "
-            "in the stock market as well, consider using [Robinhood](https://app.wheellsverse.com/go/webull) "
-            "for a seamless investment experience. Enhance your knowledge and tools with products from "
-            "[Amazon](https://www.amazon.com/s?k=crypto+investing+books&tag=wheellsverse-20) to stay ahead in the crypto world."
+            f"Get the [crypto starter pack]({_u83('coinbase')}) "
+            "to buy, sell, and manage your portfolio with ease. For those interested "
+            f"in the stock market as well, grab the [free stocks playbook]({_u83('webull')}) "
+            "for a seamless investing experience. Enhance your knowledge with the "
+            f"[crypto investing books pack]({_u83('amazon_crypto_books')}) to stay ahead."
         )
 
         output = header + "\n\n" + result + "\n\n" + footer

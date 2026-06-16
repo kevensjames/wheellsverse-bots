@@ -12,8 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "73_passive_income_strategy"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 PASSIVE_INCOME_TOPICS = [
@@ -77,9 +92,10 @@ INCOME TARGET CONTEXT: {income_target}
    - Common mistakes and how to avoid them
 
 **5. Tools & Platforms That Make This Easier** (natural affiliate integration):
-   - [Robinhood]({ROBINHOOD_URL}): For dividend investing / stock-based passive income
+   - [Robinhood]({WEBULL_URL}): For dividend investing / stock-based passive income
    - [Coinbase]({COINBASE_URL}): For crypto staking / DeFi passive income opportunities
-   - [Passive Income Books on Amazon](https://www.amazon.com/s?k=passive+income+strategies+2025&tag={AMAZON_TAG}): For deeper learning
+   # OLD: - [Passive Income Books on Amazon](https://www.amazon.com/s?k=passive+income+strategies+2025&tag={AMAZON_TAG}): For deeper learning
+   - [Passive Income Books on Amazon]({_utm('amazon_passive_income')}): For deeper learning
 
 **6. Realistic Expectations** (honest timeline and earnings potential)
 

@@ -41,12 +41,29 @@ class HighTicketAffiliateBotBot(BaseBot):
 
         result = self.ai(prompt=user_prompt, system=system_str, max_tokens=2000)
 
+        # OLD footer linked to Amazon ?tag=wheellsverse-20 search, /go/coinbase,
+        # OLD and /go/webull with "Robinhood" anchor text. Per
+        # OLD affiliate_swap_pass2_2026_06_02 all 3 links route to the owned
+        # OLD digital product with UTM tagging and neutralized anchor text.
+        _BOT_82 = "82_high_ticket_affiliate_bot"
+        _CAMP_82 = "affiliate_swap_pass2_2026_06_02"
+        _STAN_82 = "https://stan.store/Wheellsverse"
+
+        def _u82(content: str) -> str:
+            return f"{_STAN_82}?utm_source={_BOT_82}&utm_medium=content&utm_campaign={_CAMP_82}&utm_content={content}"
+
         header = "# Exploring High-Ticket Affiliate Programs: Maximize Your Earnings"
+        # OLD: footer = (
+        # OLD:     "## Affiliate Links\n"
+        # OLD:     "- [Explore high-ticket products on Amazon](https://www.amazon.com/s?k=high-ticket+items&tag=wheellsverse-20)\n"
+        # OLD:     "- [Start trading with Coinbase](https://app.wheellsverse.com/go/coinbase)\n"
+        # OLD:     "- [Invest smartly with Robinhood](https://app.wheellsverse.com/go/webull)\n"
+        # OLD: )
         footer = (
-            "## Affiliate Links\n"
-            "- [Explore high-ticket products on Amazon](https://www.amazon.com/s?k=high-ticket+items&tag=wheellsverse-20)\n"
-            "- [Start trading with Coinbase](https://app.wheellsverse.com/go/coinbase)\n"
-            "- [Invest smartly with Robinhood](https://app.wheellsverse.com/go/webull)\n"
+            "## Curated Picks\n"
+            f"- [High-ticket products pack]({_u82('amazon_high_ticket')})\n"
+            f"- [Crypto starter pack]({_u82('coinbase')})\n"
+            f"- [Free stocks playbook]({_u82('webull')})\n"
         )
 
         output = header + "\n\n" + result + "\n\n" + footer

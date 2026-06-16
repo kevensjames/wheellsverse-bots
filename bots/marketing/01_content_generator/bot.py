@@ -13,11 +13,28 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "01_content_generator"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+# OLD: CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
+CLICKBANK_URL = _utm("click_bank")
+# OLD: CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = _utm("cta", medium="blog", base=_BLOG)
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 
@@ -90,7 +107,7 @@ You are obsessed with helping readers make money and achieve financial freedom."
 **PRIMARY KEYWORDS:** {keywords}
 
 ## Affiliate Links to Embed Naturally (contextually relevant only)
-- Robinhood — commission-free investing: {ROBINHOOD_URL}
+- Robinhood — commission-free investing: {WEBULL_URL}
 - Coinbase — easiest crypto on-ramp, $10 BTC bonus: {COINBASE_URL}
 - Amazon (tag: {AMAZON_TAG}) — relevant books/tools
 - WheellsVerse AI Blueprint (lead magnet): {CTA_URL}

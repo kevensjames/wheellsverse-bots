@@ -239,7 +239,8 @@ Output ONLY the spoken script, no stage directions.""",
                         description=(
                             f"{script[:500]}\n\n"
                             "Subscribe for daily AI + crypto + passive income tips!\n"
-                            "https://grateful-flexibility-production.up.railway.app/landing/"
+                            # OLD: "https://grateful-flexibility-production.up.railway.app/landing/"
+                            "https://wheellsverse.com/blog/?utm_source=90_video_creator&utm_medium=youtube&utm_campaign=affiliate_swap_2026_05_29&utm_content=video_description\n"
                         ),
                         tags=["AI", "PassiveIncome", "Crypto", "Investing", "WheellsVerse"],
                     )

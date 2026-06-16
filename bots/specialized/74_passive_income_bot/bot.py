@@ -12,8 +12,23 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "74_passive_income_bot"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 PASSIVE_INCOME_IDEAS = [
@@ -64,9 +79,10 @@ class PassiveIncomeBotBot(BaseBot):
         prompt = f"""Create {format_label} on passive income topic: "{topic}"
 
 ## Affiliate Links to Integrate Naturally
-- [Webull — free stocks investing]({ROBINHOOD_URL}): Use for stock/dividend-related sections
+- [Webull — free stocks investing]({WEBULL_URL}): Use for stock/dividend-related sections
 - [Coinbase — crypto investing]({COINBASE_URL}): Use for crypto-related sections
-- [Amazon — passive income books](https://www.amazon.com/s?k={topic.replace(' ', '+')}&tag={AMAZON_TAG}): Recommend at the end
+# OLD: - [Amazon — passive income books](https://www.amazon.com/s?k={topic.replace(' ', '+')}&tag={AMAZON_TAG}): Recommend at the end
+- [Amazon — passive income books]({_utm('amazon_passive_topic')}): Recommend at the end
 
 ## Content Requirements
 - **Length:** 800-1100 words

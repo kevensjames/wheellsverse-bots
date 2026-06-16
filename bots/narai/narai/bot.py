@@ -3037,7 +3037,8 @@ Do NOT use emojis excessively. Sound human, not robotic.""",
         lines.append(f"📚 **KDP:** {kdp.get('published', 0)} genres published  |  Est. daily royalty: ${kdp.get('est_daily', 0):.2f}  |  Est. monthly: ${(kdp.get('est_daily', 0) * 30):.2f}")
         lines.append(f"📧 **Email list:** {leads.get('list_size', 0):,} subscribers  |  Leads today: {leads.get('today', 0)}")
         lines.append(f"🔗 **Monetized posts:** {mono.get('total_injections', 0)}  |  Affiliate links injected: {mono.get('total_links', 0)}")
-        lines.append(f"🖱️ **Affiliate clicks (7d):** {d.get('affiliate_clicks_7d', 0)}")
+        # OLD: lines.append(f"🖱️ **Affiliate clicks (7d):** {d.get('affiliate_clicks_7d', 0)}")
+        lines.append(f"🖱️ **Product clicks (7d):** {d.get('affiliate_clicks_7d', 0)}")
 
         # Any recent Stripe payments?
         recent = stripe.get("recent", [])

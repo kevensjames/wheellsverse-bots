@@ -14,18 +14,41 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+# OLD constants block read AFFILIATE_<X>_URL from .env with network-specific
+# fallbacks. Per affiliate_swap_2026_05_29 every CTA now routes to the owned
+# digital product (stan.store) or blog with UTM tagging by old partner key.
+_BOT = "88_high_value_affiliate_bot"
+_CAMP = "affiliate_swap_2026_05_29"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 AMAZON_TAG2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
-AMAZON_VIDEO = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", "https://www.amazon.com/gp/video/storefront?tag=naraiinsights-20")
-CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
-CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
-JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
-APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
-FIVERR_URL = os.getenv("AFFILIATE_FIVERR_URL", "https://www.fiverr.com/")
-BLUEHOST_URL = os.getenv("AFFILIATE_BLUEHOST_URL", "https://www.bluehost.com/")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+# OLD: AMAZON_VIDEO = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", "https://www.amazon.com/gp/video/storefront?tag=naraiinsights-20")
+AMAZON_VIDEO = _utm("amazon_video")
+# OLD: CLICKBANK_URL = os.getenv("AFFILIATE_CLICKBANK_URL", "https://hop.clickbank.net/?affiliate=Wheelsvers&vendor=jointgen&v=bvsl")
+CLICKBANK_URL = _utm("click_bank")
+# OLD: CONVERTKIT_URL = os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com/")
+CONVERTKIT_URL = _utm("convert_kit")
+# OLD: JASPER_URL = os.getenv("AFFILIATE_JASPER_URL", "https://www.jasper.ai/")
+JASPER_URL = _utm("jasp")
+# OLD: APPSUMO_URL = os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com/")
+APPSUMO_URL = _utm("app_sumo")
+# OLD: FIVERR_URL = os.getenv("AFFILIATE_FIVERR_URL", "https://www.fiverr.com/")
+FIVERR_URL = _utm("fi_verr")
+# OLD: BLUEHOST_URL = os.getenv("AFFILIATE_BLUEHOST_URL", "https://www.bluehost.com/")
+BLUEHOST_URL = _utm("blue_host")
+# OLD: CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = _utm("cta", medium="blog", base=_BLOG)
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
 
@@ -79,18 +102,22 @@ class HighValueAffiliateBotBot(BaseBot):
             "ai_tools": [
                 f"Jasper AI — 25% recurring commission: {JASPER_URL}",
                 f"AppSumo lifetime deals — up to $200/sale: {APPSUMO_URL}",
-                f"Amazon AI books & courses (tag={AMAZON_TAG}): https://amazon.com/?tag={AMAZON_TAG}",
+                # OLD: f"Amazon AI books & courses (tag={AMAZON_TAG}): https://amazon.com/?tag={AMAZON_TAG}"
+                f"Amazon AI books & courses (tag={AMAZON_TAG}): {_utm('amazon_ai_tools')}",
                 f"WheellsVerse AI Blueprint: {CTA_URL}",
             ],
             "crypto": [
                 f"Coinbase — $10 BTC per signup: {COINBASE_URL}",
-                f"Amazon crypto books (tag={AMAZON_TAG2}): https://amazon.com/s?k=crypto+investing&tag={AMAZON_TAG2}",
+                # OLD: f"Amazon crypto books (tag={AMAZON_TAG2}): https://amazon.com/s?k=crypto+investing&tag={AMAZON_TAG2}"
+                f"Amazon crypto books (tag={AMAZON_TAG2}): {_utm('amazon_crypto')}",
                 f"ClickBank high-ticket crypto products: {CLICKBANK_URL}",
             ],
             "investing": [
-                f"Webull — free stocks referral ($3-$225 value): {ROBINHOOD_URL}",
+                # OLD: f"Webull — free stocks referral ($3-$225 value): {ROBINHOOD_URL}"
+                f"Webull — free stocks referral ($3-$225 value): {WEBULL_URL}",
                 f"Coinbase — get started in crypto: {COINBASE_URL}",
-                f"Amazon investing books (tag={AMAZON_TAG}): https://amazon.com/s?k=investing+beginners&tag={AMAZON_TAG}",
+                # OLD: f"Amazon investing books (tag={AMAZON_TAG}): https://amazon.com/s?k=investing+beginners&tag={AMAZON_TAG}"
+                f"Amazon investing books (tag={AMAZON_TAG}): {_utm('amazon_investing')}",
             ],
             "email_marketing": [
                 f"ConvertKit — 30% recurring monthly commission: {CONVERTKIT_URL}",
@@ -105,7 +132,8 @@ class HighValueAffiliateBotBot(BaseBot):
             ],
             "mixed_high_value": [
                 f"Coinbase — $10 BTC signup bonus: {COINBASE_URL}",
-                f"Webull — free stocks on signup: {ROBINHOOD_URL}",
+                # OLD: f"Webull — free stocks on signup: {ROBINHOOD_URL}"
+                f"Webull — free stocks on signup: {WEBULL_URL}",
                 f"Jasper AI — 25% recurring: {JASPER_URL}",
                 f"AppSumo — up to $200/sale: {APPSUMO_URL}",
                 f"ConvertKit — 30% recurring: {CONVERTKIT_URL}",

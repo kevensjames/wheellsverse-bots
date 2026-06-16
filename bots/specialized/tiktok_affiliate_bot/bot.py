@@ -15,9 +15,24 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
 
+# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
+# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
+# OLD routes to the owned digital product / blog with UTM tagging.
+_BOT = "tiktok_affiliate_bot"
+_CAMP = "affiliate_swap_pass2_2026_06_02"
+_DIGITAL = "https://stan.store/Wheellsverse"
+_BLOG = "https://wheellsverse.com/blog/"
+
+
+def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
+    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+
+
+# OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
+COINBASE_URL = _utm("coinbase")
+# OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
+WEBULL_URL = _utm("webull")
 AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
-ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
 
 # TikTok topics that drive affiliate clicks
 TRENDING_TOPICS = [
@@ -68,9 +83,10 @@ Return a JSON object with:
 }}
 
 Affiliate links to naturally weave in:
-- Amazon: https://www.amazon.com/s?k=investing+tools&tag={AMAZON_TAG}
+# OLD: - Amazon: https://www.amazon.com/s?k=investing+tools&tag={AMAZON_TAG}
+- Amazon: {_utm('amazon_investing_tools')}
 - Coinbase (crypto sign-up, $10 bonus): {COINBASE_URL}
-- Robinhood (free stock investing): {ROBINHOOD_URL}
+- Robinhood (free stock investing): {WEBULL_URL}
 
 Topic niche: {topic}
 Goal: maximum affiliate clicks + follows"""
@@ -91,7 +107,7 @@ Goal: maximum affiliate clicks + follows"""
                 "script": raw,
                 "hook": raw[:80],
                 "hashtags": ["#passiveincome", "#investing", "#money", "#tiktok"],
-                "cta": f"Sign up for free: {ROBINHOOD_URL}",
+                "cta": f"Sign up for free: {WEBULL_URL}",
             }
 
         caption = content.get("caption", "")
