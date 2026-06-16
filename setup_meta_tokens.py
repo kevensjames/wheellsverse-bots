@@ -55,10 +55,13 @@ Follow these steps:
   2. In the top-right, click "Generate Access Token"
   3. Select your App (or create one at developers.facebook.com)
   4. Grant these permissions:
-       ✅ pages_manage_posts
-       ✅ pages_read_engagement
-       ✅ instagram_basic
-       ✅ instagram_content_publish
+       ✅ pages_manage_posts          (organic posting)
+       ✅ pages_read_engagement       (organic posting)
+       ✅ instagram_basic             (Instagram publish)
+       ✅ instagram_content_publish   (Instagram publish)
+       ✅ ads_management              (REQUIRED for Toodle Ads Agent — creates campaigns/adsets/ads)
+       ✅ ads_read                    (REQUIRED for Toodle Ads Agent — verifies PAUSED status)
+       ✅ business_management         (lets you see your Ad Account from this token)
   5. Click "Generate Access Token" and COPY the token
   6. Paste it below
 """)

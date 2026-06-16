@@ -483,7 +483,7 @@ body{font-family:'Space Grotesk',sans-serif;background:var(--bg);color:var(--tex
 // ── CONFIG ──────────────────────────────────────────────────────────────────
 const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
   ? 'http://localhost:5050'
-  : 'https://grateful-flexibility-production.up.railway.app';
+  : '';  // same-origin in prod (app.wheellsverse.com)
 
 let TOKEN    = localStorage.getItem('nx_token') || '';
 let CREATOR  = null;

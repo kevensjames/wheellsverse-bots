@@ -1,0 +1,19 @@
+# EMAIL 1 — Immediate
+# Delay: immediate
+# Source: paste-ready — drop straight into Kit's sequence builder.
+
+SUBJECT:
+You're in — here's where to start
+
+BODY:
+Welcome.
+
+You signed up, so here's something useful right away: the AI Entrepreneur Blueprint → https://wheellsverse-bots.pages.dev/blueprint.pdf?utm_source=email&utm_medium=welcome&utm_campaign=welcome_seq
+
+It's the short, no-filler version of how I turn ideas into real products using AI. Read it first.
+
+I'm J.K. Blaze — I build AI systems for a living, and I share the parts that actually work. Over the next few days I'll send you the steps that don't fit in a PDF.
+
+Start with the blueprint. More soon.
+
+— J.K.

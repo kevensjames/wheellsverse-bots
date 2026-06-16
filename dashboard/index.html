@@ -4,7 +4,10 @@
 <meta charset="UTF-8"/><!-- v2-toodle-2026-04-19 --><meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>WheellsVerse — AI Command Center</title>
 <link rel="manifest" href="/manifest.json"/>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
+<link rel="alternate icon" href="/favicon.ico"/>
 <meta name="theme-color" content="#0d0f14"/>
+<meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
 <meta name="apple-mobile-web-app-title" content="WheellsVerse"/>
@@ -398,17 +401,23 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 
 <!-- ══ LOGIN GATE ══════════════════════════════════════════════════════════ -->
 <div id="login-gate" style="position:fixed;inset:0;background:#0d0f14;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column">
-  <div style="background:#13161d;border:1px solid rgba(136,68,255,.3);border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">
-    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#6600cc,#00aaff);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px">⬡</div>
+  <form id="login-form" action="/api/auth/login" method="post" autocomplete="on"
+    onsubmit="event.preventDefault();doLogin();"
+    style="background:#13161d;border:1px solid rgba(136,68,255,.3);border-radius:16px;padding:40px 36px;width:340px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.6)">
+    <div style="width:48px;height:48px;border-radius:14px;background:linear-gradient(135deg,#6600cc,#00aaff);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 16px" aria-hidden="true">⬡</div>
     <div style="font-size:14px;font-weight:700;color:#cc88ff;letter-spacing:2px;margin-bottom:4px">WHEELLSVERSE</div>
     <div style="font-size:10px;color:rgba(136,68,255,.6);letter-spacing:2px;margin-bottom:28px">AI COMMAND CENTER</div>
-    <input id="login-pw" type="password" placeholder="Enter password"
+    <!-- Hidden username so password managers can key the saved credential to a user -->
+    <input type="text" name="username" value="admin" autocomplete="username"
+      aria-hidden="true" tabindex="-1" style="position:absolute;left:-9999px;opacity:0">
+    <label for="login-pw" class="sr-only" style="position:absolute;left:-9999px">Password</label>
+    <input id="login-pw" name="password" type="password" placeholder="Enter password"
+      autocomplete="current-password" required
       style="width:100%;background:#1a1e28;border:1px solid rgba(136,68,255,.3);border-radius:9px;padding:12px 14px;color:#e0e6f0;font-family:inherit;font-size:13px;outline:none;margin-bottom:12px;text-align:center"
-      onkeydown="if(event.key==='Enter')doLogin()"
       onfocus="this.style.borderColor='#cc88ff'" onblur="this.style.borderColor='rgba(136,68,255,.3)'">
-    <button onclick="doLogin()" style="width:100%;padding:11px;background:linear-gradient(135deg,rgba(102,0,204,.4),rgba(0,170,255,.3));border:1px solid rgba(136,68,255,.4);border-radius:9px;color:#cc88ff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px">ENTER</button>
-    <div id="login-err" style="margin-top:10px;font-size:11px;color:#ff4444;min-height:16px"></div>
-  </div>
+    <button type="submit" style="width:100%;padding:11px;background:linear-gradient(135deg,rgba(102,0,204,.4),rgba(0,170,255,.3));border:1px solid rgba(136,68,255,.4);border-radius:9px;color:#cc88ff;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;letter-spacing:1px">ENTER</button>
+    <div id="login-err" role="alert" aria-live="polite" style="margin-top:10px;font-size:11px;color:#ff4444;min-height:16px"></div>
+  </form>
 </div>
 <script>
 (function(){
@@ -494,6 +503,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('creative')" id="nav-creative" style="background:linear-gradient(90deg,rgba(255,136,0,.1),transparent);border-left:2px solid #ff8800;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🎨</span><span style="color:#ff9922;font-weight:700">Creative Tools</span></div>
     <!-- KAI operator dashboard — embedded via iframe, served by kai.wheellsverse.com -->
     <div class="nav-item" onclick="nav('kai')" id="nav-kai" style="background:linear-gradient(90deg,rgba(79,140,255,.22),rgba(0,204,255,.08));border-left:2px solid #4f8cff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#4f8cff;font-weight:700">KAI</span><span style="margin-left:auto;font-size:8px;color:#4f8cff;background:rgba(79,140,255,.15);border-radius:10px;padding:1px 6px">NEW</span></div>
+    <!-- SUPREMA autorepair — workspace healing system (19 patterns, daily 06:00 cron) -->
+    <div class="nav-item" onclick="nav('suprema')" id="nav-suprema" style="background:linear-gradient(90deg,rgba(168,85,247,.22),rgba(139,92,246,.08));border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛡️</span><span style="color:#a855f7;font-weight:700">SUPREMA</span><span style="margin-left:auto;font-size:8px;color:#a855f7;background:rgba(168,85,247,.15);border-radius:10px;padding:1px 6px">NEW</span></div>
 
     <!-- Bot Control + Code Studio -->
     <div class="nav-sec" style="color:rgba(0,204,255,.6);font-size:8px;letter-spacing:2.5px">CONTROL</div>
@@ -1311,6 +1322,300 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
           title="KAI operator dashboard"
           style="width:100%;height:100%;border:0;background:#0d0f14;display:block"
           allow="clipboard-read; clipboard-write; microphone"></iframe>
+</div>
+
+<!-- ══ SUPREMA AUTOREPAIR ════════════════════════════════════════════════ -->
+<div class="page" id="page-suprema" style="padding:24px;height:100vh;overflow:auto;background:#0d0f14">
+  <div style="background:linear-gradient(135deg,rgba(168,85,247,.12),rgba(139,92,246,.04));border:1px solid rgba(168,85,247,.3);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <div style="font-size:32px">🛡️</div>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:700;color:#a855f7">SUPREMA Autorepair</div>
+        <div style="font-size:11px;color:var(--text2)">Workspace-wide auto-healing · 6 projects · <span id="supr-patterns-inline">14</span> patterns · daily 06:00 cron</div>
+      </div>
+      <button onclick="suprRescan(this)" style="padding:8px 16px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);border-radius:8px;color:#a855f7;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🔄 Scan now</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Last run</div><div style="font-size:14px;font-weight:700;color:var(--text)" id="supr-last">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Open findings</div><div style="font-size:14px;font-weight:700;color:var(--text)" id="supr-count">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Auto-fixed</div><div style="font-size:14px;font-weight:700;color:#44ff88" id="supr-fixed">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Patterns</div><div style="font-size:14px;font-weight:700;color:#a855f7" id="supr-patterns">11</div></div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+    <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">📊 Findings by pattern</div>
+      <div id="supr-by-pattern" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+    <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+      <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:12px">📁 Findings by project</div>
+      <div id="supr-by-project" style="display:flex;flex-direction:column;gap:6px"></div>
+    </div>
+  </div>
+
+  <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:700;color:var(--text)">🔍 Findings</div>
+      <select id="supr-filter-project" onchange="suprApplyFilters()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:4px 8px;font-family:inherit"><option value="">All projects</option></select>
+      <select id="supr-filter-pattern" onchange="suprApplyFilters()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:4px 8px;font-family:inherit"><option value="">All patterns</option></select>
+      <select id="supr-filter-severity" onchange="suprApplyFilters()" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text);font-size:10px;padding:4px 8px;font-family:inherit"><option value="">All severities</option><option value="high">🔴 High only</option><option value="medium">🟡 Medium only</option><option value="low">🔵 Low only</option></select>
+      <span id="supr-filter-count" style="margin-left:auto;font-size:10px;color:var(--text3)">—</span>
+    </div>
+    <div id="supr-findings" style="max-height:50vh;overflow:auto"></div>
+  </div>
+
+  <div style="margin-top:20px;padding:12px;background:rgba(168,85,247,.05);border-left:3px solid rgba(168,85,247,.4);border-radius:0 8px 8px 0;font-size:10px;color:var(--text2);line-height:1.6">
+    <strong style="color:#a855f7">How this works:</strong> A launchd cron runs <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">suprema-autorepair fix --commit --notify</code> daily at 06:00 local on the Mac mini. Auto-safe patterns get fixed in atomic <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">chore(autorepair):</code> commits; review-tier findings get reported to Telegram. Pre-commit hooks installed in all 6 SUPREMA project repos prevent the same bug class from re-entering manually.
+  </div>
+
+  <script>
+    (function() {
+      let _suprLoaded = false;
+      // Cache of last-loaded state — used by filter handlers + Fix button
+      let _suprState = { findings: [], catalog: {} };
+      // Patterns currently considered auto-safe (for Fix button visibility)
+      const AUTO_SAFE_PATTERNS = new Set([
+        'missing_pwa_manifest', 'missing_service_worker', 'missing_favicon',
+        'malformed_api_helper_call', 'committed_runtime_state',
+      ]);
+
+      const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/'/g, '&#39;');
+
+      function renderBar([k, v], max, onclick) {
+        const pct = max ? Math.round((v / max) * 100) : 0;
+        const handler = onclick ? ' onclick="' + onclick + '"' : '';
+        const cursor = onclick ? 'cursor:pointer;' : '';
+        return '<div' + handler + ' style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(168,85,247,.06);border-radius:6px;font-size:11px;' + cursor + 'transition:background .15s" onmouseover="this.style.background=\'rgba(168,85,247,.12)\'" onmouseout="this.style.background=\'rgba(168,85,247,.06)\'">' +
+          '<span style="flex:1;color:var(--text)">' + esc(k) + '</span>' +
+          '<div style="width:60px;height:4px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden"><div style="width:' + pct + '%;height:100%;background:#a855f7"></div></div>' +
+          '<span style="min-width:24px;text-align:right;font-weight:700;color:#a855f7">' + v + '</span>' +
+          '</div>';
+      }
+
+      function renderFinding(f, idx) {
+        const sev = { high: '🔴', medium: '🟡', low: '🔵' }[f.severity] || '⚪';
+        const ev = esc((f.evidence || '').slice(0, 200));
+        // Hide Fix button for data-bearing files (.db / .sqlite / .pkl / .bin)
+        // — the fixer refuses to auto-untrack these so showing the button
+        // would confuse the operator.
+        const loc = String(f.location || '');
+        const isDataFile = /\.(db|sqlite\d?|pkl|bin)(:|$)/i.test(loc);
+        const canFix = AUTO_SAFE_PATTERNS.has(f.pattern) && !isDataFile;
+        const fixBtn = canFix
+          ? '<button onclick="suprFixOne(' + idx + ', this)" style="margin-left:8px;padding:3px 10px;background:rgba(68,255,136,.12);border:1px solid rgba(68,255,136,.3);border-radius:6px;color:#44ff88;font-family:inherit;font-size:9px;font-weight:700;cursor:pointer">Fix</button>'
+          : '';
+        const suppressBtn = '<button onclick="suprSuppressOne(' + idx + ', this)" title="Won\'t fix — hide this finding" style="margin-left:4px;padding:3px 8px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.1);border-radius:6px;color:var(--text3);font-family:inherit;font-size:9px;cursor:pointer">✕ Hide</button>';
+        return '<div style="padding:8px 12px;border-bottom:1px solid rgba(255,255,255,.05);font-size:11px" data-pattern="' + esc(f.pattern) + '" data-project="' + esc(f.project) + '" data-severity="' + esc(f.severity) + '">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+          '<span>' + sev + '</span>' +
+          '<span style="color:#a855f7;font-weight:600;cursor:pointer" onclick="suprFilterByPattern(\'' + esc(f.pattern) + '\')">[' + esc(f.pattern) + ']</span>' +
+          '<span style="color:var(--text2);font-size:10px;cursor:pointer" onclick="suprFilterByProject(\'' + esc(f.project) + '\')">' + esc(f.project) + '</span>' +
+          '<span style="margin-left:auto;color:var(--text3);font-family:monospace;font-size:10px">' + esc(f.location) + '</span>' +
+          fixBtn +
+          suppressBtn +
+          '</div>' +
+          (ev ? '<div style="margin-left:24px;margin-top:4px;color:var(--text3);font-size:10px;font-family:monospace">↳ ' + ev + '</div>' : '') +
+          '</div>';
+      }
+
+      function applyFiltersToRender() {
+        const proj = document.getElementById('supr-filter-project').value;
+        const pat = document.getElementById('supr-filter-pattern').value;
+        const sev = document.getElementById('supr-filter-severity').value;
+        const visible = _suprState.findings
+          .map((f, i) => ({ f, i }))
+          .filter(({ f }) =>
+            (!proj || f.project === proj) &&
+            (!pat || f.pattern === pat) &&
+            (!sev || f.severity === sev)
+          );
+        document.getElementById('supr-filter-count').textContent =
+          visible.length + ' of ' + _suprState.findings.length + ' shown';
+        const slice = visible.slice(0, 80);
+        document.getElementById('supr-findings').innerHTML = slice.length
+          ? slice.map(({ f, i }) => renderFinding(f, i)).join('') +
+            (visible.length > 80 ? '<div style="padding:10px;text-align:center;color:var(--text3);font-size:10px">+' + (visible.length - 80) + ' more — narrow your filter</div>' : '')
+          : '<div style="padding:30px;text-align:center;color:#44ff88;font-size:12px">✓ No findings match this filter</div>';
+      }
+
+      window.suprApplyFilters = applyFiltersToRender;
+      window.suprFilterByProject = (proj) => {
+        document.getElementById('supr-filter-project').value = proj;
+        applyFiltersToRender();
+        document.getElementById('supr-findings').scrollIntoView({ behavior: 'smooth' });
+      };
+      window.suprFilterByPattern = (pat) => {
+        document.getElementById('supr-filter-pattern').value = pat;
+        applyFiltersToRender();
+        document.getElementById('supr-findings').scrollIntoView({ behavior: 'smooth' });
+      };
+
+      window.suprSuppressOne = async function(idx, btn) {
+        const f = _suprState.findings[idx];
+        if (!f) return;
+        const reason = prompt('Why are you suppressing this finding?\n\n' +
+                              f.pattern + '  ' + f.location +
+                              '\n\n(Hit Cancel to abort)', '');
+        if (reason === null) return;
+        const row = btn.closest('div[data-pattern]');
+        const orig = btn.textContent;
+        btn.textContent = '⏳…'; btn.disabled = true;
+        try {
+          const headers = (typeof authH === 'function')
+            ? Object.assign(authH(), { 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          const r = await fetch('/api/suprema/suppress', {
+            method: 'POST', headers,
+            body: JSON.stringify({
+              pattern: f.pattern, project: f.project,
+              location: f.location, reason: reason,
+            })
+          });
+          const data = await r.json();
+          if (data.status === 'ok' || data.status === 'already_suppressed') {
+            if (typeof toast === 'function') toast('✓ Suppressed', 'success');
+            if (row) row.style.display = 'none';
+          } else {
+            if (typeof toast === 'function') toast('Suppress: ' + (data.message || 'failed'), 'error');
+            btn.textContent = orig; btn.disabled = false;
+          }
+        } catch (e) {
+          if (typeof toast === 'function') toast('Suppress failed: ' + e.message, 'error');
+          btn.textContent = orig; btn.disabled = false;
+        }
+      };
+
+      window.suprFixOne = async function(idx, btn) {
+        const f = _suprState.findings[idx];
+        if (!f) return;
+        const orig = btn.textContent;
+        btn.textContent = '⏳…'; btn.disabled = true;
+        try {
+          const headers = (typeof authH === 'function')
+            ? Object.assign(authH(), { 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          const r = await fetch('/api/suprema/fix', {
+            method: 'POST', headers,
+            body: JSON.stringify({ pattern: f.pattern, project: f.project, location: f.location })
+          });
+          const data = await r.json();
+          if (data.status === 'ok' || data.success) {
+            if (typeof toast === 'function') toast('✓ Fixed: ' + f.pattern, 'success');
+            btn.textContent = '✓ Done';
+            btn.style.background = 'rgba(68,255,136,.25)';
+          } else {
+            if (typeof toast === 'function') toast('Fix: ' + (data.message || data.error || 'failed'), 'error');
+            btn.textContent = orig; btn.disabled = false;
+          }
+        } catch (e) {
+          if (typeof toast === 'function') toast('Fix failed: ' + e.message, 'error');
+          btn.textContent = orig; btn.disabled = false;
+        }
+      };
+
+      window.suprLoad = async function() {
+        try {
+          const headers = (typeof authH === 'function') ? authH() : {};
+          const r = await fetch('/api/suprema/status', { headers }).then(x => x.json());
+          const last = r.started_at ? new Date(r.started_at).toLocaleString() : '(no scan yet)';
+          document.getElementById('supr-last').textContent = last;
+          document.getElementById('supr-count').textContent = r.findings_count ?? 0;
+          document.getElementById('supr-fixed').textContent = (r.fixes_succeeded ?? 0) + '/' + (r.fixes_attempted ?? 0);
+          const patternsTotal = r.patterns_total ?? 14;
+          document.getElementById('supr-patterns').textContent = patternsTotal;
+          const inlineEl = document.getElementById('supr-patterns-inline');
+          if (inlineEl) inlineEl.textContent = patternsTotal;
+
+          _suprState.findings = r.findings || [];
+
+          const byPattern = {}, byProject = {};
+          for (const f of _suprState.findings) {
+            byPattern[f.pattern] = (byPattern[f.pattern] || 0) + 1;
+            byProject[f.project] = (byProject[f.project] || 0) + 1;
+          }
+          const sortDesc = o => Object.entries(o).sort((a, b) => b[1] - a[1]);
+          const pp = sortDesc(byPattern), proj = sortDesc(byProject);
+
+          // Populate filter dropdowns
+          const sel = (id, items, defaultLabel) => {
+            const el = document.getElementById(id);
+            const cur = el.value;
+            el.innerHTML = '<option value="">' + defaultLabel + '</option>' +
+              items.map(k => '<option value="' + esc(k) + '">' + esc(k) + '</option>').join('');
+            if (items.includes(cur)) el.value = cur;
+          };
+          sel('supr-filter-project', proj.map(([k]) => k), 'All projects (' + Object.keys(byProject).length + ')');
+          sel('supr-filter-pattern', pp.map(([k]) => k), 'All patterns (' + Object.keys(byPattern).length + ')');
+
+          const maxP = pp[0]?.[1] || 1, maxJ = proj[0]?.[1] || 1;
+          document.getElementById('supr-by-pattern').innerHTML = pp.length
+            ? pp.map(e => renderBar(e, maxP, 'suprFilterByPattern(\'' + esc(e[0]) + '\')')).join('')
+            : '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ No findings — workspace clean</div>';
+          document.getElementById('supr-by-project').innerHTML = proj.length
+            ? proj.map(e => renderBar(e, maxJ, 'suprFilterByProject(\'' + esc(e[0]) + '\')')).join('')
+            : '<div style="padding:12px;text-align:center;color:#44ff88;font-size:11px">✓ All 6 projects clean</div>';
+
+          applyFiltersToRender();
+          _suprLoaded = true;
+        } catch (e) {
+          document.getElementById('supr-findings').innerHTML =
+            '<div style="padding:20px;color:#ff6060;font-size:11px">Error loading SUPREMA state: ' + (e.message || e) + '<br><span style="color:var(--text3)">State is populated by the daily 06:00 cron on the Mac mini, then synced to this repo as data/suprema-latest.json. Click "Scan now" to populate immediately.</span></div>';
+        }
+      };
+      window.suprRescan = async function(btn) {
+        const orig = btn.textContent;
+        btn.textContent = '⏳ Scanning…'; btn.disabled = true;
+        try {
+          const headers = (typeof authH === 'function')
+            ? Object.assign(authH(), { 'Content-Type': 'application/json' })
+            : { 'Content-Type': 'application/json' };
+          const r = await fetch('/api/suprema/scan', { method: 'POST', headers });
+          const data = await r.json();
+          if (data.status === 'ok') {
+            if (typeof toast === 'function') toast('✓ Scan complete', 'success');
+            await suprLoad();
+          } else {
+            if (typeof toast === 'function') toast('Scan: ' + (data.error || data.stderr || 'failed'), 'error');
+          }
+        } catch (e) {
+          if (typeof toast === 'function') toast('Scan failed: ' + e.message, 'error');
+        }
+        btn.textContent = orig; btn.disabled = false;
+      };
+      // The dashboard's nav() function is defined later in the file than this
+      // IIFE runs. Poll until it's available, then wrap it so clicking
+      // SUPREMA in the sidebar triggers suprLoad() on first open.
+      let _wrapAttempts = 0;
+      const _tryWrapNav = () => {
+        if (typeof window.nav === 'function') {
+          const _origNav = window.nav;
+          window.nav = function(p) {
+            const r = _origNav.apply(this, arguments);
+            if (p === 'suprema' && !_suprLoaded) suprLoad();
+            return r;
+          };
+          return;
+        }
+        if (++_wrapAttempts < 200) setTimeout(_tryWrapNav, 50);  // up to 10s
+      };
+      _tryWrapNav();
+
+      // Belt-and-suspenders: if the page-suprema element becomes visible via
+      // other code paths (deep-link, programmatic nav before our wrap fires),
+      // still load on visibility.
+      document.addEventListener('DOMContentLoaded', () => {
+        const el = document.getElementById('page-suprema');
+        if (!el) return;
+        const obs = new MutationObserver(() => {
+          if (el.classList.contains('active') && !_suprLoaded) suprLoad();
+        });
+        obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+        // If page-suprema is already active when DOM ready, load immediately
+        if (el.classList.contains('active')) suprLoad();
+      });
+    })();
+  </script>
 </div>
 
 <!-- ══ SITEBOOST ════════════════════════════════════════════════════════
@@ -3549,7 +3854,7 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn bc2 bsm" onclick="toodleRefresh()">↺ Refresh</button>
-      <a href="http://localhost:8000/docs" target="_blank" class="btn bg2 bsm">📖 API Docs</a>
+      <a href="/docs" target="_blank" class="btn bg2 bsm">📖 API Docs</a>
     </div>
   </div>
 
@@ -6494,7 +6799,7 @@ curl -X POST /v1/bots/run \
 const API=window.location.origin;
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',siteboost:'🚀 SiteBoost — Local-Business Outbound (Scan · Sequences · Selftest)',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
+const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',suprema:'🛡️ SUPREMA — Workspace Autorepair · 19 patterns · daily cron',siteboost:'🚀 SiteBoost — Local-Business Outbound (Scan · Sequences · Selftest)',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){
@@ -6666,17 +6971,18 @@ function tvRender(){
         const bdr=edited?'rgba(255,180,0,.6)':'var(--border)';
         html+=`<div style="background:var(--bg2);border:1px solid ${bdr};border-radius:var(--r);padding:8px 10px" id="tv-card-${t.key}">
           <div style="display:flex;align-items:center;gap:6px;margin-bottom:5px">
-            <span>${dot}</span>
-            <span style="font-family:monospace;font-size:10px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.key}">${t.key}</span>
+            <span aria-hidden="true">${dot}</span>
+            <label for="tv-inp-${t.key}" style="font-family:monospace;font-size:10px;color:var(--text2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${t.key}">${t.key}</label>
             ${t.is_secret?'<span style="font-size:8px;color:var(--text3);background:rgba(255,100,60,.1);border-radius:4px;padding:1px 5px">secret</span>':''}
             ${edited?'<span style="font-size:8px;color:#ffc040;background:rgba(255,180,0,.1);border-radius:4px;padding:1px 5px">edited</span>':''}
           </div>
           <div style="display:flex;gap:5px;align-items:center">
             <input type="${itype}" class="si2" style="flex:1;font-size:10px;font-family:monospace"
-              id="tv-inp-${t.key}" value="${esc(disp)}"
+              id="tv-inp-${t.key}" name="${t.key}" value="${esc(disp)}"
+              aria-label="${t.key}"
               placeholder="${hasVal?'(set — type to change)':'Enter value…'}"
               oninput="tvEdit('${t.key}',this.value)" autocomplete="off" spellcheck="false">
-            ${t.is_secret?`<button class="btn bgh" style="padding:2px 7px;font-size:10px;flex-shrink:0" onclick="tvToggleShow('${t.key}')">&#128065;</button>`:''}
+            ${t.is_secret?`<button type="button" class="btn bgh" style="padding:2px 7px;font-size:10px;flex-shrink:0" aria-label="Show or hide ${t.key}" onclick="tvToggleShow('${t.key}')">&#128065;</button>`:''}
           </div>
         </div>`;
       }
@@ -9934,7 +10240,7 @@ async function toodleRefresh(){
   const upt = document.getElementById('toodle-uptime');
   if(txt) txt.textContent = 'Checking API…';
   try {
-    const r = await fetch('http://localhost:8000/health', {signal: AbortSignal.timeout(3000)});
+    const r = await fetch('/api/health', {signal: AbortSignal.timeout(3000)});
     if(r.ok){
       const d = await r.json();
       if(dot){ dot.style.background='#44ff88'; dot.style.boxShadow='0 0 8px #44ff88'; }
@@ -15765,7 +16071,7 @@ async function saCreateDiscount() {
   if (!title || !code || !pct) { res.textContent = '⚠️ Fill in all fields'; res.style.color='#ffa500'; return; }
   res.textContent = 'Creating…'; res.style.color = 'var(--text3)';
   try {
-    const d = await api('/api/shopify/discount', {method:'POST', body:JSON.stringify({title, code, percent_off:pct, usage_limit:limit})});
+    const d = await api('/api/shopify/discount', 'POST', {title, code, percent_off:pct, usage_limit:limit});
     if (d.success || d.discount_code) {
       res.textContent = `✅ Created: ${d.discount_code || code}`; res.style.color='#44ff88';
       toast(`✅ Discount ${code} created!`, 'success');
@@ -15778,7 +16084,7 @@ async function saCreateDiscount() {
 async function saQuickDiscount(code, label, pct, limit) {
   toast(`Creating ${code}…`, 'info');
   try {
-    const d = await api('/api/shopify/discount', {method:'POST', body:JSON.stringify({title:label, code, percent_off:pct, usage_limit:limit})});
+    const d = await api('/api/shopify/discount', 'POST', {title:label, code, percent_off:pct, usage_limit:limit});
     if (d.success || d.discount_code) toast(`✅ ${code} created!`, 'success');
     else toast(`❌ ${d.error || 'Failed'}`, 'error');
   } catch(e) { toast(`❌ ${e.message}`, 'error'); }

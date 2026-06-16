@@ -1,0 +1,5079 @@
+{
+  "started_at": "2026-06-16T03:27:08Z",
+  "elapsed_s": 11.65,
+  "findings_count": 155,
+  "findings_total": 155,
+  "findings_suppressed": 0,
+  "findings": [
+    {
+      "pattern": "malformed_api_helper_call",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "frontend/admin/siteboost.html:389",
+      "evidence": "api('/selftest', {method: 'POST'})",
+      "fix_payload": {
+        "file": "frontend/admin/siteboost.html",
+        "match_start": 18208,
+        "match_end": 18242,
+        "url_literal": "'/selftest'",
+        "method": "POST",
+        "body_literal": ""
+      }
+    },
+    {
+      "pattern": "stale_git_sha_health",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "https://app.wheellsverse.com/api/health",
+      "evidence": "git_sha='611851a' but no build_time field \u2014 image predates the GIT_SHA honesty patch",
+      "fix_payload": {
+        "git_sha": "611851a",
+        "build_time_missing": true
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9919",
+      "evidence": "DELETE /api/kdp/queue/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "DELETE",
+        "path": "/api/kdp/queue/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9903",
+      "evidence": "DELETE /api/kdp/registry/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "DELETE",
+        "path": "/api/kdp/registry/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8002",
+      "evidence": "GET /api/integrations/{p}  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/integrations/{p}"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/admin/index.html:221",
+      "evidence": "GET /api/narai/shopify/merchants  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/narai/shopify/merchants"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9045",
+      "evidence": "GET /api/reddit/blitz/reset  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/reddit/blitz/reset"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9184",
+      "evidence": "GET /api/tiktok/blitz/done  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/tiktok/blitz/done"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9188",
+      "evidence": "GET /api/tiktok/blitz/reset  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/tiktok/blitz/reset"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8980",
+      "evidence": "GET /api/twitter/blitz/reset  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "GET",
+        "path": "/api/twitter/blitz/reset"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:8879",
+      "evidence": "POST /api/bots/writing/46_blog_writer/run  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/bots/writing/46_blog_writer/run"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9912",
+      "evidence": "POST /api/kdp/queue/{p}/publish  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/kdp/queue/{p}/publish"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "dashboard/index.html:9894",
+      "evidence": "POST /api/kdp/registry  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/kdp/registry"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/admin/shopify.html:176",
+      "evidence": "POST /api/narai/shopify/merchants/{p}/test-product  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/narai/shopify/merchants/{p}/test-product"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/insider.html:190",
+      "evidence": "POST /api/v2/narai/insider/lead  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/v2/narai/insider/lead"
+      }
+    },
+    {
+      "pattern": "frontend_backend_diff",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "frontend/insider.html:238",
+      "evidence": "POST /api/v2/narai/telegram/subscription/checkout  (called from frontend, no matching @app route)",
+      "fix_payload": {
+        "method": "POST",
+        "path": "/api/v2/narai/telegram/subscription/checkout"
+      }
+    },
+    {
+      "pattern": "deploy_stale",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "https://app.wheellsverse.com/api/health",
+      "evidence": "89 commits in last 7 days, no build_time in /api/health \u2014 observability gap",
+      "fix_payload": {
+        "git_sha": "611851a",
+        "recent_commits": 89
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14654",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14704",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14711",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/api.py:14871",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/api.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "core/inbox/routes.py:157",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "core/inbox/routes.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:43",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:49",
+      "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "shutdown"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:60",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:66",
+      "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "shutdown"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:76",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:82",
+      "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "shutdown"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:43",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:49",
+      "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "shutdown"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:60",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:66",
+      "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "shutdown"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:76",
+      "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "startup"
+      }
+    },
+    {
+      "pattern": "fastapi_deprecated_event_handler",
+      "project": "wheellsverse-bots",
+      "severity": "low",
+      "location": "backend/app/main.py:82",
+      "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+      "fix_payload": {
+        "file": "backend/app/main.py",
+        "event": "shutdown"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/rotation_db_admin_20260528T123126Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/rotation_db_admin_20260528T123126Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/rotation_publishable_20260528T144234Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/rotation_publishable_20260528T144234Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/safety_gates_layer1_layer2_20260529T043111Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/safety_gates_layer1_layer2_20260529T043111Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260520T112846Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260520T112846Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260521T093006Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260521T093006Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260521T094645Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260521T094645Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260521T095828Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260521T095828Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260521T133321Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260521T133321Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260521T142117Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260521T142117Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260521T142307Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260521T142307Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260522T192653Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260522T192653Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260526T140225Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260526T140225Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260526T143746Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260526T143746Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260526T150436Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260526T150436Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260526T151658Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260526T151658Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260526T232325Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260526T232325Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260527T002636Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260527T002636Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260527T010008Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260527T010008Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_0_20260528T083529Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_0_20260528T083529Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260520T112901Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260520T112901Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260521T093007Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260521T093007Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260521T094944Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260521T094944Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260521T095829Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260521T095829Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260521T133322Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260521T133322Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260521T142122Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260521T142122Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260521T142311Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260521T142311Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260522T192658Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260522T192658Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260526T140230Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260526T140230Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260526T143750Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260526T143750Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260526T150441Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260526T150441Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260526T151703Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260526T151703Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260526T232329Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260526T232329Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260527T002640Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260527T002640Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260527T010013Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260527T010013Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_1_20260528T083534Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_1_20260528T083534Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260520T112932Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260520T112932Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260521T093008Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260521T093008Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260521T094945Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260521T094945Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260521T095829Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260521T095829Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260521T133323Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260521T133323Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260521T142128Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260521T142128Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260521T142318Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260521T142318Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260522T192705Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260522T192705Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260526T140241Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260526T140241Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260526T143757Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260526T143757Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260526T150448Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260526T150448Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260526T151709Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260526T151709Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260526T232346Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260526T232346Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260527T002659Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260527T002659Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260527T010033Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260527T010033Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_2_20260528T083548Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_2_20260528T083548Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260520T113008Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260520T113008Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260521T093015Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260521T093015Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260521T094951Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260521T094951Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260521T095835Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260521T095835Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260521T133329Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260521T133329Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260521T142137Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260521T142137Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260521T142330Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260521T142330Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260522T192717Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260522T192717Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260526T140253Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260526T140253Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260526T143808Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260526T143808Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260526T150457Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260526T150457Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260526T151721Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260526T151721Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260526T232357Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260526T232357Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260527T002711Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260527T002711Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260527T010044Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260527T010044Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_3_20260528T083600Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_3_20260528T083600Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260520T113022Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260520T113022Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260521T093019Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260521T093019Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260521T094955Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260521T094955Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260521T095839Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260521T095839Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260521T133332Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260521T133332Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260521T142143Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260521T142143Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260521T142338Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260521T142338Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260522T192725Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260522T192725Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260526T140302Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260526T140302Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260526T143817Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260526T143817Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260526T150506Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260526T150506Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260526T151730Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260526T151730Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260526T232406Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260526T232406Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260527T002720Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260527T002720Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260527T010053Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260527T010053Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_4_20260528T083609Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_4_20260528T083609Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260520T112818Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260520T112818Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T093021Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T093021Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T094957Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T094957Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T095841Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T095841Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T133335Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T133335Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T142150Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T142150Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T142348Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T142348Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T180029Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T180029Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260521T180112Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260521T180112Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260522T113821Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260522T113821Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260522T192735Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260522T192735Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260523T062342Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260523T062342Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T140311Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T140311Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T140909Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T140909Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T140957Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T140957Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T141151Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T141151Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T143826Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T143826Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T150513Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T150513Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T151737Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T151737Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260526T232418Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260526T232418Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260527T002732Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260527T002732Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260527T010105Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260527T010105Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_5_20260528T083620Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_5_20260528T083620Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T143555Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T143555Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T143729Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T143729Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T143828Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T143828Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T144042Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T144042Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T150515Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T150515Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T151739Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T151739Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260526T232420Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260526T232420Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260527T002734Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260527T002734Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260527T010107Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260527T010107Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_6_20260528T083622Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_6_20260528T083622Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "evidence/stage_8_kai_rebrand_20260603T101310Z.log",
+      "evidence": "tracked log file",
+      "fix_payload": {
+        "file": "evidence/stage_8_kai_rebrand_20260603T101310Z.log",
+        "gitignore_pattern": "**/*.log",
+        "description": "log file"
+      }
+    },
+    {
+      "pattern": "committed_runtime_state",
+      "project": "wheellsverse-bots",
+      "severity": "medium",
+      "location": "narai/marketing/autopilot.db",
+      "evidence": "tracked database file",
+      "fix_payload": {
+        "file": "narai/marketing/autopilot.db",
+        "gitignore_pattern": "**/*.db",
+        "description": "database file"
+      }
+    },
+    {
+      "pattern": "anthropic_credit_low",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "https://api.anthropic.com/v1/messages (HTTP 400)",
+      "evidence": "Anthropic API credit low/exhausted \u2014 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_i",
+      "fix_payload": {
+        "action": "top_up",
+        "http_code": 400
+      }
+    },
+    {
+      "pattern": "deploy_freshness_diff",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "https://app.wheellsverse.com/api/health",
+      "evidence": "local HEAD is 323 commits ahead of deployed (local=f652aa3, deployed=611851a)",
+      "fix_payload": {
+        "local_sha": "f652aa3",
+        "deployed_sha": "611851a",
+        "commits_ahead": 323,
+        "build_time": ""
+      }
+    },
+    {
+      "pattern": "agent_stale_heartbeat",
+      "project": "wheellsverse-bots",
+      "severity": "high",
+      "location": "logs/system.log",
+      "evidence": "Agent 'system' appears dead (no output >6h) \u2014 last write 1d 23h ago (2026-06-14T04:11:23+00:00)",
+      "fix_payload": {
+        "action": "check_agent_process",
+        "agent": "system",
+        "last_mtime": "2026-06-14T04:11:23.187743+00:00",
+        "age_minutes": 2835
+      }
+    }
+  ],
+  "findings_hidden": [],
+  "fixes_attempted": 155,
+  "fixes_succeeded": 118,
+  "fix_outcomes": [
+    {
+      "finding": {
+        "pattern": "malformed_api_helper_call",
+        "project": "wheellsverse-bots",
+        "severity": "high",
+        "location": "frontend/admin/siteboost.html:389",
+        "evidence": "api('/selftest', {method: 'POST'})",
+        "fix_payload": {
+          "file": "frontend/admin/siteboost.html",
+          "match_start": 18208,
+          "match_end": 18242,
+          "url_literal": "'/selftest'",
+          "method": "POST",
+          "body_literal": ""
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [
+          "frontend/admin/siteboost.html"
+        ],
+        "message": "rewrote 1 malformed api() call(s) in frontend/admin/siteboost.html",
+        "risk_notes": "only inline-object bodies are rewritten; variable bodies (e.g. body:JSON.stringify(payload)) are left for human review",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "stale_git_sha_health",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "https://app.wheellsverse.com/api/health",
+        "evidence": "git_sha='611851a' but no build_time field \u2014 image predates the GIT_SHA honesty patch",
+        "fix_payload": {
+          "git_sha": "611851a",
+          "build_time_missing": true
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9919",
+        "evidence": "DELETE /api/kdp/queue/{p}  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "DELETE",
+          "path": "/api/kdp/queue/{p}"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9903",
+        "evidence": "DELETE /api/kdp/registry/{p}  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "DELETE",
+          "path": "/api/kdp/registry/{p}"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:8002",
+        "evidence": "GET /api/integrations/{p}  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "GET",
+          "path": "/api/integrations/{p}"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "frontend/admin/index.html:221",
+        "evidence": "GET /api/narai/shopify/merchants  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "GET",
+          "path": "/api/narai/shopify/merchants"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9045",
+        "evidence": "GET /api/reddit/blitz/reset  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "GET",
+          "path": "/api/reddit/blitz/reset"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9184",
+        "evidence": "GET /api/tiktok/blitz/done  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "GET",
+          "path": "/api/tiktok/blitz/done"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9188",
+        "evidence": "GET /api/tiktok/blitz/reset  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "GET",
+          "path": "/api/tiktok/blitz/reset"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:8980",
+        "evidence": "GET /api/twitter/blitz/reset  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "GET",
+          "path": "/api/twitter/blitz/reset"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:8879",
+        "evidence": "POST /api/bots/writing/46_blog_writer/run  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "POST",
+          "path": "/api/bots/writing/46_blog_writer/run"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9912",
+        "evidence": "POST /api/kdp/queue/{p}/publish  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "POST",
+          "path": "/api/kdp/queue/{p}/publish"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "dashboard/index.html:9894",
+        "evidence": "POST /api/kdp/registry  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "POST",
+          "path": "/api/kdp/registry"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "frontend/admin/shopify.html:176",
+        "evidence": "POST /api/narai/shopify/merchants/{p}/test-product  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "POST",
+          "path": "/api/narai/shopify/merchants/{p}/test-product"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "frontend/insider.html:190",
+        "evidence": "POST /api/v2/narai/insider/lead  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "POST",
+          "path": "/api/v2/narai/insider/lead"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "frontend_backend_diff",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "frontend/insider.html:238",
+        "evidence": "POST /api/v2/narai/telegram/subscription/checkout  (called from frontend, no matching @app route)",
+        "fix_payload": {
+          "method": "POST",
+          "path": "/api/v2/narai/telegram/subscription/checkout"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "deploy_stale",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "https://app.wheellsverse.com/api/health",
+        "evidence": "89 commits in last 7 days, no build_time in /api/health \u2014 observability gap",
+        "fix_payload": {
+          "git_sha": "611851a",
+          "recent_commits": 89
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=blocked \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "core/api.py:14654",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "core/api.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "core/api.py:14704",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "core/api.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "core/api.py:14711",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "core/api.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "core/api.py:14871",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "core/api.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "core/inbox/routes.py:157",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "core/inbox/routes.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:43",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:49",
+        "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "shutdown"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:60",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:66",
+        "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "shutdown"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:76",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:82",
+        "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "shutdown"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:43",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:49",
+        "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "shutdown"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:60",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:66",
+        "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "shutdown"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:76",
+        "evidence": "event handler 'startup' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "startup"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "fastapi_deprecated_event_handler",
+        "project": "wheellsverse-bots",
+        "severity": "low",
+        "location": "backend/app/main.py:82",
+        "evidence": "event handler 'shutdown' \u2014 migrate to lifespan",
+        "fix_payload": {
+          "file": "backend/app/main.py",
+          "event": "shutdown"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/rotation_db_admin_20260528T123126Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/rotation_db_admin_20260528T123126Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/rotation_db_admin_20260528T123126Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/rotation_publishable_20260528T144234Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/rotation_publishable_20260528T144234Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/rotation_publishable_20260528T144234Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/safety_gates_layer1_layer2_20260529T043111Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/safety_gates_layer1_layer2_20260529T043111Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/safety_gates_layer1_layer2_20260529T043111Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260520T112846Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260520T112846Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260520T112846Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260521T093006Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260521T093006Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260521T093006Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260521T094645Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260521T094645Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260521T094645Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260521T095828Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260521T095828Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260521T095828Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260521T133321Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260521T133321Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260521T133321Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260521T142117Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260521T142117Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260521T142117Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260521T142307Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260521T142307Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260521T142307Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260522T192653Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260522T192653Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260522T192653Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260526T140225Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260526T140225Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260526T140225Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260526T143746Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260526T143746Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260526T143746Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260526T150436Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260526T150436Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260526T150436Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260526T151658Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260526T151658Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260526T151658Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260526T232325Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260526T232325Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260526T232325Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260527T002636Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260527T002636Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260527T002636Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260527T010008Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260527T010008Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260527T010008Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_0_20260528T083529Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_0_20260528T083529Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_0_20260528T083529Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260520T112901Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260520T112901Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260520T112901Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260521T093007Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260521T093007Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260521T093007Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260521T094944Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260521T094944Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260521T094944Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260521T095829Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260521T095829Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260521T095829Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260521T133322Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260521T133322Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260521T133322Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260521T142122Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260521T142122Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260521T142122Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260521T142311Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260521T142311Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260521T142311Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260522T192658Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260522T192658Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260522T192658Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260526T140230Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260526T140230Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260526T140230Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260526T143750Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260526T143750Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260526T143750Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260526T150441Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260526T150441Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260526T150441Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260526T151703Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260526T151703Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260526T151703Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260526T232329Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260526T232329Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260526T232329Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260527T002640Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260527T002640Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260527T002640Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260527T010013Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260527T010013Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260527T010013Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_1_20260528T083534Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_1_20260528T083534Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_1_20260528T083534Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260520T112932Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260520T112932Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260520T112932Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260521T093008Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260521T093008Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260521T093008Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260521T094945Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260521T094945Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260521T094945Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260521T095829Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260521T095829Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260521T095829Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260521T133323Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260521T133323Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260521T133323Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260521T142128Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260521T142128Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260521T142128Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260521T142318Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260521T142318Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260521T142318Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260522T192705Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260522T192705Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260522T192705Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260526T140241Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260526T140241Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260526T140241Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260526T143757Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260526T143757Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260526T143757Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260526T150448Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260526T150448Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260526T150448Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260526T151709Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260526T151709Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260526T151709Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260526T232346Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260526T232346Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260526T232346Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260527T002659Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260527T002659Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260527T002659Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260527T010033Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260527T010033Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260527T010033Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_2_20260528T083548Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_2_20260528T083548Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_2_20260528T083548Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260520T113008Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260520T113008Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260520T113008Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260521T093015Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260521T093015Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260521T093015Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260521T094951Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260521T094951Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260521T094951Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260521T095835Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260521T095835Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260521T095835Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260521T133329Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260521T133329Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260521T133329Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260521T142137Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260521T142137Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260521T142137Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260521T142330Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260521T142330Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260521T142330Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260522T192717Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260522T192717Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260522T192717Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260526T140253Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260526T140253Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260526T140253Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260526T143808Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260526T143808Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260526T143808Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260526T150457Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260526T150457Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260526T150457Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260526T151721Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260526T151721Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260526T151721Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260526T232357Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260526T232357Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260526T232357Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260527T002711Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260527T002711Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260527T002711Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260527T010044Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260527T010044Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260527T010044Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_3_20260528T083600Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_3_20260528T083600Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_3_20260528T083600Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260520T113022Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260520T113022Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260520T113022Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260521T093019Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260521T093019Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260521T093019Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260521T094955Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260521T094955Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260521T094955Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260521T095839Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260521T095839Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260521T095839Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260521T133332Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260521T133332Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260521T133332Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260521T142143Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260521T142143Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260521T142143Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260521T142338Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260521T142338Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260521T142338Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260522T192725Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260522T192725Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260522T192725Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260526T140302Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260526T140302Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260526T140302Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260526T143817Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260526T143817Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260526T143817Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260526T150506Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260526T150506Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260526T150506Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260526T151730Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260526T151730Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260526T151730Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260526T232406Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260526T232406Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260526T232406Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260527T002720Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260527T002720Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260527T002720Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260527T010053Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260527T010053Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260527T010053Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_4_20260528T083609Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_4_20260528T083609Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_4_20260528T083609Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260520T112818Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260520T112818Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260520T112818Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T093021Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T093021Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T093021Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T094957Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T094957Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T094957Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T095841Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T095841Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T095841Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T133335Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T133335Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T133335Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T142150Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T142150Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T142150Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T142348Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T142348Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T142348Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T180029Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T180029Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T180029Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260521T180112Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260521T180112Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260521T180112Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260522T113821Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260522T113821Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260522T113821Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260522T192735Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260522T192735Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260522T192735Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260523T062342Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260523T062342Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260523T062342Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T140311Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T140311Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T140311Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T140909Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T140909Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T140909Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T140957Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T140957Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T140957Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T141151Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T141151Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T141151Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T143826Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T143826Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T143826Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T150513Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T150513Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T150513Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T151737Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T151737Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T151737Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260526T232418Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260526T232418Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260526T232418Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260527T002732Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260527T002732Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260527T002732Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260527T010105Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260527T010105Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260527T010105Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_5_20260528T083620Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_5_20260528T083620Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_5_20260528T083620Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T143555Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T143555Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T143555Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T143729Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T143729Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T143729Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T143828Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T143828Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T143828Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T144042Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T144042Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T144042Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T150515Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T150515Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T150515Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T151739Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T151739Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T151739Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260526T232420Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260526T232420Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260526T232420Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260527T002734Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260527T002734Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260527T002734Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260527T010107Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260527T010107Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260527T010107Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_6_20260528T083622Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_6_20260528T083622Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_6_20260528T083622Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "evidence/stage_8_kai_rebrand_20260603T101310Z.log",
+        "evidence": "tracked log file",
+        "fix_payload": {
+          "file": "evidence/stage_8_kai_rebrand_20260603T101310Z.log",
+          "gitignore_pattern": "**/*.log",
+          "description": "log file"
+        }
+      },
+      "result": {
+        "success": true,
+        "changed_files": [],
+        "message": "untracked evidence/stage_8_kai_rebrand_20260603T101310Z.log; added '**/*.log' to .gitignore",
+        "risk_notes": "",
+        "requires_smoke_test": false
+      }
+    },
+    {
+      "finding": {
+        "pattern": "committed_runtime_state",
+        "project": "wheellsverse-bots",
+        "severity": "medium",
+        "location": "narai/marketing/autopilot.db",
+        "evidence": "tracked database file",
+        "fix_payload": {
+          "file": "narai/marketing/autopilot.db",
+          "gitignore_pattern": "**/*.db",
+          "description": "database file"
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "narai/marketing/autopilot.db: data-bearing file \u2014 needs manual decision",
+        "risk_notes": "This file may contain real persistent data. Auto-untracking is unsafe. Run manually if you're sure:\n    echo '**/*.db' >> .gitignore\n    git rm --cached narai/marketing/autopilot.db\n    git commit -m 'chore: untrack runtime DB'",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "anthropic_credit_low",
+        "project": "wheellsverse-bots",
+        "severity": "high",
+        "location": "https://api.anthropic.com/v1/messages (HTTP 400)",
+        "evidence": "Anthropic API credit low/exhausted \u2014 {\"type\":\"error\",\"error\":{\"type\":\"invalid_request_error\",\"message\":\"Your credit balance is too low to access the Anthropic API. Please go to Plans & Billing to upgrade or purchase credits.\"},\"request_i",
+        "fix_payload": {
+          "action": "top_up",
+          "http_code": 400
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "deploy_freshness_diff",
+        "project": "wheellsverse-bots",
+        "severity": "high",
+        "location": "https://app.wheellsverse.com/api/health",
+        "evidence": "local HEAD is 323 commits ahead of deployed (local=f652aa3, deployed=611851a)",
+        "fix_payload": {
+          "local_sha": "f652aa3",
+          "deployed_sha": "611851a",
+          "commits_ahead": 323,
+          "build_time": ""
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    },
+    {
+      "finding": {
+        "pattern": "agent_stale_heartbeat",
+        "project": "wheellsverse-bots",
+        "severity": "high",
+        "location": "logs/system.log",
+        "evidence": "Agent 'system' appears dead (no output >6h) \u2014 last write 1d 23h ago (2026-06-14T04:11:23+00:00)",
+        "fix_payload": {
+          "action": "check_agent_process",
+          "agent": "system",
+          "last_mtime": "2026-06-14T04:11:23.187743+00:00",
+          "age_minutes": 2835
+        }
+      },
+      "result": {
+        "success": false,
+        "changed_files": [],
+        "message": "safety=review \u2014 skipped",
+        "risk_notes": "",
+        "requires_smoke_test": true
+      }
+    }
+  ],
+  "dry_run": false,
+  "llm_triage": null,
+  "_sync": {
+    "source": "/Volumes/Wheellsverse/wheellsverse-bots/suprema/autorepair/state/last-run.json",
+    "synced_at": "2026-06-16T03:27:08Z"
+  }
+}

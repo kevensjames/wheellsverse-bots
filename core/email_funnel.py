@@ -57,7 +57,7 @@ logger = logging.getLogger("email_funnel")
 
 BRAND = os.getenv("BRAND_NAME", "WheellsVerse")
 AUTHOR = os.getenv("AUTHOR_NAME", "J.K. Blaze")
-CTA_URL = os.getenv("CTA_URL", "https://grateful-flexibility-production.up.railway.app/landing")
+CTA_URL = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev/blueprint.pdf")
 CK_KEY = os.getenv("CONVERTKIT_API_KEY", "")
 CK_SECRET = os.getenv("CONVERTKIT_API_SECRET", "")
 CK_BASE = "https://api.convertkit.com/v3"

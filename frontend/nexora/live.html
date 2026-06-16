@@ -145,7 +145,7 @@ nav{background:rgba(6,8,14,0.98);border-bottom:1px solid var(--border);padding:0
 <script>
 const API = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
   ? 'http://localhost:5050'
-  : 'https://grateful-flexibility-production.up.railway.app';
+  : '';  // same-origin in prod (app.wheellsverse.com)
 
 // Tip payment link (real Stripe link on same account)
 const TIP_URL = 'https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03';

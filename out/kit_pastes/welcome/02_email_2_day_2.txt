@@ -1,0 +1,20 @@
+# EMAIL 2 — Day 2
+# Delay: +2 days
+# Source: paste-ready — drop straight into Kit's sequence builder.
+
+SUBJECT:
+One question before I send more
+
+BODY:
+Quick one.
+
+What are you actually trying to build? Most people who grab the blueprint fall into one of two camps:
+
+1. They want to create something — a book, a product, a digital offer — and sell it.
+2. They want better signals and tools to make smarter money decisions.
+
+Hit reply and tell me which. One word is fine. It tells me exactly what to send you next so I'm not filling your inbox with stuff that doesn't fit.
+
+And if you haven't opened the blueprint yet, here it is once more → https://wheellsverse-bots.pages.dev/blueprint.pdf?utm_source=email&utm_medium=welcome&utm_campaign=welcome_seq
+
+— J.K.

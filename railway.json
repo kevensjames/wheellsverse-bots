@@ -4,7 +4,7 @@
     "builder": "NIXPACKS"
   },
   "deploy": {
-    "startCommand": "sh -c 'uvicorn core.api:app --host 0.0.0.0 --port ${PORT:-8000}'",
+    "startCommand": "sh -c 'echo \"${RAILWAY_GIT_COMMIT_SHA:-${GIT_SHA:-unknown}}\" > /app/GIT_SHA && date -u +%Y-%m-%dT%H:%M:%SZ > /app/BUILD_TIME && uvicorn core.api:app --host 0.0.0.0 --port ${PORT:-8000}'",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 300,
     "restartPolicyType": "ON_FAILURE",

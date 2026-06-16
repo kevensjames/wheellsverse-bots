@@ -1,0 +1,9 @@
+{
+  "_comment": "Project-scoped MCP servers. Picked up by Claude Code on session start.",
+  "mcpServers": {
+    "kit": {
+      "type": "http",
+      "url": "https://app.kit.com/mcp"
+    }
+  }
+}

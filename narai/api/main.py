@@ -26,6 +26,8 @@ from narai.api.routes.shopify_billing import api_router as shopify_billing_api_r
 from narai.api.routes.shopify_admin import router as shopify_admin_rt
 from narai.api.routes.personality import rt as personality_rt
 from narai.api.routes.telegram import rt as telegram_rt
+from narai.api.routes.toodle import rt as toodle_rt
+from narai.api.routes.meta import rt as meta_rt
 from narai.core.db import init_db
 from infra.brain.resilience import breaker_status
 from narai.integrations.telegram import setup_webhook
@@ -82,6 +84,14 @@ app.include_router(shopify_webhooks_rt)
 app.include_router(shopify_billing_webhook_rt)
 app.include_router(shopify_billing_api_rt, prefix="/api/narai")
 app.include_router(shopify_admin_rt)
+
+# Toodle Capture Agent — sits at root (no /api/v2/narai prefix) so landing
+# pages and Kit webhooks can hit /toodle/capture and /toodle/kit/webhook.
+app.include_router(toodle_rt)
+
+# Meta data-deletion callback — required by Facebook App Review. Public,
+# no auth, no prefix so Meta's review team can verify the URL directly.
+app.include_router(meta_rt)
 
 
 # ── Auth ──────────────────────────────────────────────────────────────────────

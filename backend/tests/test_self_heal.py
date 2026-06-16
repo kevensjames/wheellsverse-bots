@@ -149,3 +149,23 @@ def test_endpoint_apply_approved_runs(client, monkeypatch, _isolated_audit):
     r = client.post("/admin/self-heal/run", headers=ADMIN_HEADERS,
                     json={"apply": True, "approved": True})
     assert r.status_code == 200 and r.json()["ok"] is True
+
+
+# ─── scheduler: built but OFF by default (operator must opt in) ──────
+
+
+def test_scheduler_off_by_default(monkeypatch):
+    from app.services import self_heal_scheduler as sched
+    monkeypatch.delenv("KAI_SELF_HEAL_SCHEDULER_ENABLED", raising=False)
+    assert sched.start() is False          # not started without the flag
+    assert sched.is_running() is False
+
+
+def test_scheduler_interval_bounds(monkeypatch):
+    from app.services import self_heal_scheduler as sched
+    monkeypatch.delenv("KAI_SELF_HEAL_INTERVAL_SECONDS", raising=False)
+    assert sched._interval() == 1800       # default 30 min
+    monkeypatch.setenv("KAI_SELF_HEAL_INTERVAL_SECONDS", "300")
+    assert sched._interval() == 300
+    monkeypatch.setenv("KAI_SELF_HEAL_INTERVAL_SECONDS", "5")
+    assert sched._interval() == 60         # clamped to a 60s floor

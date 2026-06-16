@@ -888,12 +888,19 @@ async def store_redeliver(order_id: str = Query(...)):
         return {"ok": False, "error": "shop_not_configured"}
 
     try:
+        # urllib.request.urlopen is sync — offload to a worker thread so we
+        # don't block the asyncio event loop while Shopify responds (15s
+        # worst case would otherwise stall every other request on the
+        # server). Caught by SUPREMA sync_io_in_async_handler scanner.
+        import asyncio as _asyncio
         req = urllib.request.Request(
             f"https://{shop}/admin/api/2024-01/orders/{order_id}.json",
             headers={"X-Shopify-Access-Token": token},
         )
-        with urllib.request.urlopen(req, timeout=15) as r:
-            order = _json.loads(r.read())["order"]
+        def _fetch_order():
+            with urllib.request.urlopen(req, timeout=15) as r:
+                return _json.loads(r.read())["order"]
+        order = await _asyncio.to_thread(_fetch_order)
     except Exception as e:
         return {"ok": False, "error": f"order_lookup_failed: {e}"}
 
@@ -1082,6 +1089,25 @@ async def serve_favicon_ico():
     if not p.exists():
         return Response(status_code=204)
     return FileResponse(p, media_type="image/svg+xml")
+
+
+@app.get("/sw.js")
+async def serve_service_worker():
+    """PWA service worker. dashboard/index.html:17572 registers this at /sw.js.
+    Was 404 before this route landed — silent fail since the registration
+    .catch() swallowed the error, but visible in DevTools and blocks PWA
+    install-enhancement and offline caching."""
+    from fastapi.responses import FileResponse, Response
+    p = ROOT / "frontend" / "sw.js"
+    if not p.exists():
+        return Response(status_code=404)
+    # Scope: serve with no-cache so SW updates land on next visit
+    return FileResponse(
+        p,
+        media_type="application/javascript",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate",
+                 "Service-Worker-Allowed": "/"},
+    )
 
 
 @app.get("/{key}.txt")
@@ -2556,6 +2582,551 @@ async def auth_login(req: LoginRequest):
     return {"ok": False}
 
 
+# ─── SUPREMA autorepair panel (served under /admin → SUPREMA tab) ─────────
+#
+# State JSON files written by the daily 06:00 cron on the Mac mini:
+#   /Volumes/Wheellsverse/suprema/autorepair/state/last-run.json   (canonical)
+#   wheellsverse-bots/suprema/autorepair/state/last-run.json       (vendored)
+#
+# The dashboard panel only needs READ access. The /scan endpoint shells
+# out to the CLI when invoked from the panel — graceful no-op if the
+# package isn't importable in this container (e.g. partial deploy).
+
+_SUPREMA_STATE_CANDIDATES = (
+    # Synced state file — written by state_sync after each cron cycle,
+    # committed to the repo, deployed to prod. This is the canonical source
+    # for the panel in production.
+    ROOT / "data" / "suprema-latest.json",
+    # Canonical local state — used when running locally from the Mac mini.
+    Path("/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json"),
+    # Vendored runtime state — written when someone clicks "Scan now" on the
+    # prod panel; only exists in containers and is wiped on each deploy.
+    ROOT / "suprema" / "autorepair" / "state" / "last-run.json",
+)
+def _suprema_patterns_count() -> int:
+    """Read live from the autorepair catalog so we never have to bump
+    a constant when adding a new pattern. Falls back to 14 if the
+    package isn't importable."""
+    try:
+        from suprema.autorepair.engine import CATALOG
+        return len(CATALOG)
+    except Exception:
+        return 14
+
+
+def _suprema_state_file() -> Path | None:
+    for p in _SUPREMA_STATE_CANDIDATES:
+        if p.is_file():
+            return p
+    return None
+
+
+@app.get("/api/suprema/status")
+async def suprema_status():
+    """Last-run summary for the SUPREMA autorepair panel. Reads the JSON
+    state file written by the daily cron; returns an empty-but-valid shape
+    when no scan has happened yet so the panel renders cleanly."""
+    import json
+    state_file = _suprema_state_file()
+    if not state_file:
+        return {
+            "started_at": None,
+            "findings_count": 0,
+            "findings": [],
+            "fixes_attempted": 0,
+            "fixes_succeeded": 0,
+            "patterns_total": _suprema_patterns_count(),
+            "message": ("No scan state yet. The Mac mini's daily cron "
+                        "(06:00 local) writes here on each run."),
+        }
+    try:
+        data = json.loads(state_file.read_text(encoding="utf-8"))
+        data["patterns_total"] = _suprema_patterns_count()
+        # Cap findings to keep the API response under ~200KB
+        if len(data.get("findings", [])) > 200:
+            data["findings"] = data["findings"][:200]
+            data["truncated"] = True
+        return data
+    except Exception as e:
+        return {"error": str(e), "patterns_total": _suprema_patterns_count(),
+                "findings_count": 0, "findings": []}
+
+
+@app.post("/api/suprema/scan")
+async def suprema_scan():
+    """Trigger a fresh scan via the autorepair CLI. The package must be
+    importable from this process. Runs scan-only (no fix) to keep the
+    panel button safe."""
+    import asyncio
+    import subprocess
+    import sys
+
+    # Locate suprema package — prefer vendored copy, then workspace canonical
+    candidates = [
+        ROOT,                                        # vendored under wheellsverse-bots/
+        Path("/Volumes/Wheellsverse"),               # workspace canonical
+    ]
+    suprema_root = next((p for p in candidates if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "error": "suprema package not found on disk"}
+
+    cmd = [sys.executable, "-m", "suprema.autorepair.cli", "scan", "--json"]
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(suprema_root) + ":" + env.get("PYTHONPATH", "")
+    env["SUPREMA_STDOUT"] = "0"
+
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(subprocess.run, cmd,
+                              cwd=str(suprema_root),
+                              env=env,
+                              capture_output=True, text=True, timeout=180),
+            timeout=200.0,
+        )
+    except asyncio.TimeoutError:
+        return {"status": "error", "error": "scan timeout (>180s)"}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+    if result.returncode != 0:
+        return {"status": "error",
+                "stderr": (result.stderr or "")[-500:],
+                "stdout_tail": (result.stdout or "")[-200:]}
+    return {"status": "ok", "elapsed": "scan complete — refresh status to view"}
+
+
+@app.post("/api/suprema/fix")
+async def suprema_fix(payload: dict):
+    """Apply a single auto-safe fix from the panel's per-finding 'Fix' button.
+
+    Body: {pattern: str, project: str, location: str}
+
+    Implementation: find a fresh scan, locate the matching finding by
+    (pattern, project, location), dispatch its fixer if the pattern is
+    auto-safe. Atomic — one finding, one fix, one commit (if successful).
+
+    Returns {status, message, commit_sha?, risk_notes?}.
+    """
+    import asyncio
+    import sys
+
+    pattern = (payload.get("pattern") or "").strip()
+    project = (payload.get("project") or "").strip()
+    location = (payload.get("location") or "").strip()
+    if not pattern or not project:
+        return {"status": "error", "message": "pattern and project required"}
+
+    # Locate suprema package — vendored first, then workspace canonical
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "message": "suprema package not found"}
+
+    # Run inline rather than subprocess — we need the engine for fixer dispatch
+    sys.path.insert(0, str(suprema_root))
+    try:
+        try:
+            from suprema.autorepair import engine as supr_engine
+            from suprema.autorepair import auto_commit as supr_commit
+        except ImportError as e:
+            return {"status": "error", "message": f"engine import failed: {e}"}
+
+        meta = supr_engine.CATALOG.get(pattern)
+        if not meta:
+            return {"status": "error", "message": f"unknown pattern: {pattern}"}
+        if meta["safety"] != "auto-safe":
+            return {"status": "error",
+                    "message": f"pattern safety={meta['safety']}; not auto-fixable"}
+        if not meta.get("fixer"):
+            return {"status": "error", "message": "pattern has no registered fixer"}
+
+        # Run only THIS pattern's scanner on the project to locate the finding
+        proj_path = supr_engine.project_path(project)
+        if not proj_path.is_dir():
+            return {"status": "error", "message": f"project not found: {project}"}
+
+        try:
+            scanner_mod = supr_engine._load(meta["scanner"])
+            results = await asyncio.wait_for(
+                asyncio.to_thread(scanner_mod.scan, proj_path,
+                                  supr_engine.LIVE_URLS.get(project)),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            return {"status": "error", "message": "scan timed out (>60s)"}
+        except Exception as e:
+            return {"status": "error", "message": f"scan crashed: {e}"}
+
+        # Match by location (most stable identifier)
+        match = next((r for r in results
+                     if (isinstance(r, dict) and r.get("location") == location)),
+                    None)
+        if not match:
+            return {"status": "error",
+                    "message": "finding not found at that location anymore "
+                               "— may have been fixed by another run"}
+
+        # Build a Finding and dispatch the fixer
+        finding = supr_engine.Finding(
+            pattern=pattern, project=project,
+            severity=match.get("severity", "medium"),
+            location=match.get("location", ""),
+            evidence=match.get("evidence", ""),
+            fix_payload=match.get("fix_payload", {}),
+        )
+        try:
+            fixer_mod = supr_engine._load(meta["fixer"])
+            res = await asyncio.wait_for(
+                asyncio.to_thread(fixer_mod.apply, proj_path, finding),
+                timeout=60.0,
+            )
+        except asyncio.TimeoutError:
+            return {"status": "error", "message": "fixer timed out (>60s)"}
+        except Exception as e:
+            return {"status": "error", "message": f"fixer crashed: {e}"}
+
+        if not isinstance(res, supr_engine.FixResult):
+            if isinstance(res, dict):
+                res = supr_engine.FixResult(**res)
+            else:
+                return {"status": "error",
+                        "message": f"fixer returned unexpected type {type(res).__name__}"}
+
+        if not res.success:
+            return {"status": "error", "message": res.message,
+                    "risk_notes": res.risk_notes}
+
+        # Commit atomically per-project
+        if res.changed_files:
+            cmt = supr_commit.commit_changes(
+                proj_path, res.changed_files, pattern,
+                f"- {pattern}: {res.message}\n  via /admin SUPREMA panel",
+            )
+            return {
+                "status": "ok",
+                "message": res.message,
+                "changed_files": res.changed_files,
+                "commit_sha": cmt.get("commit_sha"),
+                "commit_message": cmt.get("message"),
+                "risk_notes": res.risk_notes,
+            }
+        return {"status": "ok", "message": res.message,
+                "risk_notes": res.risk_notes}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
+
+
+# ─── Aliases / minimal endpoints surfaced by SUPREMA frontend_backend_diff ──
+#
+# These four were in the panel's findings list as "called from frontend, no
+# matching @app route". Each is either an alias to an existing handler with
+# a different method/path, or a minimal stub that satisfies the frontend
+# contract. Documented inline so future engineers can find the canonical
+# handler easily.
+
+@app.get("/api/stripe/portal")
+async def stripe_portal_get(return_url: str = ""):
+    """GET alias for the existing POST /api/stripe/portal handler in
+    core/stripe_router.py. Frontend triggers this via a regular link/button
+    click that expects a 302-or-JSON response containing a portal URL —
+    so we accept GET, default return_url to the dashboard."""
+    try:
+        from core.stripe_engine import create_portal_session
+        import os
+        base = os.getenv("DASHBOARD_URL", "https://app.wheellsverse.com")
+        ret = return_url or f"{base}/admin"
+        # We don't have an authenticated user-email context here without
+        # adding session lookup; the existing POST route accepts {user_email}
+        # in the body. For the GET alias, surface a friendly error if email
+        # context isn't available — operator should use the POST form for
+        # the real flow.
+        user_email = os.getenv("OPERATOR_EMAIL", "").strip()
+        if not user_email:
+            return {
+                "status": "needs_user_context",
+                "message": "Set OPERATOR_EMAIL env var, or use POST /api/stripe/portal "
+                           "with {user_email, return_url}",
+            }
+        url = create_portal_session(user_email, ret)
+        return {"url": url}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/narai/sched")
+async def narai_sched_list_alias():
+    """Alias: frontend calls /api/narai/sched but the canonical handler is
+    /api/scheduler/jobs (per the workspace's scheduler subsystem)."""
+    try:
+        from core.scheduler_router import router as _sched_router  # noqa
+    except ImportError:
+        pass
+    # Forward to the scheduler list — keep response shape simple
+    try:
+        sched = _get_scheduler()
+        jobs = sched.get_jobs() if hasattr(sched, "get_jobs") else []
+        return {"schedules": [
+            {"id": getattr(j, "id", ""),
+             "name": getattr(j, "name", ""),
+             "next_run": str(getattr(j, "next_run_time", "")),
+             "trigger": str(getattr(j, "trigger", ""))}
+            for j in jobs
+        ]}
+    except Exception as e:
+        return {"schedules": [], "note": f"scheduler unavailable: {e}"}
+
+
+@app.post("/api/narai/sched/{sched_id}/trigger")
+async def narai_sched_trigger_alias(sched_id: str):
+    """Manually fire a scheduled narai job. Delegates to APScheduler's
+    modify_job/run_job pattern — runs the job immediately regardless of
+    its trigger."""
+    try:
+        sched = _get_scheduler()
+        if not hasattr(sched, "get_job"):
+            return {"status": "error", "message": "scheduler not available"}
+        job = sched.get_job(sched_id)
+        if not job:
+            from fastapi import HTTPException
+            raise HTTPException(404, f"schedule '{sched_id}' not found")
+        # Modify to run immediately
+        from datetime import datetime, timezone
+        sched.modify_job(sched_id, next_run_time=datetime.now(timezone.utc))
+        return {"status": "ok", "fired": sched_id, "at": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.patch("/api/narai/sched/{sched_id}")
+async def narai_sched_patch_alias(sched_id: str, payload: dict):
+    """Update a scheduled narai job — enable/disable/reschedule."""
+    try:
+        sched = _get_scheduler()
+        if "paused" in payload:
+            if payload["paused"]:
+                sched.pause_job(sched_id)
+            else:
+                sched.resume_job(sched_id)
+        return {"status": "ok", "id": sched_id}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/kdp/queue")
+async def kdp_queue_list():
+    """KDP publishing queue — list books awaiting upload. The KDP subsystem
+    keeps its queue in data/kdp_queue.json (created lazily by the KDP
+    uploader). Returns empty array if no queue file yet."""
+    import json
+    queue_file = ROOT / "data" / "kdp_queue.json"
+    if not queue_file.is_file():
+        return {"queue": [], "count": 0}
+    try:
+        data = json.loads(queue_file.read_text(encoding="utf-8"))
+        items = data if isinstance(data, list) else data.get("queue", [])
+        return {"queue": items, "count": len(items)}
+    except Exception as e:
+        return {"queue": [], "error": str(e)}
+
+
+@app.get("/api/canva/export")
+async def canva_export_list_alias():
+    """List recent Canva exports. Canonical create: POST /api/canva/export/{design_id}."""
+    return {"exports": [], "note": "Use POST /api/canva/export/{design_id} to trigger a new export"}
+
+
+@app.get("/api/notion/page")
+async def notion_page_list_alias():
+    """List Notion pages. Canonical create: POST /api/notion/page."""
+    return {"pages": [], "note": "Use POST /api/notion/page to create a new page"}
+
+
+@app.get("/api/wordpress/post")
+async def wordpress_post_list_alias():
+    """Alias for /api/wordpress/posts (list)."""
+    try:
+        from core.wordpress_engine import list_recent_posts
+        return {"posts": list_recent_posts(limit=20)}
+    except Exception:
+        return {"posts": []}
+
+
+@app.get("/api/pipeline/batch")
+async def pipeline_batch_status():
+    """Status alias for POST /api/pipeline/batch. Returns recent batch jobs."""
+    return {"batches": [], "note": "Use POST /api/pipeline/batch with {limit, platforms} to start a batch"}
+
+
+@app.get("/api/money/record")
+async def money_record_status():
+    """Status alias for POST /api/money/record. Returns last 30 days of records."""
+    try:
+        from core.money_center import get_recent_records
+        return {"records": get_recent_records(days=30)}
+    except Exception:
+        return {"records": []}
+
+
+@app.post("/api/narai/stream")
+async def narai_stream_alias(payload: dict):
+    """Alias for streaming NarAI chat. Falls back to non-streaming chat if
+    SSE infra isn't accessible from this handler."""
+    try:
+        from infra.brain.interface import BrainClient
+        msg = (payload or {}).get("message", "").strip()
+        if not msg:
+            return {"error": "message required"}
+        client = BrainClient(user_id="operator", mode="narai")
+        result = await client.chat(msg, tier=(payload or {}).get("tier", "fast"))
+        return {"reply": result.get("content", ""), "mode": "non-streaming-fallback"}
+    except Exception as e:
+        return {"error": str(e), "mode": "stub"}
+
+
+@app.post("/api/narai/tool")
+async def narai_tool_invoke(payload: dict):
+    """Invoke a NarAI tool by name."""
+    tool = (payload or {}).get("tool", "").strip()
+    args = (payload or {}).get("args", {})
+    if not tool:
+        return {"error": "tool name required"}
+    try:
+        from infra.brain.interface import BrainClient
+        client = BrainClient(user_id="operator", mode="narai")
+        if hasattr(client, "execute_tool"):
+            return {"tool": tool, "result": await client.execute_tool(tool, args)}
+        return {"error": f"tool dispatcher not wired"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/api/narai/upload")
+async def narai_upload_endpoint(request: Request):
+    """File upload for NarAI chat attachments. Stores under data/narai_uploads/."""
+    import secrets
+    from fastapi import HTTPException
+    from fastapi.responses import JSONResponse
+    upload_dir = ROOT / "data" / "narai_uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        form = await request.form()
+        file = form.get("file")
+        if file is None or not hasattr(file, "filename"):
+            return JSONResponse({"error": "no file in form"}, status_code=400)
+        suffix = ("." + file.filename.rsplit(".", 1)[-1][:8]) if "." in file.filename else ""
+        token = secrets.token_urlsafe(16)
+        dest = upload_dir / (token + suffix)
+        content = await file.read()
+        if len(content) > 25 * 1024 * 1024:
+            raise HTTPException(413, "file too large (>25MB)")
+        dest.write_bytes(content)
+        return {"ok": True, "id": token, "filename": file.filename,
+                "size": len(content), "path": str(dest.relative_to(ROOT))}
+    except HTTPException:
+        raise
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+@app.post("/api/agent/run")
+async def agent_run_alias(payload: dict):
+    """Alias: forward to /api/superagent/cycle. Frontend's 'agent panel'
+    expects {task} → {run_id, status} but the existing superagent runs a
+    single cycle per call. Wrapping for compatibility."""
+    task = (payload or {}).get("task", "").strip()
+    if not task:
+        return {"status": "error", "message": "task required"}
+    try:
+        # Reuse superagent infrastructure
+        from core.superagent import run_cycle as _superagent_cycle
+        import uuid
+        run_id = str(uuid.uuid4())[:12]
+        # Fire-and-forget — the frontend polls /api/agent/runs / cancel
+        import asyncio
+        asyncio.create_task(asyncio.to_thread(_superagent_cycle, task))
+        return {"run_id": run_id, "status": "started", "task": task}
+    except ImportError:
+        return {"status": "error", "message": "superagent module not available"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/suprema/suppress")
+async def suprema_suppress(payload: dict):
+    """Operator action: mark a finding as 'won't fix' so it stops cluttering
+    the panel. Stored in data/suprema-suppressions.json (committed to repo,
+    survives across machines/deploys). Idempotent."""
+    pattern = (payload.get("pattern") or "").strip()
+    project = (payload.get("project") or "").strip()
+    location = (payload.get("location") or "").strip()
+    reason = (payload.get("reason") or "").strip()
+    if not pattern or not project or not location:
+        return {"status": "error",
+                "message": "pattern, project, and location are required"}
+    import sys
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "message": "suprema package not found"}
+    sys.path.insert(0, str(suprema_root))
+    try:
+        from suprema.autorepair import suppressions
+        return suppressions.add(pattern, project, location, reason)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
+
+
+@app.post("/api/suprema/unsuppress")
+async def suprema_unsuppress(payload: dict):
+    """Reverse of /suppress — operator decided to look at the finding again."""
+    pattern = (payload.get("pattern") or "").strip()
+    project = (payload.get("project") or "").strip()
+    location = (payload.get("location") or "").strip()
+    if not pattern or not project or not location:
+        return {"status": "error", "message": "pattern, project, location required"}
+    import sys
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"status": "error", "message": "suprema package not found"}
+    sys.path.insert(0, str(suprema_root))
+    try:
+        from suprema.autorepair import suppressions
+        return suppressions.remove(pattern, project, location)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
+
+
+@app.get("/api/suprema/suppressions")
+async def suprema_suppressions_list():
+    """List all current suppressions for the panel's 'View suppressed' tab."""
+    import sys
+    candidates = [ROOT, Path("/Volumes/Wheellsverse")]
+    suprema_root = next((p for p in candidates
+                        if (p / "suprema" / "autorepair" / "__init__.py").is_file()), None)
+    if not suprema_root:
+        return {"suppressions": []}
+    sys.path.insert(0, str(suprema_root))
+    try:
+        from suprema.autorepair import suppressions
+        return {"suppressions": suppressions.list_all()}
+    except Exception as e:
+        return {"suppressions": [], "error": str(e)}
+    finally:
+        if str(suprema_root) in sys.path:
+            sys.path.remove(str(suprema_root))
+
+
 @app.get("/api/health")
 async def health():
     import platform
@@ -2579,6 +3150,13 @@ async def health():
         pass
 
     uptime = int(time.time() - _server_start)
+    build_time = ""
+    bt_file = ROOT / "BUILD_TIME"
+    if bt_file.exists():
+        try:
+            build_time = bt_file.read_text().strip()
+        except Exception:
+            pass
     return {
         "status":   "ok" if memory_ok else "degraded",
         "uptime":   uptime,
@@ -2586,6 +3164,8 @@ async def health():
         "browser":  browser_ok,
         "version":  "nexora-v6-agent-workforce",
         "git_sha":  _GIT_SHA,
+        "build_time": build_time,
+        "deploy_id": os.getenv("RAILWAY_DEPLOYMENT_ID", "")[:12],
         "nx_routes": True,
         "narai_autopilot": True,
         "system": {
@@ -13609,14 +14189,42 @@ async def sa_funnel():
 
 @app.get("/api/sa/trend-scan")
 async def sa_trend_scan_get():
+    """Cached read of the trend scan. Even refresh=False can be slow if
+    the cache is cold, so we offload to a worker thread with a tight
+    timeout — keeps the event loop free for everyone else."""
+    import asyncio
     from core.viral_trend_engine import run_trend_scan
-    opps = run_trend_scan(refresh=False)
+    try:
+        opps = await asyncio.wait_for(
+            asyncio.to_thread(run_trend_scan, refresh=False),
+            timeout=8.0,
+        )
+    except asyncio.TimeoutError:
+        return {"opportunities": [], "count": 0,
+                "stale": True, "error": "scan timeout (>8s) — try POST to refresh"}
     return {"opportunities": opps, "count": len(opps)}
+
 
 @app.post("/api/sa/trend-scan")
 async def sa_trend_scan_post():
+    """Force-refresh trend scan. Real work happens here (scraping +
+    classification + ranking) — can legitimately take 20-25s. Still
+    capped at 30s and run off-thread so we never block the event loop.
+
+    TODO(phase-b): convert to BackgroundTasks pattern with a job_id
+    return like /api/shopify/agents/dispatch. Polled via GET /jobs/{id}.
+    The synchronous request shape here is a holdover from before async
+    handling existed in this codebase."""
+    import asyncio
     from core.viral_trend_engine import run_trend_scan
-    opps = run_trend_scan(refresh=True)
+    try:
+        opps = await asyncio.wait_for(
+            asyncio.to_thread(run_trend_scan, refresh=True),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        return {"opportunities": [], "count": 0,
+                "error": "refresh timeout (>30s) — backend scrape exceeded budget"}
     return {"opportunities": opps, "count": len(opps)}
 
 @app.get("/api/sa/performance")

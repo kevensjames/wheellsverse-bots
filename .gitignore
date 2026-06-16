@@ -42,6 +42,9 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/*.json
+# Whitelist: SUPREMA autorepair state sync — committed so the prod
+# /admin SUPREMA panel reads it on every redeploy.
+!data/suprema-latest.json
 data/narai_memory/
 data/narai_products/
 data/narai_skills/
@@ -173,6 +176,12 @@ frontend/blog/_archive/
 # Uncomment after auditing which posts are hand-curated:
 # frontend/blog/*.html
 # !frontend/blog/index.html
+
+# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
+**/*storage_state.json
+**/progress.json
+**/*.log
+**/session.json
 
 # Vector DB runtime state (do not commit)
 narai/data/chroma/
