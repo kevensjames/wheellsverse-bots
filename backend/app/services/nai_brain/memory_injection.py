@@ -61,11 +61,21 @@ def build_memory_preamble(
     except Exception as e:
         logger.warning("memory_injection: failure lookup swallowed: %s", e)
 
-    memories = search_memories(
-        session, user_id=user_id, query=query, k=k, bump_last_used=True
-    )
-    mem_text = format_for_prompt(memories)
-    if mem_text:
-        parts.append(mem_text)
+    # Memory recall needs embeddings. If embeddings fail (e.g. OpenAI 429
+    # insufficient_quota) or the vector store errors, DEGRADE to no-memory —
+    # recall is an enhancement, not a hard dependency. A billing hiccup on
+    # embeddings must never take down chat (esp. since chat can run on local
+    # Ollama without OpenAI at all).
+    try:
+        memories = search_memories(
+            session, user_id=user_id, query=query, k=k, bump_last_used=True
+        )
+        mem_text = format_for_prompt(memories)
+        if mem_text:
+            parts.append(mem_text)
+    except Exception as e:
+        logger.warning(
+            "memory_injection: recall swallowed — degrading to no memory: %s", e
+        )
 
     return "\n\n".join(parts)
