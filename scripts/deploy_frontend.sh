@@ -23,10 +23,18 @@ if [ ! -f "$FRONTEND/blueprint.pdf" ]; then
   exit 1
 fi
 
-echo "→ deploying $FRONTEND to Cloudflare Pages project '$PROJECT'…"
+# PROD branch: Cloudflare Pages only serves the production branch at the apex
+# (wheellsverse.com). Without --branch, wrangler uses the current git branch,
+# which lands as a PREVIEW alias (e.g. feat-kdp-fillers.<proj>.pages.dev) and
+# leaves the live site unchanged. Pin to the production branch (override with
+# PAGES_PROD_BRANCH if your project uses something other than 'main').
+PROD_BRANCH="${PAGES_PROD_BRANCH:-main}"
+
+echo "→ deploying $FRONTEND to Cloudflare Pages project '$PROJECT' (branch=$PROD_BRANCH → production)…"
 cd "$FRONTEND"
 npx --yes wrangler@latest pages deploy . \
   --project-name="$PROJECT" \
+  --branch="$PROD_BRANCH" \
   --commit-dirty=true
 
 echo ""
