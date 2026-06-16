@@ -78,6 +78,7 @@ PRESETS: list[PresetSpec] = [
             "web_fetch",
             "notion",
             "twenty_crm",
+            "site_builder",
             "memory",
         ],
     ),

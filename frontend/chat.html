@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NarAI — Chat</title>
+<title>KAI — Chat</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
@@ -211,7 +211,7 @@ textarea::-webkit-scrollbar-thumb{background:var(--border)}
   <div class="sidebar-header">
     <a href="/" class="logo">
       <div class="logo-mark">N</div>
-      <span class="logo-text">NarAI</span>
+      <span class="logo-text">KAI</span>
     </a>
   </div>
 
@@ -240,10 +240,10 @@ textarea::-webkit-scrollbar-thumb{background:var(--border)}
 <div class="main">
   <div class="chat-header">
     <select class="model-select" id="modelSelect" onchange="onModelChange()">
-      <option value="claude-haiku-4-5-20251001">⚡ NarAI Haiku (Fast)</option>
-      <option value="claude-sonnet-4-6">🧠 NarAI Sonnet (Smart)</option>
-      <option value="claude-opus-4-6">🔥 NarAI Opus (Powerful)</option>
-      <option value="gpt-4o">🌐 NarAI GPT-4o</option>
+      <option value="claude-haiku-4-5-20251001">⚡ KAI Haiku (Fast)</option>
+      <option value="claude-sonnet-4-6">🧠 KAI Sonnet (Smart)</option>
+      <option value="claude-opus-4-6">🔥 KAI Opus (Powerful)</option>
+      <option value="gpt-4o">🌐 KAI GPT-4o</option>
     </select>
     <div class="header-actions">
       <button class="icon-btn" onclick="window.location.href='/pricing'" title="Upgrade">⬆</button>
@@ -256,7 +256,7 @@ textarea::-webkit-scrollbar-thumb{background:var(--border)}
     <div class="empty-state" id="emptyState">
       <div class="empty-logo">N</div>
       <h2>What can I help you with?</h2>
-      <p>I'm NarAI — built by Jhon Kevens D Wheeler. Ask me anything. I remember everything.</p>
+      <p>I'm KAI — built by Jhon Kevens D Wheeler. Ask me anything. I remember everything.</p>
       <div class="suggestions">
         <div class="suggestion" onclick="useSuggestion(this)">
           <span class="s-icon">💻</span>
@@ -288,7 +288,7 @@ textarea::-webkit-scrollbar-thumb{background:var(--border)}
       <a href="/pricing" class="upgrade-link">Upgrade Now</a>
     </div>
     <div class="input-wrap">
-      <textarea id="messageInput" placeholder="Message NarAI..." rows="1"
+      <textarea id="messageInput" placeholder="Message KAI..." rows="1"
         onkeydown="handleKey(event)" oninput="autoResize(this);updateSendBtn()"></textarea>
       <button class="send-btn" id="sendBtn" onclick="sendMessage()">
         <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -417,7 +417,7 @@ function newChat(){
   msgs.innerHTML=`<div class="empty-state" id="emptyState">
     <div class="empty-logo">N</div>
     <h2>What can I help you with?</h2>
-    <p>I'm NarAI — built by Jhon Kevens D Wheeler. Ask me anything. I remember everything.</p>
+    <p>I'm KAI — built by Jhon Kevens D Wheeler. Ask me anything. I remember everything.</p>
     <div class="suggestions">
       <div class="suggestion" onclick="useSuggestion(this)"><span class="s-icon">💻</span><div class="s-title">Write code for me</div>Build a Python script or debug an error</div>
       <div class="suggestion" onclick="useSuggestion(this)"><span class="s-icon">📊</span><div class="s-title">Analyze & strategize</div>Business plans, market research, growth</div>
@@ -546,7 +546,7 @@ function appendMessage(role, content, model, streaming){
 }
 
 function modelLabel(m){
-  const map={'claude-haiku-4-5-20251001':'NarAI Haiku','claude-sonnet-4-6':'NarAI Sonnet','claude-opus-4-6':'NarAI Opus','gpt-4o':'NarAI GPT-4o'};
+  const map={'claude-haiku-4-5-20251001':'KAI Haiku','claude-sonnet-4-6':'KAI Sonnet','claude-opus-4-6':'KAI Opus','gpt-4o':'KAI GPT-4o'};
   return map[m]||m;
 }
 
