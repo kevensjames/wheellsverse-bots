@@ -100,9 +100,14 @@ def _check_dns(domain: str) -> dict:
 
 
 def _check_files() -> dict:
-    """Verify all required artifacts exist on disk."""
+    """Verify all required artifacts exist on disk.
+
+    Note: the legacy 'Skill manifest installed' check was removed — it tested
+    Path.home()/.claude/skills/... which is the OPERATOR's local Claude Code
+    install path, not a runtime artifact. When this script runs inside the
+    Railway container, home is /root and the file is irrelevant to production.
+    """
     artifacts = {
-        "Skill manifest installed": Path.home() / ".claude/skills/market-local-prospect/SKILL.md",
         "Site templates (3)":       ROOT / "local_prospect/templates/site_service.html",
         "Intake form":              ROOT / "local_prospect/intake.html",
         "Landing page":             ROOT / "local_prospect/site/index.html",

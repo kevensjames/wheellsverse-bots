@@ -23,7 +23,8 @@ import json
 import logging
 import os
 import time
-from dataclasses import asdict, dataclass
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Optional
 
@@ -37,13 +38,92 @@ logger = logging.getLogger("places_scanner")
 GDPR_COUNTRY_CODES = {"GB", "DE", "FR", "IT", "ES", "NL", "BE", "AT", "DK", "FI",
                       "GR", "IE", "LU", "PT", "SE", "PL", "CZ", "HU", "RO", "BG"}
 
-# Reasonable Places category mappings — Places v1 uses includedPrimaryTypes
+# National chains / big-box brands. SiteBoost's market is small local businesses;
+# emailing the local manager of an AutoZone is wasted send (they can't make this
+# decision and the corporate IT team already owns the website). Matched case-insensitive
+# against the business name as a substring.
+CHAIN_BLOCKLIST = {
+    # Big-box retail
+    "walmart", "target", "costco", "sam's club", "bj's wholesale", "kohl's",
+    "marshalls", "tj maxx", "homegoods", "ross dress", "burlington",
+    "home depot", "lowe's", "menards", "tractor supply", "harbor freight",
+    "best buy", "ikea", "michaels", "hobby lobby", "petsmart", "petco",
+    "office depot", "staples", "gamestop", "foot locker",
+    # Grocery chains
+    "whole foods", "trader joe", "stop & shop", "shaws", "wegmans",
+    "publix", "kroger", "safeway", "albertsons", "winn-dixie", "aldi",
+    "lidl", "food lion", "harris teeter",
+    # Auto chains + dealerships
+    "autozone", "advance auto", "o'reilly auto", "pep boys", "napa auto",
+    "jiffy lube", "valvoline", "midas", "firestone", "goodyear",
+    "discount tire", "big o tires", "autonation", "carmax", "carvana", "vroom",
+    # Pharmacy
+    "cvs", "walgreens", "rite aid", "duane reade",
+    # Fast food / chain restaurants
+    "mcdonald", "burger king", "wendy", "subway", "chipotle", "panera",
+    "starbucks", "dunkin", "domino", "pizza hut", "papa john", "taco bell",
+    "kfc", "popeyes", "chick-fil-a", "five guys", "shake shack",
+    "olive garden", "applebee", "chili's", "outback", "ihop", "denny",
+    "sonic drive-in", "arby", "dairy queen", "jersey mike", "jimmy john",
+    "firehouse subs", "tropical smoothie", "wingstop", "raising cane",
+    "moe's southwest", "qdoba", "panda express", "white castle",
+    "culver", "in-n-out", "del taco", "el pollo loco",
+    # Banks + financial
+    "bank of america", "wells fargo", "chase bank", "citibank", "capital one",
+    "td bank", "us bank", "pnc bank", "regions bank", "santander",
+    "h&r block", "jackson hewitt",
+    # Hotels (cold-emailing front desk = waste)
+    "marriott", "hilton", "hyatt", "best western", "comfort inn",
+    "holiday inn", "fairfield inn", "courtyard by marriott", "hampton inn",
+    "residence inn", "homewood suites", "doubletree", "embassy suites",
+    "motel 6", "super 8", "days inn", "la quinta", "americinn",
+    # Fitness chains
+    "planet fitness", "anytime fitness", "la fitness", "equinox",
+    "orangetheory", "f45 training", "crunch fitness", "24 hour fitness",
+    "gold's gym", "ufc gym", "blink fitness", "9round",
+    # Insurance
+    "state farm", "geico", "allstate", "progressive", "farmers insurance",
+    "liberty mutual", "nationwide insurance", "usaa",
+    # Shipping / mail
+    "ups store", "the ups store", "fedex office", "fedex print",
+    "postal annex", "mail boxes etc",
+    # Healthcare clinics (chain)
+    "minuteclinic", "medexpress", "fastmed", "concentra", "patient first",
+    # Furniture / mattress
+    "ashley furniture", "rooms to go", "bob's discount",
+    "raymour & flanigan", "mattress firm", "sleep number", "mattress warehouse",
+    # Sporting goods
+    "dick's sporting", "academy sports", "rei co-op", "bass pro",
+    "cabela", "modell", "champs sports",
+    # Vision / eye
+    "lenscrafters", "pearle vision", "for eyes", "warby parker",
+    "america's best",
+    # Discount + dollar
+    "dollar tree", "dollar general", "family dollar", "five below",
+    # Telecom retail
+    "verizon", "at&t", "t-mobile", "sprint store", "xfinity store",
+    "spectrum store",
+    # Tax + legal services chains
+    "legalzoom", "rocket lawyer",
+    # Hardware (non-big-box chains)
+    "ace hardware", "true value",
+}
+
+
+def _is_chain(name: str) -> bool:
+    """Return True if business name matches a known national chain."""
+    n = name.lower()
+    return any(brand in n for brand in CHAIN_BLOCKLIST)
+
+# Places API v1 includedPrimaryTypes — only types validated in Table A
+# (https://developers.google.com/maps/documentation/places/web-service/place-types#table-a).
+# Removed: general_contractor (no v1 equivalent), auto_repair (use car_repair instead).
 DEFAULT_CATEGORIES = [
     "restaurant", "cafe", "bakery",
     "hair_salon", "beauty_salon", "barber_shop",
-    "plumber", "electrician", "roofing_contractor", "general_contractor",
+    "plumber", "electrician", "roofing_contractor", "painter", "moving_company",
     "dentist", "doctor", "chiropractor",
-    "auto_repair", "car_repair", "car_wash",
+    "car_repair", "car_wash",
     "lawyer", "accounting",
     "pet_store", "veterinary_care",
     "florist", "shoe_store", "clothing_store",
@@ -63,16 +143,131 @@ class Prospect:
     lat: float = 0.0
     lng: float = 0.0
     country_code: str = ""
+    website_issues: list[str] = field(default_factory=list)
 
     def is_targetable(self) -> tuple[bool, str]:
-        """Return (ok, reason)."""
-        if self.website:
-            return False, "has-website"
+        """Return (ok, reason). Targetable = no-website OR has-bad-website,
+        plus has-phone, non-GDPR, and not a national chain.
+
+        The chain filter matters: even when a Walmart returns 'no-https' on the
+        probe, emailing the local store manager is wasted send — they can't make
+        the decision and corporate IT already owns the website.
+        """
         if self.country_code in GDPR_COUNTRY_CODES:
             return False, "gdpr-region"
         if not self.phone:
-            return False, "no-phone"  # No phone → no enrichment path either
-        return True, "ok"
+            return False, "no-phone"
+        if _is_chain(self.name):
+            return False, "national-chain"
+        if not self.website:
+            return True, "no-website"
+        if self.website_issues:
+            return True, f"bad-website:{self.website_issues[0]}"
+        return False, "good-website"
+
+
+def _probe_website(url: str, timeout: int = 5) -> list[str]:
+    """Probe a business website and return a list of detected quality issues.
+
+    Empty list = the site is fine (operator probably doesn't need a new one).
+    Non-empty list = at least one objective problem the operator can sell against.
+
+    Detection is intentionally conservative: every signal here is one the operator
+    can repeat verbatim in a cold email ("your site fails on mobile", "ssl is expired")
+    so the prospect can verify it for themselves.
+    """
+    if not url:
+        return []
+    issues: list[str] = []
+
+    # Realistic browser UA — Cloudflare and many WAFs return 403 to obvious bot strings,
+    # which masks real site health behind probe-tooling false positives.
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    }
+
+    try:
+        r = requests.get(url, timeout=timeout, allow_redirects=True, headers=headers)
+    except requests.exceptions.SSLError:
+        return issues + ["ssl-broken"]
+    except requests.exceptions.Timeout:
+        return issues + ["timeout"]
+    except requests.exceptions.RequestException:
+        return issues + ["connection-failed"]
+
+    # Check FINAL URL after redirects — many sites set http:// in Google Business Profile
+    # but 301 to https://. Only the post-redirect state reflects reality.
+    if not r.url.startswith("https://"):
+        issues.append("no-https")
+
+    if r.status_code >= 400:
+        # 401/403/429 = the SITE is rejecting US (bot detection, WAF, rate-limit),
+        # not necessarily broken for real human visitors. Falsely classifying these
+        # as "bad-website" and emailing "your site is broken" insults prospects with
+        # perfectly fine sites that just happen to use Cloudflare's bot protection.
+        # Better to skip than to wrongly accuse — return empty issues, prospect falls
+        # through to "good-website" and gets filtered OUT of targetable.
+        if r.status_code in (401, 403, 429):
+            return []
+        return issues + [f"http-{r.status_code}"]
+
+    body = r.text.lower()
+    body_len = len(body)
+
+    # Tiny pages are usually parked-domain placeholders or default web-host stubs
+    if body_len < 500:
+        issues.append("placeholder-or-empty")
+
+    parking_markers = (
+        "godaddy", "domain for sale", "namebright", "this domain is parked",
+        "buy this domain", "default web site page", "test page for the",
+        "domain has been registered",
+    )
+    if any(m in body for m in parking_markers):
+        issues.append("parking-page")
+
+    # Mobile-friendly = viewport meta tag exists. 60%+ of small-biz traffic is mobile.
+    if 'name="viewport"' not in body and "name='viewport'" not in body:
+        issues.append("not-mobile-friendly")
+
+    coming_soon_markers = (
+        "coming soon", "under construction", "site is being updated",
+        "site coming soon",
+    )
+    if any(m in body for m in coming_soon_markers):
+        issues.append("coming-soon")
+
+    if "<title>" not in body or "<title></title>" in body:
+        issues.append("no-title")
+
+    # Outdated copyright year — sites with ©2019 in 2026 = abandoned, prime SiteBoost target.
+    # Look for "© 2019", "©2019", "copyright 2019" patterns.
+    import re
+    current_year = time.gmtime().tm_year
+    year_matches = re.findall(r"(?:©|&copy;|copyright)\s*(\d{4})", body)
+    if year_matches:
+        # Take the highest year found (footer often shows the most recent update)
+        latest_year = max(int(y) for y in year_matches if y.isdigit() and 1990 <= int(y) <= current_year)
+        if latest_year < current_year - 3:
+            issues.append(f"copyright-{latest_year}")
+
+    # Default CMS template — page rendered but never customized (lazy/abandoned build)
+    default_template_markers = (
+        "/themes/twentynineteen/", "/themes/twentytwenty/", "/themes/twentytwentyone/",
+        "/themes/twentytwentytwo/", "/themes/twentytwentythree/",
+        "wp-content/themes/default/", "wordpress.org/themes",
+        "wix-static-html", "weebly-default", "godaddysites.com",
+        "this is a sample page", "lorem ipsum dolor sit amet",
+    )
+    if any(m in body for m in default_template_markers):
+        issues.append("default-template")
+
+    return issues
 
 
 def _api_key() -> str:
@@ -216,12 +411,26 @@ def scan(location: str, radius_m: int = 5000, categories: Optional[list[str]] = 
         raw = _nearby_search(lat, lng, radius_m, cats, key)
         prospects = [_parse(p, country) for p in raw][:limit]
 
+        # Probe every site in parallel — the bad-website pivot needs each prospect's
+        # actual site quality to classify. 8 workers × 5s timeout caps wall-clock at ~30s
+        # for a 50-prospect scan (vs 4+ minutes sequential).
+        with_site = [p for p in prospects if p.website]
+        if with_site:
+            logger.info(f"[scan] probing {len(with_site)} websites in parallel for quality issues")
+            with ThreadPoolExecutor(max_workers=8) as ex:
+                issue_lists = list(ex.map(_probe_website, [p.website for p in with_site]))
+            for p, issues in zip(with_site, issue_lists):
+                p.website_issues = issues
+
     targetable = [p for p in prospects if p.is_targetable()[0]]
     rejected = [(p, p.is_targetable()[1]) for p in prospects if not p.is_targetable()[0]]
 
     stamp = time.strftime("%Y-%m-%d")
     slug = location.lower().replace(",", "").replace(" ", "-")[:40]
     out_path = SCANS_DIR / f"{stamp}-{slug}.json"
+    # Build a parallel breakdown for accepted prospects so the operator can see
+    # whether targetable are "no-website" or "bad-website:X" (and which X dominates).
+    targetable_reasons = [p.is_targetable()[1] for p in targetable]
     out_path.write_text(json.dumps({
         "_meta": {
             "location": location, "radius_m": radius_m,
@@ -232,6 +441,8 @@ def scan(location: str, radius_m: int = 5000, categories: Optional[list[str]] = 
             "n_rejected": len(rejected),
             "rejection_reasons": {r: sum(1 for _, rr in rejected if rr == r)
                                   for r in {rr for _, rr in rejected}},
+            "targetable_reasons": {r: targetable_reasons.count(r)
+                                    for r in set(targetable_reasons)},
         },
         "targetable": [asdict(p) for p in targetable],
         "rejected": [{"name": p.name, "reason": r} for p, r in rejected],

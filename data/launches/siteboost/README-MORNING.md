@@ -55,7 +55,7 @@ The first build covered cold-email sending. The v2 additions cover **everything 
 These tasks run AFTER the original 5 morning tasks (skill cp · domain · email infra · API keys · pricing decision):
 
 - **Stripe products** — run `python scripts/siteboost_stripe_setup.py --dry-run` to preview the 7 SKUs. Then run without `--dry-run` (with `STRIPE_API_KEY` set) to create them. Writes payment-link URLs to `data/launches/siteboost/stripe_payment_links.json`.
-- **Calendly slot** — create a 15-min "SiteBoost Discovery" slot at calendly.com. Find/replace `calendly.com/jay-siteboost/15` in `core/cold_outreach.py` and `SALES-PLAYBOOK.md` with your actual URL.
+- **Calendly slot** — create a 15-min "SiteBoost Discovery" slot at calendly.com. Find/replace the `calendly.com/<your-handle>/15min` template in `SALES-PLAYBOOK.md` with your actual URL.
 - **Read [SALES-PLAYBOOK.md](data/launches/siteboost/SALES-PLAYBOOK.md) once before your first call.** 10 min read; saves 10 hours of fumbling on early calls.
 - **Self-host the intake form** — copy `local_prospect/intake.html` to `hello.wheellsverse.com/intake.html` (Cloudflare Pages, GitHub Pages, or any static host). Wire `<form action>` to Tally.so OR a custom handler that writes to `data/launches/siteboost/intakes/<customer_id>.json`. The form already reads `?customer=` from the URL query string.
 - **Customer-id wiring check** — the Stripe `success_url` redirects to `https://hello.wheellsverse.com/intake?customer={CHECKOUT_SESSION_ID}`. Confirm your intake-form host serves the file at `/intake` (not `/intake.html`) so the URL is clean.

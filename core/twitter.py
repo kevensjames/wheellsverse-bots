@@ -479,15 +479,19 @@ class TwitterClient:
             tweets.append(f"{tweet_num}/ {chunk}"[:280])
 
         # Last tweet — CTA
-        coinbase = os.getenv("AFFILIATE_COINBASE_URL", "")
-        robinhood = os.getenv("AFFILIATE_WEBULL_URL", "")
+        # OLD: read AFFILIATE_COINBASE_URL / AFFILIATE_WEBULL_URL from env and
+        # OLD: tweeted "amzn.to/wheellsverse" as Amazon deals link. Per
+        # OLD: affiliate_swap_2026_05_29 every CTA now points to the owned
+        # OLD: digital product with UTM tagging.
+        _STAN_TWITTER = "https://stan.store/Wheellsverse?utm_source=core_twitter&utm_medium=twitter&utm_campaign=affiliate_swap_2026_05_29"
 
         cta_parts = ["💰 Start earning today:"]
-        if robinhood:
-            cta_parts.append(f"📈 Free stocks → {robinhood[:50]}")
-        if coinbase:
-            cta_parts.append(f"₿ $10 crypto bonus → {coinbase[:50]}")
-        cta_parts.append("🛒 Amazon deals → amzn.to/wheellsverse")
+        # OLD: if robinhood: cta_parts.append(f"📈 Free stocks → {robinhood[:50]}")
+        cta_parts.append(f"📈 Free stocks playbook → {_STAN_TWITTER}&utm_content=stocks_playbook")
+        # OLD: if coinbase: cta_parts.append(f"₿ $10 crypto bonus → {coinbase[:50]}")
+        cta_parts.append(f"₿ Crypto starter pack → {_STAN_TWITTER}&utm_content=crypto_pack")
+        # OLD: cta_parts.append("🛒 Amazon deals → amzn.to/wheellsverse")
+        cta_parts.append(f"🛒 Best money tools → {_STAN_TWITTER}&utm_content=tools_pack")
         cta_parts.append("\nFollow @wheellsverse for daily money moves 🚀")
         cta = "\n".join(cta_parts)[:280]
         tweets.append(cta)

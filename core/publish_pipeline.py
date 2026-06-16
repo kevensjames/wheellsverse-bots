@@ -74,13 +74,22 @@ blockquote{{border-left:4px solid #00d4ff;margin-left:0;padding-left:20px;color:
 {body_html}
 </article>
 
+<!-- OLD: this CTA block formerly linked to Webull, Coinbase, Amazon Associates -->
+<!-- OLD: ?tag=wheellsverse-20 search, and Amazon Prime Video, with branded anchor -->
+<!-- OLD: text naming each destination. NEW (affiliate_swap_pass2_2026_06_02): all -->
+<!-- OLD: anchor text neutralized; URLs still flow through {robinhood_url} / -->
+<!-- OLD: {coinbase_url} / {amazon_video_url} template vars, which after -->
+<!-- OLD: affiliate_swap_2026_05_29 redirect through /go/{partner} → stan.store -->
+<!-- OLD: with utm_content carrying the original partner key. The hardcoded -->
+<!-- OLD: amazon.com/s?…&tag={amazon_tag} URL has been replaced with the owned -->
+<!-- OLD: digital product URL with utm_content=amazon. -->
 <div class="cta">
   <h3>💰 Start Building Passive Income Today</h3>
   <p>
-    📈 <a href="{robinhood_url}" target="_blank">Get free stocks on Webull</a> — zero commission investing<br/>
-    ₿ <a href="{coinbase_url}" target="_blank">Earn $10 in free Bitcoin on Coinbase</a> — best crypto platform<br/>
-    🛒 <a href="https://www.amazon.com/s?k=passive+income+books&tag={amazon_tag}" target="_blank">Best passive income books on Amazon</a><br/>
-    🎬 <a href="{amazon_video_url}" target="_blank">Amazon Prime Video — Stream &amp; Save</a>
+    📈 <a href="{robinhood_url}" target="_blank">Get the free stocks playbook</a> — start investing<br/>
+    ₿ <a href="{coinbase_url}" target="_blank">Get the crypto starter pack</a> — beginner friendly<br/>
+    🛒 <a href="{books_url}" target="_blank">Get the passive income books pack</a><br/>
+    🎬 <a href="{amazon_video_url}" target="_blank">Get the streaming &amp; rewards bundle</a>
   </p>
 </div>
 
@@ -328,17 +337,29 @@ class PublishPipeline:
         try:
             # Build HTML email body
             body_html = _md_to_html(content)
-            amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-            amazon_tag_2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
-            amazon_video_url = os.getenv("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amazon_tag_2}")
-            coinbase_url = os.getenv("AFFILIATE_COINBASE_URL", "")
-            robinhood_url = os.getenv("AFFILIATE_WEBULL_URL", "")
+            # OLD: read AFFILIATE_AMAZON_TAG/_2, AFFILIATE_AMAZON_VIDEO_URL,
+            # OLD: AFFILIATE_COINBASE_URL, AFFILIATE_WEBULL_URL from .env.
+            # OLD: amazon_video_url default was https://www.amazon.com/gp/video/storefront?tag=...
+            # OLD: NEW (affiliate_swap_pass2_2026_06_02): all 4 footer URLs
+            # OLD: now route to the owned digital product with UTM tagging.
+            _STAN_EMAIL = "https://stan.store/Wheellsverse?utm_source=core_publish_pipeline&utm_medium=email&utm_campaign=affiliate_swap_pass2_2026_06_02"
+            amazon_video_url = f"{_STAN_EMAIL}&utm_content=amazon_video"
+            coinbase_url = f"{_STAN_EMAIL}&utm_content=coinbase"
+            robinhood_url = f"{_STAN_EMAIL}&utm_content=webull"
+            books_url = f"{_STAN_EMAIL}&utm_content=amazon_books"
+            # OLD: footer_html = (
+            # OLD:     f'<hr/><p><strong>💰 Today\'s affiliate picks:</strong><br/>'
+            # OLD:     f'📈 <a href="{robinhood_url}">Free stock on Robinhood</a> | '
+            # OLD:     f'₿ <a href="{coinbase_url}">$10 Bitcoin on Coinbase</a> | '
+            # OLD:     f'🛒 <a href="https://amazon.com/s?k=money&tag={amazon_tag}">Amazon deals</a> | '
+            # OLD:     f'🎬 <a href="{amazon_video_url}">Amazon Prime Video</a></p>'
+            # OLD: )
             footer_html = (
-                f'<hr/><p><strong>💰 Today\'s affiliate picks:</strong><br/>'
-                f'📈 <a href="{robinhood_url}">Free stock on Robinhood</a> | '
-                f'₿ <a href="{coinbase_url}">$10 Bitcoin on Coinbase</a> | '
-                f'🛒 <a href="https://amazon.com/s?k=money&tag={amazon_tag}">Amazon deals</a> | '
-                f'🎬 <a href="{amazon_video_url}">Amazon Prime Video</a></p>'
+                f'<hr/><p><strong>💰 Today\'s picks:</strong><br/>'
+                f'📈 <a href="{robinhood_url}">Free stocks playbook</a> | '
+                f'₿ <a href="{coinbase_url}">Crypto starter pack</a> | '
+                f'🛒 <a href="{books_url}">Passive income books pack</a> | '
+                f'🎬 <a href="{amazon_video_url}">Streaming &amp; rewards bundle</a></p>'
             )
             result = ck.create_broadcast(
                 subject=title,
@@ -385,6 +406,16 @@ class PublishPipeline:
 
             from core.click_tracker import tracking_url
             site_base = os.getenv("CTA_URL", "https://wheellsverse-bots.pages.dev")
+            # OLD: template formerly received a hardcoded amazon.com/s?…&tag=
+            # OLD: URL inline at line 82. NEW (affiliate_swap_pass2_2026_06_02):
+            # OLD: that URL is now passed in as `books_url` template variable,
+            # OLD: resolved to the owned digital product with UTM tagging.
+            _BOOKS_URL = (
+                "https://stan.store/Wheellsverse"
+                "?utm_source=core_publish_pipeline&utm_medium=blog"
+                "&utm_campaign=affiliate_swap_pass2_2026_06_02"
+                "&utm_content=amazon_books"
+            )
             html = _HTML_TEMPLATE.format(
                 title=title,
                 description=description,
@@ -395,6 +426,7 @@ class PublishPipeline:
                 amazon_video_url=tracking_url("amazon_video", site_base),
                 coinbase_url=tracking_url("coinbase", site_base),
                 robinhood_url=tracking_url("webull", site_base),
+                books_url=_BOOKS_URL,
                 bot_pack_url=os.getenv("STRIPE_BOT_PACK_URL", "https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03"),
                 pro_url=os.getenv("STRIPE_PRO_URL", "https://buy.stripe.com/aFa28q6TX6lI72d9sva3u04"),
             )

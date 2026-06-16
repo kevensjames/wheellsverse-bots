@@ -183,7 +183,8 @@ def notify_error(bot_name: str, error: str):
 
 
 def notify_click(partner: str, total_today: int = 0):
-    msg = f"🖱 Affiliate click: <b>{partner}</b>"
+    # OLD: msg = f"🖱 Affiliate click: <b>{partner}</b>"
+    msg = f"🖱 Product click: <b>{partner}</b>"
     if total_today:
         msg += f" (today: {total_today})"
     notify(msg, silent=True)  # Silent — high frequency

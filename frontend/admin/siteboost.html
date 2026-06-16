@@ -1,453 +1,1445 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<base target="_top"/>
-<title>SiteBoost — Control Panel</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SiteBoost · Control Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#05070d; --panel:#0b0f1a; --panel2:#11172a; --border:#1a2036;
-    --text:#e8edf5; --muted:#8a95a8; --accent:#4df4a5;
-    --warn:#ffb547; --err:#ff5b6e; --purple:#a389f4; --cyan:#5be7ff;
-  }
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;min-height:100vh}
-  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:rgba(11,15,26,.6);backdrop-filter:blur(8px);position:sticky;top:0;z-index:10}
-  .brand{font-weight:700;font-size:18px;letter-spacing:.3px}
-  .brand .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;box-shadow:0 0 12px var(--accent);animation:pulse 2s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
-  .topnav a{color:var(--muted);text-decoration:none;margin-left:18px;font-size:13px}
-  .topnav a:hover{color:var(--text)}
-  .wrap{max-width:1280px;margin:0 auto;padding:32px 28px 80px}
-  h1{font-size:28px;font-weight:600;margin:0 0 6px}
-  .sub{color:var(--muted);margin-bottom:32px;font-size:14px}
-  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin:32px 0 14px;font-weight:500;display:flex;align-items:center;justify-content:space-between}
-  .section-title button{background:var(--accent);border:none;color:#000;font-weight:700;padding:8px 16px;border-radius:8px;font-size:12px;cursor:pointer;font-family:inherit;text-transform:uppercase;letter-spacing:.5px}
-  .section-title button:hover{filter:brightness(1.1)}
-  .section-title button.outline{background:transparent;color:var(--text);border:1px solid var(--border)}
-  .section-title button.outline:hover{border-color:var(--accent);color:var(--accent)}
+:root{
+  --bg:#0a0a0a; --panel:#111111; --panel-2:#1a1a1a; --border:#262626;
+  --text:#fafafa; --muted:#94a3b8; --dim:#64748b;
+  --accent:#ea580c; --accent-hover:#c2410c; --accent-bg:rgba(234,88,12,.1);
+  --green:#10b981; --green-bg:rgba(16,185,129,.12);
+  --red:#ef4444; --red-bg:rgba(239,68,68,.12);
+  --yellow:#f59e0b; --yellow-bg:rgba(245,158,11,.12);
+  --blue:#3b82f6; --blue-bg:rgba(59,130,246,.12);
+  --radius:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Inter',-apple-system,sans-serif;
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent);text-decoration:none}
+button{font-family:inherit;cursor:pointer;border:0;font-size:inherit}
+input,textarea,select{font-family:inherit;font-size:inherit}
 
-  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:8px}
-  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
-  .stat-num{font-size:24px;font-weight:700;color:var(--accent);font-feature-settings:'tnum'}
-  .stat-num.purple{color:var(--purple)} .stat-num.cyan{color:var(--cyan)} .stat-num.warn{color:var(--warn)} .stat-num.err{color:var(--err)}
-  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-top:4px}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);
+  padding:12px 24px;display:flex;justify-content:space-between;align-items:center;}
+.brand{font-weight:700;font-size:1rem;display:flex;align-items:center;gap:10px}
+.brand .pulse{width:8px;height:8px;background:var(--green);border-radius:50%;
+  animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.topnav{display:flex;gap:4px}
+.tab{padding:8px 14px;color:var(--muted);background:transparent;border-radius:6px;
+  font-weight:500;transition:all .15s;font-size:.9rem;}
+.tab:hover{color:var(--text);background:var(--panel-2)}
+.tab.active{color:var(--text);background:var(--accent-bg)}
 
-  .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:8px}
-  @media (max-width:720px){.grid-2{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px}
-  .card h3{margin:0 0 14px;font-size:14px;font-weight:600;color:var(--cyan);text-transform:uppercase;letter-spacing:1px}
+.wrap{padding:24px;max-width:1500px;margin:0 auto}
+.sub{color:var(--muted);margin-bottom:24px;font-size:.92rem}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
 
-  table{width:100%;border-collapse:collapse;font-size:13px}
-  th{text-align:left;color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:1px;padding:8px 10px;border-bottom:1px solid var(--border);font-weight:500}
-  td{padding:10px;border-bottom:1px solid var(--border);color:var(--text);vertical-align:middle}
-  tr:hover td{background:rgba(77,244,165,.04)}
-  tr:last-child td{border-bottom:none}
-  .badge{display:inline-block;padding:2px 8px;border-radius:8px;font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase}
-  .badge.ok{background:rgba(77,244,165,.15);color:var(--accent)}
-  .badge.warn{background:rgba(255,181,71,.15);color:var(--warn)}
-  .badge.err{background:rgba(255,91,110,.15);color:var(--err)}
-  .badge.dry{background:rgba(163,137,244,.15);color:var(--purple)}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+  gap:12px;margin-bottom:28px;}
+.stat{background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:16px;}
+.stat-num{font-size:1.8rem;font-weight:700;line-height:1.1;margin-bottom:4px}
+.stat-label{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em}
+.cyan{color:#67e8f9} .purple{color:#c4b5fd}
+.warn{color:var(--yellow)} .err{color:var(--red)} .ok{color:var(--green)}
 
-  .row-actions a{color:var(--cyan);text-decoration:none;font-size:12px;margin-right:12px}
-  .row-actions a:hover{color:var(--accent)}
+.section-title{font-size:1.05rem;font-weight:600;margin:32px 0 14px;color:var(--text);
+  display:flex;justify-content:space-between;align-items:center;}
 
-  .check-line{padding:7px 0;font-size:13px;display:flex;justify-content:space-between;border-bottom:1px solid var(--border)}
-  .check-line:last-child{border-bottom:none}
-  .check-line .label{color:var(--text)}
-  .check-line .val{font-family:'JetBrains Mono',monospace;font-size:11px}
-  .check-line.fail .val{color:var(--err)}
-  .check-line.ok .val{color:var(--accent)}
+.card{background:var(--panel);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px;}
+.card h3{font-size:.92rem;color:var(--text);font-weight:600;margin-bottom:10px;
+  display:flex;justify-content:space-between;align-items:center}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px}
 
-  .blockers-list{margin:0;padding-left:18px;color:var(--warn);font-size:13px;line-height:1.7}
+.btn{padding:8px 14px;border-radius:6px;font-weight:600;font-size:.85rem;
+  transition:all .12s;display:inline-flex;align-items:center;gap:6px;}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-secondary{background:var(--panel-2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:var(--red);color:#fff}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{color:var(--text);border-color:var(--text)}
+.btn-sm{padding:5px 10px;font-size:.78rem}
 
-  /* Modal */
-  .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:100;padding:20px}
-  .modal-backdrop.show{display:flex}
-  .modal{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:28px;width:100%;max-width:520px;max-height:90vh;overflow-y:auto}
-  .modal h2{margin:0 0 6px;font-size:20px}
-  .modal .sub{margin-bottom:20px;font-size:13px}
-  .field{margin-bottom:14px;display:block}
-  .field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:6px;font-weight:600}
-  .field input,.field select{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:14px;outline:none}
-  .field input:focus,.field select:focus{border-color:var(--accent)}
-  .field .hint{margin-top:5px;font-size:11px;color:var(--muted)}
-  .checkbox{display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--text)}
-  .checkbox input{width:18px;height:18px;cursor:pointer}
-  .modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end}
-  .modal-actions button{padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;font-family:inherit}
-  .btn-cancel{background:transparent;color:var(--muted);border:1px solid var(--border)!important}
-  .btn-primary{background:var(--accent);color:#000}
-  .btn-warn{background:var(--warn);color:#000}
+table{width:100%;border-collapse:separate;border-spacing:0;font-size:.88rem}
+th{background:var(--panel-2);text-align:left;padding:11px 14px;
+  font-weight:600;font-size:.78rem;color:var(--muted);
+  text-transform:uppercase;letter-spacing:.04em;
+  border-bottom:1px solid var(--border);}
+td{padding:12px 14px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tr.skipped{opacity:.4}
+tr.skipped td{text-decoration:line-through}
 
-  .empty{padding:24px;text-align:center;color:var(--muted);font-size:13px}
-  pre.log{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--text);overflow-x:auto;max-height:280px;overflow-y:auto;white-space:pre-wrap}
+.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.7);
+  display:none;align-items:center;justify-content:center;z-index:100;padding:20px;}
+.modal-backdrop.show{display:flex}
+.modal{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+  max-width:900px;width:100%;max-height:90vh;overflow-y:auto;padding:24px;}
+.modal h2{font-size:1.2rem;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center}
+.modal-close{background:transparent;color:var(--muted);font-size:1.5rem;line-height:1;
+  padding:4px 10px;border-radius:6px;}
+.modal-close:hover{color:var(--text);background:var(--panel-2)}
 
-  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--text);padding:14px 22px;border-radius:10px;font-size:14px;box-shadow:0 8px 32px rgba(0,0,0,.5);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s}
-  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
-  .toast.err{border-color:var(--err);color:var(--err)}
+label{display:block;color:var(--muted);font-size:.8rem;margin-bottom:4px;margin-top:10px;
+  text-transform:uppercase;letter-spacing:.05em;font-weight:600}
+input[type=text],input[type=email],input[type=number],textarea,select{
+  width:100%;padding:9px 11px;background:var(--bg);color:var(--text);
+  border:1px solid var(--border);border-radius:6px;font-size:.92rem;}
+input:focus,textarea:focus{outline:none;border-color:var(--accent)}
+textarea{min-height:120px;font-family:'SF Mono',Monaco,monospace;font-size:.85rem;line-height:1.6;resize:vertical}
+
+.badge{display:inline-block;padding:3px 9px;border-radius:999px;
+  font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.badge-green{background:var(--green-bg);color:var(--green)}
+.badge-red{background:var(--red-bg);color:var(--red)}
+.badge-yellow{background:var(--yellow-bg);color:var(--yellow)}
+.badge-blue{background:var(--blue-bg);color:var(--blue)}
+.badge-muted{background:var(--panel-2);color:var(--muted)}
+
+.progress{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;margin-bottom:14px;}
+.progress-stage{display:flex;align-items:center;gap:10px;font-size:.88rem;margin-bottom:6px}
+.progress-stage .dot{width:10px;height:10px;border-radius:50%;background:var(--dim)}
+.progress-stage.done .dot{background:var(--green)}
+.progress-stage.active .dot{background:var(--yellow);animation:pulse 1.2s infinite}
+.progress-stage.failed .dot{background:var(--red)}
+
+.hidden{display:none !important}
+
+.inspector-grid{display:grid;grid-template-columns:380px 1fr;gap:16px;height:60vh}
+.inspector-panel{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:14px;overflow-y:auto;font-size:.85rem;}
+.inspector-panel h4{font-size:.78rem;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.05em;margin-top:12px;margin-bottom:6px}
+.inspector-panel h4:first-child{margin-top:0}
+.kv{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:.82rem}
+.kv:last-child{border-bottom:0}
+.kv .k{color:var(--muted)}
+.kv .v{color:var(--text);font-weight:500;text-align:right;word-break:break-word}
+.inspector-preview{background:#fff;border-radius:6px;overflow:hidden;border:1px solid var(--border);height:100%;}
+.inspector-preview iframe{width:100%;height:100%;border:0}
+
+.touch-edit{background:var(--bg);border:1px solid var(--border);border-radius:6px;
+  padding:14px;margin-bottom:10px;}
+.touch-edit .label-row{display:flex;justify-content:space-between;align-items:center}
+
+.log-viewer{background:#000;border-radius:6px;padding:14px;font-family:'SF Mono',Monaco,monospace;
+  font-size:.78rem;line-height:1.6;color:#a3a3a3;max-height:500px;overflow-y:auto;white-space:pre-wrap;}
 </style>
 </head>
 <body>
 
+<div id="error-banner" class="hidden" style="position:fixed;top:14px;right:24px;z-index:200;
+  background:var(--red-bg);color:var(--red);border:1px solid var(--red);
+  padding:10px 16px;border-radius:8px;font-size:.88rem;max-width:520px"></div>
+
 <div class="topbar">
   <div class="brand"><span class="pulse"></span>SiteBoost · Control Panel</div>
   <nav class="topnav">
-    <a href="/admin">← Command Center</a>
-    <a href="/admin/siteboost?refresh=1">Refresh</a>
-    <a href="https://github.com/kevensjames/wheellsverse-bots" target="_blank" rel="noopener">GitHub</a>
+    <button class="tab active" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="scans">Scans</button>
+    <button class="tab" data-tab="prospects">Prospects</button>
+    <button class="tab" data-tab="sequences">Sequences</button>
+    <button class="tab" data-tab="costs">Costs</button>
+    <button class="tab" data-tab="activity">Activity</button>
+    <button class="tab" data-tab="suppressions">Suppressions</button>
+    <button class="tab" data-tab="schedules">Schedules</button>
+    <a href="/admin" class="tab" style="margin-left:14px">← Command Center</a>
   </nav>
 </div>
 
 <div class="wrap">
-  <h1>SiteBoost</h1>
-  <div class="sub">Local-business outbound: scan Google Maps → generate previews → 3-touch cold email → close at $497.</div>
 
+<div id="tab-overview" class="tab-panel">
+  <div class="sub">Local-business outbound: scan Google Maps → generate previews → 3-touch cold email → close at $497.</div>
   <div class="stats">
     <div class="stat"><div class="stat-num" id="s-runs">—</div><div class="stat-label">Campaigns</div></div>
     <div class="stat"><div class="stat-num cyan" id="s-places">—</div><div class="stat-label">Places scanned</div></div>
-    <div class="stat"><div class="stat-num purple" id="s-emails">—</div><div class="stat-label">Emails sent</div></div>
-    <div class="stat"><div class="stat-num warn" id="s-blocked">—</div><div class="stat-label">Blocklist size</div></div>
+    <div class="stat"><div class="stat-num purple" id="s-emails">—</div><div class="stat-label">Sequences ready</div></div>
+    <div class="stat"><div class="stat-num warn" id="s-blocked">—</div><div class="stat-label">Suppression list</div></div>
     <div class="stat"><div class="stat-num err" id="s-blockers">—</div><div class="stat-label">Launch blockers</div></div>
   </div>
-
-  <div class="section-title">
-    Quick actions
-    <span>
-      <button onclick="openScanModal()">+ New scan</button>
-      <button class="outline" onclick="runSelftest()">Run selftest</button>
-    </span>
+  <div class="section-title">Quick actions</div>
+  <div class="row" style="margin-bottom:20px">
+    <button class="btn btn-primary" onclick="openScanModal()">+ New scan</button>
+    <button class="btn btn-secondary" onclick="runSelftest()">Run selftest</button>
+  </div>
+  <div class="card" style="margin-bottom:14px">
+    <h3>Launch readiness deep check
+      <span style="display:flex;gap:8px;align-items:center">
+        <span id="lr-verdict" class="badge badge-muted">loading...</span>
+        <button class="btn btn-primary btn-sm" onclick="autoCreateCampaign()">🚀 Auto-create SiteBoost campaign in Instantly</button>
+      </span>
+    </h3>
+    <div class="sub">6-axis health check: CAN-SPAM, unsubscribe, DNS, Instantly, suppression list, Resend. Auto-create button skips all the manual UI work + sets the active campaign UUID immediately.</div>
+    <div id="lr-checks" style="margin-top:14px"></div>
+    <div id="autocreate-result" style="margin-top:12px"></div>
   </div>
 
   <div class="grid-2">
-    <div class="card">
-      <h3>Launch readiness</h3>
-      <div id="readiness">loading…</div>
+    <div class="card"><h3>Required env vars</h3><div id="readiness-checks"><div class="sub">loading...</div></div></div>
+    <div class="card"><h3>Blockers <span id="blocker-count" class="badge badge-green">0</span></h3><div id="blocker-list"></div></div>
+  </div>
+  <div class="card" style="margin:24px 0">
+    <h3>Daily digest
+      <span id="digest-stats-tag" class="badge badge-muted">loading...</span>
+    </h3>
+    <div class="sub">Morning summary of scans + prospects + ready-to-send sequences. Designed to be glanced at on your phone before opening the dashboard.</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+      <input type="email" id="digest-recipient" placeholder="your-email@example.com" style="flex:1;min-width:240px;max-width:340px">
+      <button class="btn btn-primary" onclick="sendDigestNow()">📨 Send digest preview</button>
     </div>
-    <div class="card">
-      <h3>Blockers</h3>
-      <div id="blockers">loading…</div>
-    </div>
+    <div id="digest-result" style="margin-top:10px"></div>
   </div>
 
-  <div class="section-title">Recent campaigns</div>
+  <div class="section-title">Recent campaigns <button class="btn btn-ghost btn-sm" onclick="refreshAll()">↻ Refresh</button></div>
   <div class="card" style="padding:0">
     <table>
-      <thead>
-        <tr><th>Run</th><th>Previews</th><th>Sequences</th><th>Mode</th><th>Actions</th></tr>
-      </thead>
-      <tbody id="runs-tbody">
-        <tr><td colspan="5" class="empty">loading…</td></tr>
-      </tbody>
+      <thead><tr><th>Run</th><th>Prospects</th><th>Targetable</th><th>Sequences</th><th>Mode</th><th>Actions</th></tr></thead>
+      <tbody id="runs-tbody"></tbody>
     </table>
   </div>
 </div>
 
-<!-- New-scan modal ─────────────────────────────────────────────────────── -->
+<div id="tab-scans" class="tab-panel hidden">
+  <div class="section-title">Active scans</div>
+  <div id="active-scans"><div class="sub">No active scans. Start one below.</div></div>
+  <div class="section-title" style="margin-top:32px">New scan</div>
+  <div class="card">
+    <label>Location (city, state)</label>
+    <input type="text" id="scan-loc" placeholder="Fall River, MA" value="Plymouth, MA">
+    <div class="grid-3" style="margin-top:14px">
+      <div><label>Radius (m)</label><input type="number" id="scan-radius" value="10000"></div>
+      <div><label>Limit prospects</label><input type="number" id="scan-limit" value="50"></div>
+      <div><label>Mode</label><select id="scan-mode"><option value="false">DRY-RUN (free)</option><option value="true" selected>LIVE (uses APIs)</option></select></div>
+    </div>
+    <div style="margin-top:18px"><button class="btn btn-primary" onclick="startScan()">▶ Start scan</button></div>
+  </div>
+</div>
+
+<div id="tab-prospects" class="tab-panel hidden">
+  <div class="section-title">Prospects
+    <span style="display:flex;gap:8px;align-items:center">
+      <select id="prospect-run-select" onchange="loadProspects()" style="width:auto;background:var(--panel)"></select>
+      <button class="btn btn-ghost btn-sm" onclick="downloadCSV('prospect')">📥 Export CSV</button>
+    </span>
+  </div>
+
+  <div class="row" style="margin-bottom:14px">
+    <span style="color:var(--muted);font-size:.85rem">Filter:</span>
+    <button class="btn btn-ghost btn-sm prosp-filter active" data-prosp-filter="all">All</button>
+    <button class="btn btn-ghost btn-sm prosp-filter" data-prosp-filter="with-email">With email</button>
+    <button class="btn btn-ghost btn-sm prosp-filter" data-prosp-filter="high-conf">High confidence (≥60)</button>
+    <button class="btn btn-ghost btn-sm prosp-filter" data-prosp-filter="no-email">No email found</button>
+    <input type="text" id="prospect-search" placeholder="Search by name..." oninput="loadProspects()"
+      style="flex:1;min-width:200px;max-width:260px;padding:5px 10px;font-size:.85rem">
+    <span style="color:var(--muted);font-size:.8rem">
+      <label style="display:inline-flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400">
+        <input type="checkbox" id="sort-by-conf" checked style="width:auto" onchange="loadProspects()"> Sort by confidence
+      </label>
+    </span>
+  </div>
+
+  <div id="prospect-grid"><div class="sub">Select a run to load prospects.</div></div>
+</div>
+
+<div id="tab-sequences" class="tab-panel hidden">
+  <div class="section-title">Sequences
+    <span style="display:flex;gap:8px;align-items:center">
+      <select id="seq-run-select" onchange="loadSequences()" style="width:auto;background:var(--panel)"></select>
+      <button class="btn btn-ghost btn-sm" onclick="downloadCSV('seq')">📥 Export CSV</button>
+    </span>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>Batch QA</h3>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <input type="email" id="batch-test-email" placeholder="your-email@example.com" style="flex:1;min-width:240px;max-width:340px">
+      <label style="display:flex;align-items:center;gap:6px;margin:0;text-transform:none;letter-spacing:normal;color:var(--text);font-weight:400;font-size:.85rem">
+        <input type="checkbox" id="batch-test-unreviewed" style="width:auto"> Only unreviewed
+      </label>
+      <button class="btn btn-primary" onclick="sendTestAll()">📨 Send Touch 1 of all to my inbox</button>
+    </div>
+    <div id="batch-test-result" style="margin-top:10px"></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;border-color:var(--red);background:rgba(239,68,68,.05)">
+    <h3 style="color:var(--red)">⚠ Dispatch to real prospects</h3>
+    <div id="dispatch-stats" style="font-size:.88rem;color:var(--muted);margin-bottom:12px">
+      Select a run to see what would be dispatched.
+    </div>
+    <div id="dispatch-warning" class="hidden" style="background:var(--yellow-bg);color:var(--yellow);
+      border:1px solid var(--yellow);padding:10px 12px;border-radius:6px;font-size:.85rem;margin-bottom:12px"></div>
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <div><label>Max per day</label>
+        <input type="number" id="dispatch-max" value="5" min="1" max="100" style="width:90px"></div>
+      <div style="flex:1;min-width:280px"><label>Confirm string</label>
+        <input type="text" id="dispatch-confirm" placeholder="Type: YES-I-CONFIRM-REAL-SEND"></div>
+      <button class="btn btn-danger" onclick="dispatchSequences()" id="dispatch-btn">🚀 Dispatch to Instantly</button>
+    </div>
+    <div id="dispatch-result" style="margin-top:12px"></div>
+  </div>
+
+  <div class="grid-3" id="run-stats-cards" style="margin-bottom:14px"></div>
+
+  <div class="row" style="margin-bottom:14px">
+    <span style="color:var(--muted);font-size:.85rem">Filter:</span>
+    <button class="btn btn-ghost btn-sm filter-chip active" data-seq-filter="all">All</button>
+    <button class="btn btn-ghost btn-sm filter-chip" data-seq-filter="unreviewed">Unreviewed</button>
+    <button class="btn btn-ghost btn-sm filter-chip" data-seq-filter="reviewed">Reviewed</button>
+    <button class="btn btn-ghost btn-sm filter-chip" data-seq-filter="skipped">Skipped</button>
+    <button class="btn btn-ghost btn-sm filter-chip" data-seq-filter="active">Active (send-ready)</button>
+  </div>
+
+  <div id="bulk-toolbar" class="hidden" style="background:var(--accent-bg);border:1px solid var(--accent);
+       border-radius:8px;padding:10px 16px;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center">
+    <span><strong id="bulk-count">0</strong> selected</span>
+    <span>
+      <button class="btn btn-danger btn-sm" onclick="bulkSkip(true)">✗ Skip selected</button>
+      <button class="btn btn-secondary btn-sm" onclick="bulkSkip(false)">✓ Include selected</button>
+      <button class="btn btn-ghost btn-sm" onclick="clearBulk()">Clear</button>
+    </span>
+  </div>
+
+  <div id="sequences-list"><div class="sub">Select a run to load sequences.</div></div>
+</div>
+
+<div id="tab-costs" class="tab-panel hidden">
+  <div class="section-title">Running costs (heuristic)</div>
+  <div class="grid-3" id="cost-cards"></div>
+  <div class="sub" style="margin-top:16px">Heuristic estimates from public rate cards. Cross-check with Google Cloud, Hunter, OpenAI dashboards monthly.</div>
+</div>
+
+<div id="tab-schedules" class="tab-panel hidden">
+  <div class="section-title">
+    Scheduled scans
+    <button class="btn btn-ghost btn-sm" onclick="loadSchedules()">↻ Refresh</button>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>Add scheduled scan</h3>
+    <div class="sub">Background worker fires each enabled schedule at <code>hour:00 UTC</code> on the selected days. Already-fired-today schedules don't double-fire even if the container restarts.</div>
+    <div class="grid-3" style="margin-top:10px">
+      <div><label>Name</label>
+        <input type="text" id="sched-name" placeholder="Daily Fall River"></div>
+      <div><label>Location</label>
+        <input type="text" id="sched-location" placeholder="Fall River, MA"></div>
+      <div><label>Hour (UTC, 0-23)</label>
+        <input type="number" id="sched-hour" min="0" max="23" value="11"></div>
+    </div>
+    <div style="margin-top:10px">
+      <label>Days of week (UTC)</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:.9rem;color:var(--text)">
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="0" checked style="width:auto"> Mon</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="1" checked style="width:auto"> Tue</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="2" checked style="width:auto"> Wed</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="3" checked style="width:auto"> Thu</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="4" checked style="width:auto"> Fri</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="5" style="width:auto"> Sat</label>
+        <label style="display:inline-flex;align-items:center;gap:4px;margin:0;text-transform:none;letter-spacing:normal;font-weight:400"><input type="checkbox" class="sched-dow" value="6" style="width:auto"> Sun</label>
+      </div>
+    </div>
+    <div class="grid-3" style="margin-top:10px">
+      <div><label>Radius (m)</label>
+        <input type="number" id="sched-radius" value="10000" min="500" max="50000"></div>
+      <div><label>Limit prospects</label>
+        <input type="number" id="sched-limit" value="50" min="1" max="200"></div>
+      <div><label>Mode</label>
+        <select id="sched-mode">
+          <option value="true" selected>LIVE (uses APIs)</option>
+          <option value="false">DRY-RUN (free)</option>
+        </select></div>
+    </div>
+    <div style="margin-top:14px;text-align:right">
+      <button class="btn btn-primary" onclick="addSchedule()">+ Save schedule</button>
+    </div>
+    <div id="sched-add-result" style="margin-top:10px"></div>
+  </div>
+
+  <div id="schedules-list"><div class="sub">Loading...</div></div>
+</div>
+
+<div id="tab-suppressions" class="tab-panel hidden">
+  <div class="section-title">
+    Suppression list
+    <button class="btn btn-ghost btn-sm" onclick="loadSuppressions()">↻ Refresh</button>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <h3>Manually add to suppression list</h3>
+    <div class="sub">Pre-suppress your own friends, family, or competitors so they never get scanned into a batch. CAN-SPAM-compliant — these are treated identically to real opt-out clicks at compose time.</div>
+    <div style="display:flex;gap:10px;align-items:end;flex-wrap:wrap;margin-top:10px">
+      <div style="flex:1;min-width:240px"><label>Email</label>
+        <input type="email" id="supp-add-email" placeholder="friend@example.com"></div>
+      <div><label>Reason (via)</label>
+        <select id="supp-add-via" style="width:auto">
+          <option value="manual">manual</option>
+          <option value="reply-stop">reply-stop</option>
+          <option value="phone-request">phone-request</option>
+          <option value="bounce">bounce</option>
+        </select></div>
+      <button class="btn btn-primary" onclick="addSuppression()">+ Add</button>
+    </div>
+    <div id="supp-add-result" style="margin-top:10px"></div>
+  </div>
+
+  <div class="row" style="margin-bottom:14px">
+    <input type="text" id="supp-search" placeholder="Search emails..." oninput="renderSuppressions()" style="flex:1;max-width:300px;padding:5px 10px;font-size:.85rem">
+    <span style="color:var(--muted);font-size:.85rem">
+      <strong id="supp-count">0</strong> total suppressed
+    </span>
+  </div>
+
+  <div id="suppressions-list"><div class="sub">Loading...</div></div>
+</div>
+
+<div id="tab-activity" class="tab-panel hidden">
+  <div class="section-title">
+    Activity log
+    <span>
+      <select id="activity-filter" onchange="loadActivity()" style="width:auto;background:var(--panel);margin-right:8px">
+        <option value="">All events</option>
+        <option value="scan">Scans only</option>
+        <option value="send">Sends only</option>
+        <option value="sequence">Sequence edits</option>
+        <option value="unsubscribe">Unsubscribes</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="loadActivity()">↻ Refresh</button>
+    </span>
+  </div>
+  <div id="activity-list"><div class="sub">Loading recent events...</div></div>
+</div>
+
+</div>
+
 <div class="modal-backdrop" id="scan-modal">
   <div class="modal">
-    <h2>Start a new scan</h2>
+    <h2>Start new scan <button class="modal-close" onclick="closeModal('scan-modal')">×</button></h2>
     <div class="sub">Default mode is <strong>dry-run</strong> — no API cost, uses fake fixtures. Toggle LIVE only when ready.</div>
-    <label class="field">
-      <label>Location</label>
-      <input id="f-loc" type="text" placeholder="Boston, MA" value="Boston, MA">
-      <div class="hint">US city + state, or ZIP. EU is auto-rejected.</div>
-    </label>
-    <label class="field">
-      <label>Radius (meters)</label>
-      <input id="f-rad" type="number" value="5000" min="500" max="50000" step="500">
-    </label>
-    <label class="field">
-      <label>Limit</label>
-      <input id="f-lim" type="number" value="30" min="1" max="200">
-    </label>
-    <label class="field">
-      <label>Categories (comma-separated, optional)</label>
-      <input id="f-cats" type="text" placeholder="restaurant,salon,plumber,dentist">
-      <div class="hint">Leave blank to use the default 20-category mix.</div>
-    </label>
-    <label class="checkbox" style="margin:14px 0">
-      <input id="f-live" type="checkbox">
-      <span>LIVE mode (uses real Google Places + Hunter APIs — costs apply)</span>
-    </label>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeScanModal()">Cancel</button>
-      <button class="btn-primary" id="btn-start-scan" onclick="startScan()">Start scan</button>
+    <label>Location</label>
+    <input type="text" id="scan-loc-modal" placeholder="Hyannis, MA" value="Hyannis, MA">
+    <div class="grid-3" style="margin-top:14px">
+      <div><label>Radius (m)</label><input type="number" id="scan-radius-modal" value="10000"></div>
+      <div><label>Limit</label><input type="number" id="scan-limit-modal" value="50"></div>
+      <div><label>Mode</label><select id="scan-mode-modal"><option value="false">DRY-RUN</option><option value="true" selected>LIVE</option></select></div>
     </div>
-    <pre class="log" id="scan-log" style="display:none;margin-top:14px"></pre>
-  </div>
-</div>
-
-<!-- Selftest result modal -->
-<div class="modal-backdrop" id="selftest-modal">
-  <div class="modal">
-    <h2 id="selftest-title">Selftest result</h2>
-    <div class="sub" id="selftest-sub">—</div>
-    <pre class="log" id="selftest-log">running…</pre>
-    <div class="modal-actions">
-      <button class="btn-primary" onclick="closeSelftestModal()">Close</button>
+    <div style="margin-top:18px;text-align:right">
+      <button class="btn btn-secondary" onclick="closeModal('scan-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="startScanFromModal()">▶ Start scan</button>
     </div>
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<div class="modal-backdrop" id="inspector-modal">
+  <div class="modal" style="max-width:1200px">
+    <h2 id="insp-title">Prospect <button class="modal-close" onclick="closeModal('inspector-modal')">×</button></h2>
+    <div class="inspector-grid">
+      <div class="inspector-panel" id="insp-detail">loading...</div>
+      <div class="inspector-preview"><iframe id="insp-preview" src="about:blank"></iframe></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="sendtest-modal">
+  <div class="modal" style="max-width:540px">
+    <h2>Send test to yourself <button class="modal-close" onclick="closeModal('sendtest-modal')">×</button></h2>
+    <div class="sub">Touch 1 of <strong id="sendtest-biz">—</strong> will be sent to your email, FROM hello.wheellsverse.com. Subject prefixed with [TEST →].</div>
+    <label>Your email</label>
+    <input type="email" id="sendtest-recipient" placeholder="you@example.com">
+    <input type="hidden" id="sendtest-runid">
+    <input type="hidden" id="sendtest-slug">
+    <div style="margin-top:18px;text-align:right">
+      <button class="btn btn-secondary" onclick="closeModal('sendtest-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="doSendTest()">📨 Send test</button>
+    </div>
+    <div id="sendtest-result" style="margin-top:16px"></div>
+  </div>
+</div>
 
 <script>
 const API = '/api/narai/siteboost';
+const API_KEY_STORAGE_KEY = 'siteboost_api_key';
+// Server-injected at /admin/siteboost — if the literal string remains, fall back to prompt
+const INJECTED_API_KEY = '%%API_KEY%%';
 
-// ── Admin auth (shared with the rest of /admin/*) ────────────────────────
-function getAuthHeaders() {
-  const u = new URL(location.href);
-  const fromUrl = u.searchParams.get('key');
-  if (fromUrl) {
-    sessionStorage.setItem('admin_api_key', fromUrl);
-    u.searchParams.delete('key');
-    history.replaceState({}, '', u.toString());
+function sanitizeKey(k){
+  // fetch() headers require ISO-8859-1 (≤ U+00FF). Strip any non-printable / non-ASCII
+  // chars in case a smart quote / em-dash etc snuck in via env var paste.
+  if(!k) return '';
+  let out = '';
+  for(let i=0; i<k.length; i++){
+    const c = k.charCodeAt(i);
+    if(c >= 32 && c <= 126) out += k.charAt(i);
   }
-  let key = sessionStorage.getItem('admin_api_key');
-  if (!key) {
-    key = prompt('Admin API key (X-API-Key):');
-    if (!key) return null;
-    key = key.trim();
-    sessionStorage.setItem('admin_api_key', key);
-  }
-  return {'X-API-Key': key};
+  return out.trim();
 }
 
-async function api(path, opts = {}) {
-  const h = getAuthHeaders();
-  if (!h) throw new Error('no auth');
-  const headers = {...(opts.headers||{}), ...h};
-  if (opts.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
-  const r = await fetch(API + path, {...opts, headers});
-  if (r.status === 401) {
-    sessionStorage.removeItem('admin_api_key');
-    toast('Unauthorized — refresh and re-enter key', true);
-    throw new Error('401');
+function getApiKey(){
+  // Prefer server-injected (no prompt needed)
+  if(INJECTED_API_KEY && INJECTED_API_KEY !== '%%API_KEY%%') return sanitizeKey(INJECTED_API_KEY);
+  // Fall back to sessionStorage / prompt
+  let key = sessionStorage.getItem(API_KEY_STORAGE_KEY);
+  if(!key){
+    key = prompt('Paste platform admin API_KEY (saved in this tab only):');
+    if(key) sessionStorage.setItem(API_KEY_STORAGE_KEY, key.trim());
   }
-  return r;
+  return sanitizeKey(key);
 }
 
-function toast(msg, isErr) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.toggle('err', !!isErr);
-  t.classList.add('show');
-  setTimeout(() => t.classList.remove('show'), 3500);
+// Surface errors to the user instead of swallowing into console
+function showError(area, msg){
+  console.error(area, msg);
+  const banner = document.getElementById('error-banner');
+  if(banner){
+    banner.innerHTML = `<strong>⚠ ${area}:</strong> ${msg}`;
+    banner.classList.remove('hidden');
+    setTimeout(() => banner.classList.add('hidden'), 8000);
+  }
 }
 
-// ── Dashboard load ────────────────────────────────────────────────────────
-async function loadDashboard() {
+async function api(path, opts={}){
+  const key = getApiKey();
+  if(!key){
+    showError('Auth', 'No API key — refresh the page and provide one when prompted');
+    throw new Error('No API key');
+  }
+  const url = path.startsWith('http') ? path : API + path;
+  const res = await fetch(url, {
+    ...opts,
+    headers:{'X-API-Key': key, 'Content-Type':'application/json', ...(opts.headers || {})},
+  });
+  if(res.status === 401){
+    sessionStorage.removeItem(API_KEY_STORAGE_KEY);
+    showError('Auth', 'API key rejected (401). Refresh the page to re-enter.');
+    throw new Error('Invalid API key');
+  }
+  if(!res.ok){
+    const txt = await res.text();
+    showError('API', `${path} → HTTP ${res.status}: ${txt.slice(0,180)}`);
+    throw new Error(`HTTP ${res.status}: ${txt}`);
+  }
+  return res.json();
+}
+
+document.querySelectorAll('.tab[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    const target = document.getElementById('tab-' + btn.dataset.tab);
+    if(target) target.classList.remove('hidden');
+    if(btn.dataset.tab === 'prospects') loadRunDropdown('prospect-run-select');
+    if(btn.dataset.tab === 'sequences') loadRunDropdown('seq-run-select');
+    if(btn.dataset.tab === 'costs') loadCosts();
+    if(btn.dataset.tab === 'activity') loadActivity();
+    if(btn.dataset.tab === 'suppressions') loadSuppressions();
+    if(btn.dataset.tab === 'schedules') loadSchedules();
+  });
+});
+
+const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+
+async function loadSchedules(){
   try {
-    const r = await api('/dashboard');
-    const d = await r.json();
-
-    document.getElementById('s-runs').textContent = d.runs_count || 0;
-    const st = d.state || {};
-    document.getElementById('s-places').textContent = st.places_scanned || 0;
-    document.getElementById('s-emails').textContent = st.emails_sent || 0;
-    document.getElementById('s-blocked').textContent = (st.blocked_emails || 0) + (st.blocked_domains || 0);
-    document.getElementById('s-blockers').textContent = (d.blockers || []).length;
-
-    // Readiness card — env + DNS
-    const env = d.env || {};
-    const dns = d.dns || {};
-    const req = env.required || {};
-    const dnsChecks = dns.checks || {};
-    const readiness = document.getElementById('readiness');
-    readiness.innerHTML = '';
-    const all = [];
-    for (const k of Object.keys(req)) all.push(['env: ' + k, req[k]]);
-    for (const k of Object.keys(dnsChecks)) all.push(['dns: ' + k, dnsChecks[k]]);
-    if (!all.length) { readiness.innerHTML = '<div class="empty">no checks yet</div>'; }
-    for (const [label, ok] of all) {
-      const row = document.createElement('div');
-      row.className = 'check-line ' + (ok ? 'ok' : 'fail');
-      row.innerHTML = '<span class="label">' + label + '</span><span class="val">' + (ok ? '✓ SET' : '✗ missing') + '</span>';
-      readiness.appendChild(row);
-    }
-
-    // Blockers card
-    const blockers = document.getElementById('blockers');
-    if (!d.blockers || !d.blockers.length) {
-      blockers.innerHTML = '<div style="color:var(--accent);font-size:14px">✓ No blockers — ready to launch.</div>';
-    } else {
-      blockers.innerHTML = '<ul class="blockers-list">' +
-        d.blockers.map(b => '<li>' + escHtml(b) + '</li>').join('') + '</ul>';
-    }
-  } catch (e) {
-    toast('Failed to load dashboard: ' + e.message, true);
-  }
-}
-
-async function loadRuns() {
-  try {
-    const r = await api('/runs');
-    const d = await r.json();
-    const tbody = document.getElementById('runs-tbody');
-    if (!d.runs || !d.runs.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">no campaigns yet — start a scan to create one</td></tr>';
+    const d = await api('/schedules');
+    const items = d.schedules || [];
+    if(items.length === 0){
+      document.getElementById('schedules-list').innerHTML = '<div class="card">No scheduled scans yet. Add one above and it will fire at the chosen UTC hour.</div>';
       return;
     }
-    tbody.innerHTML = d.runs.map(r => `
-      <tr>
-        <td><code style="font-size:11px">${escHtml(r.run_id)}</code></td>
-        <td>${r.n_previews}</td>
-        <td>${r.n_sequences}</td>
-        <td>${r.is_dry_run
-              ? '<span class="badge dry">Dry-run</span>'
-              : '<span class="badge ok">Live</span>'}</td>
-        <td class="row-actions">
-          <a href="#" onclick="viewSequences('${escAttr(r.run_id)}'); return false">Sequences</a>
-          <a href="#" onclick="viewReport('${escAttr(r.run_id)}'); return false">Report</a>
+    let html = '<div class="card" style="padding:0"><table><thead><tr><th>Name</th><th>Location</th><th>When</th><th>Last run</th><th>Enabled</th><th>Actions</th></tr></thead><tbody>';
+    for(const s of items){
+      const dowNames = (s.days_of_week || []).map(d => DAY_NAMES[d]).join(' ');
+      const last = s.last_run_at ? new Date(s.last_run_at).toLocaleString() : '—';
+      const enabledBadge = s.enabled
+        ? '<span class="badge badge-green">enabled</span>'
+        : '<span class="badge badge-muted">paused</span>';
+      html += `<tr>
+        <td><strong>${s.name}</strong><br><small style="color:var(--muted)">${s.limit} prospects · ${s.radius_m}m · ${s.live ? 'LIVE' : 'DRY'}</small></td>
+        <td>${s.location}</td>
+        <td>${s.hour}:00 UTC<br><small style="color:var(--muted)">${dowNames}</small></td>
+        <td style="font-size:.82rem;color:var(--muted)">${last}</td>
+        <td>${enabledBadge}</td>
+        <td>
+          <button class="btn btn-ghost btn-sm" onclick="runScheduleNow('${s.id}')">▶ Run now</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleSchedule('${s.id}',${!s.enabled})">${s.enabled ? '⏸ Pause' : '✓ Resume'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteSchedule('${s.id}','${(s.name || '').replace(/'/g, '')}')">Delete</button>
         </td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    toast('Failed to load runs: ' + e.message, true);
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+    document.getElementById('schedules-list').innerHTML = html;
+  } catch(e){
+    document.getElementById('schedules-list').innerHTML = `<div class="card" style="color:var(--red)">Failed: ${e.message}</div>`;
   }
 }
 
-// ── Actions ───────────────────────────────────────────────────────────────
-function openScanModal() {
-  document.getElementById('scan-modal').classList.add('show');
-  document.getElementById('scan-log').style.display = 'none';
-  document.getElementById('btn-start-scan').disabled = false;
-  document.getElementById('btn-start-scan').textContent = 'Start scan';
-}
-function closeScanModal() {
-  document.getElementById('scan-modal').classList.remove('show');
-}
-
-let _scanPollTimer = null;
-async function startScan() {
-  const btn = document.getElementById('btn-start-scan');
-  const log = document.getElementById('scan-log');
-  btn.disabled = true;
-  btn.textContent = 'Starting…';
-  log.style.display = 'block';
-  log.textContent = 'submitting…';
-
-  const body = {
-    location: document.getElementById('f-loc').value.trim(),
-    radius_m: parseInt(document.getElementById('f-rad').value, 10),
-    limit:    parseInt(document.getElementById('f-lim').value, 10),
-    live:     document.getElementById('f-live').checked,
-  };
-  const cats = document.getElementById('f-cats').value.trim();
-  if (cats) body.categories = cats.split(',').map(s => s.trim()).filter(Boolean);
-
-  let task_id;
+async function addSchedule(){
+  const name = document.getElementById('sched-name').value.trim();
+  const location = document.getElementById('sched-location').value.trim();
+  const hour = parseInt(document.getElementById('sched-hour').value);
+  const radius_m = parseInt(document.getElementById('sched-radius').value);
+  const limit = parseInt(document.getElementById('sched-limit').value);
+  const live = document.getElementById('sched-mode').value === 'true';
+  const dows = [...document.querySelectorAll('.sched-dow:checked')].map(cb => parseInt(cb.value));
+  if(!name || !location){ alert('Name + location required'); return; }
+  if(dows.length === 0){ alert('Pick at least one day'); return; }
   try {
-    const r = await api('/scan', {method: 'POST', body: JSON.stringify(body)});
-    if (!r.ok) { log.textContent = 'Error ' + r.status + ': ' + (await r.text()).slice(0, 400); btn.disabled = false; btn.textContent = 'Start scan'; return; }
-    const data = await r.json();
-    task_id = data.task_id;
-    log.textContent = 'Queued · task_id=' + task_id + '\n\nPolling status…';
-  } catch (e) {
-    log.textContent = 'Failed to start: ' + e.message;
-    btn.disabled = false; btn.textContent = 'Start scan';
+    const r = await api('/schedules', {method:'POST',
+      body:JSON.stringify({name, location, hour, days_of_week:dows, radius_m, limit, live})});
+    document.getElementById('sched-name').value = '';
+    document.getElementById('sched-location').value = '';
+    document.getElementById('sched-add-result').innerHTML = `<div class="card" style="background:var(--green-bg);border-color:var(--green)">✓ Saved schedule <code>${r.schedule.id}</code></div>`;
+    loadSchedules();
+    setTimeout(() => document.getElementById('sched-add-result').innerHTML = '', 4000);
+  } catch(e){
+    document.getElementById('sched-add-result').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+  }
+}
+
+async function runScheduleNow(id){
+  if(!confirm('Fire this scheduled scan immediately? (Ignores day/hour gates, marks last_run_at as now.)')) return;
+  try {
+    const r = await api(`/schedules/${id}/run`, {method:'POST'});
+    alert(`Fired — scan running at ${r.location}. Switch to Scans tab to watch progress.`);
+    loadSchedules();
+  } catch(e){ alert('Run failed: ' + e.message); }
+}
+
+async function toggleSchedule(id, enabled){
+  try {
+    await api(`/schedules/${id}/toggle`, {method:'PATCH',
+      body:JSON.stringify({enabled})});
+    loadSchedules();
+  } catch(e){ alert('Toggle failed: ' + e.message); }
+}
+
+async function deleteSchedule(id, name){
+  if(!confirm(`Delete schedule "${name}"? This cannot be undone.`)) return;
+  try {
+    await api(`/schedules/${id}`, {method:'DELETE'});
+    loadSchedules();
+  } catch(e){ alert('Delete failed: ' + e.message); }
+}
+
+let _supps = [];
+
+async function loadSuppressions(){
+  try {
+    const d = await api('/suppressions');
+    _supps = d.suppressions || [];
+    document.getElementById('supp-count').textContent = _supps.length;
+    renderSuppressions();
+  } catch(e){
+    document.getElementById('suppressions-list').innerHTML = `<div class="card" style="color:var(--red)">Failed: ${e.message}</div>`;
+  }
+}
+
+function renderSuppressions(){
+  const searchEl = document.getElementById('supp-search');
+  const q = searchEl ? searchEl.value.trim().toLowerCase() : '';
+  const items = q ? _supps.filter(s => (s.email || '').toLowerCase().includes(q)) : _supps;
+
+  if(items.length === 0){
+    document.getElementById('suppressions-list').innerHTML =
+      `<div class="card">${_supps.length === 0
+        ? 'No emails suppressed yet. Real opt-out clicks via /u/{token} land here automatically.'
+        : 'No matches.'}</div>`;
     return;
   }
 
-  // Poll the task every 2 seconds
-  if (_scanPollTimer) clearInterval(_scanPollTimer);
-  _scanPollTimer = setInterval(async () => {
+  const viaColors = {
+    'click':'badge-red',
+    'manual':'badge-blue',
+    'reply-stop':'badge-yellow',
+    'phone-request':'badge-yellow',
+    'bounce':'badge-muted',
+  };
+
+  let html = '<div class="card" style="padding:0"><table><thead><tr><th>Email</th><th>When</th><th>Reason</th><th>Action</th></tr></thead><tbody>';
+  for(const s of items){
+    const via = s.via || '?';
+    const badge = viaColors[via] || 'badge-muted';
+    const when = s.unsubscribed_at ? new Date(s.unsubscribed_at).toLocaleString() : '—';
+    const safeEmail = (s.email || '').replace(/'/g, "\\'");
+    html += `<tr>
+      <td><code style="font-family:'SF Mono',monospace">${s.email}</code></td>
+      <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">${when}</td>
+      <td><span class="badge ${badge}">${via}</span></td>
+      <td><button class="btn btn-ghost btn-sm" onclick="removeSuppression('${safeEmail}')">Remove</button></td>
+    </tr>`;
+  }
+  html += '</tbody></table></div>';
+  document.getElementById('suppressions-list').innerHTML = html;
+}
+
+async function addSuppression(){
+  const email = document.getElementById('supp-add-email').value.trim();
+  const via = document.getElementById('supp-add-via').value;
+  if(!email){ alert('Email required'); return; }
+  try {
+    const r = await api('/suppressions/add', {method:'POST',
+      body:JSON.stringify({email, via})});
+    document.getElementById('supp-add-email').value = '';
+    document.getElementById('supp-add-result').innerHTML =
+      `<div class="card" style="background:var(--green-bg);border-color:var(--green)">✓ Added <code>${email}</code> (via ${via})</div>`;
+    loadSuppressions();
+    setTimeout(() => document.getElementById('supp-add-result').innerHTML = '', 4000);
+  } catch(e){
+    document.getElementById('supp-add-result').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+  }
+}
+
+async function removeSuppression(email){
+  if(!confirm(`Remove ${email} from suppression list?\n\nThey'll be eligible to be scanned and emailed again. Only do this for emails YOU manually added by mistake — never remove a real opt-out click.`)) return;
+  try {
+    await api('/suppressions/remove', {method:'POST',
+      body:JSON.stringify({email})});
+    loadSuppressions();
+  } catch(e){ alert('Remove failed: ' + e.message); }
+}
+
+async function loadActivity(){
+  const filter = document.getElementById('activity-filter').value;
+  try {
+    const d = await api('/events?limit=200');
+    let events = d.events || [];
+    if(filter) events = events.filter(e => (e.type || '').startsWith(filter));
+
+    if(events.length === 0){
+      document.getElementById('activity-list').innerHTML = '<div class="card">No events yet. Run a scan or click anything in the dashboard to generate activity.</div>';
+      return;
+    }
+
+    const colors = {
+      'scan.started':       'badge-blue',  'scan.succeeded':    'badge-green',  'scan.failed': 'badge-red',
+      'sequence.skipped':   'badge-red',   'sequence.unskipped':'badge-green',
+      'sequence.reviewed':  'badge-green', 'sequence.unreviewed':'badge-muted',
+      'send.test_single':   'badge-yellow','send.test_all':     'badge-yellow', 'send.test_single_failed':'badge-red',
+      'send.dispatched':    'badge-red',   'unsubscribe.click': 'badge-red',
+    };
+
+    let html = '<div class="card" style="padding:0"><table><thead><tr><th>When</th><th>Event</th><th>Run</th><th>Detail</th></tr></thead><tbody>';
+    for(const e of events){
+      const badge = colors[e.type] || 'badge-muted';
+      const detail = e.detail || {};
+      const detailStr = Object.entries(detail).filter(([k,v]) => v !== null && v !== '')
+        .map(([k,v]) => `<code style="color:var(--muted);font-size:.78rem">${k}=${typeof v === 'object' ? JSON.stringify(v) : v}</code>`).join(' · ');
+      const ts = new Date(e.ts).toLocaleString();
+      html += `<tr>
+        <td style="font-size:.82rem;color:var(--muted);white-space:nowrap">${ts}</td>
+        <td><span class="badge ${badge}">${e.type}</span></td>
+        <td style="font-family:'SF Mono',monospace;font-size:.78rem;color:var(--muted)">${e.run_id || '—'}</td>
+        <td>${detailStr || '—'}</td>
+      </tr>`;
+    }
+    html += '</tbody></table></div>';
+    document.getElementById('activity-list').innerHTML = html;
+  } catch(e){
+    document.getElementById('activity-list').innerHTML = `<div class="card" style="color:var(--red)">Failed: ${e.message}</div>`;
+  }
+}
+
+function openModal(id){ document.getElementById(id).classList.add('show'); }
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+function openScanModal(){ openModal('scan-modal'); }
+
+async function loadDigestPreview(){
+  try {
+    const r = await api('/digest/preview');
+    const d = r.data || {};
+    const n_scans = d.n_runs_last_24h || 0;
+    const n_targetable = d.total_targetable || 0;
+    const n_ready = d.sequences_ready_to_send || 0;
+    const text = n_scans === 0
+      ? 'no recent activity'
+      : `${n_scans} scan${n_scans === 1 ? '' : 's'} · ${n_targetable} prospects · ${n_ready} ready`;
+    document.getElementById('digest-stats-tag').textContent = text;
+    document.getElementById('digest-stats-tag').className =
+      'badge ' + (n_ready > 0 ? 'badge-yellow' : n_scans > 0 ? 'badge-blue' : 'badge-muted');
+  } catch(e){
+    document.getElementById('digest-stats-tag').textContent = 'failed';
+    document.getElementById('digest-stats-tag').className = 'badge badge-red';
+  }
+}
+
+async function sendDigestNow(){
+  const email = document.getElementById('digest-recipient').value.trim();
+  if(!email){ alert('Email required'); return; }
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '📨 Sending...';
+  try {
+    const r = await api('/digest/send-now', {method:'POST',
+      body:JSON.stringify({recipient_email: email})});
+    if(r.status === 'sent'){
+      document.getElementById('digest-result').innerHTML =
+        `<div class="card" style="background:var(--green-bg);border-color:var(--green)">✅ Sent! Resend id <code>${r.resend_id}</code>. Check inbox at <strong>${email}</strong>.</div>`;
+    } else {
+      document.getElementById('digest-result').innerHTML =
+        `<div style="color:var(--red);padding:10px;background:var(--red-bg);border-radius:6px">Failed: ${r.error || r.body || 'unknown'}</div>`;
+    }
+  } catch(e){
+    document.getElementById('digest-result').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '📨 Send digest preview';
+  }
+}
+
+async function autoCreateCampaign(){
+  if(!confirm('Auto-create a SiteBoost-templated campaign in Instantly?\n\nThis creates a new campaign named "SiteBoost Outbound (auto)" with 3 touches using SiteBoost-specific copy.\n\nThe new UUID will become the active campaign immediately (file-override on the volume).')) return;
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '🚀 Creating...';
+  try {
+    const r = await api('/instantly/auto-create-campaign', {method:'POST'});
+    if(r.status === 'ok'){
+      document.getElementById('autocreate-result').innerHTML = `
+        <div class="card" style="background:var(--green-bg);border-color:var(--green)">
+          ✅ Campaign created in Instantly + activated.<br>
+          ID: <code>${r.id}</code><br>
+          Name: <strong>${r.name}</strong><br>
+          <a href="${r.url}" target="_blank" style="color:var(--accent)">↗ Open in Instantly UI</a>
+        </div>`;
+      // Refresh launch-readiness to flip Instantly axis to green
+      setTimeout(() => loadLaunchReadiness(), 500);
+    } else {
+      document.getElementById('autocreate-result').innerHTML =
+        `<div style="color:var(--red);padding:12px;background:var(--red-bg);border-radius:6px">Failed (${r.status}): ${r.error || r.body || 'unknown'}</div>`;
+    }
+  } catch(e){
+    document.getElementById('autocreate-result').innerHTML =
+      `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 Auto-create SiteBoost campaign in Instantly';
+  }
+}
+
+async function loadLaunchReadiness(){
+  try {
+    const d = await api('/launch-readiness');
+    const verdictColors = {ok: 'badge-green', warn: 'badge-yellow', fail: 'badge-red'};
+    const verdictText = {ok: '✅ Ready to send', warn: `⚠ ${d.n_warn} warning${d.n_warn === 1 ? '' : 's'}`, fail: `🚨 ${d.n_fail} blocker${d.n_fail === 1 ? '' : 's'}`};
+    document.getElementById('lr-verdict').className = 'badge ' + (verdictColors[d.verdict] || 'badge-muted');
+    document.getElementById('lr-verdict').textContent = verdictText[d.verdict] || d.verdict;
+
+    const iconMap = {ok: '✅', warn: '⚠', fail: '🚨'};
+    let html = '';
+    for(const c of (d.checks || [])){
+      const colorClass = c.status === 'ok' ? 'badge-green' : c.status === 'warn' ? 'badge-yellow' : 'badge-red';
+      html += `<div style="display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="font-size:1.1rem">${iconMap[c.status] || '·'}</span>
+        <div style="flex:1">
+          <div style="font-weight:600;color:var(--text);font-size:.92rem;margin-bottom:2px">${c.label}</div>
+          <div style="color:var(--muted);font-size:.82rem">${c.detail}</div>
+          ${c.action ? `<div style="color:var(--accent);font-size:.78rem;margin-top:3px"><strong>→</strong> ${c.action}</div>` : ''}
+        </div>
+        <span class="badge ${colorClass}">${c.status}</span>
+      </div>`;
+    }
+    document.getElementById('lr-checks').innerHTML = html || '<div class="sub">No checks returned.</div>';
+  } catch(e){
+    document.getElementById('lr-checks').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+    document.getElementById('lr-verdict').textContent = 'failed';
+    document.getElementById('lr-verdict').className = 'badge badge-red';
+  }
+}
+
+async function loadDashboard(){
+  loadLaunchReadiness();
+  loadDigestPreview();
+  try {
+    const d = await api('/dashboard');
+    const env = d.env || {};
+    const blockers = d.blockers || [];
+    document.getElementById('s-runs').textContent = d.runs_count ?? 0;
+    document.getElementById('s-places').textContent = d.state?.total_scanned ?? 0;
+    document.getElementById('s-emails').textContent = d.state?.total_sequences ?? 0;
+    document.getElementById('s-blocked').textContent = d.state?.suppression_count ?? 0;
+    document.getElementById('s-blockers').textContent = blockers.length;
+    document.getElementById('s-blockers').className = 'stat-num ' + (blockers.length === 0 ? 'ok' : 'err');
+
+    let html = '';
+    const required = env.required || {};
+    for(const k of Object.keys(required)){
+      const ok = required[k];
+      html += `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:.88rem"><span style="color:var(--muted)">${k}</span><span class="badge ${ok ? 'badge-green' : 'badge-red'}">${ok ? '✓ SET' : '✗ MISSING'}</span></div>`;
+    }
+    document.getElementById('readiness-checks').innerHTML = html;
+
+    document.getElementById('blocker-count').textContent = blockers.length;
+    document.getElementById('blocker-count').className = 'badge ' + (blockers.length === 0 ? 'badge-green' : 'badge-red');
+    document.getElementById('blocker-list').innerHTML = blockers.length === 0 ?
+      '<div style="color:var(--green);font-size:.92rem">✓ No blockers — ready to launch.</div>' :
+      blockers.map(b => `<div style="padding:6px 0;color:var(--yellow);font-size:.88rem">• ${b}</div>`).join('');
+  } catch(e) { console.error('dashboard load failed', e); }
+}
+
+async function loadRuns(){
+  try {
+    const d = await api('/runs');
+    const runs = d.runs || [];
+    let html = '';
+    for(const r of runs.slice(0, 20)){
+      const mode = r.dry_run ? '<span class="badge badge-muted">Dry-run</span>' : '<span class="badge badge-green">LIVE</span>';
+      html += `<tr><td style="font-family:'SF Mono',monospace;font-size:.82rem">${r.run_id}</td><td>${r.n_total ?? '—'}</td><td>${r.n_targetable ?? '—'}</td><td>${r.n_sequences ?? '—'}</td><td>${mode}</td><td><button class="btn btn-ghost btn-sm" onclick="viewProspects('${r.run_id}')">Prospects</button> <button class="btn btn-ghost btn-sm" onclick="viewSequences('${r.run_id}')">Sequences</button></td></tr>`;
+    }
+    document.getElementById('runs-tbody').innerHTML = html || '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:30px">No runs yet.</td></tr>';
+  } catch(e) { console.error('runs load failed', e); }
+}
+
+function refreshAll(){ loadDashboard(); loadRuns(); }
+
+async function startScan(){
+  const body = {
+    location: document.getElementById('scan-loc').value,
+    radius_m: parseInt(document.getElementById('scan-radius').value || 10000),
+    limit: parseInt(document.getElementById('scan-limit').value || 50),
+    live: document.getElementById('scan-mode').value === 'true',
+  };
+  try {
+    const r = await api('/scan', {method:'POST', body:JSON.stringify(body)});
+    startProgressPoll(r.task_id);
+  } catch(e){ alert('Scan failed: ' + e.message); }
+}
+
+async function startScanFromModal(){
+  const body = {
+    location: document.getElementById('scan-loc-modal').value,
+    radius_m: parseInt(document.getElementById('scan-radius-modal').value || 10000),
+    limit: parseInt(document.getElementById('scan-limit-modal').value || 50),
+    live: document.getElementById('scan-mode-modal').value === 'true',
+  };
+  try {
+    const r = await api('/scan', {method:'POST', body:JSON.stringify(body)});
+    closeModal('scan-modal');
+    document.querySelector('.tab[data-tab=scans]').click();
+    startProgressPoll(r.task_id);
+  } catch(e){ alert('Scan failed: ' + e.message); }
+}
+
+let activePollers = {};
+function startProgressPoll(taskId){
+  if(activePollers[taskId]) return;
+  const containerId = `progress-${taskId}`;
+  const container = document.getElementById('active-scans');
+  if(container.innerHTML.includes('No active scans')) container.innerHTML = '';
+  container.insertAdjacentHTML('beforeend', `<div class="progress" id="${containerId}">
+    <div style="font-weight:600;margin-bottom:10px">Task ${taskId} · <span id="status-${taskId}">starting...</span></div>
+    <div class="progress-stage" id="stage-1-${taskId}"><span class="dot"></span> Stage 1: Scanning Google Places</div>
+    <div class="progress-stage" id="stage-2-${taskId}"><span class="dot"></span> Stage 2: Enriching emails via Hunter</div>
+    <div class="progress-stage" id="stage-3-${taskId}"><span class="dot"></span> Stage 3: Generating sites (LLM personalized)</div>
+    <div class="progress-stage" id="stage-4-${taskId}"><span class="dot"></span> Stage 4: Composing 3-touch sequences</div>
+    <pre class="log-viewer" id="log-${taskId}" style="margin-top:14px;max-height:200px"></pre>
+  </div>`);
+  activePollers[taskId] = setInterval(async () => {
     try {
-      const r = await api('/scan/' + task_id);
-      const t = await r.json();
-      log.textContent = `Status: ${t.status}\nLocation: ${t.location}\nLive mode: ${t.live}\nLimit: ${t.limit}\n\n` +
-        (t.stdout_tail ? '── stdout ──\n' + t.stdout_tail + '\n' : '') +
-        (t.stderr_tail ? '── stderr ──\n' + t.stderr_tail + '\n' : '');
-      log.scrollTop = log.scrollHeight;
-      if (t.status === 'succeeded' || t.status === 'failed') {
-        clearInterval(_scanPollTimer);
-        btn.disabled = false;
-        btn.textContent = 'Start another';
-        toast(t.status === 'succeeded' ? 'Scan complete ✓' : 'Scan failed ✗', t.status !== 'succeeded');
-        loadDashboard(); loadRuns();
+      const d = await api(`/scan/${taskId}`);
+      const status = d.status;
+      document.getElementById(`status-${taskId}`).textContent = status;
+      const log = (d.stderr_tail || '') + (d.stdout_tail || '');
+      const logEl = document.getElementById(`log-${taskId}`);
+      if(logEl){
+        logEl.textContent = log.slice(-3000);
+        logEl.scrollTop = logEl.scrollHeight;
       }
-    } catch (e) {
-      log.textContent += '\nPoll error: ' + e.message;
+      ['1','2','3','4'].forEach(n => {
+        const stage = document.getElementById(`stage-${n}-${taskId}`);
+        if(!stage) return;
+        const banner = `Stage ${n}:`;
+        const isInLog = log.includes(banner);
+        const nextBanner = `Stage ${parseInt(n)+1}:`;
+        const isDone = log.includes(nextBanner) || status === 'succeeded';
+        stage.classList.remove('active','done','failed');
+        if(isDone && isInLog) stage.classList.add('done');
+        else if(isInLog) stage.classList.add('active');
+        if(status === 'failed' && stage.classList.contains('active')) stage.classList.add('failed');
+      });
+      if(status === 'succeeded' || status === 'failed'){
+        clearInterval(activePollers[taskId]);
+        delete activePollers[taskId];
+        if(status === 'succeeded') setTimeout(() => refreshAll(), 800);
+      }
+    } catch(e) {
+      console.error('poll error', e);
+      clearInterval(activePollers[taskId]);
+      delete activePollers[taskId];
     }
   }, 2000);
 }
 
-async function runSelftest() {
-  const m = document.getElementById('selftest-modal');
-  const log = document.getElementById('selftest-log');
-  const title = document.getElementById('selftest-title');
-  const sub = document.getElementById('selftest-sub');
-  m.classList.add('show');
-  log.textContent = 'running 49-check selftest (5-10s)…';
-  title.textContent = 'Selftest running…';
-  sub.textContent = '—';
-
+async function loadRunDropdown(selectId){
   try {
-    const r = await api('/selftest', {method: 'POST'});
-    const d = await r.json();
-    title.textContent = d.ok ? '✓ Selftest passed' : '✗ Selftest failed';
-    sub.textContent = `${d.passed}/${d.total} checks passed · ${d.failed} failed · exit ${d.exit_code}`;
-    log.textContent = d.tail || '(no output)';
-  } catch (e) {
-    title.textContent = '✗ Selftest error';
-    sub.textContent = e.message;
+    const d = await api('/runs');
+    const sel = document.getElementById(selectId);
+    sel.innerHTML = (d.runs || []).map(r =>
+      `<option value="${r.run_id}">${r.run_id} (${r.n_sequences || 0} sequences)</option>`
+    ).join('');
+    if(d.runs && d.runs.length){
+      if(selectId === 'prospect-run-select') loadProspects();
+      else if(selectId === 'seq-run-select') loadSequences();
+    }
+  } catch(e){ console.error(e); }
+}
+
+let _prospectFilter = 'all';
+function setProspectFilter(f){
+  _prospectFilter = f;
+  document.querySelectorAll('.prosp-filter').forEach(b => b.classList.toggle('active', b.dataset.prospFilter === f));
+  loadProspects();
+}
+
+async function loadProspects(){
+  const runId = document.getElementById('prospect-run-select').value;
+  if(!runId) return;
+  try {
+    const d = await api(`/runs/${runId}/prospects`);
+    let targetable = d.targetable || [];
+    // Sort by Hunter confidence desc when toggle is on
+    if(document.getElementById('sort-by-conf').checked){
+      targetable = [...targetable].sort((a,b) =>
+        (b.enriched_confidence || 0) - (a.enriched_confidence || 0));
+    }
+    // Filter by chip + search text
+    const searchEl = document.getElementById('prospect-search');
+    const searchText = searchEl ? searchEl.value.trim().toLowerCase() : '';
+    const filtered = targetable.filter(p => {
+      if(_prospectFilter === 'with-email' && !p.enriched_email) return false;
+      if(_prospectFilter === 'no-email' && p.enriched_email) return false;
+      if(_prospectFilter === 'high-conf' && (p.enriched_confidence || 0) < 60) return false;
+      if(searchText && !(p.name || '').toLowerCase().includes(searchText)) return false;
+      return true;
+    });
+
+    let html = `<div class="sub">${filtered.length} of ${targetable.length} targetable shown · ${d.n_rejected} rejected</div>`;
+    if(filtered.length === 0){
+      html += '<div class="card">No prospects match current filter.</div>';
+    } else {
+      html += '<div class="card" style="padding:0"><table><thead><tr><th>Business</th><th>Category</th><th>Issues</th><th>Hunter</th><th>Actions</th></tr></thead><tbody>';
+      for(const p of filtered){
+        const issues = p.website_issues && p.website_issues.length ?
+          p.website_issues.map(i => `<span class="badge badge-yellow">${i}</span>`).join(' ') :
+          '<span class="badge badge-muted">no-website</span>';
+        const conf = p.enriched_confidence || 0;
+        const confBadge = conf >= 80 ? 'badge-green' : conf >= 50 ? 'badge-yellow' : 'badge-muted';
+        const email = p.enriched_email ?
+          `<span class="badge ${confBadge}">${p.enriched_email} · ${conf}</span>` :
+          '<span class="badge badge-muted">no email</span>';
+        const slug = p.preview_slug || '';
+        html += `<tr><td><strong>${p.name || '?'}</strong><br><small style="color:var(--muted)">${p.address || '?'}</small></td><td>${p.category || '?'}</td><td>${issues}</td><td>${email}</td><td>${slug ? `<button class="btn btn-ghost btn-sm" onclick="inspectProspect('${runId}','${slug}')">Inspect</button> <a class="btn btn-ghost btn-sm" href="https://app.wheellsverse.com/p/${slug}" target="_blank">↗ Preview</a>` : ''}</td></tr>`;
+      }
+      html += '</tbody></table></div>';
+    }
+    document.getElementById('prospect-grid').innerHTML = html;
+  } catch(e){ document.getElementById('prospect-grid').innerHTML = `<div class="card">Failed: ${e.message}</div>`; }
+}
+
+// Wire prospect filter chips
+document.addEventListener('click', e => {
+  if(e.target.classList.contains('prosp-filter')) setProspectFilter(e.target.dataset.prospFilter);
+});
+
+async function inspectProspect(runId, slug){
+  openModal('inspector-modal');
+  document.getElementById('insp-title').textContent = 'Loading...';
+  document.getElementById('insp-detail').innerHTML = 'Loading...';
+  try {
+    const d = await api(`/runs/${runId}/prospects/${slug}`);
+    const p = d.prospect || {};
+    const c = d.contact || {};
+    const seq = d.sequence || {};
+
+    document.getElementById('insp-title').innerHTML = `${p.name} <button class="modal-close" onclick="closeModal('inspector-modal')">×</button>`;
+    document.getElementById('insp-preview').src = d.preview_url;
+
+    let detail = '<h4>Business</h4>';
+    detail += `<div class="kv"><span class="k">Name</span><span class="v">${p.name || '?'}</span></div>`;
+    detail += `<div class="kv"><span class="k">Category</span><span class="v">${p.category || '?'}</span></div>`;
+    detail += `<div class="kv"><span class="k">Address</span><span class="v">${p.address || '?'}</span></div>`;
+    detail += `<div class="kv"><span class="k">Phone</span><span class="v">${p.phone || '?'}</span></div>`;
+    if(p.rating) detail += `<div class="kv"><span class="k">Google Rating</span><span class="v">${p.rating}/5 (${p.review_count || 0} reviews)</span></div>`;
+    detail += '<h4>Website probe</h4>';
+    detail += `<div class="kv"><span class="k">URL</span><span class="v">${p.website || '(none)'}</span></div>`;
+    detail += `<div class="kv"><span class="k">Issues</span><span class="v">${(p.website_issues || []).join(', ') || '—'}</span></div>`;
+    detail += '<h4>Hunter enrichment</h4>';
+    detail += `<div class="kv"><span class="k">Email</span><span class="v">${c.email || '(not found)'}</span></div>`;
+    detail += `<div class="kv"><span class="k">Name</span><span class="v">${c.first_name || ''} ${c.last_name || ''}</span></div>`;
+    detail += `<div class="kv"><span class="k">Confidence</span><span class="v">${c.confidence || 0}/100</span></div>`;
+
+    if(seq && seq.touches){
+      detail += '<h4>3-Touch Sequence</h4>';
+      seq.touches.forEach((t, i) => {
+        detail += `<div style="background:var(--panel-2);padding:10px;border-radius:6px;margin-top:8px;font-size:.82rem"><div style="color:var(--accent);font-weight:600;margin-bottom:4px">Touch ${i+1} (day ${t.day})</div><div style="color:var(--muted);font-size:.78rem;margin-bottom:6px">${t.subject || ''}</div><div style="color:var(--text);line-height:1.5;white-space:pre-wrap">${(t.body || '').slice(0, 300)}...</div></div>`;
+      });
+      detail += `<div style="margin-top:12px;text-align:center"><button class="btn btn-primary btn-sm" onclick="openSendTest('${runId}','${slug}','${(p.name || '').replace(/'/g, '')}')">📨 Send test to me</button></div>`;
+    }
+    document.getElementById('insp-detail').innerHTML = detail;
+  } catch(e){
+    document.getElementById('insp-detail').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
   }
 }
-function closeSelftestModal() {
-  document.getElementById('selftest-modal').classList.remove('show');
+
+function viewProspects(runId){
+  document.querySelector('.tab[data-tab=prospects]').click();
+  setTimeout(() => { document.getElementById('prospect-run-select').value = runId; loadProspects(); }, 200);
 }
 
-async function viewSequences(runId) {
+let _seqFilter = 'all';
+function setSeqFilter(f){
+  _seqFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(b => b.classList.toggle('active', b.dataset.seqFilter === f));
+  loadSequences();
+}
+
+let _bulkSelected = new Set();
+function toggleBulk(slug){
+  if(_bulkSelected.has(slug)) _bulkSelected.delete(slug);
+  else _bulkSelected.add(slug);
+  updateBulkBar();
+}
+function clearBulk(){
+  _bulkSelected.clear();
+  document.querySelectorAll('input[type=checkbox].seq-check').forEach(cb => cb.checked = false);
+  updateBulkBar();
+}
+function updateBulkBar(){
+  const bar = document.getElementById('bulk-toolbar');
+  const n = _bulkSelected.size;
+  document.getElementById('bulk-count').textContent = n;
+  bar.classList.toggle('hidden', n === 0);
+}
+async function bulkSkip(skip){
+  const runId = document.getElementById('seq-run-select').value;
+  const slugs = [..._bulkSelected];
+  if(slugs.length === 0) return;
+  if(!confirm(`${skip ? 'Skip' : 'Re-include'} ${slugs.length} sequence(s)?`)) return;
   try {
-    const r = await api('/sequences/' + runId);
-    const d = await r.json();
-    if (!d.sequences || !d.sequences.length) { toast('No sequences in this run'); return; }
-    const w = window.open('', '_blank');
-    if (!w) { toast('Pop-up blocked — allow pop-ups', true); return; }
-    const html = `<!doctype html><html><head><title>Sequences · ${escHtml(runId)}</title>
-      <style>body{font-family:system-ui;background:#05070d;color:#e8edf5;padding:24px;line-height:1.5}
-      .seq{background:#0b0f1a;border:1px solid #1a2036;border-radius:10px;padding:18px;margin-bottom:18px}
-      .seq h2{margin:0 0 8px;font-size:15px;color:#5be7ff}
-      .touch{margin:14px 0;padding:14px;background:#11172a;border-radius:8px}
-      .touch h3{margin:0 0 8px;font-size:13px;color:#4df4a5}
-      .subj{color:#a389f4;font-weight:600;margin-bottom:6px}
-      pre{white-space:pre-wrap;font-family:inherit;font-size:13px;color:#c9d1d9;margin:0}</style></head>
-      <body><h1>Sequences for ${escHtml(runId)} (${d.sequences.length} prospects)</h1>` +
-      d.sequences.map(s => `
-        <div class="seq"><h2>${escHtml(s.business_name||'?')} · ${escHtml(s.to_email||'?')}</h2>
-        ${(s.touches||[]).map((t, i) => `
-          <div class="touch"><h3>Touch ${i+1} · day ${t.day}</h3>
-          <div class="subj">${escHtml(t.subject||'')}</div>
-          <pre>${escHtml(t.body||'')}</pre></div>`).join('')}
-        </div>`).join('') + '</body></html>';
-    w.document.write(html); w.document.close();
-  } catch (e) { toast('Failed: ' + e.message, true); }
+    const r = await api('/sequences/skip-bulk', {method:'POST',
+      body:JSON.stringify({run_id:runId, slugs, skip})});
+    clearBulk();
+    loadSequences();
+  } catch(e){ alert('Bulk failed: ' + e.message); }
 }
 
-async function viewReport(runId) {
+async function downloadCSV(tabPrefix){
+  const selId = tabPrefix === 'prospect' ? 'prospect-run-select' : 'seq-run-select';
+  const runId = document.getElementById(selId).value;
+  if(!runId){ alert('Select a run first'); return; }
+  // Can't use anchor href with custom X-API-Key header. Use fetch + Blob + download.
   try {
-    const r = await api('/runs/' + runId);
-    const d = await r.json();
-    const w = window.open('', '_blank');
-    if (!w) { toast('Pop-up blocked — allow pop-ups', true); return; }
-    w.document.write(`<!doctype html><html><head><title>${escHtml(runId)}</title>
-      <style>body{font-family:system-ui;background:#05070d;color:#e8edf5;padding:24px;max-width:900px;margin:auto}
-      pre{white-space:pre-wrap;background:#0b0f1a;border:1px solid #1a2036;border-radius:8px;padding:18px}</style>
-      </head><body><h1>${escHtml(runId)}</h1><pre>${escHtml(d.report_md || '(no report)')}</pre></body></html>`);
-    w.document.close();
-  } catch (e) { toast('Failed: ' + e.message, true); }
+    const key = getApiKey();
+    const res = await fetch(`${API}/runs/${runId}/export.csv`, {
+      headers:{'X-API-Key': key},
+    });
+    if(!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `siteboost-${runId}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch(e){ alert('Download failed: ' + e.message); }
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────
-function escHtml(s){const d=document.createElement('div');d.textContent=String(s??'');return d.innerHTML;}
-function escAttr(s){return String(s??'').replace(/'/g,'&#39;').replace(/"/g,'&quot;');}
+async function loadRunStats(runId){
+  try {
+    const s = await api(`/runs/${runId}/stats`);
+    const hitColor = s.hunter_hit_rate_pct >= 40 ? 'ok' : s.hunter_hit_rate_pct >= 20 ? 'warn' : 'err';
+    const confColor = s.avg_hunter_confidence >= 70 ? 'ok' : s.avg_hunter_confidence >= 40 ? 'warn' : 'err';
+    const topIssues = (s.top_issues || []).slice(0, 5)
+      .map(([k, n]) => `<span class="badge badge-yellow" style="margin-right:4px">${k}·${n}</span>`).join('');
+    const topCats = (s.top_categories || []).slice(0, 5)
+      .map(([k, n]) => `<span class="badge badge-blue" style="margin-right:4px">${k}·${n}</span>`).join('');
+    const html = `
+      <div class="card"><div class="stat-label">Funnel</div>
+        <div style="font-size:1.4rem;font-weight:700;margin:6px 0">${s.n_total} → ${s.n_targetable} → ${s.n_sequences}</div>
+        <div class="sub">scanned → targetable → sequences ready</div>
+        <div style="margin-top:6px;font-size:.82rem">
+          <span class="badge badge-green">${s.n_reviewed} reviewed</span>
+          <span class="badge badge-red">${s.n_skipped} skipped</span>
+        </div></div>
+      <div class="card"><div class="stat-label">Hunter coverage</div>
+        <div class="stat-num ${hitColor}">${s.hunter_hit_rate_pct}%</div>
+        <div class="sub">${s.n_enriched}/${s.n_targetable} prospects got emails</div>
+        <div class="sub" style="margin-top:6px">avg confidence: <span class="${confColor}">${s.avg_hunter_confidence}/100</span></div></div>
+      <div class="card"><div class="stat-label">Top issues + categories</div>
+        <div style="margin-top:6px">${topIssues || '<span class="sub">none</span>'}</div>
+        <div style="margin-top:6px">${topCats || '<span class="sub">none</span>'}</div></div>`;
+    document.getElementById('run-stats-cards').innerHTML = html;
+  } catch(e){
+    document.getElementById('run-stats-cards').innerHTML = `<div class="card">Stats failed: ${e.message}</div>`;
+  }
+}
 
-// Boot
+async function loadSequences(){
+  const runId = document.getElementById('seq-run-select').value;
+  if(!runId) return;
+  loadRunStats(runId);  // populate the 3-card stats panel
+  try {
+    const d = await api(`/sequences/${runId}`);
+    let seqs = d.sequences || [];
+    const total = seqs.length;
+    // Populate the dispatch card with stats for this run
+    updateDispatchStats(seqs);
+    // Filter
+    seqs = seqs.filter(s => {
+      if(_seqFilter === 'unreviewed') return !s.reviewed && !s.skipped;
+      if(_seqFilter === 'reviewed') return !!s.reviewed;
+      if(_seqFilter === 'skipped') return !!s.skipped;
+      if(_seqFilter === 'active') return !s.skipped;
+      return true;
+    });
+
+    let html = `<div class="sub">${seqs.length} of ${total} sequences shown · ${seqs.filter(s=>s.reviewed).length} reviewed · ${seqs.filter(s=>s.skipped).length} skipped</div>`;
+    if(seqs.length === 0){
+      html += '<div class="card">No sequences match current filter.</div>';
+    } else {
+      for(const s of seqs){
+        const slug = (s.business_name || '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0,60);
+        const skippedBadge = s.skipped ? '<span class="badge badge-red">SKIPPED</span>' : '';
+        const reviewedBadge = s.reviewed ? '<span class="badge badge-green">REVIEWED</span>' : '';
+        const cardOpacity = s.skipped ? ';opacity:.5' : '';
+        const firstName = (s.to_name || '').split(' ')[0] || '';
+        const lastName = (s.to_name || '').split(' ').slice(1).join(' ');
+        const isGenericName = !firstName || firstName.toLowerCase() === 'there';
+        const nameWarn = isGenericName
+          ? '<span class="badge badge-red" title="Hunter didn\'t find an owner name — email will say \'Hi there\' which tanks reply rate ~40%. Find their name on LinkedIn/Google and fix below.">⚠ Name fix needed</span>'
+          : '';
+        html += `<div class="card" style="margin-bottom:12px${cardOpacity}"><h3>
+          <label style="display:inline-flex;align-items:center;gap:8px;margin:0;text-transform:none;letter-spacing:normal;font-weight:600;cursor:pointer">
+            <input type="checkbox" class="seq-check" data-slug="${slug}" onchange="toggleBulk('${slug}')" style="width:auto;cursor:pointer">
+            ${s.business_name}
+          </label>
+          ${reviewedBadge} ${skippedBadge} ${nameWarn}<div>
+          <button class="btn ${s.reviewed ? 'btn-ghost' : 'btn-secondary'} btn-sm" onclick="toggleReview('${runId}','${slug}',${!s.reviewed})">${s.reviewed ? '↺ Unreview' : '✓ Mark reviewed'}</button>
+          <button class="btn btn-ghost btn-sm" onclick="openSendTest('${runId}','${slug}','${(s.business_name || '').replace(/'/g, '')}')">Send test</button>
+          <button class="btn ${s.skipped ? 'btn-primary' : 'btn-danger'} btn-sm" onclick="toggleSkip('${runId}','${slug}',${!s.skipped})">${s.skipped ? '✓ Include' : '✗ Skip'}</button>
+        </div></h3>
+        <div style="color:var(--muted);font-size:.85rem;margin-bottom:10px">To: <strong style="color:var(--text)">${s.to_name || '(no name)'}</strong> &lt;${s.to_email}&gt;</div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px${isGenericName ? '' : ';opacity:.6'}">
+          <span style="color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em">${isGenericName ? '⚠ Override name' : 'Override name'}</span>
+          <input type="text" placeholder="First name" id="fname-${runId}-${slug}" value="${isGenericName ? '' : firstName}" style="width:auto;flex:0 0 140px;padding:5px 9px;font-size:.85rem">
+          <input type="text" placeholder="Last name (optional)" id="lname-${runId}-${slug}" value="${lastName}" style="width:auto;flex:0 0 180px;padding:5px 9px;font-size:.85rem">
+          <button class="btn btn-secondary btn-sm" onclick="overrideName('${runId}','${slug}')">Apply</button>
+        </div>`;
+        s.touches.forEach((t, i) => {
+          const edited = t.edited ? '<span class="badge badge-yellow">edited</span>' : '';
+          html += `<div class="touch-edit"><div class="label-row"><span class="badge badge-blue">Touch ${i+1} · day ${t.day}</span>${edited}</div><label>Subject</label><input type="text" id="subj-${runId}-${slug}-${i}" value="${(t.subject || '').replace(/"/g, '&quot;')}"><label>Body</label><textarea id="body-${runId}-${slug}-${i}">${t.body || ''}</textarea><div style="margin-top:8px;text-align:right"><button class="btn btn-secondary btn-sm" onclick="saveEdit('${runId}','${slug}',${i})">💾 Save edits</button></div></div>`;
+        });
+        html += '</div>';
+      }
+    }
+    document.getElementById('sequences-list').innerHTML = html;
+  } catch(e){ document.getElementById('sequences-list').innerHTML = `<div class="card">Failed: ${e.message}</div>`; }
+}
+
+async function overrideName(runId, slug){
+  const first = document.getElementById(`fname-${runId}-${slug}`).value.trim();
+  const last = document.getElementById(`lname-${runId}-${slug}`).value.trim();
+  if(!first){ alert('First name required'); return; }
+  try {
+    const r = await api('/sequences/override-name', {method:'POST',
+      body:JSON.stringify({run_id:runId, slug, first_name:first, last_name:last})});
+    if(r.touches_updated === 0){
+      alert(`No touches were updated. The salutation pattern "Hi ${r.old_first_name},"\nwasn't found in any touch body — maybe the body was already manually edited.`);
+    }
+    loadSequences();
+  } catch(e){ alert('Override failed: ' + e.message); }
+}
+
+async function toggleReview(runId, slug, reviewed){
+  try {
+    await api('/sequences/review', {method:'POST', body:JSON.stringify({run_id:runId, slug, reviewed})});
+    loadSequences();
+  } catch(e){ alert('Review toggle failed: ' + e.message); }
+}
+
+function updateDispatchStats(seqs){
+  // Populate the Dispatch card's count summary
+  const total = seqs.length;
+  const skipped = seqs.filter(s => s.skipped).length;
+  const reviewed = seqs.filter(s => s.reviewed && !s.skipped).length;
+  const active = total - skipped;
+  const unreviewed = active - reviewed;
+  // Count sequences with generic "there" first name — those need a manual fix
+  const needsNameFix = seqs.filter(s => {
+    if(s.skipped) return false;
+    const firstName = (s.to_name || '').split(' ')[0] || 'there';
+    return firstName.toLowerCase() === 'there' || firstName === '';
+  }).length;
+  const nameWarn = needsNameFix > 0
+    ? ` · <strong style="color:var(--red)">${needsNameFix} need name fix</strong>`
+    : '';
+  const html = `
+    <strong style="color:var(--text)">${active}</strong> sequences will dispatch ·
+    <strong style="color:var(--green)">${reviewed}</strong> reviewed ·
+    <strong style="color:var(--yellow)">${unreviewed}</strong> unreviewed ·
+    <strong style="color:var(--red)">${skipped}</strong> skipped${nameWarn}`;
+  document.getElementById('dispatch-stats').innerHTML = html;
+
+  // Pre-flight warning if INSTANTLY_CAMPAIGN_ID isn't set (we'll fetch this lazily once)
+  if(!window._campaignChecked){
+    api('/dashboard').then(d => {
+      const optional = (d.env || {}).optional || {};
+      if(!optional.INSTANTLY_CAMPAIGN_ID){
+        document.getElementById('dispatch-warning').classList.remove('hidden');
+        document.getElementById('dispatch-warning').innerHTML =
+          '⚠ <strong>INSTANTLY_CAMPAIGN_ID is not set on Railway.</strong><br>' +
+          'POST /send will return "blocked: INSTANTLY_API_KEY + INSTANTLY_CAMPAIGN_ID required". ' +
+          'Set it via <code>railway variables --set "INSTANTLY_CAMPAIGN_ID=&lt;uuid&gt;"</code>, then redeploy.';
+      }
+      window._campaignChecked = true;
+    }).catch(()=>{});
+  }
+}
+
+async function dispatchSequences(){
+  const runId = document.getElementById('seq-run-select').value;
+  const confirmStr = document.getElementById('dispatch-confirm').value;
+  const maxPerDay = parseInt(document.getElementById('dispatch-max').value || 5);
+  if(!runId){ alert('Select a run first'); return; }
+  if(confirmStr !== 'YES-I-CONFIRM-REAL-SEND'){
+    alert('Confirm string must equal exactly:\n\nYES-I-CONFIRM-REAL-SEND\n\n(Case-sensitive. The system rejects accidental typos as a safety gate.)');
+    return;
+  }
+  if(!confirm(`This dispatches up to ${maxPerDay} sequences to REAL prospects via Instantly.\n\nThis is the actual cold-outreach send. Are you sure?`)) return;
+
+  const btn = document.getElementById('dispatch-btn');
+  btn.disabled = true; btn.textContent = '🚀 Dispatching...';
+  try {
+    const r = await api('/send', {method:'POST',
+      body:JSON.stringify({run_id:runId, confirm:confirmStr, max_per_day:maxPerDay})});
+    document.getElementById('dispatch-result').innerHTML =
+      `<div class="card" style="background:var(--accent-bg);border-color:var(--accent)">
+        🚀 Dispatch queued · task_id <code>${r.task_id}</code> · run <code>${r.run_id}</code><br>
+        Status: <strong>${r.status}</strong> · max per day: ${r.max_per_day}<br>
+        <small style="color:var(--muted)">Poll status: GET ${r.poll_url} — sequences will trickle out via Instantly's drip system over 7 days.</small>
+      </div>`;
+    document.getElementById('dispatch-confirm').value = '';
+  } catch(e){
+    document.getElementById('dispatch-result').innerHTML =
+      `<div style="color:var(--red);padding:12px;background:var(--red-bg);border-radius:6px">Failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '🚀 Dispatch to Instantly';
+  }
+}
+
+async function sendTestAll(){
+  const email = document.getElementById('batch-test-email').value;
+  const runId = document.getElementById('seq-run-select').value;
+  const onlyUnreviewed = document.getElementById('batch-test-unreviewed').checked;
+  if(!email){ alert('Enter your email first'); return; }
+  if(!runId){ alert('Select a run first'); return; }
+  if(!confirm(`Send Touch 1 of ALL ${onlyUnreviewed ? 'UNREVIEWED ' : ''}non-skipped sequences to ${email}?\n(Could be 10+ emails to your inbox)`)) return;
+
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '📨 Sending...';
+  try {
+    const r = await api('/send-test-all', {method:'POST',
+      body:JSON.stringify({run_id:runId, recipient_email:email, only_unreviewed:onlyUnreviewed})});
+    const resultEl = document.getElementById('batch-test-result');
+    if(r.n_failed === 0){
+      resultEl.innerHTML = `<div class="card" style="background:var(--green-bg);border-color:var(--green)">✅ Sent ${r.n_sent}/${r.n_targets} to <strong>${email}</strong>. Check your inbox.</div>`;
+    } else {
+      resultEl.innerHTML = `<div class="card" style="background:var(--yellow-bg);border-color:var(--yellow)">⚠ Sent ${r.n_sent}/${r.n_targets}. ${r.n_failed} failed:<br>${r.failed_detail.map(f => `• ${f.business}: ${f.http || f.error}`).join('<br>')}</div>`;
+    }
+  } catch(e){
+    document.getElementById('batch-test-result').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false; btn.textContent = '📨 Send Touch 1 of all to my inbox';
+  }
+}
+
+// Wire seq filter chips
+document.addEventListener('click', e => {
+  if(e.target.classList.contains('filter-chip')) setSeqFilter(e.target.dataset.seqFilter);
+});
+
+async function toggleSkip(runId, slug, skip){
+  try {
+    await api('/sequences/skip', {method:'POST', body:JSON.stringify({run_id:runId, slug, skip})});
+    loadSequences();
+  } catch(e){ alert('Toggle failed: ' + e.message); }
+}
+
+async function saveEdit(runId, slug, touchIndex){
+  const subj = document.getElementById(`subj-${runId}-${slug}-${touchIndex}`).value;
+  const body = document.getElementById(`body-${runId}-${slug}-${touchIndex}`).value;
+  try {
+    await api('/sequences/edit', {method:'POST',
+      body:JSON.stringify({run_id:runId, slug, touch_index:touchIndex, subject:subj, body})});
+    alert('Saved');
+    loadSequences();
+  } catch(e){ alert('Save failed: ' + e.message); }
+}
+
+function viewSequences(runId){
+  document.querySelector('.tab[data-tab=sequences]').click();
+  setTimeout(() => { document.getElementById('seq-run-select').value = runId; loadSequences(); }, 200);
+}
+
+function openSendTest(runId, slug, biz){
+  document.getElementById('sendtest-biz').textContent = biz;
+  document.getElementById('sendtest-runid').value = runId;
+  document.getElementById('sendtest-slug').value = slug;
+  document.getElementById('sendtest-result').innerHTML = '';
+  openModal('sendtest-modal');
+}
+
+async function doSendTest(){
+  const runId = document.getElementById('sendtest-runid').value;
+  const slug = document.getElementById('sendtest-slug').value;
+  const email = document.getElementById('sendtest-recipient').value;
+  if(!email){ alert('Email required'); return; }
+  try {
+    const r = await api('/send-test', {method:'POST',
+      body:JSON.stringify({run_id:runId, slug, recipient_email:email})});
+    document.getElementById('sendtest-result').innerHTML = `<div class="card" style="background:var(--green-bg);border-color:var(--green)">✅ Sent! Resend id <code>${r.resend_id}</code><br>Check your inbox at <strong>${email}</strong></div>`;
+  } catch(e){
+    document.getElementById('sendtest-result').innerHTML = `<div style="color:var(--red)">Failed: ${e.message}</div>`;
+  }
+}
+
+async function loadCosts(){
+  try {
+    const d = await api('/costs');
+    const html = `
+      <div class="card"><div class="stat-label">Google Places</div><div class="stat-num cyan">$${d.cost_places_usd.toFixed(2)}</div><div class="sub">${d.places_calls} API calls (geocode + nearby + details)</div></div>
+      <div class="card"><div class="stat-label">Hunter.io</div><div class="stat-num purple">$${d.cost_hunter_usd.toFixed(2)}</div><div class="sub">${d.hunter_calls} domain searches</div></div>
+      <div class="card"><div class="stat-label">OpenAI (LLM)</div><div class="stat-num warn">$${d.cost_openai_usd.toFixed(2)}</div><div class="sub">${d.openai_calls} personalization calls</div></div>
+      <div class="card" style="background:var(--accent-bg);border-color:var(--accent)"><div class="stat-label">Total</div><div class="stat-num">$${d.cost_total_usd.toFixed(2)}</div><div class="sub">${d.note}</div></div>`;
+    document.getElementById('cost-cards').innerHTML = html;
+  } catch(e){
+    document.getElementById('cost-cards').innerHTML = `<div class="card">Failed: ${e.message}</div>`;
+  }
+}
+
+async function runSelftest(){
+  try {
+    const r = await api('/selftest', {method:'POST'});
+    alert('Selftest done: ' + (r.status || JSON.stringify(r)));
+  } catch(e){ alert('Selftest failed: ' + e.message); }
+}
+
 loadDashboard();
 loadRuns();
+setInterval(loadDashboard, 30000);
 </script>
+
 </body>
 </html>

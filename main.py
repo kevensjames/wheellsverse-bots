@@ -88,6 +88,9 @@ CATEGORIES = [
     "prompt_intel", "receptionist", "seo_autopilot", "seo_command",
     # NarAI — General Overseer (v3.0)
     "narai",
+    # T3 housekeeping 2026-06-03 — `campaigns/` was orphaned (viral_post_campaign
+    # had no category entry, so it never entered the orchestrator registry).
+    "campaigns",
 ]
 
 

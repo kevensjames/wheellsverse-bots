@@ -5,59 +5,245 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{{ BUSINESS_NAME }}</title>
 <meta name="description" content="{{ HERO_SUB }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
 <style>
-:root { --bg:#1a0f08; --accent:#e6a85c; --text:#fefefe; --muted:#c4a484; --card:#2a1810; }
-* { box-sizing:border-box; margin:0; padding:0; }
-body { background:var(--bg); color:var(--text); font-family:Georgia,serif; line-height:1.6; }
-.hero { min-height:80vh; padding:80px 24px; display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center; background:linear-gradient(135deg,#1a0f08,#2a1810); }
-h1 { font-size:clamp(2rem,6vw,4rem); margin-bottom:16px; color:var(--accent); }
-.hero p { font-size:1.25rem; max-width:600px; margin-bottom:32px; color:var(--muted); }
-.cta { display:inline-block; padding:16px 40px; background:var(--accent); color:var(--bg); text-decoration:none; font-weight:700; border-radius:4px; transition:transform .2s; }
-.cta:hover { transform:translateY(-2px); }
-section { padding:64px 24px; max-width:1200px; margin:0 auto; }
-.about { text-align:center; font-size:1.1rem; max-width:700px; margin:0 auto; }
-h2 { font-size:2rem; color:var(--accent); text-align:center; margin-bottom:40px; }
-.cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:24px; }
-.card { background:var(--card); padding:32px; border-radius:8px; border-left:4px solid var(--accent); }
-.card h3 { color:var(--accent); margin-bottom:12px; font-size:1.4rem; }
-.contact { background:var(--card); text-align:center; }
-.contact a { color:var(--accent); text-decoration:none; font-size:1.3rem; }
-footer { background:#0a0604; padding:32px 24px; text-align:center; color:var(--muted); font-size:.9rem; }
-.badge { position:fixed; bottom:20px; right:20px; background:#000; color:var(--accent); padding:8px 16px; border-radius:20px; font-size:.85rem; font-family:system-ui; box-shadow:0 4px 20px rgba(0,0,0,.5); }
+:root {
+  --bg:#fffaf5;
+  --primary:#451a03;
+  --accent:#b91c1c;
+  --accent-light:#fef2f2;
+  --text:#0f172a;
+  --muted:#64748b;
+  --border:#e2e8f0;
+  --card:#ffffff;
+  --radius:14px;
+  --max:1200px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--bg);color:var(--text);
+  font-family:'Inter',-apple-system,sans-serif;
+  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased;
+}
+.serif{font-family:'Fraunces',Georgia,serif;font-weight:600;letter-spacing:-.02em}
+.container{max-width:var(--max);margin:0 auto;padding:0 24px}
+
+/* — Nav — */
+nav{
+  background:rgba(255,255,255,.85);backdrop-filter:blur(12px);
+  padding:18px 24px;display:flex;justify-content:space-between;align-items:center;
+  position:sticky;top:0;z-index:50;border-bottom:1px solid var(--border);
+}
+nav .brand{font-family:'Fraunces',serif;font-weight:700;font-size:1.25rem;color:var(--primary);letter-spacing:-.02em}
+nav .nav-cta{
+  padding:10px 18px;background:var(--accent);color:#fff;text-decoration:none;
+  border-radius:999px;font-weight:600;font-size:.9rem;
+  transition:all .2s ease;
+}
+nav .nav-cta:hover{background:#c2410c;transform:translateY(-1px);box-shadow:0 8px 20px rgba(234,88,12,.3)}
+
+/* — Hero — */
+.hero{
+  padding:80px 24px 64px;text-align:center;
+  background:linear-gradient(180deg,#fff 0%,var(--accent-light) 100%);
+  border-bottom:1px solid var(--border);
+}
+.hero .eyebrow{
+  display:inline-block;padding:6px 14px;background:#fff;border:1px solid var(--border);
+  border-radius:999px;font-size:.8rem;font-weight:600;color:var(--muted);
+  margin-bottom:24px;letter-spacing:.05em;text-transform:uppercase;
+}
+.hero h1{
+  font-family:'Fraunces',serif;font-weight:700;letter-spacing:-.03em;
+  font-size:clamp(2.25rem,6vw,4.5rem);line-height:1.05;margin-bottom:20px;
+  color:var(--primary);
+}
+.hero .sub{
+  font-size:clamp(1.05rem,2vw,1.3rem);color:var(--muted);
+  max-width:680px;margin:0 auto 36px;line-height:1.5;
+}
+.cta-row{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.cta-primary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:16px 32px;background:var(--accent);color:#fff;text-decoration:none;
+  font-weight:600;font-size:1.05rem;border-radius:999px;
+  box-shadow:0 10px 30px rgba(234,88,12,.35);
+  transition:all .2s ease;
+}
+.cta-primary:hover{transform:translateY(-2px);box-shadow:0 14px 40px rgba(234,88,12,.45)}
+.cta-secondary{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:16px 28px;background:#fff;color:var(--primary);text-decoration:none;
+  font-weight:600;font-size:1.05rem;border:1.5px solid var(--border);border-radius:999px;
+  transition:all .2s ease;
+}
+.cta-secondary:hover{border-color:var(--primary);transform:translateY(-2px)}
+
+/* — Trust bar — */
+.trust{
+  background:#fff;padding:24px;border-bottom:1px solid var(--border);
+}
+.trust-inner{
+  max-width:var(--max);margin:0 auto;display:flex;justify-content:center;gap:48px;flex-wrap:wrap;
+  text-align:center;font-size:.95rem;color:var(--muted);
+}
+.trust-item{display:flex;align-items:center;gap:8px}
+.trust-item strong{color:var(--primary);font-weight:700}
+
+/* — Sections — */
+section{padding:80px 24px}
+.section-inner{max-width:var(--max);margin:0 auto}
+.section-header{text-align:center;margin-bottom:56px}
+.section-header .label{
+  display:inline-block;font-size:.85rem;font-weight:600;color:var(--accent);
+  text-transform:uppercase;letter-spacing:.1em;margin-bottom:12px;
+}
+.section-header h2{
+  font-family:'Fraunces',serif;font-weight:700;letter-spacing:-.02em;
+  font-size:clamp(1.8rem,3.5vw,2.8rem);color:var(--primary);
+}
+
+/* — Cards — */
+.cards{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));
+  gap:24px;
+}
+.card{
+  background:var(--card);padding:36px 28px;border-radius:var(--radius);
+  border:1px solid var(--border);
+  transition:all .3s ease;
+}
+.card:hover{
+  transform:translateY(-4px);border-color:var(--accent);
+  box-shadow:0 20px 40px rgba(15,23,42,.08);
+}
+.card .icon{
+  width:48px;height:48px;background:var(--accent-light);
+  border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;margin-bottom:20px;
+}
+.card h3{
+  font-family:'Fraunces',serif;font-weight:600;letter-spacing:-.01em;
+  color:var(--primary);font-size:1.35rem;margin-bottom:12px;
+}
+.card p{color:var(--muted);line-height:1.6}
+
+/* — About — */
+.about-section{background:#fff;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.about-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:center;max-width:1100px;margin:0 auto}
+@media(max-width:768px){.about-grid{grid-template-columns:1fr;gap:32px}}
+.about-text h2{font-family:'Fraunces',serif;font-weight:700;font-size:clamp(1.8rem,3.5vw,2.5rem);letter-spacing:-.02em;color:var(--primary);margin-bottom:20px;line-height:1.15}
+.about-text p{font-size:1.1rem;color:var(--muted);margin-bottom:24px;line-height:1.7}
+.about-visual{
+  aspect-ratio:1;background:linear-gradient(135deg,var(--accent-light),#fed7aa);
+  border-radius:var(--radius);display:flex;align-items:center;justify-content:center;
+  font-family:'Fraunces',serif;font-weight:600;color:var(--accent);
+  font-size:clamp(3rem,8vw,5rem);line-height:1;padding:32px;
+  text-align:center;
+}
+
+/* — Final CTA — */
+.final-cta{
+  background:var(--primary);color:#fff;text-align:center;
+  padding:96px 24px;
+}
+.final-cta h2{
+  font-family:'Fraunces',serif;font-weight:700;letter-spacing:-.02em;
+  font-size:clamp(2rem,4vw,3rem);margin-bottom:16px;color:#fff;
+}
+.final-cta p{font-size:1.15rem;opacity:.85;margin-bottom:32px}
+.final-cta .cta-primary{background:var(--accent);box-shadow:0 14px 40px rgba(234,88,12,.5)}
+.final-cta .address{margin-top:32px;opacity:.7;font-size:.95rem}
+.final-cta .address a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+/* — Footer — */
+footer{
+  background:#020617;padding:32px 24px;text-align:center;color:#94a3b8;font-size:.85rem;
+}
+footer .preview-tag{
+  display:inline-block;margin-top:8px;padding:6px 14px;
+  background:rgba(234,88,12,.15);color:#fed7aa;border-radius:999px;font-size:.75rem;
+}
+
+/* — Mobile — */
+@media(max-width:600px){
+  nav{padding:14px 18px}
+  .hero{padding:60px 18px 48px}
+  section{padding:56px 18px}
+  .card{padding:28px 22px}
+  .trust-inner{gap:24px}
+}
 </style>
 </head>
 <body>
 
+<nav>
+  <span class="brand">{{ BUSINESS_NAME }}</span>
+  <a href="tel:{{ PHONE }}" class="nav-cta">📞 {{ PHONE }}</a>
+</nav>
+
 <header class="hero">
+  <span class="eyebrow">Trusted Locally · Family-Owned</span>
   <h1>{{ HERO_HEADLINE }}</h1>
-  <p>{{ HERO_SUB }}</p>
-  <a href="tel:{{ PHONE }}" class="cta">{{ CTA_TEXT }}</a>
+  <p class="sub">{{ HERO_SUB }}</p>
+  <div class="cta-row">
+    <a href="tel:{{ PHONE }}" class="cta-primary">{{ CTA_TEXT }} →</a>
+    <a href="#services" class="cta-secondary">See What We Do</a>
+  </div>
 </header>
 
-<section>
-  <h2>About Us</h2>
-  <p class="about">{{ ABOUT_PARAGRAPH }}</p>
-</section>
+<div class="trust">
+  <div class="trust-inner">
+    <div class="trust-item">⭐ <strong>5-Star Local Rated</strong></div>
+    <div class="trust-item">📍 <strong>Serving Your Neighborhood</strong></div>
+    <div class="trust-item">📞 <strong>Real Person on the Phone</strong></div>
+  </div>
+</div>
 
-<section>
-  <h2>What We Offer</h2>
-  <div class="cards">
-    {{ CARDS_HTML }}
+<section id="services">
+  <div class="section-inner">
+    <div class="section-header">
+      <div class="label">What We Do</div>
+      <h2>Services that solve real problems</h2>
+    </div>
+    <div class="cards">
+      {{ CARDS_HTML }}
+    </div>
   </div>
 </section>
 
-<section class="contact">
-  <h2>Find Us</h2>
-  <p>{{ ADDRESS }}</p>
-  <p style="margin-top:16px;"><a href="tel:{{ PHONE }}">{{ PHONE }}</a></p>
+<section class="about-section">
+  <div class="section-inner">
+    <div class="about-grid">
+      <div class="about-text">
+        <h2>Why <span style="color:var(--accent)">{{ BUSINESS_NAME }}</span></h2>
+        <p>{{ ABOUT_PARAGRAPH }}</p>
+        <a href="tel:{{ PHONE }}" class="cta-primary">Talk to a Real Person</a>
+      </div>
+      <div class="about-visual">
+        {{ BUSINESS_NAME }}
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="final-cta">
+  <h2>Ready to get started?</h2>
+  <p>{{ HERO_SUB }}</p>
+  <a href="tel:{{ PHONE }}" class="cta-primary">{{ CTA_TEXT }} →</a>
+  <div class="address">
+    📍 <a href="https://maps.google.com/?q={{ BUSINESS_NAME }}, {{ ADDRESS }}">{{ ADDRESS }}</a><br>
+    📞 <a href="tel:{{ PHONE }}">{{ PHONE }}</a>
+  </div>
 </section>
 
 <footer>
-  &copy; {{ YEAR }} {{ BUSINESS_NAME }}. All rights reserved.<br>
-  <span style="opacity:.6;">Site by SiteBoost AI · preview only</span>
+  &copy; {{ YEAR }} {{ BUSINESS_NAME }} — All rights reserved<br>
+  <span class="preview-tag">✨ Site preview by SiteBoost AI</span>
 </footer>
-
-<div class="badge">Preview by SiteBoost</div>
 
 </body>
 </html>

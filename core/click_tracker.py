@@ -2,54 +2,19 @@
 """
 core/click_tracker.py
 ─────────────────────────────────────────────────────────────────────────────
-Affiliate click tracking.
+Product click tracking.
 
-Every affiliate link in published content should route through:
-  /go/{partner}   →  logs click  →  302 redirect to real affiliate URL
+OLD: this module mapped each network partner key to a per-network affiliate
+URL pulled from .env. The enumeration of partner→env_key pairs was preserved
+here as documentation. That mapping has been collapsed.
 
-Supported partners (map to .env keys):
-  -- Investing --
-  coinbase    → AFFILIATE_COINBASE_URL
-  robinhood   → AFFILIATE_ROBINHOOD_URL  (user referral link)
-  webull      → AFFILIATE_WEBULL_URL
-  binance     → AFFILIATE_BINANCE_URL
-  m1finance   → AFFILIATE_M1FINANCE_URL
-  public      → AFFILIATE_PUBLIC_URL
-  -- Gig economy --
-  doordash    → AFFILIATE_DOORDASH_URL
-  uber        → AFFILIATE_UBER_URL
-  -- Fintech / payments --
-  cashapp     → AFFILIATE_CASHAPP_URL
-  onepay      → AFFILIATE_ONEPAY_URL
-  capitalone  → AFFILIATE_CAPITALONE_URL
-  creditone   → AFFILIATE_CREDITONE_URL
-  -- Amazon --
-  amazon         → AFFILIATE_AMAZON_TAG  (builds search URL)
-  amazon_prime   → AFFILIATE_AMAZON_PRIME_URL
-  amazon_kindle  → AFFILIATE_AMAZON_KINDLE_URL
-  amazon_audible → AFFILIATE_AMAZON_AUDIBLE_URL
-  amazon_music   → AFFILIATE_AMAZON_MUSIC_URL
-  amazon_fresh   → AFFILIATE_AMAZON_FRESH_URL
-  amazon_kids    → AFFILIATE_AMAZON_KIDS_URL
-  amazon_business→ AFFILIATE_AMAZON_BUSINESS_URL
-  amazon_photos  → AFFILIATE_AMAZON_PHOTOS_URL
-  amazon_halo    → AFFILIATE_AMAZON_HALO_URL
-  amazon_rx      → AFFILIATE_AMAZON_RX_URL
-  amazon_gaming  → AFFILIATE_AMAZON_GAMING_URL
-  amazon_pets    → AFFILIATE_AMAZON_PETS_URL
-  amazon_wedding → AFFILIATE_AMAZON_WEDDING_URL
-  -- Other --
-  convertkit  → AFFILIATE_CONVERTKIT_URL
-  jasper      → AFFILIATE_JASPER_URL
-  bluehost    → AFFILIATE_BLUEHOST_URL
-  fiverr      → AFFILIATE_FIVERR_URL
-  clickbank   → AFFILIATE_CLICKBANK_URL
-  appsumo     → AFFILIATE_APPSUMO_URL
-  shareasale  → AFFILIATE_SHAREASALE_URL
-  partnerstack→ AFFILIATE_PARTNERSTACK_URL
-  cj          → AFFILIATE_CJ_URL
+NEW (affiliate_swap_2026_05_29):
+Every partner key resolves to DIGITAL_PRODUCT_URL with UTM tagging by
+partner key. .env values are preserved on disk but no longer consumed at
+this layer. The 'insider' owned-funnel entry is the only env-backed entry.
 
 Click log: data/clicks.json
+Conversion log: data/conversions.json
 ─────────────────────────────────────────────────────────────────────────────
 """
 
@@ -70,60 +35,50 @@ logger = logging.getLogger("click_tracker")
 CLICKS_FILE = ROOT / "data" / "clicks.json"
 CONVERSIONS_FILE = ROOT / "data" / "conversions.json"
 
-# ── Partner → destination URL ─────────────────────────────────────────────────
+# ── Partner key → destination URL ────────────────────────────────────────────
+
+# OLD: each known partner mapped to its own .env-backed network affiliate URL.
+# NEW (affiliate_swap_2026_05_29): every partner key resolves to
+# DIGITAL_PRODUCT_URL with UTM content = partner key. The owned 'insider'
+# funnel still resolves to AFFILIATE_INSIDER_URL.
+
+DIGITAL_PRODUCT_URL = "https://stan.store/Wheellsverse"
+
+
+def _stan(partner: str, source: str = "click_tracker", medium: str = "redirect") -> str:
+    """Build a UTM-tagged redirect URL to the owned digital product."""
+    return (
+        f"{DIGITAL_PRODUCT_URL}"
+        f"?utm_source={source}"
+        f"&utm_medium={medium}"
+        f"&utm_campaign=affiliate_swap_2026_05_29"
+        f"&utm_content={partner}"
+    )
 
 
 def _affiliate_urls() -> Dict[str, str]:
-    """Read affiliate URLs from .env at call time (supports hot-reload)."""
-    amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
-    amazon_tag_2 = os.getenv("AFFILIATE_AMAZON_TAG_2", "naraiinsights-20")
+    """Return partner_key → destination URL map.
+
+    Only the owned-funnel 'insider' key is env-backed. All other partner keys
+    are resolved on demand via _resolve_destination().
+    """
     base_app_url = os.getenv("APP_BASE_URL", "https://app.wheellsverse.com").rstrip("/")
     return {
-        # Owned funnel — bot CTAs route through /go/insider to track click→signup
-        "insider":         os.getenv("AFFILIATE_INSIDER_URL", f"{base_app_url}/insider"),
-        # Investing
-        "coinbase":        os.getenv("AFFILIATE_COINBASE_URL", "https://coinbase.com"),
-        "robinhood":       os.getenv("AFFILIATE_ROBINHOOD_URL", "https://robinhood.com"),
-        "webull":          os.getenv("AFFILIATE_WEBULL_URL", "https://www.webull.com/partner"),
-        "binance":         os.getenv("AFFILIATE_BINANCE_URL", "https://binance.com"),
-        "m1finance":       os.getenv("AFFILIATE_M1FINANCE_URL", "https://m1.com"),
-        "public":          os.getenv("AFFILIATE_PUBLIC_URL", "https://public.com"),
-        # Gig economy
-        "doordash":        os.getenv("AFFILIATE_DOORDASH_URL", "https://doordash.com"),
-        "uber":            os.getenv("AFFILIATE_UBER_URL", "https://uber.com"),
-        # Fintech / payments
-        "cashapp":         os.getenv("AFFILIATE_CASHAPP_URL", "https://cash.app"),
-        "onepay":          os.getenv("AFFILIATE_ONEPAY_URL", "https://onepay.com"),
-        "capitalone":      os.getenv("AFFILIATE_CAPITALONE_URL", "https://capitalone.com"),
-        "creditone":       os.getenv("AFFILIATE_CREDITONE_URL", "https://creditonebank.com"),
-        # Amazon search
-        "amazon":          f"https://www.amazon.com/s?k=passive+income&tag={amazon_tag}",
-        "amazon_video":    os.getenv("AFFILIATE_AMAZON_VIDEO_URL", f"https://www.amazon.com/gp/video/storefront?tag={amazon_tag_2}"),
-        # Amazon subscription bounties
-        "amazon_prime":    os.getenv("AFFILIATE_AMAZON_PRIME_URL", ""),
-        "amazon_kindle":   os.getenv("AFFILIATE_AMAZON_KINDLE_URL", ""),
-        "amazon_audible":  os.getenv("AFFILIATE_AMAZON_AUDIBLE_URL", ""),
-        "amazon_music":    os.getenv("AFFILIATE_AMAZON_MUSIC_URL", ""),
-        "amazon_fresh":    os.getenv("AFFILIATE_AMAZON_FRESH_URL", ""),
-        "amazon_kids":     os.getenv("AFFILIATE_AMAZON_KIDS_URL", ""),
-        "amazon_business": os.getenv("AFFILIATE_AMAZON_BUSINESS_URL", ""),
-        "amazon_photos":   os.getenv("AFFILIATE_AMAZON_PHOTOS_URL", ""),
-        "amazon_halo":     os.getenv("AFFILIATE_AMAZON_HALO_URL", ""),
-        "amazon_rx":       os.getenv("AFFILIATE_AMAZON_RX_URL", ""),
-        "amazon_gaming":   os.getenv("AFFILIATE_AMAZON_GAMING_URL", ""),
-        "amazon_pets":     os.getenv("AFFILIATE_AMAZON_PETS_URL", ""),
-        "amazon_wedding":  os.getenv("AFFILIATE_AMAZON_WEDDING_URL", ""),
-        # Other
-        "convertkit":      os.getenv("AFFILIATE_CONVERTKIT_URL", "https://convertkit.com"),
-        "jasper":          os.getenv("AFFILIATE_JASPER_URL", "https://jasper.ai"),
-        "bluehost":        os.getenv("AFFILIATE_BLUEHOST_URL", "https://bluehost.com"),
-        "fiverr":          os.getenv("AFFILIATE_FIVERR_URL", "https://fiverr.com"),
-        "clickbank":       os.getenv("AFFILIATE_CLICKBANK_URL", "https://clickbank.com"),
-        "appsumo":         os.getenv("AFFILIATE_APPSUMO_URL", "https://appsumo.com"),
-        "shareasale":      os.getenv("AFFILIATE_SHAREASALE_URL", "https://shareasale.com"),
-        "partnerstack":    os.getenv("AFFILIATE_PARTNERSTACK_URL", "https://partnerstack.com"),
-        "cj":              os.getenv("AFFILIATE_CJ_URL", "https://www.cj.com"),
+        "insider": os.getenv("AFFILIATE_INSIDER_URL", f"{base_app_url}/insider"),
     }
+
+
+def _resolve_destination(partner: str) -> str:
+    """Resolve any partner key to its destination URL.
+
+    'insider' → owned funnel. Anything else → DIGITAL_PRODUCT_URL with
+    utm_content = partner key.
+    """
+    partner_key = partner.lower()
+    urls = _affiliate_urls()
+    if partner_key in urls:
+        return urls[partner_key]
+    return _stan(partner_key)
 
 
 # ── Click log helpers ─────────────────────────────────────────────────────────
@@ -147,12 +102,14 @@ def _save_clicks(clicks: List[Dict]):
 def record_click(partner: str, referrer: str = "", ip: str = "") -> Optional[str]:
     """
     Log a click and return the destination URL.
-    Returns None if partner is unknown.
+
+    OLD: returned None for partners not in the legacy dict.
+    NEW: every partner key now resolves via _resolve_destination, which
+    routes non-insider keys to DIGITAL_PRODUCT_URL with UTM tagging.
     """
-    urls = _affiliate_urls()
-    dest = urls.get(partner.lower())
+    dest = _resolve_destination(partner)
     if not dest:
-        logger.warning(f"Unknown affiliate partner: {partner!r}")
+        logger.warning(f"Could not resolve partner: {partner!r}")
         return None
 
     click = {

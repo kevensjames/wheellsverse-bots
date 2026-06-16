@@ -8,7 +8,6 @@ Serves the web dashboard + REST endpoints for all bot operations.
 """
 
 import asyncio
-import hmac
 import json
 import logging
 import logging.handlers
@@ -202,7 +201,7 @@ async def verify_api_key(request: Request):
         or request.headers.get("x-api-key")
         or request.query_params.get("api_key")
     )
-    if not key or not hmac.compare_digest(key, _API_KEY):
+    if key != _API_KEY:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -767,22 +766,6 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    # HSTS — browsers remember to upgrade to HTTPS for 1 year.
-    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-    # CSP — admin/dashboard surfaces use inline JS+CSS, Google Fonts, and Shopify's image CDN.
-    # 'unsafe-inline' is required for the current admin pages; tightening to nonces is a separate refactor.
-    if request.url.path.startswith("/admin") or request.url.path == "/dashboard":
-        response.headers["Content-Security-Policy"] = (
-            "default-src 'self'; "
-            "img-src 'self' https://cdn.shopify.com data: blob:; "
-            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
-            "font-src 'self' https://fonts.gstatic.com; "
-            "script-src 'self' 'unsafe-inline'; "
-            "connect-src 'self'; "
-            "frame-ancestors 'self'; "
-            "base-uri 'self'; "
-            "form-action 'self'"
-        )
     # Prevent Fastly/CDN from caching API responses (especially 404s)
     if request.url.path.startswith("/api/") or request.url.path in ("/", "/landing"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
@@ -1068,6 +1051,39 @@ async def serve_robots():
     return FileResponse(p, media_type="text/plain")
 
 
+@app.get("/manifest.json")
+async def serve_manifest():
+    """PWA manifest. Required for installability and silences the /admin console 404."""
+    from fastapi.responses import FileResponse, JSONResponse
+    p = ROOT / "frontend" / "manifest.json"
+    if not p.exists():
+        return JSONResponse({"name": "WheellsVerse"}, media_type="application/manifest+json")
+    return FileResponse(p, media_type="application/manifest+json")
+
+
+@app.get("/favicon.svg")
+async def serve_favicon_svg():
+    """Canonical favicon. Referenced from <link rel=icon type=image/svg+xml>."""
+    from fastapi.responses import FileResponse, Response
+    p = ROOT / "frontend" / "favicon.svg"
+    if not p.exists():
+        return Response(status_code=404)
+    return FileResponse(p, media_type="image/svg+xml")
+
+
+@app.get("/favicon.ico")
+async def serve_favicon_ico():
+    """Legacy favicon path — older crawlers and bookmark managers ignore the <link>
+    tag and request /favicon.ico directly. Serve the same SVG; Chromium and Safari
+    accept image/svg+xml here. Returns 204 if the SVG is missing rather than a 404
+    error so the console stays clean."""
+    from fastapi.responses import FileResponse, Response
+    p = ROOT / "frontend" / "favicon.svg"
+    if not p.exists():
+        return Response(status_code=204)
+    return FileResponse(p, media_type="image/svg+xml")
+
+
 @app.get("/{key}.txt")
 async def serve_indexnow_key(key: str):
     """IndexNow ownership verification endpoint.
@@ -1146,20 +1162,6 @@ async def serve_sol_admin():
 @app.get("/admin/shopify", response_class=HTMLResponse)
 async def serve_admin_shopify():
     return _serve_frontend("admin/shopify.html", cache=False)
-
-
-# IMPORTANT: literal sub-paths must be registered BEFORE the {merchant_id}
-# param route below, otherwise FastAPI binds them as a merchant ID lookup.
-@app.get("/admin/shopify/revenue", response_class=HTMLResponse)
-async def serve_admin_shopify_revenue():
-    """Revenue dashboard — MRR by plan tier, paid-vs-free split."""
-    return _serve_frontend("admin/shopify-revenue.html", cache=False)
-
-
-@app.get("/admin/shopify/{merchant_id}", response_class=HTMLResponse)
-async def serve_admin_shopify_detail(merchant_id: str):
-    """Merchant detail — info, products, events, billing for one shop."""
-    return _serve_frontend("admin/shopify-detail.html", cache=False)
 
 
 # ─── NarAI User API ───────────────────────────────────────────────────────────
@@ -1511,23 +1513,141 @@ async def serve_theme_picker():
     return _serve_frontend("admin/theme-picker.html", cache=False)
 
 
-@app.get("/admin/wvkey", response_class=HTMLResponse)
-async def serve_wvkey_admin():
-    """wvkey vault info/runbook page. The vault itself lives on the Mac mini
-    host (~/.config/wvkey/vault.enc) with the master password in macOS Keychain
-    — this page is a launcher + documentation surface, NOT a remote vault UI.
-    Phase 2 (not built) would add a Mac-mini→Supabase status manifest sync."""
-    return _serve_frontend("admin/wvkey.html", cache=False)
-
-
-
-
 @app.get("/admin/siteboost", response_class=HTMLResponse)
 async def serve_siteboost_admin():
     """SiteBoost control panel — operator surface for the local-prospect outbound
     product. Drives scans, sequences, selftest, blocklist from the browser.
-    API at /api/narai/siteboost/*. Auth via X-API-Key (same as the rest of /admin)."""
-    return _serve_frontend("admin/siteboost.html", cache=False)
+    API at /api/narai/siteboost/*. Auth via X-API-Key (same as the rest of /admin).
+
+    Injects the admin API_KEY into the page so the operator doesn't need to paste
+    it every session. Same pattern as the legacy /admin dashboard.
+    """
+    path = ROOT / "frontend" / "admin" / "siteboost.html"
+    if not path.exists():
+        return HTMLResponse("<h1>siteboost.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        # Sanitize before injection — fetch() headers must be ISO-8859-1 (≤ U+00FF).
+        # If the env var was ever pasted with a smart-quote / fancy unicode char
+        # via copy-paste, strip it out so the JS fetch doesn't crash.
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/p/{slug}", response_class=HTMLResponse)
+async def siteboost_preview(slug: str):
+    """Public preview of a generated SiteBoost site. This URL is embedded in every
+    cold email's body. NO auth — the recipient clicks it directly from their inbox.
+
+    Resolves the slug to data/launches/siteboost/runs/<run>/03-previews/<slug>.html.
+    If the same slug exists across multiple runs (same business scanned twice),
+    the most-recently-modified one wins.
+
+    NOTE: HTML previews live on the container's ephemeral filesystem and are wiped
+    on every Railway redeploy. For production-scale outreach, move preview HTML
+    to the volume at /var/data/siteboost/previews/ — separate follow-up.
+    """
+    import re
+    if not re.match(r"^[a-z0-9-]{1,80}$", slug):
+        return HTMLResponse(
+            "<!doctype html><h1>Invalid preview link</h1>",
+            status_code=400,
+        )
+    # Search BOTH the volume-backed prod path AND the ephemeral fallback so
+    # a transition period where some HTML lives in each still works.
+    previews_dirs = [
+        Path(os.getenv("SITEBOOST_RUNS_PATH",
+                       str(ROOT / "data" / "launches" / "siteboost" / "runs"))),
+        ROOT / "data" / "launches" / "siteboost" / "runs",  # fallback
+    ]
+    matches = []
+    for d in previews_dirs:
+        if d.exists():
+            matches.extend(d.glob(f"*/03-previews/{slug}.html"))
+    if not matches:
+        return HTMLResponse(
+            f"<!doctype html><html><head><title>Preview unavailable</title>"
+            f"<meta name=viewport content='width=device-width,initial-scale=1'></head>"
+            f"<body style='font-family:-apple-system,sans-serif;max-width:560px;margin:80px auto;padding:0 20px;color:#222'>"
+            f"<h1>This preview has expired</h1>"
+            f"<p>The site preview for <code>{slug}</code> is no longer available. "
+            f"If you received an email asking you to check it out, reply to the original "
+            f"email and we'll regenerate it for you.</p></body></html>",
+            status_code=404,
+        )
+    latest = max(matches, key=lambda p: p.stat().st_mtime)
+    return HTMLResponse(
+        latest.read_text(encoding="utf-8"),
+        headers={"Cache-Control": "public, max-age=3600"},
+    )
+
+
+@app.get("/u/{token}", response_class=HTMLResponse)
+async def siteboost_unsubscribe(token: str):
+    """Public CAN-SPAM unsubscribe endpoint. Every cold email's footer points here.
+
+    Token format and verification live in core/cold_outreach.py. On a valid token,
+    the recipient's email is added to the suppression list and they see a
+    confirmation page. On a forged/tampered token, we show a generic error to
+    avoid leaking information about what's valid.
+
+    NO auth — CAN-SPAM § 7704(a)(3) requires the opt-out URL to work for any
+    recipient who clicks it, without requiring them to sign in.
+    """
+    try:
+        from core.cold_outreach import verify_unsubscribe_token, add_suppression, is_suppressed
+    except Exception:
+        return HTMLResponse(
+            "<h1>Unsubscribe temporarily unavailable</h1>"
+            "<p>Please reply STOP to the original email instead.</p>",
+            status_code=503,
+        )
+
+    email = verify_unsubscribe_token(token)
+    if not email:
+        return HTMLResponse(
+            "<!doctype html><html><head><title>Invalid unsubscribe link</title>"
+            "<meta name=viewport content='width=device-width,initial-scale=1'></head>"
+            "<body style='font-family:-apple-system,sans-serif;max-width:560px;margin:80px auto;padding:0 20px;color:#222'>"
+            "<h1>Link not recognized</h1>"
+            "<p>This unsubscribe link is invalid or has been tampered with. "
+            "If you'd like to opt out from SiteBoost AI outreach, reply STOP to "
+            "the email you received and we'll remove your address.</p>"
+            "</body></html>",
+            status_code=400,
+        )
+
+    already = is_suppressed(email)
+    if not already:
+        try:
+            add_suppression(email, via="click")
+            # Activity log — soft-fail if events module missing
+            try:
+                from core.siteboost_events import log_event
+                log_event("unsubscribe.click", email=email, was_already=False)
+            except Exception:
+                pass
+        except Exception as e:
+            logging.getLogger("api").warning(f"unsubscribe add failed for {email}: {e}")
+    else:
+        try:
+            from core.siteboost_events import log_event
+            log_event("unsubscribe.click", email=email, was_already=True)
+        except Exception:
+            pass
+
+    msg = ("You were already on the do-not-contact list. No further emails will be sent."
+           if already else "You've been removed. No further emails will be sent.")
+    return HTMLResponse(
+        f"<!doctype html><html><head><title>Unsubscribed</title>"
+        f"<meta name=viewport content='width=device-width,initial-scale=1'></head>"
+        f"<body style='font-family:-apple-system,sans-serif;max-width:560px;margin:80px auto;padding:0 20px;color:#222'>"
+        f"<h1>✓ Unsubscribed</h1>"
+        f"<p>{msg}</p>"
+        f"<p style='color:#666;font-size:14px'>If this was a mistake, you can re-subscribe by replying to the original email.</p>"
+        f"</body></html>"
+    )
 
 
 async def _serve_old_dashboard():
@@ -1922,6 +2042,476 @@ async def update_setting(update: SettingUpdate):
     os.environ[update.key] = update.value
     _add_log(f"Setting updated: {update.key}", "INFO")
     return {"status": "updated", "key": update.key}
+
+
+# ─── Tokens (richer, grouped view for the env-token editor UI) ──────────────
+#
+# Same underlying store as /api/settings (env + .env file) but shaped for the
+# dashboard token-vault panel: tokens are grouped by category → subcategory,
+# secret values are never returned over the wire (only has_value), and POST
+# accepts a bulk {updates:{KEY:val,...}} batch.
+#
+# Frontend contract: dashboard/index.html `tvLoad()` (~line 6577) consumes
+# {groups, total, filled, empty}; each group is {category, subcategory,
+# tokens:[{key, value, has_value, is_secret}]}.
+
+_TOKEN_TAXONOMY: list[tuple[str, str, list[str]]] = [
+    ("AI", "Anthropic",   ["ANTHROPIC_API_KEY"]),
+    ("AI", "OpenAI",      ["OPENAI_API_KEY", "OPENAI_MODEL"]),
+    ("AI", "ElevenLabs",  ["ELEVENLABS_API_KEY", "ELEVENLABS_VOICE_ID", "ELEVENLABS_MODEL"]),
+    ("AI", "HeyGen",      ["HEYGEN_API_KEY", "HEYGEN_AVATAR_ID", "HEYGEN_VOICE_ID"]),
+    ("Social", "Meta",    ["FACEBOOK_PAGE_TOKEN", "FACEBOOK_PAGE_ID", "FACEBOOK_APP_ID",
+                           "FACEBOOK_APP_SECRET", "INSTAGRAM_ACCOUNT_ID",
+                           "INSTAGRAM_PAGE_TOKEN", "META_APP_ID", "META_APP_SECRET"]),
+    ("Social", "Twitter", ["TWITTER_API_KEY", "TWITTER_API_SECRET", "TWITTER_ACCESS_TOKEN",
+                           "TWITTER_ACCESS_SECRET", "TWITTER_BEARER_TOKEN"]),
+    ("Social", "TikTok",  ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET", "TIKTOK_ACCESS_TOKEN"]),
+    ("Social", "Reddit",  ["REDDIT_CLIENT_ID", "REDDIT_CLIENT_SECRET", "REDDIT_USERNAME",
+                           "REDDIT_PASSWORD", "REDDIT_SUBREDDIT"]),
+    ("Messaging", "Telegram", ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"]),
+    ("Messaging", "WhatsApp", ["WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID",
+                               "WHATSAPP_VERIFY_TOKEN"]),
+    ("Messaging", "Email",    ["EMAIL_USER", "EMAIL_PASSWORD", "EMAIL_FROM_NAME",
+                               "EMAIL_HOST", "EMAIL_PORT"]),
+    ("Content", "YouTube",    ["YOUTUBE_API_KEY", "YOUTUBE_CLIENT_ID", "YOUTUBE_CLIENT_SECRET"]),
+    ("Content", "WordPress",  ["WORDPRESS_URL", "WORDPRESS_USERNAME", "WORDPRESS_PASSWORD"]),
+    ("Payments", "Stripe",    ["STRIPE_SECRET_KEY", "STRIPE_PUBLIC_KEY", "STRIPE_WEBHOOK_SECRET"]),
+    ("Marketing", "ConvertKit", ["CONVERTKIT_API_KEY", "CONVERTKIT_API_SECRET", "CONVERTKIT_FORM_ID"]),
+    ("Google", "Search",      ["SERPER_API_KEY", "GSC_PROPERTY_URL", "GOOGLE_SERVICE_ACCOUNT_JSON"]),
+    ("System", "Brand",       ["BRAND_NAME", "AUTHOR_NAME", "BRAND_NICHE", "CTA_URL"]),
+    ("System", "Engine",      ["DECISION_ENGINE_ENABLED", "DECISION_ENGINE_INTERVAL"]),
+    ("System", "Platform",    ["RAILWAY_PUBLIC_URL", "API_KEY", "DASHBOARD_PASSWORD"]),
+]
+
+_TOKEN_SECRET_HINTS = ("KEY", "SECRET", "TOKEN", "PASSWORD")
+
+
+def _is_secret_key(key: str) -> bool:
+    return any(hint in key.upper() for hint in _TOKEN_SECRET_HINTS)
+
+
+def _read_env_file() -> dict[str, str]:
+    """Parse the .env file into a dict. Returns {} if the file is missing."""
+    env_path = ROOT / ".env"
+    if not env_path.exists():
+        return {}
+    out: dict[str, str] = {}
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or "=" not in s:
+            continue
+        k, _, v = s.partition("=")
+        out[k.strip()] = v.strip()
+    return out
+
+
+def _write_env_value(key: str, value: str) -> None:
+    """Upsert a single key/value into .env. Mirrors the logic of POST /api/settings
+    but is callable inline for the bulk-update path."""
+    env_path = ROOT / ".env"
+    lines = env_path.read_text(encoding="utf-8").splitlines() if env_path.exists() else []
+    new_lines, hit = [], False
+    for line in lines:
+        s = line.strip()
+        if s.startswith(f"{key}=") or s.startswith(f"{key} ="):
+            new_lines.append(f"{key}={value}")
+            hit = True
+        else:
+            new_lines.append(line)
+    if not hit:
+        new_lines.append(f"{key}={value}")
+    env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+    os.environ[key] = value
+
+
+@app.get("/api/tokens")
+async def get_tokens():
+    """Grouped view of environment tokens for the dashboard token-vault panel.
+
+    Secret values are NEVER returned in `value` (only `has_value` is set).
+    Non-secret values are returned in full so the operator can read and edit
+    them in place. Uses os.environ first, falls back to .env file."""
+    env_file = _read_env_file()
+    groups, total, filled = [], 0, 0
+    for category, subcategory, keys in _TOKEN_TAXONOMY:
+        tokens = []
+        for k in keys:
+            actual = os.getenv(k) or env_file.get(k, "")
+            has_value = bool(actual)
+            secret = _is_secret_key(k)
+            tokens.append({
+                "key": k,
+                "value": "" if secret else actual,
+                "has_value": has_value,
+                "is_secret": secret,
+            })
+            total += 1
+            if has_value:
+                filled += 1
+        groups.append({"category": category, "subcategory": subcategory, "tokens": tokens})
+    return {"groups": groups, "total": total, "filled": filled, "empty": total - filled}
+
+
+@app.post("/api/tokens")
+async def update_tokens(payload: dict):
+    """Bulk-write env tokens. Accepts {updates: {KEY: value, ...}}.
+
+    Empty-string values for keys not yet set are skipped (no-op rather than
+    persisting an empty assignment). Empty-string values for keys that DO have
+    a value overwrite them — operator intent is to clear the slot."""
+    updates = payload.get("updates") or {}
+    if not isinstance(updates, dict):
+        return {"status": "error", "saved": 0, "error": "updates must be an object"}
+
+    known = {k for _, _, keys in _TOKEN_TAXONOMY for k in keys}
+    saved, skipped, unknown = [], [], []
+    for raw_key, raw_val in updates.items():
+        key = str(raw_key).strip()
+        if not key:
+            continue
+        if key not in known:
+            unknown.append(key)
+            continue
+        val = "" if raw_val is None else str(raw_val)
+        if val == "" and not os.getenv(key):
+            skipped.append(key)
+            continue
+        _write_env_value(key, val)
+        saved.append(key)
+
+    if saved:
+        _add_log(f"Tokens updated: {', '.join(saved)}", "INFO")
+    return {"status": "ok", "saved": len(saved), "saved_keys": saved,
+            "skipped": skipped, "unknown": unknown}
+
+
+# ─── Notifications ────────────────────────────────────────────────────────────
+#
+# Wires the dashboard notification center (dashboard/index.html ~17354–17412)
+# to core/notifier.py. The notifier module and the SQLite `notifications`
+# table (chat_db.py:114) have existed for some time but no HTTP routes were
+# ever mounted — every call from the bell-icon UI returned 404. These five
+# handlers are thin: real logic lives in core.notifier.
+
+@app.get("/api/notify")
+async def notify_list(limit: int = 30, unread_only: bool = False):
+    """List notifications, newest first. Frontend default limit is 30."""
+    from core import notifier
+    return {"notifications": notifier.get_notifications(unread_only=unread_only, limit=limit)}
+
+
+@app.get("/api/notify/count")
+async def notify_count():
+    """Unread count for the bell-icon badge. Frontend reads `data.unread`."""
+    from core import notifier
+    return {"unread": notifier.get_unread_count()}
+
+
+@app.post("/api/notify/read/{notification_id}")
+async def notify_mark_read(notification_id: str):
+    from core import notifier
+    return {"status": "ok", "marked": notifier.mark_read(notification_id)}
+
+
+@app.post("/api/notify/read-all")
+async def notify_mark_all_read():
+    from core import notifier
+    return {"status": "ok", "marked": notifier.mark_all_read()}
+
+
+@app.delete("/api/notify/{notification_id}")
+async def notify_delete(notification_id: str):
+    from core import notifier
+    return {"status": "ok", "deleted": notifier.delete_notification(notification_id)}
+
+
+# ─── Prompts library (CRUD over chat_db.prompts) ─────────────────────────────
+#
+# Frontend contract: dashboard/index.html promptLibLoad/Edit/Save/Delete/Use
+# (~L17448–17537). List endpoint accepts ?limit=N&search=&category= and
+# returns {prompts, categories}. The prompts table already exists at
+# chat_db.py:90 — no new schema required.
+
+def _prompt_row_to_dict(r) -> dict:
+    return {
+        "id": r[0], "title": r[1], "body": r[2], "category": r[3],
+        "tags": r[4], "use_count": r[5],
+        "created_at": r[6], "updated_at": r[7],
+        "is_public": bool(r[8]),
+    }
+
+
+@app.get("/api/prompts")
+async def prompts_list(limit: int = 200, search: str = "", category: str = ""):
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    q = "SELECT id,title,body,category,tags,use_count,created_at,updated_at,is_public FROM prompts WHERE 1=1"
+    params: list = []
+    if search:
+        q += " AND (title LIKE ? OR body LIKE ? OR tags LIKE ?)"
+        like = f"%{search}%"
+        params += [like, like, like]
+    if category:
+        q += " AND category = ?"
+        params.append(category)
+    q += " ORDER BY updated_at DESC LIMIT ?"
+    params.append(limit)
+    with _lock:
+        rows = conn.execute(q, params).fetchall()
+        cats = [r[0] for r in conn.execute(
+            "SELECT DISTINCT category FROM prompts ORDER BY category").fetchall()]
+    return {"prompts": [_prompt_row_to_dict(r) for r in rows], "categories": cats}
+
+
+@app.get("/api/prompts/{prompt_id}")
+async def prompts_get(prompt_id: str):
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    with _lock:
+        r = conn.execute(
+            "SELECT id,title,body,category,tags,use_count,created_at,updated_at,is_public "
+            "FROM prompts WHERE id=?", (prompt_id,)).fetchone()
+    if not r:
+        from fastapi import HTTPException
+        raise HTTPException(404, "prompt not found")
+    return _prompt_row_to_dict(r)
+
+
+@app.post("/api/prompts")
+async def prompts_create(payload: dict):
+    from core.chat_db import _get_conn, _lock, init_db
+    from datetime import datetime
+    import uuid
+    init_db()
+    title = (payload.get("title") or "").strip()
+    body = (payload.get("body") or "").strip()
+    if not title or not body:
+        from fastapi import HTTPException
+        raise HTTPException(400, "title and body are required")
+    pid = str(uuid.uuid4())
+    now = datetime.utcnow().isoformat()
+    conn = _get_conn()
+    with _lock:
+        conn.execute(
+            "INSERT INTO prompts(id,title,body,category,tags,use_count,created_at,updated_at,is_public)"
+            " VALUES(?,?,?,?,?,0,?,?,0)",
+            (pid, title, body,
+             (payload.get("category") or "general").strip(),
+             (payload.get("tags") or "").strip(),
+             now, now))
+        conn.commit()
+    return {"status": "ok", "id": pid}
+
+
+@app.patch("/api/prompts/{prompt_id}")
+async def prompts_update(prompt_id: str, payload: dict):
+    from core.chat_db import _get_conn, _lock, init_db
+    from datetime import datetime
+    init_db()
+    fields, values = [], []
+    for k in ("title", "body", "category", "tags"):
+        if k in payload:
+            fields.append(f"{k}=?")
+            values.append((payload[k] or "").strip())
+    if not fields:
+        return {"status": "ok", "id": prompt_id, "updated": 0}
+    fields.append("updated_at=?")
+    values.append(datetime.utcnow().isoformat())
+    values.append(prompt_id)
+    conn = _get_conn()
+    with _lock:
+        cur = conn.execute(f"UPDATE prompts SET {','.join(fields)} WHERE id=?", values)
+        conn.commit()
+    if cur.rowcount == 0:
+        from fastapi import HTTPException
+        raise HTTPException(404, "prompt not found")
+    return {"status": "ok", "id": prompt_id, "updated": cur.rowcount}
+
+
+@app.delete("/api/prompts/{prompt_id}")
+async def prompts_delete(prompt_id: str):
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    with _lock:
+        cur = conn.execute("DELETE FROM prompts WHERE id=?", (prompt_id,))
+        conn.commit()
+    return {"status": "ok", "deleted": cur.rowcount}
+
+
+@app.post("/api/prompts/{prompt_id}/use")
+async def prompts_mark_used(prompt_id: str):
+    """Increment use_count and return the row so the frontend can paste body
+    into the AI chat input."""
+    from core.chat_db import _get_conn, _lock, init_db
+    init_db()
+    conn = _get_conn()
+    with _lock:
+        conn.execute("UPDATE prompts SET use_count=use_count+1 WHERE id=?", (prompt_id,))
+        conn.commit()
+        r = conn.execute(
+            "SELECT id,title,body,category,tags,use_count,created_at,updated_at,is_public "
+            "FROM prompts WHERE id=?", (prompt_id,)).fetchone()
+    if not r:
+        from fastapi import HTTPException
+        raise HTTPException(404, "prompt not found")
+    return _prompt_row_to_dict(r)
+
+
+# ─── Customer-facing API keys (CRUD over chat_db.api_keys) ──────────────────
+#
+# Wires the dashboard "API Keys" panel (dashboard/index.html akLoad/Create/
+# Revoke/Rotate ~L18164–18215) to core/api_keys.py. The api_keys module
+# already implements key generation (wv_<token_hex>), SHA-256 storage,
+# revoke, rotate, list, and per-key sliding-window rate limiting — but the
+# 4 HTTP routes the panel calls were never mounted.
+#
+# Security note: the plaintext key is returned ONLY on create and rotate.
+# The list endpoint exposes metadata only (id, name, plan, request_count,
+# last_used, rate_limit, active) — never the hash and never the plaintext.
+
+@app.get("/api/apikeys")
+async def apikeys_list():
+    """List all issued customer API keys (metadata only — no secrets)."""
+    from core import api_keys as _api_keys
+    return {"keys": _api_keys.list_keys()}
+
+
+@app.post("/api/apikeys")
+async def apikeys_create(payload: dict):
+    """Mint a new API key. Returns the plaintext key — this is the only time
+    the operator can see it, so the dashboard shows it in a one-time banner."""
+    name = (payload.get("name") or "").strip()
+    plan = (payload.get("plan") or "free").strip()
+    if not name:
+        from fastapi import HTTPException
+        raise HTTPException(400, "name is required")
+    from core import api_keys as _api_keys
+    if plan not in _api_keys.PLAN_RATE_LIMITS:
+        from fastapi import HTTPException
+        raise HTTPException(400, f"unknown plan; valid: {list(_api_keys.PLAN_RATE_LIMITS)}")
+    result = _api_keys.create_key(name, plan)
+    _add_log(f"API key minted: {name} (plan={plan})", "INFO")
+    return result
+
+
+@app.delete("/api/apikeys/{key_id}")
+async def apikeys_revoke(key_id: str):
+    """Soft-revoke a key — sets active=0, future requests with the key are
+    rejected by verify_key(). Existing rows in api_keys are preserved for
+    audit (created_at, last_used, request_count remain intact)."""
+    from core import api_keys as _api_keys
+    _api_keys.revoke_key(key_id)
+    _add_log(f"API key revoked: {key_id}", "INFO")
+    return {"status": "ok", "id": key_id}
+
+
+@app.post("/api/apikeys/{key_id}/rotate")
+async def apikeys_rotate(key_id: str):
+    """Rotate a key: revokes the old one and mints a replacement with the
+    same name + plan. Returns the new plaintext key for the one-time banner."""
+    from core import api_keys as _api_keys
+    try:
+        result = _api_keys.rotate_key(key_id)
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(404, str(e))
+    _add_log(f"API key rotated: old_id={key_id}", "INFO")
+    return result
+
+
+# ─── /api/memory/* — AI Chat panel conversation namespace ──────────────────
+#
+# The dashboard AI Chat panel calls /api/memory/conversations* but the
+# underlying CRUD lives at chat_db.{list,create,update}_conversation /
+# get_messages. These aliases bind the two without moving data. The
+# /api/memory/settings pair is a thin shim returning empty defaults so the
+# panel stops 404ing on init.
+
+@app.get("/api/memory/conversations")
+async def memory_list_conversations(limit: int = 60, search: str = ""):
+    from core import chat_db as _cdb
+    rows = _cdb.list_conversations(limit=limit, search=search or None)
+    return {"conversations": rows}
+
+
+@app.post("/api/memory/conversations")
+async def memory_create_conversation(payload: dict):
+    from core import chat_db as _cdb
+    cid = _cdb.create_conversation(
+        title=(payload.get("title") or "New Chat"),
+        system_prompt=payload.get("system_prompt"),
+        model=payload.get("model"),
+    )
+    return {"id": cid}
+
+
+@app.patch("/api/memory/conversations/{conv_id}")
+async def memory_update_conversation(conv_id: str, payload: dict):
+    from core import chat_db as _cdb
+    _cdb.update_conversation(
+        conversation_id=conv_id,
+        title=payload.get("title"),
+        system_prompt=payload.get("system_prompt"),
+        pinned=payload.get("pinned"),
+        model=payload.get("model"),
+    )
+    return {"status": "ok", "id": conv_id}
+
+
+@app.get("/api/memory/conversations/{conv_id}/messages")
+async def memory_get_messages(conv_id: str, limit: int = 200):
+    from core import chat_db as _cdb
+    return {"messages": _cdb.get_messages(conv_id, limit=limit)}
+
+
+@app.get("/api/memory/messages")
+async def memory_messages_legacy(conversation_id: str = "", limit: int = 200):
+    """Compat alias for older frontend calls that pass conversation_id as a
+    query string. Returns empty list when conversation_id is omitted."""
+    from core import chat_db as _cdb
+    if not conversation_id:
+        return {"messages": []}
+    return {"messages": _cdb.get_messages(conversation_id, limit=limit)}
+
+
+@app.get("/api/memory/settings")
+async def memory_get_settings():
+    """Settings bag for the AI Chat panel. Returns empty defaults — the
+    panel falls back to sensible behavior when settings are absent."""
+    return {}
+
+
+@app.patch("/api/memory/settings")
+async def memory_update_settings(payload: dict):
+    """No-op accept. When persistence is wired, drop the payload into
+    chat_db.get_setting / set_setting (those helpers already exist)."""
+    updates = payload.get("updates") or {}
+    return {"status": "ok", "received": len(updates)}
+
+
+# ─── /api/agent/* — minimal stubs while the real engine is being designed ──
+#
+# The Agent Mode panel expects a full SSE-streaming tool-use loop. That
+# needs a separate design pass (model choice, sandbox, cost ceiling, tool
+# registry) and is intentionally out of scope for this branch. These two
+# stubs surface a clean state instead of 404 noise:
+#   • GET /api/agent/runs → empty list, sidebar badge reads 'ready'
+#   • POST /api/agent/cancel/{id} → 200 OK no-op
+# POST /api/agent/run and GET /api/agent/stream/{id} are left unimplemented
+# on purpose — a partial stub there would attempt SSE on a fake run_id and
+# make the failure mode worse, not better.
+
+@app.get("/api/agent/runs")
+async def agent_runs_stub():
+    return {"runs": []}
+
+
+@app.post("/api/agent/cancel/{run_id}")
+async def agent_cancel_stub(run_id: str):
+    return {"status": "ok", "run_id": run_id, "note": "no-op stub"}
 
 
 # ─── Command ──────────────────────────────────────────────────────────────────
@@ -2962,13 +3552,13 @@ Write a report with:
 Keep total length under 600 words. Use clean HTML with inline styles. No markdown."""
 
     import os
-    from core.llm_client import safe_openai_call
-    resp = safe_openai_call(
-        messages=[{"role": "user", "content": prompt}],
+    from openai import OpenAI
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    resp = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=1500,
         temperature=0.6,
-        bot_name="api_weekly_report",
     )
     import re as _re
     html = resp.choices[0].message.content.strip()
@@ -3686,13 +4276,12 @@ Rules:
 
 Return ONLY the 7 tweets, separated by "---" on its own line. No other text."""
 
-    from core.llm_client import safe_openai_call
-    resp = safe_openai_call(
-        messages=[{"role": "user", "content": prompt}],
+    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    resp = client.chat.completions.create(
         model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=900,
         temperature=0.8,
-        bot_name="api_tweets",
     )
     raw = resp.choices[0].message.content.strip()
     tweets = [t.strip() for t in raw.split("---") if t.strip()]
@@ -4481,7 +5070,7 @@ async def google_oauth_url(request: Request):
     """Return the consent URL to redirect the user to."""
     import secrets, time as _t
     try:
-        from narai.godmode.adapters.google import build_authorization_url
+        from narai_godmode.adapters.google import build_authorization_url
     except Exception as e:
         return {"error": f"Google adapter import failed: {e}"}
 
@@ -4522,7 +5111,7 @@ async def google_oauth_callback(request: Request, code: str = "", error: str = "
 
     redirect_uri = _google_redirect_uri(request)
     try:
-        from narai.godmode.adapters.google import exchange_code, whoami
+        from narai_godmode.adapters.google import exchange_code, whoami
         exchange_code(code, redirect_uri)
         try:
             email = whoami().get("email", "(unknown)")
@@ -4546,7 +5135,7 @@ async def google_oauth_callback(request: Request, code: str = "", error: str = "
 async def google_status():
     """Report Google OAuth connection status with reconnect detection."""
     try:
-        from narai.godmode.adapters.google import (
+        from narai_godmode.adapters.google import (
             _load_creds_from_vault, whoami, needs_reconsent, GoogleReauthRequired,
         )
         # Option 2: if the refresh flag is set, tell dashboard to show reconnect banner.
@@ -5964,12 +6553,12 @@ def _generate_reddit_post(title: str, category: str, url: str) -> Dict:
         '{"reddit_title":"<post title max 200 chars>","body":"<self-post body 150-250 words>","niche":"' + niche + '"}'
     )
     try:
-        from core.llm_client import safe_openai_call
-        resp = safe_openai_call(
-            messages=[{"role": "user", "content": prompt}],
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=500, temperature=0.75,
-            bot_name="api_reddit",
         )
         import re as _re
         raw = resp.choices[0].message.content.strip()
@@ -6328,12 +6917,12 @@ def _generate_tiktok_script(title: str, category: str, url: str,
         '{"hook":"<15-second attention-grabbing opening line>","script":"<45-second main content, 3-4 sentences>","caption":"<TikTok caption max 150 chars with emoji>","hashtags":["<tag1>","<tag2>","<tag3>","<tag4>","<tag5>"]}'
     )
     try:
-        from core.llm_client import safe_openai_call
-        resp = safe_openai_call(
-            messages=[{"role": "user", "content": prompt}],
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=400, temperature=0.8,
-            bot_name="api_tiktok",
         )
         import re as _re
         raw = resp.choices[0].message.content.strip()
@@ -6538,12 +7127,12 @@ async def generate_newsletter():
         "Keep it under 400 words. Use inline CSS. Make it look premium."
     )
     try:
-        from core.llm_client import safe_openai_call
-        resp = safe_openai_call(
-            messages=[{"role": "user", "content": prompt}],
+        from openai import OpenAI
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        resp = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=1200, temperature=0.7,
-            bot_name="api_newsletter",
         )
         raw = resp.choices[0].message.content.strip()
     except Exception as e:
@@ -6753,13 +7342,11 @@ def _generate_ad_copy(product: str, ad_type: str, cta_url: str, tone: str, platf
         f"Return ONLY the ad copy, no labels or explanation."
     )
 
-    from core.llm_client import safe_openai_call
-    resp = safe_openai_call(
-        messages=[{"role": "user", "content": prompt}],
+    resp = openai.chat.completions.create(
         model=model,
+        messages=[{"role": "user", "content": prompt}],
         max_tokens=300,
         temperature=0.85,
-        bot_name="api_ads",
     )
     return resp.choices[0].message.content.strip()
 
@@ -8077,14 +8664,14 @@ async def narai_generate_image(req: NarAIImageRequest):
     prompt = req.prompt.strip()[:800]
     if not prompt:
         raise HTTPException(status_code=400, detail="Prompt required")
-    allowed_sizes = {"1024x1024", "1536x1024", "1024x1536"}
+    allowed_sizes = {"1024x1024", "1792x1024", "1024x1792"}
     size = req.size if req.size in allowed_sizes else "1024x1024"
-    quality = req.quality if req.quality in {"low", "medium", "high"} else "high"
+    quality = req.quality if req.quality in {"standard", "hd"} else "standard"
     try:
         from openai import OpenAI as _OAI
         client = _OAI(api_key=os.getenv("OPENAI_API_KEY", ""))
         resp = client.images.generate(
-            model="gpt-image-1",
+            model="dall-e-3",
             prompt=prompt,
             size=size,
             quality=quality,
@@ -8833,21 +9420,6 @@ async def stripe_webhook(request: Request):
                 )
     except Exception as _ds_err:
         _add_log(f"discord_subscription dispatch failed: {_ds_err}", "WARNING")
-
-    # NAI tier-upgrade bridge — Stripe → Supabase profiles.tier (Week 3).
-    # Acts only on prices matching STRIPE_PRICE_PRO / MAX / ULTRA. Other
-    # prices (Shopify-merchant, Bot Pack, Telegram, Discord) are skipped
-    # silently by the module's price-id filter.
-    try:
-        from narai.integrations import nai_subscription as _nai
-        if etype == "checkout.session.completed":
-            _nai.handle_checkout_completed(data)
-        elif etype in ("customer.subscription.created", "customer.subscription.updated"):
-            _nai.handle_subscription_updated(data)
-        elif etype == "customer.subscription.deleted":
-            _nai.handle_subscription_deleted(data)
-    except Exception as _nai_err:
-        _add_log(f"nai_subscription dispatch failed: {_nai_err}", "WARNING")
 
     # Affiliate attribution — link Stripe payment back to most recent /go/{partner} click
     if amount_usd > 0 and etype in ("checkout.session.completed", "invoice.paid"):
@@ -13500,18 +14072,16 @@ async def email_subscribe(req: SubscribeRequest):
 _v2_auth_loaded = False
 try:
     from pydantic import BaseModel as _V2BaseModel
-    from narai.api.auth import create_token as _v2_create_token, sign_in_with_supabase as _v2_signin
+    from narai.api.auth import create_token as _v2_create_token, verify_password as _v2_verify_password
 
     class _V2LoginRequest(_V2BaseModel):
-        email: str
         password: str
 
     @app.post("/api/v2/narai/auth/login")
     def _v2_login(req: _V2LoginRequest) -> dict:
-        user_id = _v2_signin(req.email, req.password)
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid email or password")
-        return {"token": _v2_create_token(user_id)}
+        if not _v2_verify_password(req.password):
+            raise HTTPException(status_code=401, detail="Wrong password")
+        return {"token": _v2_create_token()}
 
     @app.get("/api/v2/narai/health")
     def _v2_health() -> dict:
@@ -13527,7 +14097,6 @@ if _v2_auth_loaded:
         from narai.api.routes.chat import rt as _v2_chat_rt
         from narai.api.routes.memory import rag_rt as _v2_rag_rt, rt as _v2_memory_rt
         from narai.api.routes.skills_route import rt as _v2_skills_rt
-        from narai.api.routes.personality import rt as _v2_personality_rt
         from narai.core.db import init_db as _v2_init_db
         from infra.brain.resilience import breaker_status as _v2_breaker_status
 
@@ -13535,7 +14104,6 @@ if _v2_auth_loaded:
         app.include_router(_v2_memory_rt, prefix="/api/v2/narai")
         app.include_router(_v2_rag_rt, prefix="/api/v2/narai")
         app.include_router(_v2_skills_rt, prefix="/api/v2/narai")
-        app.include_router(_v2_personality_rt, prefix="/api/v2/narai")
 
         # init_db is async; register it on FastAPI's startup so it runs inside
         # the event loop. Calling asyncio.run() here fails when uvicorn imports
@@ -13884,29 +14452,6 @@ async def bug_hunter_scan(background_tasks: BackgroundTasks):
     return {"status": "started", "message": "Bug hunter scan started in background"}
 
 
-# ── Whop integration status (admin-gated by global X-API-Key middleware) ─────
-
-@app.get("/api/whop/status")
-async def whop_status():
-    """Whop connection health: auth + which permission tiers are reachable.
-    Mirrors the same shape as NARAI's /api/narai/whop/health so a single
-    frontend can consume either endpoint."""
-    try:
-        from narai.integrations.whop import WhopClient
-    except ImportError as e:
-        return {"auth": "fail", "errors": [f"whop integration unavailable: {e}"]}
-
-    try:
-        async with WhopClient() as c:
-            return await c.health()
-    except Exception as e:
-        return {
-            "auth": "fail",
-            "errors": [str(e)],
-            "endpoint": "https://api.whop.com/public-graphql",
-        }
-
-
 # ── Public landing-page endpoints (no auth, IP rate-limited) ─────────────────
 
 _PUBLIC_CHAT_HITS: dict[str, list[float]] = {}
@@ -13944,3 +14489,40 @@ async def public_chat(req: Request, body: _PublicChatBody):
 async def public_crypto():
     from core.integrations import get_integrations
     return get_integrations().get_crypto_prices()
+
+
+# ─── Mount domain routers ─────────────────────────────────────────────────────
+#
+# Many backend domains (code, builder, botctl, creative, github, kb, voice,
+# plus analytics/market/log/scheduler/stripe/notify) are implemented as
+# APIRouter instances in core/*_router.py but were never registered with the
+# FastAPI app. The frontend has been 404'ing against these the entire time.
+#
+# Mounted at end-of-file so any direct @app.{method} declared earlier wins on
+# conflict (FastAPI uses first-registered semantics). Each include_router is
+# guarded so a single broken router doesn't take down app startup — the error
+# is logged and the rest still mount.
+
+_ROUTER_MODULES = [
+    "code_router",        # /api/code         — AI code gen + run + save
+    "builder_router",     # /api/builder      — visual bot builder
+    "bot_router",         # /api/botctl       — bot control (start/stop/log)
+    "creative_router",    # /api/creative     — lyrics, novel, social pack, etc.
+    "github_router",      # /api/github       — repos, issues, prs, actions
+    "knowledge_router",   # /api/kb           — RAG knowledge base
+    "voice_router",       # /api/voice        — ElevenLabs / OpenAI TTS
+    "analytics_router",   # /api/analytics    — overview / bots / usage / timeline
+    "market_router",      # /api/market       — summary / stocks / crypto
+    "log_router",         # /api/logs         — search / sources / stats
+    "scheduler_router",   # /api/scheduler    — jobs CRUD + run-now
+    "stripe_router",      # /api/stripe       — plans / checkout / portal
+    "notify_router",      # /api/notify       — adds POST /api/notify (create) to the existing direct routes
+]
+
+for _modname in _ROUTER_MODULES:
+    try:
+        _mod = __import__(f"core.{_modname}", fromlist=["router"])
+        app.include_router(_mod.router)
+        _add_log(f"Router mounted: {_modname}", "INFO")
+    except Exception as _e:
+        _add_log(f"Router mount FAILED: {_modname} ({_e})", "WARN")

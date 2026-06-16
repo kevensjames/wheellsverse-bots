@@ -14,9 +14,35 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+import os as _os
+
 ROOT = Path(__file__).parent.parent
 BLOG_DIR = ROOT / "frontend" / "blog"
 SITE_URL = "https://wheellsverse-bots.pages.dev"
+
+# OLD: affiliate-bar links hardcoded /go/webull (anchor "Robinhood"),
+# OLD: /go/coinbase, and https://www.amazon.com/s?k=passive+income+investing&tag=wheellsverse-20.
+# OLD: Per affiliate_swap_pass2_2026_06_02 they now route to the owned
+# OLD: digital product (stan.store) with UTM tagging by source partner key.
+_BOT_GEN = "scripts_generate_blog_index"
+_CAMP_GEN = "affiliate_swap_pass2_2026_06_02"
+_STAN_GEN = "https://stan.store/Wheellsverse"
+
+
+def _u_gen(content: str) -> str:
+    return f"{_STAN_GEN}?utm_source={_BOT_GEN}&utm_medium=blog&utm_campaign={_CAMP_GEN}&utm_content={content}"
+
+
+AFFBAR_WEBULL = _u_gen("webull")
+AFFBAR_COINBASE = _u_gen("coinbase")
+AFFBAR_AMAZON = _u_gen("amazon_books")
+
+# OLD: newsletter form posted to "https://grateful-flexibility-production.up.railway.app/api/lead"
+# OLD: (the Railway-hosted lead backend). NEW (affiliate_swap_pass2_2026_06_02):
+# OLD: read from LEAD_API_URL env at render time; non-Railway fallback is the
+# OLD: canonical app.wheellsverse.com endpoint. Set LEAD_API_URL in env when
+# OLD: deploying to keep Railway as the live target.
+LEAD_API_URL = _os.getenv("LEAD_API_URL", "https://app.wheellsverse.com/api/lead")
 
 CATEGORY_MAP = {
     "crypto": ("Crypto", "#00d4ff", "₿"),
@@ -255,9 +281,12 @@ footer a{{color:var(--cyan);text-decoration:none}}
     <p><strong style="color:var(--text)">Recommended picks from today's articles:</strong><br>
     All links below are affiliate links — we earn a commission at no cost to you.</p>
     <div class="aff-links">
-      <a href="https://app.wheellsverse.com/go/webull" target="_blank" class="aff-link aff-link--cyan">📈 Free Stock — Robinhood</a>
-      <a href="https://app.wheellsverse.com/go/coinbase" target="_blank" class="aff-link aff-link--green">₿ $10 BTC — Coinbase</a>
-      <a href="https://www.amazon.com/s?k=passive+income+investing&tag=wheellsverse-20" target="_blank" class="aff-link aff-link--gold">📚 Best Books — Amazon</a>
+      <!-- OLD: href="https://app.wheellsverse.com/go/webull" text="Free Stock — Robinhood" -->
+      <a href="{AFFBAR_WEBULL}" target="_blank" class="aff-link aff-link--cyan">📈 Free Stocks Playbook</a>
+      <!-- OLD: href="https://app.wheellsverse.com/go/coinbase" text="$10 BTC — Coinbase" -->
+      <a href="{AFFBAR_COINBASE}" target="_blank" class="aff-link aff-link--green">₿ Crypto Starter Pack</a>
+      <!-- OLD: href="https://www.amazon.com/s?k=passive+income+investing&tag=wheellsverse-20" text="Best Books — Amazon" -->
+      <a href="{AFFBAR_AMAZON}" target="_blank" class="aff-link aff-link--gold">📚 Passive Income Books Pack</a>
     </div>
   </div>
 </div>
@@ -306,7 +335,7 @@ document.getElementById('blog-subscribe-form').addEventListener('submit', async 
   btn.textContent = 'Joining...';
   btn.disabled = true;
   try {{
-    await fetch('https://grateful-flexibility-production.up.railway.app/api/lead', {{
+    await fetch('{LEAD_API_URL}', {{
       method: 'POST',
       headers: {{'Content-Type': 'application/json'}},
       body: JSON.stringify({{email, name:'', source:'blog_index', topic:'Money & AI'}}),

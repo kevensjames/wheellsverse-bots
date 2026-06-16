@@ -118,6 +118,18 @@ def _build_description(content: str, title: str = "") -> str:
     robinhood = f"{site_base}/go/webull"
     amazon_tag = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
+    # OLD: third CTA pointed to "https://amzn.to/{amazon_tag}" (Amazon shortener).
+    # NEW (affiliate_swap_2026_05_29): third CTA points to the owned digital
+    # product with UTM tagging. The /go/coinbase and /go/webull redirects
+    # still pass through click_tracker for click logging, then resolve to
+    # stan.store with utm_content set per partner key.
+    _stan_books = (
+        "https://stan.store/Wheellsverse"
+        "?utm_source=core_youtube&utm_medium=youtube"
+        "&utm_campaign=affiliate_swap_2026_05_29"
+        "&utm_content=passive_income_books"
+    )
+
     desc = f"""{summary}
 
 ─────────────────────────────────────────
@@ -125,7 +137,7 @@ def _build_description(content: str, title: str = "") -> str:
 
 📈 Get free stocks on Webull → {robinhood}
 ₿ Earn $10 in FREE Bitcoin on Coinbase → {coinbase}
-📚 Best passive income books → https://amzn.to/{amazon_tag}
+📚 Best passive income books → {_stan_books}
 
 ─────────────────────────────────────────
 🌐 More content: {site_base}

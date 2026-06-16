@@ -31,27 +31,54 @@ def _hunter_key() -> str:
     return k
 
 
-def _hunter_company_search(company_name: str, key: str) -> Optional[dict]:
-    """Best-effort company → email via Hunter's email-finder + company-search."""
-    # Step 1: company name → domain (Hunter company endpoint)
-    cs = requests.get(
-        "https://api.hunter.io/v2/email-finder",
-        params={"company": company_name, "api_key": key, "type": "personal"},
+def _extract_domain(url: str) -> str:
+    """Pull bare domain from a website URL. Empty string if URL is missing/malformed."""
+    if not url:
+        return ""
+    from urllib.parse import urlparse
+    try:
+        host = urlparse(url if "://" in url else f"http://{url}").hostname or ""
+        # removeprefix (Py3.9+) — NOT lstrip, which strips a CHAR SET not a prefix
+        # (lstrip("www.") on "wexample.com" returns "example.com" — wrong)
+        return host.removeprefix("www.") if host.startswith("www.") else host
+    except Exception:
+        return ""
+
+
+def _hunter_domain_lookup(website: str, key: str) -> Optional[dict]:
+    """Look up emails for a business's domain via Hunter's /domain-search.
+
+    /email-finder (the previous endpoint) requires first_name + last_name, which we
+    don't have for cold prospects. /domain-search returns up to 10 emails associated
+    with a domain in one call — free tier allows 50/mo, which fits SMB scanning.
+
+    Returns the highest-confidence email Hunter found, or None.
+    """
+    domain = _extract_domain(website)
+    if not domain:
+        return None
+    r = requests.get(
+        "https://api.hunter.io/v2/domain-search",
+        params={"domain": domain, "api_key": key, "limit": 5, "type": "personal"},
         timeout=15,
     )
-    if cs.status_code != 200:
-        logger.debug(f"Hunter {cs.status_code} for {company_name!r}: {cs.text[:200]}")
+    if r.status_code != 200:
+        logger.debug(f"Hunter {r.status_code} for domain {domain!r}: {r.text[:200]}")
         return None
-    data = cs.json().get("data", {})
-    if not data.get("email"):
+    data = r.json().get("data", {})
+    emails = data.get("emails", []) or []
+    if not emails:
         return None
+    # Hunter sorts by confidence descending — first entry is the best match
+    best = emails[0]
     return {
-        "email": data["email"],
-        "first_name": data.get("first_name", ""),
-        "last_name": data.get("last_name", ""),
-        "position": data.get("position", ""),
-        "confidence": data.get("score", 0),
-        "source": "hunter",
+        "email": best.get("value", ""),
+        "first_name": best.get("first_name", "") or "",
+        "last_name": best.get("last_name", "") or "",
+        "position": best.get("position", "") or "",
+        "confidence": best.get("confidence", 0),
+        "source": "hunter:domain-search",
+        "domain": domain,
     }
 
 
@@ -86,7 +113,10 @@ def enrich_scan(scan_path: Path, dry_run: bool = True) -> Path:
         if dry_run:
             hit = _dry_run_enrich(p)
         else:
-            hit = _hunter_company_search(p["name"], key)
+            # bad-website pivot: prospects DO have websites (just broken/outdated ones),
+            # so we can extract the domain and use /domain-search. No-website prospects
+            # fall through to phone-only outbound.
+            hit = _hunter_domain_lookup(p.get("website", ""), key) if p.get("website") else None
             time.sleep(0.1)  # 10 req/sec ceiling
 
         if hit:

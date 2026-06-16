@@ -24,7 +24,7 @@ Glad you replied. Two quick things:
    no obligation, no expiring link.
 
 2. If you want to talk through making it live, grab any 15-min slot here:
-   https://calendly.com/jay-siteboost/15
+   https://calendly.com/<your-handle>/15min
 
 I'll have your site preview pulled up on the call so we can tweak anything
 live. Most calls end with the site going live within 48 hours.
@@ -73,7 +73,7 @@ What's included:
   • Live in 48 hours after we talk
 
 If that timing/budget works, here's my calendar:
-https://calendly.com/jay-siteboost/15
+https://calendly.com/<your-handle>/15min
 
 I keep calls to 15 minutes — show you exactly what changes, take your
 content via email afterward, you're live by Wednesday.
