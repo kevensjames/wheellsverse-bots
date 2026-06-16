@@ -28,25 +28,33 @@ cd "$REPO_ROOT"
 # Order matters: backend/.env LAST so its DATABASE_URL wins if both files
 # define it.
 #
-# `set +e` during sourcing because root .env has some keys with unquoted
-# spaces (e.g. EMAIL_FROM_NAME=WheellsVerse Bot) that make the shell treat
-# the second word as a command. We tolerate those bad lines (the well-formed
-# keys we care about — OPENAI_API_KEY, ANTHROPIC_API_KEY, DATABASE_URL,
-# JWT_SECRET_KEY — all have no spaces and parse cleanly).
-set +e
-if [ -f .env ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . ./.env 2>/dev/null
-    set +a
-fi
-if [ -f backend/.env ]; then
-    set -a
-    # shellcheck disable=SC1091
-    . ./backend/.env 2>/dev/null
-    set +a
-fi
-set -e
+# Load .env with a LITERAL parser — NOT `. ./.env`. Shell-sourcing under set -u
+# aborts on the first $-bearing value (e.g. NARAI_PASSWORD_HASH=$2b$… ) and
+# silently drops EVERY key after it; brace/word-splitting also mangles JSON
+# values (OLLAMA_MODEL_MAP) and unquoted spaces (EMAIL_FROM_NAME=WheellsVerse Bot).
+# This reads KEY=VALUE literally — no shell evaluation — so every key reaches the
+# daemon regardless of position or content. (Fixes the long-standing "key trapped
+# below the landmine" problem: Composio, Supabase, Shopify, Runway, etc.)
+load_env() {
+    local f="$1" line key val
+    [ -f "$f" ] || return 0
+    while IFS= read -r line || [ -n "$line" ]; do
+        case "$line" in
+            ''|'#'*) continue ;;            # blank or comment
+            [A-Za-z_]*=*) ;;                # KEY=VALUE shape
+            *) continue ;;                  # anything else (stray lines)
+        esac
+        key="${line%%=*}"
+        val="${line#*=}"
+        case "$val" in                      # strip optional surrounding quotes
+            \"*\") val="${val#\"}"; val="${val%\"}" ;;
+            \'*\') val="${val#\'}"; val="${val%\'}" ;;
+        esac
+        export "$key=$val"
+    done < "$f"
+}
+load_env .env
+load_env backend/.env
 
 # Fail loudly + early if any of these are missing.
 : "${DATABASE_URL:?DATABASE_URL missing — fix .env}"
