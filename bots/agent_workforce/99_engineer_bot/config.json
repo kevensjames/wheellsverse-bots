@@ -1,1 +1,7 @@
-{"description": "AI engineer — code review, generation, and fixes powered by Claude", "ai_provider": "claude", "enabled": true}
+{
+  "description": "AI engineer \u2014 code review, generation, and fixes powered by Claude",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 07:00",
+  "action": "review"
+}
