@@ -183,20 +183,39 @@ def test_cloud_failure_does_not_fall_back(adapters, fake_tracker):
         r.complete(user_id=uuid.uuid4(), messages=[{"role": "user", "content": "hi"}])
 
 
-def test_chat_tool_adapter_failure_degrades_to_local(adapters, fake_tracker):
-    # OpenAI (tool-capable) down (e.g. 429) → chat() returns a PLAIN local
-    # answer instead of erroring. Degraded (no tools) but responsive.
+def test_chat_fails_over_to_anthropic(adapters, fake_tracker):
+    # OpenAI tool-brain down (429) → chat() FAILS OVER to Anthropic, KEEPING
+    # tools (not degrading to a plain local answer). The key 429-resilience path.
     from unittest.mock import MagicMock
-    adapters["openai"] = _boom("openai")
+    adapters["openai"] = _boom("openai")  # primary tool brain down
     r = Router(adapters=adapters, spend_tracker=fake_tracker)
-    reg = MagicMock(); reg.openai_schema.return_value = []
+    reg = MagicMock()
+    reg.openai_schema.return_value = []
+    reg.anthropic_schema.return_value = []
     res = r.chat(
         user_id=uuid.uuid4(),
         messages=[{"role": "user", "content": "hi"}],
         tool_registry=reg, tool_context=MagicMock(),
-        prefer_local=True,
     )
-    assert res.adapter == "ollama"
+    assert res.adapter == "anthropic"  # failed over to the other tool brain
+    assert res.content == "reply-from-anthropic"
+
+
+def test_chat_both_brains_down_degrades_to_local(adapters, fake_tracker):
+    # BOTH tool brains down → degrade to a PLAIN local answer (no tools).
+    from unittest.mock import MagicMock
+    adapters["openai"] = _boom("openai")
+    adapters["anthropic"] = _boom("anthropic")
+    r = Router(adapters=adapters, spend_tracker=fake_tracker)
+    reg = MagicMock()
+    reg.openai_schema.return_value = []
+    reg.anthropic_schema.return_value = []
+    res = r.chat(
+        user_id=uuid.uuid4(),
+        messages=[{"role": "user", "content": "hi"}],
+        tool_registry=reg, tool_context=MagicMock(),
+    )
+    assert res.adapter == "ollama"  # both brains failed → plain local
     assert res.content == "reply-from-ollama"
 
 
