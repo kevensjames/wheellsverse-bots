@@ -43,3 +43,33 @@ def test_legacy_sha256_still_verifies():
     assert nexora_auth.verify_password("hunter2", legacy)
     assert nexora_auth.needs_rehash(legacy) is True
     assert nexora_auth.needs_rehash(nexora_auth.hash_password("x")) is False
+
+
+from core import nexora_users
+
+def test_upsert_creates_then_updates(db):
+    u = nexora_users.upsert_user("A@X.com", full_name="Ann", role="creator")
+    assert u == {"email": "a@x.com", "full_name": "Ann", "role": "creator",
+                 "is_suspended": False, "age_verified": False, "avatar_url": ""}
+    u2 = nexora_users.upsert_user("a@x.com", full_name="Annie")
+    assert u2["full_name"] == "Annie" and u2["role"] == "creator"
+
+def test_upsert_never_downgrades_admin(db):
+    nexora_users.upsert_user("boss@x.com", role="admin")
+    u = nexora_users.upsert_user("boss@x.com", role="creator")
+    assert u["role"] == "admin"
+
+def test_role_and_suspend_and_age(db):
+    nexora_users.upsert_user("f@x.com")
+    assert nexora_users.get_user("f@x.com")["role"] == "fan"
+    nexora_users.set_role("f@x.com", "creator")
+    nexora_users.set_suspended("f@x.com", True)
+    nexora_users.set_age_verified("f@x.com")
+    u = nexora_users.get_user("f@x.com")
+    assert u["role"] == "creator" and u["is_suspended"] is True and u["age_verified"] is True
+
+def test_check_access():
+    admin = {"role": "admin"}; fan = {"role": "fan"}
+    assert nexora_users.check_access(admin, "admin") is True
+    assert nexora_users.check_access(fan, "admin") is False
+    assert nexora_users.check_access(fan, "fan", "creator") is True
