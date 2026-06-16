@@ -36,6 +36,15 @@ def get_conn() -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys=ON")
     return conn
 
+
+def _ensure_columns(conn, table: str, cols: dict) -> None:
+    """Idempotently ADD COLUMN for any name in `cols` missing from `table`.
+    `cols` maps column-name -> full column DDL fragment."""
+    existing = {r["name"] for r in conn.execute(f"PRAGMA table_info({table})")}
+    for name, ddl in cols.items():
+        if name not in existing:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {ddl}")
+
 # ── Schema ─────────────────────────────────────────────────────────────────────
 
 
@@ -143,6 +152,16 @@ CREATE TABLE IF NOT EXISTS nx_fan_sessions (
     token       TEXT    UNIQUE NOT NULL,
     expires_at  REAL    NOT NULL,
     created_at  REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_users (
+    email         TEXT    PRIMARY KEY,
+    full_name     TEXT    DEFAULT '',
+    role          TEXT    DEFAULT 'fan',
+    is_suspended  INTEGER DEFAULT 0,
+    age_verified  INTEGER DEFAULT 0,
+    avatar_url    TEXT    DEFAULT '',
+    created_at    REAL    NOT NULL
 );
 """
 
