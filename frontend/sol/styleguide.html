@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sol Design System — Styleguide</title>
+  <link rel="stylesheet" href="/sol/sol-design-system.css">
+  <style>
+    body{padding:var(--s-8) 0}
+    .sg-sec{margin-bottom:var(--s-12)}
+    .sw{display:inline-block;width:120px;height:64px;border-radius:var(--r-md);border:1px solid var(--line);margin:4px;position:relative;vertical-align:top}
+    .sw span{position:absolute;bottom:4px;left:6px;font-size:11px;background:rgba(255,255,255,.85);padding:1px 4px;border-radius:4px}
+    .row{display:flex;flex-wrap:wrap;gap:var(--s-4);align-items:flex-start;margin-bottom:var(--s-4)}
+  </style>
+</head>
+<body>
+<div class="container stack">
+  <header>
+    <h1>Sol Design System</h1>
+    <p class="tnum">warm-trust hybrid · Space Grotesk + Inter · sunrise palette</p>
+  </header>
+
+  <section class="sg-sec">
+    <h2>Color</h2>
+    <div>
+      <div class="sw" style="background:var(--ink-900)"><span>ink-900</span></div>
+      <div class="sw" style="background:var(--ink-700)"><span>ink-700</span></div>
+      <div class="sw" style="background:var(--ink-500)"><span>ink-500</span></div>
+      <div class="sw" style="background:var(--paper)"><span>paper</span></div>
+      <div class="sw" style="background:var(--surface-2)"><span>surface-2</span></div>
+      <div class="sw" style="background:var(--sol-600)"><span>sol-600</span></div>
+      <div class="sw" style="background:var(--sol-500)"><span>sol-500</span></div>
+      <div class="sw" style="background:var(--sol-200)"><span>sol-200</span></div>
+      <div class="sw" style="background:var(--coral-500)"><span>coral</span></div>
+      <div class="sw" style="background:var(--success-600)"><span>success</span></div>
+      <div class="sw" style="background:var(--warn-600)"><span>warn</span></div>
+      <div class="sw" style="background:var(--danger-700)"><span>danger</span></div>
+    </div>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Type scale</h2>
+    <div style="font-size:var(--step-6);font-family:var(--font-display)">Display 6 — A circle that pays you back</div>
+    <div style="font-size:var(--step-4);font-family:var(--font-display)">Heading 4 — Your turn comes around</div>
+    <div style="font-size:var(--step-1)">Subhead — Inter 1.2rem</div>
+    <p>Body — Inter at 1rem / 1.55. The quick brown fox. Números: <span class="tnum">$3,600.00</span> · Español: año, mañana.</p>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Buttons</h2>
+    <div class="cluster">
+      <button class="btn btn--primary">Join the waitlist</button>
+      <button class="btn btn--ghost">Learn more</button>
+      <button class="btn btn--danger">Halt money movement</button>
+      <button class="btn btn--primary btn--sm">Small</button>
+      <button class="btn btn--primary btn--loading">Loading</button>
+      <button class="btn btn--primary" disabled>Disabled</button>
+    </div>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Fields</h2>
+    <div class="row">
+      <div class="field" style="width:260px">
+        <label for="e1">Email</label>
+        <input id="e1" type="email" placeholder="you@example.com">
+        <div class="hint">We'll email your circle invite.</div>
+      </div>
+      <div class="field field--error" style="width:260px">
+        <label for="e2">Amount</label>
+        <input id="e2" value="-5" class="tnum">
+        <div class="error">Amount must be positive.</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Cards / stats</h2>
+    <div class="row">
+      <div class="card card--stat" style="width:200px"><span class="stat-label">Next contribution</span><span class="stat-value tnum">$200</span></div>
+      <div class="card card--stat" style="width:200px"><span class="stat-label">Your payout</span><span class="stat-value tnum">$3,600</span></div>
+      <div class="card" style="width:280px"><h4>The circle</h4><p>20 members · $200/mo · one payout each cycle.</p><span class="badge badge--success">Active</span></div>
+    </div>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Tabs + Table + Badges</h2>
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" aria-selected="true">Payments</button>
+      <button class="tab" role="tab" aria-selected="false">Payouts</button>
+      <button class="tab" role="tab" aria-selected="false">Cycles</button>
+    </div>
+    <table class="table table--dense" style="margin-top:var(--s-4)">
+      <thead><tr><th>Member</th><th>Status</th><th class="num">Amount</th></tr></thead>
+      <tbody>
+        <tr><td>Ana R.</td><td><span class="badge badge--success">Paid</span></td><td class="num tnum">$200.00</td></tr>
+        <tr><td>Marcus T.</td><td><span class="badge badge--warn">Pending</span></td><td class="num tnum">$200.00</td></tr>
+        <tr><td>Priya N.</td><td><span class="badge badge--danger">Failed</span></td><td class="num tnum">$200.00</td></tr>
+        <tr><td>Sol O.</td><td><span class="badge badge--neutral">Verifying</span></td><td class="num tnum">$200.00</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Danger zone (kill-switch)</h2>
+    <div class="danger-zone">
+      <h3>Halt money movement</h3>
+      <p>Stops ALL new ACH debit/credit attempts. Requires a reason and confirmation.</p>
+      <button class="btn btn--danger">Halt now</button>
+    </div>
+  </section>
+
+  <section class="sg-sec">
+    <h2>Modal (inline preview)</h2>
+    <div style="position:relative;height:220px;border:1px dashed var(--line);border-radius:var(--r-md)">
+      <div class="modal__backdrop" style="position:absolute">
+        <div class="modal">
+          <h3>Confirm contribution</h3>
+          <p>You're contributing <strong class="tnum">$200.00</strong> to your circle.</p>
+          <div class="cluster"><button class="btn btn--ghost">Cancel</button><button class="btn btn--primary">Confirm</button></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="toast toast--success" style="position:static;display:inline-block">Saved successfully</div>
+</div>
+</body>
+</html>
