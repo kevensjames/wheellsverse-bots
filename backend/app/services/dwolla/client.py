@@ -171,6 +171,21 @@ class DwollaClient:
     def list_funding_sources(self, customer_id: str) -> dict[str, Any]:
         return self._request("GET", f"/customers/{customer_id}/funding-sources")
 
+    def list_account_funding_sources(self) -> dict[str, Any]:
+        return self._request("GET", f"{self._account_href()}/funding-sources")
+
+    def balance_funding_source_href(self) -> str:
+        """The account's `balance` funding source — Sol's pool wallet. Contributions
+        flow IN here and payouts flow OUT of here."""
+        fs = (self.list_account_funding_sources().get("_embedded", {}) or {}).get(
+            "funding-sources", [])
+        for f in fs:
+            if f.get("type") == "balance":
+                href = (f.get("_links", {}).get("self", {}) or {}).get("href")
+                if href:
+                    return href
+        raise DwollaError("no 'balance' funding source on the Dwolla account")
+
     def list_transfers(self, customer_id: str | None = None, limit: int = 25) -> dict[str, Any]:
         # Top-level GET /transfers is POST-only (create). Transfer LISTS are
         # scoped to a customer or the account.

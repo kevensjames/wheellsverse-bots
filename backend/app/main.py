@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_failures, admin_kg, admin_learning, admin_planning, admin_presets, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_failures, admin_kg, admin_learning, admin_planning, admin_presets, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -139,6 +139,11 @@ app.include_router(admin_audit.router)
 app.include_router(admin_digest.router)
 app.include_router(api_keys_admin.router)
 app.include_router(documents.router)
+# Sol ROSCA — operator admin surface (/admin/sol, token-gated) + the Dwolla
+# webhook (/sol/webhook, HMAC-verified, no auth). Money endpoints are gated by
+# KAI_SCOPE_SOL_TRANSFER + approved=True + the DwollaClient sandbox-lock.
+app.include_router(sol.router)
+app.include_router(sol.webhook_router)
 app.include_router(transcribe.router)
 app.include_router(tts.router)
 app.include_router(v1.router)
