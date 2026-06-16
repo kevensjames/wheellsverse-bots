@@ -164,8 +164,11 @@ CATALOG: dict[str, dict[str, Any]] = {
     },
     "bot_error_spike": {
         "scanner": "scanners.bot_error_spike",
-        "fixer":   None,           # log triage is operator work
-        "safety":  "review",
+        "fixer":   "fixers.clear_stale_bot_errors",
+        # auto-safe: fixer only clears /tmp/wv_health/<bot>.json sidecars
+        # when the most-recent error is >2h old; FRESH spikes are returned
+        # as success=False and surfaced for operator triage. No code touched.
+        "safety":  "auto-safe",
         "title":   "Bot log file is spewing ERROR/CRITICAL lines",
     },
     "agent_stale_heartbeat": {

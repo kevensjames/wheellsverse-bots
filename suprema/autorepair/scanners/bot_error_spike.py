@@ -66,7 +66,15 @@ def _parse_ts(line: str) -> datetime | None:
 
 def _count_recent_errors(content: str, since: datetime) -> tuple[int, int]:
     """Returns (recent_count, total_count). recent = within last hour.
-    If no timestamps are parseable, total_count is returned as both."""
+
+    If NO timestamps are parseable for ANY error line in the tail, we return
+    `(0, total)` — NOT `(total, total)`. This was the bug: when a log had old
+    errors with unparseable timestamps and recent INFO writes (touching mtime),
+    every historical error counted as "recent" and the scanner cried wolf.
+
+    Caller must additionally gate on "at least one parseable, recent ERROR
+    line exists" before treating this as a fresh spike (see scan() below).
+    """
     total = 0
     recent = 0
     saw_ts = False
@@ -81,8 +89,25 @@ def _count_recent_errors(content: str, since: datetime) -> tuple[int, int]:
         if ts >= since:
             recent += 1
     if not saw_ts:
-        return total, total
+        # No parseable timestamps anywhere → can't prove anything is recent.
+        # Old behaviour returned (total, total) which fired on stale logs.
+        return 0, total
     return recent, total
+
+
+def _has_fresh_error_line(content: str, since: datetime) -> bool:
+    """True iff at least one ERROR/CRITICAL line has a parseable timestamp
+    that is within `since`. This is the recency gate — without it, a log
+    with one parseable old timestamp + many unparseable lines could still
+    pass through if recent>=5 (it can't anymore given the fix above, but
+    we keep this explicit gate so the intent survives future refactors)."""
+    for line in content.splitlines():
+        if not ERROR_PAT.search(line):
+            continue
+        ts = _parse_ts(line)
+        if ts is not None and ts >= since:
+            return True
+    return False
 
 
 def scan(project: Path, live_url: str | None = None) -> list[dict]:
@@ -92,7 +117,10 @@ def scan(project: Path, live_url: str | None = None) -> list[dict]:
 
     now = datetime.now(timezone.utc)
     cutoff_mtime = now - timedelta(minutes=90)
-    since = now - timedelta(hours=1)
+    # Recency window for "fresh" errors. We widened from 1h → 2h after the
+    # false-positive incident — gives the fixer a buffer to act before the
+    # next scan and reduces flapping at the boundary.
+    since = now - timedelta(hours=2)
 
     findings: list[dict] = []
     spiking_files = 0
@@ -109,6 +137,12 @@ def scan(project: Path, live_url: str | None = None) -> list[dict]:
             continue
         recent, total = _count_recent_errors(content, since)
         if recent < 5:
+            continue
+        # Recency gate: require at least one parseable, recent ERROR line
+        # before reporting. Without this, a stale log whose mtime was
+        # touched by INFO writes can still slip through if its old errors
+        # happen to have parseable timestamps that survive the count.
+        if not _has_fresh_error_line(content, since):
             continue
 
         spiking_files += 1
