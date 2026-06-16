@@ -215,3 +215,4 @@ data/launches/siteboost/digests/
 # Piper TTS .onnx files are ~100-300MB each; do not commit
 models/piper/
 backend/data/
+audits/
