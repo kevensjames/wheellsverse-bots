@@ -1,6 +1,6 @@
 {
-  "started_at": "2026-06-16T15:17:09Z",
-  "elapsed_s": 3.6,
+  "started_at": "2026-06-16T15:18:49Z",
+  "elapsed_s": 3.17,
   "findings_count": 40,
   "findings_total": 40,
   "findings_suppressed": 0,
@@ -429,11 +429,11 @@
       "project": "wheellsverse-bots",
       "severity": "high",
       "location": "https://app.wheellsverse.com/api/health",
-      "evidence": "local HEAD is 349 commits ahead of deployed (local=ac554f5, deployed=611851a)",
+      "evidence": "local HEAD is 351 commits ahead of deployed (local=838034d, deployed=611851a)",
       "fix_payload": {
-        "local_sha": "ac554f5",
+        "local_sha": "838034d",
         "deployed_sha": "611851a",
-        "commits_ahead": 349,
+        "commits_ahead": 351,
         "build_time": "2026-06-16T14:44:47Z"
       }
     },
@@ -442,12 +442,12 @@
       "project": "wheellsverse-bots",
       "severity": "high",
       "location": "logs/system.log",
-      "evidence": "Agent 'system' appears dead (no output >6h) \u2014 last write 11h 49m ago (2026-06-16T03:27:16+00:00)",
+      "evidence": "Agent 'system' appears dead (no output >6h) \u2014 last write 11h 51m ago (2026-06-16T03:27:16+00:00)",
       "fix_payload": {
         "action": "check_agent_process",
         "agent": "system",
         "last_mtime": "2026-06-16T03:27:16.702176+00:00",
-        "age_minutes": 709,
+        "age_minutes": 711,
         "suggested_command": "launchctl kickstart -k gui/$(id -u)/com.wheellsverse.system",
         "note": "Verify the launchd label first \u2014 agents may use a different prefix than com.wheellsverse.<name>."
       }
@@ -1224,11 +1224,11 @@
         "project": "wheellsverse-bots",
         "severity": "high",
         "location": "https://app.wheellsverse.com/api/health",
-        "evidence": "local HEAD is 349 commits ahead of deployed (local=ac554f5, deployed=611851a)",
+        "evidence": "local HEAD is 351 commits ahead of deployed (local=838034d, deployed=611851a)",
         "fix_payload": {
-          "local_sha": "ac554f5",
+          "local_sha": "838034d",
           "deployed_sha": "611851a",
-          "commits_ahead": 349,
+          "commits_ahead": 351,
           "build_time": "2026-06-16T14:44:47Z"
         }
       },
@@ -1246,12 +1246,12 @@
         "project": "wheellsverse-bots",
         "severity": "high",
         "location": "logs/system.log",
-        "evidence": "Agent 'system' appears dead (no output >6h) \u2014 last write 11h 49m ago (2026-06-16T03:27:16+00:00)",
+        "evidence": "Agent 'system' appears dead (no output >6h) \u2014 last write 11h 51m ago (2026-06-16T03:27:16+00:00)",
         "fix_payload": {
           "action": "check_agent_process",
           "agent": "system",
           "last_mtime": "2026-06-16T03:27:16.702176+00:00",
-          "age_minutes": 709,
+          "age_minutes": 711,
           "suggested_command": "launchctl kickstart -k gui/$(id -u)/com.wheellsverse.system",
           "note": "Verify the launchd label first \u2014 agents may use a different prefix than com.wheellsverse.<name>."
         }
@@ -1268,7 +1268,7 @@
   "dry_run": false,
   "llm_triage": null,
   "_sync": {
-    "source": "/Volumes/Wheellsverse/wheellsverse-bots/suprema/autorepair/state/last-run.json",
-    "synced_at": "2026-06-16T15:17:09Z"
+    "source": "/Volumes/Wheellsverse/suprema/autorepair/state/last-run.json",
+    "synced_at": "2026-06-16T15:18:49Z"
   }
 }
