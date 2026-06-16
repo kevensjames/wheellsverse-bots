@@ -17,6 +17,7 @@ from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
 from app.services.tools.courtlistener_search import CourtListenerSearchTool
 from app.services.tools.document_search import DocumentSearchTool
+from app.services.tools.dwolla_tool import DwollaTool
 from app.services.tools.failure_lookup import FailureLookupTool
 from app.services.tools.github_scout import GithubScoutTool
 from app.services.tools.image_gen import ImageGenTool
@@ -128,6 +129,13 @@ def build_default_registry(
         reg.register(TwentyCrmTool())
     else:
         logger.info("tools: twenty_crm skipped (TWENTY_API_URL/TWENTY_API_KEY not set)")
+    # Dwolla (Sol ACH rail) — READ-ONLY inspection only. Registered when
+    # DWOLLA_KEY + DWOLLA_SECRET are set. Money movement is NOT in this tool;
+    # it lives behind @audited(dwolla.transfer, destructive=True) + sandbox-lock.
+    if os.environ.get("DWOLLA_KEY") and os.environ.get("DWOLLA_SECRET"):
+        reg.register(DwollaTool())
+    else:
+        logger.info("tools: dwolla skipped (DWOLLA_KEY/DWOLLA_SECRET not set)")
     # Site builder — KAI generates HTML pages/sections in the WheellsVerse style
     # as reviewable DRAFTS (never auto-publishes). No env key (uses the router).
     reg.register(SiteBuilderTool())
@@ -185,6 +193,7 @@ __all__ = [
     "AuditQueryTool",
     "BrowserTool",
     "ComposioTool",
+    "DwollaTool",
     "FailureLookupTool",
     "GithubScoutTool",
     "ImageGenTool",
