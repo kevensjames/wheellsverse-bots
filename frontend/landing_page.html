@@ -7,9 +7,9 @@
 <!-- TikTok Developer Portal site verification — token assigned to wheellsverse.com (apex) only. -->
 <meta name="tiktok-developers-site-verification" content="J9X9SrrhkdQ2STtyNohHgAsgqUMuZg7s">
 <title>WheellsVerse — One system. One founder.</title>
-<meta name="description" content="NarAI, Nexora, Sol — the AI wealth ecosystem built by J.K.W. Dark, serious, built to last.">
+<meta name="description" content="KAI, Nexora, Sol — the AI wealth ecosystem built by J.K.W. Dark, serious, built to last.">
 <meta property="og:title" content="WheellsVerse — AI Wealth Ecosystem">
-<meta property="og:description" content="One system. One founder. Meet NarAI — your autonomous operator for AI, trading signals, and passive income.">
+<meta property="og:description" content="One system. One founder. Meet KAI — your autonomous operator for AI, trading signals, and passive income.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://wheellsverse.com">
 <meta name="twitter:card" content="summary_large_image">
@@ -212,7 +212,7 @@ section.slab{position:relative; z-index:2; padding:100px 5%; scroll-margin-top:8
 .slab h2{font:700 clamp(30px,4.5vw,46px) var(--font-display); letter-spacing:-1px; line-height:1.1; margin-bottom:14px}
 .slab .lede{font-size:17px; color:var(--text-dim); max-width:640px; margin-bottom:52px}
 
-/* ─────────────────────────  NARAI  ───────────────────────── */
+/* ─────────────────────────  KAI  ───────────────────────── */
 .narai-grid{display:grid; grid-template-columns:1.05fr 1fr; gap:36px; align-items:stretch}
 @media(max-width:920px){.narai-grid{grid-template-columns:1fr}}
 
@@ -456,7 +456,7 @@ footer{
     <p class="sub">Your autonomous AI operator for wealth, signals, and creators. Built by J.K.W.</p>
     <div class="hero-ctas">
       <a class="btn-primary" href="/signup">Enter the System</a>
-      <a class="btn-secondary" href="#narai">Meet NarAI ↓</a>
+      <a class="btn-secondary" href="#narai">Meet KAI ↓</a>
     </div>
     <div class="counters">
       <div class="count-tile"><div class="n cyan" id="cnt-bots">70</div><div class="l">Active Bots</div></div>
@@ -479,11 +479,11 @@ footer{
   </div>
 </div>
 
-<!-- ═════════════════  NARAI  ═════════════════ -->
+<!-- ═════════════════  KAI  ═════════════════ -->
 <section class="slab" id="narai">
   <div class="slab-inner">
     <div class="reveal">
-      <span class="eyebrow">Centerpiece · NarAI</span>
+      <span class="eyebrow">Centerpiece · KAI</span>
       <h2>Your autonomous operator.</h2>
       <p class="lede">She predicts markets, remembers every conversation, executes code, and speaks back. Built on Opus-class models plus a custom long-term memory stack. Click a capability — she reacts.</p>
     </div>
@@ -491,7 +491,7 @@ footer{
       <div class="robot-shell">
         <canvas id="robot-canvas"></canvas>
         <div class="robot-overlay">
-          <span class="live">NARAI · ONLINE</span>
+          <span class="live">KAI · ONLINE</span>
           <span id="robot-status">IDLE</span>
         </div>
       </div>
@@ -505,10 +505,10 @@ footer{
         </div>
         <div class="chat">
           <div class="chat-log" id="chat-log">
-            <div class="chat-msg bot"><span class="who">NARAI</span>Hey — I'm NarAI. Pick a capability or ask me anything. I remember what we talk about.</div>
+            <div class="chat-msg bot"><span class="who">KAI</span>Hey — I'm KAI. Pick a capability or ask me anything. I remember what we talk about.</div>
           </div>
           <form class="chat-input-row" id="chat-form">
-            <input type="text" id="chat-in" placeholder="Ask NarAI…" autocomplete="off" maxlength="500">
+            <input type="text" id="chat-in" placeholder="Ask KAI…" autocomplete="off" maxlength="500">
             <button type="button" class="chat-btn" id="mic-btn" title="Voice">🎙</button>
             <button type="submit" class="chat-btn send">Send →</button>
           </form>
@@ -559,7 +559,7 @@ footer{
     <div class="reveal">
       <span class="eyebrow">The Ecosystem</span>
       <h2>Four systems. One operator.</h2>
-      <p class="lede">Each module solves a different part of the wealth equation — and they all talk to NarAI.</p>
+      <p class="lede">Each module solves a different part of the wealth equation — and they all talk to KAI.</p>
     </div>
     <div class="modules reveal">
       <a class="module nexora" href="/nexora">
@@ -657,7 +657,7 @@ footer{
         <span class="logo-mark">W</span>
         <span class="logo-name"><span class="wv">Wheells</span>Verse</span>
       </a>
-      <p>The AI wealth ecosystem built by J.K.W. NarAI · Nexora · Sol · Store · Blog.</p>
+      <p>The AI wealth ecosystem built by J.K.W. KAI · Nexora · Sol · Store · Blog.</p>
     </div>
     <div class="foot-col">
       <h5>Product</h5>
@@ -837,7 +837,7 @@ document.getElementById('chat-form').addEventListener('submit', async e => {
   const q = input.value.trim(); if(!q) return;
   addMsg('me', q); input.value = '';
 
-  // Wait for NarAI module to be ready (it loads async when GLB comes in)
+  // Wait for KAI module to be ready (it loads async when GLB comes in)
   let tries = 0;
   while(!window.__narai?.reply && tries < 40){ await new Promise(r => setTimeout(r, 50)); tries++; }
 
@@ -850,7 +850,7 @@ document.getElementById('chat-form').addEventListener('submit', async e => {
   window.__narai?.startSpeaking(durationMs);
 
   // Reveal the reply progressively to feel like real speech
-  const msg = addMsg('bot', '', 'NARAI');
+  const msg = addMsg('bot', '', 'KAI');
   await typeInto(msg, reply, 22);
 });
 
@@ -971,7 +971,7 @@ document.getElementById('lead-form').addEventListener('submit', async event => {
 })();
 </script>
 
-<!-- Three.js scene for NarAI (ES module — loads only if browser supports importmap) -->
+<!-- Three.js scene for KAI (ES module — loads only if browser supports importmap) -->
 <script type="module">
 import * as THREE from 'three';
 
@@ -980,28 +980,28 @@ import * as THREE from 'three';
   if(!canvas || !THREE) return;
 
   // ╔══════════════════════════════════════════════════════════════╗
-  // ║  NARAI AVATAR — feminine humanoid from three.js / Mixamo.    ║
+  // ║  KAI AVATAR — feminine humanoid from three.js / Mixamo.    ║
   // ║  Swap the URL for your own Ready Player Me .glb any time.    ║
   // ║  Set to '' to fall back to the procedural sculpture.         ║
   // ╚══════════════════════════════════════════════════════════════╝
-  const NARAI_GLB_URL = 'https://threejs.org/examples/models/gltf/Michelle.glb';
+  const KAI_GLB_URL = 'https://threejs.org/examples/models/gltf/Michelle.glb';
 
   // ╔══════════════════════════════════════════════════════════════╗
-  // ║  NARAI CHAT — configure how she replies.                     ║
+  // ║  KAI CHAT — configure how she replies.                     ║
   // ║  CHAT_URL: your backend endpoint (POST → { reply: "..." })   ║
   // ║  Set CHAT_URL = '' to skip the API and use local replies.    ║
   // ║  Extend SMART_REPLIES below to teach her new topics.         ║
   // ╚══════════════════════════════════════════════════════════════╝
-  const NARAI_CHAT_URL = '/api/public/chat';  // rate-limited public endpoint (5/min per IP)
+  const KAI_CHAT_URL = '/api/public/chat';  // rate-limited public endpoint (5/min per IP)
 
   const SMART_REPLIES = [
     // [keyword regex, one-of responses]
     [/\b(hi|hey|hello|yo|sup)\b/i, [
-      "Hey. I'm NarAI — J.K.W built me to run while he sleeps.",
+      "Hey. I'm KAI — J.K.W built me to run while he sleeps.",
       "I'm up. What do you want to move today?",
     ]],
     [/\bwho (are you|r u)|what are you\b/i, [
-      "NarAI — the autonomous operator for WheellsVerse. 24/7, no coffee.",
+      "KAI — the autonomous operator for WheellsVerse. 24/7, no coffee.",
       "I'm the AI behind the ecosystem. Markets, memory, code, creators.",
     ]],
     [/\bwho (made|built|created|designed) you\b/i, [
@@ -1227,9 +1227,9 @@ import * as THREE from 'three';
     stopSpeaking(){ speakUntil = 0; },
     async reply(text){
       // Try the configured backend first
-      if(NARAI_CHAT_URL){
+      if(KAI_CHAT_URL){
         try {
-          const r = await fetch(NARAI_CHAT_URL, {
+          const r = await fetch(KAI_CHAT_URL, {
             method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify({ message: text, user: 'landing-visitor' })
           });
@@ -1245,7 +1245,7 @@ import * as THREE from 'three';
   };
 
   // ── Optional: load a real human GLB avatar (Ready Player Me / Sketchfab) ──
-  // If NARAI_GLB_URL is set, hide the procedural robot and load the real avatar.
+  // If KAI_GLB_URL is set, hide the procedural robot and load the real avatar.
   let avatar = null;     // the loaded GLB scene
   let avatarHead = null; // the Head bone, for mouse tracking
 
@@ -1277,8 +1277,8 @@ import * as THREE from 'three';
           if(/Spine2$/i.test(n))                    B.Spine2 = o;
         }
       });
-      console.log('[NarAI] bones found:', allBones);
-      console.log('[NarAI] matched:', Object.fromEntries(Object.entries(B).map(([k,v])=>[k, v?.name])));
+      console.log('[KAI] bones found:', allBones);
+      console.log('[KAI] matched:', Object.fromEntries(Object.entries(B).map(([k,v])=>[k, v?.name])));
 
       // Add to scene + refresh matrices BEFORE computing any world-space math.
       robot.visible = false;
@@ -1304,7 +1304,7 @@ import * as THREE from 'three';
         bone.quaternion.copy(parentQ.invert()).multiply(newWorldQ);
         bone.updateMatrixWorld(true);
 
-        console.log('[NarAI] posed', bone.name, 'from', currentDir.toArray());
+        console.log('[KAI] posed', bone.name, 'from', currentDir.toArray());
       };
       poseArmDown(B.LA);
       poseArmDown(B.RA);
@@ -1316,10 +1316,10 @@ import * as THREE from 'three';
       if(B.RH)  B.RH.rotation.set(0, 0, 0);
       if(B.Spine2) B.Spine2.rotation.x = -0.05;
     } catch(e){
-      console.warn('[NarAI] Avatar load failed, keeping procedural fallback:', e);
+      console.warn('[KAI] Avatar load failed, keeping procedural fallback:', e);
     }
   }
-  if(NARAI_GLB_URL) loadAvatar(NARAI_GLB_URL);
+  if(KAI_GLB_URL) loadAvatar(KAI_GLB_URL);
 
   const clock = new THREE.Clock();
   function animate(){

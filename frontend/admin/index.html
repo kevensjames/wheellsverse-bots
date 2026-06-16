@@ -62,7 +62,7 @@
 
 <div class="wrap">
   <h1>Command Center</h1>
-  <div class="sub">One pane of glass for every operator surface across NarAI, Toodle, Sol, Shopify, and WheellsVerse.</div>
+  <div class="sub">One pane of glass for every operator surface across KAI, Toodle, Sol, Shopify, and WheellsVerse.</div>
 
   <div class="stats">
     <div class="stat"><div class="stat-num" id="stat-merchants">—</div><div class="stat-label">Shopify merchants</div></div>
@@ -111,7 +111,7 @@
     </a>
     <a class="card" href="/api/v2/narai/voice" target="_blank" rel="noopener">
       <span class="icon">🎙️</span>
-      <div class="title">NarAI Voice</div>
+      <div class="title">KAI Voice</div>
       <div class="desc">Voice client page — opens the browser mic UI. WebSocket endpoint at /api/v2/narai/voice/ws.</div>
       <span class="badge">Live</span>
     </a>
@@ -134,7 +134,7 @@
     <a class="card ext" href="https://supabase.com/dashboard/project/rqcngphvpjcscculehph" target="_blank" rel="noopener">
       <span class="icon">🗃️</span>
       <div class="title">Supabase</div>
-      <div class="desc">Postgres for merchants, NarAI users, multi-tenant tables. RLS-enabled.</div>
+      <div class="desc">Postgres for merchants, KAI users, multi-tenant tables. RLS-enabled.</div>
       <span class="badge cyan">External</span>
     </a>
     <a class="card ext" href="https://dashboard.stripe.com/dashboard" target="_blank" rel="noopener">
@@ -164,7 +164,7 @@
     <a class="card ext" href="https://console.anthropic.com" target="_blank" rel="noopener">
       <span class="icon">🧬</span>
       <div class="title">Anthropic</div>
-      <div class="desc">Claude usage and budget for NarAI, copy generation, agent workforce.</div>
+      <div class="desc">Claude usage and budget for KAI, copy generation, agent workforce.</div>
       <span class="badge warn">External · $</span>
     </a>
     <a class="card ext" href="https://kdp.amazon.com/en_US/bookshelf" target="_blank" rel="noopener">
@@ -327,7 +327,7 @@
     let full = '';
 
     try {
-      // POST to the existing NarAI chat endpoint. SSE streaming.
+      // POST to the existing KAI chat endpoint. SSE streaming.
       const resp = await fetch('/api/v2/narai/chat', {
         method: 'POST', headers, credentials: 'include',
         body: JSON.stringify({message: text, stream: true})

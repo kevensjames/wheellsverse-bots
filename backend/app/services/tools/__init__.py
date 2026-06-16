@@ -26,6 +26,7 @@ from app.services.tools.plan_query import PlanQueryTool
 from app.services.tools.pubmed_search import PubMedSearchTool
 from app.services.tools.registry import ToolRegistry
 from app.services.tools.sec_edgar_search import SecEdgarSearchTool
+from app.services.tools.site_builder import SiteBuilderTool
 from app.services.tools.suggest_agent import SuggestAgentTool
 from app.services.tools.trading_signal import TradingSignalTool
 from app.services.tools.twenty_crm import TwentyCrmTool
@@ -125,6 +126,9 @@ def build_default_registry(
         reg.register(TwentyCrmTool())
     else:
         logger.info("tools: twenty_crm skipped (TWENTY_API_URL/TWENTY_API_KEY not set)")
+    # Site builder — KAI generates HTML pages/sections in the WheellsVerse style
+    # as reviewable DRAFTS (never auto-publishes). No env key (uses the router).
+    reg.register(SiteBuilderTool())
     # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
     # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
     # enforced inside the tool. No browser is launched unless this is on.
@@ -183,6 +187,7 @@ __all__ = [
     "ToolLoopExceededError",
     "ToolRegistry",
     "ToolResult",
+    "SiteBuilderTool",
     "TradingSignalTool",
     "TwentyCrmTool",
     "TwinQueryTool",

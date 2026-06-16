@@ -1,7 +1,7 @@
 {
   "name": "WheellsVerse — AI Command Center",
   "short_name": "WheellsVerse",
-  "description": "Operator console for the WheellsVerse bot fleet, NarAI, Nexora, KDP, and money operations.",
+  "description": "Operator console for the WheellsVerse bot fleet, KAI, Nexora, KDP, and money operations.",
   "start_url": "/admin",
   "scope": "/",
   "display": "standalone",
