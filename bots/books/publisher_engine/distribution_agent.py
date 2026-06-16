@@ -153,6 +153,7 @@ def _package_html(manuscript: str, title: str, author: str,
         except Exception:
             pass
 
+    body_html = "\n".join(body)  # precompute — Py<3.12 f-strings can't hold a backslash
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -177,7 +178,7 @@ def _package_html(manuscript: str, title: str, author: str,
 </head>
 <body>
 {cover_html}
-{'\n'.join(body)}
+{body_html}
 </body>
 </html>"""
 
