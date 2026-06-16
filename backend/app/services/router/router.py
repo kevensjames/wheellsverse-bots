@@ -286,13 +286,29 @@ class Router:
                     tools=tool_schema,
                 )
             except Exception as e:
-                self.spend.log_call(
-                    user_id=user_id,
-                    adapter=adapter.name,
-                    model=adapter.model,
-                    success=False,
-                    error_message=str(e),
-                )
+                self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e))
+                # Resilience: if the tool-capable adapter fails (e.g. OpenAI 429
+                # insufficient_quota) and local Ollama is available, return a
+                # PLAIN local answer (no tools) instead of erroring. The turn
+                # loses tool use, but KAI stays responsive when the cloud
+                # backend is down. Only on the first turn's failure — once tools
+                # have run we can't faithfully resume on a tool-incapable model.
+                local = self.adapters.get("ollama")
+                if local is not None and local is not adapter:
+                    logger.warning(
+                        "chat: %s failed (%s) — degrading to a plain local "
+                        "answer (no tools)", adapter.name, e,
+                    )
+                    try:
+                        result = local.complete(
+                            msgs, max_tokens=max_tokens,
+                            temperature=temperature, system=system,
+                        )
+                    except Exception as e2:
+                        self._log_failure_safe(user_id=user_id, adapter=local, error=str(e2))
+                        raise
+                    self.spend.log_result(user_id, result)
+                    return result
                 raise
 
             self.spend.log_result(user_id, result)

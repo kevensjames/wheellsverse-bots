@@ -183,6 +183,37 @@ def test_cloud_failure_does_not_fall_back(adapters, fake_tracker):
         r.complete(user_id=uuid.uuid4(), messages=[{"role": "user", "content": "hi"}])
 
 
+def test_chat_tool_adapter_failure_degrades_to_local(adapters, fake_tracker):
+    # OpenAI (tool-capable) down (e.g. 429) → chat() returns a PLAIN local
+    # answer instead of erroring. Degraded (no tools) but responsive.
+    from unittest.mock import MagicMock
+    adapters["openai"] = _boom("openai")
+    r = Router(adapters=adapters, spend_tracker=fake_tracker)
+    reg = MagicMock(); reg.openai_schema.return_value = []
+    res = r.chat(
+        user_id=uuid.uuid4(),
+        messages=[{"role": "user", "content": "hi"}],
+        tool_registry=reg, tool_context=MagicMock(),
+        prefer_local=True,
+    )
+    assert res.adapter == "ollama"
+    assert res.content == "reply-from-ollama"
+
+
+def test_chat_no_local_reraises(fake_tracker):
+    # No local fallback configured → the tool-adapter failure propagates.
+    from unittest.mock import MagicMock
+
+    class _Boom(MockAdapter):
+        def complete(self, messages, **kwargs):
+            raise RuntimeError("openai down")
+    r = Router(adapters={"openai": _Boom("openai")}, spend_tracker=fake_tracker)
+    reg = MagicMock(); reg.openai_schema.return_value = []
+    with pytest.raises(RuntimeError):
+        r.chat(user_id=uuid.uuid4(), messages=[{"role": "user", "content": "hi"}],
+               tool_registry=reg, tool_context=MagicMock())
+
+
 def test_ollama_timeout_env_configurable(monkeypatch):
     from app.services.router.adapters.ollama_adapter import OllamaAdapter
     monkeypatch.setenv("OLLAMA_TIMEOUT", "30")
