@@ -274,12 +274,16 @@ class DiskSpaceScanner(Scanner):
         findings: list[Finding] = []
         try:
             total, used, free = shutil.disk_usage(str(_REPO_ROOT))
+            free_gb = free / 1024**3
             pct = used / total * 100
-            if pct > 90:
+            # Alert on FREE GB, not %, on a big disk: 82% of 228GB still leaves
+            # ~42GB free, which is not an incident. Only genuinely-low free space
+            # is actionable.
+            if free_gb < 5:
                 sev = "critical"
-            elif pct > 80:
+            elif free_gb < 15:
                 sev = "high"
-            elif pct > 70:
+            elif free_gb < 30:
                 sev = "medium"
             else:
                 return findings
@@ -287,8 +291,8 @@ class DiskSpaceScanner(Scanner):
                 id="disk-space",
                 severity=sev,
                 category="disk_space",
-                title=f"Disk {pct:.0f}% full",
-                detail=f"{free // 1024**3} GB free of {total // 1024**3} GB total.",
+                title=f"Low disk: {free_gb:.0f} GB free",
+                detail=f"{free_gb:.0f} GB free of {total // 1024**3} GB total ({pct:.0f}% used).",
                 proposed_fix="Clean __pycache__ and old logs.",
                 auto_fixable=True,
             ))
@@ -307,7 +311,9 @@ class GitStateScanner(Scanner):
             )
             if r.returncode != 0:
                 return findings
-            lines = [l for l in r.stdout.splitlines() if l.strip()]
+            # Count only TRACKED modifications — untracked output (??) is bot
+            # churn (data/outputs/logs), not "work at risk of being lost".
+            lines = [l for l in r.stdout.splitlines() if l.strip() and not l.startswith("??")]
             count = len(lines)
             if count > 50:
                 findings.append(Finding(
