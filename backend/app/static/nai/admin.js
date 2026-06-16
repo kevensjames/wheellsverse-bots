@@ -278,6 +278,165 @@ function activateTab(name) {
     loadTwin();
   } else if (name === "audit") {
     loadAudit();
+  } else if (name === "sol") {
+    loadSol();
+  }
+}
+
+// ─── Sol (ROSCA savings circles) — read-only ──────────────────────────
+
+let solSelectedId = null;
+
+function solMoney(cents) {
+  return `$${((Number(cents) || 0) / 100).toFixed(2)}`;
+}
+
+async function loadSol() {
+  await Promise.all([loadSolStats(), loadSolCircles()]);
+  if (solSelectedId) loadSolDetail(solSelectedId);
+}
+
+async function loadSolStats() {
+  const line = $("#sol-status-line");
+  const sched = $("#sol-scheduler-line");
+  try {
+    const s = await apiGet("/admin/sol/stats");
+    const parts = [`${s.total_circles} circle(s)`].concat(
+      Object.entries(s.by_status || {}).map(([st_, n]) => `${st_}: ${n}`)
+    );
+    if (line) line.textContent = parts.join(" · ");
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+  try {
+    const sc = await apiGet("/admin/sol/scheduler");
+    if (sched) sched.textContent =
+      `scheduler: ${sc.enabled ? "enabled" : "off"} · running ${sc.running} · ` +
+      `${sc.hour_utc}:00 UTC · autopilot ${sc.autopilot} · scope ${sc.scope_on}`;
+  } catch (e) { /* scheduler line is best-effort */ }
+}
+
+async function loadSolCircles() {
+  const tbody = $("#sol-circles-table tbody");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/sol/circles");
+    tbody.replaceChildren();
+    for (const c of data.circles || []) {
+      const tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      if (c.id === solSelectedId) tr.classList.add("is-active");
+      tr.appendChild(td(`#${c.id}`));
+      tr.appendChild(td(c.name));
+      tr.appendChild(td(c.status));
+      tr.appendChild(td(solMoney(c.contribution_cents)));
+      tr.addEventListener("click", () => selectSolCircle(c.id));
+      tbody.appendChild(tr);
+    }
+    if (!(data.circles || []).length) {
+      const tr = document.createElement("tr");
+      const c = td("no circles yet", "admin-hint");
+      c.colSpan = 4;
+      tr.appendChild(c);
+      tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+function selectSolCircle(id) {
+  solSelectedId = id;
+  loadSolCircles();
+  loadSolDetail(id);
+}
+
+async function loadSolDetail(id) {
+  const box = $("#sol-detail");
+  if (!box) return;
+  try {
+    const detail = await apiGet(`/admin/sol/circles/${id}`);
+    renderSolDetail(box, detail);
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    box.replaceChildren();
+    const p = document.createElement("p");
+    p.className = "admin-hint";
+    p.textContent = `error: ${e.message}`;
+    box.appendChild(p);
+  }
+}
+
+function renderSolDetail(box, detail) {
+  box.replaceChildren();
+  const circle = detail.circle || {};
+  const h = document.createElement("h2");
+  h.textContent = `#${circle.id} ${circle.name}`;
+  box.appendChild(h);
+
+  const meta = document.createElement("div");
+  meta.className = "admin-stat-row admin-stat-tiers";
+  const rows = [
+    ["status", circle.status],
+    ["contribution", solMoney(circle.contribution_cents)],
+    ["members", `${(detail.members || []).length}/${circle.member_target}`],
+    ["payout/cycle", solMoney(detail.payout_per_cycle_cents)],
+    ["rollover", solMoney(circle.rollover_cents)],
+  ];
+  for (const [label, val] of rows) {
+    const cell = document.createElement("span");
+    const strong = document.createElement("strong");
+    strong.textContent = String(val);
+    cell.textContent = `${label}: `;
+    cell.appendChild(strong);
+    meta.appendChild(cell);
+  }
+  box.appendChild(meta);
+
+  const members = detail.members || [];
+  if (members.length) {
+    const mh = document.createElement("h3");
+    mh.textContent = `Members (${members.length})`;
+    box.appendChild(mh);
+    const mt = document.createElement("table");
+    mt.className = "admin-table";
+    mt.appendChild(tableHead(["pos", "name", "email", "status"]));
+    const mb = document.createElement("tbody");
+    for (const m of members) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(m.join_order != null ? String(m.join_order) : "—"));
+      tr.appendChild(td(m.name));
+      tr.appendChild(td(m.email || "—"));
+      tr.appendChild(td(m.status || "—"));
+      mb.appendChild(tr);
+    }
+    mt.appendChild(mb);
+    box.appendChild(mt);
+  }
+
+  const cycles = detail.cycles || [];
+  if (cycles.length) {
+    const ch = document.createElement("h3");
+    ch.textContent = `Cycles (${cycles.length})`;
+    box.appendChild(ch);
+    const ct = document.createElement("table");
+    ct.className = "admin-table";
+    ct.appendChild(tableHead(["#", "status", "collected", "payout"]));
+    const cb = document.createElement("tbody");
+    for (const cy of cycles) {
+      const contribs = cy.contributions || [];
+      const got = contribs.filter((x) => x.status === "processed").length;
+      const payout = cy.payout;
+      const tr = document.createElement("tr");
+      tr.appendChild(td(String(cy.cycle_number)));
+      tr.appendChild(td(cy.status || "—"));
+      tr.appendChild(td(`${got}/${contribs.length}`));
+      tr.appendChild(td(payout ? `${solMoney(payout.amount_cents)} (${payout.status})` : "—"));
+      cb.appendChild(tr);
+    }
+    ct.appendChild(cb);
+    box.appendChild(ct);
   }
 }
 
@@ -2379,6 +2538,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".admin-tab").forEach((btn) => {
     btn.addEventListener("click", () => activateTab(btn.dataset.tab));
   });
+
+  // Sol
+  const solRefresh = $("#sol-refresh");
+  if (solRefresh) solRefresh.addEventListener("click", loadSol);
 
   // Chat
   $("#admin-chat-form").addEventListener("submit", sendChat);

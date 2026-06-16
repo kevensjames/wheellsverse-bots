@@ -39,7 +39,9 @@ SOL_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 # ─── status vocab ────────────────────────────────────────────────────
 CIRCLE_STATUSES = ("forming", "active", "completed", "cancelled")
 MEMBER_STATUSES = ("invited", "verified", "active", "delinquent", "removed")
-CYCLE_STATUSES = ("pending", "collecting", "collected", "paid", "failed")
+# "skipped" = collection closed but the recipient forfeited (delinquent); the
+# pool rolled forward, no payout. Terminal like "paid", so the circle advances.
+CYCLE_STATUSES = ("pending", "collecting", "collected", "paid", "failed", "skipped")
 TRANSFER_STATUSES = ("pending", "processing", "processed", "failed", "returned")
 
 
@@ -56,6 +58,9 @@ class Circle:
     member_target: int
     status: str = "forming"
     fee_bps: int = 0
+    # Forfeited-pool accumulator: when a cycle's recipient is delinquent, the
+    # collected pool rolls forward and is added to the next successful payout.
+    rollover_cents: int = 0
     created_at: str | None = None
     activated_at: str | None = None
     updated_at: str | None = None
@@ -137,6 +142,7 @@ CREATE TABLE IF NOT EXISTS circles (
     member_target INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'forming',
     fee_bps INTEGER NOT NULL DEFAULT 0,
+    rollover_cents INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     activated_at TEXT,
     updated_at TEXT NOT NULL
@@ -192,8 +198,12 @@ CREATE TABLE IF NOT EXISTS payouts (
 CREATE INDEX IF NOT EXISTS idx_members_circle ON members(circle_id);
 CREATE INDEX IF NOT EXISTS idx_cycles_circle ON cycles(circle_id);
 CREATE INDEX IF NOT EXISTS idx_contrib_cycle ON contributions(cycle_id);
-CREATE INDEX IF NOT EXISTS idx_contrib_transfer ON contributions(dwolla_transfer_url);
-CREATE INDEX IF NOT EXISTS idx_payout_transfer ON payouts(dwolla_transfer_url);
+-- UNIQUE (partial) so a Dwolla transfer href resolves to exactly one row — the
+-- webhook finders use fetchone(). NULLs are allowed (many rows pre-transfer).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_contrib_transfer ON contributions(dwolla_transfer_url)
+    WHERE dwolla_transfer_url IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_payout_transfer ON payouts(dwolla_transfer_url)
+    WHERE dwolla_transfer_url IS NOT NULL;
 """
 
 
@@ -202,15 +212,47 @@ def _conn() -> Iterator[sqlite3.Connection]:
     c = sqlite3.connect(str(SOL_DB_PATH), isolation_level=None)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys = ON")
+    # The scheduler daemon thread and request threads both write this ledger.
+    # WAL allows a reader concurrent with a writer; busy_timeout makes a second
+    # writer wait-and-retry instead of failing instantly with "database locked".
+    c.execute("PRAGMA busy_timeout = 5000")
+    c.execute("PRAGMA journal_mode = WAL")
     try:
         yield c
     finally:
         c.close()
 
 
+def _migrate(c: sqlite3.Connection) -> None:
+    """Idempotent column adds for ledgers created before a column existed.
+    SQLite has no ADD COLUMN IF NOT EXISTS, so we tolerate the duplicate error."""
+    for table, col, ddl in (
+        ("circles", "rollover_cents", "INTEGER NOT NULL DEFAULT 0"),
+    ):
+        try:
+            c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {ddl}")
+        except sqlite3.OperationalError as e:
+            if "duplicate column" not in str(e).lower():
+                raise
+    # Upgrade pre-existing non-UNIQUE transfer indexes to UNIQUE (partial). Drop
+    # then recreate; tolerate a legacy duplicate href rather than brick startup.
+    for tbl in ("contrib", "payout"):
+        table = "contributions" if tbl == "contrib" else "payouts"
+        try:
+            c.execute(f"DROP INDEX IF EXISTS idx_{tbl}_transfer")
+            c.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS idx_{tbl}_transfer "
+                      f"ON {table}(dwolla_transfer_url) WHERE dwolla_transfer_url IS NOT NULL")
+        except sqlite3.OperationalError as e:
+            logger.warning("sol: could not make idx_%s_transfer UNIQUE (%s); "
+                           "leaving non-unique", tbl, e)
+            c.execute(f"CREATE INDEX IF NOT EXISTS idx_{tbl}_transfer "
+                      f"ON {table}(dwolla_transfer_url)")
+
+
 def init_db() -> None:
     with _conn() as c:
         c.executescript(_SCHEMA)
+        _migrate(c)
 
 
 init_db()
@@ -261,6 +303,15 @@ def set_circle_status(circle_id: int, status: str, *, activated: bool = False) -
         else:
             c.execute("UPDATE circles SET status=?, updated_at=? WHERE id=?",
                       (status, now, circle_id))
+
+
+def set_rollover(circle_id: int, cents: int) -> None:
+    """Set the forfeited-pool accumulator (absolute value, not delta)."""
+    if cents < 0:
+        raise ValueError("rollover_cents cannot be negative")
+    with _conn() as c:
+        c.execute("UPDATE circles SET rollover_cents=?, updated_at=? WHERE id=?",
+                  (cents, _now(), circle_id))
 
 
 # ─── members ─────────────────────────────────────────────────────────
@@ -400,6 +451,20 @@ def update_contribution(contribution_id: int, **fields: Any) -> Contribution:
     return get_contribution(contribution_id)
 
 
+def claim_contribution(contribution_id: int, expect: str = "pending") -> bool:
+    """Atomically move a contribution out of `expect` (default 'pending') into
+    'processing'. Returns True only for the caller that wins the transition —
+    the single-statement conditional UPDATE is the lock. The winner (and ONLY
+    the winner) may then fire the ACH debit, so a double-click/concurrent collect
+    can't debit the same member twice."""
+    now = _now()
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE contributions SET status='processing', updated_at=? "
+            "WHERE id=? AND status=?", (now, contribution_id, expect))
+        return cur.rowcount == 1
+
+
 # ─── payouts ─────────────────────────────────────────────────────────
 def create_payout(cycle_id: int, recipient_member_id: int, amount_cents: int) -> Payout:
     now = _now()
@@ -445,3 +510,15 @@ def update_payout(payout_id: int, **fields: Any) -> Payout:
     with _conn() as c:
         c.execute(f"UPDATE payouts SET {cols} WHERE id=?", (*sets.values(), payout_id))
     return get_payout(payout_id)
+
+
+def claim_payout(payout_id: int, expect: str = "pending") -> bool:
+    """Atomically move a payout out of `expect` into 'processing'. Returns True
+    only for the winner — so a double-clicked /payout can't credit the recipient
+    twice. Mirror of claim_contribution."""
+    now = _now()
+    with _conn() as c:
+        cur = c.execute(
+            "UPDATE payouts SET status='processing', updated_at=? "
+            "WHERE id=? AND status=?", (now, payout_id, expect))
+        return cur.rowcount == 1

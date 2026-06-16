@@ -99,6 +99,23 @@ def _stop_digest_scheduler():
     from app.services.digest.scheduler import stop as _stop
     _stop()
 
+
+# Sol monthly scheduler — opt-in via KAI_SOL_SCHEDULER_ENABLED=1. Daily tick at
+# KAI_SOL_SCHEDULER_HOUR_UTC (default 14) that scans active circles for due
+# actions and Telegram-reminds the operator. NON-DESTRUCTIVE: money actions
+# (collect/payout) stay operator-approved; only cycle-advance auto-runs under
+# KAI_SOL_AUTOPILOT. Each cycle re-checks KAI_SCOPE_SOL.
+@app.on_event("startup")
+def _start_sol_scheduler():
+    from app.services.sol.scheduler import start as _start
+    _start()
+
+
+@app.on_event("shutdown")
+def _stop_sol_scheduler():
+    from app.services.sol.scheduler import stop as _stop
+    _stop()
+
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

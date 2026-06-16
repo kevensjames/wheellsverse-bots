@@ -7,6 +7,6 @@ Money movement (Dwolla ACH) is orchestrated by the audited Sol admin endpoints,
 which call app.services.dwolla.operations and feed transfer results back via the
 engine's mark_* functions. See app/routers/sol.py.
 """
-from app.services.sol import engine, storage
+from app.services.sol import engine, scheduler, storage
 
-__all__ = ["engine", "storage"]
+__all__ = ["engine", "scheduler", "storage"]

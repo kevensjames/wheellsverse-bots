@@ -107,6 +107,22 @@ class ApprovedRequest(BaseModel):
     approved: bool = False
 
 
+class CreateCustomerRequest(BaseModel):
+    # Dwolla customer payload: {firstName, lastName, email, type, ...}. Passed
+    # through to operations.create_customer (already @audited dwolla.customer).
+    customer: dict[str, Any]
+
+
+class AddFundingSourceRequest(BaseModel):
+    # {plaidToken, name} (preferred) or raw {routingNumber, accountNumber, ...}.
+    source: dict[str, Any]
+
+
+class RunTickRequest(BaseModel):
+    autopilot: bool = False
+    approved: bool = False  # accepted but unused (tick is non-destructive)
+
+
 # ─── management writes (audited, non-destructive) ──────────────────────
 @audited(scope="sol.manage", destructive=False)
 def _create_circle(*, name, contribution_cents, member_target, fee_bps):
@@ -157,7 +173,67 @@ def sol_advance(cycle_id: int, body: ApprovedRequest):
     return _guard(_advance, circle_id=circle_id)
 
 
+# ─── Dwolla customer + funding-source provisioning ─────────────────────
+# These call the already-@audited operations directly (scope dwolla.customer /
+# dwolla.funding, non-destructive) — no second wrapper, so the audit log gets
+# exactly one record per action.
+@router.post("/customers")
+def sol_create_customer(body: CreateCustomerRequest):
+    from app.services.dwolla import operations
+    return _guard(operations.create_customer, customer=body.customer)
+
+
+@router.post("/customers/{customer_id}/funding-sources")
+def sol_add_funding_source(customer_id: str, body: AddFundingSourceRequest):
+    from app.services.dwolla import operations
+    return _guard(operations.add_funding_source, customer_id=customer_id, source=body.source)
+
+
+# ─── scheduler (status + manual tick) ──────────────────────────────────
+@audited(scope="sol.manage", destructive=False)
+def _run_tick(*, autopilot):
+    from app.services.sol import scheduler
+    return scheduler.run_sol_tick(autopilot=autopilot, notify=True)
+
+
+@router.get("/scheduler")
+def sol_scheduler_status() -> dict[str, Any]:
+    from app.services.sol import scheduler
+    return scheduler.status()
+
+
+@router.post("/scheduler/run-now")
+def sol_scheduler_run_now(body: RunTickRequest):
+    return _guard(_run_tick, autopilot=body.autopilot)
+
+
 # ─── money writes (audited, destructive → approved=True + sol.transfer) ─
+def _debit_contribution(client, pool, c, cycle, *, attempt_key: str):
+    """ATOMICALLY claim a contribution then fire ONE ACH debit. The claim
+    (conditional UPDATE pending→processing) is the lock: only the winner
+    transfers, so a double-click / concurrent collect can't debit twice. The
+    Idempotency-Key collapses a retried HTTP call server-side at Dwolla. On a
+    transfer error we revert the claim to 'pending' so it can be retried (the
+    key makes that safe even if the debit actually went through)."""
+    member = st.get_member(c.member_id)
+    if not member.funding_source_href:
+        return {"contribution_id": c.id, "skipped": "no funding source"}
+    if not st.claim_contribution(c.id, expect=c.status):
+        return {"contribution_id": c.id, "skipped": "already claimed"}
+    try:
+        res = client.create_transfer(
+            member.funding_source_href, pool, _cents_to_str(c.amount_cents),
+            metadata={"sol_kind": "contribution", "sol_contribution_id": str(c.id),
+                      "sol_cycle": str(cycle.cycle_number)},
+            idempotency_key=attempt_key)
+        url = res.get("location")
+        st.update_contribution(c.id, dwolla_transfer_url=url)  # stays 'processing'
+        return {"contribution_id": c.id, "transfer_url": url}
+    except DwollaError:
+        st.update_contribution(c.id, status="pending")  # revert claim → retryable
+        raise
+
+
 @audited(scope="sol.transfer", destructive=True)
 def _collect(*, cycle_id):
     """ACH-debit each still-pending contribution: member bank → Sol pool."""
@@ -170,47 +246,99 @@ def _collect(*, cycle_id):
     for c in st.list_contributions(cycle_id):
         if c.status != "pending":
             continue
+        results.append(_debit_contribution(client, pool, c, cycle,
+                                            attempt_key=f"sol-contrib-{c.id}"))
+    return {"cycle_id": cycle_id, "initiated": len([r for r in results if r.get("transfer_url")]),
+            "results": results}
+
+
+@audited(scope="sol.transfer", destructive=True)
+def _retry_failed(*, cycle_id):
+    """Re-issue ACH debits for failed/returned contributions under the retry
+    cap (operator-approved). record_retry increments the count + re-arms the
+    row; after the cap the next failure marks the member delinquent."""
+    cycle = st.get_cycle(cycle_id)
+    client = DwollaClient()
+    pool = client.balance_funding_source_href()
+    results = []
+    for c in st.list_contributions(cycle_id):
+        if c.status not in ("failed", "returned"):
+            continue
+        if c.retry_count >= engine.MAX_RETRIES:
+            results.append({"contribution_id": c.id, "skipped": "retries exhausted"})
+            continue
         member = st.get_member(c.member_id)
         if not member.funding_source_href:
             results.append({"contribution_id": c.id, "skipped": "no funding source"})
             continue
-        res = client.create_transfer(
-            member.funding_source_href, pool, _cents_to_str(c.amount_cents),
-            metadata={"sol_kind": "contribution", "sol_contribution_id": str(c.id),
-                      "sol_cycle": str(cycle.cycle_number)})
-        url = res.get("location")
-        st.update_contribution(c.id, status="processing", dwolla_transfer_url=url)
-        results.append({"contribution_id": c.id, "transfer_url": url})
-    return {"cycle_id": cycle_id, "initiated": len([r for r in results if r.get("transfer_url")]),
+        try:
+            rc = engine.record_retry(c.id)  # failed→processing, retry_count+1
+        except engine.SolStateError as e:
+            results.append({"contribution_id": c.id, "skipped": str(e)})
+            continue
+        try:
+            res = client.create_transfer(
+                member.funding_source_href, pool, _cents_to_str(c.amount_cents),
+                metadata={"sol_kind": "contribution-retry", "sol_contribution_id": str(c.id),
+                          "sol_retry": str(rc.retry_count)},
+                idempotency_key=f"sol-contrib-{c.id}-retry-{rc.retry_count}")
+            st.update_contribution(c.id, dwolla_transfer_url=res.get("location"))
+            results.append({"contribution_id": c.id, "retried": True,
+                            "transfer_url": res.get("location")})
+        except DwollaError:
+            st.update_contribution(c.id, status="failed")  # revert → retryable again
+            raise
+    return {"cycle_id": cycle_id, "retried": len([r for r in results if r.get("retried")]),
             "results": results}
 
 
 @audited(scope="sol.transfer", destructive=True)
 def _payout(*, cycle_id):
     """Close collection (majority must have cleared) and pay the recipient:
-    Sol pool → recipient bank."""
+    Sol pool → recipient bank. IDEMPOTENT — won't re-credit an already-staged
+    payout (guards on the existing payout's status/transfer + an atomic claim)."""
     staged = engine.close_collection_and_create_payout(cycle_id)
     payout = staged.get("payout")
     if not payout:  # recipient delinquent — nothing to pay
         return staged
+    # Idempotency guard: if a transfer is already in flight/done, don't re-issue.
+    if payout.get("dwolla_transfer_url") or payout.get("status") != "pending":
+        return {"cycle_id": cycle_id, "payout_id": payout["id"], "already_initiated": True,
+                "transfer_url": payout.get("dwolla_transfer_url"),
+                "amount_cents": payout["amount_cents"], "status": payout.get("status")}
     recipient = st.get_member(payout["recipient_member_id"])
     if not recipient.funding_source_href:
         raise ValueError(f"recipient {recipient.id} has no funding source")
+    # Atomic claim pending→processing: only the winner credits the recipient.
+    if not st.claim_payout(payout["id"]):
+        cur = st.get_payout(payout["id"])
+        return {"cycle_id": cycle_id, "payout_id": payout["id"], "already_initiated": True,
+                "transfer_url": cur.dwolla_transfer_url, "amount_cents": cur.amount_cents}
     client = DwollaClient()
     pool = client.balance_funding_source_href()
-    res = client.create_transfer(
-        pool, recipient.funding_source_href, _cents_to_str(payout["amount_cents"]),
-        metadata={"sol_kind": "payout", "sol_payout_id": str(payout["id"]),
-                  "sol_cycle_id": str(cycle_id)})
-    url = res.get("location")
-    st.update_payout(payout["id"], status="processing", dwolla_transfer_url=url)
-    return {"cycle_id": cycle_id, "payout_id": payout["id"], "transfer_url": url,
-            "amount_cents": payout["amount_cents"]}
+    try:
+        res = client.create_transfer(
+            pool, recipient.funding_source_href, _cents_to_str(payout["amount_cents"]),
+            metadata={"sol_kind": "payout", "sol_payout_id": str(payout["id"]),
+                      "sol_cycle_id": str(cycle_id)},
+            idempotency_key=f"sol-payout-{payout['id']}")
+        url = res.get("location")
+        st.update_payout(payout["id"], dwolla_transfer_url=url)  # stays 'processing'
+        return {"cycle_id": cycle_id, "payout_id": payout["id"], "transfer_url": url,
+                "amount_cents": payout["amount_cents"]}
+    except DwollaError:
+        st.update_payout(payout["id"], status="pending")  # revert claim → retryable
+        raise
 
 
 @router.post("/cycles/{cycle_id}/collect")
 def sol_collect(cycle_id: int, body: ApprovedRequest):
     return _guard(_collect, cycle_id=cycle_id, approved=body.approved)
+
+
+@router.post("/cycles/{cycle_id}/retry-failed")
+def sol_retry_failed(cycle_id: int, body: ApprovedRequest):
+    return _guard(_retry_failed, cycle_id=cycle_id, approved=body.approved)
 
 
 @router.post("/cycles/{cycle_id}/payout")

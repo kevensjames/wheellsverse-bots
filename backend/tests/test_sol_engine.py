@@ -172,7 +172,108 @@ def test_recipient_delinquent_gets_no_payout():
     engine.mark_contribution_result(contribs[members[3].id].id, True)
     out = engine.close_collection_and_create_payout(cyc["id"])
     assert out["payout"] is None and out["recipient_delinquent"] is True
-    assert out["uncollected_pool_cents"] == 40000
+    # ROLLOVER POLICY: the forfeited pool accumulates on the circle.
+    assert out["rolled_into_next_cents"] == 40000
+    assert out["circle_rollover_cents"] == 40000
+    assert st.get_circle(c.id).rollover_cents == 40000
+
+
+def test_forfeited_pool_rolls_into_next_payout():
+    # Cycle 1 recipient (pos 1) forfeits; cycle 2 recipient (pos 2) gets the
+    # cycle-2 pool PLUS the rolled-forward cycle-1 pool.
+    c = _funded_circle(n=3, contribution_cents=20000)
+    cyc1 = engine.activate_circle(c.id)["cycle"]
+    members = {m.join_order: m for m in st.list_members(c.id)}
+    contribs1 = {ct.member_id: ct for ct in st.list_contributions(cyc1["id"])}
+    _drive_to_delinquent(contribs1[members[1].id].id)             # pos-1 recipient forfeits
+    engine.mark_contribution_result(contribs1[members[2].id].id, True)
+    engine.mark_contribution_result(contribs1[members[3].id].id, True)
+    out1 = engine.close_collection_and_create_payout(cyc1["id"])
+    assert out1["payout"] is None
+    assert st.get_circle(c.id).rollover_cents == 40000
+
+    # advance past the forfeit cycle → cycle 2 (recipient pos 2, pos-1 excluded)
+    nxt = engine.advance_circle(c.id)
+    cyc2 = nxt["cycle"]
+    assert len(nxt["contributions"]) == 2  # pos 1 delinquent, excluded
+    for ct in st.list_contributions(cyc2["id"]):
+        engine.mark_contribution_result(ct.id, True)            # 2 × 200 = 400 collected
+    out2 = engine.close_collection_and_create_payout(cyc2["id"])
+    # payout = cycle-2 pool (40000) + rolled-forward cycle-1 pool (40000)
+    assert out2["payout"]["amount_cents"] == 80000
+    assert out2["applied_rollover_cents"] == 40000
+    # accumulator stays until the payout TRANSFER settles (deferred clearing)
+    assert st.get_circle(c.id).rollover_cents == 40000
+    engine.mark_payout_result(out2["payout"]["id"], True)
+    assert st.get_circle(c.id).rollover_cents == 0  # cleared on payout success
+
+
+def test_scan_due_actions_reports_collect_payout_advance():
+    c = _funded_circle(n=3)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    # fresh cycle → collect_due
+    acts = engine.scan_due_actions()
+    assert any(a["action"] == "collect_due" and a["circle_id"] == c.id for a in acts)
+    # majority clears → payout_ready also surfaces
+    contribs = st.list_contributions(cyc["id"])
+    engine.mark_contribution_result(contribs[0].id, True)
+    engine.mark_contribution_result(contribs[1].id, True)
+    acts = engine.scan_due_actions()
+    assert any(a["action"] == "payout_ready" for a in acts)
+    # pay + (don't advance) → advance_ready
+    engine.mark_contribution_result(contribs[2].id, True)
+    out = engine.close_collection_and_create_payout(cyc["id"])
+    engine.mark_payout_result(out["payout"]["id"], True)
+    acts = engine.scan_due_actions()
+    assert any(a["action"] == "advance_ready" for a in acts)
+
+
+# ─── webhook idempotency / monotonicity (review FIX B) ─────────────────
+def test_mark_contribution_idempotent_on_duplicate_success():
+    c = _funded_circle(n=3)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    cid = st.list_contributions(cyc["id"])[0].id
+    assert engine.mark_contribution_result(cid, True).get("noop") is not True
+    out = engine.mark_contribution_result(cid, True)  # duplicate completed webhook
+    assert out.get("noop") is True
+    assert st.get_contribution(cid).status == "processed"
+
+
+def test_return_after_completed_marks_returned():
+    c = _funded_circle(n=3)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    cid = st.list_contributions(cyc["id"])[0].id
+    engine.mark_contribution_result(cid, True)          # transfer_completed
+    engine.mark_contribution_result(cid, False)         # later ACH return (R01)
+    assert st.get_contribution(cid).status == "returned"
+
+
+def test_mark_payout_idempotent():
+    c = _funded_circle(n=3)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    cs = st.list_contributions(cyc["id"])
+    engine.mark_contribution_result(cs[0].id, True)
+    engine.mark_contribution_result(cs[1].id, True)
+    out = engine.close_collection_and_create_payout(cyc["id"])
+    pid = out["payout"]["id"]
+    engine.mark_payout_result(pid, True)
+    again = engine.mark_payout_result(pid, True)        # duplicate webhook
+    assert again.get("noop") is True
+    assert st.get_cycle(cyc["id"]).status == "paid"
+
+
+# ─── payout failure preserves the pool (review FIX C) ──────────────────
+def test_payout_failure_rolls_pool_forward():
+    c = _funded_circle(n=3, contribution_cents=20000)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    cs = st.list_contributions(cyc["id"])
+    engine.mark_contribution_result(cs[0].id, True)
+    engine.mark_contribution_result(cs[1].id, True)
+    out = engine.close_collection_and_create_payout(cyc["id"])  # amount = 40000
+    engine.mark_payout_result(out["payout"]["id"], False)        # ACH payout fails
+    # the undelivered pool is NOT lost — it rolls forward intact
+    assert st.get_circle(c.id).rollover_cents == 40000
+    assert st.get_cycle(cyc["id"]).status == "failed"
 
 
 # ─── full rotation to completion ───────────────────────────────────────

@@ -33,9 +33,12 @@ class _FakeDwolla:
     def balance_funding_source_href(self):
         return "https://api-sandbox.dwolla.com/funding-sources/pool"
 
-    def create_transfer(self, src, dst, value, currency="USD", metadata=None):
+    def create_transfer(self, src, dst, value, currency="USD", metadata=None,
+                        idempotency_key=None):
         tag = (metadata or {}).get("sol_contribution_id") or (metadata or {}).get("sol_payout_id") or "x"
-        return {"location": f"https://api-sandbox.dwolla.com/transfers/{tag}"}
+        # vary by idempotency key so retries get a distinct (unique-indexed) url
+        suffix = f"-{idempotency_key}" if idempotency_key else ""
+        return {"location": f"https://api-sandbox.dwolla.com/transfers/{tag}{suffix}"}
 
 
 def _make_active_circle(client, monkeypatch, n=3):
@@ -135,3 +138,139 @@ def test_webhook_bad_signature_rejected(client, monkeypatch):
     r = client.post("/sol/webhook", content=b'{"topic":"transfer_completed"}',
                     headers={"X-Request-Signature-SHA-256": "deadbeef"})
     assert r.status_code == 401
+
+
+# ─── scheduler endpoints ───────────────────────────────────────────────
+def test_scheduler_status_shape(client):
+    r = client.get("/admin/sol/scheduler", headers=ADMIN)
+    assert r.status_code == 200
+    body = r.json()
+    assert set(body) >= {"enabled", "running", "hour_utc", "autopilot", "scope_on"}
+
+
+def test_scheduler_run_now_needs_scope(client, monkeypatch):
+    # run-now is @audited(sol.manage); scope OFF → 403
+    r = client.post("/admin/sol/scheduler/run-now", headers=ADMIN, json={})
+    assert r.status_code == 403
+
+
+def test_scheduler_run_now_runs_with_scope(client, monkeypatch):
+    monkeypatch.setenv("KAI_SCOPE_SOL_MANAGE", "1")
+    r = client.post("/admin/sol/scheduler/run-now", headers=ADMIN, json={"autopilot": False})
+    assert r.status_code == 200, r.text
+    # no circles yet → no due actions, nothing notified
+    assert r.json()["due_actions"] == []
+
+
+# ─── customer / funding-source creation (audited dwolla.* scopes) ──────
+class _FakeOps:
+    """Stands in for DwollaClient inside dwolla.operations."""
+    def create_customer(self, customer):
+        return {"location": "https://api-sandbox.dwolla.com/customers/cust-new"}
+
+    def create_funding_source(self, customer_id, source):
+        return {"location": f"https://api-sandbox.dwolla.com/funding-sources/fs-new"}
+
+
+def test_create_customer_needs_scope(client, monkeypatch):
+    r = client.post("/admin/sol/customers", headers=ADMIN,
+                    json={"customer": {"firstName": "Ada", "lastName": "L", "email": "a@x.com"}})
+    assert r.status_code == 403  # dwolla.customer scope off
+
+
+def test_create_customer_works(client, monkeypatch):
+    monkeypatch.setenv("KAI_SCOPE_DWOLLA_CUSTOMER", "1")
+    monkeypatch.setattr("app.services.dwolla.operations.DwollaClient", _FakeOps)
+    r = client.post("/admin/sol/customers", headers=ADMIN,
+                    json={"customer": {"firstName": "Ada", "lastName": "L", "email": "a@x.com"}})
+    assert r.status_code == 200, r.text
+    assert r.json()["location"].endswith("/customers/cust-new")
+
+
+def test_add_funding_source_works(client, monkeypatch):
+    monkeypatch.setenv("KAI_SCOPE_DWOLLA_FUNDING", "1")
+    monkeypatch.setattr("app.services.dwolla.operations.DwollaClient", _FakeOps)
+    r = client.post("/admin/sol/customers/cust-1/funding-sources", headers=ADMIN,
+                    json={"source": {"plaidToken": "tok", "name": "Checking"}})
+    assert r.status_code == 200, r.text
+    assert "fs-new" in r.json()["location"]
+
+
+# ─── idempotency / double-money guards (review FIX A/D) ────────────────
+class _CountingDwolla:
+    """Counts every ACH transfer issued, across instances (class-level)."""
+    calls = []
+    env = "sandbox"
+
+    def balance_funding_source_href(self):
+        return "https://api-sandbox.dwolla.com/funding-sources/pool"
+
+    def create_transfer(self, src, dst, value, currency="USD", metadata=None, idempotency_key=None):
+        _CountingDwolla.calls.append(idempotency_key)
+        return {"location": f"https://api-sandbox.dwolla.com/transfers/{idempotency_key}"}
+
+
+def test_collect_no_double_debit(client, monkeypatch):
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    _CountingDwolla.calls = []
+    monkeypatch.setattr("app.routers.sol.DwollaClient", _CountingDwolla)
+    r1 = client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
+    assert r1.status_code == 200 and r1.json()["initiated"] == 3
+    # second collect: every contribution is already 'processing' → zero new debits
+    r2 = client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
+    assert r2.status_code == 200 and r2.json()["initiated"] == 0
+    assert len(_CountingDwolla.calls) == 3  # NOT 6
+
+
+def test_payout_no_double_credit(client, monkeypatch):
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    contribs = st.list_contributions(cycle_id)
+    engine.mark_contribution_result(contribs[0].id, True)
+    engine.mark_contribution_result(contribs[1].id, True)  # majority met
+    _CountingDwolla.calls = []
+    monkeypatch.setattr("app.routers.sol.DwollaClient", _CountingDwolla)
+    r1 = client.post(f"/admin/sol/cycles/{cycle_id}/payout", headers=ADMIN, json={"approved": True})
+    assert r1.status_code == 200, r1.text
+    r2 = client.post(f"/admin/sol/cycles/{cycle_id}/payout", headers=ADMIN, json={"approved": True})
+    assert r2.status_code == 200 and r2.json().get("already_initiated") is True
+    assert len(_CountingDwolla.calls) == 1  # ONE credit, not two
+
+
+def test_retry_failed_reissues_and_counts(client, monkeypatch):
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    contribs = st.list_contributions(cycle_id)
+    engine.mark_contribution_result(contribs[0].id, False)  # one fails
+    assert st.get_contribution(contribs[0].id).status == "failed"
+    _CountingDwolla.calls = []
+    monkeypatch.setattr("app.routers.sol.DwollaClient", _CountingDwolla)
+    r = client.post(f"/admin/sol/cycles/{cycle_id}/retry-failed", headers=ADMIN, json={"approved": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["retried"] == 1
+    again = st.get_contribution(contribs[0].id)
+    assert again.status == "processing" and again.retry_count == 1
+    assert len(_CountingDwolla.calls) == 1
+
+
+def test_retry_requires_transfer_scope(client, monkeypatch):
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    monkeypatch.delenv("KAI_SCOPE_SOL", raising=False)
+    monkeypatch.setenv("KAI_SCOPE_SOL_MANAGE", "1")  # manage on, transfer off
+    r = client.post(f"/admin/sol/cycles/{cycle_id}/retry-failed", headers=ADMIN, json={"approved": True})
+    assert r.status_code == 403
+
+
+def test_webhook_duplicate_completed_is_noop(client, monkeypatch):
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    monkeypatch.setattr("app.routers.sol.DwollaClient", _CountingDwolla)
+    _CountingDwolla.calls = []
+    client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
+    contrib = st.list_contributions(cycle_id)[0]
+    url = contrib.dwolla_transfer_url
+    monkeypatch.setenv("DWOLLA_WEBHOOK_SECRET", "whsec")
+    event = json.dumps({"topic": "transfer_completed", "_links": {"resource": {"href": url}}}).encode()
+    sig = hmac.new(b"whsec", event, hashlib.sha256).hexdigest()
+    h = {"X-Request-Signature-SHA-256": sig}
+    r1 = client.post("/sol/webhook", content=event, headers=h)
+    r2 = client.post("/sol/webhook", content=event, headers=h)  # duplicate delivery
+    assert r1.status_code == 200 and r2.status_code == 200
+    assert st.get_contribution(contrib.id).status == "processed"  # not corrupted

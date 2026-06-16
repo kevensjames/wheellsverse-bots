@@ -117,7 +117,8 @@ class DwollaClient:
         return access
 
     # ── low-level request ───────────────────────────────────────────────
-    def _request(self, method: str, url: str, body: dict | None = None) -> dict[str, Any]:
+    def _request(self, method: str, url: str, body: dict | None = None,
+                 idempotency_key: str | None = None) -> dict[str, Any]:
         if not url.startswith(self.base):
             # Dwolla returns absolute hrefs in _links; only follow our own host.
             if url.startswith("http"):
@@ -128,6 +129,12 @@ class DwollaClient:
             "Accept": _HAL,
             "User-Agent": _UA,
         }
+        # Idempotency-Key: Dwolla collapses repeated POSTs carrying the same key
+        # into a single resource, so a retried/double-fired transfer can't move
+        # money twice even if our app-side guard is bypassed. Keyed on the ledger
+        # row id by callers (e.g. "sol-payout-7").
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         payload = None
         if body is not None:
             payload = json.dumps(body).encode()
@@ -207,16 +214,19 @@ class DwollaClient:
         return self._request("POST", f"/customers/{customer_id}/funding-sources", body=source)
 
     def create_transfer(self, source_href: str, dest_href: str, value: str,
-                         currency: str = "USD", metadata: dict | None = None) -> dict[str, Any]:
+                         currency: str = "USD", metadata: dict | None = None,
+                         idempotency_key: str | None = None) -> dict[str, Any]:
         """Initiate an ACH transfer. MONEY MOVEMENT — callers must route through
-        the @audited service wrapper, never invoke this directly from the model."""
+        the @audited service wrapper, never invoke this directly from the model.
+        Pass idempotency_key (keyed on the ledger row) so a retried call is a
+        single transfer server-side."""
         body: dict[str, Any] = {
             "_links": {"source": {"href": source_href}, "destination": {"href": dest_href}},
             "amount": {"currency": currency, "value": _money(value)},
         }
         if metadata:
             body["metadata"] = metadata
-        return self._request("POST", "/transfers", body=body)
+        return self._request("POST", "/transfers", body=body, idempotency_key=idempotency_key)
 
 
 def verify_webhook(body: bytes, signature_header: str | None,
