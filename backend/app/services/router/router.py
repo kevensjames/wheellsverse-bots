@@ -71,6 +71,15 @@ class Router:
             return self.adapters["openai"]
         return None
 
+    def _next_tool_brain(self, tried: set[str]) -> Adapter | None:
+        """Next configured TOOL-CAPABLE adapter not yet tried this turn — for
+        failing a tool loop over to the other cloud brain (e.g. OpenAI 429 →
+        Anthropic) so tool-calling survives one provider being down."""
+        for name in ("anthropic", "openai"):
+            if name not in tried and name in self.adapters:
+                return self.adapters[name]
+        return None
+
     def _log_failure_safe(self, *, user_id, adapter: Adapter, error: str) -> None:
         """Record an adapter failure, best-effort. Spend logging hits the DB,
         and a logging hiccup must NEVER defeat the runtime fallback or mask the
@@ -276,6 +285,7 @@ class Router:
         )
 
         last_result: CompletionResult | None = None
+        tried_brains: set[str] = {adapter.name}  # tool-capable adapters tried this turn
         for _ in range(max_tool_iters + 1):
             try:
                 result = adapter.complete(
@@ -287,12 +297,25 @@ class Router:
                 )
             except Exception as e:
                 self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e))
-                # Resilience: if the tool-capable adapter fails (e.g. OpenAI 429
-                # insufficient_quota) and local Ollama is available, return a
-                # PLAIN local answer (no tools) instead of erroring. The turn
-                # loses tool use, but KAI stays responsive when the cloud
-                # backend is down. Only on the first turn's failure — once tools
-                # have run we can't faithfully resume on a tool-incapable model.
+                # 1. FAIL OVER to another tool-capable brain — KEEP tools. The key
+                #    resilience path: OpenAI 429 → retry this turn on Anthropic, so
+                #    the tool layer keeps working when one cloud brain is down.
+                alt = self._next_tool_brain(tried_brains) if tool_capable else None
+                if alt is not None:
+                    logger.warning(
+                        "chat: tool-brain %s failed (%s) — failing over to %s",
+                        adapter.name, e, alt.name,
+                    )
+                    tried_brains.add(alt.name)
+                    adapter = alt
+                    tool_schema = (
+                        tool_registry.openai_schema()
+                        if alt.name == "openai"
+                        else tool_registry.anthropic_schema()
+                    )
+                    continue  # retry this turn on the new brain
+                # 2. No tool-capable brain left → DEGRADE to a plain local answer
+                #    (no tools) instead of erroring, so KAI stays responsive.
                 local = self.adapters.get("ollama")
                 if local is not None and local is not adapter:
                     logger.warning(
