@@ -52,6 +52,21 @@ def _stop_supreme():
     _stop()
 
 
+# KAI bounded self-healing scheduler — opt-in via
+# KAI_SELF_HEAL_SCHEDULER_ENABLED=1. Auto-runs the SAFE auto-fix allowlist
+# every N seconds (also gated by scope self_heal + KAI_SELF_HEAL_ENABLED).
+@app.on_event("startup")
+def _start_self_heal():
+    from app.services.self_heal_scheduler import start as _start
+    _start()
+
+
+@app.on_event("shutdown")
+def _stop_self_heal():
+    from app.services.self_heal_scheduler import stop as _stop
+    _stop()
+
+
 # Continuous Research scheduler — opt-in via KAI_RESEARCH_ENABLED=1.
 # Background thread runs one cycle per day at the configured UTC hour
 # (KAI_RESEARCH_HOUR_UTC, default 8). Fetches HN+arXiv+GH-trending,
