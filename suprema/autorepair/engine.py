@@ -140,6 +140,41 @@ CATALOG: dict[str, dict[str, Any]] = {
         "safety":  "review",
         "title":   "Local main is ahead of what's deployed — operator forgot to ship",
     },
+    # ── Runtime observability patterns (added to cover KAI Supreme parity) ──
+    # These watch the live host state instead of code — they only mean
+    # anything when the autorepair daemon runs on the actual production host
+    # (Mac mini). When it runs from /Volumes (this dev clone) they mostly
+    # no-op, which is the desired behavior.
+    "disk_usage_high": {
+        "scanner": "scanners.disk_usage_high",
+        "fixer":   None,           # cleanup is operator-judgement (which dirs to nuke)
+        "safety":  "review",
+        "title":   "Host disk filling up — caches, generated outputs, old logs",
+    },
+    "uncommitted_changes_high": {
+        "scanner": "scanners.uncommitted_changes_high",
+        "fixer":   None,           # never auto-stash — could lose work
+        "safety":  "review",
+        "title":   "Working tree has too many uncommitted changes — risk of loss / leak",
+    },
+    "bot_error_spike": {
+        "scanner": "scanners.bot_error_spike",
+        "fixer":   None,           # log triage is operator work
+        "safety":  "review",
+        "title":   "Bot log file is spewing ERROR/CRITICAL lines",
+    },
+    "agent_stale_heartbeat": {
+        "scanner": "scanners.agent_stale_heartbeat",
+        "fixer":   None,           # restarting launchd jobs is operator action
+        "safety":  "review",
+        "title":   "Scheduled agent stopped writing output (stale/dead heartbeat)",
+    },
+    "productivity_zero": {
+        "scanner": "scanners.productivity_zero",
+        "fixer":   None,           # cause is upstream — agents not actually working
+        "safety":  "review",
+        "title":   "NarAI daily report shows zero production — silent dead system",
+    },
 }
 
 
