@@ -595,7 +595,7 @@ async function haltSol() {
   if (!reason) { alert('Reason required'); return; }
   if (!confirm(`Halt money movement?\n\nReason: ${reason}\n\nThis stops ALL new ACH debit/credit attempts.`)) return;
   try {
-    await api('/admin/halt', 'POST', { reason });
+    await api('/admin/halt', { method:'POST', body: JSON.stringify({ reason }) });
     loadSecurity();
   } catch(e) { alert(e.message); }
 }
@@ -603,7 +603,7 @@ async function haltSol() {
 async function unhaltSol() {
   if (!confirm('Resume money movement? Confirm your post-mortem is done.')) return;
   try {
-    await api('/admin/unhalt', 'POST');
+    await api('/admin/unhalt', { method:'POST' });
     loadSecurity();
   } catch(e) { alert(e.message); }
 }
@@ -611,7 +611,7 @@ async function unhaltSol() {
 async function startTotp() {
   const el = document.getElementById('securityCard');
   try {
-    const s = await api('/auth/2fa/setup', 'POST');
+    const s = await api('/auth/2fa/setup', { method: 'POST' });
     el.innerHTML = `
       <div style="font-weight:600;margin-bottom:.5rem">Step 1. Scan this QR code</div>
       <img src="${s.qr_data_url}" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:.5rem;display:block;margin-bottom:1rem">
@@ -632,7 +632,7 @@ async function activateTotp() {
   const err = document.getElementById('ta_err');
   if (code.length !== 6) { err.textContent = 'Code must be 6 digits'; err.style.display = 'block'; return; }
   try {
-    const resp = await api('/auth/2fa/activate', 'POST', { code });
+    const resp = await api('/auth/2fa/activate', { method:'POST', body: JSON.stringify({ code }) });
     showBackupCodesModal(resp.backup_codes, 'Save these backup codes');
   } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
 }
@@ -644,7 +644,7 @@ async function regenerateBackupCodes() {
   if (!password || code.length !== 6) { err.textContent = 'Enter password and 6-digit code'; err.style.display = 'block'; return; }
   if (!confirm('Regenerate backup codes?\n\nAll previously-issued codes will STOP working immediately.')) return;
   try {
-    const resp = await api('/auth/2fa/backup-codes/regenerate', 'POST', { password, code });
+    const resp = await api('/auth/2fa/backup-codes/regenerate', { method:'POST', body: JSON.stringify({ password, code }) });
     showBackupCodesModal(resp.backup_codes, 'New backup codes — save these, old ones no longer work');
   } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
 }
@@ -763,7 +763,7 @@ async function disableTotp() {
   const err = document.getElementById('td_err');
   if (!password || code.length !== 6) { err.textContent = 'Enter password and 6-digit code'; err.style.display = 'block'; return; }
   try {
-    await api('/auth/2fa/disable', 'POST', { password, code });
+    await api('/auth/2fa/disable', { method:'POST', body: JSON.stringify({ password, code }) });
     alert('2FA disabled.');
     loadSecurity();
   } catch(e) { err.textContent = e.message; err.style.display = 'block'; }
@@ -1087,7 +1087,7 @@ async function loadCyclesData() {
 async function initiateCycleById(cycleId) {
   if (!confirm('Initiate this cycle? This creates one payment per active member and starts ACH debits.')) return;
   try {
-    const r = await api(`/admin/cycles/${cycleId}/initiate`, 'POST');
+    const r = await api(`/admin/cycles/${cycleId}/initiate`, { method: 'POST' });
     showCycleMsg(`✓ Initiated cycle — ${r.payments_created} payments created`, true);
     loadCyclesData();
   } catch (e) { showCycleMsg(e.message, false); }
@@ -1095,7 +1095,7 @@ async function initiateCycleById(cycleId) {
 
 async function checkCycleById(cycleId) {
   try {
-    const r = await api(`/admin/cycles/${cycleId}/check-completion`, 'POST');
+    const r = await api(`/admin/cycles/${cycleId}/check-completion`, { method: 'POST' });
     showCycleMsg(`✓ Ready to settle: ${r.ready ?? JSON.stringify(r)}`, true);
     loadCyclesData();
   } catch (e) { showCycleMsg(e.message, false); }
@@ -1133,7 +1133,7 @@ async function retryPayout(payoutId) {
   const err = document.getElementById('payoutErr');
   ok.style.display = 'none'; err.style.display = 'none';
   try {
-    const r = await api(`/admin/payouts/${payoutId}/retry`, 'POST');
+    const r = await api(`/admin/payouts/${payoutId}/retry`, { method: 'POST' });
     ok.textContent = `✓ Retry triggered — payout status now ${r.status}`;
     ok.style.display = 'block';
     loadPayoutsData();
@@ -1279,7 +1279,7 @@ async function processPayment() {
   if (!id) return;
   showPayMsg('');
   try {
-    await api(`/admin/payments/${id}/process`, 'POST');
+    await api(`/admin/payments/${id}/process`, { method:'POST' });
     showPayMsg('✓ Payment processed', true);
     loadRetries();
   } catch(e) { showPayMsg(e.message, false); }
@@ -1287,7 +1287,7 @@ async function processPayment() {
 
 async function triggerPayment(id) {
   try {
-    await api(`/admin/payments/${id}/process`, 'POST');
+    await api(`/admin/payments/${id}/process`, { method:'POST' });
     showPayMsg('✓ Payment processed', true);
     loadRetries();
   } catch(e) { showPayMsg(e.message, false); }
@@ -1306,7 +1306,7 @@ async function initiateCycle() {
   const id = document.getElementById('initiateCycleId').value.trim();
   if (!id) return;
   try {
-    await api(`/admin/cycles/${id}/initiate`, 'POST');
+    await api(`/admin/cycles/${id}/initiate`, { method:'POST' });
     showCycleMsg('✓ Cycle initiated', true);
   } catch(e) { showCycleMsg(e.message, false); }
 }
@@ -1320,7 +1320,7 @@ async function checkCycle() {
   const id = document.getElementById('checkCycleId').value.trim();
   if (!id) return;
   try {
-    const r = await api(`/admin/cycles/${id}/check-completion`, 'POST');
+    const r = await api(`/admin/cycles/${id}/check-completion`, { method:'POST' });
     showCycleMsg(`✓ Result: ${JSON.stringify(r)}`, true);
   } catch(e) { showCycleMsg(e.message, false); }
 }
@@ -1358,7 +1358,7 @@ function renderKYC() {
 async function approveKYC(userId) {
   if (!confirm('Force-approve KYC for this user? This bypasses Persona verification.')) return;
   try {
-    await api(`/admin/kyc/${userId}/approve`, 'POST');
+    await api(`/admin/kyc/${userId}/approve`, { method: 'POST' });
     await loadUsers();
     renderKYC();
   } catch (e) { alert('Failed: ' + e.message); }
@@ -1367,7 +1367,7 @@ async function approveKYC(userId) {
 async function rejectKYC(userId) {
   if (!confirm('Reject this KYC submission? User will not be able to join any circle.')) return;
   try {
-    await api(`/admin/kyc/${userId}/reject`, 'POST');
+    await api(`/admin/kyc/${userId}/reject`, { method: 'POST' });
     await loadUsers();
     renderKYC();
   } catch (e) { alert('Failed: ' + e.message); }
@@ -1379,7 +1379,7 @@ async function rejectKYC(userId) {
 async function activateUser(userId) {
   if (!confirm('Activate this account? User regains full access.')) return;
   try {
-    await api(`/admin/users/${userId}/activate`, 'POST');
+    await api(`/admin/users/${userId}/activate`, { method: 'POST' });
     await loadUsers();
     await openUserModal(userId);
   } catch (e) { alert('Failed: ' + e.message); }
@@ -1388,7 +1388,7 @@ async function activateUser(userId) {
 async function suspendUser(userId) {
   if (!confirm('Suspend this account? User is locked out until reactivated.')) return;
   try {
-    await api(`/admin/users/${userId}/suspend`, 'POST');
+    await api(`/admin/users/${userId}/suspend`, { method: 'POST' });
     await loadUsers();
     await openUserModal(userId);
   } catch (e) { alert('Failed: ' + e.message); }
@@ -1397,7 +1397,7 @@ async function suspendUser(userId) {
 async function sendReminder(userId) {
   if (!confirm('Send a reminder email to this user?')) return;
   try {
-    const r = await api(`/admin/users/${userId}/send-reminder`, 'POST');
+    const r = await api(`/admin/users/${userId}/send-reminder`, { method: 'POST' });
     alert('✓ Reminder queued to ' + r.sent_to);
   } catch (e) { alert('Failed: ' + e.message); }
 }

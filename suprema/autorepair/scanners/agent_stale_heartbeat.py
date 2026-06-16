@@ -71,6 +71,12 @@ def scan(project: Path, live_url: str | None = None) -> list[dict]:
             sev = "medium"
             verdict = "stale heartbeat"
 
+        # Suggest a kickstart command the operator can copy-paste. We do NOT
+        # execute this — restarting an agent mid-task could lose state, so
+        # it's deliberately a human-in-the-loop action.
+        kickstart_hint = (
+            f"launchctl kickstart -k gui/$(id -u)/com.wheellsverse.{log.stem}"
+        )
         findings.append({
             "severity": sev,
             "location": str(log.relative_to(project)),
@@ -82,6 +88,9 @@ def scan(project: Path, live_url: str | None = None) -> list[dict]:
                 "agent": log.stem,
                 "last_mtime": mtime.isoformat(),
                 "age_minutes": int(age_min),
+                "suggested_command": kickstart_hint,
+                "note": ("Verify the launchd label first — agents may use a "
+                         "different prefix than com.wheellsverse.<name>."),
             },
         })
 

@@ -510,7 +510,7 @@ async function consumePendingInvite() {
   if (!code) return;
   sessionStorage.removeItem('sol_pending_invite');
   try {
-    const g = await api('/groups/join-by-code', 'POST', { invite_code: code });
+    const g = await api('/groups/join-by-code', { method:'POST', body: JSON.stringify({ invite_code: code }) });
     if (g && g.id) showGroup(g.id);
   } catch (e) {
     // Soft-fail: user likely needs to finish KYC + bank first. Show a banner
@@ -651,12 +651,12 @@ async function createGroup() {
   err.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Creating…';
   try {
-    const g = await api('/groups', 'POST', {
+    const g = await api('/groups', { method:'POST', body: JSON.stringify({
       name,
       max_members: maxMembers,
       payout_day_of_month: payoutDay,
       is_private: isPrivate,
-    });
+    })});
     document.getElementById('cName').value = '';
     document.getElementById('cPrivate').checked = false;
     toggleCreateForm();
@@ -677,7 +677,7 @@ async function joinByCode() {
   err.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Joining…';
   try {
-    const g = await api('/groups/join-by-code', 'POST', { invite_code: code });
+    const g = await api('/groups/join-by-code', { method:'POST', body: JSON.stringify({ invite_code: code }) });
     document.getElementById('jbcCode').value = '';
     toggleJoinByCode();
     if (g && g.id) showGroup(g.id);
@@ -816,7 +816,7 @@ async function joinGroup(id) {
   err.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Joining…';
   try {
-    await api(`/groups/${id}/join`, 'POST');
+    await api(`/groups/${id}/join`, { method:'POST' });
     showGroup(id);
   } catch(e) {
     // Translate backend error messages to actionable guidance + deep-link
@@ -994,7 +994,7 @@ async function loadWallet() {
 
 async function setPrimary(id) {
   try {
-    await api(`/bank/${id}/primary`, 'PATCH');
+    await api(`/bank/${id}/primary`, { method:'PATCH' });
     loadBank();
   } catch(e) { alert(e.message); }
 }
@@ -1002,7 +1002,7 @@ async function setPrimary(id) {
 async function removeBank(id) {
   if (!confirm('Remove this bank account?')) return;
   try {
-    await api(`/bank/${id}`, 'DELETE');
+    await api(`/bank/${id}`, { method:'DELETE' });
     loadBank();
   } catch(e) { alert(e.message); }
 }

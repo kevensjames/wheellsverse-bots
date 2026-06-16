@@ -147,8 +147,8 @@ CATALOG: dict[str, dict[str, Any]] = {
     # no-op, which is the desired behavior.
     "disk_usage_high": {
         "scanner": "scanners.disk_usage_high",
-        "fixer":   None,           # cleanup is operator-judgement (which dirs to nuke)
-        "safety":  "review",
+        "fixer":   "fixers.cleanup_disk",   # safe: __pycache__ + logs >30d only
+        "safety":  "auto-safe",
         "title":   "Host disk filling up — caches, generated outputs, old logs",
     },
     "uncommitted_changes_high": {
@@ -433,6 +433,23 @@ def run_cycle(do_fix: bool = True, dry_run: bool = False,
     fix_outcomes: list[tuple[Finding, FixResult]] = []
     if do_fix:
         fix_outcomes = run_fix(findings, dry_run=dry_run)
+
+    # Re-scan after the fix pass — otherwise the panel snapshots the
+    # PRE-fix findings list and looks identical to "nothing happened" even
+    # when fixes_succeeded is high. We keep `fixes_attempted`/`fixes_succeeded`
+    # from the original fix_outcomes so the count remains accurate. The
+    # rescanned `findings` shows only what's still broken.
+    findings_pre_fix_count = len(findings)
+    successful_fix_count = sum(1 for _, r in fix_outcomes if r.success)
+    if do_fix and not dry_run and successful_fix_count > 0:
+        try:
+            log.info(f"re-scanning after {successful_fix_count} successful fixes")
+            findings = run_scan(only_projects=only_projects)
+            # Triage results are indexed against the pre-fix scan; drop them
+            # rather than show misaligned verdicts on a different finding set.
+            triage_results = {}
+        except Exception as e:
+            log.warning(f"re-scan failed (showing pre-fix findings): {e}")
 
     # Attach triage verdicts to findings if we ran them
     findings_with_triage: list[dict] = []
