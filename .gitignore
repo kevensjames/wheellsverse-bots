@@ -194,3 +194,23 @@ suppreme-audit*.txt
 # SiteBoost generated artifacts (created by pipeline runs)
 data/launches/siteboost/runs/
 data/launches/siteboost/scans/
+
+# === Runtime data stores (KAI subsystems + SiteBoost runtime) ===
+# Each subsystem writes its own state under data/<name>/; none of it should
+# be tracked (regenerable + per-host + can contain operator data).
+data/browser/
+data/digest/
+data/failures.jsonl
+data/governance/
+data/kg/
+data/learning/
+data/planning/
+data/research/
+data/self_correction/
+data/supreme/
+data/twin/
+data/launches/siteboost/digests/
+
+# === Vendor binaries (TTS models) ===
+# Piper TTS .onnx files are ~100-300MB each; do not commit
+models/piper/
