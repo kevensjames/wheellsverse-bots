@@ -8,6 +8,7 @@ Serves the web dashboard + REST endpoints for all bot operations.
 """
 
 import asyncio
+import hmac
 import json
 import logging
 import logging.handlers
@@ -201,7 +202,7 @@ async def verify_api_key(request: Request):
         or request.headers.get("x-api-key")
         or request.query_params.get("api_key")
     )
-    if key != _API_KEY:
+    if not key or not hmac.compare_digest(key, _API_KEY):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -766,8 +767,30 @@ async def security_headers_middleware(request: Request, call_next):
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    # HSTS — force HTTPS for the whole apex + subdomains for a year.
+    # Safe to apply globally because the prod surface is HTTPS-only.
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # CSP — admin/dashboard surfaces use inline JS+CSS, Google Fonts, and Shopify's
+    # image CDN. Restrict to those origins + same-origin; keep 'unsafe-inline' for
+    # the dashboard's inline scripts/styles (removing it would require a full
+    # refactor; tracked as TODO). Scope to admin/dashboard so public marketing
+    # pages remain untouched.
+    path = request.url.path
+    if path.startswith("/admin") or path.startswith("/dashboard"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
+            "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+            "font-src 'self' https://fonts.gstatic.com data:; "
+            "img-src 'self' data: https: blob:; "
+            "connect-src 'self' https: wss:; "
+            "frame-src 'self' https:; "
+            "frame-ancestors 'self'; "
+            "base-uri 'self'; "
+            "form-action 'self'"
+        )
     # Prevent Fastly/CDN from caching API responses (especially 404s)
-    if request.url.path.startswith("/api/") or request.url.path in ("/", "/landing"):
+    if path.startswith("/api/") or path in ("/", "/landing"):
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Surrogate-Control"] = "no-store"
         response.headers["Pragma"] = "no-cache"
@@ -795,7 +818,7 @@ async def api_key_middleware(request: Request, call_next):
                 or request.headers.get("x-api-key")
                 or request.query_params.get("api_key")
             )
-            if key != _API_KEY:
+            if not key or not hmac.compare_digest(key, _API_KEY):
                 return JSONResponse(
                     {"error": "Unauthorized", "hint": "Set X-API-Key header"},
                     status_code=401,
