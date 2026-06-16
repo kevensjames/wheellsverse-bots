@@ -1,1 +1,7 @@
-{"description": "Project manager — task boards, deadlines, blockers powered by Claude", "ai_provider": "claude", "enabled": true}
+{
+  "description": "Project manager \u2014 task boards, deadlines, blockers powered by Claude",
+  "ai_provider": "claude",
+  "enabled": true,
+  "schedule": "@daily 07:00",
+  "action": "tasks"
+}
