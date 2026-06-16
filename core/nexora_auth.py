@@ -9,6 +9,7 @@ NEXORA platform — creator authentication.
 ─────────────────────────────────────────────────────────────────────────────
 """
 
+import bcrypt
 import hashlib
 import re
 import secrets
@@ -25,19 +26,29 @@ _SALT_HEX_LEN = 32   # 16 bytes → 32 hex chars
 
 
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(_SALT_HEX_LEN)
-    h = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-    return f"{salt}${h}"
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    try:
+    if not stored_hash:
+        return False
+    if stored_hash.startswith("$2"):                 # bcrypt
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
+        except Exception:
+            return False
+    try:                                             # legacy: salt$sha256hex
         salt, h = stored_hash.split("$", 1)
         return secrets.compare_digest(
             hashlib.sha256((salt + password).encode("utf-8")).hexdigest(), h
         )
     except Exception:
         return False
+
+
+def needs_rehash(stored_hash: str) -> bool:
+    """True for legacy (non-bcrypt) hashes that should be upgraded on next login."""
+    return not (stored_hash or "").startswith("$2")
 
 # ── Token helpers ──────────────────────────────────────────────────────────────
 
