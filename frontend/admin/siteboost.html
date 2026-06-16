@@ -386,7 +386,7 @@ async function runSelftest() {
   sub.textContent = '—';
 
   try {
-    const r = await api('/selftest', {method: 'POST'});
+    const r = await api('/selftest', 'POST');
     const d = await r.json();
     title.textContent = d.ok ? '✓ Selftest passed' : '✗ Selftest failed';
     sub.textContent = `${d.passed}/${d.total} checks passed · ${d.failed} failed · exit ${d.exit_code}`;
