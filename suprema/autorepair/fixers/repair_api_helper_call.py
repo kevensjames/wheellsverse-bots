@@ -49,6 +49,20 @@ def apply(project: Path, finding) -> FixResult:
     except Exception as e:
         return FixResult(False, message=f"read failed: {e}")
 
+    # Defense in depth: never rewrite a file whose api() helper isn't positional.
+    # The scanner already filters to positional-helper files, but this guard
+    # makes the fixer safe even if invoked directly on a stale/foreign finding.
+    from suprema.autorepair.scanners.malformed_api_helper_call import (
+        _helper_is_positional,
+    )
+    if _helper_is_positional(content) is not True:
+        return FixResult(
+            False,
+            message=f"refusing to rewrite {rel_file}: its api() helper is "
+                    "options-style or undefined here, so the options-bag call "
+                    "is correct — rewriting would BREAK it",
+        )
+
     new = PATTERN.sub(_rewrite, content)
     if new == content:
         return FixResult(

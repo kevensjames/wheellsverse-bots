@@ -77,8 +77,13 @@ CATALOG: dict[str, dict[str, Any]] = {
     "malformed_api_helper_call": {
         "scanner": "scanners.malformed_api_helper_call",
         "fixer":   "fixers.repair_api_helper_call",
-        "safety":  "auto-safe",
-        "title":   "api() helper called with options-bag instead of positional method",
+        # Demoted auto-safe → review (2026-06-16): this rewriter corrupted the
+        # Sol frontend by assuming all api() helpers are positional. The scanner
+        # is now signature-aware, but rewriting call sites in a money app stays
+        # operator-reviewed, not unsupervised. Re-promote only after sustained
+        # zero-false-positive runs across both api() conventions.
+        "safety":  "review",
+        "title":   "api() helper called with options-bag in a POSITIONAL-helper file",
     },
     "stale_git_sha_health": {
         "scanner": "scanners.stale_git_sha_health",
