@@ -214,3 +214,4 @@ data/launches/siteboost/digests/
 # === Vendor binaries (TTS models) ===
 # Piper TTS .onnx files are ~100-300MB each; do not commit
 models/piper/
+backend/data/
