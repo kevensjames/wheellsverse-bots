@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>API keys — KAI</title>
+  <link rel="stylesheet" href="style.css?v=ts-1781406183" />
+  <link rel="stylesheet" href="api-keys.css?v=ts-1780573928" />
+  <link rel="manifest" href="/kai-ui/manifest.json" />
+  <link rel="apple-touch-icon" href="/kai-ui/apple-touch-icon.png" />
+  <meta name="theme-color" content="#4f8cff" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="KAI" />
+</head>
+<body>
+  <header>
+    <h1>KAI</h1>
+    <nav class="subnav">
+      <a href="/kai-ui/chat.html">Chat</a>
+      <a href="/kai-ui/pricing.html">Pricing</a>
+      <button class="btn-ghost" id="logout-btn" type="button">Log out</button>
+    </nav>
+  </header>
+
+  <main class="page">
+    <h1>API keys</h1>
+    <p class="lede">
+      Use KAI as a drop-in OpenAI replacement. Set
+      <code>OPENAI_BASE_URL=https://kai.wheellsverse.com/v1</code> and your KAI key
+      where you'd put your OpenAI key.
+    </p>
+
+    <div class="error-banner" id="error"></div>
+
+    <section class="newly-created" id="newly-created" hidden>
+      <h2>Your new key</h2>
+      <p>Copy this now — you won't see it again. We only store its hash.</p>
+      <pre id="new-key-plaintext" class="key-plaintext"></pre>
+      <button class="btn-ghost" id="copy-key-btn" type="button">Copy</button>
+    </section>
+
+    <section>
+      <div class="row-between">
+        <h2>Active keys</h2>
+        <button class="btn-primary" id="new-key-btn" type="button">+ New key</button>
+      </div>
+      <ul class="key-list" id="key-list">
+        <li class="muted">Loading…</li>
+      </ul>
+    </section>
+
+    <section class="example">
+      <h2>Try it</h2>
+      <p>Once you have a key, this works:</p>
+      <pre class="code-snippet">curl https://kai.wheellsverse.com/v1/chat/completions \
+  -H "Authorization: Bearer kai_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "gpt-4o-mini",
+    "messages": [{"role": "user", "content": "hello"}]
+  }'</pre>
+    </section>
+
+    <p class="alt-link">
+      <a href="/kai-ui/chat.html">← Back to chat</a>
+    </p>
+  </main>
+
+  <script src="auth.js?v=ts-1780481212"></script>
+  <script src="api-keys.js?v=ts-1780573981"></script>
+</body>
+</html>

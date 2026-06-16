@@ -34,7 +34,7 @@ def load_config() -> Dict[str, Any]:
         with open(CONFIG_FILE) as f:
             return yaml.safe_load(f) or {}
     return {
-        "root_path": "/Volumes/Wheellsverse/wheellsverse_bots",
+        "root_path": "/Users/jhonwheeler/wheellsverse_bots",
         "dashboard_port": 7777,
         "ssd_volume": "/Volumes/Wheellsverse",
         "auto_backup": True,
@@ -255,7 +255,7 @@ def new_asset_template() -> Dict[str, Any]:
         "total_revenue_usd": 0,
         "run_command": "",
         "stop_command": "",
-        "working_dir": str(Path(_cfg.get("root_path", "/Volumes/Wheellsverse/wheellsverse_bots"))),
+        "working_dir": str(Path(_cfg.get("root_path", "/Users/jhonwheeler/wheellsverse_bots"))),
         "tags": [],
         "notes": "",
         "created_at": now,

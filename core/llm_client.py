@@ -14,12 +14,21 @@ direct `client.chat.completions.create(...)` calls with a flow that:
 Public API:
     safe_openai_call(messages, model, max_tokens, ...) -> ChatCompletion
 
+Local-backend support (LLM_BACKEND=ollama):
+    When LLM_BACKEND is set to "ollama" (or any non-empty value other than
+    "openai"), calls are routed to a local OpenAI-compatible endpoint
+    (default http://localhost:11434/v1) using OLLAMA_BASE_URL. Model names
+    are translated via OLLAMA_MODEL_MAP (JSON) or fall through unchanged.
+    The TPM limiter and cost logging are short-circuited on the local
+    path (no rate limit, no spend to track).
+
 Exceptions:
     LLMCapacityTimeout — limiter waited >timeout for room (re-export from limiter)
     Native openai.* exceptions pass through unchanged
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from typing import Any, Optional
@@ -27,6 +36,36 @@ from typing import Any, Optional
 from core.llm_limiter import LLMCapacityTimeout, limiter_for
 
 logger = logging.getLogger("llm_client")
+
+
+def _is_local_backend() -> bool:
+    """True when LLM_BACKEND env routes calls to a local OpenAI-compatible server."""
+    backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
+    return backend in ("ollama", "local", "lmstudio", "llamacpp")
+
+
+def _local_base_url() -> str:
+    return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
+
+
+def _map_model(model: str) -> str:
+    """Translate a cloud model name (e.g. 'gpt-4o') to a local tag (e.g. 'qwen2.5:7b').
+
+    Source: OLLAMA_MODEL_MAP env var as a JSON object, e.g.
+        {"gpt-4o": "qwen2.5:7b", "gpt-4o-mini": "llama3.2:3b"}
+
+    Unknown models pass through unchanged so Ollama-native tags
+    (`qwen2.5:7b`, `llama3.2:latest`) still work directly.
+    """
+    raw = os.getenv("OLLAMA_MODEL_MAP", "").strip()
+    if not raw:
+        return model
+    try:
+        mapping = json.loads(raw)
+        return mapping.get(model, model)
+    except json.JSONDecodeError:
+        logger.warning("OLLAMA_MODEL_MAP is not valid JSON — passing model through")
+        return model
 
 # Token-counting strategy: tiktoken (accurate) with chars/4 fallback
 _encoders: dict[str, Any] = {}
@@ -86,13 +125,24 @@ def safe_openai_call(
     """
     import openai
 
-    estimated = _estimate_tokens(messages, model) + max_tokens
-    limiter = limiter_for(model)
-    limiter.wait_for_capacity(estimated_tokens=estimated)
+    local = _is_local_backend()
+    effective_model = _map_model(model) if local else model
 
-    client = openai.OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY", ""))
+    if not local:
+        estimated = _estimate_tokens(messages, model) + max_tokens
+        limiter = limiter_for(model)
+        limiter.wait_for_capacity(estimated_tokens=estimated)
+
+    if local:
+        client = openai.OpenAI(
+            base_url=_local_base_url(),
+            api_key=api_key or os.getenv("OLLAMA_API_KEY", "ollama"),
+        )
+    else:
+        client = openai.OpenAI(api_key=api_key or os.getenv("OPENAI_API_KEY", ""))
+
     call_kwargs: dict = {
-        "model": model,
+        "model": effective_model,
         "messages": messages,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -103,23 +153,25 @@ def safe_openai_call(
 
     resp = client.chat.completions.create(**call_kwargs)
 
-    # Correct the limiter with the actual token cost
-    actual_total = 0
-    try:
-        usage = getattr(resp, "usage", None)
-        if usage:
-            prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
-            completion_tokens = getattr(usage, "completion_tokens", 0) or 0
-            actual_total = prompt_tokens + completion_tokens
-            limiter.record(actual_total)
-            # Forward to existing token-usage log for cost accounting parity
-            try:
-                from core.base_bot import _log_token_usage
-                _log_token_usage("openai", model, prompt_tokens, completion_tokens, bot_name)
-            except Exception:
-                pass
-    except Exception as e:
-        logger.warning(f"Token-usage post-processing failed: {e}")
+    # Correct the limiter with the actual token cost. On the local path
+    # there is no limiter and no cost — skip both.
+    if not local:
+        actual_total = 0
+        try:
+            usage = getattr(resp, "usage", None)
+            if usage:
+                prompt_tokens = getattr(usage, "prompt_tokens", 0) or 0
+                completion_tokens = getattr(usage, "completion_tokens", 0) or 0
+                actual_total = prompt_tokens + completion_tokens
+                limiter.record(actual_total)
+                # Forward to existing token-usage log for cost accounting parity
+                try:
+                    from core.base_bot import _log_token_usage
+                    _log_token_usage("openai", model, prompt_tokens, completion_tokens, bot_name)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Token-usage post-processing failed: {e}")
 
     return resp
 

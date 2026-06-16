@@ -7,8 +7,8 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/.venv/bin/python</string>
-        <string>/Volumes/Wheellsverse/wheellsverse_bots/scripts/daily_kdp_publish.py</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin/python</string>
+        <string>/Users/jhonwheeler/wheellsverse_bots/scripts/daily_kdp_publish.py</string>
     </array>
 
     <!-- Run every day at 09:00 AM -->
@@ -21,12 +21,12 @@
     </dict>
 
     <key>WorkingDirectory</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots</string>
 
     <key>StandardOutPath</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/logs/kdp_daily.log</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/logs/kdp_daily.log</string>
     <key>StandardErrorPath</key>
-    <string>/Volumes/Wheellsverse/wheellsverse_bots/logs/kdp_daily_error.log</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/logs/kdp_daily_error.log</string>
 
     <key>RunAtLoad</key>
     <false/>

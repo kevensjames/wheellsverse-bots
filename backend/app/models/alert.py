@@ -20,7 +20,8 @@ class Watchlist(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        # Path X: profiles is the user table (Supabase canonical pattern).
+        ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
     )
     asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id"), nullable=False)
@@ -37,7 +38,8 @@ class Alert(Base):
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
+        # Path X: profiles is the user table (Supabase canonical pattern).
+        ForeignKey("profiles.id", ondelete="CASCADE"),
         nullable=False,
     )
     asset_id: Mapped[int] = mapped_column(ForeignKey("assets.id"), nullable=False)

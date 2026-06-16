@@ -80,6 +80,7 @@ def build_system_prompt(
     pattern_context: str | None = None,
     overwhelm_modifier: str | None = None,
     mode_modifier: str | None = None,
+    personality_modifier: str | None = None,
 ) -> str:
     """Generate the full system prompt from identity + runtime context.
 
@@ -95,6 +96,12 @@ def build_system_prompt(
     turn. Pass the output of ``narai.core.mode_router.modifier_for(decision)``.
     Rendered before ``overwhelm_modifier`` so a high-overwhelm state override
     wins when both fire on the same turn.
+
+    `personality_modifier` (Week 4-B) — the user's selected NarAI personality
+    preset (companion/coach/coder/writer/trader/strategist). Pass the output of
+    ``narai.core.personalities.modifier_for_personality(slug)``. Rendered
+    before mode/overwhelm modifiers so those situational overrides still win
+    when the user is stressed or in a specific operator/companion mode.
     """
     ident = identity or Identity()
 
@@ -133,6 +140,9 @@ def build_system_prompt(
 
     if pattern_context:
         parts += ["", pattern_context]
+
+    if personality_modifier:
+        parts += ["", personality_modifier]
 
     if mode_modifier:
         parts += ["", mode_modifier]

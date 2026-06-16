@@ -1099,8 +1099,7 @@ class DecisionEngine:
         if not self._ai_assist:
             return None
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            from core.llm_client import safe_openai_call
             state_summary = json.dumps({
                 k: v for k, v in state.items()
                 if k not in ("failed_bots",)
@@ -1124,11 +1123,12 @@ Return JSON only:
 
 Be conservative — only suggest action if clearly needed.
 """
-            resp = client.chat.completions.create(
-                model="gpt-4o-mini",
+            resp = safe_openai_call(
                 messages=[{"role": "user", "content": prompt}],
+                model="gpt-4o-mini",
                 max_tokens=150,
                 temperature=0.2,
+                bot_name="decision_engine",
             )
             import re
             raw = resp.choices[0].message.content.strip()

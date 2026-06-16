@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<base target="_top"/>
+<title>wvkey · Secrets Vault — WheellsVerse</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"/>
+<style>
+  :root {
+    --bg: #05070d; --panel: #0b0f1a; --panel2: #11172a; --border: #1a2036;
+    --text: #e8edf5; --muted: #8a95a8; --accent: #4df4a5;
+    --warn: #ffb547; --err: #ff5b6e; --purple: #a389f4; --cyan: #5be7ff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;min-height:100vh}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:18px 28px;border-bottom:1px solid var(--border);background:rgba(11,15,26,.6);backdrop-filter:blur(8px);position:sticky;top:0;z-index:10}
+  .brand{font-weight:700;font-size:18px;letter-spacing:.3px}
+  .brand .pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);margin-right:8px;box-shadow:0 0 12px var(--accent);animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .topnav a{color:var(--muted);text-decoration:none;margin-left:18px;font-size:13px}
+  .topnav a:hover{color:var(--text)}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px 28px 80px}
+  h1{font-size:28px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:12px}
+  .h1-icon{font-size:30px}
+  .sub{color:var(--muted);margin-bottom:8px;font-size:14px}
+  .snapshot{display:inline-block;font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--warn);background:rgba(255,181,71,.12);border:1px solid rgba(255,181,71,.25);padding:3px 10px;border-radius:999px;margin-bottom:28px}
+  .section-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin:36px 0 14px;font-weight:500}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px}
+  .stat-num{font-size:22px;font-weight:700;color:var(--accent);font-feature-settings:'tnum';line-height:1.2}
+  .stat-num.purple{color:var(--purple)} .stat-num.cyan{color:var(--cyan)} .stat-num.warn{color:var(--warn)}
+  .stat-label{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-top:6px}
+  .row{display:grid;grid-template-columns:3fr 2fr;gap:20px;margin-top:14px}
+  @media (max-width:900px){.row{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:22px}
+  .card h2{font-size:15px;font-weight:600;margin:0 0 14px;letter-spacing:.3px}
+  .card h3{font-size:12px;text-transform:uppercase;letter-spacing:1.3px;color:var(--muted);margin:18px 0 8px;font-weight:600}
+  .card h3:first-of-type{margin-top:0}
+  .card p,.card li{font-size:13px;line-height:1.55;color:var(--text)}
+  .card p{margin:0 0 10px}
+  .card ul{margin:0 0 10px;padding-left:18px;color:var(--muted)}
+  .card ul li{margin-bottom:4px}
+  pre{background:#04060c;border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.55;color:var(--accent);overflow-x:auto;margin:0 0 12px;white-space:pre}
+  pre .c{color:var(--muted)}
+  pre .k{color:var(--cyan)}
+  code{font-family:'JetBrains Mono',monospace;font-size:12px;background:rgba(77,244,165,.08);color:var(--accent);padding:1px 6px;border-radius:4px}
+  .danger{color:var(--err)}
+  .ok{color:var(--accent)}
+  .warn{color:var(--warn)}
+  .kbd{font-family:'JetBrains Mono',monospace;font-size:11px;background:var(--panel2);border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;padding:2px 7px;color:var(--text)}
+  .arch-diagram{font-family:'JetBrains Mono',monospace;font-size:11px;line-height:1.5;color:var(--muted);background:#04060c;border:1px solid var(--border);border-radius:8px;padding:14px;margin:0 0 10px;white-space:pre}
+  .arch-diagram .host{color:var(--cyan)}
+  .arch-diagram .lock{color:var(--accent)}
+  .arch-diagram .x{color:var(--err)}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><span class="pulse"></span>WheellsVerse · wvkey Vault</div>
+  <nav class="topnav">
+    <a href="/admin/hub">← Command Center</a>
+    <a href="/admin">/admin (legacy)</a>
+    <a href="https://github.com/kevensjames/wheellsverse-bots/tree/main/tools/wvkey" target="_blank" rel="noopener">Source</a>
+  </nav>
+</div>
+
+<div class="wrap">
+  <h1><span class="h1-icon">🔐</span>wvkey · Secrets Vault</h1>
+  <div class="sub">Local-machine encrypted secrets store for wheellsverse_bots. AES-256-GCM at rest, master password in macOS Keychain.</div>
+  <div class="snapshot">⓪ Snapshot · 2026-05-14 · stats below are point-in-time, not live</div>
+
+  <div class="stats">
+    <div class="stat"><div class="stat-num">217</div><div class="stat-label">Keys in vault</div></div>
+    <div class="stat"><div class="stat-num purple">Jhons-Mac-mini</div><div class="stat-label">Vault host</div></div>
+    <div class="stat"><div class="stat-num cyan">AES-256-GCM</div><div class="stat-label">Cipher</div></div>
+    <div class="stat"><div class="stat-num warn">600k</div><div class="stat-label">PBKDF2-SHA256 iters</div></div>
+  </div>
+
+  <div class="section-title">Runbook</div>
+  <div class="row">
+    <div class="card">
+      <h2>Common commands</h2>
+
+      <h3>One-time setup</h3>
+<pre><span class="c"># Already done 2026-05-14. Init creates the vault and</span>
+<span class="c"># stores master password in the Keychain.</span>
+wvkey init</pre>
+
+      <h3>Inspect</h3>
+<pre>wvkey list                 <span class="c"># names only</span>
+wvkey get <span class="k">OPENAI_API_KEY</span>     <span class="c"># value to stdout</span>
+wvkey list | wc -l         <span class="c"># key count</span></pre>
+
+      <h3>Mutate</h3>
+<pre>wvkey set <span class="k">KEY</span> "value"
+wvkey set <span class="k">KEY</span> -         <span class="c"># read value from stdin</span>
+wvkey unset <span class="k">KEY</span></pre>
+
+      <h3>Run a bot with injected secrets</h3>
+<pre>wvkey run -- python -m narai.bot
+wvkey run -- ./launch.sh</pre>
+      <p style="color:var(--muted);font-size:12px">Uses <code>os.execvpe</code>: signals pass through cleanly to the child, no wrapper layer.</p>
+
+      <h3>Re-import from .env (re-runs are non-destructive)</h3>
+<pre>wvkey migrate-env /Users/jhonwheeler/wheellsverse_bots/.env</pre>
+
+      <h3>Disaster recovery</h3>
+<pre>wvkey export ~/secure/wvkey-backup-$(date +%Y%m%d).env
+<span class="c"># PLAINTEXT — copy to encrypted external storage immediately.</span>
+wvkey rotate              <span class="c"># re-encrypt under new master password</span></pre>
+    </div>
+
+    <div class="card">
+      <h2>Why local-only</h2>
+      <p>The vault and master password never leave this Mac mini. If Railway, Supabase, or any cloud component is compromised, the vault is unaffected.</p>
+
+      <div class="arch-diagram"><span class="host">┌─ Jhons-Mac-mini ────────────────────┐</span>
+<span class="host">│</span> ~/.config/wvkey/vault.enc <span class="lock">🔒</span>           <span class="host">│</span>
+<span class="host">│</span>   AES-256-GCM, PBKDF2-SHA256 600k    <span class="host">│</span>
+<span class="host">│</span> Keychain · service "wvkey"  <span class="lock">🔑</span>        <span class="host">│</span>
+<span class="host">└─────┬───────────────────────────────┘</span>
+      │ wvkey run -- ...
+      <span class="lock">▼</span>
+   bots, scripts, schedulers
+
+<span class="x">    ✗ Railway can't read this
+    ✗ Supabase can't read this
+    ✗ Network can't read this</span></div>
+
+      <h3>State of the migration</h3>
+      <ul>
+        <li><span class="ok">●</span> Vault initialized 2026-05-14 with 217 keys from <code>.env</code></li>
+        <li><span class="warn">●</span> Plaintext <code>.env</code> + two <code>.env.bak.*</code> files still on disk</li>
+        <li><span class="warn">●</span> Bots still read <code>.env</code> directly — not yet switched to <code>wvkey run</code></li>
+      </ul>
+
+      <h3>Next steps</h3>
+      <ol style="margin:0;padding-left:18px;color:var(--muted);font-size:13px;line-height:1.6">
+        <li>Audit which bot entrypoints load secrets</li>
+        <li>Switch them to <code>wvkey run -- &lt;cmd&gt;</code></li>
+        <li>Verify each bot still boots cleanly</li>
+        <li>Backup the vault: <code>wvkey export ~/secure/wvkey-backup-YYYYMMDD.env</code> to encrypted off-machine storage</li>
+        <li>Then delete <code>.env</code> and <code>.env.bak.*</code></li>
+      </ol>
+
+      <h3>Locations</h3>
+      <ul>
+        <li>Binary: <code>~/.local/bin/wvkey</code> → wrapper</li>
+        <li>Source: <code>tools/wvkey/</code></li>
+        <li>Venv: <code>tools/wvkey/.venv/</code></li>
+        <li>Vault file: <code>~/.config/wvkey/vault.enc</code> (mode 0600)</li>
+        <li>Master password: macOS Keychain, service <code>wvkey</code></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section-title">Live status (not yet wired)</div>
+  <div class="card" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+    <div style="flex:1;min-width:280px">
+      <p style="margin:0 0 6px;font-size:13px">This page currently shows a manual snapshot. Live vault status (key count, last-modified, last-rotation date) would require the Mac mini to publish a non-secret manifest via cron to Supabase.</p>
+      <p style="margin:0;color:var(--muted);font-size:12px">No values would ever cross the network — only metadata (counts, timestamps, host).</p>
+    </div>
+    <code style="font-size:11px;color:var(--muted);background:transparent;border:1px dashed var(--border);padding:8px 12px;border-radius:8px">phase 2 · not built yet</code>
+  </div>
+</div>
+
+</body>
+</html>

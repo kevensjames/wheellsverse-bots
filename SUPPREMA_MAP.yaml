@@ -1,0 +1,104 @@
+# SUPPREMA_MAP.yaml — single source of truth for KAI Supreme
+#
+# Ported from the standalone NarAI Supreme .app on 2026-06-09.
+# Paths updated: /Volumes/Wheellsverse/wheellsverse_bots → /Users/jhonwheeler/...
+# Services updated: KAI on 8001 (was dashboard:5050 / sub:5051 in NAI Stage 0)
+# Branding updated: NarAI → KAI throughout.
+#
+# Edit by hand. Comments encouraged. KAI Supreme reads this every cycle
+# so live edits are picked up without a daemon restart.
+
+version: 2
+last_updated: 2026-06-09
+operator: jhonwheeler
+empire: wheellsverse
+
+# ===== Filesystem =====
+paths:
+  monorepo: /Users/jhonwheeler/wheellsverse_bots
+  venv: /Users/jhonwheeler/wheellsverse_bots/.venv
+  logs: /Users/jhonwheeler/wheellsverse_bots/logs
+  outputs: /Users/jhonwheeler/wheellsverse_bots/outputs
+  frontend: /Users/jhonwheeler/wheellsverse_bots/frontend
+  supreme_root: /Users/jhonwheeler/wheellsverse_bots/data/supreme
+
+# ===== Git =====
+git:
+  remote: http://localhost:3000/jhonwheeler/wheellsverse-bots.git
+  active_branch: feat/kdp-fillers
+  main_branch: main
+
+# ===== Python =====
+python:
+  interpreter: /Users/jhonwheeler/wheellsverse_bots/.venv/bin/python
+  pip: /Users/jhonwheeler/wheellsverse_bots/.venv/bin/pip
+
+# ===== Ports & services =====
+# Critical=true → port_health treats absence as 'critical' severity.
+# restart_command (optional) → admin can deep-link to copy-paste it.
+services:
+  - name: kai
+    # process: field omitted — pgrep -f from inside the daemon doesn't
+    # reliably match the daemon's own command line on macOS. The port
+    # check below is a stronger liveness signal anyway (open listening
+    # port = actually serving, vs running-but-stuck).
+    port: 8001
+    health_url: http://localhost:8001/health
+    restart_command: "launchctl kickstart -k gui/$(id -u)/com.wheellsverse.nai"
+    critical: true
+
+  - name: ollama
+    process: "ollama serve"
+    port: 11434
+    health_url: http://localhost:11434/api/tags
+    critical: true
+    note: "Local LLM fallback. If down, smart-routing prefer_local degrades to cloud (costs money)."
+
+  - name: gitea
+    process: "gitea web"
+    port: 3000
+    health_url: http://localhost:3000
+    critical: false
+    note: "Self-hosted git mirror. KAI doesn't depend on it; the operator does."
+
+# ===== APIs & external dependencies =====
+# Used by EnvCompletenessScanner — missing keys for critical=true APIs
+# raise a 'high' finding so launches don't surprise the operator.
+apis:
+  stripe:
+    env_keys: [STRIPE_SECRET_KEY, STRIPE_PUBLIC_KEY, STRIPE_WEBHOOK_SECRET]
+    critical: true
+    note: "Revenue-critical."
+  supabase:
+    env_keys: [SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, SUPABASE_SECRET_KEY]
+    critical: true
+  telegram:
+    env_keys: [TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID]
+    critical: false
+    note: "Used for Supreme medium+ alerts. Optional."
+  openai:
+    env_keys: [OPENAI_API_KEY]
+    critical: true
+    note: "Default chat adapter + Whisper + TTS fallback."
+  anthropic:
+    env_keys: [ANTHROPIC_API_KEY]
+    critical: false
+    note: "Used by smart routing for Intent.CODE."
+  cloudflare_ai:
+    env_keys: [CLOUDFLARE_AI_TOKEN, CLOUDFLARE_ACCOUNT_ID]
+    critical: false
+    note: "Used by smart routing for Intent.SIMPLE."
+
+# ===== KAI Supreme behavior =====
+supreme:
+  scan_interval_seconds: 900           # 15 minutes
+  telegram_notify_severity: medium     # medium / high / critical → ping; low → silent
+
+  scans:
+    - process_health
+    - port_health
+    - log_errors
+    - api_reachability
+    - env_completeness
+    - disk_space
+    - git_state

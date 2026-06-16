@@ -16,6 +16,7 @@ class LoginRequest(BaseModel):
 
 
 class TokenResponse(BaseModel):
+    """Returned alongside cookies for API clients that don't carry a cookie jar."""
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
@@ -26,12 +27,13 @@ class RefreshRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    """Path X: maps to public.profiles. is_verified/is_active/phone were
+    SQLAlchemy User fields and have no clean equivalent on profiles —
+    dropped. Add them back if the UI grows a need."""
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     email: str
     full_name: str | None = None
-    phone: str | None = None
-    is_verified: bool
-    is_active: bool
-    created_at: datetime
+    tier: str = "free"
+    created_at: datetime | None = None

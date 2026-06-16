@@ -56,6 +56,11 @@ data/cookies/
 bots_backup/
 generated_bots/
 memory/
+# NAI/NarAI source package — must be tracked even though `memory/` is ignored above
+!services/narai/memory/
+!services/narai/memory/**
+!backend/app/services/memory/
+!backend/app/services/memory/**
 *.bak
 frontend/.netlify/
 frontend/netlify/
@@ -70,8 +75,13 @@ frontend/netlify/
 
 # Claude config: ship the shared base (`settings.json` — repo-wide hooks
 # + permissions) but keep per-developer overrides + caches ignored.
+# Project-local skills (`.claude/skills/<name>/SKILL.md`) ship with the repo
+# so the truth-verification protocol and any future skills are discoverable
+# by every clone.
 .claude/*
 !.claude/settings.json
+!.claude/skills/
+!.claude/skills/**
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 
@@ -169,12 +179,27 @@ frontend/blog/_archive/
 
 # Runtime state / logs / secrets — auto-added by SUPREMA autorepair
 **/*storage_state.json
-
-# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
 **/progress.json
-
-# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
 **/*.log
-
-# Runtime state / logs / secrets — auto-added by SUPREMA autorepair
 **/session.json
+
+# Vector DB runtime state (do not commit)
+narai/data/chroma/
+narai.godmode/logs/
+narai/godmode/logs/
+
+# === SUPPREMA cleanup additions ===
+data/piper_voices/
+frontend/tiktok*.txt
+frontend/.wrangler/
+narai/data/*.db
+narai/data/*.db-journal
+audit*.sh
+audit*.txt
+suppreme-audit*.txt
+/products/
+/tools/
+
+# SiteBoost generated artifacts (created by pipeline runs)
+data/launches/siteboost/runs/
+data/launches/siteboost/scans/

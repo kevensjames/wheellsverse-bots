@@ -11,7 +11,9 @@ from typing import Any, Optional
 
 from infra.brain.interface import BrainClient
 
-_brain = BrainClient(user_id="owner", mode="narai")
+# Scheduler-driven module: not per-request. Uses the synthetic "system"
+# user_id so telemetry + memory are scoped distinctly from any human user.
+_brain = BrainClient(user_id="system", mode="narai")
 
 
 # ── Format templates ──────────────────────────────────────────────────────────

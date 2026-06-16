@@ -390,15 +390,15 @@ def _generate_pin_image(title: str, description: str) -> Optional[str]:
         import openai
         client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         resp = client.images.generate(
-            model="dall-e-3",
+            model="gpt-image-1",
             prompt=(
                 f"Pinterest pin image for: {title}. {description[:100]}. "
                 "Vertical format, eye-catching, modern design, dark background with purple/cyan "
                 "accents, bold typography space, financial/tech aesthetic, high contrast. "
                 "Professional infographic style."
             ),
-            size="1024x1792",   # Pinterest preferred: 2:3 ratio
-            quality="standard",
+            size="1024x1536",   # Pinterest 2:3 ratio (gpt-image-1 supported size)
+            quality="high",
             n=1,
         )
         url = resp.data[0].url

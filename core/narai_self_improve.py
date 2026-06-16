@@ -157,18 +157,20 @@ def _ask_ai(log_text: str) -> dict:
         except Exception as e:
             log.warning("Claude analysis failed, trying OpenAI: %s", e)
 
-    # Try OpenAI
+    # Try OpenAI (or Ollama via wrapper). When LLM_BACKEND=ollama the wrapper
+    # routes to the local server even without an OPENAI_API_KEY set.
     openai_key = os.getenv("OPENAI_API_KEY", "")
-    if openai_key and not openai_key.startswith("sk-placeholder"):
-        from openai import OpenAI
-        client = OpenAI(api_key=openai_key)
-        resp = client.chat.completions.create(
-            model="gpt-4o-mini",
-            max_tokens=400,
+    local_backend = (os.getenv("LLM_BACKEND") or "").strip().lower() in ("ollama", "local", "lmstudio", "llamacpp")
+    if local_backend or (openai_key and not openai_key.startswith("sk-placeholder")):
+        from core.llm_client import safe_openai_call
+        resp = safe_openai_call(
             messages=[
                 {"role": "system", "content": _ANALYST_SYSTEM},
                 {"role": "user", "content": user_content},
             ],
+            model="gpt-4o-mini",
+            max_tokens=400,
+            bot_name="narai_self_improve",
         )
         raw = (resp.choices[0].message.content or "").strip()
         return json.loads(raw)

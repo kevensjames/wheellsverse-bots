@@ -108,7 +108,7 @@ def _trading_section() -> str:
 
 def _calendar_section(now: datetime) -> str:
     try:
-        from narai_godmode.adapters.google import get_service, GoogleReauthRequired
+        from narai.godmode.adapters.google import get_service, GoogleReauthRequired
         try:
             service = get_service("calendar")
         except GoogleReauthRequired:
@@ -144,7 +144,7 @@ def _inbox_section() -> str:
     most-recent subject so the briefing surfaces the *thing* you'd want to
     skim first, not just a tally."""
     try:
-        from narai_godmode.adapters.google import get_service, GoogleReauthRequired
+        from narai.godmode.adapters.google import get_service, GoogleReauthRequired
         try:
             service = get_service("gmail")
         except GoogleReauthRequired:

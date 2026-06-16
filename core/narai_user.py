@@ -114,6 +114,25 @@ def update_profile(user_id: str, data: dict) -> bool:
 
 # ─── Message quota ───────────────────────────────────────────────────────────
 
+def increment_usage_via_rpc(user_id: str) -> Optional[int]:
+    """Atomically increment messages_used_today via the Postgres RPC.
+
+    Returns the new count, or None if the RPC isn't available (function
+    missing on the live DB, or transport error). Caller decides 402 by
+    comparing against TIER_CONFIG[tier].messages_day.
+
+    Apply the SQL function in supabase_schema.sql (search for
+    ``increment_message_usage``) before flipping ``NARAI_QUOTA_ENABLED=true``.
+    """
+    try:
+        sb = get_supabase()
+        res = sb.rpc("increment_message_usage", {"p_user_id": user_id}).execute()
+        return int(res.data) if res.data is not None else None
+    except Exception as e:
+        log.warning(f"increment_usage_via_rpc({user_id}) failed: {e}")
+        return None
+
+
 def check_and_increment_quota(user_id: str) -> dict:
     """
     Returns {"allowed": bool, "used": int, "limit": int | None, "tier": str}

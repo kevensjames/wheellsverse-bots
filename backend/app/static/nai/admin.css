@@ -1,0 +1,484 @@
+/* Admin dashboard — built on top of the shared style.css palette.
+   Stays intentionally minimal: this page is for the operator's eyes,
+   not customers, so layout > polish. */
+
+.admin-main {
+  max-width: 1080px;
+  width: 100%;
+  /* The shared <body> is display:flex; a flex item defaults to min-width:auto,
+     which refuses to shrink below its content and overflows narrow viewports
+     (the whole page rendered at 1080px on a phone). min-width:0 lets it shrink
+     to the viewport. */
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 24px 18px 60px;
+}
+
+.admin-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.admin-header h1 {
+  font-size: 18px; margin: 0; letter-spacing: 0.5px;
+}
+.admin-controls {
+  display: flex; align-items: center; gap: 10px;
+  color: var(--muted, #8a909c); font-size: 12px;
+}
+.admin-as-of { font-variant-numeric: tabular-nums; }
+
+.admin-btn {
+  background: transparent;
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  padding: 4px 10px; border-radius: 6px;
+  cursor: pointer; font-size: 12px;
+}
+.admin-btn:hover { border-color: var(--accent, #4f8cff); }
+.admin-btn-primary {
+  background: var(--accent, #4f8cff); color: #fff; border-color: var(--accent, #4f8cff);
+}
+.admin-btn-ghost { color: var(--muted, #8a909c); }
+
+.admin-card {
+  background: var(--card-bg, #15171c);
+  border: 1px solid var(--border, #242630);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.admin-card h2 {
+  font-size: 13px; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted, #8a909c);
+  margin: 0 0 12px;
+}
+
+.admin-grid { display: grid; gap: 16px; }
+.admin-grid-3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 720px) {
+  .admin-grid-3 { grid-template-columns: 1fr; }
+}
+
+.admin-stat-row {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 6px 0;
+  border-top: 1px solid var(--border, #242630);
+  font-size: 14px;
+}
+.admin-stat-row:first-of-type { border-top: 0; }
+.admin-stat-row span { color: var(--muted, #8a909c); }
+.admin-stat-row strong {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.admin-stat-tiers {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  padding-top: 10px; justify-content: flex-start;
+}
+.tier-chip {
+  display: inline-block;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.5px;
+  background: var(--border, #242630);
+  color: var(--text, #e7ecf3);
+}
+.tier-chip.tier-ultra { background: #6c4cf2; color: #fff; }
+.tier-chip.tier-max   { background: #4f8cff; color: #fff; }
+.tier-chip.tier-pro   { background: #23a36b; color: #fff; }
+.tier-chip.tier-free  { background: var(--border, #242630); color: var(--muted, #8a909c); }
+
+.admin-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.admin-table th, .admin-table td {
+  padding: 8px 10px; text-align: left;
+  border-bottom: 1px solid var(--border, #242630);
+}
+.admin-table th {
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px; color: var(--muted, #8a909c);
+  font-weight: 500;
+}
+.admin-table tr:last-child td { border-bottom: 0; }
+.admin-table td.dim { color: var(--muted, #8a909c); font-style: italic; }
+
+.admin-hint {
+  color: var(--muted, #8a909c); font-size: 12px;
+  margin: 10px 0 0;
+}
+.admin-hint a {
+  color: var(--accent, #4f8cff); text-decoration: none;
+}
+.admin-hint a:hover { text-decoration: underline; }
+
+/* Tabs — sit between the H1 and the right-side controls */
+.admin-tabs {
+  display: flex; gap: 4px;
+  margin: 0 16px;
+}
+.admin-tab {
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: 2px solid transparent;
+  color: var(--muted, #8a909c);
+  font-size: 12px;
+  padding: 6px 12px;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+}
+.admin-tab:hover { color: var(--text, #e7ecf3); }
+.admin-tab.is-active {
+  color: var(--text, #e7ecf3);
+  border-bottom-color: var(--accent, #4f8cff);
+}
+
+/* Operator chat panel */
+.admin-chat-card {
+  display: flex; flex-direction: column;
+  /* Reserve enough height that the message list dominates the viewport
+     but the page still scrolls cleanly on small screens. */
+  min-height: 70vh;
+}
+.admin-chat-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 10px;
+}
+.admin-chat-tools {
+  display: flex; align-items: center; gap: 14px;
+  color: var(--muted, #8a909c); font-size: 12px;
+}
+.admin-chat-tools label {
+  display: inline-flex; align-items: center; gap: 4px;
+  cursor: pointer;
+}
+.admin-chat-tools input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--accent, #4f8cff);
+}
+.admin-preset-select {
+  background: var(--card-bg, #0f1116);
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 180px;
+}
+.admin-preset-select:focus {
+  outline: none; border-color: var(--accent, #4f8cff);
+}
+
+.admin-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  margin: 14px 0;
+  padding: 10px;
+  background: var(--card-bg, #0f1116);
+  border: 1px solid var(--border, #242630);
+  border-radius: 8px;
+  min-height: 280px;
+}
+.admin-chat-msg {
+  display: flex; flex-direction: column;
+  margin-bottom: 14px;
+}
+.admin-chat-msg-user { align-items: flex-end; }
+.admin-chat-msg-assistant { align-items: flex-start; }
+.admin-chat-bubble {
+  max-width: 88%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.admin-chat-msg-user .admin-chat-bubble {
+  background: var(--accent, #4f8cff);
+  color: #fff;
+  border-bottom-right-radius: 2px;
+}
+.admin-chat-msg-assistant .admin-chat-bubble {
+  background: var(--card-bg, #15171c);
+  border: 1px solid var(--border, #242630);
+  color: var(--text, #e7ecf3);
+  border-bottom-left-radius: 2px;
+}
+.admin-chat-meta {
+  font-size: 10px;
+  color: var(--muted, #8a909c);
+  margin-top: 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-chat-form {
+  display: flex; flex-direction: column; gap: 6px;
+}
+.admin-chat-form textarea {
+  width: 100%;
+  background: var(--card-bg, #0f1116);
+  border: 1px solid var(--border, #242630);
+  border-radius: 8px;
+  color: var(--text, #e7ecf3);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+}
+.admin-chat-form textarea:focus {
+  outline: none; border-color: var(--accent, #4f8cff);
+}
+.admin-chat-send-row {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.admin-chat-status {
+  color: var(--muted, #8a909c); font-size: 12px;
+  font-style: italic;
+  margin-top: 4px;
+}
+
+/* Messaging-style composer: one auto-growing input + a round send button.
+   Enter sends, Shift+Enter = newline (see admin.js). */
+.admin-chat-inputrow {
+  display: flex; align-items: flex-end; gap: 8px;
+}
+.admin-chat-inputrow textarea {
+  flex: 1 1 auto; width: auto;
+  min-height: 44px; max-height: 160px;
+  resize: none;                 /* JS auto-grows the height */
+  overflow-y: auto;
+  line-height: 1.4;
+}
+.admin-chat-send {
+  flex: 0 0 auto;
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: var(--accent, #4f8cff); color: #fff;
+  border: none; cursor: pointer;
+  font-size: 17px; line-height: 1;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: filter .15s, transform .05s;
+}
+.admin-chat-send:hover { filter: brightness(1.08); }
+.admin-chat-send:active { transform: scale(0.94); }
+.admin-chat-send:disabled { opacity: .45; cursor: default; }
+
+/* Brief tab — small overrides on top of the shared card grid */
+.brief-generated-at { margin-top: 6px; }
+.brief-error-row {
+  padding: 6px 0;
+  border-top: 1px solid var(--border, #242630);
+  font-size: 13px;
+}
+.brief-error-row:first-child { border-top: 0; }
+.brief-error-row .brief-error-meta {
+  color: var(--muted, #8a909c);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Supreme finding cards — left border encodes severity */
+.supreme-finding {
+  background: var(--card-bg, #0f1116);
+  padding: 10px 12px 10px 14px;
+  margin: 10px 0;
+  border-radius: 6px;
+}
+.supreme-finding-header {
+  display: flex; align-items: baseline; gap: 10px;
+  font-size: 11px; text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.supreme-finding-sev { font-weight: 600; }
+.supreme-finding-cat { color: var(--muted, #8a909c); }
+.supreme-finding-title {
+  font-size: 14px; font-weight: 600;
+  margin-top: 4px;
+  color: var(--text, #e7ecf3);
+}
+.supreme-finding-detail {
+  color: var(--muted, #8a909c);
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.supreme-finding-fix {
+  margin-top: 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--text, #e7ecf3);
+}
+.supreme-finding-evidence {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 4px;
+  font-size: 11px;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-height: 120px;
+  overflow-y: auto;
+  color: var(--muted, #8a909c);
+}
+
+/* Auth gate */
+.admin-auth-form {
+  display: flex; gap: 8px; margin-top: 12px;
+}
+.admin-auth-form input {
+  flex: 1;
+  background: var(--card-bg, #0f1116);
+  border: 1px solid var(--border, #242630);
+  border-radius: 6px;
+  color: var(--text, #e7ecf3);
+  padding: 8px 10px; font-size: 13px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.admin-auth-form input:focus {
+  outline: none; border-color: var(--accent, #4f8cff);
+}
+.admin-err {
+  color: #ff6b6b; font-size: 12px;
+  margin: 8px 0 0; min-height: 16px;
+}
+
+/* KG triple-add form — three side-by-side inputs that wrap on narrow screens */
+.kg-triple-row {
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.kg-triple-input {
+  flex: 1;
+  min-width: 140px;
+}
+
+/* Research / Failures tab panels — score chips reuse the severity palette */
+.severity-chip {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.severity-chip.high   { background: rgba(255, 107, 107, .18); color: #ff6b6b; }
+.severity-chip.medium { background: rgba(255, 196, 0, .18);   color: #ffc400; }
+.severity-chip.low    { background: rgba(79, 140, 255, .15);  color: #4f8cff; }
+.severity-chip.none   { background: rgba(138, 144, 156, .15); color: #8a909c; }
+
+.research-item-row,
+.failure-item-row {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border, #242630);
+  font-size: 12px;
+}
+.research-item-row:last-child,
+.failure-item-row:last-child {
+  border-bottom: 0;
+}
+.research-item-row a {
+  color: var(--accent, #4f8cff);
+  text-decoration: none;
+}
+.research-item-row a:hover { text-decoration: underline; }
+.research-item-source {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--muted, #8a909c);
+  letter-spacing: 0.6px;
+  margin-right: 6px;
+}
+
+/* ───────────────────────────────────────────────────────────────────
+   Phone layout (≤640px). Everything here is additive — the desktop view
+   above is unchanged. Goals: the 13-tab nav becomes a full-width swipeable
+   strip, all multi-column grids stack, wide tables scroll inside their card
+   instead of overflowing the page, tap targets grow, and forms go vertical.
+   ─────────────────────────────────────────────────────────────────── */
+@media (max-width: 640px) {
+  .admin-main { padding: 14px 12px 48px; }
+
+  /* Header: title + controls stay on row 1 (space-between); the tab bar
+     drops to a full-width row 2 that scrolls horizontally (swipe). */
+  .admin-header { flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
+  .admin-header h1 { font-size: 16px; }
+
+  .admin-tabs {
+    order: 3;
+    flex-basis: 100%;
+    margin: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    gap: 2px;
+    padding-bottom: 4px;
+    scrollbar-width: none;              /* Firefox: hide the bar, keep the swipe */
+  }
+  .admin-tabs::-webkit-scrollbar { display: none; }  /* WebKit/Blink */
+  .admin-tab {
+    flex: 0 0 auto;                     /* don't shrink — overflow & scroll */
+    white-space: nowrap;
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  /* Stack every multi-column grid. */
+  .admin-grid-2, .admin-grid-3 { grid-template-columns: 1fr; }
+  .admin-grid { gap: 12px; }
+
+  /* Roomier tap targets for buttons. */
+  .admin-btn { padding: 8px 12px; font-size: 13px; }
+
+  /* Tighten cards; let any too-wide table scroll inside its card rather
+     than push the whole page sideways. */
+  .admin-card { padding: 14px; overflow-x: auto; }
+  .admin-table { font-size: 12px; }
+  .admin-table th, .admin-table td { padding: 7px 8px; }
+
+  /* Inline create/action forms (planning / learning / twin) stack vertically
+     with full-width controls (the shared class has no desktop rule). */
+  .admin-plan-create { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+  .admin-plan-create > * { width: 100%; box-sizing: border-box; }
+
+  /* Chat: use more of the narrow width; shrink reserved height a little. */
+  .admin-chat-card { min-height: 60vh; }
+  .admin-chat-bubble { max-width: 94%; font-size: 15px; }
+  .admin-chat-tools { gap: 10px; row-gap: 8px; }
+  .admin-preset-select { min-width: 0; width: 100%; }
+
+  /* Auth gate: stack input + unlock so neither is squeezed. */
+  .admin-auth-form { flex-direction: column; }
+
+  /* Tabs read as tappable chips; the active one is filled (a thin underline is
+     hard to spot on a small swipe strip), and tabs scroll-snap into place. */
+  .admin-tabs { scroll-snap-type: x proximity; }
+  .admin-tab {
+    scroll-snap-align: center;
+    border: 1px solid var(--border, #242630);
+    border-radius: 999px;
+    background: var(--card-bg, #15171c);
+    min-height: 36px;
+  }
+  .admin-tab.is-active {
+    background: var(--accent, #4f8cff);
+    color: #fff;
+    border-color: var(--accent, #4f8cff);
+  }
+
+  /* Roomier reading: bump the smallest text + give content a little air. */
+  .admin-stat-row { font-size: 15px; padding: 8px 0; }
+  .admin-hint { font-size: 13px; }
+  .admin-chat-meta { font-size: 11px; }
+
+  /* Chat composer sized for thumbs; 16px input avoids iOS focus-zoom. */
+  .admin-chat-send { width: 46px; height: 46px; font-size: 18px; }
+  .admin-chat-inputrow textarea { font-size: 16px; }
+
+  /* The version-reload banner sits at the very top — keep its text from
+     crowding the buttons on a narrow bar. */
+  #kai-reload-banner { font-size: 13px; padding: 9px 12px; gap: 8px; }
+}

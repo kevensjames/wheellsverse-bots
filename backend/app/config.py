@@ -19,10 +19,35 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
 
-    JWT_SECRET_KEY: str
+    # Legacy self-managed JWT secret. Still read at startup so existing .env
+    # files don't break — but no Stage 6+ code path uses it for user auth.
+    # `dependencies/admin.py` reuses it as a shared admin-API token; the
+    # rename to ADMIN_TOKEN is tracked but a soft alias keeps backward compat.
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # Path X: Supabase Auth is the real identity system. Anon-level password
+    # grant uses the publishable key; admin create_user uses the secret key.
+    # JWT validation is JWKS (ES256) — no shared secret needed.
+    SUPABASE_URL: str = ""
+    SUPABASE_PUBLISHABLE_KEY: str = ""
+    SUPABASE_SECRET_KEY: str = ""
+
+    # Dedicated admin-API token. Falls back to JWT_SECRET_KEY for transition
+    # so deployments don't break before .env is updated.
+    ADMIN_TOKEN: str = ""
+
+    @property
+    def admin_token(self) -> str:
+        return self.ADMIN_TOKEN or self.JWT_SECRET_KEY
+
+    # Telegram alerting — used by app.services.observability to notify the
+    # operator of signup / paid-conversion / cancellation events. Optional;
+    # if either is empty, alerts are silently skipped.
+    TELEGRAM_BOT_TOKEN: str = ""
+    TELEGRAM_CHAT_ID: str = ""
 
     # Stored as a plain CSV string — pydantic-settings 2.x tries to JSON-decode
     # List[str] fields from env, which breaks on "http://a,http://b". We parse
@@ -50,8 +75,19 @@ class Settings(BaseSettings):
     # Stripe billing (Stage 5)
     STRIPE_SECRET_KEY: str = ""
     STRIPE_WEBHOOK_SECRET: str = ""
+    # Canonical names only. Legacy aliases (STRIPE_PRO_PRICE_ID,
+    # STRIPE_BOT_PACK_PRICE_ID) were dropped 2026-06-04 after they silently
+    # resolved to a stale $29 May-era price while the UI advertised $19 —
+    # see docs/decisions/0010-rename-nai-to-kai.md addendum.
     STRIPE_PRICE_PRO: str = ""
+    # NOTE: "Elite" was Stage 5's marketing name. Prod schema's CHECK
+    # constraint allows tiers ('pro','max','ultra') — there is no 'elite'
+    # tier. The Elite button in pricing.html stays hidden until the
+    # operator creates real Max/Ultra recurring prices in Stripe and sets
+    # the corresponding env vars below.
     STRIPE_PRICE_ELITE: str = ""
+    STRIPE_PRICE_MAX: str = ""
+    STRIPE_PRICE_ULTRA: str = ""
     STRIPE_SUCCESS_URL: str = "http://localhost:5173/billing/success"
     STRIPE_CANCEL_URL: str = "http://localhost:5173/billing/cancel"
     BILLING_PUBLIC_UPGRADE_URL: str = "http://localhost:5173/pricing"

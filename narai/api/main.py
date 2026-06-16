@@ -8,7 +8,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from narai.api.auth import create_token, verify_password
+from narai.api.auth import create_token
 from narai.api.routes.chat import rt as chat_rt
 from narai.api.routes.memory import rag_rt, rt as memory_rt
 from narai.api.routes.skills_route import rt as skills_rt
@@ -24,6 +24,7 @@ from narai.api.routes.shopify_oauth import router as shopify_oauth_rt
 from narai.api.routes.shopify_webhooks import router as shopify_webhooks_rt
 from narai.api.routes.shopify_billing import api_router as shopify_billing_api_rt, webhook_router as shopify_billing_webhook_rt
 from narai.api.routes.shopify_admin import router as shopify_admin_rt
+from narai.api.routes.personality import rt as personality_rt
 from narai.api.routes.telegram import rt as telegram_rt
 from narai.api.routes.toodle import rt as toodle_rt
 from narai.api.routes.meta import rt as meta_rt
@@ -75,6 +76,7 @@ app.include_router(creative_rt, prefix="/api/v2/narai")
 app.include_router(kdp_rt, prefix="/api/v2/narai")
 app.include_router(voice_rt, prefix="/api/v2/narai")
 app.include_router(telegram_rt, prefix="/api/v2/narai")
+app.include_router(personality_rt, prefix="/api/v2/narai")
 
 # Multi-tenant Shopify (no prefix — Shopify hits /shopify/install and /shopify/callback directly)
 app.include_router(shopify_oauth_rt)
@@ -95,14 +97,19 @@ app.include_router(meta_rt)
 # ── Auth ──────────────────────────────────────────────────────────────────────
 
 class LoginRequest(BaseModel):
+    email: str
     password: str
 
 
 @app.post("/api/v2/narai/auth/login")
 def login(req: LoginRequest) -> dict:
-    if not verify_password(req.password):
-        raise HTTPException(status_code=401, detail="Wrong password")
-    return {"token": create_token()}
+    """Email/password login. Delegates verification to Supabase auth, then
+    mints a NarAI-signed JWT carrying the user's UUID as ``sub``."""
+    from narai.api.auth import sign_in_with_supabase
+    user_id = sign_in_with_supabase(req.email, req.password)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    return {"token": create_token(user_id)}
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

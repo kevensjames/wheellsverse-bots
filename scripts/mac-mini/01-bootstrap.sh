@@ -13,7 +13,7 @@
 #     1. First-boot setup (Apple ID sign-in, FileVault, Touch ID).
 #     2. Plugging in the WheellsVerse external drive.
 #   Then in Terminal:
-#     bash /Volumes/Wheellsverse/wheellsverse_bots/scripts/mac-mini/01-bootstrap.sh
+#     bash /Users/jhonwheeler/wheellsverse_bots/scripts/mac-mini/01-bootstrap.sh
 #
 # IDEMPOTENT
 #   Safe to re-run. Each step checks if the tool is already present and skips.

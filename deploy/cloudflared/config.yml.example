@@ -1,0 +1,13 @@
+# wheellsverse-nai tunnel config — TEMPLATE.
+# Copy to ~/.cloudflared/config.yml on a fresh deployment, fill in the
+# placeholders, and `cloudflared tunnel route dns <tunnel-name> <hostname>`.
+tunnel: <TUNNEL-UUID-from-`cloudflared tunnel create wheellsverse-nai`>
+credentials-file: /Users/<USER>/.cloudflared/<TUNNEL-UUID>.json
+
+ingress:
+  - hostname: nai.wheellsverse.com
+    service: http://127.0.0.1:8001
+    originRequest:
+      noTLSVerify: true
+      disableChunkedEncoding: false
+  - service: http_status:404

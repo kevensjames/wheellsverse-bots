@@ -23,7 +23,7 @@ money_center/
 ## Setup
 
 ```bash
-cd /Volumes/Wheellsverse/wheellsverse_bots
+cd /Users/jhonwheeler/wheellsverse_bots
 
 # Install dependencies (already in venv)
 pip install rich flask pyyaml
@@ -90,7 +90,7 @@ Dashboard features:
 ## Config (`config.yaml`)
 
 ```yaml
-root_path: /Volumes/Wheellsverse/wheellsverse_bots
+root_path: /Users/jhonwheeler/wheellsverse_bots
 dashboard_port: 7777
 ssd_volume: /Volumes/Wheellsverse   # abort if not mounted
 auto_backup: true
@@ -126,7 +126,7 @@ log_level: INFO
 ## Run Tests
 
 ```bash
-cd /Volumes/Wheellsverse/wheellsverse_bots
+cd /Users/jhonwheeler/wheellsverse_bots
 python -m pytest money_center/tests/ -v
 ```
 

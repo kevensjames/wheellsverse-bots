@@ -1,0 +1,59 @@
+════════════════════════════════════════════════════════════════
+PHASE B §3 + §4 + §5 LIVE EVIDENCE
+Timestamp: 20260529T041448Z
+Repo:      /Users/jhonwheeler/wheellsverse_bots
+User:      jhonwheeler
+Host:      Jhons-Mac-mini.local
+Branch:    feat/kdp-fillers
+HEAD:      cf532779d604b0dd6f6754cc3691e565745318f3
+════════════════════════════════════════════════════════════════
+
+─── §3 Cloudflare Tunnel — public HTTPS ───
+Hostname: nai.wheellsverse.com
+Tunnel UUID: 0e9ad2c3-b833-4c61-8b98-34f0449aa285
+
+GET https://nai.wheellsverse.com/health:
+HTTP/2 200 
+date: Fri, 29 May 2026 04:14:48 GMT
+content-type: application/json
+content-length: 34
+content-security-policy: default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; form-action 'self'; base-uri 'self'; object-src 'none'
+permissions-policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()
+referrer-policy: strict-origin-when-cross-origin
+server: cloudflare
+strict-transport-security: max-age=31536000; includeSubDomains
+x-content-type-options: nosniff
+x-frame-options: DENY
+cf-cache-status: DYNAMIC
+nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+report-to: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=ivxBbs%2BgBiGUrAgFPPQij%2BILBC4DntXCjTEf9g7WVSsCqTmdp1yJjXDlAl2fb17%2BiD%2B3kWeOlBqXuso9btGSnuk%2FoSDdb5N2gRliRFBnfdAo3XZrv2H1EXM%2BIOj3cF1eRZhO2tvxhY7TgrOYRZ3botLviA%3D%3D"}]}
+cf-ray: a032aca148cb633e-BOS
+alt-svc: h3=":443"; ma=86400
+
+GET https://nai.wheellsverse.com/docs    HTTP 200
+GET https://nai.wheellsverse.com/nai-ui/ HTTP 200
+
+TLS cert:
+issuer=C=US, O=Let's Encrypt, CN=E7
+subject=CN=wheellsverse.com
+notBefore=Apr 14 12:07:47 2026 GMT
+notAfter=Jul 13 12:07:46 2026 GMT
+
+─── §4 APP_ENV=production ───
+/health env field shows: production
+HSTS header now present:
+strict-transport-security: max-age=31536000; includeSubDomains
+
+─── §5 CORS_ORIGINS=https://nai.wheellsverse.com ───
+Preflight from prod origin:
+access-control-allow-credentials: true
+access-control-allow-headers: content-type
+access-control-allow-methods: DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT
+access-control-allow-origin: https://nai.wheellsverse.com
+
+Preflight from foreign origin (must reject):
+  (no allow-origin returned — correct)
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): df4183ff4944e5b7b88792576a543b8663c57cc224199d04fc727f0775da4d3e
+Generated: 2026-05-29T04:14:49Z

@@ -1,0 +1,149 @@
+════════════════════════════════════════════════════════════════
+VERIFY_STAGE.SH — Independent Stage Verifier
+Stage: 4
+Timestamp: 20260526T151730Z
+Repo: /Users/jhonwheeler/wheellsverse_bots
+Script: ./deploy/verify_stage.sh
+User: jhonwheeler
+Host: Jhons-Mac-mini.local
+════════════════════════════════════════════════════════════════
+
+─── Environment baseline ───
+
+>>> CHECK [1]: git: HEAD commit
+>>> CMD: git rev-parse HEAD
+cfa6bdeb3a7850c77193177cccbedafb38d0ff5e
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [2]: git: branch
+>>> CMD: git rev-parse --abbrev-ref HEAD
+feat/kdp-fillers
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [3]: git: clean tree
+>>> CMD: bash -c test -z "$(git status --porcelain | grep -v '^?? evidence/stage_')"
+
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [4]: python: version
+>>> CMD: python --version
+Python 3.11.15
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [5]: venv: active
+>>> CMD: bash -c test -n "${VIRTUAL_ENV:-}"
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [6]: db: real connection (SQLAlchemy)
+>>> CMD: python deploy/db_check.py connect
+OK connected: db=postgres
+   PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gc
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Stage 4 — NAI Chat API + UI ───
+
+>>> CHECK [7]: models: Conversation import
+>>> CMD: python -c from app.models.conversation import Conversation, Message
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [8]: schemas: nai import
+>>> CMD: python -c from app.schemas.nai import ChatRequest, ChatResponse, MessageOut
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [9]: brain: import
+>>> CMD: python -c from app.services.nai_brain import Brain
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [10]: router endpoint: import
+>>> CMD: python -c from app.routers.nai import router
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [11]: static: index.html exists
+>>> CMD: test -f backend/app/static/nai/index.html
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [12]: static: chat.js exists
+>>> CMD: test -f backend/app/static/nai/chat.js
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [13]: static: style.css exists
+>>> CMD: test -f backend/app/static/nai/style.css
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [14]: schema: conversations.user_id column
+>>> CMD: python deploy/db_check.py column conversations user_id
+OK column conversations.user_id exists (type=uuid)
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [15]: schema: messages.conversation_id column
+>>> CMD: python deploy/db_check.py column messages conversation_id
+OK column messages.conversation_id exists (type=uuid)
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [16]: brain tests
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${TEST_DATABASE_URL:-}" && test -n "${OPENAI_API_KEY:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null
+
+>>> CHECK [17]: server: /docs reachable
+>>> CMD: bash -c curl -sf http://127.0.0.1:8001/docs >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [18]: server: /nai-ui/ reachable
+>>> CMD: bash -c curl -sf http://127.0.0.1:8001/nai-ui/ >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [19]: decision log: 0005 committed
+>>> CMD: test -f docs/decisions/0005-nai-api-and-ui.md
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Summary ───
+Total checks:  19
+Passed:        17
+Failed:        1
+Deferred:      1
+
+FAILED CHECKS:
+  - git: clean tree
+
+DEFERRED CHECKS:
+  - brain tests :: precondition failed: test -n "${TEST_DATABASE_URL:-}" && test -n "${OPENAI_API_KEY:-}" && python -c "import psycopg2,os; psycopg2.connect(os.environ[\"TEST_DATABASE_URL\"], connect_timeout=2).close()" 2>/dev/null
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): e7026a926951300ba2d5e98807fc0c7ad4ed6c5c1baadcb86379e1759bdb8c27
+Generated: 2026-05-26T15:17:37Z
+
+Evidence written to: /Users/jhonwheeler/wheellsverse_bots/evidence/stage_4_20260526T151730Z.log
+SHA256: e7026a926951300ba2d5e98807fc0c7ad4ed6c5c1baadcb86379e1759bdb8c27
+
+════════════════════════════════════════════════════════════════
+VERDICT: STAGE 4 — FAIL (1 check(s) failed)
+════════════════════════════════════════════════════════════════

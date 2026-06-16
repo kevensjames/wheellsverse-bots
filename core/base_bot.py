@@ -236,44 +236,52 @@ class BaseBot(ABC):
     def _ai_claude(self, prompt: str, system: str = None,
                    model: str = None, max_tokens: int = 2000,
                    temperature: float = 0.7) -> str:
-        """Call Claude (Anthropic) directly — used as fallback when OpenAI quota is exceeded.
-        Includes retry logic (3 attempts) matching the OpenAI path.
+        """Call Claude (Anthropic) — fallback when OpenAI quota is exceeded.
+
+        Routes through core.claude_logged, which handles the budget guard,
+        credit-balance normalization, token logging, AND local-backend
+        routing (LLM_BACKEND=ollama). Retry logic preserved (3 attempts).
         """
-        spend = _get_today_anthropic_spend()
-        if spend >= _DAILY_BUDGET_USD:
-            raise BudgetExceededError(
-                f"Daily Anthropic budget (${_DAILY_BUDGET_USD:.2f}) reached "
-                f"(spent ${spend:.4f}) — call blocked"
-            )
-        import anthropic
+        from core.claude_logged import create as claude_create
         claude_model = model or os.getenv("CLAUDE_MODEL", "claude-haiku-4-5-20251001")
-        client = anthropic.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
-        msgs = [{"role": "user", "content": prompt}]
-        kw: dict = {"model": claude_model, "max_tokens": max_tokens, "messages": msgs}
-        if system:
-            kw["system"] = system
 
         def _call():
-            try:
-                return client.messages.create(**kw)
-            except anthropic.BadRequestError as e:
-                msg = str(e).lower()
-                if "credit balance" in msg or "credit_balance" in msg:
-                    raise BudgetExceededError(
-                        "Anthropic credit balance too low — top up at console.anthropic.com/settings/billing"
-                    ) from e
-                raise
+            return claude_create(
+                model=claude_model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                system=system,
+                bot_name=self.name,
+            )
 
         resp = _retry(_call, retries=3, delay=2.0, logger=self.logger)
-        usage = resp.usage
-        if usage:
-            _log_token_usage(
-                "anthropic", claude_model,
-                getattr(usage, "input_tokens", 0),
-                getattr(usage, "output_tokens", 0),
-                self.name,
-            )
         return resp.content[0].text.strip()
+
+    def _ai_groq(self, prompt: str, system: str = None,
+                 model: str = None, max_tokens: int = 2000,
+                 temperature: float = 0.7) -> str:
+        """Call Groq — tertiary fallback when both OpenAI and Claude fail.
+        Groq exposes an OpenAI-compatible API, so we reuse the openai SDK
+        with a base_url override. Requires GROQ_API_KEY env var; raises if missing
+        so the outer handler can log and re-raise the original error.
+        """
+        api_key = os.getenv("GROQ_API_KEY", "")
+        if not api_key:
+            raise RuntimeError("GROQ_API_KEY not set — Groq fallback unavailable")
+        from openai import OpenAI as _OAI
+        groq_model = model or os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+        client = _OAI(api_key=api_key, base_url="https://api.groq.com/openai/v1")
+        msgs = []
+        if system:
+            msgs.append({"role": "system", "content": system})
+        msgs.append({"role": "user", "content": prompt})
+        resp = client.chat.completions.create(
+            model=groq_model,
+            messages=msgs,
+            max_tokens=max_tokens,
+            temperature=temperature,
+        )
+        return resp.choices[0].message.content.strip()
 
     def _get_personality_system(self, platform: str = "", topic: str = "") -> str:
         """Returns NarAI's full personality prompt (identity + emotional state + platform + topic)."""
@@ -329,8 +337,12 @@ class BaseBot(ABC):
                 try:
                     return self._ai_claude(prompt, system=system, max_tokens=max_tokens, temperature=temperature)
                 except Exception as ce:
-                    self.logger.error(f"Claude fallback also failed: {ce}")
-                    raise e
+                    self.logger.warning(f"Claude fallback failed ({type(ce).__name__}) — trying Groq")
+                    try:
+                        return self._ai_groq(prompt, system=system, max_tokens=max_tokens, temperature=temperature)
+                    except Exception as ge:
+                        self.logger.error(f"All LLM fallbacks failed — OpenAI: {type(e).__name__}; Claude: {ce}; Groq: {ge}")
+                        raise e
             self.logger.error(f"OpenAI error: {e}")
             raise
 
@@ -381,19 +393,22 @@ class BaseBot(ABC):
         prompt = prompt.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
         system = system.encode("utf-8", "ignore").decode("utf-8").replace("\x00", "")
 
+        # Route through claude_logged so LLM_BACKEND=ollama works here too.
+        # Budget guard + credit-balance normalization + token logging all
+        # happen inside the wrapper.
+        from core.claude_logged import create as claude_create
+
         def _call():
-            return self.claude_client.messages.create(
+            return claude_create(
                 model=model,
                 max_tokens=max_tokens,
                 system=system,
                 messages=[{"role": "user", "content": prompt}],
+                bot_name=self.name,
             )
 
         try:
             resp = _retry(_call, retries=3, delay=2.0, logger=self.logger)
-            _log_token_usage("anthropic", model,
-                             resp.usage.input_tokens, resp.usage.output_tokens,
-                             self.name)
             return resp.content[0].text.strip()
         except Exception as e:
             self.logger.error(f"Claude error: {e}")

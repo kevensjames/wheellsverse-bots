@@ -73,6 +73,25 @@ def dalle_generate(
     Returns:
         {success, url, local_path, revised_prompt, source, error}
     """
+    # Local SDXL path (LLM_BACKEND=ollama or IMAGE_PROVIDER=local)
+    try:
+        from core import local_image
+        if local_image.should_use_local() and local_image.is_available():
+            response = local_image.generate(
+                prompt=prompt[:4000], size=size, quality="standard", n=1,
+            )
+            image_url = response.data[0].url
+            revised_prompt = response.data[0].revised_prompt
+            local_path = _download_image(image_url, prefix="local")
+            log.info(f"[CoverEngine] Local SDXL ✅ → {local_path.name}")
+            return {
+                "success": True, "url": image_url,
+                "local_path": str(local_path), "revised_prompt": revised_prompt,
+                "source": "local_sdxl", "error": "",
+            }
+    except Exception as e:
+        log.warning(f"[CoverEngine] Local image gen failed: {e} — falling back to DALL-E")
+
     if not OPENAI_KEY:
         return {"success": False, "error": "OPENAI_API_KEY not set", "source": "dalle"}
 
@@ -85,11 +104,10 @@ def dalle_generate(
     try:
         client = openai.OpenAI(api_key=OPENAI_KEY)
         response = client.images.generate(
-            model="dall-e-3",
+            model="gpt-image-1",
             prompt=prompt[:4000],
             size=size,
-            quality=quality,
-            style=style,
+            quality="high",
             n=1,
         )
         image_url = response.data[0].url
@@ -115,11 +133,10 @@ def _dalle_raw_http(prompt: str, size: str, quality: str, style: str) -> dict:
     """DALL·E 3 via raw HTTP — no openai package required."""
     try:
         body = json.dumps({
-            "model": "dall-e-3",
+            "model": "gpt-image-1",
             "prompt": prompt[:4000],
             "size": size,
-            "quality": quality,
-            "style": style,
+            "quality": "high",
             "n": 1,
         }).encode()
 

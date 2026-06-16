@@ -89,6 +89,7 @@ def remember(
     content: str,
     tags: list[str] | None = None,
     source: str | None = None,
+    user_id: str | None = None,
 ) -> str:
     """Store or update a memory entry. Returns the chroma ID."""
     col = _get_collection()
@@ -99,12 +100,24 @@ def remember(
         "source": source or "",
         "saved_at": datetime.now(timezone.utc).isoformat(),
     }
+    if user_id is not None:
+        metadata["user_id"] = user_id
     col.upsert(ids=[chroma_id], documents=[content], metadatas=[metadata])
     return chroma_id
 
 
-def recall(query: str, n: int = 5, tag_filter: str | None = None) -> list[dict]:
-    """Semantic search over memories. Returns list of {key, content, tags, score}."""
+def recall(
+    query: str,
+    n: int = 5,
+    tag_filter: str | None = None,
+    user_id: str | None = None,
+) -> list[dict]:
+    """Semantic search over memories. Returns list of {key, content, tags, score}.
+
+    When ``user_id`` is supplied, results are filtered to rows whose metadata
+    carries that user_id. Pass ``None`` (the default) to recall across all
+    users — used by scheduler-driven modules until they get user-scoping.
+    """
     import time as _time
     # Telemetry — context-bound, optional, never throws into the hot path.
     try:
@@ -120,7 +133,17 @@ def recall(query: str, n: int = 5, tag_filter: str | None = None) -> list[dict]:
 
     _t0 = _time.perf_counter()
     col = _get_collection()
-    where = {"tags": {"$contains": tag_filter}} if tag_filter else None
+    conditions: list[dict] = []
+    if user_id is not None:
+        conditions.append({"user_id": user_id})
+    if tag_filter:
+        conditions.append({"tags": {"$contains": tag_filter}})
+    if not conditions:
+        where = None
+    elif len(conditions) == 1:
+        where = conditions[0]
+    else:
+        where = {"$and": conditions}
     try:
         results = col.query(
             query_texts=[query],

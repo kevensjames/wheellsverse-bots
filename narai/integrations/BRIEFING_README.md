@@ -42,7 +42,7 @@ never a crash. Order is fixed (most-actionable first):
 |---|---|---|
 | 💰 Revenue | `core.click_tracker.get_stats()` | Always (lifetime totals) |
 | 📈 Trading | `narai.core.trading.paper.PaperBroker.status()` | Always (defaults to $10k starting equity) |
-| 📅 Calendar | `narai_godmode.adapters.google.get_service('calendar')` | Google OAuth connected |
+| 📅 Calendar | `narai.godmode.adapters.google.get_service('calendar')` | Google OAuth connected |
 | 📨 Inbox | Same, `gmail` service, `q='is:important is:unread'` | Google OAuth connected |
 | 🪙 Crypto | `yfinance` BTC-USD + ETH-USD, 2-day history | Always (yfinance is unauthenticated) |
 | ✅ KPIs | `core.click_tracker._load_clicks()` + `_load_conversions()` | Always (compares yesterday vs day-before) |

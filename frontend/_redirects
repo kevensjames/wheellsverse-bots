@@ -6,12 +6,28 @@
 # index.html and landing_page.html are byte-identical, so dropping the
 # rewrite is a no-op for users.
 
+# Trailing-slash rewrites for legal pages — TikTok's URL verifier appends
+# a trailing slash before crawling, and Cloudflare Pages otherwise 308s
+# `/privacy/` → `/privacy` (TikTok doesn't follow redirects during verification)
+# and serves stale content under `/terms/` from a previous deploy directory.
+# Status 200 means "rewrite": URL stays the same, content comes from the right file.
+/terms/                     /terms.html                 200
+/privacy/                   /privacy.html               200
+/disclaimer/                /disclaimer.html            200
+
 # Sol — ROSCA savings platform
 /sol                        /sol/index.html             200
 /sol/app                    /sol/app.html               200
 /sol/admin                  /sol/admin.html             200
 
-# TikTok domain verification
+# TikTok Developer Portal file-verification routing (current Login Kit app)
+# Each URL TikTok verifies (the apex, /terms, /privacy) needs its own .txt
+# token reachable under the URL's path. Files live at site root; rewrites
+# (status 200) expose them under /terms/<file>.txt and /privacy/<file>.txt.
+/terms/tiktokEqkbwzjFWkApG5StwMSbTBkSN522bwqK.txt    /tiktokEqkbwzjFWkApG5StwMSbTBkSN522bwqK.txt    200
+/privacy/tiktokxyWMfRuMAm8Iw3ldCSEXGfsxjZhFWbot.txt  /tiktokxyWMfRuMAm8Iw3ldCSEXGfsxjZhFWbot.txt  200
+
+# TikTok domain verification (legacy Ads/Business product — different from Developer Portal)
 /terms.html/tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt   /tiktokCRZN1AfC1Gpbvo2O40Qt2N2GrLovawi8.txt   200
 /privacy.html/tiktoknwcXTU3Nm4se6bEg1d3uBx1856QZojZp.txt /tiktoknwcXTU3Nm4se6bEg1d3uBx1856QZojZp.txt   200
 /terms.html/tiktokgrDzX7CUTNXdWJx4p7UpCvmgDv4IJPpd.txt   /tiktokgrDzX7CUTNXdWJx4p7UpCvmgDv4IJPpd.txt   200

@@ -1,0 +1,65 @@
+{
+  "_meta": {
+    "generated_at": "2026-06-03 06:19:41",
+    "dry_run": true,
+    "n_products": 7
+  },
+  "products": {
+    "siteboost_site": {
+      "store_key": "siteboost_site",
+      "product_id": "prod_DRY_siteboost_site",
+      "price_id": "price_DRY_siteboost_site",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_site",
+      "amount_usd": 497.0,
+      "recurring": false
+    },
+    "siteboost_maintenance": {
+      "store_key": "siteboost_maintenance",
+      "product_id": "prod_DRY_siteboost_maintenance",
+      "price_id": "price_DRY_siteboost_maintenance",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_maintenance",
+      "amount_usd": 49.0,
+      "recurring": true
+    },
+    "siteboost_extra_page": {
+      "store_key": "siteboost_extra_page",
+      "product_id": "prod_DRY_siteboost_extra_page",
+      "price_id": "price_DRY_siteboost_extra_page",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_extra_page",
+      "amount_usd": 97.0,
+      "recurring": false
+    },
+    "siteboost_photography": {
+      "store_key": "siteboost_photography",
+      "product_id": "prod_DRY_siteboost_photography",
+      "price_id": "price_DRY_siteboost_photography",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_photography",
+      "amount_usd": 250.0,
+      "recurring": false
+    },
+    "siteboost_logo": {
+      "store_key": "siteboost_logo",
+      "product_id": "prod_DRY_siteboost_logo",
+      "price_id": "price_DRY_siteboost_logo",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_logo",
+      "amount_usd": 147.0,
+      "recurring": false
+    },
+    "siteboost_rush_24h": {
+      "store_key": "siteboost_rush_24h",
+      "product_id": "prod_DRY_siteboost_rush_24h",
+      "price_id": "price_DRY_siteboost_rush_24h",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_rush_24h",
+      "amount_usd": 197.0,
+      "recurring": false
+    },
+    "siteboost_annual_maintenance": {
+      "store_key": "siteboost_annual_maintenance",
+      "product_id": "prod_DRY_siteboost_annual_maintenance",
+      "price_id": "price_DRY_siteboost_annual_maintenance",
+      "payment_link_url": "https://buy.stripe.com/DRY_siteboost_annual_maintenance",
+      "amount_usd": 499.0,
+      "recurring": false
+    }
+  }
+}

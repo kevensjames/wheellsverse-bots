@@ -29,7 +29,7 @@ async def handle_client(websocket, handle_turn_async: HandleTurnAsync, user_id: 
       - binary audio frame (synthesized reply)
       - text frame {"type": "audio_end"}
     """
-    stt = get_stt("openai")
+    stt = get_stt()  # Auto-resolves from env (NARAI_STT_PROVIDER, LLM_BACKEND)
     tts_client = get_tts("edge")
 
     async def tts_fn(text: str) -> bytes:

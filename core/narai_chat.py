@@ -231,7 +231,18 @@ def _is_credit_error(exc: Exception) -> bool:
 # ─── Claude streaming ────────────────────────────────────────────────────────
 
 async def stream_claude(system: str, messages: list, model: str) -> AsyncGenerator[str, None]:
-    """Stream response from Claude (Anthropic API) using async client."""
+    """Stream a Claude-shaped response.
+
+    When LLM_BACKEND=ollama, delegate to stream_openai (which routes to
+    the local OpenAI-compatible server). Otherwise use the real Anthropic
+    async client. Caller doesn't need to know which backend is active.
+    """
+    backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
+    if backend in ("ollama", "local", "lmstudio", "llamacpp"):
+        async for text in stream_openai(system, messages, model=model):
+            yield text
+        return
+
     import anthropic
     client = anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY", ""))
     async with client.messages.stream(
@@ -247,9 +258,31 @@ async def stream_claude(system: str, messages: list, model: str) -> AsyncGenerat
 # ─── OpenAI streaming ────────────────────────────────────────────────────────
 
 async def stream_openai(system: str, messages: list, model: str = "gpt-4o-mini") -> AsyncGenerator[str, None]:
-    """Stream response from OpenAI using create(stream=True) — yields ChatCompletionChunk objects."""
+    """Stream from an OpenAI-compatible endpoint (cloud or local Ollama).
+
+    Routes to Ollama via OLLAMA_BASE_URL when LLM_BACKEND=ollama is set.
+    Model is mapped via OLLAMA_MODEL_MAP (JSON) when local; unknown names
+    pass through so Ollama tags like 'qwen2.5:7b' work directly.
+    """
     from openai import AsyncOpenAI
-    client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+
+    backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
+    local = backend in ("ollama", "local", "lmstudio", "llamacpp")
+    if local:
+        client = AsyncOpenAI(
+            base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1"),
+            api_key=os.getenv("OLLAMA_API_KEY", "ollama"),
+        )
+        import json as _json
+        raw = os.getenv("OLLAMA_MODEL_MAP", "").strip()
+        if raw:
+            try:
+                model = _json.loads(raw).get(model, model)
+            except _json.JSONDecodeError:
+                pass
+    else:
+        client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY", ""))
+
     full_messages = [{"role": "system", "content": system}] + messages
     stream = await client.chat.completions.create(
         model=model,

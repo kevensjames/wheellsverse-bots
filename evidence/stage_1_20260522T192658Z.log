@@ -1,0 +1,133 @@
+════════════════════════════════════════════════════════════════
+VERIFY_STAGE.SH — Independent Stage Verifier
+Stage: 1
+Timestamp: 20260522T192658Z
+Repo: /Users/jhonwheeler/wheellsverse_bots
+Script: ./deploy/verify_stage.sh
+User: jhonwheeler
+Host: Jhons-Mac-mini.local
+════════════════════════════════════════════════════════════════
+
+─── Environment baseline ───
+
+>>> CHECK [1]: git: HEAD commit
+>>> CMD: git rev-parse HEAD
+d9cf9b8408f46f07be72bf5cd74adf9329daa614
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [2]: git: branch
+>>> CMD: git rev-parse --abbrev-ref HEAD
+feat/app-store-readiness-check
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [3]: git: clean tree
+>>> CMD: bash -c test -z "$(git status --porcelain)"
+
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [4]: python: version
+>>> CMD: python --version
+Python 3.11.15
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [5]: venv: active
+>>> CMD: bash -c test -n "${VIRTUAL_ENV:-}"
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [6]: db: real connection (SQLAlchemy)
+>>> CMD: python deploy/db_check.py connect
+OK connected: db=postgres
+   PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gc
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Stage 1 — Memory Layer ───
+
+>>> CHECK [7]: model: import
+>>> CMD: python -c from app.models.memory import Memory
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [8]: embeddings: import
+>>> CMD: python -c from app.services.memory.embeddings import embed_one, embed_many
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [9]: store: import
+>>> CMD: python -c from app.services.memory.store import add_memory, search_memories
+Traceback (most recent call last):
+  File "<string>", line 1, in <module>
+ImportError: cannot import name 'search_memories' from 'app.services.memory.store' (/Users/jhonwheeler/wheellsverse_bots/backend/app/services/memory/store.py)
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [10]: retrieval: import
+>>> CMD: python -c from app.services.memory.retrieval import search_memories, format_for_prompt
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [11]: shim: services.narai.memory works
+>>> CMD: python -c from services.narai.memory import Memory
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [12]: schema: memories.embedding column
+>>> CMD: python deploy/db_check.py column memories embedding
+OK column memories.embedding exists (type=USER-DEFINED)
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [13]: schema: ivfflat index exists
+>>> CMD: python deploy/db_check.py index memories ix_memories_embedding
+OK index ix_memories_embedding on memories exists
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [14]: embeddings: real call returns 1536-dim
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${OPENAI_API_KEY:-}"
+
+>>> CHECK [15]: tests: pytest memory
+>>> RESULT: DEFERRED
+>>> REASON: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}" && test -n "${OPENAI_API_KEY:-}"
+
+>>> CHECK [16]: decision log: 0002 committed
+>>> CMD: test -f docs/decisions/0002-memory-layer.md
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Summary ───
+Total checks:  16
+Passed:        12
+Failed:        2
+Deferred:      2
+
+FAILED CHECKS:
+  - git: clean tree
+  - store: import
+
+DEFERRED CHECKS:
+  - embeddings: real call returns 1536-dim :: precondition failed: test -n "${OPENAI_API_KEY:-}"
+  - tests: pytest memory :: precondition failed: test -n "${DIRECT_DATABASE_URL:-${DATABASE_URL:-}}" && test -n "${OPENAI_API_KEY:-}"
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): 4cf1ac87133e8797c5836511f655551c384d6cdcc788185c170fdfc5d61978d7
+Generated: 2026-05-22T19:27:05Z
+
+Evidence written to: /Users/jhonwheeler/wheellsverse_bots/evidence/stage_1_20260522T192658Z.log
+SHA256: 4cf1ac87133e8797c5836511f655551c384d6cdcc788185c170fdfc5d61978d7
+
+════════════════════════════════════════════════════════════════
+VERDICT: STAGE 1 — FAIL (2 check(s) failed)
+════════════════════════════════════════════════════════════════

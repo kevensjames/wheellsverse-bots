@@ -1,0 +1,148 @@
+════════════════════════════════════════════════════════════════
+VERIFY_STAGE.SH — Independent Stage Verifier
+Stage: 5
+Timestamp: 20260526T150513Z
+Repo: /Users/jhonwheeler/wheellsverse_bots
+Script: ./deploy/verify_stage.sh
+User: jhonwheeler
+Host: Jhons-Mac-mini.local
+════════════════════════════════════════════════════════════════
+
+─── Environment baseline ───
+
+>>> CHECK [1]: git: HEAD commit
+>>> CMD: git rev-parse HEAD
+e335b0eb8df34210328a62145320c6c4156c1a46
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [2]: git: branch
+>>> CMD: git rev-parse --abbrev-ref HEAD
+feat/kdp-fillers
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [3]: git: clean tree
+>>> CMD: bash -c test -z "$(git status --porcelain | grep -v '^?? evidence/stage_')"
+
+>>> EXIT_CODE: 1
+>>> RESULT: FAIL
+
+>>> CHECK [4]: python: version
+>>> CMD: python --version
+Python 3.11.15
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [5]: venv: active
+>>> CMD: bash -c test -n "${VIRTUAL_ENV:-}"
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [6]: db: real connection (SQLAlchemy)
+>>> CMD: python deploy/db_check.py connect
+OK connected: db=postgres
+   PostgreSQL 17.6 on aarch64-unknown-linux-gnu, compiled by gc
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Stage 5 — Mac mini Daemonization ───
+
+>>> CHECK [7]: deploy: start_nai.sh exists
+>>> CMD: test -x deploy/start_nai.sh
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [8]: deploy: ollama plist exists
+>>> CMD: test -f deploy/launchd/com.wheellsverse.ollama.plist
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [9]: deploy: nai plist exists
+>>> CMD: test -f deploy/launchd/com.wheellsverse.nai.plist
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [10]: deploy: health_check.sh exists
+>>> CMD: test -x deploy/health_check.sh
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [11]: deploy: status.sh exists
+>>> CMD: test -x deploy/status.sh
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [12]: launchd: nai agent loaded
+>>> CMD: bash -c launchctl list | grep -q com.wheellsverse.nai
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [13]: launchd: ollama loaded (any source)
+>>> CMD: bash -c launchctl list | grep -qi ollama
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [14]: endpoint: nai responds
+>>> CMD: bash -c curl -sf -m 5 http://127.0.0.1:8001/docs >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [15]: endpoint: ollama responds
+>>> CMD: bash -c curl -sf -m 5 http://127.0.0.1:11434/api/tags >/dev/null
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [16]: logs: dir exists
+>>> CMD: test -d /Users/jhonwheeler/Library/Logs/wheellsverse
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [17]: logs: rotation config installed
+>>> CMD: test -f /etc/newsyslog.d/wheellsverse.conf
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [18]: cron: health check scheduled
+>>> CMD: bash -c crontab -l 2>/dev/null | grep -q health_check
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+>>> CHECK [19]: decision log: 0006 committed
+>>> CMD: test -f docs/decisions/0006-mac-mini-daemonization.md
+
+>>> EXIT_CODE: 0
+>>> RESULT: PASS
+
+─── Summary ───
+Total checks:  19
+Passed:        18
+Failed:        1
+Deferred:      0
+
+FAILED CHECKS:
+  - git: clean tree
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): ca8653fe4c7a0f42bc795453f4f128ebf04df4298c2214ec0589ca34ec247484
+Generated: 2026-05-26T15:05:15Z
+
+Evidence written to: /Users/jhonwheeler/wheellsverse_bots/evidence/stage_5_20260526T150513Z.log
+SHA256: ca8653fe4c7a0f42bc795453f4f128ebf04df4298c2214ec0589ca34ec247484
+
+════════════════════════════════════════════════════════════════
+VERDICT: STAGE 5 — FAIL (1 check(s) failed)
+════════════════════════════════════════════════════════════════

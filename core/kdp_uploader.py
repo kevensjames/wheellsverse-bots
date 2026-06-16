@@ -152,14 +152,19 @@ def generate_cover(title: str, genre: str, dall_e_prompt: str = None) -> Path:
 
     logger.info("Generating cover for: %s (%s)", title, genre)
 
-    response = client.images.generate(
-        model="dall-e-3",
-        prompt=prompt,
-        size="1024x1024",
-        quality="hd",
-        n=1,
-        response_format="b64_json",
-    )
+    from core import local_image
+    if local_image.should_use_local() and local_image.is_available():
+        response = local_image.generate(
+            prompt=prompt, size="1024x1024", quality="standard", n=1,
+        )
+    else:
+        response = client.images.generate(
+            model="gpt-image-1",
+            prompt=prompt,
+            size="1024x1024",
+            quality="high",
+            n=1,
+        )
 
     img_data = base64.b64decode(response.data[0].b64_json)
     safe_title = title.lower().replace(" ", "_").replace("'", "")[:30]
@@ -169,14 +174,58 @@ def generate_cover(title: str, genre: str, dall_e_prompt: str = None) -> Path:
     return cover_path
 
 
-def _read_kdp_package(genre: str) -> dict:
-    """Parse the KDP package markdown file for a given genre."""
+def _read_kdp_package(genre: str, title: str = None) -> dict:
+    """Parse the KDP package markdown file for a given genre.
+
+    When `title` is provided, prefer packages whose filename slug matches the
+    title. Falls back to mtime-sorted "most recent" if no match is found, with
+    a loud warning. Sort by mtime (not glob order) so the fallback is deterministic.
+    """
+    import re as _re
     pub_dir = ROOT / "outputs" / "books" / "published"
     packages = list(pub_dir.glob(f"{genre}_*_kdp_package.md"))
     if not packages:
         return {}
 
-    content = packages[-1].read_text(encoding="utf-8")
+    if title:
+        slug = _re.sub(r'[^a-z0-9]+', '_', title.lower()).strip('_')
+        filtered = [p for p in packages if slug in p.name.lower()]
+        if filtered:
+            packages = filtered
+            logger.info("_read_kdp_package: %d packages matched slug '%s' for genre '%s'",
+                        len(packages), slug, genre)
+        else:
+            logger.warning(
+                "_read_kdp_package: no package matching slug '%s' for genre '%s'; "
+                "falling back to most recent of %d unfiltered packages",
+                slug, genre, len(packages)
+            )
+
+    # Sort by description quality, not mtime: a thin placeholder package from a
+    # regen run shouldn't win over a richer one. Parse description char count and
+    # use mtime as the tiebreaker so equally-rich packages still favour the newest.
+    def _desc_chars(p) -> int:
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+            m = _re.search(r"<p>.+?</p>(?:\s*<p>.+?</p>)*", text, _re.S)
+            if not m:
+                return 0
+            return len(_re.sub(r"<[^>]+>", "", m.group(0)).strip())
+        except Exception:
+            return 0
+
+    packages.sort(key=lambda p: (_desc_chars(p), p.stat().st_mtime))
+    chosen = packages[-1]
+    chosen_desc_chars = _desc_chars(chosen)
+    logger.info("_read_kdp_package: selected '%s' (description=%d chars)",
+                chosen.name, chosen_desc_chars)
+    if chosen_desc_chars < 100:
+        logger.warning(
+            "_read_kdp_package: chosen package has thin description (%d chars < KDP min 100). "
+            "All matching packages may be placeholders — regenerate marketing content.",
+            chosen_desc_chars
+        )
+    content = chosen.read_text(encoding="utf-8")
     data = {}
 
     # Extract fields with simple parsing
@@ -209,14 +258,23 @@ def _read_kdp_package(genre: str) -> dict:
     return data
 
 
-def _kdp_error(code: str, detail: str = "") -> dict:
-    """Return a standardised error dict with a human-readable message."""
+def _kdp_error(code: str, detail: str = "", **extra) -> dict:
+    """Return a standardised error dict with a human-readable message.
+
+    Extra keyword args (e.g. screenshot, screens_seen) are merged into the result
+    dict when non-None, so callers can pass optional context unconditionally.
+    """
     messages = {
         "no_credentials": "KDP_EMAIL / KDP_PASSWORD missing in .env — add them and retry.",
         "no_manuscript": "No manuscript file found for this genre — run the book writer first.",
         "validation_failed": "Pre-submission validation failed — see 'validation_errors' for details.",
         "login_failed": "Amazon login failed — check your email/password in .env.",
         "2fa_timeout": "Two-factor authentication required — enter the code within 90s or disable 2FA.",
+        "auth_failed": "KDP authentication failed — see screenshot and screens_seen for the exact screen reached.",
+        "device_verification_required": "Amazon device verification required — log in manually once in the same browser profile to clear the flag, then retry.",
+        "wizard_stalled": "Landed on an unexpected page during the KDP wizard — see screenshot for the actual state.",
+        "stale_draft_blocking": "Create-title click resumed an existing draft. Delete pending drafts from KDP bookshelf manually and retry.",
+        "publish_button_missing": "Reached the pricing page but no Publish button selector matched — KDP UI may have drifted.",
         "account_limit": "Amazon title creation limit reached — wait for pending books to be approved (24–72h).",
         "details_rejected": "KDP rejected the book details form — see screenshot for the specific error message.",
         "manuscript_upload": "Manuscript upload failed — KDP may not support this file format.",
@@ -230,11 +288,14 @@ def _kdp_error(code: str, detail: str = "") -> dict:
     if detail:
         msg = f"{msg} Detail: {detail}"
     logger.error("KDP error [%s]: %s", code, msg)
-    return {"status": "error", "error_code": code, "error": msg}
+    result = {"status": "error", "error_code": code, "error": msg}
+    result.update({k: v for k, v in extra.items() if v is not None})
+    return result
 
 
 def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
-                headless: bool = False, auto_publish: bool = True) -> dict:
+                headless: bool = False, auto_publish: bool = True,
+                *, title: str = None) -> dict:
     """
     Full KDP upload automation via Playwright.
     Validates first, then logs in, fills all fields, uploads files, sets price, publishes.
@@ -242,10 +303,16 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
 
     auto_publish=True  → click "Publish Your Kindle eBook" at the end (default; preserves legacy behavior).
     auto_publish=False → stop after pricing Save & Continue; book is left at status="ready_to_publish".
+
+    title (kw-only, optional): explicit title from the queue entry. Used to disambiguate
+        when multiple `<genre>_*_kdp_package.md` files exist for the same genre — otherwise
+        the picker depends on filesystem glob order and may load the wrong book's metadata.
     """
     from playwright.sync_api import sync_playwright, TimeoutError as PWTimeout
     from core.kdp_session import (
         load_storage_state, save_storage_state, fetch_otp_from_email,
+        kdp_login_hardened, is_authenticated,
+        save_storage_state_if_authenticated, storage_state_path,
     )
 
     email = os.getenv("KDP_EMAIL", "")
@@ -300,9 +367,11 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
             manuscript_path = str(sorted(candidates, key=lambda f: f.stat().st_mtime, reverse=True)[0])
             logger.info("Auto-upgraded manuscript to HTML: %s", manuscript_path)
 
-    # Read KDP package data
-    pkg = _read_kdp_package(genre)
-    title = pkg.get("title") or Path(manuscript_path).stem.replace("_", " ").title()[:60]
+    # Read KDP package data — pass the queue's title (if provided) so we pick
+    # the right package file when multiple exist for this genre.
+    pkg = _read_kdp_package(genre, title=title)
+    # Prefer explicit queue title > package title > filename-derived fallback.
+    title = title or pkg.get("title") or Path(manuscript_path).stem.replace("_", " ").title()[:60]
     author = pkg.get("author", "J.K. Blaze")
     description = pkg.get("description_html", f"A compelling {genre} novel by J.K. Blaze.")
     keywords = pkg.get("keywords", [f"{genre} fiction", "WheellsVerse"])
@@ -442,129 +511,64 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
         page.set_default_timeout(60000)
 
         try:
-            # ── STEP 1: Go to KDP homepage then click Sign In ───────────────
-            logger.info("Navigating to KDP...")
-            try:
-                page.goto(KDP_LOGIN_URL, wait_until="domcontentloaded", timeout=45000)
-            except Exception:
-                # Fallback: commit means just start navigation, don't wait for full load
-                page.goto(KDP_LOGIN_URL, wait_until="commit", timeout=45000)
-            time.sleep(5)
+            # ── STEPS 1-2: Authenticate via hardened helper ──────────────────
+            # Replaces the previous inline Sign-In / email / password / MFA dance.
+            # The helper navigates to bookshelf, identifies which Amazon screen
+            # we landed on, and drives a 3-attempt state machine. It distinguishes
+            # password_only (the failure mode the May 13 batch hit), email_password,
+            # mfa, and device_verification, with named screenshots per failure.
+            auth_result = kdp_login_hardened(
+                page=page,
+                context=context,
+                email=email,
+                password=password,
+                otp_fetcher=fetch_otp_from_email if os.getenv("KDP_OTP_EMAIL") else None,
+                screenshot_dir=str(ROOT / "outputs" / "books"),
+                logger=logger,
+            )
+            if not auth_result["ok"]:
+                return _kdp_error(
+                    code="auth_failed" if auth_result["state"] == "auth_failed"
+                                       else "device_verification_required",
+                    detail=auth_result["message"],
+                    screenshot=auth_result.get("screenshot"),
+                    screens_seen=auth_result.get("screens_seen"),
+                )
 
-            # Click "Sign In" if on the KDP landing page
-            if "kdp.amazon.com" in page.url and "signin" not in page.url:
-                logger.info("On KDP landing page — clicking Sign In...")
+            # Only persist cookies after a provably authenticated state — prevents
+            # poisoning the storage_state with a logged-out cookie jar (the bug
+            # that propagated stale auth into every subsequent run).
+            save_storage_state_if_authenticated(context, page, str(storage_state_path()))
+
+            # Hard guard before any wizard logic: if auth helper reports ok but
+            # the page somehow isn't actually authenticated, fail loud instead of
+            # silently walking through wizard steps that have no targets on screen.
+            if not is_authenticated(page):
+                ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                shot_path = ROOT / "outputs" / "books" / f"kdp_wizard_stalled_pre_step1_{ts}.png"
                 try:
-                    page.locator("a:has-text('Sign in'), a[href*='signin']").first.click()
-                    page.wait_for_load_state("domcontentloaded")
-                    time.sleep(3)
-                except Exception as e:
-                    logger.warning("Sign in click failed: %s — navigating directly", e)
-                    page.goto("https://www.amazon.com/ap/signin?openid.return_to=https://kdp.amazon.com",
-                              wait_until="domcontentloaded")
-                    time.sleep(3)
-
-            # ── STEP 2: Login ────────────────────────────────────────────────
-            if "signin" in page.url or "ap/signin" in page.url or "amazon.com" in page.url:
-                logger.info("Amazon sign-in page detected. Logging in...")
-                page.set_default_timeout(30000)
-
-                # Fill email (may already be pre-filled on KDP's own login page)
-                try:
-                    email_field = page.locator("#ap_email, input[type='email'], input[name='email']").first
-                    if email_field.is_visible(timeout=10000):
-                        email_field.fill(email)
-                        time.sleep(0.5)
-                        # Click Continue if separate step
-                        try:
-                            page.locator("#continue, button:has-text('Continue')").first.click()
-                            time.sleep(2)
-                        except Exception:
-                            pass
+                    page.screenshot(path=str(shot_path), full_page=True)
                 except Exception:
-                    pass  # Email may already be filled (KDP remembers it)
+                    pass
+                return _kdp_error(
+                    code="wizard_stalled",
+                    detail="Auth helper returned ok but page is not authenticated; aborting before wizard",
+                    screenshot=str(shot_path),
+                )
 
-                # Fill password — try multiple selectors (KDP uses different IDs)
-                time.sleep(1)
-                pw_filled = False
-                for pw_sel in ["#ap_password", 'input[type="password"]', 'input[name="password"]']:
-                    try:
-                        pw_field = page.locator(pw_sel).first
-                        if pw_field.is_visible(timeout=8000):
-                            pw_field.fill(password)
-                            pw_filled = True
-                            logger.info("Password filled using selector: %s", pw_sel)
-                            break
-                    except Exception:
-                        continue
-
-                if not pw_filled:
-                    logger.warning("Could not find password field — may already be logged in")
-
-                # Click Sign In button
-                time.sleep(0.5)
-                for signin_sel in ["#signInSubmit", 'button[type="submit"]',
-                                   'input[type="submit"]', 'button:has-text("Sign in")',
-                                   'button:has-text("Sign In")']:
-                    try:
-                        btn = page.locator(signin_sel).first
-                        if btn.is_visible(timeout=5000):
-                            btn.click()
-                            logger.info("Sign in clicked via: %s", signin_sel)
-                            break
-                    except Exception:
-                        continue
-
-                # Screenshot immediately after sign-in click (before waiting for redirect)
-                time.sleep(5)
-                page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_after_signin.png"))
-                logger.info("After signin URL: %s", page.url)
-
-                # Wait for redirect back to KDP (Amazon can take 60-120s)
-                if "kdp.amazon.com" not in page.url:
-                    try:
-                        page.wait_for_url("*kdp.amazon.com*", timeout=120000)
-                        logger.info("Redirected to KDP successfully")
-                    except Exception:
-                        logger.warning("Redirect wait timed out — URL: %s", page.url)
-                        page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_signin_timeout.png"))
-                time.sleep(3)
-
-                # Handle OTP / 2FA — try IMAP fetch (R2) first, fall back to manual wait
-                if "auth-mfa" in page.url or "cvf" in page.url or "ap/cvf" in page.url:
-                    logger.warning("2FA/OTP required — attempting IMAP auto-fetch…")
-                    otp = fetch_otp_from_email(timeout_s=120)
-                    if otp:
-                        for otp_sel in ("input#auth-mfa-otpcode", "input[name='otpCode']", "input[name='code']"):
-                            try:
-                                page.fill(otp_sel, otp, timeout=4000)
-                                logger.info("OTP filled via %s", otp_sel)
-                                break
-                            except Exception:
-                                continue
-                        for sub_sel in ("input#auth-signin-button", "input[type='submit']", "button:has-text('Sign in')"):
-                            try:
-                                page.click(sub_sel, timeout=4000)
-                                break
-                            except Exception:
-                                continue
-                        try:
-                            page.wait_for_url("*kdp.amazon.com*", timeout=60000)
-                        except Exception:
-                            pass
-                    else:
-                        logger.warning("IMAP OTP unavailable — falling back to 90s manual entry window")
-                        print("\n⚠️  Amazon is asking for a verification code.")
-                        print("Please enter the code in the browser window within 90 seconds.\n")
-                        try:
-                            page.wait_for_url("*kdp.amazon.com*", timeout=90000)
-                        except Exception:
-                            pass
+            # Post-reauth landing fix: Amazon's OIDC redirect can drop us on
+            # kdp.amazon.com/en_US/ (marketing) instead of /bookshelf. The helper
+            # navigates to bookshelf during auth; re-confirm here so STEP 3's
+            # bookshelf detection has a clean starting URL.
+            if "bookshelf" not in page.url.lower():
+                try:
+                    page.goto("https://kdp.amazon.com/en_US/bookshelf",
+                              wait_until="domcontentloaded", timeout=45000)
+                    time.sleep(2)
+                except Exception:
+                    pass
 
             logger.info("Logged in. URL: %s", page.url)
-            # R1: Persist cookies for the next run (so we can skip the whole sign-in dance)
-            if "kdp.amazon.com" in page.url:
-                save_storage_state(context)
 
             # ── STEP 3: Navigate to 'Create New Title' ───────────────────────
             page.set_default_timeout(60000)
@@ -633,36 +637,45 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                     logger.debug("_dismiss_any_popup error: %s", e)
                     return ''
 
-            if "title/create" not in page.url:
-                # Step 3a: From bookshelf, navigate to the create hub
-                if "bookshelf" in page.url or "kdp.amazon.com" in page.url:
-                    clicked = click_and_wait([
-                        "a:has-text('+ Kindle eBook')",
-                        "button:has-text('+ Kindle eBook')",
-                        "a:has-text('Kindle eBook')",
-                        "button:has-text('Kindle eBook')",
-                    ], "Kindle eBook create button")
-
-                    if not clicked:
-                        # Try the general create hub
-                        page.goto(f"{KDP_URL}/en_US/create", wait_until="domcontentloaded", timeout=45000)
+            # ── Step 3: Navigate to a fresh new-Kindle title creation page ───
+            # CRITICAL: We do NOT click bookshelf buttons. The bookshelf renders
+            # row-contextual "+ Create Kindle eBook" buttons on every published
+            # paperback row that lacks a Kindle pairing. Clicking those routes
+            # through KDP's "add Kindle format to existing print title set" flow
+            # (`?existing=<itemSetId>&item=<itemSetId>`), which pre-fills the new
+            # Kindle wizard with the *paperback's* metadata — wrong book.
+            # The bookshelf-button selectors `button:has-text('Kindle eBook')` and
+            # `a:has-text('+ Kindle eBook')` cannot distinguish global from
+            # row-contextual variants. So we sidestep entirely and navigate
+            # straight to the standalone new-Kindle URL.
+            if "title/create" not in page.url and "new/details" not in page.url:
+                target_new = f"{KDP_URL}/en_US/title-setup/kindle/new/details"
+                logger.info("Direct nav to fresh new-Kindle URL: %s", target_new)
+                try:
+                    page.goto(target_new, wait_until="domcontentloaded", timeout=60000)
+                    time.sleep(3)
+                except Exception as _e:
+                    logger.warning("Direct new-Kindle nav failed: %s — falling back to /create hub", _e)
+                    try:
+                        page.goto(f"{KDP_URL}/en_US/create",
+                                  wait_until="domcontentloaded", timeout=45000)
                         time.sleep(3)
-                        logger.info("Navigated to create hub: %s", page.url)
+                    except Exception as _e2:
+                        logger.warning("Create hub fallback also failed: %s", _e2)
 
-                # Step 3b: On the create hub (/create), click "Create ebook"
-                if "title/create" not in page.url:
+                # If the create hub loaded (no /new/details yet), click the
+                # "Create eBook" entry. The create hub has only a global button
+                # there is no row-contextual flavor on /create — so this is safe.
+                if "title/create" not in page.url and "new/details" not in page.url:
                     clicked = click_and_wait([
                         "button:has-text('Create ebook')",
                         "a:has-text('Create ebook')",
                         "button:has-text('Create eBook')",
                         "a:has-text('Create eBook')",
-                        "button:has-text('Kindle eBook')",
-                        "a:has-text('Kindle eBook')",
-                        "a[href*='title/create']",
+                        "a[href*='title-setup/kindle/new']",
                     ], "Create ebook on create hub")
-
                     if not clicked:
-                        logger.warning("Could not find Kindle eBook button — URL: %s", page.url)
+                        logger.warning("Could not find Create eBook button on hub — URL: %s", page.url)
 
                 time.sleep(3)
                 # Check for limit popup immediately after navigating to create page
@@ -675,6 +688,87 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
 
                 logger.info("After create navigation — URL: %s", page.url)
                 page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_step3.png"))
+
+                # ── Patch A guard: refuse to resume an existing draft ───────
+                # If the URL contains existing= or item= params, Amazon routed us
+                # into a pre-existing draft (probably from a prior failed run).
+                # That draft will have stale data from a different book and the
+                # wizard will then fill the WRONG record. Fail loud — the user
+                # must manually delete pending drafts from the KDP bookshelf.
+                #
+                # Important: Amazon often parks us briefly on /ap/signin?openid...
+                # while OIDC re-auth resolves via stored cookies. The literal
+                # `existing=` substring isn't in that intermediate URL (it's
+                # URL-encoded inside openid.return_to). Wait briefly for the URL
+                # to settle on the real KDP title-setup endpoint.
+                try:
+                    page.wait_for_url(
+                        lambda u: "kdp.amazon.com/en_US/title-setup" in u
+                                  or "kdp.amazon.com/en_US/bookshelf" in u,
+                        timeout=15000,
+                    )
+                except Exception:
+                    pass  # Will be handled by elevated-reauth block below
+                time.sleep(1)
+
+                # Elevated re-auth gate: KDP title-setup may require a fresh
+                # password submit even when bookshelf-level cookies are valid.
+                # Inline-handle the password_only screen so the OIDC redirect
+                # can complete. (mfa / device_verification fall through to the
+                # wizard_stalled branch, which saves a named screenshot.)
+                if "/ap/signin" in page.url and "kdp.amazon.com/en_US/title-setup" not in page.url:
+                    from core.kdp_session import detect_auth_screen as _das
+                    state = _das(page)
+                    logger.info("Elevated re-auth gate hit: state=%s url=%s", state, page.url)
+                    if state == "password_only":
+                        try:
+                            page.fill("input#ap_password", password)
+                            page.locator("input#signInSubmit").first.click()
+                            page.wait_for_url(
+                                lambda u: "kdp.amazon.com/en_US/title-setup" in u,
+                                timeout=45000,
+                            )
+                            logger.info("Elevated re-auth complete. URL: %s", page.url)
+                        except Exception as _e:
+                            logger.warning("Elevated re-auth submit failed: %s", _e)
+                    else:
+                        logger.warning(
+                            "Elevated re-auth needs %s — not auto-handled. "
+                            "Will fail with wizard_stalled + named screenshot.", state
+                        )
+
+                time.sleep(1)
+                current_url = page.url
+                logger.info("Post-create-click URL (settled): %s", current_url)
+                if "existing=" in current_url or "item=" in current_url:
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    shot_path = ROOT / "outputs" / "books" / f"kdp_stale_draft_detected_{genre}_{ts}.png"
+                    try:
+                        page.screenshot(path=str(shot_path), full_page=True)
+                    except Exception:
+                        pass
+                    return _kdp_error(
+                        code="stale_draft_blocking",
+                        detail=(
+                            f"Resumed an existing draft instead of creating new title. "
+                            f"URL contains existing= or item= params: {current_url}. "
+                            f"Delete pending drafts from KDP bookshelf manually and retry."
+                        ),
+                        screenshot=str(shot_path),
+                        current_url=current_url,
+                    )
+                if "new/details" not in current_url and "title/create" not in current_url:
+                    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    shot_path = ROOT / "outputs" / "books" / f"kdp_create_redirect_unexpected_{genre}_{ts}.png"
+                    try:
+                        page.screenshot(path=str(shot_path), full_page=True)
+                    except Exception:
+                        pass
+                    return _kdp_error(
+                        code="wizard_stalled",
+                        detail=f"Expected /new/details after create click, got: {current_url}",
+                        screenshot=str(shot_path),
+                    )
 
             # ── STEP 5: Book Details ─────────────────────────────────────────
             logger.info("Filling book details... URL: %s", page.url)
@@ -1093,6 +1187,7 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                     pass
                 return _save_cat_modal()
 
+            success = False  # Defensive init — _do_category_selection may raise before first assignment.
             try:
                 for cat_attempt in range(3):
                     success = _do_category_selection()
@@ -1103,6 +1198,76 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                     time.sleep(3)
             except Exception as e:
                 logger.warning("Category selection failed: %s", e)
+
+            # ── Categories instrumentation: dump DOM when all 3 attempts failed ──
+            # When the modal-open retries exhaust, capture the live page state so we
+            # don't need a second --visible cycle to investigate. The two JS probes
+            # below match the queued Bug C investigation script verbatim, lifted into
+            # page.evaluate so their results land in the persisted log alongside a
+            # fresh screenshot. Cheap when categories work (skipped); high-signal
+            # when they don't (one round-trip → exact DOM at failure).
+            if not success:
+                try:
+                    ts_cdom = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    dom_shot = ROOT / "outputs" / "books" / f"kdp_categories_dom_{genre}_{ts_cdom}.png"
+                    try:
+                        page.screenshot(path=str(dom_shot), full_page=True)
+                        logger.warning("Categories DOM screenshot saved: %s", dom_shot)
+                    except Exception as _se:
+                        logger.warning("Categories DOM screenshot failed: %s", _se)
+
+                    cat_buttons = page.evaluate("""() => {
+                        const matches = [];
+                        document.querySelectorAll('button, a, [role="button"]').forEach(el => {
+                            const text = (el.textContent || '').trim().slice(0, 60);
+                            const aria = el.getAttribute('aria-label') || '';
+                            const cls = (el.className && el.className.toString) ? el.className.toString().slice(0, 80) : '';
+                            if (/categor/i.test(text + aria)) {
+                                matches.push({text, aria, cls, tag: el.tagName,
+                                              id: el.id, type: el.type || null, disabled: !!el.disabled});
+                            }
+                        });
+                        return matches;
+                    }""")
+                    logger.warning("CATEGORIES_DOM_PROBE_BUTTONS count=%d", len(cat_buttons or []))
+                    for b in (cat_buttons or []):
+                        logger.warning("  CAT_BTN %s", json.dumps(b, default=str))
+
+                    cat_banners = page.evaluate("""() => {
+                        const banners = [];
+                        document.querySelectorAll('*').forEach(el => {
+                            if (/Add a category for your book/i.test(el.textContent || '') &&
+                                el.children.length === 0) {
+                                banners.push(el.outerHTML.slice(0, 500));
+                            }
+                        });
+                        return banners;
+                    }""")
+                    logger.warning("CATEGORIES_DOM_PROBE_BANNERS count=%d", len(cat_banners or []))
+                    for b in (cat_banners or []):
+                        logger.warning("  CAT_BANNER %s", b)
+
+                    # Bonus: also capture any visible modal/dialog containers — useful
+                    # when the bug is "modal opens but our locator misses it" rather
+                    # than "modal never opened at all."
+                    cat_modals = page.evaluate("""() => {
+                        const out = [];
+                        document.querySelectorAll('[role="dialog"], [role="alertdialog"], .a-modal-wrapper, .a-popover-wrapper, [class*="modal" i]').forEach(el => {
+                            if (el.offsetParent !== null) {
+                                out.push({
+                                    role: el.getAttribute('role') || '',
+                                    cls: (el.className && el.className.toString) ? el.className.toString().slice(0, 100) : '',
+                                    text: (el.textContent || '').trim().slice(0, 120),
+                                });
+                            }
+                        });
+                        return out;
+                    }""")
+                    logger.warning("CATEGORIES_DOM_PROBE_VISIBLE_MODALS count=%d", len(cat_modals or []))
+                    for m in (cat_modals or []):
+                        logger.warning("  CAT_MODAL %s", json.dumps(m, default=str))
+                except Exception as probe_err:
+                    logger.warning("Categories DOM probe failed: %s", probe_err)
 
             time.sleep(2)
 
@@ -1532,10 +1697,16 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                     continue
 
             # ── STEP 8: Publish (gated by auto_publish) ─────────────────────
+            # 3a refactor: replaces the May 19 lie pattern (result["status"] =
+            # "published" on URL-substring trust) with a three-gate truth check.
+            # See .claude/skills/truth_verification/SKILL.md for the protocol.
             if auto_publish:
                 logger.info("Publishing... URL: %s", page.url)
-                page.screenshot(path=str(ROOT / "outputs" / "books" / f"kdp_{genre}_publish_page.png"))
-                published = False
+                ts_pub = datetime.now().strftime("%Y%m%d_%H%M%S")
+                page.screenshot(path=str(
+                    ROOT / "outputs" / "books" / f"kdp_publish_page_{genre}_{ts_pub}.png"))
+
+                published_click_fired = False
                 for pub_sel in [
                     "button:has-text('Publish Your Kindle eBook')",
                     "button:has-text('Publish Your Kindle')",
@@ -1548,21 +1719,194 @@ def upload_book(genre: str, manuscript_path: str = None, cover_path: str = None,
                             btn.click()
                             page.wait_for_load_state("domcontentloaded", timeout=30000)
                             time.sleep(5)
-                            logger.info("Published! URL: %s", page.url)
-                            result["status"] = "published"
-                            result["kdp_url"] = page.url
-                            published = True
+                            logger.info("Publish click fired (selector %r); URL: %s",
+                                        pub_sel, page.url)
+                            published_click_fired = True
                             break
                     except Exception:
                         continue
 
-                if not published:
-                    logger.warning("Publish button not found — saving screenshot")
-                    result["status"] = "review_required"
-                    result["note"] = "Reached pricing page — manual publish click may be needed"
-                    result["screenshot"] = str(ROOT / "outputs" / "books" / f"kdp_{genre}_final.png")
-                    page.screenshot(path=result["screenshot"])
+                # Local imports keep the change scoped to this branch; 3b will
+                # hoist these to module top after the full migration.
+                from core.kdp_session import (
+                    is_publish_confirmed, _verify_result_against_bookshelf,
+                )
+                from core.kdp_result import KDPResult, Evidence
+
+                if not published_click_fired:
+                    # publish_button_missing — no selector matched. NOT a
+                    # verification failure; the click never even attempted.
+                    shot = ROOT / "outputs" / "books" / f"kdp_publish_button_missing_{genre}_{ts_pub}.png"
+                    try:
+                        page.screenshot(path=str(shot))
+                    except Exception:
+                        pass
+                    kresult = KDPResult(
+                        ok=False, state="publish_button_missing",
+                        genre=genre, title=title,
+                        evidence=Evidence(
+                            verified_by="absence_of_publish_button_selectors",
+                            observed_at=datetime.now().isoformat(),
+                            url=page.url, screenshot=str(shot),
+                        ),
+                        detail=("Reached pricing-page navigation but no Publish "
+                                "selector matched. KDP UI may have drifted; "
+                                "update selector list."),
+                    )
+                else:
+                    # ━━━━━━ THREE-GATE TRUTH CHECK ━━━━━━━━━━━━━━━━━━━━━━━━
+                    # Gate 1 (is_publish_confirmed):
+                    #   Catches missing confirmation overlay OR any anti-marker
+                    #   (publish button still on screen, kicked to login, red
+                    #   error banner, side-nav step still "Not Started", URL
+                    #   still on /pricing with no overlay = the May 19 shape).
+                    pc = is_publish_confirmed(page)
+                    logger.info("Gate 1 (is_publish_confirmed): confirmed=%s "
+                                "positive=%s anti=%s",
+                                pc["confirmed"], pc["markers_seen"],
+                                pc["anti_markers_seen"])
+
+                    if not pc["confirmed"]:
+                        shot = ROOT / "outputs" / "books" / f"kdp_publish_unconfirmed_{genre}_{ts_pub}.png"
+                        try:
+                            page.screenshot(path=str(shot))
+                        except Exception:
+                            pass
+                        kresult = KDPResult(
+                            ok=False, state="publish_unconfirmed",
+                            genre=genre, title=title,
+                            evidence=Evidence(
+                                verified_by="is_publish_confirmed",
+                                observed_at=datetime.now().isoformat(),
+                                url=page.url, screenshot=str(shot),
+                                dom_markers_seen=(
+                                    pc["markers_seen"]
+                                    + [f"anti:{m}" for m in pc["anti_markers_seen"]]
+                                ),
+                            ),
+                            detail=(f"Publish click fired but is_publish_confirmed "
+                                    f"returned False. positives={pc['markers_seen']}, "
+                                    f"antis={pc['anti_markers_seen']}"),
+                        )
+                    else:
+                        # Gate 2 (_verify_result_against_bookshelf):
+                        #   Catches the case where wizard markers say "yes" but
+                        #   the bookshelf (a page the wizard did not author)
+                        #   still shows Draft, missing row, or load failure.
+                        bv = _verify_result_against_bookshelf(
+                            claimed_state="in_review", page=page, title=title)
+                        logger.info("Gate 2 (bookshelf): says=%s overrides_to=%s "
+                                    "used_fallback=%s detail=%s",
+                                    bv["bookshelf_says"], bv["overrides_to"],
+                                    bv.get("used_fallback"), bv.get("detail", ""))
+
+                        # Pull labelled identifiers from the bookshelf probe.
+                        # bv["row_id"] is the DEPRECATED bookshelf-row id; use
+                        # wizard_id for in_review and public_asin for live, per
+                        # SKILL.md "KDP DOM gotchas". Routing row_id into
+                        # external_id was the May-19-lie-wearing-a-new-costume bug.
+                        bookshelf_row_id = bv.get("bookshelf_row_id") or ""
+                        wizard_id = bv.get("wizard_id") or ""
+                        public_asin = bv.get("public_asin") or ""
+
+                        if bv["overrides_to"]:
+                            shot = ROOT / "outputs" / "books" / f"kdp_bookshelf_override_{genre}_{ts_pub}.png"
+                            try:
+                                page.screenshot(path=str(shot))
+                            except Exception:
+                                pass
+                            kresult = KDPResult(
+                                ok=False, state=bv["overrides_to"],
+                                genre=genre, title=title,
+                                evidence=Evidence(
+                                    verified_by="_verify_result_against_bookshelf",
+                                    observed_at=datetime.now().isoformat(),
+                                    url=page.url, screenshot=str(shot),
+                                    dom_markers_seen=[
+                                        f"bookshelf:{bv['bookshelf_says']}",
+                                        f"used_fallback:{bv.get('used_fallback')}",
+                                        f"bookshelf_row_id:{bookshelf_row_id}",
+                                        f"wizard_id:{wizard_id}",
+                                        f"public_asin:{public_asin}",
+                                    ],
+                                ),
+                                detail=(f"Wizard claimed in_review but bookshelf "
+                                        f"disagreed: {bv.get('detail', '')}. "
+                                        f"Gate-1 positives were {pc['markers_seen']}."),
+                            )
+                        else:
+                            # All three gates agree. Gate 3 = KDPResult.__post_init__
+                            # rejects construction if evidence is missing/malformed
+                            # — type-system fallback that catches any future
+                            # caller bypassing gates 1+2.
+                            shot = ROOT / "outputs" / "books" / f"kdp_in_review_{genre}_{ts_pub}.png"
+                            try:
+                                page.screenshot(path=str(shot))
+                            except Exception:
+                                pass
+                            # external_id for in_review = wizard_id (the internal
+                            # KDP draft/title ID). Fall back to public_asin in
+                            # the unusual case where KDP already minted one (it
+                            # would still validate, just unexpected at in_review).
+                            # NEVER use bookshelf_row_id here — that was the bug.
+                            in_review_external_id = wizard_id or public_asin or None
+                            kresult = KDPResult(
+                                ok=True, state="in_review",
+                                genre=genre, title=title,
+                                evidence=Evidence(
+                                    verified_by="is_publish_confirmed+_verify_result_against_bookshelf",
+                                    observed_at=datetime.now().isoformat(),
+                                    url=page.url, screenshot=str(shot),
+                                    dom_markers_seen=(
+                                        pc["markers_seen"]
+                                        + [
+                                            f"bookshelf:{bv['bookshelf_says']}",
+                                            f"bookshelf_row_id:{bookshelf_row_id}",
+                                            f"wizard_id:{wizard_id}",
+                                            f"public_asin:{public_asin}",
+                                        ]
+                                    ),
+                                    external_id=in_review_external_id,
+                                ),
+                                detail=("Confirmed in_review via wizard markers "
+                                        "+ fresh bookshelf row reading. "
+                                        f"external_id source: "
+                                        f"{'wizard_id' if wizard_id else ('public_asin' if public_asin else 'none')}."),
+                            )
+
+                # ━━━ Legacy compat shim — REMOVE IN PART 4 ━━━
+                # scripts/daily_kdp_publish.py:120/135/337 still read
+                # result["status"] == "published" for queue/registry/pipeline
+                # decisions. Without this mapping, an authentic in_review run
+                # would be treated as a failure (no Telegram ✅, no registry
+                # publish_date, paperback/hardcover formats skipped). Part 4
+                # rewrites those consumers to read result["state"]; remove
+                # this shim then. result["state"] is the authoritative new
+                # field; result["status"] is the legacy alias.
+                _LEGACY_STATUS_COMPAT = {
+                    "in_review": "published",
+                    "live": "published",
+                }
+                result["status"] = _LEGACY_STATUS_COMPAT.get(kresult.state, kresult.state)
+                result["state"] = kresult.state
+                result["ok"] = kresult.ok
+                result["error_code"] = None if kresult.ok else kresult.state
+                if kresult.evidence:
+                    result["evidence"] = kresult.evidence.to_dict()
+                    if kresult.evidence.screenshot:
+                        result["screenshot"] = kresult.evidence.screenshot
+                    if kresult.evidence.url:
+                        result["kdp_url"] = kresult.evidence.url
+                if kresult.detail:
+                    result["detail"] = kresult.detail
             else:
+                # 3b WATCH-ITEM: the string "ready_to_publish" below is NOT in
+                # VALID_STATES — it's an orphan legacy string. 3b's first job
+                # is to refactor this branch to construct
+                # KDPResult(ok=True, state="draft_saved", ...) with a proper
+                # is_draft_persisted helper. Until then this is dict-only and
+                # the type system won't catch downstream KDPResult attempts
+                # that try to consume it.
                 logger.info("auto_publish=False → leaving book at ready_to_publish. URL: %s", page.url)
                 result["status"] = "ready_to_publish"
                 result["kdp_url"] = page.url

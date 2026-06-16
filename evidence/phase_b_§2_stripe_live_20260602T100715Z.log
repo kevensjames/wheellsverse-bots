@@ -1,0 +1,40 @@
+════════════════════════════════════════════════════════════════
+PHASE B §2 LIVE-STRIPE WIRING EVIDENCE
+Timestamp: 20260602T100715Z
+Branch:    feat/kdp-fillers
+HEAD:      f189bf178510463ddf991a0511136aa092367149
+════════════════════════════════════════════════════════════════
+
+─── Settings resolved (via bash, bypasses zsh-source bug found this run) ───
+  STRIPE_SECRET_KEY        rk_live_... (len 107)
+  STRIPE_WEBHOOK_SECRET    whsec_5C... (len 38)
+  STRIPE_PRICE_PRO         price_1T... via AliasChoices(STRIPE_PRO_PRICE_ID)
+  STRIPE_PRICE_ELITE       price_1T... via AliasChoices(STRIPE_BOT_PACK_PRICE_ID)  ⚠ wrong product
+  STRIPE_SUCCESS_URL       https://nai.wheellsverse.com/nai-ui/?subscribed=1
+  STRIPE_CANCEL_URL        https://nai.wheellsverse.com/nai-ui/pricing.html?canceled=1
+  BILLING_PUBLIC_UPGRADE_URL  https://nai.wheellsverse.com/nai-ui/pricing.html
+
+─── End-to-end live test (no charge) ───
+  signup throwaway @example.com via public URL  HTTP 201 ✓
+  POST /billing/checkout plan=pro with cookies  HTTP 200 ✓
+  response.checkout_url host                    checkout.stripe.com ✓
+  Stripe live customer created                  cus_Ud5NgpY8rZ35QK
+
+─── Cleanup ───
+  auth.users + profile cascade deleted          0 remaining
+  auth.users count back to day-0 baseline       8 ✓
+  Stripe customer deleted via /v1/customers     cus_Ud5NgpY8rZ35QK ✓
+
+─── Operator follow-ups ───
+1. STRIPE_PRICE_ELITE is aliased to STRIPE_BOT_PACK_PRICE_ID. Bot-pack is a
+   DIFFERENT product. Either hide the Elite plan button until you create a
+   real Elite recurring price, OR add STRIPE_PRICE_ELITE=price_<real> to .env.
+2. Stripe live webhook endpoint at https://nai.wheellsverse.com/billing/webhook
+   must exist in Stripe dashboard (live mode) AND its signing secret must
+   match STRIPE_WEBHOOK_SECRET in env. Not auto-verifiable without paying;
+   §6 incognito browser test will confirm (subscription will fail to activate
+   if the secret mismatches).
+
+─── INTEGRITY ───
+SHA256 of log above this line (excluding this footer): 3eceb61858154076fd7ca026c9b1fd3d0d6f2bcf7f918804d60cbc18977c4c02
+Generated: 2026-06-02T10:07:15Z

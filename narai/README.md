@@ -13,24 +13,25 @@ pip install -r narai/requirements.txt
 ANTHROPIC_API_KEY=...
 NARAI_STORAGE_KEY=some-random-string
 NARAI_JWT_SECRET=another-random-string
+SUPABASE_URL=https://<your-project>.supabase.co
+SUPABASE_SERVICE_KEY=eyJ...  # service-role key (from Supabase → Settings → API)
+SUPABASE_ANON_KEY=eyJ...     # anon key (browser-safe; injected into signup.html)
 
-# 3. Generate password hash
-make hash-password -C narai/
-
-# 4. Add to .env:
-NARAI_PASSWORD_HASH=<hash from above>
-
-# 5. Migrate legacy NarAI memory
+# 3. Migrate legacy NarAI memory
 make migrate -C narai/
 
-# 6. Start the server
+# 4. Start the server
 make dev -C narai/
 # → http://localhost:5051/docs
 ```
 
+Auth is delegated to Supabase: sign up at `/signup` (Google OAuth or email+password),
+log in at `/login`. The legacy `NARAI_PASSWORD_HASH` single-operator path was
+removed in Week 2.5.
+
 ## Dashboard integration
 
-Open the existing dashboard (port 5050). On the NarAI page, click the **v2** button in the chat toolbar. Enter your password once — the token is stored in localStorage.
+Open the existing dashboard (port 5050). On the NarAI page, click the **v2** button in the chat toolbar. Sign in with your Supabase email + password — the token is stored in localStorage.
 
 When v2 is active:
 - Messages route to `/api/v2/narai/chat` (Claude Sonnet 4.6 primary)
@@ -46,7 +47,6 @@ make test-fast    — run unit tests only (no embeddings loaded)
 make migrate      — port legacy narai_memory.json + activity log → Chroma + SQLite
 make seed         — ingest skill packs into RAG collection
 make docker-up    — start Redis (+ Postgres with --profile prod)
-make hash-password — generate bcrypt hash for your password
 make deploy       — railway up --detach
 ```
 
