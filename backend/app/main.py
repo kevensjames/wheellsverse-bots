@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_failures, admin_kg, admin_learning, admin_planning, admin_presets, admin_research, admin_self_correction, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_failures, admin_kg, admin_learning, admin_planning, admin_presets, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -115,6 +115,7 @@ app.include_router(admin_kg.router)
 app.include_router(admin_failures.router)
 app.include_router(admin_research.router)
 app.include_router(admin_self_correction.router)
+app.include_router(admin_self_heal.router)
 app.include_router(admin_planning.router)
 app.include_router(admin_browser.router)
 app.include_router(admin_learning.router)
