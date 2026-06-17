@@ -228,9 +228,13 @@ def close_collection_and_create_payout(cycle_id: int) -> dict[str, Any]:
     # The accumulator is NOT cleared here — clearing happens only when the payout
     # TRANSFER actually settles (mark_payout_result success). If the payout fails,
     # the whole undelivered pool rolls forward instead of being lost.
-    st.set_cycle_status(cycle_id, "collected")
+    # Create the payout row BEFORE flipping the cycle to 'collected', so a
+    # 'collected' cycle ALWAYS has a payout — the status short-circuit above can
+    # never trap a payout-less 'collected' cycle. (UNIQUE(cycle_id) keeps it
+    # idempotent if somehow re-entered.)
     amount = status["processed_cents"] + circle.rollover_cents
     payout = st.create_payout(cycle_id, recipient.id, amount)
+    st.set_cycle_status(cycle_id, "collected")
     return {"cycle": st.get_cycle(cycle_id).as_dict(), "payout": payout.as_dict(),
             "applied_rollover_cents": circle.rollover_cents, "already_staged": False}
 
@@ -255,7 +259,13 @@ def mark_payout_result(payout_id: int, success: bool) -> dict[str, Any]:
             return {"payout": payout.as_dict(), "cycle": cycle.as_dict(), "noop": True}
         p = st.update_payout(payout_id, status="returned")
         st.set_cycle_status(payout.cycle_id, "failed")
-        st.set_rollover(cycle.circle_id, payout.amount_cents)
+        # ADD (not overwrite): this return can land days later, AFTER the circle
+        # advanced and a LATER cycle already grew the accumulator. Overwriting
+        # would clobber that later rollover and short the group. (Contrast the
+        # pending→failed branch below, where overwrite is safe because the cycle
+        # hasn't advanced and no later rollover can exist yet.)
+        circle = st.get_circle(cycle.circle_id)
+        st.set_rollover(cycle.circle_id, circle.rollover_cents + payout.amount_cents)
         logger.info("sol: payout %s RETURNED (ACH clawback) — pool rolled forward", payout_id)
         return {"payout": p.as_dict(), "cycle": st.get_cycle(payout.cycle_id).as_dict(),
                 "returned": True}

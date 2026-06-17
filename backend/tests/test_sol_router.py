@@ -252,6 +252,27 @@ def test_retry_failed_reissues_and_counts(client, monkeypatch):
     assert len(_CountingDwolla.calls) == 1
 
 
+def test_retry_ladder_to_delinquency_via_endpoint(client, monkeypatch):
+    # Real production ladder: collect → fail → /retry-failed → fail → /retry-failed
+    # → fail → delinquent (retry_count advances only on confirmed transfer).
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    _CountingDwolla.calls = []
+    monkeypatch.setattr("app.routers.sol.DwollaClient", _CountingDwolla)
+    target = st.list_contributions(cycle_id)[0].id
+    client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
+    engine.mark_contribution_result(target, False)            # fail #1 (rc 0)
+    for expected_rc in (1, 2):
+        r = client.post(f"/admin/sol/cycles/{cycle_id}/retry-failed", headers=ADMIN, json={"approved": True})
+        assert r.status_code == 200 and r.json()["retried"] == 1
+        assert st.get_contribution(target).retry_count == expected_rc
+        out = engine.mark_contribution_result(target, False)  # webhook fails again
+    assert out["member_delinquent"] is True                    # exhausted → delinquent
+    assert st.get_member(st.get_contribution(target).member_id).status == "delinquent"
+    # a further retry is refused (cap reached)
+    r3 = client.post(f"/admin/sol/cycles/{cycle_id}/retry-failed", headers=ADMIN, json={"approved": True})
+    assert any(x.get("skipped") == "retries exhausted" for x in r3.json()["results"])
+
+
 def test_retry_requires_transfer_scope(client, monkeypatch):
     cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
     monkeypatch.delenv("KAI_SCOPE_SOL", raising=False)

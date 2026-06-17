@@ -311,6 +311,32 @@ def test_payout_ach_return_after_completed():
     assert st.get_circle(c.id).rollover_cents == 40000   # pool rolled back forward
 
 
+def test_ach_return_adds_to_later_rollover_no_money_loss():
+    # The dangerous interleaving: payout1 settles → advance → cycle2 forfeits
+    # (rollover grows) → a LATE ACH return for payout1 arrives. The clawed-back
+    # pool must be ADDED to the grown accumulator, never overwrite it.
+    c = _funded_circle(n=4, contribution_cents=20000)
+    cyc1 = engine.activate_circle(c.id)["cycle"]
+    for ct in st.list_contributions(cyc1["id"]):
+        engine.mark_contribution_result(ct.id, True)
+    out1 = engine.close_collection_and_create_payout(cyc1["id"])
+    p1 = out1["payout"]["id"]
+    engine.mark_payout_result(p1, True)                 # cycle1 paid → rollover 0
+    assert st.get_circle(c.id).rollover_cents == 0
+    # advance → cycle2; the pos-2 recipient forfeits, the other 3 pay
+    cyc2 = engine.advance_circle(c.id)["cycle"]
+    members = {m.join_order: m for m in st.list_members(c.id)}
+    contribs2 = {ct.member_id: ct for ct in st.list_contributions(cyc2["id"])}
+    _drive_to_delinquent(contribs2[members[2].id].id)
+    for pos in (1, 3, 4):
+        engine.mark_contribution_result(contribs2[members[pos].id].id, True)
+    engine.close_collection_and_create_payout(cyc2["id"])   # forfeit → rollover grows
+    assert st.get_circle(c.id).rollover_cents == 60000      # 3 × 200.00
+    # late ACH return for cycle-1's payout — must ADD, not clobber the 60000
+    engine.mark_payout_result(p1, False)
+    assert st.get_circle(c.id).rollover_cents == 60000 + 80000  # SUM, no loss
+
+
 def test_failed_payout_does_not_strand_circle():
     c = _funded_circle(n=2, contribution_cents=20000)
     cyc = engine.activate_circle(c.id)["cycle"]
