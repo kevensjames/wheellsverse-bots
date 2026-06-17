@@ -10514,6 +10514,65 @@ def nx_auth_logout(request: Request):
     return {"status": "logged_out"}
 
 
+@app.get("/api/nx/e/{entity}")
+def nx_entity_list(entity: str, request: Request):
+    user = _nx_require_user(request)
+    from core.nexora_entities import ENTITIES, entity_query
+    if entity not in ENTITIES:
+        raise HTTPException(status_code=404, detail="Unknown entity")
+    spec = ENTITIES[entity]
+    qp = dict(request.query_params)
+    sort = qp.pop("_sort", None)
+    limit = qp.pop("_limit", None)
+    # Read authorization: non-public entities must be scoped to the requesting user
+    # (unless admin). The request must filter by one of the entity's self_cols == the
+    # actor's email; otherwise it could read other users' rows.
+    if not spec.get("read_public") and user["role"] != "admin":
+        self_cols = spec.get("self_cols", [])
+        if not any(qp.get(c) == user["email"] for c in self_cols):
+            raise HTTPException(status_code=403, detail="Not allowed")
+    return entity_query(entity, qp, sort, int(limit) if limit else None)
+
+
+@app.post("/api/nx/e/{entity}")
+async def nx_entity_create(entity: str, request: Request):
+    user = _nx_require_user(request)
+    from core.nexora_entities import ENTITIES, entity_create
+    if entity not in ENTITIES:
+        raise HTTPException(status_code=404, detail="Unknown entity")
+    body = await request.json()
+    try:
+        return entity_create(entity, body, user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+
+@app.patch("/api/nx/e/{entity}/{pk}")
+async def nx_entity_update(entity: str, pk: str, request: Request):
+    user = _nx_require_user(request)
+    from core.nexora_entities import ENTITIES, entity_update
+    if entity not in ENTITIES:
+        raise HTTPException(status_code=404, detail="Unknown entity")
+    body = await request.json()
+    try:
+        return entity_update(entity, pk, body, user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not allowed")
+
+
+@app.delete("/api/nx/e/{entity}/{pk}")
+def nx_entity_delete(entity: str, pk: str, request: Request):
+    user = _nx_require_user(request)
+    from core.nexora_entities import ENTITIES, entity_delete
+    if entity not in ENTITIES:
+        raise HTTPException(status_code=404, detail="Unknown entity")
+    try:
+        entity_delete(entity, pk, user)
+    except PermissionError:
+        raise HTTPException(status_code=403, detail="Not allowed")
+    return {"ok": True}
+
+
 # ── Creator profile ────────────────────────────────────────────────────────────
 
 @app.get("/api/nx/me")
