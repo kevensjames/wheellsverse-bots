@@ -44,6 +44,9 @@ ENTITIES = {
         "writable": ["title", "text", "media_urls", "media_type", "access_type",
                      "ppv_price", "status"],
         "create_roles": ["creator", "admin"], "read_public": True,
+        # creator_id is a legacy NOT NULL FK column not owned by the entity layer;
+        # sentinel 0 is safe with foreign_keys=OFF during entity_create.
+        "legacy_defaults": {"creator_id": 0},
     },
     "Subscription": {
         "table": "nx_subscribers", "pk": "id", "owner_col": "fan_email",
@@ -182,3 +185,64 @@ def entity_get(entity: str, pk_value) -> Optional[Dict]:
     row = conn.execute(f"SELECT * FROM {spec['table']} WHERE {spec['pk']}=?", (pk_value,)).fetchone()
     conn.close()
     return _to_fe(entity, row) if row else None
+
+
+def _owner_email(entity: str, pk_value) -> Optional[str]:
+    spec = ENTITIES[entity]
+    conn = get_conn()
+    row = conn.execute(f"SELECT {spec['owner_col']} AS o FROM {spec['table']} WHERE {spec['pk']}=?",
+                       (pk_value,)).fetchone()
+    conn.close()
+    return row["o"] if row else None
+
+
+def _require_owner_or_admin(entity: str, pk_value, actor: Dict) -> None:
+    if actor.get("role") == "admin":
+        return
+    owner = _owner_email(entity, pk_value)
+    if owner is None or owner != actor.get("email"):
+        raise PermissionError("not allowed")
+
+
+def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
+    spec = ENTITIES[entity]
+    if actor.get("role") not in spec.get("create_roles", []):
+        raise PermissionError("not allowed")
+    init_db()
+    cols = _from_fe(entity, body)
+    cols[spec["owner_col"]] = actor["email"]            # stamp ownership from token
+    ts_col = spec["fields"]["created_date"][0]
+    cols.setdefault(ts_col, time.time())
+    # Supply legacy NOT NULL sentinel defaults for columns not owned by the entity layer.
+    for lk, lv in spec.get("legacy_defaults", {}).items():
+        cols.setdefault(lk, lv)
+    keys = list(cols.keys())
+    placeholders = ",".join("?" for _ in keys)
+    conn = get_conn()
+    conn.execute("PRAGMA foreign_keys=OFF")
+    cur = conn.execute(f"INSERT INTO {spec['table']} ({','.join(keys)}) VALUES ({placeholders})",
+                       [cols[k] for k in keys])
+    new_pk = actor["email"] if spec["pk"] == spec["owner_col"] else cur.lastrowid
+    conn.commit(); conn.close()
+    return entity_get(entity, new_pk)
+
+
+def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Dict]:
+    _require_owner_or_admin(entity, pk_value, actor)
+    spec = ENTITIES[entity]
+    cols = _from_fe(entity, body)
+    if cols:
+        sets = ",".join(f"{k}=?" for k in cols)
+        conn = get_conn()
+        conn.execute(f"UPDATE {spec['table']} SET {sets} WHERE {spec['pk']}=?",
+                     [*cols.values(), pk_value])
+        conn.commit(); conn.close()
+    return entity_get(entity, pk_value)
+
+
+def entity_delete(entity: str, pk_value, actor: Dict) -> None:
+    _require_owner_or_admin(entity, pk_value, actor)
+    spec = ENTITIES[entity]
+    conn = get_conn()
+    conn.execute(f"DELETE FROM {spec['table']} WHERE {spec['pk']}=?", (pk_value,))
+    conn.commit(); conn.close()

@@ -62,3 +62,38 @@ def test_entity_get(db):
     fe = ent.entity_get("CreatorProfile", cid)
     assert fe["user_email"] == "g@x.com"
     assert ent.entity_get("CreatorProfile", 99999) is None
+
+
+def test_entity_create_stamps_owner(db):
+    actor = {"email": "creator@x.com", "role": "creator"}
+    fe = ent.entity_create("Post", {"title": "Hi", "text": "yo", "access_type": "free"}, actor)
+    assert fe["title"] == "Hi" and fe["creator_email"] == "creator@x.com"
+    assert fe["id"] and fe["created_date"]
+
+
+def test_entity_update_owner_only(db):
+    owner = {"email": "o@x.com", "role": "creator"}
+    other = {"email": "x@x.com", "role": "creator"}
+    admin = {"email": "a@x.com", "role": "admin"}
+    fe = ent.entity_create("Post", {"title": "P"}, owner)
+    with pytest.raises(PermissionError):
+        ent.entity_update("Post", fe["id"], {"title": "hax"}, other)
+    upd = ent.entity_update("Post", fe["id"], {"title": "P2"}, owner)
+    assert upd["title"] == "P2"
+    upd2 = ent.entity_update("Post", fe["id"], {"status": "removed"}, admin)
+    assert upd2["status"] == "removed"
+
+
+def test_entity_delete_owner_only(db):
+    owner = {"email": "d@x.com", "role": "creator"}
+    fe = ent.entity_create("Post", {"title": "D"}, owner)
+    with pytest.raises(PermissionError):
+        ent.entity_delete("Post", fe["id"], {"email": "z@x.com", "role": "fan"})
+    ent.entity_delete("Post", fe["id"], owner)
+    assert ent.entity_get("Post", fe["id"]) is None
+
+
+def test_entity_create_role_enforced(db):
+    # Post create_roles excludes 'fan'
+    with pytest.raises(PermissionError):
+        ent.entity_create("Post", {"title": "X"}, {"email": "f@x.com", "role": "fan"})
