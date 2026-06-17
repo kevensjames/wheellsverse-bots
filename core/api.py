@@ -1208,6 +1208,32 @@ async def serve_sol_admin():
     return _serve_frontend("sol/admin.html", cache=False)
 
 
+# ─── Sol redesign static assets (shared design system + landing imagery) ──────
+# The redesigned Sol surfaces link /sol/sol-design-system.css and reference
+# images under /sol/assets/. The three routes above only serve the HTML pages,
+# so these static resources need their own handlers. Targeted (CSS route +
+# /sol/assets mount) — does NOT shadow /sol, /sol/app, /sol/admin. The app and
+# admin re-skins will rely on the same shared stylesheet.
+_sol_static_dir = ROOT / "frontend" / "sol"
+
+
+@app.get("/sol/sol-design-system.css")
+async def serve_sol_design_system():
+    from fastapi.responses import FileResponse
+    css_path = _sol_static_dir / "sol-design-system.css"
+    if not css_path.exists():
+        return PlainTextResponse("/* sol-design-system.css not found */",
+                                 status_code=404, media_type="text/css")
+    return FileResponse(str(css_path), media_type="text/css",
+                        headers={"Cache-Control": "no-store"})
+
+
+if (_sol_static_dir / "assets").is_dir():
+    app.mount("/sol/assets",
+              _StaticFiles(directory=str(_sol_static_dir / "assets")),
+              name="sol-assets")
+
+
 @app.get("/admin/shopify", response_class=HTMLResponse)
 async def serve_admin_shopify():
     return _serve_frontend("admin/shopify.html", cache=False)
