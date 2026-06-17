@@ -1452,22 +1452,33 @@ def launch_readiness(_=Depends(verify_admin_api_key)) -> dict:
                           " — SPF/DKIM/DMARC are NOT validated from inside the container (no dig). Verify externally with dig + mail-tester.com.",
                 "action": "" if dns_status == "ok" else "Check Cloudflare DNS"})
 
-    # 4. Instantly campaign
+    # 4. Instantly campaign — must use the SAME source-of-truth as send_sequences:
+    # file-override (active_campaign.json) first, then INSTANTLY_CAMPAIGN_ID env.
+    # Checking only the env var here lies to the operator after auto-create-campaign
+    # writes the file — they see 'fail' even though /send would work.
     if not os.getenv("INSTANTLY_API_KEY", "").strip():
         out.append({"axis": "instantly-key", "status": "fail",
                     "label": "Instantly API key",
                     "detail": "INSTANTLY_API_KEY not set — POST /send will return 'blocked'",
                     "action": "Rotate key in Instantly dashboard, set via Railway env"})
-    elif not os.getenv("INSTANTLY_CAMPAIGN_ID", "").strip():
-        out.append({"axis": "instantly-campaign", "status": "fail",
-                    "label": "Instantly campaign ID",
-                    "detail": "INSTANTLY_CAMPAIGN_ID not set — POST /send will return 'blocked'",
-                    "action": "Pick a campaign in Instantly UI, set INSTANTLY_CAMPAIGN_ID env"})
     else:
-        out.append({"axis": "instantly", "status": "ok",
-                    "label": "Instantly API + campaign",
-                    "detail": "Key set; campaign UUID set. Send pipeline can POST leads.",
-                    "action": ""})
+        try:
+            from core.siteboost_instantly import get_active_campaign_id
+            campaign_id = get_active_campaign_id()
+        except Exception:
+            campaign_id = os.getenv("INSTANTLY_CAMPAIGN_ID", "").strip()
+        if not campaign_id:
+            out.append({"axis": "instantly-campaign", "status": "fail",
+                        "label": "Instantly campaign ID",
+                        "detail": "No active campaign — both active_campaign.json and INSTANTLY_CAMPAIGN_ID are empty",
+                        "action": "Click 'Auto-create campaign' OR set INSTANTLY_CAMPAIGN_ID env"})
+        else:
+            env_id = os.getenv("INSTANTLY_CAMPAIGN_ID", "").strip()
+            source = "file override" if (campaign_id != env_id) else "env var"
+            out.append({"axis": "instantly", "status": "ok",
+                        "label": "Instantly API + campaign",
+                        "detail": f"Key set; campaign {campaign_id[:8]}... resolved from {source}. Send pipeline can POST leads.",
+                        "action": ""})
 
     # 5. Suppression list health
     try:

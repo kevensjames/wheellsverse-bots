@@ -40,6 +40,18 @@ ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT = ROOT / "data" / "launches" / "siteboost" / "schedules.json"
 SCHEDULES_PATH = Path(os.getenv("SITEBOOST_SCHEDULES_PATH", str(_DEFAULT)))
 
+# Once-per-UTC-day "system tick" marker. Tracks the last UTC date on which
+# the system tick (warmup advance + digest send) successfully fired, so the
+# worker doesn't re-fire on every 60s poll. Lives next to schedules.json.
+_DEFAULT_SYS_TICK = ROOT / "data" / "launches" / "siteboost" / "system_tick.json"
+SYSTEM_TICK_PATH = Path(os.getenv("SITEBOOST_SYSTEM_TICK_PATH", str(_DEFAULT_SYS_TICK)))
+
+# Hour-of-day (UTC) at which the system tick runs. Default 14 UTC = 02:00 in
+# Etc/GMT+12 (Instantly's configured campaign timezone) — safely past local
+# midnight so a tier-boundary cap bump always lands AFTER Instantly's own
+# day has rolled. Override via SITEBOOST_DAILY_HOUR for testing.
+SYSTEM_TICK_HOUR = int(os.getenv("SITEBOOST_DAILY_HOUR", "14"))
+
 
 def _load_schedules() -> list[dict]:
     if not SCHEDULES_PATH.exists():
@@ -144,6 +156,77 @@ _worker_started = False
 _worker_lock = threading.Lock()
 
 
+def _load_system_tick_date() -> str:
+    """Return the UTC date string ('YYYY-MM-DD') the system tick last ran,
+    or '' if it has never run / file missing / corrupt."""
+    if not SYSTEM_TICK_PATH.exists():
+        return ""
+    try:
+        return str(json.loads(SYSTEM_TICK_PATH.read_text()).get("last_date", ""))
+    except Exception:
+        return ""
+
+
+def _save_system_tick_date(date_str: str, last_results: dict) -> None:
+    SYSTEM_TICK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"last_date": date_str, "last_results": last_results,
+               "last_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}
+    tmp = SYSTEM_TICK_PATH.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2))
+    tmp.replace(SYSTEM_TICK_PATH)
+
+
+def _run_system_tick_if_due() -> None:
+    """Once per UTC day at SYSTEM_TICK_HOUR, run the autonomous system jobs:
+       1. core.siteboost_warmup.advance_if_needed() — walks the ramp
+       2. core.siteboost_digest.send_digest_email(...) — if recipient set
+
+    Each job is wrapped independently: a failure in one MUST NOT block the
+    other. The on-disk marker is written only after both attempts complete,
+    so transient failures don't burn the day's slot — the next minute's
+    tick still inside the configured hour will retry.
+
+    Idempotent across daemon restarts because the marker survives the
+    container swap (lives on the persistent volume)."""
+    now = time.gmtime()
+    if now.tm_hour != SYSTEM_TICK_HOUR:
+        return
+    today_str = time.strftime("%Y-%m-%d", now)
+    if _load_system_tick_date() == today_str:
+        return  # already fired today
+
+    results: dict = {}
+
+    # 1. Warmup advance — the meat of the ramp; safe + idempotent.
+    try:
+        from core.siteboost_warmup import advance_if_needed
+        results["warmup"] = advance_if_needed()
+        logger.info(f"[system-tick] warmup advance: {results['warmup']}")
+    except Exception as e:
+        results["warmup"] = {"status": "error", "error": str(e)}
+        logger.error(f"[system-tick] warmup advance crashed: {e}")
+
+    # 2. Digest send — only if a recipient is configured. Failing to find
+    # a recipient is NOT an error (operator may not want a digest); silent.
+    recipient = os.getenv("DIGEST_RECIPIENT_EMAIL", "").strip()
+    if recipient:
+        try:
+            from core.siteboost_digest import send_digest_email
+            results["digest"] = send_digest_email(recipient)
+            logger.info(f"[system-tick] digest sent to {recipient}: "
+                        f"{results['digest'].get('status', '?')}")
+        except Exception as e:
+            results["digest"] = {"status": "error", "error": str(e)}
+            logger.error(f"[system-tick] digest send crashed: {e}")
+    else:
+        results["digest"] = {"status": "skipped", "reason": "DIGEST_RECIPIENT_EMAIL unset"}
+
+    # Persist the marker regardless of individual job outcomes — re-running
+    # a failed warmup advance inside the same hour rarely helps (Instantly
+    # likely still down). Tomorrow's tick will re-try.
+    _save_system_tick_date(today_str, results)
+
+
 def start_worker(fire_callback) -> None:
     """Start the background ticker (idempotent — safe to call from each request).
 
@@ -158,7 +241,8 @@ def start_worker(fire_callback) -> None:
         _worker_started = True
 
     def _loop() -> None:
-        logger.info(f"scheduler worker started; reading from {SCHEDULES_PATH}")
+        logger.info(f"scheduler worker started; reading from {SCHEDULES_PATH} "
+                    f"(system tick @ {SYSTEM_TICK_HOUR:02d}:00 UTC)")
         while True:
             try:
                 due = find_due()
@@ -169,6 +253,13 @@ def start_worker(fire_callback) -> None:
                         mark_run(s["id"])
                     except Exception as e:
                         logger.error(f"fire failed for {s.get('id')!r}: {e}")
+                # System tick: once per UTC day, after the scan dispatch.
+                # Wraps in its own try/except so a system-tick failure can
+                # never block scan schedules — and vice versa.
+                try:
+                    _run_system_tick_if_due()
+                except Exception as e:
+                    logger.error(f"system tick error: {e}")
             except Exception as e:
                 logger.error(f"scheduler tick error: {e}")
             time.sleep(60)
