@@ -10581,6 +10581,40 @@ def nx_entity_delete(entity: str, pk: str, request: Request):
     return {"ok": True}
 
 
+@app.post("/api/nx/fn/nexoraData")
+async def nx_fn_nexora_data(request: Request):
+    user = _nx_require_user(request)
+    body = await request.json()
+    action = body.get("action")
+    from core.nexora_aggregations import home_feed, dashboard_data, fan_data, toggle_live
+    from core.nexora_entities import entity_create, entity_delete
+    if action == "home_feed":
+        return home_feed(user)
+    if action == "dashboard_data":
+        return dashboard_data(user)
+    if action == "fan_data":
+        return fan_data(user)
+    if action == "toggle_live":
+        return toggle_live(user, bool(body.get("is_live")))
+    if action == "create_post":
+        try:
+            return {"ok": True, "post": entity_create("Post", body, user)}
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Not allowed")
+    if action == "delete_post":
+        try:
+            entity_delete("Post", body.get("post_id"), user)
+            return {"ok": True}
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Not allowed")
+    if action == "request_payout":
+        try:
+            return {"ok": True, "payout": entity_create("PayoutRequest", body, user)}
+        except PermissionError:
+            raise HTTPException(status_code=403, detail="Not allowed")
+    raise HTTPException(status_code=400, detail="Unknown action")
+
+
 # ── Creator profile ────────────────────────────────────────────────────────────
 
 @app.get("/api/nx/me")

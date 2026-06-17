@@ -11,6 +11,7 @@ from core.nexora_db import get_conn, init_db
 ENTITIES = {
     "CreatorProfile": {
         "table": "nx_creators", "pk": "id", "owner_col": "user_email",
+        "create_upsert_by": "email",
         "fields": {
             "id": ("id", "int"), "user_email": ("user_email", "str"),
             "display_name": ("display_name", "str"), "bio": ("bio", "str"),
@@ -316,6 +317,25 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
         cols[spec["owner_col"]] = body[owner_fe]
     else:
         cols[spec["owner_col"]] = actor["email"]        # stamp ownership from token
+    # Upsert mode: update an existing row instead of inserting (e.g. CreatorProfile over nx_creators,
+    # where the creator's row already exists from registration).
+    upsert_col = spec.get("create_upsert_by")
+    if upsert_col:
+        conn = get_conn()
+        row = conn.execute(
+            f"SELECT {spec['pk']} AS pk FROM {spec['table']} WHERE {upsert_col}=?",
+            (actor["email"],)).fetchone()
+        if row is not None:
+            pk = row["pk"]
+            if cols:
+                sets = ",".join(f"{k}=?" for k in cols)
+                conn.execute(f"UPDATE {spec['table']} SET {sets} WHERE {spec['pk']}=?",
+                             [*cols.values(), pk])
+                conn.commit()
+            conn.close()
+            return entity_get(entity, pk)
+        conn.close()
+    # (falls through to normal INSERT when no existing row)
     ts_col = spec["fields"]["created_date"][0]
     cols.setdefault(ts_col, time.time())
     # Resolve legacy/profile creator-id link columns from the owner's creator row.
