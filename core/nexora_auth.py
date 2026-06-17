@@ -9,6 +9,7 @@ NEXORA platform — creator authentication.
 ─────────────────────────────────────────────────────────────────────────────
 """
 
+import bcrypt
 import hashlib
 import re
 import secrets
@@ -25,19 +26,29 @@ _SALT_HEX_LEN = 32   # 16 bytes → 32 hex chars
 
 
 def hash_password(password: str) -> str:
-    salt = secrets.token_hex(_SALT_HEX_LEN)
-    h = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-    return f"{salt}${h}"
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 def verify_password(password: str, stored_hash: str) -> bool:
-    try:
+    if not stored_hash:
+        return False
+    if stored_hash.startswith("$2"):                 # bcrypt
+        try:
+            return bcrypt.checkpw(password.encode("utf-8"), stored_hash.encode("utf-8"))
+        except Exception:
+            return False
+    try:                                             # legacy: salt$sha256hex
         salt, h = stored_hash.split("$", 1)
         return secrets.compare_digest(
             hashlib.sha256((salt + password).encode("utf-8")).hexdigest(), h
         )
     except Exception:
         return False
+
+
+def needs_rehash(stored_hash: str) -> bool:
+    """True for legacy (non-bcrypt) hashes that should be upgraded on next login."""
+    return not (stored_hash or "").startswith("$2")
 
 # ── Token helpers ──────────────────────────────────────────────────────────────
 
@@ -135,6 +146,8 @@ def register_creator(email: str, password: str, name: str) -> Dict:
     conn.close()
 
     token = _create_session(creator_id)
+    from core.nexora_users import upsert_user
+    upsert_user(email, full_name=name.strip(), role="creator")
     return {"token": token, "creator_id": creator_id, "handle": handle, "name": name.strip()}
 
 
@@ -162,6 +175,17 @@ def login_creator(email: str, password: str) -> Dict:
         return {"error": "This account has been suspended"}
     if not verify_password(password, row["hash"]):
         return {"error": "Invalid email or password"}
+
+    if needs_rehash(row["hash"]):
+        _conn = get_conn()
+        _conn.execute("UPDATE nx_passwords SET hash=? WHERE creator_id=?",
+                      (hash_password(password), row["id"]))
+        _conn.commit(); _conn.close()
+    from core.nexora_users import upsert_user
+    _c = get_conn()
+    _name = _c.execute("SELECT name FROM nx_creators WHERE id=?", (row["id"],)).fetchone()["name"]
+    _c.close()
+    upsert_user(email, full_name=_name, role="creator")
 
     token = _create_session(row["id"])
     creator = verify_token(token)
@@ -194,6 +218,8 @@ def register_fan(email: str, password: str) -> Dict:
         return {"error": "An account with that email already exists"}
     set_fan_password(email, hash_password(password))
     token = _create_fan_session(email)
+    from core.nexora_users import upsert_user
+    upsert_user(email, role="fan")
     return {"token": token, "fan_email": email}
 
 
@@ -208,6 +234,8 @@ def login_fan(email: str, password: str) -> Dict:
     stored = get_fan_password_hash(email)
     if not stored or not verify_password(password, stored):
         return {"error": "Invalid email or password"}
+    from core.nexora_users import upsert_user
+    upsert_user(email, role="fan")
     token = _create_fan_session(email)
     subs = get_fan_subscriptions(email)
     return {"token": token, "fan_email": email, "subscriptions": subs}

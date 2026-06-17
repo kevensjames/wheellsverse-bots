@@ -10420,6 +10420,29 @@ def _nx_require_creator(request: Request) -> Dict:
     return creator
 
 
+def _nx_resolve_user(request: Request):
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth[:7].lower() == "bearer " else ""
+    from core.nexora_users import resolve_user
+    return resolve_user(token)
+
+
+def _nx_require_user(request: Request) -> Dict:
+    u = _nx_resolve_user(request)
+    if not u:
+        raise HTTPException(status_code=401, detail="Login required")
+    if u["is_suspended"]:
+        raise HTTPException(status_code=403, detail="Account suspended")
+    return u
+
+
+def _nx_require_admin(request: Request) -> Dict:
+    u = _nx_require_user(request)
+    if u["role"] != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return u
+
+
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 class _NxRegisterReq(BaseModel):
@@ -10458,6 +10481,36 @@ async def nx_logout(request: Request):
     token = auth.removeprefix("Bearer ").strip()
     if token:
         revoke_token(token)
+    return {"status": "logged_out"}
+
+
+@app.get("/api/nx/auth/me")
+def nx_auth_me(request: Request):
+    return _nx_require_user(request)
+
+
+@app.patch("/api/nx/auth/me")
+async def nx_auth_update_me(request: Request):
+    user = _nx_require_user(request)
+    body = await request.json()
+    from core.nexora_users import set_age_verified, set_role, get_user
+    if body.get("age_verified") is True:
+        set_age_verified(user["email"])
+    new_role = body.get("role")
+    if new_role == "creator" and user["role"] == "fan":
+        set_role(user["email"], "creator")
+    return get_user(user["email"])
+
+
+@app.post("/api/nx/auth/logout")
+def nx_auth_logout(request: Request):
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:] if auth[:7].lower() == "bearer " else ""
+    from core.nexora_auth import revoke_token
+    from core.nexora_db import revoke_fan_token
+    if token:
+        revoke_token(token)
+        revoke_fan_token(token)
     return {"status": "logged_out"}
 
 
