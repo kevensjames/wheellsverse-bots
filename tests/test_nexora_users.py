@@ -73,3 +73,19 @@ def test_check_access():
     assert nexora_users.check_access(admin, "admin") is True
     assert nexora_users.check_access(fan, "admin") is False
     assert nexora_users.check_access(fan, "fan", "creator") is True
+
+def test_resolve_creator_token(db):
+    from core import nexora_auth
+    reg = nexora_auth.register_creator("c@x.com", "hunter2", "Cee")
+    u = nexora_users.resolve_user(reg["token"])
+    assert u["email"] == "c@x.com" and u["role"] == "creator"
+
+def test_resolve_fan_token(db):
+    from core import nexora_auth
+    reg = nexora_auth.register_fan("fan@x.com", "hunter2")
+    u = nexora_users.resolve_user(reg["token"])
+    assert u["email"] == "fan@x.com" and u["role"] == "fan"
+
+def test_resolve_bad_token(db):
+    assert nexora_users.resolve_user("nope") is None
+    assert nexora_users.resolve_user("") is None

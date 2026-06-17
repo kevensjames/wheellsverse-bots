@@ -82,3 +82,21 @@ def set_age_verified(email: str) -> None:
 
 def check_access(user: Optional[Dict], *allowed_roles: str) -> bool:
     return bool(user) and user.get("role") in allowed_roles
+
+
+def resolve_user(token: str) -> Optional[Dict]:
+    """Resolve an opaque bearer token (creator OR fan) to the canonical User.
+    Upserts nx_users so identity exists even for pre-nx_users accounts."""
+    if not token:
+        return None
+    from core.nexora_auth import verify_token            # creator
+    from core.nexora_db import verify_fan_token          # fan -> email str
+
+    creator = verify_token(token)
+    if creator:
+        return upsert_user(creator["email"], full_name=creator.get("name"),
+                           role="creator", avatar_url=creator.get("avatar") or None)
+    fan_email = verify_fan_token(token)
+    if fan_email:
+        return upsert_user(fan_email, role="fan")
+    return None
