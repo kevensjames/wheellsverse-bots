@@ -1,76 +1,85 @@
 <!DOCTYPE html>
-<!-- Sol app v2 — private circles + invite codes + money panel (build 2026-04-22) -->
+<!-- Sol app v3 — warm-trust redesign (build 2026-06-17). Re-skinned onto the
+     shared design system; money logic + api() calls preserved from v2. -->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Sol — Dashboard</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="/sol/assets/sol-mark.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/sol/sol-design-system.css">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#05070d;--surface:#0d1117;--border:#1a2035;--cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;--text:#e2e8f0;--muted:#64748b}
-body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;display:flex;min-height:100vh}
+/* App shell built on the shared design system. Legacy accent vars used by
+   inline styles below are remapped to the warm-trust palette so the markup
+   recolors itself without touching the JS. */
+:root{
+  --muted:var(--ink-500);
+  --cyan:var(--sol-500); --purple:var(--sol-600);
+  --green:var(--success-600); --gold:var(--sol-600);
+}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink-900);font-family:var(--font-body);display:flex;min-height:100vh;margin:0}
 /* Sidebar */
-.sidebar{width:220px;min-height:100vh;border-right:1px solid var(--border);background:var(--surface);padding:1.5rem 1rem;display:flex;flex-direction:column;gap:.25rem;flex-shrink:0}
-.logo{font-size:1.3rem;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent;padding:.5rem .75rem;margin-bottom:1rem}
+.sidebar{width:230px;min-height:100vh;border-right:1px solid var(--line);background:var(--surface);padding:1.25rem 1rem;display:flex;flex-direction:column;gap:.2rem;flex-shrink:0}
+.logo-wrap{padding:.25rem .5rem 1rem}
+.logo-wrap img{height:30px}
 .user-info{padding:.5rem .75rem;margin-bottom:.5rem}
-.user-email{font-size:.7rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.nav-item{display:flex;align-items:center;gap:.6rem;padding:.6rem .75rem;border-radius:.5rem;cursor:pointer;font-size:.875rem;color:var(--muted);border:none;background:none;width:100%;text-align:left;font-family:inherit;text-decoration:none;transition:.15s}
-.nav-item:hover{background:rgba(255,255,255,.04);color:var(--text)}
-.nav-item.active{background:rgba(0,212,255,.08);color:var(--cyan)}
+.user-email{font-size:.72rem;color:var(--ink-500);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav-item{display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;border-radius:var(--r-md);cursor:pointer;font-size:.9rem;font-family:var(--font-display);font-weight:500;color:var(--ink-500);border:none;background:none;width:100%;text-align:left;text-decoration:none;transition:.15s}
+.nav-item:hover{background:var(--surface-2);color:var(--ink-900)}
+.nav-item.active{background:var(--sol-200);color:var(--sol-600)}
 .nav-icon{width:16px;text-align:center}
-.logout{margin-top:auto;color:var(--muted)}
+.logout{margin-top:auto;color:var(--ink-500)}
 /* Main */
 .main{flex:1;padding:2rem;overflow-y:auto;min-width:0}
 .page{display:none}.page.active{display:block}
-h1{font-size:1.5rem;font-weight:700;margin-bottom:.25rem}
-.sub{color:var(--muted);font-size:.875rem;margin-bottom:2rem}
+h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .25rem}
+.sub{color:var(--ink-500);font-size:.9rem;margin-bottom:2rem}
 /* Cards */
 .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem}
-.card{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem}
-.card-label{font-size:.72rem;color:var(--muted);margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem}
-.card-val{font-size:1.5rem;font-weight:700}
-.badge{display:inline-block;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:500}
-.badge-green{background:rgba(0,255,136,.1);color:var(--green)}
-.badge-yellow{background:rgba(255,215,0,.1);color:var(--gold)}
-.badge-cyan{background:rgba(0,212,255,.1);color:var(--cyan)}
-.badge-red{background:rgba(239,68,68,.1);color:#f87171}
-.badge-gray{background:rgba(100,116,139,.12);color:var(--muted)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem;box-shadow:var(--shadow-1)}
+.card-label{font-size:.72rem;color:var(--ink-500);margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem;text-transform:uppercase;letter-spacing:.03em}
+.card-val{font-size:1.5rem;font-weight:700;font-family:var(--font-display);font-variant-numeric:tabular-nums}
+.badge{display:inline-block;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:600}
+.badge-green{background:var(--success-100);color:var(--success-600)}
+.badge-yellow{background:var(--warn-100);color:var(--warn-600)}
+.badge-cyan{background:var(--sol-200);color:var(--sol-600)}
+.badge-red{background:var(--danger-100);color:var(--danger-700)}
+.badge-gray{background:var(--ink-100);color:var(--ink-700)}
+.badge-gold{background:var(--sol-200);color:var(--sol-600)}
 /* Groups */
 .group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
-.group-card{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.25rem;cursor:pointer;transition:.2s;text-decoration:none;color:var(--text);display:block}
-.group-card:hover{border-color:var(--cyan);transform:translateY(-2px)}
-.group-name{font-weight:600;margin-bottom:.4rem}
-.group-meta{font-size:.8rem;color:var(--muted)}
+.group-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem;cursor:pointer;transition:.2s;text-decoration:none;color:var(--ink-900);display:block;box-shadow:var(--shadow-1)}
+.group-card:hover{border-color:var(--sol-400);transform:translateY(-2px);box-shadow:var(--shadow-2)}
+.group-name{font-weight:600;margin-bottom:.4rem;font-family:var(--font-display)}
+.group-meta{font-size:.8rem;color:var(--ink-500)}
 /* Forms */
-.form-box{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.5rem;max-width:480px}
+.form-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.5rem;max-width:480px;box-shadow:var(--shadow-1)}
 .field{margin-bottom:1rem}
-.field label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.35rem}
-.field input,.field select{width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.6rem .85rem;color:var(--text);font-size:.875rem;font-family:inherit;outline:none}
-.field input:focus,.field select:focus{border-color:var(--cyan)}
-.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;border-radius:.6rem;font-size:.875rem;font-weight:500;cursor:pointer;border:none;font-family:inherit;transition:.15s}
-.btn-primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000}
-.btn-primary:hover{opacity:.85}
-.btn-primary:disabled{opacity:.5;cursor:not-allowed}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-.btn-ghost:hover{border-color:var(--cyan)}
-.err{color:#f87171;font-size:.8rem;margin:.5rem 0}
-.ok{color:var(--green);font-size:.8rem;margin:.5rem 0}
+.field label{display:block;font-size:.8rem;color:var(--ink-700);margin-bottom:.35rem}
+.field input,.field select,.input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:.6rem .85rem;color:var(--ink-900);font-size:.9rem;font-family:inherit;outline:none}
+.field input:focus,.field select:focus,.input:focus{border-color:var(--sol-500);box-shadow:0 0 0 3px var(--sol-200)}
+.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;border-radius:var(--r-md);font-size:.875rem;font-weight:600;cursor:pointer;border:none;font-family:var(--font-display);transition:.15s}
+.btn-primary{background:var(--sol-500);color:var(--ink-900)}
+.btn-primary:hover{background:var(--sol-400);box-shadow:var(--shadow-glow)}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+.btn-ghost{background:transparent;border:1px solid var(--line);color:var(--ink-800)}
+.btn-ghost:hover{background:var(--surface-2)}
+.err{color:var(--danger-700);font-size:.8rem;margin:.5rem 0}
+.ok{color:var(--success-600);font-size:.8rem;margin:.5rem 0}
 /* Table */
-.table-wrap{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;overflow:hidden}
+.table-wrap{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden;overflow-x:auto}
 table{width:100%;border-collapse:collapse;font-size:.85rem}
-th{background:rgba(255,255,255,.03);padding:.75rem 1rem;text-align:left;font-size:.72rem;text-transform:uppercase;color:var(--muted);letter-spacing:.05em}
-td{padding:.75rem 1rem;border-top:1px solid var(--border)}
-.spinner{border:2px solid var(--border);border-top-color:var(--cyan);border-radius:50%;width:28px;height:28px;animation:spin 1s linear infinite;margin:3rem auto}
+th{background:var(--surface-2);padding:.75rem 1rem;text-align:left;font-size:.72rem;text-transform:uppercase;color:var(--ink-500);letter-spacing:.05em;font-family:var(--font-display)}
+td{padding:.75rem 1rem;border-top:1px solid var(--line)}
+.spinner{border:2px solid var(--line);border-top-color:var(--sol-500);border-radius:50%;width:28px;height:28px;animation:spin 1s linear infinite;margin:3rem auto}
 @keyframes spin{to{transform:rotate(360deg)}}
-.empty{text-align:center;padding:3rem;color:var(--muted);font-size:.875rem}
-/* Mobile bottom nav (<=640px): replaces hidden sidebar */
-.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--border);padding:.4rem .25rem;z-index:100;justify-content:space-around}
-.mobile-nav .mn{flex:1;text-align:center;padding:.4rem .3rem;color:var(--muted);font-size:.65rem;text-decoration:none;cursor:pointer;border:none;background:none;font-family:inherit}
+.empty{text-align:center;padding:3rem;color:var(--ink-500);font-size:.9rem}
+/* Mobile bottom nav (<=640px) */
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--surface);border-top:1px solid var(--line);padding:.4rem .25rem;z-index:100;justify-content:space-around}
+.mobile-nav .mn{flex:1;text-align:center;padding:.4rem .3rem;color:var(--ink-500);font-size:.65rem;text-decoration:none;cursor:pointer;border:none;background:none;font-family:var(--font-display)}
 .mobile-nav .mn .mni{font-size:1rem;display:block;margin-bottom:.15rem}
-.mobile-nav .mn.active{color:var(--cyan)}
-/* Allow tables to scroll horizontally instead of breaking layout */
-.table-wrap{overflow-x:auto}
+.mobile-nav .mn.active{color:var(--sol-600)}
 @media(max-width:640px){
   .sidebar{display:none}
   .main{padding:1rem;padding-bottom:5rem}
@@ -84,7 +93,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
 <body>
 
 <aside class="sidebar">
-  <div class="logo">Sol</div>
+  <div class="logo-wrap"><img src="/sol/assets/sol-logo.svg" alt="Sol"></div>
   <div class="user-info"><div class="user-email" id="userEmail">Loading…</div></div>
   <a class="nav-item active" data-page="dashboard" onclick="nav('dashboard')">
     <span class="nav-icon">◈</span> Dashboard
@@ -101,9 +110,6 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <a class="nav-item" data-page="payments" onclick="nav('payments')">
     <span class="nav-icon">⟳</span> Payments
   </a>
-  <a class="nav-item" data-page="wallet" onclick="nav('wallet')">
-    <span class="nav-icon">◆</span> Wallet
-  </a>
   <button class="nav-item logout" onclick="logout()">
     <span class="nav-icon">→</span> Sign out
   </button>
@@ -116,7 +122,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     <p class="sub">Your savings overview</p>
 
     <!-- Your money — next contribution, next payout, total saved -->
-    <div id="moneyPanel" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(0,255,136,.25);background:linear-gradient(135deg,rgba(0,255,136,.05),rgba(0,212,255,.03))">
+    <div id="moneyPanel" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(30,158,106,.25);background:linear-gradient(135deg,rgba(30,158,106,.05),rgba(232,147,36,.05))">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;margin-bottom:1rem;flex-wrap:wrap">
         <div>
           <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Your savings</div>
@@ -131,13 +137,13 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     </div>
 
     <!-- Onboarding progress checklist (hidden once complete) -->
-    <div id="onboardingCard" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(0,212,255,.3);background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04))">
+    <div id="onboardingCard" class="card" style="display:none;margin-bottom:1.5rem;border-color:rgba(232,147,36,.3);background:linear-gradient(135deg,rgba(232,147,36,.05),rgba(201,120,31,.04))">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem">
         <div>
           <div style="font-weight:700;font-size:1rem">Get started</div>
           <div style="font-size:.8rem;color:var(--muted)">Complete these steps to join your first circle</div>
         </div>
-        <div id="onbProgress" style="font-size:.85rem;color:var(--cyan);font-weight:600">0 of 3</div>
+        <div id="onbProgress" style="font-size:.85rem;color:var(--sol-600);font-weight:600">0 of 3</div>
       </div>
       <div style="display:flex;flex-direction:column;gap:.6rem">
         <div id="onbStep-kyc" class="onb-step"></div>
@@ -150,9 +156,9 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
       <div class="card"><div class="card-label">Account</div><div class="card-val" id="dAcct">—</div></div>
       <div class="card"><div class="card-label">KYC Status</div><div class="card-val" id="dKyc">—</div></div>
       <div class="card"><div class="card-label">Paid on time</div><div class="card-val" id="dSuccess" style="color:var(--green)">—</div></div>
-      <div class="card"><div class="card-label">Failed payments</div><div class="card-val" id="dFailed" style="color:#f87171">—</div></div>
+      <div class="card"><div class="card-label">Failed payments</div><div class="card-val" id="dFailed" style="color:var(--danger-600)">—</div></div>
     </div>
-    <h2 style="font-size:1.1rem;margin-bottom:1rem">Your circles</h2>
+    <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Your circles</h2>
     <div id="dashGroups"><div class="spinner"></div></div>
   </div>
 
@@ -221,19 +227,6 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     <div id="paymentsList"><div class="spinner"></div></div>
   </div>
 
-  <!-- Wallet -->
-  <div class="page" id="page-wallet">
-    <h1>Wallet</h1>
-    <p class="sub">Virtual balance from payouts &amp; credits</p>
-    <div class="card" style="margin-bottom:1.5rem;border-color:rgba(0,255,136,.25);background:linear-gradient(135deg,rgba(0,255,136,.05),rgba(0,212,255,.03))">
-      <div style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Available balance</div>
-      <div id="walletBalance" style="font-size:2rem;font-weight:700;color:var(--green);margin-top:.25rem">$0.00</div>
-      <div style="font-size:.75rem;color:var(--muted);margin-top:.25rem">Withdrawals to your linked bank — coming soon</div>
-    </div>
-    <h2 style="font-size:1.1rem;margin-bottom:1rem">Transaction history</h2>
-    <div id="walletHistory"><div class="spinner"></div></div>
-  </div>
-
   <!-- Bank -->
   <div class="page" id="page-bank">
     <h1>Linked bank accounts</h1>
@@ -242,7 +235,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
     <div id="bankList"><div class="spinner"></div></div>
 
     <div style="margin-top:2rem;max-width:480px">
-      <h2 style="font-size:1.1rem;margin-bottom:1rem">Add bank account</h2>
+      <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Add bank account</h2>
       <form id="bankForm" onsubmit="handleAddBank(event)" style="display:flex;flex-direction:column;gap:.85rem">
         <div>
           <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Bank name</label>
@@ -263,7 +256,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
             <option value="savings">Savings</option>
           </select>
         </div>
-        <div id="bankErr" style="color:#f87171;font-size:.85rem;display:none"></div>
+        <div id="bankErr" style="color:var(--danger-600);font-size:.85rem;display:none"></div>
         <button id="bankBtn" class="btn btn-primary" type="submit">Connect account</button>
       </form>
     </div>
@@ -277,7 +270,6 @@ td{padding:.75rem 1rem;border-top:1px solid var(--border)}
   <button type="button" class="mn" data-mpage="kyc" onclick="nav('kyc')"><span class="mni">✦</span>ID</button>
   <button type="button" class="mn" data-mpage="bank" onclick="nav('bank')"><span class="mni">◇</span>Bank</button>
   <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><span class="mni">⟳</span>Pay</button>
-  <button type="button" class="mn" data-mpage="wallet" onclick="nav('wallet')"><span class="mni">◆</span>Wallet</button>
 </nav>
 
 <script>
@@ -299,7 +291,6 @@ function nav(page) {
   if (page === 'kyc') loadKYC();
   if (page === 'bank') loadBank();
   if (page === 'payments') loadMyPayments();
-  if (page === 'wallet') loadWallet();
 }
 
 function logout() {
@@ -477,14 +468,14 @@ async function loadMoneyPanel() {
         : 'awaiting members';
       const privIcon = g.is_private ? '🔒 ' : '';
       return `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .75rem;background:rgba(0,0,0,.15);border-radius:.5rem;gap:.5rem;flex-wrap:wrap">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .75rem;background:rgba(14,23,38,.04);border-radius:.5rem;gap:.5rem;flex-wrap:wrap">
           <div style="flex:1;min-width:140px">
             <div style="font-weight:600;font-size:.9rem">${privIcon}${g.name}</div>
             <div style="font-size:.72rem;color:var(--muted)">${g.member_count || 0} / ${g.max_members} members · ${fmt$(g.contribution_cents)} per cycle</div>
           </div>
           <div style="text-align:right">
             <div style="font-size:.75rem;color:var(--muted)">Next ${g.status === 'ACTIVE' ? 'pay date' : ''}</div>
-            <div style="font-weight:600;color:${g.status === 'ACTIVE' ? 'var(--cyan)' : 'var(--muted)'}">${nextDate}</div>
+            <div style="font-weight:600;color:${g.status === 'ACTIVE' ? 'var(--sol-600)' : 'var(--muted)'}">${nextDate}</div>
           </div>
         </div>`;
     }).join('');
@@ -518,11 +509,11 @@ async function consumePendingInvite() {
     // Circles page's "Join with invite code" form.
     const warn = document.createElement('div');
     warn.className = 'card';
-    warn.style.cssText = 'max-width:none;margin-bottom:1rem;border-color:rgba(255,215,0,.3);background:rgba(255,215,0,.04)';
+    warn.style.cssText = 'max-width:none;margin-bottom:1rem;border-color:rgba(232,147,36,.3);background:rgba(232,147,36,.05)';
     warn.innerHTML = `<div style="font-weight:600;color:var(--gold);margin-bottom:.25rem">Invite pending</div>
       <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${(e.message || '').slice(0,80)}). Your invite code:
-      <code style="color:var(--cyan);background:#0a0e1a;padding:.15rem .4rem;border-radius:.3rem">${code}</code>.
-      Finish verifying ID + linking a bank, then paste it into <a href="javascript:nav('groups')" style="color:var(--cyan)">Circles → Join with invite code</a>.</div>`;
+      <code style="color:var(--sol-600);background:var(--surface-2);padding:.15rem .4rem;border-radius:.3rem">${code}</code>.
+      Finish verifying ID + linking a bank, then paste it into <a href="javascript:nav('groups')" style="color:var(--sol-600)">Circles → Join with invite code</a>.</div>`;
     document.getElementById('onboardingCard')?.after(warn);
   }
 }
@@ -579,7 +570,7 @@ async function loadOnboarding() {
     const ctaBtn = s.done ? '' :
       `<button type="button" class="btn btn-ghost" style="font-size:.75rem;padding:.35rem .75rem" onclick="nav('${s.page}')">${s.cta} →</button>`;
     el.innerHTML = `
-      <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;background:rgba(0,0,0,.15);border-radius:.5rem;opacity:${s.done ? 0.6 : 1}">
+      <div style="display:flex;align-items:center;gap:.75rem;padding:.6rem .75rem;background:rgba(14,23,38,.04);border-radius:.5rem;opacity:${s.done ? 0.6 : 1}">
         <div style="font-size:1.1rem;width:1.5rem;text-align:center">${icon}</div>
         <div style="flex:1;min-width:0">
           <div style="font-size:.9rem;font-weight:${s.done ? 500 : 600};${s.done ? 'text-decoration:line-through' : ''}">${s.title}</div>
@@ -597,7 +588,7 @@ async function loadDashGroups() {
   try {
     const gs = await api('/groups');
     if (!gs.length) {
-      el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--cyan)">Browse circles →</a></div>`;
+      el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
       return;
     }
     el.innerHTML = `<div class="group-grid">${gs.map(groupCard).join('')}</div>`;
@@ -725,14 +716,14 @@ async function showGroup(id) {
           </div>`
         : '';
       const recipientBanner = isRecipient
-        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(255,215,0,.08);border:1px solid rgba(255,215,0,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You are this cycle's payout recipient — ${fmt$(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000))} net will be sent to your bank.</div>`
+        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(232,147,36,.08);border:1px solid rgba(232,147,36,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You are this cycle's payout recipient — ${fmt$(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000))} net will be sent to your bank.</div>`
         : '';
       cycleSection = `<div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
           <div style="font-weight:600">Cycle ${cycle.cycle_number}</div>${badge(cycle.status)}
         </div>
-        <div style="background:#0a0e1a;border-radius:.5rem;height:8px;overflow:hidden;margin-bottom:.4rem">
-          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--cyan),var(--green));transition:.4s"></div>
+        <div style="background:var(--surface-2);border-radius:.5rem;height:8px;overflow:hidden;margin-bottom:.4rem">
+          <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--sol-400),var(--success-600));transition:.4s"></div>
         </div>
         <div style="font-size:.75rem;color:var(--muted)">${Math.round(paid)} of ${g.max_members} contributions collected</div>
         ${myPaymentHtml}${recipientBanner}
@@ -746,17 +737,17 @@ async function showGroup(id) {
       ? `${window.location.origin}/sol/?invite=${encodeURIComponent(g.invite_code)}`
       : '';
     const privacyBadge = g.is_private
-      ? '<span class="badge badge-gold" style="background:rgba(255,215,0,.12);color:var(--gold);font-size:.7rem">🔒 Private</span>'
+      ? '<span class="badge badge-gold" style="font-size:.7rem">🔒 Private</span>'
       : '';
     const inviteSection = (isMember && g.invite_code && g.status === 'FORMING') ? `
-      <div class="card" style="max-width:none;margin-bottom:1.5rem;border-color:rgba(0,212,255,.25);background:linear-gradient(135deg,rgba(0,212,255,.04),rgba(168,85,247,.04))">
+      <div class="card" style="max-width:none;margin-bottom:1.5rem;border-color:rgba(232,147,36,.25);background:linear-gradient(135deg,rgba(232,147,36,.05),rgba(201,120,31,.04))">
         <div style="font-weight:600;margin-bottom:.25rem">Invite your friends</div>
         <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Share this link — only people with it can ${g.is_private ? 'find and ' : ''}join.</div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
-          <input readonly value="${inviteUrl}" id="inviteUrl-${g.id}" style="flex:1;min-width:200px;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem;color:var(--text);font-size:.8rem;font-family:monospace">
+          <input readonly value="${inviteUrl}" id="inviteUrl-${g.id}" style="flex:1;min-width:200px;background:var(--surface-2);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900);font-size:.8rem;font-family:monospace">
           <button type="button" class="btn btn-primary" style="font-size:.8rem;padding:.45rem 1rem" onclick="copyInvite('${g.id}')">Copy</button>
         </div>
-        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--cyan)">${g.invite_code}</code></div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--sol-600)">${g.invite_code}</code></div>
       </div>
     ` : '';
 
@@ -780,9 +771,9 @@ async function showGroup(id) {
           const totalContributions = g.contribution_cents * g.max_members;
           const moneyOverTime = '<strong>$' + (netPayout/100).toLocaleString('en-US',{minimumFractionDigits:2}) + '</strong>';
           return `
-            <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:.6rem;padding:.9rem 1rem;margin-bottom:1rem;font-size:.85rem">
-              <div style="color:var(--cyan);font-weight:600;margin-bottom:.3rem">Join preview</div>
-              <div style="color:var(--text);margin-bottom:.2rem">You'd be position <strong style="color:var(--gold)">${yourPosition}</strong> of ${g.max_members} in the payout rotation.</div>
+            <div style="background:rgba(232,147,36,.07);border:1px solid rgba(232,147,36,.25);border-radius:.6rem;padding:.9rem 1rem;margin-bottom:1rem;font-size:.85rem">
+              <div style="color:var(--sol-600);font-weight:600;margin-bottom:.3rem">Join preview</div>
+              <div style="color:var(--ink-900);margin-bottom:.2rem">You'd be position <strong style="color:var(--sol-600)">${yourPosition}</strong> of ${g.max_members} in the payout rotation.</div>
               <div style="color:var(--muted);font-size:.8rem">You'll contribute ${fmt$(g.contribution_cents)} each cycle for ${g.max_members} cycles (total ${fmt$(totalContributions)}) and receive ${moneyOverTime} on cycle ${yourPosition} (10% platform fee applied).</div>
             </div>
             <button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${g.id}')">Join this circle</button>
@@ -798,9 +789,9 @@ async function showGroup(id) {
           <thead><tr><th>Position</th><th>User</th><th>Status</th><th>Payout received</th></tr></thead>
           <tbody>
             ${members.length ? members.map(m => `
-              <tr style="${m.user_id===me.id?'background:rgba(0,212,255,.04)':''}">
+              <tr style="${m.user_id===me.id?'background:rgba(232,147,36,.06)':''}">
                 <td>${m.position ?? '—'}</td>
-                <td>${m.user_id===me.id?'<span style="color:var(--cyan)">You</span>':m.user_id.slice(0,8)+'…'}</td>
+                <td>${m.user_id===me.id?'<span style="color:var(--sol-600)">You</span>':m.user_id.slice(0,8)+'…'}</td>
                 <td>${badge(m.status)}</td>
                 <td style="color:${m.has_received_payout?'var(--green)':'var(--muted)'}">${m.has_received_payout?'✓ Yes':'—'}</td>
               </tr>`).join('') : '<tr><td colspan="4" class="empty">No members yet</td></tr>'}
@@ -824,10 +815,10 @@ async function joinGroup(id) {
     let cta = '';
     if (/no active bank/i.test(msg) || /bank account/i.test(msg)) {
       msg = 'You need a verified bank account before joining a circle.';
-      cta = ' <a href="javascript:nav(\'bank\')" style="color:var(--cyan);text-decoration:underline">Go to Bank →</a>';
+      cta = ' <a href="javascript:nav(\'bank\')" style="color:var(--sol-600);text-decoration:underline">Go to Bank →</a>';
     } else if (/kyc/i.test(msg)) {
       msg = 'Complete identity verification first.';
-      cta = ' <a href="javascript:nav(\'kyc\')" style="color:var(--cyan);text-decoration:underline">Verify ID →</a>';
+      cta = ' <a href="javascript:nav(\'kyc\')" style="color:var(--sol-600);text-decoration:underline">Verify ID →</a>';
     } else if (/account status/i.test(msg)) {
       msg = 'Your account is not active. Please contact support.';
     }
@@ -841,21 +832,20 @@ async function joinGroup(id) {
 async function loadKYC() {
   const el = document.getElementById('kycContent');
   if (me?.kyc_status === 'VERIFIED') {
-    el.innerHTML = `<div class="form-box" style="color:var(--green);border-color:rgba(0,255,136,.2)">
+    el.innerHTML = `<div class="form-box" style="color:var(--green);border-color:rgba(30,158,106,.3)">
       ✓ Your identity is verified. You can join circles.
     </div>`;
     return;
   }
+  // Only date_of_birth is submitted (backend KYCSubmitRequest accepts it; full
+  // government-ID + selfie verification arrives with Persona for production).
   el.innerHTML = `<div class="form-box">
     <p style="font-size:.875rem;color:var(--muted);margin-bottom:1.25rem">
-      We verify your identity to protect every circle member.
+      Confirm your date of birth to verify your identity. Full government-ID + selfie
+      checks (via Persona) arrive before Sol opens to the public.
     </p>
-    <div class="field"><label>Full legal name</label>
-      <input type="text" id="kName" placeholder="Jane Doe" required></div>
     <div class="field"><label>Date of birth</label>
       <input type="date" id="kDob"></div>
-    <div class="field"><label>Last 4 digits of SSN</label>
-      <input type="text" id="kSsn" placeholder="1234" maxlength="4" pattern="\\d{4}"></div>
     <p class="err" id="kErr" style="display:none"></p>
     <p class="ok" id="kOk" style="display:none"></p>
     <button class="btn btn-primary" id="kBtn" onclick="submitKyc()">Submit for verification</button>
@@ -869,10 +859,7 @@ async function submitKyc() {
   err.style.display = 'none'; ok.style.display = 'none';
   btn.disabled = true; btn.textContent = 'Verifying…';
   try {
-    // Backend KYCSubmitRequest only accepts date_of_birth + address (extra=forbid).
-    // full_name is already on the user record from signup; ssn_last4 isn't
-    // collected via this endpoint (it'll flow through Persona's hosted inquiry
-    // when real KYC goes live).
+    // Backend KYCSubmitRequest accepts date_of_birth (+ address); we send DOB.
     const dob = document.getElementById('kDob').value;
     await api('/kyc/submit', {
       method: 'POST',
@@ -910,25 +897,25 @@ async function loadBank() {
                 : '<span class="badge badge-yellow">⏳ Pending verification</span>'}
               ${a.is_primary ? '<span style="color:var(--gold);font-size:.8rem">★ Primary</span>' :
                 `<button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem" onclick="setPrimary('${a.id}')">Set primary</button>`}
-              <button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem;color:#f87171" onclick="removeBank('${a.id}')">Remove</button>
+              <button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem;color:var(--danger-600)" onclick="removeBank('${a.id}')">Remove</button>
             </div>
           </div>
           ${a.verified ? '' : `
-          <details open style="border-top:1px solid var(--border);padding-top:.6rem">
-            <summary style="font-size:.8rem;color:var(--cyan);cursor:pointer">Verify micro-deposits</summary>
+          <details open style="border-top:1px solid var(--line);padding-top:.6rem">
+            <summary style="font-size:.8rem;color:var(--sol-600);cursor:pointer">Verify micro-deposits</summary>
             <div style="padding:.75rem 0;font-size:.8rem;color:var(--muted)">
               Within 1–3 business days, Sol sends two small deposits (each under $1) to this account. Enter the amounts in cents below.
             </div>
             <form onsubmit="handleVerifyMicro(event, '${a.id}')" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">
               <div style="flex:1;min-width:120px"><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Amount 1 (cents)</label>
-                <input name="a1" type="number" min="1" max="99" required placeholder="e.g. 3" style="width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem;color:var(--text)">
+                <input name="a1" type="number" min="1" max="99" required placeholder="e.g. 3" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900)">
               </div>
               <div style="flex:1;min-width:120px"><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Amount 2 (cents)</label>
-                <input name="a2" type="number" min="1" max="99" required placeholder="e.g. 9" style="width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;padding:.5rem .7rem;color:var(--text)">
+                <input name="a2" type="number" min="1" max="99" required placeholder="e.g. 9" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900)">
               </div>
               <button class="btn btn-primary" type="submit" style="font-size:.8rem;padding:.45rem 1rem">Verify</button>
             </form>
-            <div id="vErr-${a.id}" style="color:#f87171;font-size:.75rem;margin-top:.4rem;display:none"></div>
+            <div id="vErr-${a.id}" style="color:var(--danger-600);font-size:.75rem;margin-top:.4rem;display:none"></div>
             <div id="vOk-${a.id}" style="color:var(--green);font-size:.75rem;margin-top:.4rem;display:none"></div>
           </details>
           `}
@@ -964,32 +951,6 @@ async function loadMyPayments() {
       </tbody>
     </table></div>`;
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
-}
-
-async function loadWallet() {
-  const bEl = document.getElementById('walletBalance');
-  const hEl = document.getElementById('walletHistory');
-  hEl.innerHTML = '<div class="spinner"></div>';
-  try {
-    const b = await api('/wallet/balance');
-    bEl.textContent = fmt$(b.balance_cents);
-    const rows = await api('/wallet/history');
-    if (!rows.length) {
-      hEl.innerHTML = '<div class="empty">No wallet activity yet. Payouts from your circles will appear here.</div>';
-      return;
-    }
-    hEl.innerHTML = `<div class="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Description</th><th>Direction</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>
-        ${rows.map(r => `<tr>
-          <td style="color:var(--muted)">${new Date(r.created_at).toLocaleDateString()}</td>
-          <td>${r.description ? r.description.replace(/</g,'&lt;') : '—'}</td>
-          <td>${r.direction === 'in' ? '<span style="color:var(--green)">+ in</span>' : '<span style="color:#f87171">− out</span>'}</td>
-          <td style="text-align:right;font-weight:600;color:${r.direction==='in'?'var(--green)':'#f87171'}">${r.direction==='in'?'+':'-'}${fmt$(r.amount_cents)}</td>
-        </tr>`).join('')}
-      </tbody>
-    </table></div>`;
-  } catch(e) { hEl.innerHTML = `<div class="empty">${e.message}</div>`; }
 }
 
 async function setPrimary(id) {
