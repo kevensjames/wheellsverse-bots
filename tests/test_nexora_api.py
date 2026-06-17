@@ -49,3 +49,24 @@ def test_auth_me_route_via_testclient(db):
     assert ok.json()["email"] == "r@x.com" and ok.json()["role"] == "creator"
     bad = client.get("/api/nx/auth/me", headers={"Authorization": "Bearer nope"})
     assert bad.status_code == 401
+
+
+def test_patch_me_promotes_fan_and_sets_age(db):
+    reg = nexora_auth.register_fan("p@x.com", "hunter2")
+    client = TestClient(api.app)
+    r = client.patch("/api/nx/auth/me",
+                     headers={"Authorization": f"Bearer {reg['token']}"},
+                     json={"age_verified": True, "role": "creator"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["role"] == "creator" and body["age_verified"] is True
+
+
+def test_patch_me_cannot_escalate_to_admin(db):
+    reg = nexora_auth.register_fan("q@x.com", "hunter2")
+    client = TestClient(api.app)
+    r = client.patch("/api/nx/auth/me",
+                     headers={"Authorization": f"Bearer {reg['token']}"},
+                     json={"role": "admin"})
+    assert r.status_code == 200
+    assert r.json()["role"] != "admin"   # self-service PATCH can never escalate to admin
