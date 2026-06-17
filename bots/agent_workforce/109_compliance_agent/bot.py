@@ -109,7 +109,11 @@ class ComplianceAgentBot(BaseBot):
         expected_agents = [a["name"] for a in agents if a.get("enabled")]
         reported_agents = set(_compliance._list_known_agents())
         agent_list = sorted(set(expected_agents) | reported_agents)
-        results = _compliance.check_all(agent_list, stale_threshold_sec=3600)
+        # stale_threshold_sec=None signals "derive per-agent from each bot's
+        # bots/<category>/<agent>/config.json schedule field" — so @daily bots
+        # don't get flagged 'stale' 23h out of 24, and @every_2hours bots still
+        # alert at the 4h mark. Falls back to 3600 when not parseable.
+        results = _compliance.check_all(agent_list, stale_threshold_sec=None)
 
         status_counts = {}
         for r in results:

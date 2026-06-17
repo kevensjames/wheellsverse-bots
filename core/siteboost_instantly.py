@@ -215,3 +215,70 @@ def clear_active_campaign() -> bool:
         ACTIVE_PATH.unlink()
         return True
     return False
+
+
+def refresh_active_campaign_templates() -> dict:
+    """PATCH the live active campaign with the latest sequences from code.
+
+    Use when _siteboost_sequences() has been updated but you don't want to
+    create a NEW campaign (which would orphan existing leads + send history).
+    Mutates the campaign in Instantly in-place — same UUID, same leads,
+    refreshed copy.
+
+    Returns {"status":"ok", "campaign_id": ...} on success, or {"status":"failed",
+    "error": ...} otherwise. Never raises.
+    """
+    key = os.getenv("INSTANTLY_API_KEY", "").strip()
+    if not key:
+        return {"status": "failed", "error": "INSTANTLY_API_KEY not set"}
+    cid = get_active_campaign_id()
+    if not cid:
+        return {"status": "failed",
+                "error": "no active campaign — run /instantly/auto-create-campaign first"}
+    try:
+        resp = requests.patch(
+            f"{INSTANTLY_V2_BASE}/campaigns/{cid}",
+            json={"sequences": _siteboost_sequences()},
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=20,
+        )
+    except Exception as e:
+        return {"status": "failed", "campaign_id": cid,
+                "error": f"PATCH failed: {e!s}"}
+    if resp.status_code not in (200, 201):
+        return {"status": "failed", "campaign_id": cid,
+                "http": resp.status_code, "body": resp.text[:400]}
+    logger.info(f"[instantly] refreshed templates on campaign {cid}")
+    return {"status": "ok", "campaign_id": cid,
+            "url": f"https://app.instantly.ai/app/campaign/{cid}"}
+
+
+def set_campaign_daily_limit(limit: int) -> dict:
+    """PATCH the live active campaign's daily_limit field.
+
+    Drives the warmup ramp (siteboost_warmup) — each ramp step calls this
+    to raise the cap. Capped at [1, 500] to prevent typos hitting Instantly's
+    upper bounds. Never raises.
+    """
+    if not isinstance(limit, int) or limit < 1 or limit > 500:
+        return {"status": "failed", "error": f"limit must be int in [1, 500], got {limit!r}"}
+    key = os.getenv("INSTANTLY_API_KEY", "").strip()
+    if not key:
+        return {"status": "failed", "error": "INSTANTLY_API_KEY not set"}
+    cid = get_active_campaign_id()
+    if not cid:
+        return {"status": "failed", "error": "no active campaign"}
+    try:
+        resp = requests.patch(
+            f"{INSTANTLY_V2_BASE}/campaigns/{cid}",
+            json={"daily_limit": limit},
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=20,
+        )
+    except Exception as e:
+        return {"status": "failed", "campaign_id": cid, "error": f"PATCH failed: {e!s}"}
+    if resp.status_code not in (200, 201):
+        return {"status": "failed", "campaign_id": cid,
+                "http": resp.status_code, "body": resp.text[:400]}
+    logger.info(f"[instantly] set daily_limit={limit} on campaign {cid}")
+    return {"status": "ok", "campaign_id": cid, "daily_limit": limit}

@@ -47,12 +47,41 @@ from typing import Any, Optional
 logger = logging.getLogger("claude_logged")
 
 
+def _reload_dotenv() -> None:
+    """Re-read .env from disk on each LLM call so updates to env vars
+    (notably OLLAMA_MODEL_MAP, LLM_BACKEND, OLLAMA_BASE_URL) reach
+    already-instantiated bot processes WITHOUT a scheduler restart.
+
+    Background: the scheduler imports core.base_bot once at startup,
+    which calls load_dotenv() at module-import time. Bot instances
+    inherit that snapshot. Late edits to .env (e.g. the OLLAMA_MODEL_MAP
+    addition that resolved the model-not-found spike) never reached the
+    cached os.environ until we restarted the scheduler. Doing a small
+    `load_dotenv(..., override=True)` here on every entry to claude_logged
+    closes that loop. Cost is negligible (one file read per LLM call).
+
+    Fails soft: if dotenv isn't installed or the file is missing we just
+    skip — the cached os.environ is still usable.
+    """
+    try:
+        from dotenv import load_dotenv
+        from pathlib import Path as _Path
+        env_path = _Path(__file__).resolve().parent.parent / ".env"
+        if env_path.is_file():
+            load_dotenv(env_path, override=True)
+    except Exception:
+        # Don't let env-reload failures break LLM calls.
+        pass
+
+
 def _is_local_backend() -> bool:
+    _reload_dotenv()
     backend = (os.getenv("LLM_BACKEND") or "").strip().lower()
     return backend in ("ollama", "local", "lmstudio", "llamacpp")
 
 
 def _local_base_url() -> str:
+    _reload_dotenv()
     return os.getenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
 
 
@@ -61,6 +90,7 @@ def _map_model(model: str) -> str:
 
     Source: OLLAMA_MODEL_MAP env var (JSON). Unknown models pass through.
     """
+    _reload_dotenv()
     raw = os.getenv("OLLAMA_MODEL_MAP", "").strip()
     if not raw:
         return model

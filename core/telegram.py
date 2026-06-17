@@ -184,7 +184,12 @@ def notify_error(bot_name: str, error: str):
 
 def notify_click(partner: str, total_today: int = 0):
     # OLD: msg = f"🖱 Affiliate click: <b>{partner}</b>"
-    msg = f"🖱 Product click: <b>{partner}</b>"
+    # OLD: msg = f"🖱 Product click: <b>{partner}</b>"
+    # NEW (2026-06-16): broadcast never exposes the source partner key
+    # (doordash / cashapp / robinhood / etc). All clicks land on the owned
+    # stan.store product — the notification reflects that exclusively. The
+    # partner key is still recorded to data/clicks.json for source attribution.
+    msg = "🖱 Product click → <b>stan.store/Wheellsverse</b>"
     if total_today:
         msg += f" (today: {total_today})"
     notify(msg, silent=True)  # Silent — high frequency

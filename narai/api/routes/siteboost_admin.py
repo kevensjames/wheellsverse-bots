@@ -1286,6 +1286,77 @@ def get_active_campaign(_=Depends(verify_admin_api_key)) -> dict:
         return {"active_id": "", "source": "error", "error": str(e)}
 
 
+@router.post("/instantly/refresh-templates")
+def refresh_templates(_=Depends(verify_admin_api_key)) -> dict:
+    """PATCH the active campaign's sequences with the current code definition.
+
+    Use after code changes to _siteboost_sequences() to push the new templates
+    live WITHOUT creating a new campaign (which would orphan leads + history).
+    No-op safe — same UUID stays active.
+    """
+    try:
+        from core.siteboost_instantly import refresh_active_campaign_templates
+        result = refresh_active_campaign_templates()
+        log_event("instantly.templates_refreshed",
+                  status=result.get("status"),
+                  campaign_id=result.get("campaign_id", ""))
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Refresh failed: {e!s}")
+
+
+class WarmupStartRequest(BaseModel):
+    domain: str = Field("", max_length=120)
+    start_date: str = Field("", max_length=20,
+                            description="ISO YYYY-MM-DD; defaults to today UTC")
+
+
+@router.post("/warmup/start")
+def warmup_start(req: WarmupStartRequest, _=Depends(verify_admin_api_key)) -> dict:
+    """Mark today (or req.start_date) as Day 1 of the warmup ramp.
+
+    Safe to re-call — overwrites the start file. Use when switching to a new
+    outbound domain or restarting after a deliverability incident.
+    """
+    try:
+        from core.siteboost_warmup import start_warmup
+        result = start_warmup(domain=req.domain, start_date=req.start_date)
+        log_event("warmup.started", domain=result.get("domain", ""),
+                  start_date=result.get("start_date", ""))
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Warmup start failed: {e!s}")
+
+
+@router.get("/warmup/status")
+def warmup_status(_=Depends(verify_admin_api_key)) -> dict:
+    """Current warmup state: day_n, current_cap, next tier preview, ramp config."""
+    try:
+        from core.siteboost_warmup import get_status
+        return get_status()
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@router.post("/warmup/advance")
+def warmup_advance(_=Depends(verify_admin_api_key)) -> dict:
+    """Idempotent: PATCH Instantly's daily_limit to today's ramp cap.
+
+    No-op when the cap already matches the last applied value. Scheduler
+    fires this once/day; operator can also fire manually after a tier change.
+    """
+    try:
+        from core.siteboost_warmup import advance_if_needed
+        result = advance_if_needed()
+        log_event("warmup.advance_check",
+                  status=result.get("status"),
+                  applied_cap=result.get("applied_cap"),
+                  day_n=result.get("day_n"))
+        return result
+    except Exception as e:
+        raise HTTPException(500, f"Warmup advance failed: {e!s}")
+
+
 class DigestSendRequest(BaseModel):
     recipient_email: str = Field(..., min_length=5, max_length=120)
 

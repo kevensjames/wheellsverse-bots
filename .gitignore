@@ -226,3 +226,6 @@ data/launches/siteboost/digests/
 models/piper/
 backend/data/
 audits/
+
+# === Devvit subproject (separate Reddit-app codebase, own git history) ===
+wheellsverse1/
