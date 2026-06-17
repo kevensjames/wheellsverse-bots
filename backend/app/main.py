@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_failures, admin_kg, admin_learning, admin_planning, admin_presets, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_eq, admin_failures, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -116,6 +116,17 @@ def _stop_sol_scheduler():
     from app.services.sol.scheduler import stop as _stop
     _stop()
 
+
+# KAI persona — seed the default warm-companion character on first boot so KAI
+# is friendly out of the box. Idempotent (no-op once any trait exists), fail-soft.
+@app.on_event("startup")
+def _seed_persona():
+    try:
+        from app.services.persona import storage as _persona
+        _persona.seed_defaults()
+    except Exception as e:  # pragma: no cover - defensive
+        logging.getLogger(__name__).warning("persona seed skipped: %s", e)
+
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -152,6 +163,10 @@ app.include_router(admin_planning.router)
 app.include_router(admin_browser.router)
 app.include_router(admin_learning.router)
 app.include_router(admin_twin.router)
+# KAI companion soul: own persona (warm character, edit to reshape KAI's voice)
+# + emotional intelligence (mood read → tone adaptation, auto on every message).
+app.include_router(admin_persona.router)
+app.include_router(admin_eq.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_digest.router)
 app.include_router(api_keys_admin.router)

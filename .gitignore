@@ -209,7 +209,9 @@ data/launches/siteboost/scans/
 # be tracked (regenerable + per-host + can contain operator data).
 data/browser/
 data/digest/
+data/eq/
 data/failures.jsonl
+data/persona/
 data/governance/
 data/kg/
 data/learning/

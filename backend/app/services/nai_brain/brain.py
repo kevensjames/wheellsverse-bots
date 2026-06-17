@@ -21,6 +21,24 @@ HISTORY_WINDOW = 20
 TITLE_PREVIEW_CHARS = 60
 
 
+def _eq_analyze_and_record(user_message: str) -> str:
+    """Detect the message's mood, persist a non-neutral sample, and return the
+    tone-adaptation preamble for the system prompt. Fully fail-open: any error
+    (or KAI_SCOPE_EQ off) yields '' so the chat path is never affected."""
+    try:
+        from app.services.eq.injection import analyze
+        mood, confidence, preamble = analyze(user_message)
+        if mood != "neutral":
+            try:
+                from app.services.eq import storage as eq_storage
+                eq_storage.record_mood(mood, confidence, user_message)
+            except Exception:  # persistence is best-effort
+                pass
+        return preamble
+    except Exception:
+        return ""
+
+
 class Brain:
     def __init__(
         self,
@@ -166,7 +184,10 @@ class Brain:
         memory_preamble = build_memory_preamble(
             self.session, user_id, user_message, k=3
         )
-        system = build_system_prompt(memory_preamble, persona_prompt=persona_prompt)
+        eq_preamble = _eq_analyze_and_record(user_message)
+        system = build_system_prompt(
+            memory_preamble, persona_prompt=persona_prompt, eq_preamble=eq_preamble
+        )
 
         if use_tools:
             ctx = ToolContext(user_id=user_id, session=self.session)
@@ -241,7 +262,8 @@ class Brain:
         memory_preamble = build_memory_preamble(
             self.session, user_id, user_message, k=3
         )
-        system = build_system_prompt(memory_preamble)
+        eq_preamble = _eq_analyze_and_record(user_message)
+        system = build_system_prompt(memory_preamble, eq_preamble=eq_preamble)
 
         collected: list[str] = []
         try:

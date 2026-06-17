@@ -46,6 +46,7 @@ def build_system_prompt(
     memory_preamble: str = "",
     persona_prompt: str = "",
     lessons_preamble: str | None = None,
+    eq_preamble: str = "",
 ) -> str:
     """Compose the system prompt from up to four layers.
 
@@ -69,8 +70,13 @@ def build_system_prompt(
     """
     if lessons_preamble is None:
         lessons_preamble = _auto_lessons_preamble()
+    persona = _auto_persona_preamble()
     twin = _auto_twin_preamble()
     parts = []
+    # KAI's OWN persona leads — model attention treats the first block as the
+    # primary identity (warm companion voice), before any expert-preset overlay.
+    if persona:
+        parts.append(persona.strip())
     if persona_prompt:
         parts.append(persona_prompt.strip())
     if twin:
@@ -79,8 +85,22 @@ def build_system_prompt(
         parts.append(lessons_preamble.strip())
     if memory_preamble:
         parts.append(memory_preamble.strip())
+    # EQ directive sits LAST before the baseline — most-recent = most salient for
+    # the immediate reply's tone.
+    if eq_preamble:
+        parts.append(eq_preamble.strip())
     parts.append(BASE_SYSTEM_PROMPT)
     return "\n\n".join(parts)
+
+
+def _auto_persona_preamble() -> str:
+    """Pull KAI's own persona (if KAI_SCOPE_PERSONA is on). Lazy + fail-open so
+    nai_brain never hard-depends on the persona module."""
+    try:
+        from app.services.persona.injection import persona_preamble
+        return persona_preamble()
+    except Exception:
+        return ""
 
 
 def _auto_twin_preamble() -> str:
