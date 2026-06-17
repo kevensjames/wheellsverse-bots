@@ -3,214 +3,208 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sol — ROSCA Savings Circles</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<title>Sol — Savings circles that pay you back, in turn</title>
+<meta name="description" content="Join a trusted circle of 20. Everyone contributes $200/month; one member receives the pool each cycle — until everyone's been paid. Bank-grade, KYC-verified, powered by Dwolla.">
+<link rel="icon" href="/sol/assets/sol-mark.svg" type="image/svg+xml">
+<meta property="og:title" content="Sol — Savings circles that pay you back, in turn">
+<meta property="og:description" content="A rotating savings circle: contribute together, get the pool when it's your turn.">
+<meta property="og:type" content="website">
+<link rel="stylesheet" href="/sol/sol-design-system.css">
 <style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{
-  --bg:#05070d;--surface:#0d1117;--border:#1a2035;
-  --cyan:#00d4ff;--purple:#a855f7;--green:#00ff88;--gold:#ffd700;
-  --text:#e2e8f0;--muted:#64748b
-}
-body{background:var(--bg);color:var(--text);font-family:'Space Grotesk',sans-serif;min-height:100vh}
-.glow-bg{position:fixed;inset:0;z-index:0;pointer-events:none;
-  background:
-    radial-gradient(ellipse at 20% 30%,rgba(0,212,255,0.07) 0%,transparent 55%),
-    radial-gradient(ellipse at 80% 70%,rgba(168,85,247,0.07) 0%,transparent 55%)}
-nav{position:sticky;top:0;z-index:50;border-bottom:1px solid var(--border);
-  background:rgba(5,7,13,0.85);backdrop-filter:blur(12px);
-  display:flex;align-items:center;justify-content:space-between;padding:1rem 2rem}
-.logo{font-size:1.4rem;font-weight:700;background:linear-gradient(135deg,var(--cyan),var(--purple));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.nav-links{display:flex;gap:1rem;align-items:center}
-.btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;
-  border-radius:.6rem;font-size:.875rem;font-weight:500;text-decoration:none;
-  transition:all .2s;cursor:pointer;border:none}
-.btn-primary{background:linear-gradient(135deg,var(--cyan),var(--purple));color:#000}
-.btn-primary:hover{opacity:.85;transform:translateY(-1px)}
-.btn-ghost{background:transparent;border:1px solid var(--border);color:var(--text)}
-.btn-ghost:hover{border-color:var(--cyan);color:var(--cyan)}
-.hero{position:relative;z-index:1;padding:6rem 2rem 4rem;text-align:center;max-width:860px;margin:0 auto}
-.hero h1{font-size:clamp(2.2rem,5vw,3.8rem);font-weight:700;line-height:1.1;
-  background:linear-gradient(135deg,#fff 40%,var(--cyan));
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.hero p{margin-top:1.25rem;font-size:1.1rem;color:var(--muted);max-width:560px;margin-inline:auto}
-.hero-cta{margin-top:2.5rem;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap}
-.stats{position:relative;z-index:1;display:flex;gap:1.5rem;justify-content:center;
-  flex-wrap:wrap;padding:2rem 2rem 4rem}
-.stat{background:var(--surface);border:1px solid var(--border);border-radius:1rem;
-  padding:1.5rem 2rem;text-align:center;min-width:160px}
-.stat-val{font-size:2rem;font-weight:700;color:var(--cyan)}
-.stat-label{font-size:.8rem;color:var(--muted);margin-top:.25rem}
-.how{position:relative;z-index:1;padding:4rem 2rem;max-width:900px;margin:0 auto}
-.how h2{text-align:center;font-size:1.75rem;font-weight:700;margin-bottom:3rem}
-.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.5rem}
-.step{background:var(--surface);border:1px solid var(--border);border-radius:1rem;padding:1.75rem}
-.step-num{width:2rem;height:2rem;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));
-  display:flex;align-items:center;justify-content:center;font-size:.875rem;font-weight:700;
-  color:#000;margin-bottom:1rem}
-.step h3{font-size:1rem;font-weight:600;margin-bottom:.5rem}
-.step p{font-size:.875rem;color:var(--muted);line-height:1.55}
-.cta-banner{position:relative;z-index:1;margin:2rem auto 5rem;max-width:700px;
-  background:linear-gradient(135deg,rgba(0,212,255,.08),rgba(168,85,247,.08));
-  border:1px solid rgba(0,212,255,.2);border-radius:1.5rem;
-  padding:3rem 2rem;text-align:center}
-.cta-banner h2{font-size:1.75rem;font-weight:700;margin-bottom:.75rem}
-.cta-banner p{color:var(--muted);margin-bottom:2rem}
-footer{border-top:1px solid var(--border);padding:1.5rem 2rem;
-  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem}
-footer a{color:var(--muted);text-decoration:none;font-size:.8rem}
-footer a:hover{color:var(--cyan)}
+/* Landing-specific styles, built on the Sol design-system tokens. */
+body{background:var(--paper);color:var(--ink-900)}
+.wrap{position:relative;z-index:1}
 
-/* ── Modal ── */
-.modal-bg{display:none;position:fixed;inset:0;z-index:100;
-  background:rgba(0,0,0,.75);backdrop-filter:blur(4px);
-  align-items:center;justify-content:center}
+/* sunrise ambience */
+.sunrise{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(70% 55% at 78% 18%, rgba(244,169,60,.22) 0%, transparent 60%),
+    radial-gradient(60% 50% at 12% 8%, rgba(229,101,75,.10) 0%, transparent 55%)}
+
+nav{position:sticky;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;
+  padding:.9rem 1.5rem;background:rgba(251,250,247,.82);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+nav .brand{display:flex;align-items:center;gap:.5rem}
+nav .brand img{height:30px}
+.nav-links{display:flex;gap:.75rem;align-items:center}
+
+/* hero */
+.hero{display:grid;grid-template-columns:1.05fr .95fr;gap:2.5rem;align-items:center;
+  max-width:72rem;margin:0 auto;padding:4.5rem 1.5rem 3rem}
+.hero h1{font-size:clamp(2.3rem,5vw,3.6rem);line-height:1.08;letter-spacing:-.02em;margin-bottom:1rem}
+.hero h1 .grad{background:linear-gradient(120deg,var(--sol-600),var(--sol-400));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p.lede{font-size:1.15rem;color:var(--ink-700);max-width:34rem;margin-bottom:1.75rem}
+.hero-cta{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.trust-strip{display:flex;gap:1.25rem;flex-wrap:wrap;color:var(--ink-500);font-size:.85rem;font-weight:500}
+.trust-strip span{display:inline-flex;align-items:center;gap:.4rem}
+.hero-art{position:relative}
+.hero-art img{width:100%;border-radius:1.25rem;box-shadow:var(--shadow-2);display:block;aspect-ratio:16/10;object-fit:cover;background:linear-gradient(135deg,var(--sol-200),var(--sol-400))}
+.hero-art .ring{position:absolute;top:-18px;left:-18px;width:64px;opacity:.9}
+
+section.band{position:relative;z-index:1;max-width:72rem;margin:0 auto;padding:3.5rem 1.5rem}
+.band h2{text-align:center;font-size:clamp(1.6rem,3.5vw,2.2rem);margin-bottom:.5rem}
+.band .sub{text-align:center;color:var(--ink-500);margin-bottom:2.5rem}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem}
+.statc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.5rem;text-align:center;box-shadow:var(--shadow-1)}
+.statc .v{font-family:var(--font-display);font-size:2rem;font-weight:700;color:var(--sol-600);font-variant-numeric:tabular-nums}
+.statc .l{font-size:.8rem;color:var(--ink-500);margin-top:.25rem}
+
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem}
+.stepc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.6rem;box-shadow:var(--shadow-1)}
+.stepc .n{width:2.1rem;height:2.1rem;border-radius:50%;background:linear-gradient(135deg,var(--sol-400),var(--sol-600));
+  color:#fff;display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-weight:700;margin-bottom:.9rem}
+.stepc h3{font-size:1.05rem;margin-bottom:.4rem}
+.stepc p{color:var(--ink-500);font-size:.9rem;margin:0;line-height:1.55}
+
+.cards4{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.1rem}
+.featc{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.5rem;box-shadow:var(--shadow-1)}
+.featc .ic{font-size:1.5rem;margin-bottom:.5rem}
+.featc h3{font-size:1rem;margin-bottom:.4rem}
+.featc p{color:var(--ink-500);font-size:.86rem;margin:0;line-height:1.55}
+
+.faq{max-width:46rem;margin:0 auto;display:flex;flex-direction:column;gap:.6rem}
+.faq details{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:1rem 1.2rem}
+.faq summary{font-family:var(--font-display);font-weight:600;cursor:pointer}
+.faq p{color:var(--ink-500);font-size:.92rem;line-height:1.6;margin:.75rem 0 0}
+
+.cta-banner{max-width:44rem;margin:1rem auto 4rem;text-align:center;
+  background:linear-gradient(135deg,rgba(244,169,60,.14),rgba(229,101,75,.10));
+  border:1px solid var(--sol-200);border-radius:1.5rem;padding:3rem 2rem}
+.cta-banner h2{margin-bottom:.5rem}
+.cta-banner p{color:var(--ink-500);margin-bottom:1.75rem}
+
+footer{border-top:1px solid var(--line);padding:1.5rem;display:flex;justify-content:space-between;
+  align-items:center;flex-wrap:wrap;gap:1rem;color:var(--ink-500);font-size:.82rem}
+footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
+.foot-links{display:flex;gap:1.25rem}
+
+/* Buttons used by the PRESERVED auth modal markup + hero CTAs.
+   (kept class names .btn/.btn-primary/.btn-ghost so the existing onclick markup
+   needs no change — only restyled to the warm-trust palette.) */
+.btn-primary{background:var(--sol-500);color:var(--ink-900);border:1px solid transparent}
+.btn-primary:hover{background:var(--sol-400);box-shadow:var(--shadow-glow)}
+.btn-ghost{background:transparent;color:var(--ink-800);border:1px solid var(--line)}
+.btn-ghost:hover{background:var(--surface-2)}
+
+/* ── Auth modal — restyled (markup + JS preserved verbatim) ── */
+.modal-bg{display:none;position:fixed;inset:0;z-index:100;background:rgba(14,23,38,.55);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:1rem}
 .modal-bg.open{display:flex}
-.modal{background:var(--surface);border:1px solid var(--border);border-radius:1.25rem;
-  padding:2rem;width:100%;max-width:400px;position:relative}
-.modal h2{font-size:1.25rem;font-weight:700;margin-bottom:1.5rem}
-.modal .close{position:absolute;top:1rem;right:1rem;background:none;border:none;
-  color:var(--muted);font-size:1.25rem;cursor:pointer;line-height:1}
-.field{margin-bottom:1rem}
-.field label{display:block;font-size:.8rem;color:var(--muted);margin-bottom:.35rem}
-.field input{width:100%;background:#0a0e1a;border:1px solid var(--border);border-radius:.5rem;
-  padding:.6rem .85rem;color:var(--text);font-size:.9rem;font-family:inherit;outline:none}
-.field input:focus{border-color:var(--cyan)}
-.err{color:#f87171;font-size:.8rem;margin-bottom:.75rem;display:none}
+.modal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);
+  padding:2rem;width:100%;max-width:400px;position:relative;box-shadow:var(--shadow-2)}
+.modal h2{font-size:1.25rem;margin-bottom:1.25rem}
+.modal .close{position:absolute;top:1rem;right:1rem;background:none;border:none;color:var(--ink-300);font-size:1.25rem;cursor:pointer;line-height:1}
+.modal .field{margin-bottom:1rem}
+.modal .field label{display:block;font-size:.8rem;color:var(--ink-700);margin-bottom:.35rem}
+.modal .field input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);
+  padding:.6rem .85rem;color:var(--ink-900);font:inherit;outline:none}
+.modal .field input:focus{border-color:var(--sol-500);box-shadow:0 0 0 3px var(--sol-200)}
+.err{color:var(--danger-700);font-size:.8rem;margin-bottom:.75rem;display:none}
 .tab-row{display:flex;gap:.5rem;margin-bottom:1.5rem}
-.tab{flex:1;padding:.55rem;border-radius:.5rem;background:transparent;
-  border:1px solid var(--border);color:var(--muted);cursor:pointer;font-family:inherit;font-size:.875rem}
-.tab.active{background:rgba(0,212,255,.1);border-color:var(--cyan);color:var(--cyan)}
+.tab{flex:1;padding:.55rem;border-radius:var(--r-md);background:transparent;border:1px solid var(--line);
+  color:var(--ink-500);cursor:pointer;font-family:var(--font-display);font-size:.9rem}
+.tab.active{background:var(--sol-200);border-color:var(--sol-500);color:var(--sol-600)}
+
+@media (max-width:760px){
+  .hero{grid-template-columns:1fr;padding-top:2.5rem}
+  .hero-art{order:-1}
+}
 </style>
 </head>
 <body>
-<div class="glow-bg"></div>
+<div class="sunrise"></div>
+<div class="wrap">
 
 <nav>
-  <span class="logo">Sol</span>
+  <span class="brand"><img src="/sol/assets/sol-logo.svg" alt="Sol"></span>
   <div class="nav-links">
-    <a href="/sol/admin" class="btn btn-ghost">Admin</a>
-    <button class="btn btn-primary" onclick="openModal('login')">Sign in</button>
+    <a href="#how" class="btn btn-ghost btn--sm">How it works</a>
+    <a href="/sol/admin" class="btn btn-ghost btn--sm">Admin</a>
+    <button class="btn btn-primary btn--sm" onclick="openModal('login')">Sign in</button>
   </div>
 </nav>
 
 <section class="hero">
-  <h1>Rotating Savings,<br>Reimagined</h1>
-  <p>Join a trusted circle of 20 members. Everyone contributes $200/month — one member receives $3,600 each cycle. Simple. Transparent. Powerful.</p>
-  <div class="hero-cta">
-    <button class="btn btn-primary" onclick="openModal('register')" style="font-size:1rem;padding:.75rem 2rem">
-      Start saving →
-    </button>
-    <a href="#how" class="btn btn-ghost" style="font-size:1rem;padding:.75rem 2rem">How it works</a>
+  <div>
+    <h1>Save together.<br><span class="grad">Get paid in turn.</span></h1>
+    <p class="lede">Join a trusted circle of 20. Everyone contributes $200 a month — and each cycle, one member receives the whole pool. Like the sun, your turn always comes around.</p>
+    <div class="hero-cta">
+      <button class="btn btn-primary" style="padding:.8rem 1.8rem;font-size:1rem" onclick="openModal('register')">Start saving →</button>
+      <a href="#how" class="btn btn-ghost" style="padding:.8rem 1.8rem;font-size:1rem">See how it works</a>
+    </div>
+    <div class="trust-strip">
+      <span>🔒 Bank-grade encryption</span>
+      <span>🛡️ KYC-verified members</span>
+      <span>🏦 Powered by Dwolla</span>
+    </div>
+  </div>
+  <div class="hero-art">
+    <img src="/sol/assets/hero.webp" alt="A warm, diverse group of friends gathered together at sunrise"
+         onerror="this.style.background='linear-gradient(135deg,var(--sol-200),var(--sol-500))';this.removeAttribute('src')">
+    <img class="ring" src="/sol/assets/sol-mark.svg" alt="">
   </div>
 </section>
 
-<div class="stats">
-  <div class="stat"><div class="stat-val">$3,600</div><div class="stat-label">Payout per cycle</div></div>
-  <div class="stat"><div class="stat-val">20</div><div class="stat-label">Members per circle</div></div>
-  <div class="stat"><div class="stat-val">$200</div><div class="stat-label">Monthly contribution</div></div>
-  <div class="stat"><div class="stat-val">10%</div><div class="stat-label">Platform fee</div></div>
-</div>
+<section class="band">
+  <div class="stats">
+    <div class="statc"><div class="v tnum">$3,600</div><div class="l">Payout per cycle</div></div>
+    <div class="statc"><div class="v tnum">20</div><div class="l">Members per circle</div></div>
+    <div class="statc"><div class="v tnum">$200</div><div class="l">Monthly contribution</div></div>
+    <div class="statc"><div class="v tnum">10%</div><div class="l">Platform fee</div></div>
+  </div>
+</section>
 
-<section class="how" id="how">
+<section class="band" id="how">
   <h2>How Sol works</h2>
+  <p class="sub">Four steps, then the pool comes around to you.</p>
   <div class="steps">
-    <div class="step">
-      <div class="step-num">1</div>
-      <h3>Verify your identity</h3>
-      <p>Quick KYC check. We confirm who you are to protect every member of the circle.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">2</div>
-      <h3>Link your bank</h3>
-      <p>Securely connect your bank account via Plaid. ACH debits are handled automatically each cycle.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">3</div>
-      <h3>Join a circle</h3>
-      <p>Browse open circles or create your own. Once 20 members join, the circle activates.</p>
-    </div>
-    <div class="step">
-      <div class="step-num">4</div>
-      <h3>Get your payout</h3>
-      <p>Each cycle, one member receives the full pool. Your position is assigned on join order.</p>
-    </div>
+    <div class="stepc"><div class="n">1</div><h3>Verify your identity</h3><p>A quick KYC check confirms every member is a real, verified person — so your circle is safe.</p></div>
+    <div class="stepc"><div class="n">2</div><h3>Link your bank</h3><p>Securely connect your bank account. ACH contributions are handled automatically each cycle.</p></div>
+    <div class="stepc"><div class="n">3</div><h3>Join a circle</h3><p>Browse open circles or start your own. When 20 members join, the circle activates.</p></div>
+    <div class="stepc"><div class="n">4</div><h3>Get your payout</h3><p>Each cycle, one member receives the full pool. Your turn is set by join order — and it always comes.</p></div>
   </div>
 </section>
 
-<!-- Trust & security -->
-<section style="max-width:960px;margin:4rem auto 2rem;padding:0 2rem">
-  <h2 style="text-align:center;font-size:2rem;font-weight:700;margin-bottom:2.5rem">Built on fintech-grade infrastructure</h2>
-  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem">
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.5rem">
-      <div style="font-size:1.5rem;margin-bottom:.5rem">🔒</div>
-      <h3 style="font-size:1rem;font-weight:600;margin-bottom:.5rem">Bank-level encryption</h3>
-      <p style="font-size:.85rem;color:var(--muted);line-height:1.5">Account numbers stored with Fernet (AES-128-GCM). Your bank credentials never touch our database in plaintext.</p>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.5rem">
-      <div style="font-size:1.5rem;margin-bottom:.5rem">🏦</div>
-      <h3 style="font-size:1rem;font-weight:600;margin-bottom:.5rem">Powered by Dwolla</h3>
-      <p style="font-size:.85rem;color:var(--muted);line-height:1.5">Every ACH transfer is processed by Dwolla — a licensed US money transmitter serving Venmo, Gemini, and CarGurus.</p>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.5rem">
-      <div style="font-size:1.5rem;margin-bottom:.5rem">📒</div>
-      <h3 style="font-size:1rem;font-weight:600;margin-bottom:.5rem">Double-entry ledger</h3>
-      <p style="font-size:.85rem;color:var(--muted);line-height:1.5">Every cent is tracked like a bank balance sheet — no dangling payments, provably balanced, fully auditable.</p>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:.875rem;padding:1.5rem">
-      <div style="font-size:1.5rem;margin-bottom:.5rem">🛡️</div>
-      <h3 style="font-size:1rem;font-weight:600;margin-bottom:.5rem">KYC on every member</h3>
-      <p style="font-size:.85rem;color:var(--muted);line-height:1.5">Government ID + selfie verification via Persona. Everyone in your circle is a verified, real person.</p>
-    </div>
+<section class="band">
+  <h2>Built on fintech-grade infrastructure</h2>
+  <p class="sub">Real money deserves real safeguards.</p>
+  <div class="cards4">
+    <div class="featc"><div class="ic">🔒</div><h3>Bank-level encryption</h3><p>Account numbers stored with Fernet (AES-128-GCM). Your bank credentials never touch our database in plaintext.</p></div>
+    <div class="featc"><div class="ic">🏦</div><h3>Powered by Dwolla</h3><p>Every ACH transfer is processed by Dwolla — a licensed US money transmitter serving Venmo, Gemini, and CarGurus.</p></div>
+    <div class="featc"><div class="ic">📒</div><h3>Double-entry ledger</h3><p>Every cent is tracked like a bank balance sheet — no dangling payments, provably balanced, fully auditable.</p></div>
+    <div class="featc"><div class="ic">🛡️</div><h3>KYC on every member</h3><p>Government ID + selfie verification via Persona. Everyone in your circle is a verified, real person.</p></div>
   </div>
 </section>
 
-<!-- FAQ -->
-<section style="max-width:760px;margin:3rem auto;padding:0 2rem">
-  <h2 style="text-align:center;font-size:2rem;font-weight:700;margin-bottom:2rem">Common questions</h2>
-  <div style="display:flex;flex-direction:column;gap:.5rem">
-    <details style="background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem">
-      <summary style="font-weight:600;cursor:pointer;font-size:1rem">What happens if someone in my circle stops paying?</summary>
-      <p style="color:var(--muted);font-size:.9rem;line-height:1.6;margin-top:.75rem">A member who fails to contribute after two automatic retries is marked delinquent and loses their payout position. The remaining members continue normally — Sol guarantees the pool advances as long as the majority pays. No one covers for a defaulter.</p>
-    </details>
-    <details style="background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem">
-      <summary style="font-weight:600;cursor:pointer;font-size:1rem">When do I receive my payout?</summary>
-      <p style="color:var(--muted);font-size:.9rem;line-height:1.6;margin-top:.75rem">Payouts rotate based on join order. If you're position 5 in a 20-member circle, you receive the pool on cycle 5 — 5 months after the circle activates. You'll see your exact position + expected payout date before you commit to joining.</p>
-    </details>
-    <details style="background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem">
-      <summary style="font-weight:600;cursor:pointer;font-size:1rem">Can I withdraw early?</summary>
-      <p style="color:var(--muted);font-size:.9rem;line-height:1.6;margin-top:.75rem">You can leave a circle while it's still forming (before it activates). Once a circle is active, you're committed until your payout cycle completes — this is how ROSCAs have worked for centuries and what makes them reliable for everyone involved.</p>
-    </details>
-    <details style="background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem">
-      <summary style="font-weight:600;cursor:pointer;font-size:1rem">What's the 10% platform fee for?</summary>
-      <p style="color:var(--muted);font-size:.9rem;line-height:1.6;margin-top:.75rem">The fee covers ACH processing costs, KYC verification, fraud monitoring, and Sol's operating expenses. So in a $4,000 pool, you receive $3,600. The fee is fixed, transparent, and charged only when you receive your payout — never on contributions.</p>
-    </details>
-    <details style="background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1rem 1.25rem">
-      <summary style="font-weight:600;cursor:pointer;font-size:1rem">Is this legal? Do you have a license?</summary>
-      <p style="color:var(--muted);font-size:.9rem;line-height:1.6;margin-top:.75rem">Sol is currently in limited beta. Money movement runs through Dwolla, a licensed US money transmitter registered with FinCEN. Before opening to the general public, Sol is completing money transmitter licensing in each state we serve.</p>
-    </details>
+<section class="band">
+  <h2>Common questions</h2>
+  <div class="faq">
+    <details><summary>What happens if someone in my circle stops paying?</summary><p>A member who fails to contribute after two automatic retries is marked delinquent and loses their payout position. The remaining members continue normally — Sol guarantees the pool advances as long as the majority pays. No one covers for a defaulter.</p></details>
+    <details><summary>When do I receive my payout?</summary><p>Payouts rotate based on join order. If you're position 5 in a 20-member circle, you receive the pool on cycle 5 — 5 months after the circle activates. You'll see your exact position + expected payout date before you commit to joining.</p></details>
+    <details><summary>Can I withdraw early?</summary><p>You can leave a circle while it's still forming (before it activates). Once a circle is active, you're committed until your payout cycle completes — this is how ROSCAs have worked for centuries and what makes them reliable for everyone involved.</p></details>
+    <details><summary>What's the 10% platform fee for?</summary><p>The fee covers ACH processing costs, KYC verification, fraud monitoring, and Sol's operating expenses. So in a $4,000 pool, you receive $3,600. The fee is fixed, transparent, and charged only when you receive your payout — never on contributions.</p></details>
+    <details><summary>Is this legal? Do you have a license?</summary><p>Sol is currently in limited beta. Money movement runs through Dwolla, a licensed US money transmitter registered with FinCEN. Before opening to the general public, Sol is completing money transmitter licensing in each state we serve.</p></details>
   </div>
 </section>
 
 <div class="cta-banner">
   <h2>Ready to join your first circle?</h2>
   <p>Create an account in under 2 minutes. No credit check required.</p>
-  <button class="btn btn-primary" onclick="openModal('register')" style="font-size:1rem;padding:.75rem 2.5rem">
-    Create free account
-  </button>
+  <button class="btn btn-primary" style="padding:.8rem 2.5rem;font-size:1rem" onclick="openModal('register')">Create free account</button>
 </div>
 
 <footer>
-  <span style="color:var(--muted);font-size:.8rem">© 2026 WheellsVerse · Sol</span>
-  <div style="display:flex;gap:1.5rem">
+  <span>© 2026 WheellsVerse · Sol</span>
+  <div class="foot-links">
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
     <a href="/">WheellsVerse</a>
   </div>
 </footer>
 
-<!-- Auth Modal -->
+</div><!-- /wrap -->
+
+<!-- Auth Modal (markup preserved verbatim; restyled via CSS only) -->
 <div class="modal-bg" id="authModal">
   <div class="modal">
     <button class="close" onclick="closeModal()">✕</button>
@@ -303,7 +297,7 @@ if (_inviteFromUrl) {
     openModal('register');
     const note = document.createElement('p');
     note.textContent = 'You\'ve been invited to a savings circle. Sign up or sign in to accept.';
-    note.style.cssText = 'background:rgba(0,212,255,.1);color:var(--cyan);padding:.75rem;border-radius:.5rem;margin-bottom:1rem;font-size:.85rem';
+    note.style.cssText = 'background:rgba(244,169,60,.14);color:var(--sol-600);padding:.75rem;border-radius:.5rem;margin-bottom:1rem;font-size:.85rem';
     document.querySelector('#registerForm h2')?.after(note);
   });
 }
