@@ -14703,16 +14703,22 @@ async def email_subscribe(req: SubscribeRequest):
 _v2_auth_loaded = False
 try:
     from pydantic import BaseModel as _V2BaseModel
-    from narai.api.auth import create_token as _v2_create_token, verify_password as _v2_verify_password
+    from narai.api.auth import create_token as _v2_create_token, sign_in_with_supabase as _v2_sign_in
 
     class _V2LoginRequest(_V2BaseModel):
+        email: str
         password: str
 
     @app.post("/api/v2/narai/auth/login")
     def _v2_login(req: _V2LoginRequest) -> dict:
-        if not _v2_verify_password(req.password):
-            raise HTTPException(status_code=401, detail="Wrong password")
-        return {"token": _v2_create_token()}
+        """Email/password login. Delegates verification to Supabase auth, then
+        mints a NarAI-signed JWT carrying the user's UUID as `sub`. Mirrors
+        the canonical login route in narai/api/main.py:104 — single source of
+        truth for v2 auth shape."""
+        user_id = _v2_sign_in(req.email, req.password)
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid email or password")
+        return {"token": _v2_create_token(user_id)}
 
     @app.get("/api/v2/narai/health")
     def _v2_health() -> dict:
