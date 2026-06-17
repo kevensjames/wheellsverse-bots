@@ -24,6 +24,10 @@ def test_additive_columns_present(db):
 
 from core import nexora_entities as ent
 
+def _mk_creator(email, name="C"):
+    from core import nexora_auth
+    nexora_auth.register_creator(email, "hunter2", name)
+
 def test_registry_and_mapping_roundtrip(db):
     cols = ent._from_fe("CreatorProfile", {"display_name": "Ann", "bio": "hi", "id": 7, "status": "approved"})
     assert cols == {"display_name": "Ann", "bio": "hi"}  # id + status not writable
@@ -65,13 +69,17 @@ def test_entity_get(db):
 
 
 def test_entity_create_stamps_owner(db):
+    _mk_creator("creator@x.com")
     actor = {"email": "creator@x.com", "role": "creator"}
     fe = ent.entity_create("Post", {"title": "Hi", "text": "yo", "access_type": "free"}, actor)
     assert fe["title"] == "Hi" and fe["creator_email"] == "creator@x.com"
     assert fe["id"] and fe["created_date"]
+    assert isinstance(fe["creator_profile_id"], int) and fe["creator_profile_id"] > 0
+    assert fe["creator_email"] == "creator@x.com"
 
 
 def test_entity_update_owner_only(db):
+    _mk_creator("o@x.com")
     owner = {"email": "o@x.com", "role": "creator"}
     other = {"email": "x@x.com", "role": "creator"}
     admin = {"email": "a@x.com", "role": "admin"}
@@ -85,6 +93,7 @@ def test_entity_update_owner_only(db):
 
 
 def test_entity_delete_owner_only(db):
+    _mk_creator("d@x.com")
     owner = {"email": "d@x.com", "role": "creator"}
     fe = ent.entity_create("Post", {"title": "D"}, owner)
     with pytest.raises(PermissionError):

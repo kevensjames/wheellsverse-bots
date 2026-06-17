@@ -44,9 +44,7 @@ ENTITIES = {
         "writable": ["title", "text", "media_urls", "media_type", "access_type",
                      "ppv_price", "status"],
         "create_roles": ["creator", "admin"], "read_public": True,
-        # creator_id is a legacy NOT NULL FK column not owned by the entity layer;
-        # sentinel 0 is safe with foreign_keys=OFF during entity_create.
-        "legacy_defaults": {"creator_id": 0},
+        "create_link_creator": ["creator_id", "creator_profile_id"],
     },
     "Subscription": {
         "table": "nx_subscribers", "pk": "id", "owner_col": "fan_email",
@@ -187,6 +185,13 @@ def entity_get(entity: str, pk_value) -> Optional[Dict]:
     return _to_fe(entity, row) if row else None
 
 
+def _creator_id_for(email: str):
+    conn = get_conn()
+    row = conn.execute("SELECT id FROM nx_creators WHERE email=?", (email,)).fetchone()
+    conn.close()
+    return row["id"] if row else None
+
+
 def _owner_email(entity: str, pk_value) -> Optional[str]:
     spec = ENTITIES[entity]
     conn = get_conn()
@@ -213,13 +218,17 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
     cols[spec["owner_col"]] = actor["email"]            # stamp ownership from token
     ts_col = spec["fields"]["created_date"][0]
     cols.setdefault(ts_col, time.time())
-    # Supply legacy NOT NULL sentinel defaults for columns not owned by the entity layer.
-    for lk, lv in spec.get("legacy_defaults", {}).items():
-        cols.setdefault(lk, lv)
+    # Resolve legacy/profile creator-id link columns from the owner's creator row.
+    link_cols = spec.get("create_link_creator", [])
+    if link_cols:
+        cid = _creator_id_for(actor["email"])
+        if cid is None:
+            raise PermissionError("creator profile required")
+        for c in link_cols:
+            cols.setdefault(c, cid)
     keys = list(cols.keys())
     placeholders = ",".join("?" for _ in keys)
     conn = get_conn()
-    conn.execute("PRAGMA foreign_keys=OFF")
     cur = conn.execute(f"INSERT INTO {spec['table']} ({','.join(keys)}) VALUES ({placeholders})",
                        [cols[k] for k in keys])
     new_pk = actor["email"] if spec["pk"] == spec["owner_col"] else cur.lastrowid
