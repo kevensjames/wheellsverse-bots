@@ -102,6 +102,87 @@ ENTITIES = {
         "create_roles": ["admin"], "read_public": False,
         "self_cols": ["email"],
     },
+    "Follow": {
+        "table": "nx_follows", "pk": "id", "owner_col": "fan_email",
+        "fields": {
+            "id": ("id", "int"), "fan_email": ("fan_email", "str"),
+            "creator_email": ("creator_email", "str"),
+            "creator_profile_id": ("creator_profile_id", "int"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "fan_email", "creator_email", "creator_profile_id"],
+        "writable": ["creator_email", "creator_profile_id"],
+        "create_roles": ["fan", "creator", "admin"],
+        "read_public": False, "self_cols": ["fan_email", "creator_email"],
+    },
+    "Notification": {
+        "table": "nx_notifications", "pk": "id", "owner_col": "user_email",
+        "owner_from_body": True,
+        "fields": {
+            "id": ("id", "int"), "user_email": ("user_email", "str"),
+            "type": ("type", "str"), "title": ("title", "str"),
+            "message": ("message", "str"), "link": ("link", "str"),
+            "is_read": ("is_read", "bool"), "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "user_email", "is_read", "type"],
+        "writable": ["type", "title", "message", "link", "is_read"],
+        "create_roles": ["fan", "creator", "admin"],
+        "read_public": False, "self_cols": ["user_email"],
+    },
+    "ContentPurchase": {
+        "table": "nx_content_purchases", "pk": "id", "owner_col": "fan_email",
+        "fields": {
+            "id": ("id", "int"), "fan_email": ("fan_email", "str"),
+            "creator_email": ("creator_email", "str"), "creator_id": ("creator_id", "int"),
+            "post_id": ("post_id", "int"), "amount": ("amount", "float"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "fan_email", "creator_email", "post_id"],
+        "writable": [], "create_roles": [],
+        "read_public": False, "self_cols": ["fan_email", "creator_email"],
+    },
+    "FanProfile": {
+        "table": "nx_fan_profiles", "pk": "id", "owner_col": "user_email",
+        "fields": {
+            "id": ("id", "int"), "user_email": ("user_email", "str"),
+            "bio": ("bio", "str"), "preferences": ("preferences", "json"),
+            "blocked_creators": ("blocked_creators", "json"),
+            "is_age_verified": ("is_age_verified", "bool"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "user_email"],
+        "writable": ["bio", "preferences", "blocked_creators"],
+        "create_roles": ["fan", "creator", "admin"],
+        "read_public": False, "self_cols": ["user_email"],
+    },
+    "LiveStream": {
+        "table": "nx_livestreams", "pk": "id", "owner_col": "creator_email",
+        "create_link_creator": ["creator_profile_id"],
+        "fields": {
+            "id": ("id", "int"), "creator_email": ("creator_email", "str"),
+            "creator_profile_id": ("creator_profile_id", "int"),
+            "title": ("title", "str"), "description": ("description", "str"),
+            "access_type": ("access_type", "str"), "price": ("price", "float"),
+            "status": ("status", "str"), "viewer_count": ("viewer_count", "int"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "creator_email", "creator_profile_id", "status"],
+        "writable": ["title", "description", "access_type", "price", "status"],
+        "create_roles": ["creator", "admin"], "read_public": True,
+    },
+    "Tip": {
+        "table": "nx_tips", "pk": "id", "owner_col": "to_email",
+        "fields": {
+            "id": ("id", "int"), "from_email": ("from_email", "str"),
+            "to_email": ("to_email", "str"), "creator_id": ("creator_id", "int"),
+            "amount": ("amount", "float"), "message": ("message", "str"),
+            "livestream_id": ("livestream_id", "int"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "from_email", "to_email"],
+        "writable": [], "create_roles": [],
+        "read_public": False, "self_cols": ["from_email", "to_email"],
+    },
 }
 
 
@@ -227,7 +308,14 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
         raise PermissionError("not allowed")
     init_db()
     cols = _from_fe(entity, body)
-    cols[spec["owner_col"]] = actor["email"]            # stamp ownership from token
+    if spec.get("owner_from_body"):
+        # entity is created FOR a recipient (e.g. Notification) — owner comes from the body
+        owner_fe = next(fe for fe, (c, _t) in spec["fields"].items() if c == spec["owner_col"])
+        if owner_fe not in body:
+            raise PermissionError("recipient required")
+        cols[spec["owner_col"]] = body[owner_fe]
+    else:
+        cols[spec["owner_col"]] = actor["email"]        # stamp ownership from token
     ts_col = spec["fields"]["created_date"][0]
     cols.setdefault(ts_col, time.time())
     # Resolve legacy/profile creator-id link columns from the owner's creator row.
