@@ -54,3 +54,34 @@ def test_toggle_live_sets_profile(db):
     out = agg.toggle_live(actor, True)
     assert out["ok"] is True and out["profile"]["is_live"] is True
     assert agg.toggle_live(actor, False)["profile"]["is_live"] is False
+
+
+import core.api as api
+from fastapi.testclient import TestClient
+
+def _h(t): return {"Authorization": f"Bearer {t}"}
+
+def test_nexora_data_route(db):
+    tok = nexora_auth.register_creator("d@x.com", "hunter2", "D")["token"]
+    ent.entity_create("CreatorProfile", {"display_name": "D"}, {"email": "d@x.com", "role": "creator"})
+    c = TestClient(api.app)
+    assert c.post("/api/nx/fn/nexoraData", json={"action": "fan_data"}).status_code == 401
+    r = c.post("/api/nx/fn/nexoraData", headers=_h(tok),
+               json={"action": "create_post", "title": "P", "access_type": "free"})
+    assert r.status_code == 200 and r.json()["ok"] and r.json()["post"]["creator_email"] == "d@x.com"
+    pid = r.json()["post"]["id"]
+    dash = c.post("/api/nx/fn/nexoraData", headers=_h(tok),
+                  json={"action": "dashboard_data", "user_email": "someone-else@x.com"})
+    assert dash.status_code == 200 and dash.json()["profile"]["user_email"] == "d@x.com"  # IDOR closed
+    assert any(p["id"] == pid for p in dash.json()["posts"])
+    assert c.post("/api/nx/fn/nexoraData", headers=_h(tok), json={"action": "delete_post", "post_id": pid}).json()["ok"]
+    tl = c.post("/api/nx/fn/nexoraData", headers=_h(tok), json={"action": "toggle_live", "is_live": True})
+    assert tl.json()["profile"]["is_live"] is True
+    assert c.post("/api/nx/fn/nexoraData", headers=_h(tok), json={"action": "nope"}).status_code == 400
+
+def test_request_payout_via_route(db):
+    tok = nexora_auth.register_creator("p@x.com", "hunter2", "P")["token"]
+    c = TestClient(api.app)
+    r = c.post("/api/nx/fn/nexoraData", headers=_h(tok),
+               json={"action": "request_payout", "amount": 25, "payout_method": "paypal", "notes": "x"})
+    assert r.status_code == 200 and r.json()["ok"] and r.json()["payout"]["amount"] == 25
