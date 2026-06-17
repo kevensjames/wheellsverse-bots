@@ -14771,7 +14771,9 @@ if _v2_auth_loaded:
         # init_db is async; register it on FastAPI's startup so it runs inside
         # the event loop. Calling asyncio.run() here fails when uvicorn imports
         # core.api from within an already-running loop.
-        app.add_event_handler("startup", _v2_init_db)
+        # FastAPI ≥0.110 removed add_event_handler. on_event is also deprecated
+        # but still functional; lifespan migration tracked separately.
+        app.on_event("startup")(_v2_init_db)
         logger.info("NarAI v2 chat/memory/rag/skills loaded at /api/v2/narai")
     except Exception as _e:
         logger.warning(f"NarAI v2 chat/memory/rag not loaded (chromadb missing?): {_e}")
@@ -14821,14 +14823,14 @@ if _v2_auth_loaded:
     # isn't configured (no point computing if no delivery channel).
     try:
         from narai.integrations.scheduler import start_briefing_scheduler
-        app.add_event_handler("startup", start_briefing_scheduler)
+        app.on_event("startup")(start_briefing_scheduler)
         logger.info("NarAI v2 briefing scheduler hook registered")
     except Exception as _e:
         logger.warning(f"NarAI v2 briefing scheduler not registered: {_e}")
 
     try:
         from narai.integrations.scheduler_promo import start_promo_scheduler
-        app.add_event_handler("startup", start_promo_scheduler)
+        app.on_event("startup")(start_promo_scheduler)
         logger.info("Insider promo scheduler hook registered")
     except Exception as _e:
         logger.warning(f"Insider promo scheduler not registered: {_e}")
@@ -14988,7 +14990,7 @@ if _v2_auth_loaded:
                     logger.info("Discord bot task exited cleanly")
             t.add_done_callback(_done)
             logger.info("Discord bot task launched")
-        app.add_event_handler("startup", _spawn_discord)
+        app.on_event("startup")(_spawn_discord)
         logger.info("Discord bot startup hook registered")
     except Exception as _e:
         logger.warning(f"Discord bot startup not registered: {_e}")
