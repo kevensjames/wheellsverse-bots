@@ -97,3 +97,26 @@ def test_content_purchase_create_blocked_via_route(db):
     tok = nexora_auth.register_fan("cp@x.com", "hunter2")["token"]
     c = TestClient(api.app)
     assert c.post("/api/nx/e/ContentPurchase", headers=_h(tok), json={"amount": 5}).status_code == 403
+
+
+def test_mixedcase_email_read_scope(db):
+    tok = nexora_auth.register_fan("FanA@x.com", "hunter2")["token"]   # stored lowercased
+    c = TestClient(api.app)
+    c.post("/api/nx/e/Follow", headers=_h(tok), json={"creator_email": "cr@x.com"})
+    # query with the email as originally typed (mixed case) must still return the user's rows
+    r = c.get("/api/nx/e/Follow?fan_email=FanA@x.com", headers=_h(tok))
+    assert r.status_code == 200 and len(r.json()) >= 1
+
+
+def test_duplicate_follow_returns_409(db):
+    tok = nexora_auth.register_fan("dup@x.com", "hunter2")["token"]
+    c = TestClient(api.app)
+    assert c.post("/api/nx/e/Follow", headers=_h(tok), json={"creator_email": "cr@x.com"}).status_code == 200
+    # second identical follow -> clean 409, not 500
+    assert c.post("/api/nx/e/Follow", headers=_h(tok), json={"creator_email": "cr@x.com"}).status_code == 409
+
+
+def test_fanprofile_age_verified_not_writable(db):
+    actor = {"email": "fp@x.com", "role": "fan"}
+    fe = ent.entity_create("FanProfile", {"bio": "hi", "is_age_verified": True}, actor)
+    assert fe["bio"] == "hi" and fe["is_age_verified"] is False   # ignored, not user-settable

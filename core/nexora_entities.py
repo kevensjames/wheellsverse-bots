@@ -151,7 +151,7 @@ ENTITIES = {
             "created_date": ("created_at", "ts"),
         },
         "filterable": ["id", "user_email"],
-        "writable": ["bio", "preferences", "blocked_creators", "is_age_verified"],
+        "writable": ["bio", "preferences", "blocked_creators"],
         "create_roles": ["fan", "creator", "admin"],
         "read_public": False, "self_cols": ["user_email"],
     },

@@ -14,6 +14,7 @@ import logging
 import logging.handlers
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import time
@@ -10524,11 +10525,16 @@ def nx_entity_list(entity: str, request: Request):
     qp = dict(request.query_params)
     sort = qp.pop("_sort", None)
     limit = qp.pop("_limit", None)
+    # Normalize self_col email values to lowercase so mixed-case query params
+    # match stored (lowercased) emails in both the scope check and SQL filter.
+    self_cols = spec.get("self_cols", [])
+    for _c in self_cols:
+        if _c in qp:
+            qp[_c] = qp[_c].strip().lower()
     # Read authorization: non-public entities must be scoped to the requesting user
     # (unless admin). The request must filter by one of the entity's self_cols == the
     # actor's email; otherwise it could read other users' rows.
     if not spec.get("read_public") and user["role"] != "admin":
-        self_cols = spec.get("self_cols", [])
         if not any(qp.get(c) == user["email"] for c in self_cols):
             raise HTTPException(status_code=403, detail="Not allowed")
     return entity_query(entity, qp, sort, int(limit) if limit else None)
@@ -10545,6 +10551,8 @@ async def nx_entity_create(entity: str, request: Request):
         return entity_create(entity, body, user)
     except PermissionError:
         raise HTTPException(status_code=403, detail="Not allowed")
+    except sqlite3.IntegrityError:
+        raise HTTPException(status_code=409, detail="Already exists")
 
 
 @app.patch("/api/nx/e/{entity}/{pk}")
