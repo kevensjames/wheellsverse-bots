@@ -202,6 +202,13 @@ def close_collection_and_create_payout(cycle_id: int) -> dict[str, Any]:
                 "already_staged": True,
                 "recipient_delinquent": cycle.status == "skipped"}
 
+    # Belt-and-suspenders idempotency: if a payout row already exists (e.g. a
+    # create-then-crash left the cycle 'collecting' with a staged payout), return
+    # it rather than re-staging into the UNIQUE(cycle_id) constraint.
+    existing = st.get_payout_for_cycle(cycle_id)
+    if existing:
+        return {"cycle": cycle.as_dict(), "payout": existing.as_dict(), "already_staged": True}
+
     status = collection_status(cycle_id)
     if not status["majority_met"]:
         raise SolStateError(
