@@ -280,6 +280,89 @@ function activateTab(name) {
     loadAudit();
   } else if (name === "sol") {
     loadSol();
+  } else if (name === "persona") {
+    loadPersona();
+  }
+}
+
+// ─── Persona (KAI's character) + mood ─────────────────────────────────
+
+async function loadPersona() {
+  await Promise.all([loadPersonaTraits(), loadPersonaMood()]);
+}
+
+async function loadPersonaMood() {
+  const line = $("#persona-mood-line");
+  if (!line) return;
+  try {
+    const s = await apiGet("/admin/eq/stats");
+    const parts = [`latest mood: ${s.latest_mood || "—"}`, `${s.total_samples} sample(s)`]
+      .concat(Object.entries(s.by_mood || {}).map(([m, n]) => `${m}: ${n}`));
+    line.textContent = parts.join(" · ");
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+async function loadPersonaTraits() {
+  const tbody = $("#persona-traits-table tbody");
+  const statusLine = $("#persona-status-line");
+  const sectionSel = $("#persona-section");
+  if (!tbody) return;
+  try {
+    const data = await apiGet("/admin/persona/profile?status=active");
+    if (statusLine) statusLine.textContent = `${data.count} active trait(s)`;
+    // populate the section dropdown once
+    if (sectionSel && !sectionSel.options.length) {
+      for (const s of data.sections || []) {
+        const o = document.createElement("option"); o.value = s; o.textContent = s;
+        sectionSel.appendChild(o);
+      }
+    }
+    tbody.replaceChildren();
+    for (const e of data.entries || []) {
+      const tr = document.createElement("tr");
+      tr.appendChild(td(e.section));
+      tr.appendChild(td(e.text));
+      const act = document.createElement("td");
+      const btn = document.createElement("button");
+      btn.className = "admin-btn"; btn.textContent = "archive";
+      btn.addEventListener("click", () => archivePersonaTrait(e.id));
+      act.appendChild(btn); tr.appendChild(act);
+      tbody.appendChild(tr);
+    }
+    if (!(data.entries || []).length) {
+      const tr = document.createElement("tr");
+      const c = td("no traits", "admin-hint"); c.colSpan = 3; tr.appendChild(c); tbody.appendChild(tr);
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
+
+async function addPersonaTrait(ev) {
+  ev.preventDefault();
+  const err = $("#persona-add-err");
+  const section = $("#persona-section").value;
+  const text = $("#persona-text").value.trim();
+  if (err) err.textContent = "";
+  if (!text) { if (err) err.textContent = "trait text required"; return; }
+  try {
+    await apiPost("/admin/persona/entries", { section, text });
+    $("#persona-text").value = "";
+    loadPersonaTraits();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (err) err.textContent = `error: ${e.message}`;
+  }
+}
+
+async function archivePersonaTrait(id) {
+  try {
+    await apiPost(`/admin/persona/entries/${id}/archive`, { approved: true });
+    loadPersonaTraits();
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
   }
 }
 
@@ -2542,6 +2625,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // Sol
   const solRefresh = $("#sol-refresh");
   if (solRefresh) solRefresh.addEventListener("click", loadSol);
+
+  // Persona
+  const personaRefresh = $("#persona-refresh");
+  if (personaRefresh) personaRefresh.addEventListener("click", loadPersona);
+  const personaForm = $("#persona-add-form");
+  if (personaForm) personaForm.addEventListener("submit", addPersonaTrait);
 
   // Chat
   $("#admin-chat-form").addEventListener("submit", sendChat);

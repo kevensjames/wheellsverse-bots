@@ -27,6 +27,7 @@
         <button type="button" class="admin-tab" data-tab="twin">Twin</button>
         <button type="button" class="admin-tab" data-tab="audit">Audit</button>
         <button type="button" class="admin-tab" data-tab="sol">Sol</button>
+        <button type="button" class="admin-tab" data-tab="persona">Persona</button>
       </nav>
       <div class="admin-controls">
         <span id="admin-as-of" class="admin-as-of">—</span>
@@ -706,9 +707,46 @@
           </div>
         </div>
       </div><!-- /admin-pane-sol -->
+
+      <div id="admin-pane-persona" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>Persona · KAI's character</h2>
+            <div class="admin-chat-tools">
+              <span id="persona-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="persona-refresh" class="admin-btn">↻ refresh</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            KAI's own personality — injected at the top of every reply. Edit these
+            traits to reshape how KAI talks (voice, humor, values). Changes take
+            effect on the next message. Mood is read automatically per message.
+          </p>
+          <div id="persona-mood-line" class="admin-stat-row admin-stat-tiers"></div>
+        </div>
+
+        <div class="admin-grid admin-grid-2">
+          <div class="admin-card">
+            <h2>Traits</h2>
+            <table class="admin-table" id="persona-traits-table">
+              <thead><tr><th>section</th><th>trait</th><th></th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="admin-card">
+            <h2>Add a trait</h2>
+            <form id="persona-add-form" class="admin-auth-form">
+              <select id="persona-section" class="admin-preset-select"></select>
+              <textarea id="persona-text" rows="3" placeholder="e.g. Calls me by name; never lectures."></textarea>
+              <button type="submit" class="admin-btn admin-btn-primary">add trait</button>
+            </form>
+            <p id="persona-add-err" class="admin-err"></p>
+          </div>
+        </div>
+      </div><!-- /admin-pane-persona -->
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781636494" defer></script>
+  <script src="admin.js?v=ts-1781678939" defer></script>
 </body>
 </html>
