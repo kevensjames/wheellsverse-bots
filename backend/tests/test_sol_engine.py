@@ -276,6 +276,66 @@ def test_payout_failure_rolls_pool_forward():
     assert st.get_cycle(cyc["id"]).status == "failed"
 
 
+# ─── fix-verification round (no double-count, no stranding) ────────────
+def test_forfeit_close_is_idempotent_no_rollover_inflation():
+    # Re-invoking payout-close on a forfeit cycle must NOT re-fold the pool.
+    c = _funded_circle(n=3, contribution_cents=20000)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    members = {m.join_order: m for m in st.list_members(c.id)}
+    contribs = {ct.member_id: ct for ct in st.list_contributions(cyc["id"])}
+    _drive_to_delinquent(contribs[members[1].id].id)  # recipient forfeits
+    engine.mark_contribution_result(contribs[members[2].id].id, True)
+    engine.mark_contribution_result(contribs[members[3].id].id, True)
+    engine.close_collection_and_create_payout(cyc["id"])
+    assert st.get_circle(c.id).rollover_cents == 40000
+    # double-click / retry → idempotent, rollover unchanged (NOT 80000)
+    out = engine.close_collection_and_create_payout(cyc["id"])
+    assert out.get("already_staged") is True
+    assert st.get_circle(c.id).rollover_cents == 40000
+
+
+def test_payout_ach_return_after_completed():
+    c = _funded_circle(n=3, contribution_cents=20000)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    cs = st.list_contributions(cyc["id"])
+    engine.mark_contribution_result(cs[0].id, True)
+    engine.mark_contribution_result(cs[1].id, True)
+    out = engine.close_collection_and_create_payout(cyc["id"])
+    pid = out["payout"]["id"]
+    engine.mark_payout_result(pid, True)                 # paid
+    assert st.get_circle(c.id).rollover_cents == 0
+    res = engine.mark_payout_result(pid, False)          # ACH return (clawback)
+    assert res.get("returned") is True
+    assert st.get_payout(pid).status == "returned"
+    assert st.get_cycle(cyc["id"]).status == "failed"
+    assert st.get_circle(c.id).rollover_cents == 40000   # pool rolled back forward
+
+
+def test_failed_payout_does_not_strand_circle():
+    c = _funded_circle(n=2, contribution_cents=20000)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    for ct in st.list_contributions(cyc["id"]):
+        engine.mark_contribution_result(ct.id, True)
+    out = engine.close_collection_and_create_payout(cyc["id"])
+    engine.mark_payout_result(out["payout"]["id"], False)  # payout fails
+    assert st.get_cycle(cyc["id"]).status == "failed"
+    # circle still advances (not deadlocked); pool rolled forward
+    nxt = engine.advance_circle(c.id)
+    assert nxt["cycle"]["cycle_number"] == 2
+
+
+def test_contribution_success_noop_on_returned():
+    c = _funded_circle(n=3)
+    cyc = engine.activate_circle(c.id)["cycle"]
+    cid = st.list_contributions(cyc["id"])[0].id
+    engine.mark_contribution_result(cid, True)    # processed
+    engine.mark_contribution_result(cid, False)   # ACH return → returned
+    assert st.get_contribution(cid).status == "returned"
+    out = engine.mark_contribution_result(cid, True)  # stale completed re-delivery
+    assert out.get("noop") is True
+    assert st.get_contribution(cid).status == "returned"  # not un-returned
+
+
 # ─── full rotation to completion ───────────────────────────────────────
 def test_full_two_member_rotation_completes():
     c = _funded_circle(n=2, contribution_cents=20000)

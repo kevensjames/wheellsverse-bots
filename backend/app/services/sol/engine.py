@@ -12,6 +12,17 @@ ROSCA rules (from Sol's spec / frontend FAQ):
     delinquent and loses their payout position; remaining members continue.
   * The pool advances once a MAJORITY of the cycle's contributions clear.
   * No one covers a defaulter — the recipient gets what was actually collected.
+
+KNOWN v1 LIMITATIONS (money-SAFE — no loss/double-spend — but deferred polish):
+  * Transient orphan: if a Dwolla POST succeeds but its HTTP response is lost,
+    the row reverts to pending/failed without the transfer URL. This self-heals
+    on the next collect/retry because the Idempotency-Key is STABLE (Dwolla
+    returns the same transfer and we capture its URL then) — no double debit.
+  * ACH-return-after-payout: a contribution that 'returns' AFTER its payout has
+    settled doesn't claw back the already-disbursed pool (the payout amount is
+    snapshotted at staging). A failed/returned PAYOUT does roll the pool forward
+    and bumps that recipient; re-paying the bumped member is a manual operator
+    step. A full clawback/reconciliation subsystem is out of v1 scope.
 """
 from __future__ import annotations
 
@@ -110,7 +121,9 @@ def mark_contribution_result(contribution_id: int, success: bool) -> dict[str, A
     member = st.get_member(contrib.member_id)
 
     if success:
-        if contrib.status == "processed":
+        # No-op on a terminal-settled row: 'processed' (already collected) OR
+        # 'returned' (money came back — a stale 'completed' must not un-return it).
+        if contrib.status in ("processed", "returned"):
             return {"contribution": contrib.as_dict(), "member_delinquent": False, "noop": True}
         c = st.update_contribution(contribution_id, status="processed")
         return {"contribution": c.as_dict(), "member_delinquent": False}
@@ -133,15 +146,18 @@ def mark_contribution_result(contribution_id: int, success: bool) -> dict[str, A
 
 
 def record_retry(contribution_id: int, transfer_url: str | None = None) -> st.Contribution:
-    """Orchestration issued a fresh transfer for a failed contribution."""
+    """Orchestration issued a fresh transfer for a failed contribution. Only sets
+    dwolla_transfer_url when a new one is given — never NULLs the prior URL (that
+    would orphan a late webhook for the previous attempt)."""
     c = st.get_contribution(contribution_id)
     if c.status not in ("failed", "returned"):
         raise SolStateError(f"contribution {contribution_id} is {c.status}; not retryable")
     if c.retry_count >= MAX_RETRIES:
         raise SolStateError(f"contribution {contribution_id} has exhausted retries")
-    return st.update_contribution(contribution_id, status="processing",
-                                  retry_count=c.retry_count + 1,
-                                  dwolla_transfer_url=transfer_url)
+    fields: dict[str, Any] = {"status": "processing", "retry_count": c.retry_count + 1}
+    if transfer_url is not None:
+        fields["dwolla_transfer_url"] = transfer_url
+    return st.update_contribution(contribution_id, **fields)
 
 
 def collection_status(cycle_id: int) -> dict[str, Any]:
@@ -172,16 +188,25 @@ def close_collection_and_create_payout(cycle_id: int) -> dict[str, Any]:
     covers a defaulter. Idempotent: returns the existing payout if already staged.
     """
     cycle = st.get_cycle(cycle_id)
+    # IDEMPOTENCY GUARD (covers BOTH branches): once collection is closed the
+    # cycle is no longer 'collecting' — it's 'collected' (active payout staged),
+    # 'skipped' (recipient forfeited, pool rolled forward), 'paid' or 'failed'.
+    # A re-invocation (double-click / 502 retry / re-approval) MUST NOT re-fold
+    # the rollover or re-stage. Short-circuit to the existing state. (The forfeit
+    # branch creates no payout row, so the get_payout_for_cycle guard alone is
+    # insufficient — this status guard is what makes the forfeit path idempotent.)
+    if cycle.status != "collecting":
+        existing = st.get_payout_for_cycle(cycle_id)
+        return {"cycle": cycle.as_dict(),
+                "payout": existing.as_dict() if existing else None,
+                "already_staged": True,
+                "recipient_delinquent": cycle.status == "skipped"}
+
     status = collection_status(cycle_id)
     if not status["majority_met"]:
         raise SolStateError(
             f"cycle {cycle_id}: majority not met "
             f"({status['processed']}/{status['majority_threshold']}); cannot pay out")
-
-    existing = st.get_payout_for_cycle(cycle_id)
-    if existing:
-        return {"cycle": st.get_cycle(cycle_id).as_dict(), "payout": existing.as_dict(),
-                "already_staged": True}
 
     circle = st.get_circle(cycle.circle_id)
     recipient = st.get_member(cycle.recipient_member_id) if cycle.recipient_member_id else None
@@ -219,10 +244,24 @@ def mark_payout_result(payout_id: int, success: bool) -> dict[str, Any]:
     collection + any folded rollover = payout.amount) rolls forward into the
     accumulator so no money is lost."""
     payout = st.get_payout(payout_id)
-    if payout.status in ("processed", "failed", "returned"):
-        return {"payout": payout.as_dict(),
-                "cycle": st.get_cycle(payout.cycle_id).as_dict(), "noop": True}
     cycle = st.get_cycle(payout.cycle_id)
+
+    # ACH RETURN after a completed payout: a FAILURE event on an already-
+    # 'processed' payout is a clawback (the credit bounced back). Record it as
+    # 'returned', re-open the cycle to 'failed' (advanceable — the rotation isn't
+    # stranded) and roll the whole pool forward so the money isn't stranded.
+    if payout.status == "processed":
+        if success:
+            return {"payout": payout.as_dict(), "cycle": cycle.as_dict(), "noop": True}
+        p = st.update_payout(payout_id, status="returned")
+        st.set_cycle_status(payout.cycle_id, "failed")
+        st.set_rollover(cycle.circle_id, payout.amount_cents)
+        logger.info("sol: payout %s RETURNED (ACH clawback) — pool rolled forward", payout_id)
+        return {"payout": p.as_dict(), "cycle": st.get_cycle(payout.cycle_id).as_dict(),
+                "returned": True}
+    if payout.status in ("failed", "returned"):
+        return {"payout": payout.as_dict(), "cycle": cycle.as_dict(), "noop": True}
+
     if success:
         p = st.update_payout(payout_id, status="processed")
         st.set_cycle_status(payout.cycle_id, "paid", paid=True)
@@ -246,11 +285,13 @@ def advance_circle(circle_id: int) -> dict[str, Any]:
     if not cycles:
         raise SolStateError("no cycles to advance")
     last = cycles[-1]
-    # Advanceable when the cycle is terminal: "paid" (recipient got the pool) or
-    # "skipped" (recipient forfeited; pool rolled forward).
-    if last.status not in ("paid", "skipped"):
+    # Advanceable when the cycle is terminal: "paid" (recipient got the pool),
+    # "skipped" (recipient forfeited), or "failed" (payout failed/returned). In
+    # the skipped/failed cases the pool already rolled forward, so the rotation
+    # continues and the next recipient receives it — the circle is never stranded.
+    if last.status not in ("paid", "skipped", "failed"):
         raise SolStateError(f"current cycle {last.cycle_number} is {last.status}, "
-                            "not paid or skipped")
+                            "not a terminal state (paid/skipped/failed)")
     if last.cycle_number >= circle.member_target:
         st.set_circle_status(circle_id, "completed")
         return {"completed": True, "circle": st.get_circle(circle_id).as_dict()}

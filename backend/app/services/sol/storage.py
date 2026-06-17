@@ -212,11 +212,11 @@ def _conn() -> Iterator[sqlite3.Connection]:
     c = sqlite3.connect(str(SOL_DB_PATH), isolation_level=None)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA foreign_keys = ON")
-    # The scheduler daemon thread and request threads both write this ledger.
-    # WAL allows a reader concurrent with a writer; busy_timeout makes a second
-    # writer wait-and-retry instead of failing instantly with "database locked".
+    # busy_timeout is per-connection: the scheduler daemon thread and request
+    # threads both write, so a second writer waits-and-retries instead of failing
+    # instantly with "database locked". (WAL itself is a persistent DB property
+    # set once in init_db, not re-issued per connection.)
     c.execute("PRAGMA busy_timeout = 5000")
-    c.execute("PRAGMA journal_mode = WAL")
     try:
         yield c
     finally:
@@ -251,6 +251,9 @@ def _migrate(c: sqlite3.Connection) -> None:
 
 def init_db() -> None:
     with _conn() as c:
+        # WAL is a persistent database-level property — set it once at startup so
+        # readers don't block the writer (and we don't re-issue it on every open).
+        c.execute("PRAGMA journal_mode = WAL")
         c.executescript(_SCHEMA)
         _migrate(c)
 

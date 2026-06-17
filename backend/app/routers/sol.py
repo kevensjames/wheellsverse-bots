@@ -254,9 +254,13 @@ def _collect(*, cycle_id):
 
 @audited(scope="sol.transfer", destructive=True)
 def _retry_failed(*, cycle_id):
-    """Re-issue ACH debits for failed/returned contributions under the retry
-    cap (operator-approved). record_retry increments the count + re-arms the
-    row; after the cap the next failure marks the member delinquent."""
+    """Re-issue ACH debits for failed/returned contributions under the retry cap
+    (operator-approved). After the cap the next failure marks the member
+    delinquent. The idempotency key is keyed on the NEXT attempt number
+    (retry_count+1) and retry_count only advances on a CONFIRMED transfer — so a
+    lost-response re-attempt reuses the SAME key and Dwolla dedupes it (no double
+    debit). On error we revert to the prior failed/returned status WITHOUT
+    touching retry_count or the prior transfer URL (keeps it reconcilable)."""
     cycle = st.get_cycle(cycle_id)
     client = DwollaClient()
     pool = client.balance_funding_source_href()
@@ -271,22 +275,24 @@ def _retry_failed(*, cycle_id):
         if not member.funding_source_href:
             results.append({"contribution_id": c.id, "skipped": "no funding source"})
             continue
-        try:
-            rc = engine.record_retry(c.id)  # failed→processing, retry_count+1
-        except engine.SolStateError as e:
-            results.append({"contribution_id": c.id, "skipped": str(e)})
+        prior_status = c.status
+        attempt = c.retry_count + 1  # stable key per logical attempt
+        if not st.claim_contribution(c.id, expect=prior_status):  # failed/returned → processing
+            results.append({"contribution_id": c.id, "skipped": "already claimed"})
             continue
         try:
             res = client.create_transfer(
                 member.funding_source_href, pool, _cents_to_str(c.amount_cents),
                 metadata={"sol_kind": "contribution-retry", "sol_contribution_id": str(c.id),
-                          "sol_retry": str(rc.retry_count)},
-                idempotency_key=f"sol-contrib-{c.id}-retry-{rc.retry_count}")
-            st.update_contribution(c.id, dwolla_transfer_url=res.get("location"))
+                          "sol_retry": str(attempt)},
+                idempotency_key=f"sol-contrib-{c.id}-retry-{attempt}")
+            # Advance retry_count only now (confirmed) so the key stays stable.
+            st.update_contribution(c.id, retry_count=attempt,
+                                   dwolla_transfer_url=res.get("location"))
             results.append({"contribution_id": c.id, "retried": True,
                             "transfer_url": res.get("location")})
         except DwollaError:
-            st.update_contribution(c.id, status="failed")  # revert → retryable again
+            st.update_contribution(c.id, status=prior_status)  # revert; count untouched
             raise
     return {"cycle_id": cycle_id, "retried": len([r for r in results if r.get("retried")]),
             "results": results}

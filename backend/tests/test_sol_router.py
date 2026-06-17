@@ -10,6 +10,7 @@ import json
 import pytest
 
 from app.config import settings
+from app.services.dwolla.client import DwollaError
 from app.services.sol import storage as st
 from app.services.sol import engine
 
@@ -257,6 +258,46 @@ def test_retry_requires_transfer_scope(client, monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_SOL_MANAGE", "1")  # manage on, transfer off
     r = client.post(f"/admin/sol/cycles/{cycle_id}/retry-failed", headers=ADMIN, json={"approved": True})
     assert r.status_code == 403
+
+
+class _IdempotentDwolla:
+    """Models REAL Dwolla idempotency: a repeated Idempotency-Key returns the
+    SAME transfer resource (no new debit). `raise_keys` simulates a lost HTTP
+    response AFTER the transfer was created (the dangerous case)."""
+    seen = {}
+    raise_keys = set()
+    raised = set()
+    env = "sandbox"
+
+    def balance_funding_source_href(self):
+        return "https://api-sandbox.dwolla.com/funding-sources/pool"
+
+    def create_transfer(self, src, dst, value, currency="USD", metadata=None, idempotency_key=None):
+        loc = _IdempotentDwolla.seen.setdefault(
+            idempotency_key, f"https://api-sandbox.dwolla.com/transfers/{idempotency_key}")
+        if idempotency_key in _IdempotentDwolla.raise_keys and idempotency_key not in _IdempotentDwolla.raised:
+            _IdempotentDwolla.raised.add(idempotency_key)  # transfer WAS created, response lost
+            raise DwollaError("simulated lost response")
+        return {"location": loc}
+
+
+def test_collect_lost_response_reconciles_via_idempotency_key(client, monkeypatch):
+    cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
+    contribs = st.list_contributions(cycle_id)
+    key0 = f"sol-contrib-{contribs[0].id}"
+    _IdempotentDwolla.seen = {}; _IdempotentDwolla.raised = set()
+    _IdempotentDwolla.raise_keys = {key0}  # first contribution loses its response
+    monkeypatch.setattr("app.routers.sol.DwollaClient", _IdempotentDwolla)
+    # first collect → DwollaError on contrib[0] → 502; it reverts to 'pending'
+    r1 = client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
+    assert r1.status_code == 502
+    assert st.get_contribution(contribs[0].id).status == "pending"
+    # re-collect → SAME idempotency key → Dwolla returns the SAME transfer
+    r2 = client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
+    assert r2.status_code == 200
+    # exactly ONE transfer resource ever existed for contrib[0] — no double debit
+    assert sum(1 for k in _IdempotentDwolla.seen if k == key0) == 1
+    assert st.get_contribution(contribs[0].id).status == "processing"
 
 
 def test_webhook_duplicate_completed_is_noop(client, monkeypatch):
