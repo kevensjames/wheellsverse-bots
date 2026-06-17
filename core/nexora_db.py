@@ -163,6 +163,70 @@ CREATE TABLE IF NOT EXISTS nx_users (
     avatar_url    TEXT    DEFAULT '',
     created_at    REAL    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS nx_follows (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    fan_email           TEXT    NOT NULL,
+    creator_email       TEXT    DEFAULT '',
+    creator_profile_id  INTEGER,
+    created_at          REAL    NOT NULL,
+    UNIQUE (fan_email, creator_email)
+);
+
+CREATE TABLE IF NOT EXISTS nx_notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email  TEXT    NOT NULL,
+    type        TEXT    DEFAULT 'system',
+    title       TEXT    DEFAULT '',
+    message     TEXT    DEFAULT '',
+    link        TEXT    DEFAULT '',
+    is_read     INTEGER DEFAULT 0,
+    created_at  REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_content_purchases (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    fan_email       TEXT    NOT NULL,
+    creator_email   TEXT    DEFAULT '',
+    creator_id      INTEGER,
+    post_id         INTEGER,
+    amount          REAL    DEFAULT 0,
+    created_at      REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_fan_profiles (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email          TEXT    UNIQUE NOT NULL,
+    bio                 TEXT    DEFAULT '',
+    preferences         TEXT    DEFAULT '[]',
+    blocked_creators    TEXT    DEFAULT '[]',
+    is_age_verified     INTEGER DEFAULT 0,
+    created_at          REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_livestreams (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    creator_email       TEXT    DEFAULT '',
+    creator_profile_id  INTEGER,
+    title               TEXT    DEFAULT '',
+    description         TEXT    DEFAULT '',
+    access_type         TEXT    DEFAULT 'subscribers_only',
+    price               REAL    DEFAULT 0,
+    status              TEXT    DEFAULT 'ended',
+    viewer_count        INTEGER DEFAULT 0,
+    created_at          REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_tips (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_email      TEXT    DEFAULT '',
+    to_email        TEXT    DEFAULT '',
+    creator_id      INTEGER,
+    amount          REAL    DEFAULT 0,
+    message         TEXT    DEFAULT '',
+    livestream_id   INTEGER,
+    created_at      REAL    NOT NULL
+);
 """
 
 
