@@ -63,18 +63,21 @@ def run_checkin(*, force: bool = False, deliver: bool = True) -> dict[str, Any]:
         return {"sent": False, "already_done": True, "message": ""}
 
     message = composer.compose_checkin()
+    # CLAIM the day BEFORE sending (UNIQUE date_key). Only the caller that wins the
+    # insert sends — so a manual run-now racing the scheduled tick can't double-send.
+    rec = storage.record_checkin(date_key, message, sent=False)
+    if rec is None and not force:  # someone else already claimed today
+        return {"sent": False, "already_done": True, "message": message}
+
     sent = False
     if deliver:
         try:
             from app.services import observability
             observability.notify("🌅 <b>KAI check-in</b>\n" + observability._html_escape(message))
             sent = True
+            storage.set_sent(date_key, True)
         except Exception as e:  # pragma: no cover
             logger.warning("checkin: send failed (%s)", e)
-
-    rec = storage.record_checkin(date_key, message, sent)
-    if rec is None and not force:  # lost a race with another tick
-        return {"sent": False, "already_done": True, "message": message}
     return {"sent": sent, "already_done": False, "message": message}
 
 

@@ -88,6 +88,12 @@ def record_checkin(date_key: str, message: str, sent: bool) -> CheckIn | None:
                        sent=sent, created_at=now)
 
 
+def set_sent(date_key: str, sent: bool = True) -> None:
+    with _conn() as c:
+        c.execute("UPDATE checkins SET sent=? WHERE date_key=?",
+                  (1 if sent else 0, date_key))
+
+
 def recent(limit: int = 30) -> list[CheckIn]:
     with _conn() as c:
         return [
