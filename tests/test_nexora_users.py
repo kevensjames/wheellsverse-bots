@@ -89,3 +89,30 @@ def test_resolve_fan_token(db):
 def test_resolve_bad_token(db):
     assert nexora_users.resolve_user("nope") is None
     assert nexora_users.resolve_user("") is None
+
+
+def test_register_creator_creates_user_row(db):
+    from core import nexora_auth
+    nexora_auth.register_creator("new@x.com", "hunter2", "New")
+    u = nexora_users.get_user("new@x.com")
+    assert u and u["role"] == "creator" and u["full_name"] == "New"
+
+def test_login_rehashes_legacy_password(db):
+    import hashlib, secrets, time as _t
+    from core import nexora_auth
+    # seed a creator with a LEGACY sha256 hash directly
+    conn = db.get_conn()
+    conn.execute("INSERT INTO nx_creators (email,name,handle,founding,created_at) "
+                 "VALUES (?,?,?,1,?)", ("old@x.com", "Old", "old", _t.time()))
+    cid = conn.execute("SELECT id FROM nx_creators WHERE email='old@x.com'").fetchone()["id"]
+    salt = secrets.token_hex(16)
+    legacy = f"{salt}${hashlib.sha256((salt + 'hunter2').encode()).hexdigest()}"
+    conn.execute("INSERT INTO nx_passwords (creator_id,hash) VALUES (?,?)", (cid, legacy))
+    conn.commit(); conn.close()
+
+    res = nexora_auth.login_creator("old@x.com", "hunter2")
+    assert "token" in res
+    conn = db.get_conn()
+    new_hash = conn.execute("SELECT hash FROM nx_passwords WHERE creator_id=?", (cid,)).fetchone()["hash"]
+    conn.close()
+    assert new_hash.startswith("$2")          # upgraded to bcrypt on login
