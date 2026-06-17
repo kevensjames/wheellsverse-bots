@@ -42,3 +42,23 @@ def test_to_fe_types(db):
     assert fe["social_links"] == {"x": 1}
     assert fe["is_live"] is True
     assert isinstance(fe["created_date"], str) and fe["created_date"].endswith("Z")
+
+def test_entity_query_filter_sort_limit(db):
+    conn = db.get_conn()
+    for i, st in enumerate(["approved", "pending", "approved"]):
+        conn.execute("INSERT INTO nx_creators (email,name,handle,created_at,user_email,status) "
+                     "VALUES (?,?,?,?,?,?)", (f"c{i}@x.com", f"C{i}", f"c{i}", 1700000000.0+i, f"c{i}@x.com", st))
+    conn.commit(); conn.close()
+    out = ent.entity_query("CreatorProfile", {"status": "approved"}, "-created_date", 10)
+    assert len(out) == 2 and all(c["status"] == "approved" for c in out)
+    assert out[0]["created_date"] >= out[1]["created_date"]  # desc
+
+def test_entity_get(db):
+    conn = db.get_conn()
+    conn.execute("INSERT INTO nx_creators (email,name,handle,created_at,user_email) VALUES (?,?,?,?,?)",
+                 ("g@x.com","G","g",1700000000.0,"g@x.com"))
+    cid = conn.execute("SELECT id FROM nx_creators WHERE email='g@x.com'").fetchone()["id"]
+    conn.commit(); conn.close()
+    fe = ent.entity_get("CreatorProfile", cid)
+    assert fe["user_email"] == "g@x.com"
+    assert ent.entity_get("CreatorProfile", 99999) is None

@@ -145,3 +145,40 @@ def _from_fe(entity: str, body: Dict) -> Dict:
                 v = 1 if v else 0
             cols[col] = v
     return cols
+
+
+def entity_query(entity: str, criteria: Optional[Dict], sort: Optional[str],
+                 limit: Optional[int]) -> List[Dict]:
+    spec = ENTITIES[entity]
+    init_db()
+    where, params = [], []
+    for fe, val in (criteria or {}).items():
+        if fe in spec["filterable"]:
+            col, typ = spec["fields"][fe]
+            if typ == "bool":
+                val = 1 if str(val).lower() in ("1", "true") else 0
+            where.append(f"{col}=?"); params.append(val)
+    sql = f"SELECT * FROM {spec['table']}"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    if sort:
+        desc = sort.startswith("-")
+        fe = sort[1:] if desc else sort
+        col = spec["fields"].get(fe, (None,))[0]
+        if col:
+            sql += f" ORDER BY {col} {'DESC' if desc else 'ASC'}"
+    if limit is not None:
+        sql += f" LIMIT {int(limit)}"
+    conn = get_conn()
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [_to_fe(entity, r) for r in rows]
+
+
+def entity_get(entity: str, pk_value) -> Optional[Dict]:
+    spec = ENTITIES[entity]
+    init_db()
+    conn = get_conn()
+    row = conn.execute(f"SELECT * FROM {spec['table']} WHERE {spec['pk']}=?", (pk_value,)).fetchone()
+    conn.close()
+    return _to_fe(entity, row) if row else None
