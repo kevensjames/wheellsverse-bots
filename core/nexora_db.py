@@ -169,6 +169,49 @@ CREATE TABLE IF NOT EXISTS nx_users (
 def init_db() -> None:
     conn = get_conn()
     conn.executescript(_SCHEMA)
+    _ensure_columns(conn, "nx_creators", {
+        "user_email": "user_email TEXT DEFAULT ''",
+        "display_name": "display_name TEXT DEFAULT ''",
+        "category": "category TEXT DEFAULT ''",
+        "cover_url": "cover_url TEXT DEFAULT ''",
+        "social_links": "social_links TEXT DEFAULT '{}'",
+        "status": "status TEXT DEFAULT 'pending'",
+        "verification_status": "verification_status TEXT DEFAULT 'unverified'",
+        "total_earnings": "total_earnings REAL DEFAULT 0",
+        "available_balance": "available_balance REAL DEFAULT 0",
+        "subscriber_count": "subscriber_count INTEGER DEFAULT 0",
+        "follower_count": "follower_count INTEGER DEFAULT 0",
+        "is_live": "is_live INTEGER DEFAULT 0",
+    })
+    _ensure_columns(conn, "nx_posts", {
+        "creator_email": "creator_email TEXT DEFAULT ''",
+        "creator_profile_id": "creator_profile_id INTEGER",
+        "text": "text TEXT DEFAULT ''",
+        "access_type": "access_type TEXT DEFAULT 'free'",
+        "ppv_price": "ppv_price REAL DEFAULT 0",
+        "media_type": "media_type TEXT DEFAULT 'image'",
+        "status": "status TEXT DEFAULT 'published'",
+        "like_count": "like_count INTEGER DEFAULT 0",
+        "comment_count": "comment_count INTEGER DEFAULT 0",
+    })
+    _ensure_columns(conn, "nx_subscribers", {
+        "creator_email": "creator_email TEXT DEFAULT ''",
+        "creator_profile_id": "creator_profile_id INTEGER",
+        "amount": "amount REAL DEFAULT 0",
+        "expires_at": "expires_at REAL",
+    })
+    _ensure_columns(conn, "nx_transactions", {
+        "from_email": "from_email TEXT DEFAULT ''",
+        "to_email": "to_email TEXT DEFAULT ''",
+        "creator_amount": "creator_amount REAL DEFAULT 0",
+        "platform_fee": "platform_fee REAL DEFAULT 0",
+        "description": "description TEXT DEFAULT ''",
+    })
+    _ensure_columns(conn, "nx_payouts", {
+        "creator_email": "creator_email TEXT DEFAULT ''",
+        "payout_method": "payout_method TEXT DEFAULT 'bank'",
+        "admin_notes": "admin_notes TEXT DEFAULT ''",
+    })
     conn.commit()
     conn.close()
 
