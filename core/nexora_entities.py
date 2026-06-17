@@ -57,7 +57,8 @@ ENTITIES = {
         },
         "filterable": ["id", "fan_email", "creator_email", "status"],
         "writable": ["status"],
-        "create_roles": ["admin"], "read_public": False,
+        "create_roles": [], "read_public": False,
+        "self_cols": ["fan_email", "creator_email"],
     },
     "Transaction": {
         "table": "nx_transactions", "pk": "id", "owner_col": "to_email",
@@ -70,7 +71,8 @@ ENTITIES = {
             "created_date": ("created_at", "ts"),
         },
         "filterable": ["id", "from_email", "to_email", "type", "status"],
-        "writable": [], "create_roles": ["admin"], "read_public": False,
+        "writable": [], "create_roles": [], "read_public": False,
+        "self_cols": ["from_email", "to_email"],
     },
     "PayoutRequest": {
         "table": "nx_payouts", "pk": "id", "owner_col": "creator_email",
@@ -81,8 +83,11 @@ ENTITIES = {
             "created_date": ("requested_at", "ts"),
         },
         "filterable": ["id", "creator_email", "status"],
-        "writable": ["status", "admin_notes"],
+        "writable": ["amount", "payout_method"],
+        "writable_admin": ["status", "admin_notes"],
         "create_roles": ["creator", "admin"], "read_public": False,
+        "self_cols": ["creator_email"],
+        "create_link_creator": ["creator_id"],
     },
     "User": {
         "table": "nx_users", "pk": "email", "owner_col": "email",
@@ -95,6 +100,7 @@ ENTITIES = {
         "filterable": ["email", "role", "is_suspended"],
         "writable": ["is_suspended", "full_name"],
         "create_roles": ["admin"], "read_public": False,
+        "self_cols": ["email"],
     },
 }
 
@@ -127,16 +133,22 @@ def _to_fe(entity: str, row) -> Dict:
             except Exception:
                 out[fe] = v
         elif typ == "ts":
-            out[fe] = _iso(v)
+            try:
+                out[fe] = _iso(v)
+            except Exception:
+                out[fe] = None
         else:
             out[fe] = v
     return out
 
 
-def _from_fe(entity: str, body: Dict) -> Dict:
+def _from_fe(entity: str, body: Dict, include_admin: bool = False) -> Dict:
     spec = ENTITIES[entity]
+    allowed = list(spec["writable"])
+    if include_admin:
+        allowed += spec.get("writable_admin", [])
     cols = {}
-    for fe in spec["writable"]:
+    for fe in allowed:
         if fe in body:
             col, typ = spec["fields"][fe]
             v = body[fe]
@@ -237,9 +249,11 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
 
 
 def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Dict]:
+    init_db()
     _require_owner_or_admin(entity, pk_value, actor)
     spec = ENTITIES[entity]
-    cols = _from_fe(entity, body)
+    is_admin = actor.get("role") == "admin"
+    cols = _from_fe(entity, body, include_admin=is_admin)
     if cols:
         sets = ",".join(f"{k}=?" for k in cols)
         conn = get_conn()
@@ -250,6 +264,7 @@ def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Di
 
 
 def entity_delete(entity: str, pk_value, actor: Dict) -> None:
+    init_db()
     _require_owner_or_admin(entity, pk_value, actor)
     spec = ENTITIES[entity]
     conn = get_conn()

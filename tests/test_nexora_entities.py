@@ -106,3 +106,26 @@ def test_entity_create_role_enforced(db):
     # Post create_roles excludes 'fan'
     with pytest.raises(PermissionError):
         ent.entity_create("Post", {"title": "X"}, {"email": "f@x.com", "role": "fan"})
+
+
+def test_admin_only_entities_reject_create(db):
+    admin = {"email": "a@x.com", "role": "admin"}
+    # create_roles=[] -> even admin cannot create via the entity API
+    with pytest.raises(PermissionError):
+        ent.entity_create("Subscription", {"status": "active"}, admin)
+    with pytest.raises(PermissionError):
+        ent.entity_create("Transaction", {"amount": 5}, admin)
+
+
+def test_payout_status_admin_only(db):
+    _mk_creator("c@x.com")
+    creator = {"email": "c@x.com", "role": "creator"}
+    admin = {"email": "ad@x.com", "role": "admin"}
+    pr = ent.entity_create("PayoutRequest", {"amount": 50, "payout_method": "paypal"}, creator)
+    assert pr["amount"] == 50 and pr["payout_method"] == "paypal"
+    # creator CANNOT move their own payout to paid (status not in owner-writable)
+    upd = ent.entity_update("PayoutRequest", pr["id"], {"status": "paid"}, creator)
+    assert upd["status"] != "paid"
+    # admin CAN
+    upd2 = ent.entity_update("PayoutRequest", pr["id"], {"status": "paid", "admin_notes": "ok"}, admin)
+    assert upd2["status"] == "paid" and upd2["admin_notes"] == "ok"
