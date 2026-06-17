@@ -22,9 +22,18 @@ TITLE_PREVIEW_CHARS = 60
 
 
 def _eq_analyze_and_record(user_message: str) -> str:
-    """Detect the message's mood, persist a non-neutral sample, and return the
-    tone-adaptation preamble for the system prompt. Fully fail-open: any error
-    (or KAI_SCOPE_EQ off) yields '' so the chat path is never affected."""
+    """Per-message companion hook: detect mood (persist a non-neutral sample) and
+    bump the relationship interaction counter. Returns the tone-adaptation
+    preamble for the system prompt. Fully fail-open: any error (or scopes off)
+    yields '' so the chat path is never affected."""
+    # Relationship: count this turn toward the shared-history bond (fail-open).
+    try:
+        from app.services.governance import is_scope_enabled
+        if is_scope_enabled("relationship"):
+            from app.services.relationship import storage as rel_storage
+            rel_storage.record_interaction()
+    except Exception:
+        pass
     try:
         from app.services.eq.injection import analyze
         mood, confidence, preamble = analyze(user_message)

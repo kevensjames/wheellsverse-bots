@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_data, admin_digest, admin_eq, admin_failures, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -127,6 +127,21 @@ def _seed_persona():
     except Exception as e:  # pragma: no cover - defensive
         logging.getLogger(__name__).warning("persona seed skipped: %s", e)
 
+
+# Daily check-in scheduler — opt-in via KAI_CHECKIN_SCHEDULER_ENABLED=1. Sends
+# one warm proactive Telegram check-in per day at KAI_CHECKIN_HOUR_UTC; each
+# cycle re-checks KAI_SCOPE_CHECKIN. No startup send.
+@app.on_event("startup")
+def _start_checkin():
+    from app.services.checkin.scheduler import start as _start
+    _start()
+
+
+@app.on_event("shutdown")
+def _stop_checkin():
+    from app.services.checkin.scheduler import stop as _stop
+    _stop()
+
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -167,6 +182,10 @@ app.include_router(admin_twin.router)
 # + emotional intelligence (mood read → tone adaptation, auto on every message).
 app.include_router(admin_persona.router)
 app.include_router(admin_eq.router)
+# Companion relationship + proactive check-in + journal.
+app.include_router(admin_relationship.router)
+app.include_router(admin_checkin.router)
+app.include_router(admin_journal.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_digest.router)
 app.include_router(api_keys_admin.router)

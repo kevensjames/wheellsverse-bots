@@ -208,10 +208,13 @@ data/launches/siteboost/scans/
 # Each subsystem writes its own state under data/<name>/; none of it should
 # be tracked (regenerable + per-host + can contain operator data).
 data/browser/
+data/checkin/
 data/digest/
 data/eq/
 data/failures.jsonl
+data/journal/
 data/persona/
+data/relationship/
 data/governance/
 data/kg/
 data/learning/

@@ -72,6 +72,7 @@ def build_system_prompt(
         lessons_preamble = _auto_lessons_preamble()
     persona = _auto_persona_preamble()
     twin = _auto_twin_preamble()
+    relationship = _auto_relationship_preamble()
     parts = []
     # KAI's OWN persona leads — model attention treats the first block as the
     # primary identity (warm companion voice), before any expert-preset overlay.
@@ -81,6 +82,9 @@ def build_system_prompt(
         parts.append(persona_prompt.strip())
     if twin:
         parts.append(twin.strip())
+    # The shared-history bond sits with the who-you're-talking-to context.
+    if relationship:
+        parts.append(relationship.strip())
     if lessons_preamble:
         parts.append(lessons_preamble.strip())
     if memory_preamble:
@@ -91,6 +95,16 @@ def build_system_prompt(
         parts.append(eq_preamble.strip())
     parts.append(BASE_SYSTEM_PROMPT)
     return "\n\n".join(parts)
+
+
+def _auto_relationship_preamble() -> str:
+    """Pull the KAI↔operator bond (if KAI_SCOPE_RELATIONSHIP is on). Lazy +
+    fail-open."""
+    try:
+        from app.services.relationship.injection import relationship_preamble
+        return relationship_preamble()
+    except Exception:
+        return ""
 
 
 def _auto_persona_preamble() -> str:
