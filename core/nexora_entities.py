@@ -433,6 +433,13 @@ def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Di
         conn.execute(f"UPDATE {spec['table']} SET {sets} WHERE {spec['pk']}=?",
                      [*cols.values(), pk_value])
         conn.commit(); conn.close()
+    # Money reconciliation: when a payout is marked paid, recompute the creator's
+    # balance from source so available_balance reflects the disbursement.
+    if entity == "PayoutRequest" and cols.get("status") == "paid":
+        updated = entity_get(entity, pk_value)
+        if updated and updated.get("creator_email"):
+            from core.nexora_ops import recalc_creator_stats
+            recalc_creator_stats(updated["creator_email"])
     return entity_get(entity, pk_value)
 
 
