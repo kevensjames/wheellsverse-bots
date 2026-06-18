@@ -44,3 +44,22 @@ def test_tip_event_creates_tip(db):
 def test_non_checkout_event_ignored(db):
     out = pay.handle_stripe_event({"type": "payment_intent.created", "data": {"object": {}}})
     assert out.get("received") is True
+
+import core.api as api
+from fastapi.testclient import TestClient
+from unittest.mock import patch
+
+def test_webhook_requires_valid_signature(db):
+    c = TestClient(api.app)
+    with patch("stripe.Webhook.construct_event", side_effect=Exception("bad sig")):
+        r = c.post("/api/nx/stripe-webhook", data=b"{}", headers={"Stripe-Signature": "bad"})
+    assert r.status_code == 400
+
+def test_webhook_processes_verified_event(db):
+    _onboarded_creator("w@x.com")
+    c = TestClient(api.app)
+    ev = _event("tip", fan_email="ff@x.com", creator_email="w@x.com", message="m")
+    with patch("stripe.Webhook.construct_event", return_value=ev):
+        r = c.post("/api/nx/stripe-webhook", data=b"{}", headers={"Stripe-Signature": "ok"})
+    assert r.status_code == 200 and r.json().get("received")
+    assert len(ent.entity_query("Tip", {"to_email": "w@x.com"}, None, None)) == 1
