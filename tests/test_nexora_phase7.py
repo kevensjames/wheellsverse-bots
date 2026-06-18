@@ -52,3 +52,36 @@ def test_admin_only_creates(db):
     admin = {"email": "a@x.com", "role": "admin"}
     al = ent.entity_create("AuditLog", {"action": "approve", "entity_type": "CreatorProfile", "entity_id": "5"}, admin)
     assert al["actor_email"] == "a@x.com" and al["action"] == "approve"
+
+
+import core.api as api
+from core import nexora_users
+from fastapi.testclient import TestClient
+
+def _admin_token(db):
+    nexora_auth.register_creator("admin@x.com", "hunter2", "Admin")
+    nexora_users.set_role("admin@x.com", "admin")
+    return nexora_auth.login_creator("admin@x.com", "hunter2")["token"]
+
+def _h(t): return {"Authorization": f"Bearer {t}"}
+
+def test_report_routes_admin_only_read(db):
+    rep_tok = nexora_auth.register_fan("rep@x.com", "hunter2")["token"]
+    c = TestClient(api.app)
+    r = c.post("/api/nx/e/Report", headers=_h(rep_tok), json={"reported_email": "b@x.com", "reason": "spam"})
+    assert r.status_code == 200
+    assert c.get("/api/nx/e/Report", headers=_h(rep_tok)).status_code == 403
+    atok = _admin_token(db)
+    assert c.get("/api/nx/e/Report", headers=_h(atok)).status_code == 200
+
+def test_creator_verification_routes(db):
+    tok = nexora_auth.register_creator("cv@x.com", "hunter2", "CV")["token"]
+    c = TestClient(api.app)
+    r = c.post("/api/nx/e/CreatorVerification", headers=_h(tok),
+               json={"legal_full_name": "C V", "country": "US", "consent_confirmed": True})
+    assert r.status_code == 200 and r.json()["status"] == "submitted"
+    vid = r.json()["id"]
+    assert c.get("/api/nx/e/CreatorVerification?user_email=cv@x.com", headers=_h(tok)).status_code == 200
+    atok = _admin_token(db)
+    up = c.patch(f"/api/nx/e/CreatorVerification/{vid}", headers=_h(atok), json={"status": "approved"})
+    assert up.status_code == 200 and up.json()["status"] == "approved"
