@@ -378,8 +378,8 @@ function formatApiError(d, fallback) {
 function badge(status) {
   const map = {
     ACTIVE:'badge-green',VERIFIED:'badge-green',SUCCESS:'badge-green',
-    FORMING:'badge-yellow',PENDING:'badge-yellow',COLLECTING:'badge-cyan',
-    FAILED:'badge-red',DELINQUENT:'badge-red',CLOSED:'badge-red',
+    FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',COLLECTING:'badge-cyan',SETTLING:'badge-cyan',COMPLETED:'badge-gray',
+    FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-red',
   };
   return `<span class="badge ${map[status]||'badge-gray'}">${status}</span>`;
 }

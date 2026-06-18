@@ -9,6 +9,9 @@
 <meta property="og:title" content="Sol — Savings circles that pay you back, in turn">
 <meta property="og:description" content="A rotating savings circle: contribute together, get the pool when it's your turn.">
 <meta property="og:type" content="website">
+<meta property="og:image" content="https://app.wheellsverse.com/sol/assets/hero.webp">
+<meta property="og:url" content="https://app.wheellsverse.com/sol">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="stylesheet" href="/sol/sol-design-system.css">
 <style>
 /* Landing-specific styles, built on the Sol design-system tokens. */
@@ -31,7 +34,8 @@ nav .brand img{height:30px}
 .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:2.5rem;align-items:center;
   max-width:72rem;margin:0 auto;padding:4.5rem 1.5rem 3rem}
 .hero h1{font-size:clamp(2.3rem,5vw,3.6rem);line-height:1.08;letter-spacing:-.02em;margin-bottom:1rem}
-.hero h1 .grad{background:linear-gradient(120deg,var(--sol-600),var(--sol-400));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero h1 .grad{color:var(--sol-600);background:linear-gradient(120deg,var(--sol-600),var(--sol-400));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){.hero h1 .grad{-webkit-text-fill-color:var(--sol-600)}}
 .hero p.lede{font-size:1.15rem;color:var(--ink-700);max-width:34rem;margin-bottom:1.75rem}
 .hero-cta{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem}
 .trust-strip{display:flex;gap:1.25rem;flex-wrap:wrap;color:var(--ink-500);font-size:.85rem;font-weight:500}
