@@ -3,11 +3,9 @@ from __future__ import annotations
 import hashlib
 import uuid
 from datetime import datetime, timezone
+from typing import Literal
 
 from pydantic import BaseModel, Field
-
-SEVERITIES = ("critical", "high", "medium", "low", "info")
-CATEGORIES = ("secret", "vuln", "backup")
 
 
 def _now_iso() -> str:
@@ -17,8 +15,8 @@ def _now_iso() -> str:
 class Finding(BaseModel):
     id: str
     ts: str
-    category: str
-    severity: str
+    category: Literal["secret", "vuln", "backup"]
+    severity: Literal["critical", "high", "medium", "low", "info"]
     tool: str
     title: str
     location: str
@@ -29,8 +27,8 @@ class Finding(BaseModel):
     @classmethod
     def create(
         cls,
-        category: str,
-        severity: str,
+        category: Literal["secret", "vuln", "backup"],
+        severity: Literal["critical", "high", "medium", "low", "info"],
         tool: str,
         title: str,
         location: str,
@@ -50,7 +48,7 @@ class Finding(BaseModel):
             location=location,
             fingerprint=fingerprint,
             verified=verified,
-            metadata=metadata or {},
+            metadata=metadata if metadata is not None else {},
         )
 
 
