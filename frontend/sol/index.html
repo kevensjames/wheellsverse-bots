@@ -201,7 +201,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
   <div class="foot-links">
     <a href="/privacy.html">Privacy</a>
     <a href="/terms.html">Terms</a>
-    <a href="/">WheellsVerse</a>
+    <a href="https://wheellsverse.com">WheellsVerse</a>
   </div>
 </footer>
 
@@ -209,8 +209,8 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 
 <!-- Auth Modal (markup preserved verbatim; restyled via CSS only) -->
 <div class="modal-bg" id="authModal">
-  <div class="modal">
-    <button class="close" onclick="closeModal()">✕</button>
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Sign in or create your Sol account">
+    <button class="close" onclick="closeModal()" aria-label="Close">✕</button>
     <div class="tab-row">
       <button class="tab active" id="tabLogin" onclick="switchTab('login')">Sign in</button>
       <button class="tab" id="tabRegister" onclick="switchTab('register')">Register</button>
@@ -223,7 +223,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="email" id="loginEmail" placeholder="you@example.com" required></div>
       <div class="field"><label>Password</label>
         <input type="password" id="loginPassword" placeholder="Your password" required></div>
-      <p class="err" id="loginErr"></p>
+      <p class="err" id="loginErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn">Sign in</button>
     </form>
 
@@ -236,7 +236,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="email" id="regEmail" placeholder="you@example.com" required></div>
       <div class="field"><label>Password</label>
         <input type="password" id="regPassword" placeholder="Min 8 characters" minlength="8" required></div>
-      <p class="err" id="regErr"></p>
+      <p class="err" id="regErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="regBtn">Create account</button>
     </form>
   </div>
@@ -260,6 +260,10 @@ function switchTab(tab) {
 }
 document.getElementById('authModal').addEventListener('click', function(e) {
   if (e.target === this) closeModal();
+});
+// Esc closes the modal (keyboard accessibility) — additive only.
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape' && document.getElementById('authModal').classList.contains('open')) closeModal();
 });
 
 // FastAPI returns 422 validation errors as detail=[{loc,msg,type}, ...]; if we
