@@ -103,35 +103,42 @@ def handle_stripe_event(event: Dict) -> Dict:
     platform, creator_amount = _split(amount)
     now = _time.time()
     conn = get_conn()
+    # Idempotency: Stripe retries webhooks at-least-once. A transaction already
+    # recorded for this session id means we've processed it — no-op.
+    if stripe_id and conn.execute("SELECT 1 FROM nx_transactions WHERE stripe_id=?",
+                                  (stripe_id,)).fetchone():
+        conn.close()
+        return {"received": True, "duplicate": stripe_id}
     crow = _creator_row(conn, creator_email)
     cid = crow["id"] if crow else None
+    if cid is None:
+        # Unknown creator — ack so Stripe stops retrying; ops reconciles out of band.
+        conn.close()
+        return {"received": True, "unknown_creator": creator_email}
     try:
         if t == "subscription":
             conn.execute(
                 "INSERT INTO nx_subscribers (creator_id,fan_email,status,price_paid,started_at,"
                 "creator_email,amount,expires_at) VALUES (?,?,?,?,?,?,?,?)",
-                (cid or 0, fan_email, "active", amount, now, creator_email, amount, now + 30 * 86400))
-            if cid:
-                conn.execute("UPDATE nx_creators SET subscriber_count=subscriber_count+1, "
-                             "total_earnings=total_earnings+?, available_balance=available_balance+? WHERE id=?",
-                             (creator_amount, creator_amount, cid))
+                (cid, fan_email, "active", amount, now, creator_email, amount, now + 30 * 86400))
+            conn.execute("UPDATE nx_creators SET subscriber_count=subscriber_count+1, "
+                         "total_earnings=total_earnings+?, available_balance=available_balance+? WHERE id=?",
+                         (creator_amount, creator_amount, cid))
             _notify(conn, creator_email, "new_subscriber", "New subscriber!", f"{fan_email} subscribed")
         elif t == "ppv":
             conn.execute("INSERT INTO nx_content_purchases (fan_email,creator_email,creator_id,post_id,amount,created_at) "
                          "VALUES (?,?,?,?,?,?)",
                          (fan_email, creator_email, cid, int(meta.get("post_id") or 0), amount, now))
-            if cid:
-                conn.execute("UPDATE nx_creators SET total_earnings=total_earnings+?, available_balance=available_balance+? WHERE id=?",
-                             (creator_amount, creator_amount, cid))
+            conn.execute("UPDATE nx_creators SET total_earnings=total_earnings+?, available_balance=available_balance+? WHERE id=?",
+                         (creator_amount, creator_amount, cid))
             _notify(conn, creator_email, "system", "Content unlocked", f"{fan_email} purchased your content")
         elif t == "tip":
             conn.execute("INSERT INTO nx_tips (from_email,to_email,creator_id,amount,message,livestream_id,created_at) "
                          "VALUES (?,?,?,?,?,?,?)",
                          (fan_email, creator_email, cid, amount, meta.get("message", ""),
                           int(meta.get("livestream_id") or 0) or None, now))
-            if cid:
-                conn.execute("UPDATE nx_creators SET total_earnings=total_earnings+?, available_balance=available_balance+? WHERE id=?",
-                             (creator_amount, creator_amount, cid))
+            conn.execute("UPDATE nx_creators SET total_earnings=total_earnings+?, available_balance=available_balance+? WHERE id=?",
+                         (creator_amount, creator_amount, cid))
             _notify(conn, creator_email, "system", "You got a tip!", f"{fan_email} tipped ${amount:.2f}")
         else:
             conn.close()
@@ -140,7 +147,7 @@ def handle_stripe_event(event: Dict) -> Dict:
             "INSERT INTO nx_transactions (creator_id,fan_email,amount,platform_cut,creator_cut,type,stripe_id,"
             "status,created_at,from_email,to_email,creator_amount,platform_fee,description) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            (cid or 0, fan_email, amount, platform, creator_amount, t, stripe_id, "succeeded", now,
+            (cid, fan_email, amount, platform, creator_amount, t, stripe_id, "succeeded", now,
              fan_email, creator_email, creator_amount, platform, f"{t} payment"))
         conn.commit()
     finally:

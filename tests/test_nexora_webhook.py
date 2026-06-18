@@ -63,3 +63,28 @@ def test_webhook_processes_verified_event(db):
         r = c.post("/api/nx/stripe-webhook", data=b"{}", headers={"Stripe-Signature": "ok"})
     assert r.status_code == 200 and r.json().get("received")
     assert len(ent.entity_query("Tip", {"to_email": "w@x.com"}, None, None)) == 1
+
+
+def test_duplicate_event_is_idempotent(db):
+    _onboarded_creator("dup@x.com")
+    ev = _event("tip", fan_email="ff@x.com", creator_email="dup@x.com", message="m")
+    pay.handle_stripe_event(ev)
+    out = pay.handle_stripe_event(ev)   # same stripe id again (Stripe retry)
+    assert out.get("duplicate") == "cs_1"
+    assert len(ent.entity_query("Tip", {"to_email": "dup@x.com"}, None, None)) == 1
+    assert len(ent.entity_query("Transaction", {"to_email": "dup@x.com"}, None, None)) == 1
+    prof = ent.entity_query("CreatorProfile", {"user_email": "dup@x.com"}, None, 1)[0]
+    assert abs(prof["total_earnings"] - 9.0) < 0.01   # NOT 18.0
+
+
+def test_duplicate_subscription_no_500(db):
+    _onboarded_creator("s@x.com")
+    ev = _event("subscription", fan_email="fan2@x.com", creator_email="s@x.com")
+    assert pay.handle_stripe_event(ev).get("received") is True
+    assert pay.handle_stripe_event(ev).get("duplicate") == "cs_1"   # idempotent, no IntegrityError
+
+
+def test_unknown_creator_acked_no_records(db):
+    out = pay.handle_stripe_event(_event("tip", fan_email="f@x.com", creator_email="ghost@x.com"))
+    assert out.get("unknown_creator") == "ghost@x.com"
+    assert len(ent.entity_query("Transaction", {"to_email": "ghost@x.com"}, None, None)) == 0

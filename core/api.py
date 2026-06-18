@@ -10867,7 +10867,7 @@ async def nx_stripe_webhook(request: Request):
     import stripe
     payload = await request.body()
     sig = request.headers.get("Stripe-Signature", "")
-    secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    secret = os.getenv("NEXORA_STRIPE_WEBHOOK_SECRET") or os.getenv("STRIPE_WEBHOOK_SECRET", "")
     stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
     try:
         event = stripe.Webhook.construct_event(payload, sig, secret)
