@@ -10615,6 +10615,39 @@ async def nx_fn_nexora_data(request: Request):
     raise HTTPException(status_code=400, detail="Unknown action")
 
 
+@app.post("/api/nx/fn/createSubscriptionCheckout")
+async def nx_fn_sub_checkout(request: Request):
+    user = _nx_require_user(request)
+    body = await request.json()
+    from core.nexora_payments import create_subscription_checkout
+    try:
+        return create_subscription_checkout(user, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/nx/fn/createTipCheckout")
+async def nx_fn_tip_checkout(request: Request):
+    user = _nx_require_user(request)
+    body = await request.json()
+    from core.nexora_payments import create_tip_checkout
+    try:
+        return create_tip_checkout(user, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post("/api/nx/fn/createPPVCheckout")
+async def nx_fn_ppv_checkout(request: Request):
+    user = _nx_require_user(request)
+    body = await request.json()
+    from core.nexora_payments import create_ppv_checkout
+    try:
+        return create_ppv_checkout(user, body)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 # ── Creator profile ────────────────────────────────────────────────────────────
 
 @app.get("/api/nx/me")
@@ -10830,42 +10863,20 @@ async def nx_stats(request: Request):
 
 @app.post("/api/nx/stripe-webhook")
 async def nx_stripe_webhook(request: Request):
-    """
-    Handle Stripe checkout.session.completed events.
-    Expects metadata: {creator_handle, fan_email, fan_name}
-    """
-    import json as _json
-    body = await request.body()
+    """Verify the Stripe signature, then create money records by metadata.type."""
+    import stripe
+    payload = await request.body()
+    sig = request.headers.get("Stripe-Signature", "")
+    secret = os.getenv("NEXORA_STRIPE_WEBHOOK_SECRET") or os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
     try:
-        event = _json.loads(body)
+        event = stripe.Webhook.construct_event(payload, sig, secret)
     except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
-
-    event_type = event.get("type", "")
-    if event_type in ("checkout.session.completed", "invoice.payment_succeeded"):
-        obj      = event.get("data", {}).get("object", {})
-        meta     = obj.get("metadata", {})
-        handle   = meta.get("creator_handle", "")
-        fan_email = (
-            meta.get("fan_email")
-            or obj.get("customer_email")
-            or obj.get("customer_details", {}).get("email", "")
-        )
-        fan_name  = meta.get("fan_name", "")
-        amount    = obj.get("amount_total", 0) / 100  # cents → dollars
-        stripe_id = obj.get("id", "")
-
-        if handle and fan_email:
-            from core.nexora_db import (get_creator_by_handle, add_subscriber,
-                                         record_transaction)
-            creator = get_creator_by_handle(handle)
-            if creator:
-                add_subscriber(creator["id"], fan_email, fan_name, amount, stripe_id)
-                record_transaction(creator["id"], amount, "subscription",
-                                   fan_email, stripe_id)
-                _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
-
-    return {"received": True}
+        raise HTTPException(status_code=400, detail="Invalid signature")
+    if not isinstance(event, dict):
+        event = event.to_dict_recursive()
+    from core.nexora_payments import handle_stripe_event
+    return handle_stripe_event(event)
 
 
 # ── Fan auth endpoints ────────────────────────────────────────────────────────
