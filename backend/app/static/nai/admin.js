@@ -282,10 +282,88 @@ function activateTab(name) {
     loadSol();
   } else if (name === "persona") {
     loadPersona();
+  } else if (name === "security") {
+    loadSecurity();
   }
 }
 
 // ─── Persona (KAI's character) + mood ─────────────────────────────────
+
+// ─── Security Center ──────────────────────────────────────────────────
+
+function secAddCell(tr, text, mono) {
+  const td = document.createElement("td");
+  if (mono) {
+    const c = document.createElement("code");
+    c.textContent = text;
+    td.appendChild(c);
+  } else {
+    td.textContent = text;
+  }
+  tr.appendChild(td);
+}
+
+async function loadSecurity() {
+  const overall = $("#security-score-overall");
+  const ts = $("#security-score-ts");
+  const scoreBody = $("#security-score-table tbody");
+  const findBody = $("#security-findings-table tbody");
+  const statusLine = $("#security-status-line");
+  const scanBtn = $("#security-scan-now");
+  if (scanBtn && !scanBtn.dataset.bound) {
+    scanBtn.dataset.bound = "1";
+    scanBtn.addEventListener("click", async () => {
+      try {
+        await apiPost("/admin/security/scan", {});
+        if (statusLine) statusLine.textContent = "scan queued — results appear within ~5 min";
+      } catch (e) {
+        if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+        else if (statusLine) statusLine.textContent = "scan request failed";
+      }
+    });
+  }
+  try {
+    const s = await apiGet("/admin/security/summary");
+    if (s.status === "no-data") {
+      if (overall) overall.textContent = "no scan yet";
+      if (scoreBody) scoreBody.innerHTML = "";
+      if (findBody) findBody.innerHTML = "<tr><td colspan='4'>Run a scan to populate.</td></tr>";
+      return;
+    }
+    if (overall) overall.textContent = (s.score && s.score.overall != null) ? `${s.score.overall}/100` : "—";
+    if (ts) ts.textContent = s.generated_at || "—";
+    if (scoreBody) {
+      scoreBody.innerHTML = "";
+      ((s.score && s.score.categories) || []).forEach((c) => {
+        const tr = document.createElement("tr");
+        const score = c.score == null ? "unknown" : `${c.score}%`;
+        secAddCell(tr, c.name);
+        secAddCell(tr, score);
+        secAddCell(tr, c.detail || "");
+        scoreBody.appendChild(tr);
+      });
+    }
+    const f = await apiGet("/admin/security/findings");
+    if (findBody) {
+      findBody.innerHTML = "";
+      const items = f.findings || [];
+      if (!items.length) {
+        findBody.innerHTML = "<tr><td colspan='4'>No findings 🎉</td></tr>";
+      } else {
+        items.forEach((x) => {
+          const tr = document.createElement("tr");
+          secAddCell(tr, x.severity);
+          secAddCell(tr, x.title);
+          secAddCell(tr, x.location, true);
+          secAddCell(tr, x.tool);
+          findBody.appendChild(tr);
+        });
+      }
+    }
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); }
+  }
+}
 
 async function loadPersona() {
   await Promise.all([loadPersonaTraits(), loadPersonaMood()]);

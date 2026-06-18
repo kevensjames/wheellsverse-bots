@@ -26,6 +26,7 @@
         <button type="button" class="admin-tab" data-tab="learning">Learning</button>
         <button type="button" class="admin-tab" data-tab="twin">Twin</button>
         <button type="button" class="admin-tab" data-tab="audit">Audit</button>
+        <button type="button" class="admin-tab" data-tab="security">🔐 Security</button>
         <button type="button" class="admin-tab" data-tab="sol">Sol</button>
         <button type="button" class="admin-tab" data-tab="persona">Persona</button>
       </nav>
@@ -182,6 +183,45 @@
           </table>
         </div>
       </div><!-- /admin-pane-scanner -->
+
+      <!-- ─── Security Center tab ─── -->
+      <div id="admin-pane-security" class="admin-pane" hidden>
+        <div class="admin-card">
+          <div class="admin-chat-toolbar">
+            <h2>🔐 Security Center</h2>
+            <div class="admin-chat-tools">
+              <span id="security-status-line" class="admin-chat-status">—</span>
+              <button type="button" id="security-scan-now" class="admin-btn admin-btn-primary">scan now</button>
+            </div>
+          </div>
+          <p class="admin-hint">
+            Secret (gitleaks/trufflehog), vulnerability (trivy) and backup (restic) scans run
+            out-of-process; this reads their results. The score is honest — <strong>unknown</strong>
+            means a category isn't monitored yet, never a free pass. Secrets are stored as redacted
+            fingerprints, never raw values.
+          </p>
+        </div>
+
+        <div class="admin-card">
+          <h2>Security score</h2>
+          <div id="security-score-meta" class="admin-stat-row">
+            <span>overall</span><strong id="security-score-overall">—</strong>
+            <span>last scan</span><strong id="security-score-ts">—</strong>
+          </div>
+          <table class="admin-table" id="security-score-table">
+            <thead><tr><th>category</th><th>score</th><th>detail</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="admin-card">
+          <h2>Findings</h2>
+          <table class="admin-table" id="security-findings-table">
+            <thead><tr><th>severity</th><th>title</th><th>location</th><th>tool</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div><!-- /admin-pane-security -->
 
       <!-- ─── Brief tab ─── -->
       <div id="admin-pane-brief" class="admin-pane" hidden>
