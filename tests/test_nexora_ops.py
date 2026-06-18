@@ -75,3 +75,29 @@ def test_recalc_case_insensitive_email(db):
     conn.commit(); conn.close()
     res = ops.recalc_creator_stats("mix@x.com")
     assert res["follower_count"] == 1   # matched despite MIX vs mix
+
+def test_payout_paid_decrements_balance(db):
+    import time as _t
+    nexora_auth.register_creator("pb@x.com", "hunter2", "PB")
+    creator = {"email": "pb@x.com", "role": "creator"}
+    ent.entity_create("CreatorProfile", {"display_name": "PB"}, creator)
+    conn = db.get_conn(); now = _t.time()
+    conn.execute("INSERT INTO nx_transactions (creator_id,amount,platform_cut,creator_cut,created_at,to_email,creator_amount,platform_fee,status) "
+                 "VALUES (?,?,?,?,?,?,?,?,?)", (1, 22, 2, 20, now, "pb@x.com", 20.0, 2.0, "succeeded"))
+    conn.commit(); conn.close()
+    pr = ent.entity_create("PayoutRequest", {"amount": 5, "payout_method": "paypal"}, creator)
+    admin = {"email": "adm@x.com", "role": "admin"}
+    ent.entity_update("PayoutRequest", pr["id"], {"status": "paid"}, admin)
+    prof = ent.entity_query("CreatorProfile", {"user_email": "pb@x.com"}, None, 1)[0]
+    assert abs(prof["total_earnings"] - 20.0) < 0.01
+    assert abs(prof["available_balance"] - 15.0) < 0.01   # 20 earned - 5 paid out
+
+def test_non_paid_payout_update_does_not_recalc(db):
+    # a status change to something other than 'paid' should not trigger reconciliation errors
+    creator = {"email": "np@x.com", "role": "creator"}
+    nexora_auth.register_creator("np@x.com", "hunter2", "NP")
+    ent.entity_create("CreatorProfile", {"display_name": "NP"}, creator)
+    pr = ent.entity_create("PayoutRequest", {"amount": 5, "payout_method": "paypal"}, creator)
+    admin = {"email": "a2@x.com", "role": "admin"}
+    out = ent.entity_update("PayoutRequest", pr["id"], {"status": "rejected", "admin_notes": "no"}, admin)
+    assert out["status"] == "rejected"
