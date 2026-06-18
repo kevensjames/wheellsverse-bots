@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from pathlib import Path
 
 from .models import Finding, SecuritySnapshot
@@ -27,9 +28,18 @@ class SecurityStore:
         if not record.get("fingerprint"):
             raise ValueError("finding missing fingerprint — refusing to persist")
         meta = record.get("metadata") or {}
-        for k in meta:
-            if str(k).lower() in _FORBIDDEN_KEYS:
-                raise ValueError(f"forbidden raw-secret key in finding metadata: {k}")
+        self._scan_forbidden_keys(meta)
+
+    def _scan_forbidden_keys(self, obj: object) -> None:
+        """Recursively scan dicts (and dicts inside lists) for forbidden keys."""
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                if str(k).lower() in _FORBIDDEN_KEYS:
+                    raise ValueError(f"forbidden raw-secret key in finding metadata: {k}")
+                self._scan_forbidden_keys(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                self._scan_forbidden_keys(item)
 
     def append_findings(self, findings: list[Finding]) -> None:
         # validate ALL before writing ANY (no partial writes)
@@ -46,9 +56,14 @@ class SecurityStore:
                     fh.write(ln + "\n")
 
     def write_latest(self, snapshot: SecuritySnapshot) -> None:
-        tmp = self.base / "latest.json.tmp"
-        tmp.write_text(snapshot.model_dump_json(indent=2), encoding="utf-8")
-        os.replace(tmp, self.base / "latest.json")
+        fd, tmp_path = tempfile.mkstemp(dir=self.base, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(snapshot.model_dump_json(indent=2))
+            os.replace(tmp_path, self.base / "latest.json")
+        except Exception:
+            os.unlink(tmp_path)
+            raise
 
     def read_latest(self) -> SecuritySnapshot | None:
         p = self.base / "latest.json"

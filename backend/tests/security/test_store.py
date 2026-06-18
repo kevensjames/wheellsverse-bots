@@ -34,8 +34,19 @@ def test_append_findings_rejects_raw_secret_key(tmp_path):
     bad.metadata["secret"] = "AKIA-LEAK"
     with pytest.raises(ValueError):
         store.append_findings([bad])
+    # nothing should have been written (not just secrets.jsonl)
+    assert list(tmp_path.glob("*.jsonl")) == []
+
+
+def test_append_findings_rejects_nested_secret_key(tmp_path):
+    store = SecurityStore(tmp_path)
+    bad = Finding.create("secret", "high", "gitleaks", "k", "f:2")
+    # smuggle a raw secret nested inside a dict value
+    bad.metadata["ctx"] = {"secret": "AKIA-LEAK"}
+    with pytest.raises(ValueError):
+        store.append_findings([bad])
     # nothing should have been written
-    assert not (tmp_path / "secrets.jsonl").exists()
+    assert list(tmp_path.glob("*.jsonl")) == []
 
 
 def test_append_findings_writes_jsonl(tmp_path):
