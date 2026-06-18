@@ -52,3 +52,26 @@ def test_recalc_route_admin_only(db):
     atok = nexora_auth.login_creator("adm@x.com", "hunter2")["token"]
     r = c.post("/api/nx/admin/recalc-stats", headers={"Authorization": f"Bearer {atok}"}, json={"creator_email": "cr@x.com"})
     assert r.status_code == 200 and r.json()["result"]["subscriber_count"] == 2
+
+def test_recalc_excludes_non_succeeded_transactions(db):
+    nexora_auth.register_creator("e@x.com", "hunter2", "E")
+    ent.entity_create("CreatorProfile", {"display_name": "E"}, {"email": "e@x.com", "role": "creator"})
+    import time as _t
+    conn = db.get_conn(); now = _t.time()
+    conn.execute("INSERT INTO nx_transactions (creator_id,amount,platform_cut,creator_cut,created_at,to_email,creator_amount,platform_fee,status) "
+                 "VALUES (?,?,?,?,?,?,?,?,?)", (1, 11, 1, 10, now, "e@x.com", 10.0, 1.0, "succeeded"))
+    conn.execute("INSERT INTO nx_transactions (creator_id,amount,platform_cut,creator_cut,created_at,to_email,creator_amount,platform_fee,status) "
+                 "VALUES (?,?,?,?,?,?,?,?,?)", (1, 11, 1, 10, now, "e@x.com", 10.0, 1.0, "refunded"))
+    conn.commit(); conn.close()
+    res = ops.recalc_creator_stats("e@x.com")
+    assert abs(res["total_earnings"] - 10.0) < 0.01   # only the succeeded txn counts, not the refunded
+
+def test_recalc_case_insensitive_email(db):
+    nexora_auth.register_creator("mix@x.com", "hunter2", "M")
+    ent.entity_create("CreatorProfile", {"display_name": "M"}, {"email": "mix@x.com", "role": "creator"})
+    import time as _t
+    conn = db.get_conn()
+    conn.execute("INSERT INTO nx_follows (fan_email,creator_email,created_at) VALUES (?,?,?)", ("z@x.com", "MIX@x.com", _t.time()))
+    conn.commit(); conn.close()
+    res = ops.recalc_creator_stats("mix@x.com")
+    assert res["follower_count"] == 1   # matched despite MIX vs mix
