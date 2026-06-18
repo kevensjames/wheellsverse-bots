@@ -184,6 +184,69 @@ ENTITIES = {
         "writable": [], "create_roles": [],
         "read_public": False, "self_cols": ["from_email", "to_email"],
     },
+    "Report": {
+        "table": "nx_reports", "pk": "id", "owner_col": "reporter_email",
+        "fields": {
+            "id": ("id", "int"), "reporter_email": ("reporter_email", "str"),
+            "reported_email": ("reported_email", "str"), "reason": ("reason", "str"),
+            "details": ("details", "str"), "status": ("status", "str"),
+            "admin_notes": ("admin_notes", "str"), "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "reporter_email", "reported_email", "status"],
+        "writable": ["reported_email", "reason", "details"],
+        "writable_admin": ["status", "admin_notes"],
+        "create_roles": ["fan", "creator", "admin"],
+        "read_public": False, "self_cols": ["reporter_email"],
+    },
+    "ModerationAction": {
+        "table": "nx_moderation_actions", "pk": "id", "owner_col": "admin_email",
+        "immutable": True,
+        "fields": {
+            "id": ("id", "int"), "admin_email": ("admin_email", "str"),
+            "target_user_email": ("target_user_email", "str"), "action_type": ("action_type", "str"),
+            "reason": ("reason", "str"), "notes": ("notes", "str"),
+            "related_report_id": ("related_report_id", "int"), "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "admin_email", "target_user_email"],
+        "writable": ["target_user_email", "action_type", "reason", "notes", "related_report_id"],
+        "create_roles": ["admin"],
+        "read_public": False, "self_cols": ["admin_email"],
+    },
+    "AuditLog": {
+        "table": "nx_audit_logs", "pk": "id", "owner_col": "actor_email",
+        "immutable": True,
+        "fields": {
+            "id": ("id", "int"), "actor_email": ("actor_email", "str"),
+            "action": ("action", "str"), "entity_type": ("entity_type", "str"),
+            "entity_id": ("entity_id", "str"), "details": ("details", "str"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "actor_email", "action", "entity_type"],
+        "writable": ["action", "entity_type", "entity_id", "details"],
+        "create_roles": ["admin"],
+        "read_public": False, "self_cols": ["actor_email"],
+    },
+    "CreatorVerification": {
+        "table": "nx_creator_verifications", "pk": "id", "owner_col": "user_email",
+        "fields": {
+            "id": ("id", "int"), "user_email": ("user_email", "str"),
+            "legal_full_name": ("legal_full_name", "str"), "date_of_birth": ("date_of_birth", "str"),
+            "country": ("country", "str"), "document_type": ("document_type", "str"),
+            "document_front_url": ("document_front_url", "str"),
+            "document_back_url": ("document_back_url", "str"), "selfie_url": ("selfie_url", "str"),
+            "consent_confirmed": ("consent_confirmed", "bool"), "status": ("status", "str"),
+            "reviewed_at": ("reviewed_at", "str"),
+            "reviewed_by_admin_email": ("reviewed_by_admin_email", "str"),
+            "review_notes": ("review_notes", "str"),
+            "submitted_at": ("created_at", "ts"), "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "user_email", "status"],
+        "writable": ["legal_full_name", "date_of_birth", "country", "document_type",
+                     "document_front_url", "document_back_url", "selfie_url", "consent_confirmed"],
+        "writable_admin": ["status", "reviewed_at", "reviewed_by_admin_email", "review_notes"],
+        "create_roles": ["creator", "admin"],
+        "read_public": False, "self_cols": ["user_email"],
+    },
 }
 
 
@@ -357,6 +420,8 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
 
 
 def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Dict]:
+    if ENTITIES[entity].get("immutable"):
+        raise PermissionError("immutable")
     init_db()
     _require_owner_or_admin(entity, pk_value, actor)
     spec = ENTITIES[entity]
@@ -372,6 +437,8 @@ def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Di
 
 
 def entity_delete(entity: str, pk_value, actor: Dict) -> None:
+    if ENTITIES[entity].get("immutable"):
+        raise PermissionError("immutable")
     init_db()
     _require_owner_or_admin(entity, pk_value, actor)
     spec = ENTITIES[entity]
