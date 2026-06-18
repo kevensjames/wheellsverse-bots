@@ -45,3 +45,23 @@ def test_strong_agent_security_when_governance_ok():
                           last_snapshot_age_s=3600), secrets_scanned=True, vulns_scanned=True)
     cats = {c.name: c.score for c in score.categories}
     assert cats["Agent Security"] >= 80
+
+
+def test_unchecked_rate_limiting_is_unknown_and_caps():
+    # rate_limiting_present=None (the default in _posture) must yield score=None for API Security
+    # and cap the overall below 100 (has_unknown path)
+    score = compute_score(
+        [],
+        _posture(
+            rate_limiting_present=None,
+            plaintext_secret_files=[],
+        ),
+        BackupStatus(configured=True, check_ok=True, last_snapshot_age_s=3600),
+        secrets_scanned=True,
+        vulns_scanned=True,
+    )
+    cats = {c.name: c.score for c in score.categories}
+    assert cats["API Security"] is None, "API Security must be None when rate-limiting was never checked"
+    assert score.overall is not None and score.overall < 100, (
+        "overall must be capped below 100 while API Security is unknown"
+    )

@@ -58,7 +58,8 @@ def compute_score(
     else:
         enc_base = 100 - 20 * len(posture.plaintext_secret_files)
         enc = _penalize(max(0, enc_base), secrets)
-        enc_detail = f"{len(posture.plaintext_secret_files)} plaintext secret file(s), {len(secrets)} finding(s)"
+        enc_detail = (f"{len(posture.plaintext_secret_files)} plaintext secret file(s), {len(secrets)} finding(s)"
+                      + ("" if secrets_scanned else " [scanner not run]"))
     cats.append(CategoryScore(name="Encryption / secrets-at-rest", score=enc, detail=enc_detail))
 
     # Backups — real freshness
@@ -76,14 +77,16 @@ def compute_score(
                                   detail=f"age={backup.last_snapshot_age_s}s check_ok={backup.check_ok}"))
 
     # API Security — HTTPS via Railway + bearer tiers; rate-limit unknown unless asserted
-    api = 80
-    if posture.rate_limiting_present is True:
-        api = 95
-    elif posture.rate_limiting_present is False:
-        api = 65
-    cats.append(CategoryScore(name="API Security", score=api,
-                              detail="HTTPS+bearer tiers; rate-limit "
-                                     + {True: "on", False: "MISSING", None: "unknown"}[posture.rate_limiting_present]))
+    if posture.rate_limiting_present is None:
+        api_score: int | None = None
+        api_detail = "HTTPS+bearer tiers; rate-limiting not checked"
+    elif posture.rate_limiting_present is True:
+        api_score = 95
+        api_detail = "HTTPS+bearer tiers; rate-limit on"
+    else:
+        api_score = 65
+        api_detail = "HTTPS+bearer tiers; rate-limit MISSING"
+    cats.append(CategoryScore(name="API Security", score=api_score, detail=api_detail))
 
     # Agent Security — governance is KAI's strength
     agent = 90 if posture.governance_ok else 40
@@ -104,7 +107,9 @@ def compute_score(
     if not known:
         overall = None
     else:
-        total_w = sum(w for _, w in known) or 1.0
+        total_w = sum(w for _, w in known)
+        if total_w == 0:
+            raise ValueError("_WEIGHTS sum to zero across known categories — fix _WEIGHTS")
         overall = round(sum(c.score * w for c, w in known) / total_w)
         if has_unknown:
             overall = min(overall, 95)
