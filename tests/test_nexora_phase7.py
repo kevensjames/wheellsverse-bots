@@ -85,3 +85,14 @@ def test_creator_verification_routes(db):
     atok = _admin_token(db)
     up = c.patch(f"/api/nx/e/CreatorVerification/{vid}", headers=_h(atok), json={"status": "approved"})
     assert up.status_code == 200 and up.json()["status"] == "approved"
+
+def test_audit_and_moderation_immutable(db):
+    admin = {"email": "a@x.com", "role": "admin"}
+    al = ent.entity_create("AuditLog", {"action": "x"}, admin)
+    with pytest.raises(PermissionError):
+        ent.entity_update("AuditLog", al["id"], {"action": "tamper"}, admin)
+    with pytest.raises(PermissionError):
+        ent.entity_delete("AuditLog", al["id"], admin)
+    ma = ent.entity_create("ModerationAction", {"action_type": "ban", "target_user_email": "t@x.com"}, admin)
+    with pytest.raises(PermissionError):
+        ent.entity_delete("ModerationAction", ma["id"], admin)

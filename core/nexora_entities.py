@@ -200,6 +200,7 @@ ENTITIES = {
     },
     "ModerationAction": {
         "table": "nx_moderation_actions", "pk": "id", "owner_col": "admin_email",
+        "immutable": True,
         "fields": {
             "id": ("id", "int"), "admin_email": ("admin_email", "str"),
             "target_user_email": ("target_user_email", "str"), "action_type": ("action_type", "str"),
@@ -213,6 +214,7 @@ ENTITIES = {
     },
     "AuditLog": {
         "table": "nx_audit_logs", "pk": "id", "owner_col": "actor_email",
+        "immutable": True,
         "fields": {
             "id": ("id", "int"), "actor_email": ("actor_email", "str"),
             "action": ("action", "str"), "entity_type": ("entity_type", "str"),
@@ -418,6 +420,8 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
 
 
 def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Dict]:
+    if ENTITIES[entity].get("immutable"):
+        raise PermissionError("immutable")
     init_db()
     _require_owner_or_admin(entity, pk_value, actor)
     spec = ENTITIES[entity]
@@ -433,6 +437,8 @@ def entity_update(entity: str, pk_value, body: Dict, actor: Dict) -> Optional[Di
 
 
 def entity_delete(entity: str, pk_value, actor: Dict) -> None:
+    if ENTITIES[entity].get("immutable"):
+        raise PermissionError("immutable")
     init_db()
     _require_owner_or_admin(entity, pk_value, actor)
     spec = ENTITIES[entity]
