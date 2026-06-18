@@ -48,6 +48,17 @@ def _eq_analyze_and_record(user_message: str) -> str:
         return ""
 
 
+def _format_proposal(proposal: dict) -> str:
+    """Render a super-router plan proposal as a friendly chat reply."""
+    lines = [f"This looks multi-step, so I broke it into a plan — "
+             f"**{proposal.get('title', 'Plan')}** ({proposal.get('step_count', 0)} steps):"]
+    for i, step in enumerate(proposal.get("steps", []), 1):
+        lines.append(f"{i}. {step}")
+    lines.append(f"\nApprove it in the Plans tab (plan #{proposal.get('plan_id')}) and "
+                 "I'll run it step by step. Or just tell me to go ahead.")
+    return "\n".join(lines)
+
+
 class Brain:
     def __init__(
         self,
@@ -164,6 +175,34 @@ class Brain:
         preview = first_user_message.strip().splitlines()[0][:TITLE_PREVIEW_CHARS]
         conv.title = preview or "New Chat"
 
+    def _maybe_superroute(self, conv, user_id, user_message, use_tools, prefer_local):
+        """If the super-router is enabled and this is a multi-step ask, decompose
+        it into a PROPOSED plan and return (conv, assistant_msg, cost). Else None.
+        Fully fail-open — any error returns None so chat falls back to normal."""
+        try:
+            from app.services import superrouter
+            if not (use_tools and superrouter.enabled()):
+                return None
+            ok, _reason = superrouter.should_plan(user_message)
+            if not ok:
+                return None
+            proposal = superrouter.propose_plan(
+                user_message, router=self.router, user_id=user_id, prefer_local=prefer_local)
+            if not proposal:
+                return None
+            cost = float(proposal.get("proposal_cost_usd", 0.0))
+            assistant_msg = self._save_message(
+                conv, "assistant", _format_proposal(proposal),
+                adapter="superrouter", model_used="planner", cost_usd=cost, tokens_used=0)
+            conv.updated_at = func.now()
+            self.session.commit()
+            self.session.refresh(assistant_msg)
+            self.session.refresh(conv)
+            return conv, assistant_msg, cost
+        except Exception as e:  # pragma: no cover - defensive
+            logger.warning("superrouter: skipped (%s)", e)
+            return None
+
     # --- Main entry points -----------------------------------------------
 
     def chat(
@@ -189,6 +228,15 @@ class Brain:
 
         self._save_message(conv, "user", user_message)
         self._maybe_set_title(conv, user_message)
+
+        # Super-router (P3): a genuinely multi-step ask gets decomposed into a
+        # PROPOSED plan instead of a one-shot answer (flag-gated KAI_SUPERROUTER_
+        # ENABLED, propose-then-approve). Fail-open: any error falls through to a
+        # normal reply.
+        proposal_msg = self._maybe_superroute(conv, user_id, user_message,
+                                               use_tools, prefer_local)
+        if proposal_msg is not None:
+            return proposal_msg
 
         memory_preamble = build_memory_preamble(
             self.session, user_id, user_message, k=3
