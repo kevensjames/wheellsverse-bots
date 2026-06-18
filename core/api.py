@@ -10615,6 +10615,18 @@ async def nx_fn_nexora_data(request: Request):
     raise HTTPException(status_code=400, detail="Unknown action")
 
 
+@app.post("/api/nx/admin/recalc-stats")
+async def nx_admin_recalc_stats(request: Request):
+    _nx_require_admin(request)
+    body = await request.json()
+    from core.nexora_ops import recalc_creator_stats, recalc_all
+    email = body.get("creator_email")
+    if email:
+        return {"ok": True, "result": recalc_creator_stats(email)}
+    results = recalc_all()
+    return {"ok": True, "recalculated": len(results), "results": results}
+
+
 @app.post("/api/nx/fn/createSubscriptionCheckout")
 async def nx_fn_sub_checkout(request: Request):
     user = _nx_require_user(request)
