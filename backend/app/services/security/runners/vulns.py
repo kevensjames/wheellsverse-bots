@@ -25,6 +25,26 @@ def parse_trivy(stdout: str) -> list[Finding]:
                 tool="trivy", title=f"{vid}: {v.get('Title','')}".strip(), location=loc,
                 secret=None, metadata={"cve": vid, "pkg": v.get("PkgName")},
             ))
+        for sec in res.get("Secrets") or []:
+            # trivy --scanners secret can surface secrets too; route the raw match
+            # through secret= so it is fingerprinted, never stored.
+            out.append(Finding.create(
+                category="secret",
+                severity=_SEV.get(sec.get("Severity", "UNKNOWN"), "info"),
+                tool="trivy", title=f"{sec.get('RuleID', 'secret')}: {sec.get('Title', '')}".strip(),
+                location=f"{target}:{sec.get('StartLine', '?')}",
+                secret=sec.get("Match") or sec.get("RuleID") or target,
+                metadata={"rule": sec.get("RuleID")},
+            ))
+        for mis in res.get("Misconfigurations") or []:
+            mid = mis.get("ID", "misconfig")
+            out.append(Finding.create(
+                category="vuln",
+                severity=_SEV.get(mis.get("Severity", "UNKNOWN"), "info"),
+                tool="trivy", title=f"{mid}: {mis.get('Title', '')}".strip(),
+                location=f"{mid} ({target})",
+                secret=None, metadata={"id": mid, "kind": "misconfig"},
+            ))
     return out
 
 

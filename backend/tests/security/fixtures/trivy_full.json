@@ -1,0 +1,4 @@
+{"Results":[
+  {"Target":"app.py","Secrets":[{"RuleID":"aws-secret","Title":"AWS secret","Severity":"CRITICAL","StartLine":5,"Match":"key=AKIA9XYZ7QW2NB4VDLM0"}]},
+  {"Target":"Dockerfile","Misconfigurations":[{"ID":"DS002","Title":"run as root","Severity":"HIGH"}]}
+]}

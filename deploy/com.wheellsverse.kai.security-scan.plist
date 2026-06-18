@@ -5,13 +5,25 @@
   <key>Label</key><string>com.wheellsverse.kai.security-scan</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/usr/bin/python3</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin/python</string>
     <string>/Users/jhonwheeler/wheellsverse_bots/scripts/security_worker.py</string>
   </array>
+  <key>WorkingDirectory</key><string>/Users/jhonwheeler/wheellsverse_bots</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <!-- venv first (pydantic etc.), then /opt/homebrew/bin so gitleaks/trivy/restic resolve. -->
+    <key>PATH</key><string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>KAI_SCOPE_SECURITY</key><string>1</string>
+    <key>KAI_SCOPE_SECURITY_SCAN</key><string>1</string>
+    <!-- Backup secrets are NOT committed here. Add RESTIC_REPOSITORY, RESTIC_PASSWORD,
+         B2_ACCOUNT_ID, B2_ACCOUNT_KEY to this dict (or a sourced private env file) per
+         docs/security/SETUP.md once your Backblaze B2 bucket exists. Until then, secret
+         and vuln scans run; the Backups category honestly reads "not configured". -->
+  </dict>
   <key>StartCalendarInterval</key>
   <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>0</integer></dict>
-  <key>StandardOutPath</key><string>/Users/jhonwheeler/wheellsverse_bots/data/logs/security-scan.log</string>
-  <key>StandardErrorPath</key><string>/Users/jhonwheeler/wheellsverse_bots/data/logs/security-scan.err</string>
+  <key>StandardOutPath</key><string>/Users/jhonwheeler/Library/Logs/wheellsverse/security-scan.log</string>
+  <key>StandardErrorPath</key><string>/Users/jhonwheeler/Library/Logs/wheellsverse/security-scan.log</string>
   <key>RunAtLoad</key><false/>
 </dict>
 </plist>

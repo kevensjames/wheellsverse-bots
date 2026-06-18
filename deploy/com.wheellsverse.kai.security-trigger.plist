@@ -4,10 +4,20 @@
 <dict>
   <key>Label</key><string>com.wheellsverse.kai.security-trigger</string>
   <key>ProgramArguments</key>
-  <array><string>/bin/bash</string>
-    <string>/Users/jhonwheeler/wheellsverse_bots/deploy/security_trigger.sh</string></array>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/jhonwheeler/wheellsverse_bots/deploy/security_trigger.sh</string>
+  </array>
+  <key>WorkingDirectory</key><string>/Users/jhonwheeler/wheellsverse_bots</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key><string>/Users/jhonwheeler/wheellsverse_bots/.venv/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>KAI_SCOPE_SECURITY</key><string>1</string>
+    <key>KAI_SCOPE_SECURITY_SCAN</key><string>1</string>
+  </dict>
   <key>StartInterval</key><integer>300</integer>
-  <key>StandardErrorPath</key><string>/Users/jhonwheeler/wheellsverse_bots/data/logs/security-trigger.err</string>
+  <key>StandardOutPath</key><string>/Users/jhonwheeler/Library/Logs/wheellsverse/security-trigger.log</string>
+  <key>StandardErrorPath</key><string>/Users/jhonwheeler/Library/Logs/wheellsverse/security-trigger.log</string>
   <key>RunAtLoad</key><false/>
 </dict>
 </plist>

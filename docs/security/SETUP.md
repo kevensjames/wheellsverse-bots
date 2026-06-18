@@ -31,9 +31,20 @@ restic init
 ```
 
 `RESTIC_REPOSITORY`, `B2_ACCOUNT_ID`, `B2_ACCOUNT_KEY`, and `RESTIC_PASSWORD`
-must be present in the worker's environment when it runs.
+must be present in the worker's environment when it runs. **launchd does not read
+your shell or `.env`**, so add these to the `EnvironmentVariables` dict in
+`deploy/com.wheellsverse.kai.security-scan.plist` (there is a commented
+placeholder there) — or have the worker load them from wvkey at startup. Until
+they're set, secret + vuln scans still run and the **Backups** category honestly
+reads "not configured" (score 0). Do not commit real secret values into the plist
+if the repo is shared.
 
-## 3. Enable the scopes
+## 3. Scopes (pre-set for launchd; export only for manual runs)
+
+The launchd plists already set `KAI_SCOPE_SECURITY=1` and
+`KAI_SCOPE_SECURITY_SCAN=1` in their `EnvironmentVariables`, and put the venv +
+`/opt/homebrew/bin` on `PATH` so the scanner binaries resolve. For a manual
+`python3 scripts/security_worker.py` run from your shell, export them yourself:
 
 ```bash
 export KAI_SCOPE_SECURITY=1        # parent — enables security.*
