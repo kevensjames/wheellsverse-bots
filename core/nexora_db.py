@@ -283,6 +283,15 @@ CREATE TABLE IF NOT EXISTS nx_platform_settings (
     value       TEXT    DEFAULT '',
     created_at  REAL    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS nx_dms (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_email      TEXT    NOT NULL,
+    to_email        TEXT    DEFAULT '',
+    conversation_id TEXT    DEFAULT '',
+    text            TEXT    DEFAULT '',
+    created_at      REAL    NOT NULL
+);
 """
 
 

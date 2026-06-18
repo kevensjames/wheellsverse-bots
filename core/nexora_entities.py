@@ -226,6 +226,18 @@ ENTITIES = {
         "create_roles": ["admin"],
         "read_public": False, "self_cols": ["actor_email"],
     },
+    "Message": {
+        "table": "nx_dms", "pk": "id", "owner_col": "from_email", "auto_scope_self": True,
+        "fields": {
+            "id": ("id", "int"), "from_email": ("from_email", "str"),
+            "to_email": ("to_email", "str"), "conversation_id": ("conversation_id", "str"),
+            "text": ("text", "str"), "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["id", "from_email", "to_email", "conversation_id"],
+        "writable": ["to_email", "conversation_id", "text"],
+        "create_roles": ["fan", "creator", "admin"],
+        "read_public": False, "self_cols": ["from_email", "to_email"],
+    },
     "PlatformSettings": {
         "table": "nx_platform_settings", "pk": "key", "no_owner": True, "pk_from_body": True,
         "fields": {
@@ -332,6 +344,39 @@ def entity_query(entity: str, criteria: Optional[Dict], sort: Optional[str],
     if sort:
         desc = sort.startswith("-")
         fe = sort[1:] if desc else sort
+        col = spec["fields"].get(fe, (None,))[0]
+        if col:
+            sql += f" ORDER BY {col} {'DESC' if desc else 'ASC'}"
+    if limit is not None:
+        sql += f" LIMIT {int(limit)}"
+    conn = get_conn()
+    rows = conn.execute(sql, params).fetchall()
+    conn.close()
+    return [_to_fe(entity, r) for r in rows]
+
+
+def entity_query_scoped(entity: str, criteria: Optional[Dict], sort: Optional[str],
+                        limit: Optional[int], scope_cols: List[str], email: str) -> List[Dict]:
+    """Like entity_query but restricts to rows where `email` matches ANY scope_col (OR),
+    AND any additional filterable criteria. For auto_scope_self entities."""
+    spec = ENTITIES[entity]
+    init_db()
+    where, params = [], []
+    ors = []
+    for c in scope_cols:
+        col = spec["fields"][c][0]
+        ors.append(f"{col}=? COLLATE NOCASE"); params.append(email)
+    if ors:
+        where.append("(" + " OR ".join(ors) + ")")
+    for fe, val in (criteria or {}).items():
+        if fe in spec["filterable"] and fe not in scope_cols:
+            col, typ = spec["fields"][fe]
+            where.append(f"{col}=?"); params.append(val)
+    sql = f"SELECT * FROM {spec['table']}"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    if sort:
+        desc = sort.startswith("-"); fe = sort[1:] if desc else sort
         col = spec["fields"].get(fe, (None,))[0]
         if col:
             sql += f" ORDER BY {col} {'DESC' if desc else 'ASC'}"

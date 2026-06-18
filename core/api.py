@@ -10535,6 +10535,10 @@ def nx_entity_list(entity: str, request: Request):
     # (unless admin). The request must filter by one of the entity's self_cols == the
     # actor's email; otherwise it could read other users' rows.
     if not spec.get("read_public") and user["role"] != "admin":
+        if spec.get("auto_scope_self"):
+            from core.nexora_entities import entity_query_scoped
+            return entity_query_scoped(entity, qp, sort, int(limit) if limit else None,
+                                       self_cols, user["email"])
         if not any(qp.get(c) == user["email"] for c in self_cols):
             raise HTTPException(status_code=403, detail="Not allowed")
     return entity_query(entity, qp, sort, int(limit) if limit else None)
