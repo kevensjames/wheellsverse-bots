@@ -1,0 +1,3 @@
+[
+  {"RuleID":"aws-access-token","Description":"AWS Access Key","File":"data/.env","StartLine":12,"Secret":"AKIAIOSFODNN7EXAMPLE","Match":"AKIA...","Fingerprint":"data/.env:aws-access-token:12"}
+]
