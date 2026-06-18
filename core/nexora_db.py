@@ -277,6 +277,12 @@ CREATE TABLE IF NOT EXISTS nx_creator_verifications (
     review_notes            TEXT    DEFAULT '',
     created_at              REAL    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS nx_platform_settings (
+    key         TEXT    PRIMARY KEY,
+    value       TEXT    DEFAULT '',
+    created_at  REAL    NOT NULL
+);
 """
 
 

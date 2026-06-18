@@ -226,6 +226,16 @@ ENTITIES = {
         "create_roles": ["admin"],
         "read_public": False, "self_cols": ["actor_email"],
     },
+    "PlatformSettings": {
+        "table": "nx_platform_settings", "pk": "key", "no_owner": True, "pk_from_body": True,
+        "fields": {
+            "id": ("key", "str"), "key": ("key", "str"), "value": ("value", "str"),
+            "created_date": ("created_at", "ts"),
+        },
+        "filterable": ["key"],
+        "writable": ["key", "value"],
+        "create_roles": ["admin"], "read_public": False,
+    },
     "CreatorVerification": {
         "table": "nx_creator_verifications", "pk": "id", "owner_col": "user_email",
         "fields": {
@@ -372,7 +382,9 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
         raise PermissionError("not allowed")
     init_db()
     cols = _from_fe(entity, body)
-    if spec.get("owner_from_body"):
+    if spec.get("no_owner"):
+        pass
+    elif spec.get("owner_from_body"):
         # entity is created FOR a recipient (e.g. Notification) — owner comes from the body
         owner_fe = next(fe for fe, (c, _t) in spec["fields"].items() if c == spec["owner_col"])
         if owner_fe not in body:
@@ -414,7 +426,12 @@ def entity_create(entity: str, body: Dict, actor: Dict) -> Dict:
     conn = get_conn()
     cur = conn.execute(f"INSERT INTO {spec['table']} ({','.join(keys)}) VALUES ({placeholders})",
                        [cols[k] for k in keys])
-    new_pk = actor["email"] if spec["pk"] == spec["owner_col"] else cur.lastrowid
+    if spec.get("pk_from_body"):
+        new_pk = cols.get(spec["pk"])
+    elif spec["pk"] == spec.get("owner_col"):
+        new_pk = actor["email"]
+    else:
+        new_pk = cur.lastrowid
     conn.commit(); conn.close()
     return entity_get(entity, new_pk)
 
