@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -186,6 +186,8 @@ app.include_router(admin_eq.router)
 app.include_router(admin_relationship.router)
 app.include_router(admin_checkin.router)
 app.include_router(admin_journal.router)
+# Super-router: decompose a complex ask into a proposed plan (P3 "smarter" layer).
+app.include_router(admin_superrouter.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_digest.router)
 app.include_router(api_keys_admin.router)
