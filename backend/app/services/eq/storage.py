@@ -64,6 +64,7 @@ def _conn() -> Iterator[sqlite3.Connection]:
     c = sqlite3.connect(str(EQ_DB_PATH), isolation_level=None)
     c.row_factory = sqlite3.Row
     try:
+        c.execute("PRAGMA busy_timeout=5000")  # parity: wait briefly vs fail on a contended write
         c.execute("PRAGMA journal_mode=WAL")
         c.executescript(_SCHEMA)
         yield c

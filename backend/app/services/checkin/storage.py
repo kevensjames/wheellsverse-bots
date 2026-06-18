@@ -88,6 +88,13 @@ def record_checkin(date_key: str, message: str, sent: bool) -> CheckIn | None:
                        sent=sent, created_at=now)
 
 
+def get_by_date(date_key: str) -> CheckIn | None:
+    with _conn() as c:
+        r = c.execute("SELECT * FROM checkins WHERE date_key=?", (date_key,)).fetchone()
+    return CheckIn(id=r["id"], date_key=r["date_key"], message=r["message"],
+                   sent=bool(r["sent"]), created_at=r["created_at"]) if r else None
+
+
 def set_sent(date_key: str, sent: bool = True) -> None:
     with _conn() as c:
         c.execute("UPDATE checkins SET sent=? WHERE date_key=?",

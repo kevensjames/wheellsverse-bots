@@ -74,29 +74,50 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+# Schema is created ONCE per DB path, not on every connection — record_interaction
+# runs on every chat turn, so re-running executescript per call would add needless
+# write work + lock contention to the synchronous chat path. (Set is keyed by path
+# so per-test temp DBs each initialize cleanly.)
+_INITIALIZED: set[str] = set()
+
+
+def _init_schema() -> None:
+    p = str(REL_DB_PATH)
+    if p in _INITIALIZED:
+        return
+    c = sqlite3.connect(p, isolation_level=None)
+    try:
+        c.execute("PRAGMA journal_mode=WAL")
+        c.executescript(_SCHEMA)
+    finally:
+        c.close()
+    _INITIALIZED.add(p)
+
+
 @contextlib.contextmanager
 def _conn() -> Iterator[sqlite3.Connection]:
+    _init_schema()
     c = sqlite3.connect(str(REL_DB_PATH), isolation_level=None)
     c.row_factory = sqlite3.Row
     try:
-        c.execute("PRAGMA busy_timeout=5000")
-        c.execute("PRAGMA journal_mode=WAL")
-        c.executescript(_SCHEMA)
+        # 2s (not 5s): the per-turn interaction bump must fail FAST into the
+        # caller's fail-open try/except under contention, never stall a reply.
+        c.execute("PRAGMA busy_timeout=2000")
         yield c
     finally:
         c.close()
 
 
 def _ensure_state(c: sqlite3.Connection) -> None:
-    row = c.execute("SELECT 1 FROM relationship_state WHERE id=1").fetchone()
-    if not row:
-        now = _now()
-        c.execute(
-            "INSERT INTO relationship_state (id, interaction_count, trust_score, "
-            "first_met, last_interaction, created_at, updated_at) "
-            "VALUES (1, 0, ?, ?, NULL, ?, ?)",
-            (_TRUST_START, now, now, now),
-        )
+    # INSERT OR IGNORE: race-safe single-row seed (PK/CHECK(id=1) makes a
+    # concurrent second insert a silent no-op instead of an IntegrityError).
+    now = _now()
+    c.execute(
+        "INSERT OR IGNORE INTO relationship_state (id, interaction_count, trust_score, "
+        "first_met, last_interaction, created_at, updated_at) "
+        "VALUES (1, 0, ?, ?, NULL, ?, ?)",
+        (_TRUST_START, now, now, now),
+    )
 
 
 def familiarity_from_count(count: int) -> int:

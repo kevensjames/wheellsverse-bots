@@ -133,8 +133,11 @@ def _seed_persona():
 # cycle re-checks KAI_SCOPE_CHECKIN. No startup send.
 @app.on_event("startup")
 def _start_checkin():
-    from app.services.checkin.scheduler import start as _start
-    _start()
+    try:
+        from app.services.checkin.scheduler import start as _start
+        _start()
+    except Exception as e:  # pragma: no cover - a companion import must never block boot
+        logging.getLogger(__name__).warning("checkin scheduler start skipped: %s", e)
 
 
 @app.on_event("shutdown")

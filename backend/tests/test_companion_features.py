@@ -76,13 +76,31 @@ def test_checkin_idempotent_per_day():
     assert ckstore.has_checkin("20260617") is True
 
 
-def test_run_checkin_records_and_dedups():
-    r1 = cksched.run_checkin(deliver=False)          # no Telegram in tests
-    assert r1["sent"] is False and r1["already_done"] is False and r1["message"]
-    r2 = cksched.run_checkin(deliver=False)          # same day → already done
-    assert r2["already_done"] is True
-    r3 = cksched.run_checkin(deliver=False, force=True)  # force re-runs
-    assert r3["already_done"] is False
+def test_run_checkin_dedups_only_after_real_delivery(monkeypatch):
+    # Synchronous boolean sender (real delivery), not fire-and-forget notify().
+    monkeypatch.setattr("app.services.supreme.scanner.telegram_send", lambda *a, **k: True)
+    r1 = cksched.run_checkin()
+    assert r1["sent"] is True and r1["already_done"] is False and r1["message"]
+    r2 = cksched.run_checkin()                       # delivered today → done
+    assert r2["already_done"] is True and r2["sent"] is False
+    r3 = cksched.run_checkin(force=True)             # force re-sends
+    assert r3["sent"] is True and r3["already_done"] is False
+
+
+def test_run_checkin_failed_delivery_is_not_fabricated_and_retries(monkeypatch):
+    # The HIGH bug: a failed send must report sent=False (not fabricated True) and
+    # must remain retryable (not silently recorded as done).
+    calls = {"n": 0}
+    def flaky_send(*a, **k):
+        calls["n"] += 1
+        return calls["n"] >= 2                        # first send fails, second succeeds
+    monkeypatch.setattr("app.services.supreme.scanner.telegram_send", flaky_send)
+    r1 = cksched.run_checkin()
+    assert r1["sent"] is False and r1["already_done"] is False   # NOT fabricated
+    row = ckstore.recent(1)[0]
+    assert row.sent is False                          # recorded the TRUE (failed) outcome
+    r2 = cksched.run_checkin()                        # retries the undelivered day
+    assert r2["sent"] is True and r2["already_done"] is False
 
 
 def test_checkin_scheduler_status():

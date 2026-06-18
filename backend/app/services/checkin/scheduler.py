@@ -59,25 +59,33 @@ def run_checkin(*, force: bool = False, deliver: bool = True) -> dict[str, Any]:
         logger.warning("checkin: import failed (%s)", e)
         return {"sent": False, "already_done": False, "message": "", "error": str(e)}
 
-    if not force and storage.has_checkin(date_key):
-        return {"sent": False, "already_done": True, "message": ""}
+    # Already DELIVERED today? (sent-aware, not just row-exists) → done. A claimed
+    # but UNDELIVERED row (sent=0, prior send failed) falls through so we retry it.
+    existing = storage.get_by_date(date_key)
+    if existing and existing.sent and not force:
+        return {"sent": False, "already_done": True, "message": existing.message}
 
-    message = composer.compose_checkin()
-    # CLAIM the day BEFORE sending (UNIQUE date_key). Only the caller that wins the
-    # insert sends — so a manual run-now racing the scheduled tick can't double-send.
-    rec = storage.record_checkin(date_key, message, sent=False)
-    if rec is None and not force:  # someone else already claimed today
-        return {"sent": False, "already_done": True, "message": message}
+    message = existing.message if existing else composer.compose_checkin()
+    if not existing:
+        # CLAIM the day BEFORE sending (UNIQUE date_key) so a manual run-now racing
+        # the scheduled tick can't double-send.
+        rec = storage.record_checkin(date_key, message, sent=False)
+        if rec is None and not force:  # lost the claim race
+            cur = storage.get_by_date(date_key)
+            return {"sent": False, "already_done": bool(cur and cur.sent), "message": message}
 
     sent = False
     if deliver:
+        # SYNCHRONOUS sender that returns a REAL delivery boolean (same as the
+        # digest scheduler) — NOT fire-and-forget notify(), which would let us
+        # fabricate sent=True and silently drop a failed check-in with no retry.
         try:
-            from app.services import observability
-            observability.notify("🌅 <b>KAI check-in</b>\n" + observability._html_escape(message))
-            sent = True
-            storage.set_sent(date_key, True)
+            from app.services.supreme.scanner import telegram_send
+            sent = bool(telegram_send("🌅 KAI check-in\n" + message))
         except Exception as e:  # pragma: no cover
             logger.warning("checkin: send failed (%s)", e)
+            sent = False
+        storage.set_sent(date_key, sent)  # record the TRUE outcome
     return {"sent": sent, "already_done": False, "message": message}
 
 
@@ -90,7 +98,11 @@ def _loop() -> None:
             if _scope_on():
                 try:
                     res = run_checkin()
-                    last_day = today_key  # mark done even if send failed
+                    # Advance ONLY when actually delivered (or already done) — a
+                    # failed send leaves last_day unset so the next 60s tick retries
+                    # within the scheduled hour instead of silently dropping the day.
+                    if res.get("sent") or res.get("already_done"):
+                        last_day = today_key
                     logger.info("checkin: scheduled (sent=%s already=%s)",
                                 res.get("sent"), res.get("already_done"))
                 except Exception as e:  # pragma: no cover

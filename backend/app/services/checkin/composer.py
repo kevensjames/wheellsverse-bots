@@ -42,7 +42,7 @@ def _active_goal() -> str:
         from app.services.twin import storage as twin
         goals = twin.list_entries(section="goals", status="active", limit=1)
         if goals:
-            return goals[0].text
+            return goals[0].text.strip()[:300]  # cap so the Telegram msg stays < 4096
     except Exception:
         pass
     return ""
