@@ -227,6 +227,56 @@ CREATE TABLE IF NOT EXISTS nx_tips (
     livestream_id   INTEGER,
     created_at      REAL    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS nx_reports (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    reporter_email  TEXT    NOT NULL,
+    reported_email  TEXT    DEFAULT '',
+    reason          TEXT    DEFAULT '',
+    details         TEXT    DEFAULT '',
+    status          TEXT    DEFAULT 'open',
+    admin_notes     TEXT    DEFAULT '',
+    created_at      REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_moderation_actions (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    admin_email         TEXT    NOT NULL,
+    target_user_email   TEXT    DEFAULT '',
+    action_type         TEXT    DEFAULT '',
+    reason              TEXT    DEFAULT '',
+    notes               TEXT    DEFAULT '',
+    related_report_id   INTEGER,
+    created_at          REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_audit_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    actor_email TEXT    NOT NULL,
+    action      TEXT    DEFAULT '',
+    entity_type TEXT    DEFAULT '',
+    entity_id   TEXT    DEFAULT '',
+    details     TEXT    DEFAULT '',
+    created_at  REAL    NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS nx_creator_verifications (
+    id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_email              TEXT    NOT NULL,
+    legal_full_name         TEXT    DEFAULT '',
+    date_of_birth           TEXT    DEFAULT '',
+    country                 TEXT    DEFAULT '',
+    document_type           TEXT    DEFAULT '',
+    document_front_url      TEXT    DEFAULT '',
+    document_back_url       TEXT    DEFAULT '',
+    selfie_url              TEXT    DEFAULT '',
+    consent_confirmed       INTEGER DEFAULT 0,
+    status                  TEXT    DEFAULT 'submitted',
+    reviewed_at             TEXT    DEFAULT '',
+    reviewed_by_admin_email TEXT    DEFAULT '',
+    review_notes            TEXT    DEFAULT '',
+    created_at              REAL    NOT NULL
+);
 """
 
 
