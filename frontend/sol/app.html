@@ -583,6 +583,10 @@ async function loadOnboarding() {
 }
 
 // ── Dashboard groups ──────────────────────────────────────────────────────────
+// Statuses that mean a circle is over — kept out of the main grid so a pile of
+// old/failed/cancelled circles never buries the ones the member is active in.
+const ENDED_GROUP_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+
 async function loadDashGroups() {
   const el = document.getElementById('dashGroups');
   try {
@@ -591,7 +595,23 @@ async function loadDashGroups() {
       el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
       return;
     }
-    el.innerHTML = `<div class="group-grid">${gs.map(groupCard).join('')}</div>`;
+
+    const active = gs.filter(g => !ENDED_GROUP_STATUSES.has(g.status));
+    const ended = gs.filter(g => ENDED_GROUP_STATUSES.has(g.status));
+
+    const activeHtml = active.length
+      ? `<div class="group-grid">${active.map(groupCard).join('')}</div>`
+      : `<div class="empty">No active circles right now. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
+
+    // Ended circles collapse into a single toggle instead of flooding the page.
+    const endedHtml = ended.length
+      ? `<details style="margin-top:1rem">
+           <summary style="cursor:pointer;color:var(--muted);font-size:.85rem;user-select:none">Show ${ended.length} ended circle${ended.length === 1 ? '' : 's'}</summary>
+           <div class="group-grid" style="margin-top:.75rem;opacity:.65">${ended.map(groupCard).join('')}</div>
+         </details>`
+      : '';
+
+    el.innerHTML = activeHtml + endedHtml;
   } catch { el.innerHTML = '<div class="empty">Could not load circles</div>'; }
 }
 
