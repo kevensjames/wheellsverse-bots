@@ -134,6 +134,44 @@ def test_dispute_flips_to_disputed_and_revokes(db):
     assert subs[0]["status"] == "cancelled"
 
 
+def _dispute_closed_event(event_id, payment_intent, status):
+    return {"id": event_id, "type": "charge.dispute.closed",
+            "data": {"object": {"id": "dp_c", "payment_intent": payment_intent, "status": status}}}
+
+
+def test_dispute_won_restores_earnings(db):
+    _onboarded_creator("dw@x.com")
+    pay.handle_stripe_event(_checkout("cs_dw", "subscription", "dw@x.com", payment_intent="pi_dw"))
+    pay.handle_stripe_event(_dispute_event("evt_dw", "pi_dw"))            # disputed -> earnings 0
+    assert _txn_status("cs_dw")["status"] == "disputed"
+    pay.handle_stripe_event(_dispute_closed_event("evt_dw2", "pi_dw", "won"))
+    assert _txn_status("cs_dw")["status"] == "succeeded"                  # restored
+    prof = ent.entity_query("CreatorProfile", {"user_email": "dw@x.com"}, None, 1)[0]
+    assert abs(prof["total_earnings"] - 9.0) < 0.01
+
+
+def test_dispute_lost_keeps_earnings_debited(db):
+    _onboarded_creator("dl@x.com")
+    pay.handle_stripe_event(_checkout("cs_dl", "subscription", "dl@x.com", payment_intent="pi_dl"))
+    pay.handle_stripe_event(_dispute_event("evt_dl", "pi_dl"))
+    pay.handle_stripe_event(_dispute_closed_event("evt_dl2", "pi_dl", "lost"))
+    assert _txn_status("cs_dl")["status"] == "disputed"                  # still debited
+    prof = ent.entity_query("CreatorProfile", {"user_email": "dl@x.com"}, None, 1)[0]
+    assert abs(prof["total_earnings"]) < 0.01
+
+
+def test_dispute_won_restore_idempotent(db):
+    _onboarded_creator("dwi@x.com")
+    pay.handle_stripe_event(_checkout("cs_dwi", "tip", "dwi@x.com", payment_intent="pi_dwi"))
+    pay.handle_stripe_event(_dispute_event("evt_dwi", "pi_dwi"))
+    ev = _dispute_closed_event("evt_dwi2", "pi_dwi", "won")
+    pay.handle_stripe_event(ev)
+    out = pay.handle_stripe_event(ev)                                    # retry
+    assert out.get("duplicate_event") == "evt_dwi2"
+    prof = ent.entity_query("CreatorProfile", {"user_email": "dwi@x.com"}, None, 1)[0]
+    assert abs(prof["total_earnings"] - 9.0) < 0.01                      # restored once, not 18
+
+
 def test_refund_idempotent_on_retry(db):
     _onboarded_creator("ri@x.com")
     pay.handle_stripe_event(_checkout("cs_i", "tip", "ri@x.com", payment_intent="pi_i"))

@@ -119,6 +119,8 @@ def handle_stripe_event(event: Dict) -> Dict:
         return _handle_refund(event, obj)
     if etype == "charge.dispute.created":
         return _handle_dispute(event, obj)
+    if etype == "charge.dispute.closed":
+        return _handle_dispute_closed(event, obj)
     if etype in ("account.updated", "transfer.created", "payout.paid", "payout.failed"):
         return _handle_connect_event(etype, obj)
     return {"received": True, "ignored": etype}
@@ -281,6 +283,42 @@ def _handle_refund(event: Dict, obj: Dict) -> Dict:
 
 def _handle_dispute(event: Dict, obj: Dict) -> Dict:
     return _reverse_earnings(event, obj, full_status="disputed")
+
+
+def _handle_dispute_closed(event: Dict, obj: Dict) -> Dict:
+    """Resolve a chargeback. status='won' -> the charge stands, so RESTORE the
+    creator's earnings (flip 'disputed' back to 'succeeded' + recalc). status='lost'
+    (or anything else) -> earnings stay debited; no-op. Access is NOT auto-restored
+    (a won dispute doesn't imply the soured relationship should resume — product call)."""
+    status = (obj.get("status") or "").lower()
+    conn = get_conn()
+    creator_email = ""
+    restored = False
+    try:
+        if _event_seen(conn, event.get("id", "")):
+            return {"received": True, "duplicate_event": event.get("id")}
+        txn = _find_txn_by_charge(conn, obj)
+        if txn is None:
+            return {"received": True, "no_matching_txn": obj.get("payment_intent") or obj.get("id")}
+        creator_email = txn["to_email"]
+        # Only restore a row we actually debited via dispute (idempotent: a second
+        # 'won' for an already-restored row finds status='succeeded' and no-ops).
+        if status == "won" and txn["status"] == "disputed":
+            conn.execute("UPDATE nx_transactions SET status='succeeded', refunded_amount=0 WHERE id=?",
+                         (txn["id"],))
+            restored = True
+            _notify(conn, creator_email, "system", "Dispute won",
+                    f"A ${txn['amount']:.2f} dispute resolved in your favor — earnings restored")
+        conn.commit()
+    finally:
+        conn.close()
+    if creator_email and restored:
+        try:
+            from core.nexora_ops import recalc_creator_stats
+            recalc_creator_stats(creator_email)
+        except Exception as e:  # noqa: BLE001 — self-heals via recalc_all()
+            return {"received": True, "recalc_deferred": str(e)}
+    return {"received": True, "dispute_closed": status, "restored": restored}
 
 
 def _handle_checkout(event: Dict, obj: Dict) -> Dict:
