@@ -177,6 +177,21 @@ app.add_middleware(
 # APP_ENV indicates production (production=HTTPS=safe to set HSTS).
 app.add_middleware(SecurityHeadersMiddleware, app_env=settings.APP_ENV)
 
+
+# Never let the operator dashboard go stale: the /kai-ui + /nai-ui app shell
+# (HTML/JS/CSS/avatar) must always revalidate, so a new build shows on a plain
+# reload instead of being served from a sticky browser cache.
+@app.middleware("http")
+async def _no_cache_dashboard(request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/kai-ui") or path.startswith("/nai-ui"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
+
 app.include_router(auth.router)
 app.include_router(predictions.router)
 app.include_router(billing.router)
