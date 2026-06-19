@@ -6,7 +6,7 @@
 // window): adminChatPost(), apiGet(), getToken(), fmtUSD(). Falls back
 // gracefully if any are absent. Purely additive — admin.js is untouched.
 
-import { KaiAvatar } from './avatar.js?v=cyborg2';
+import { KaiAvatar } from './avatar.js?v=cyborg3';
 
 const $ = (s) => document.querySelector(s);
 const token = () => (window.getToken ? window.getToken() : '') || '';
