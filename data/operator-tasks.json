@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "updated_at": "2026-06-19",
+  "tasks": [
+    {
+      "id": "twenty-api-rotation",
+      "title": "Rotate Twenty API key",
+      "status": "TODO",
+      "severity": "high",
+      "description": "Twenty API key was exposed in chat. Rotate immediately at app.twenty.com/settings/api-keys, then update wvkey vault + Railway env vars.",
+      "action_url": "https://app.twenty.com/settings/api-keys",
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "operator-email",
+      "title": "Set OPERATOR_EMAIL env var",
+      "status": "TODO",
+      "severity": "high",
+      "description": "OPERATOR_EMAIL is required for Stripe customer-portal access. Not yet configured on Railway production.",
+      "action_url": "https://railway.app",
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "github-actions",
+      "title": "Re-enable docker-push.yml workflow",
+      "status": "TODO",
+      "severity": "medium",
+      "description": "GitHub Actions docker-push.yml workflow (kevensjames repo) is disabled. Verify GHCR_TOKEN + repo visibility before re-enabling.",
+      "action_url": "https://github.com/kevensjames/wheellsverse-bots/actions/workflows/docker-push.yml",
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "db-cleanup",
+      "title": "Decide on DB file cleanup",
+      "status": "TODO",
+      "severity": "medium",
+      "description": "chroma.sqlite3, narai.db, autopilot.db are tracked but not in .gitignore. Decide whether to add to .gitignore and clean git history (bfg / filter-branch). Verify backups first.",
+      "action_url": null,
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "credential-rotation-stan",
+      "title": "Verify Stan/Instagram credential rotation",
+      "status": "IN-PROGRESS",
+      "severity": "high",
+      "description": "Stan/Instagram credentials were visible at commit 36aae88. Verify rotation completion via Graph API credentials check.",
+      "action_url": "https://developers.facebook.com/apps/",
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "anthropic-credit",
+      "title": "Top up Anthropic API credits",
+      "status": "TODO",
+      "severity": "high",
+      "description": "anthropic_credit_low SUPREMA pattern detected. Top up to unblock tool layer (image_gen / twenty_crm / composio / scout).",
+      "action_url": "https://console.anthropic.com/account/billing/overview",
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "autopilot-zero-output",
+      "title": "Root-cause NarAI autopilot zero-output",
+      "status": "TODO",
+      "severity": "medium",
+      "description": "NarAI autopilot has been all-zero metrics for 30+ days. Separate from agent_workforce tracking. Check job queue, DB integrity, external API health.",
+      "action_url": null,
+      "last_updated": "2026-06-19"
+    },
+    {
+      "id": "lifespan-migration",
+      "title": "Complete lifespan migration",
+      "status": "IN-PROGRESS",
+      "severity": "low",
+      "description": "FastAPI lifespan migration started for core/api.py and backend/app/main.py. Tracked separately from API refactoring. Verify startup order: chromadb -> schedulers -> Discord.",
+      "action_url": null,
+      "last_updated": "2026-06-19"
+    }
+  ]
+}

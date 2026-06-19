@@ -505,6 +505,8 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
     <div class="nav-item" onclick="nav('kai')" id="nav-kai" style="background:linear-gradient(90deg,rgba(79,140,255,.22),rgba(0,204,255,.08));border-left:2px solid #4f8cff;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🤖</span><span style="color:#4f8cff;font-weight:700">KAI</span><span style="margin-left:auto;font-size:8px;color:#4f8cff;background:rgba(79,140,255,.15);border-radius:10px;padding:1px 6px">NEW</span></div>
     <!-- SUPREMA autorepair — workspace healing system (19 patterns, daily 06:00 cron) -->
     <div class="nav-item" onclick="nav('suprema')" id="nav-suprema" style="background:linear-gradient(90deg,rgba(168,85,247,.22),rgba(139,92,246,.08));border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">🛡️</span><span style="color:#a855f7;font-weight:700">SUPREMA</span><span style="margin-left:auto;font-size:8px;color:#a855f7;background:rgba(168,85,247,.15);border-radius:10px;padding:1px 6px">NEW</span></div>
+    <!-- Operator Tasks — pending operator-only actions (rotations, env-vars, decisions) -->
+    <div class="nav-item" onclick="nav('ops')" id="nav-ops" style="background:linear-gradient(90deg,rgba(168,85,247,.22),rgba(139,92,246,.08));border-left:2px solid #a855f7;margin:2px 6px;border-radius:0 8px 8px 0"><span class="ic">📋</span><span style="color:#a855f7;font-weight:700">Operator Tasks</span><span id="ops-pending-count" style="margin-left:auto;font-size:8px;color:#a855f7;background:rgba(168,85,247,.15);border-radius:10px;padding:1px 6px">—</span></div>
 
     <!-- Bot Control + Code Studio -->
     <div class="nav-sec" style="color:rgba(0,204,255,.6);font-size:8px;letter-spacing:2.5px">CONTROL</div>
@@ -1613,6 +1615,137 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
         obs.observe(el, { attributes: true, attributeFilter: ['class'] });
         // If page-suprema is already active when DOM ready, load immediately
         if (el.classList.contains('active')) suprLoad();
+      });
+    })();
+  </script>
+</div>
+
+<!-- ══ OPERATOR TASKS ══════════════════════════════════════════════════════
+     Pending operator-only actions. Data: data/operator-tasks.json via
+     GET /api/admin/operator-tasks (X-API-Key protected via global middleware).
+     Same violet theme as SUPREMA (border:#a855f7). -->
+<div class="page" id="page-ops" style="padding:24px;height:100vh;overflow:auto;background:#0d0f14">
+  <div style="background:linear-gradient(135deg,rgba(168,85,247,.12),rgba(139,92,246,.04));border:1px solid rgba(168,85,247,.3);border-radius:12px;padding:20px;margin-bottom:20px">
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
+      <div style="font-size:32px">📋</div>
+      <div style="flex:1">
+        <div style="font-size:18px;font-weight:700;color:#a855f7">Operator Tasks</div>
+        <div style="font-size:11px;color:var(--text2)">Pending operator-only actions · rotations · env-vars · decisions · <span id="ops-meta-updated">—</span></div>
+      </div>
+      <button onclick="opsLoad(this)" style="padding:8px 16px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);border-radius:8px;color:#a855f7;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer">🔄 Refresh</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Total</div><div style="font-size:14px;font-weight:700;color:var(--text)" id="ops-stat-total">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">High severity</div><div style="font-size:14px;font-weight:700;color:#ff6060" id="ops-stat-high">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">In progress</div><div style="font-size:14px;font-weight:700;color:#ffcc44" id="ops-stat-inprog">—</div></div>
+      <div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:12px"><div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">To do</div><div style="font-size:14px;font-weight:700;color:#a855f7" id="ops-stat-todo">—</div></div>
+    </div>
+  </div>
+
+  <div style="background:#13161d;border:1px solid var(--border);border-radius:10px;padding:16px">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
+      <div style="font-size:12px;font-weight:700;color:var(--text)">📋 Pending actions</div>
+      <span id="ops-list-count" style="margin-left:auto;font-size:10px;color:var(--text3)">—</span>
+    </div>
+    <div id="ops-list" style="display:flex;flex-direction:column;gap:10px"></div>
+  </div>
+
+  <div style="margin-top:20px;padding:12px;background:rgba(168,85,247,.05);border-left:3px solid rgba(168,85,247,.4);border-radius:0 8px 8px 0;font-size:10px;color:var(--text2);line-height:1.6">
+    <strong style="color:#a855f7">How this works:</strong> This panel reads <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">data/operator-tasks.json</code> via <code style="background:rgba(0,0,0,.3);padding:1px 5px;border-radius:3px">GET /api/admin/operator-tasks</code>. Each entry is an action that requires operator decision or external authentication (credential rotation, billing, infrastructure restart). Edit the JSON file to add, remove, or update statuses.
+  </div>
+
+  <script>
+    (function() {
+      function _severityBadge(s) {
+        const map = { high: ['#ff6060', '🔴'], medium: ['#ffcc44', '🟡'], low: ['#4f8cff', '🔵'] };
+        const [col, icon] = map[s] || ['#888', '⚪'];
+        return '<span style="display:inline-block;font-size:9px;font-weight:700;color:' + col + ';background:' + col + '22;border:1px solid ' + col + '55;border-radius:4px;padding:2px 6px;letter-spacing:1px">' + icon + ' ' + (s||'').toUpperCase() + '</span>';
+      }
+      function _statusBadge(s) {
+        const map = { 'TODO': ['#a855f7', 'TODO'], 'IN-PROGRESS': ['#ffcc44', 'IN PROGRESS'], 'DONE': ['#44ff88', 'DONE'], 'BLOCKED': ['#ff6060', 'BLOCKED'] };
+        const [col, label] = map[s] || ['#888', s || '?'];
+        return '<span style="display:inline-block;font-size:9px;font-weight:700;color:' + col + ';background:' + col + '22;border:1px solid ' + col + '55;border-radius:4px;padding:2px 6px;letter-spacing:1px">' + label + '</span>';
+      }
+      function _renderTask(t) {
+        const actionBtn = t.action_url
+          ? '<a href="' + t.action_url + '" target="_blank" rel="noopener" style="display:inline-block;padding:6px 12px;background:rgba(168,85,247,.2);border:1px solid rgba(168,85,247,.4);border-radius:6px;color:#a855f7;font-size:10px;font-weight:700;text-decoration:none;font-family:inherit">↗ Open</a>'
+          : '<span style="font-size:9px;color:var(--text3);font-style:italic">no action url</span>';
+        return '<div style="background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:8px;padding:14px">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
+            _severityBadge(t.severity) +
+            _statusBadge(t.status) +
+            '<span style="font-size:13px;font-weight:700;color:var(--text)">' + (t.title || t.id) + '</span>' +
+            '<span style="margin-left:auto">' + actionBtn + '</span>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text2);line-height:1.55;margin-bottom:6px">' + (t.description || '') + '</div>' +
+          '<div style="font-size:9px;color:var(--text3);font-family:monospace">id: ' + t.id + ' · updated: ' + (t.last_updated || '—') + '</div>' +
+        '</div>';
+      }
+      window.opsLoad = async function(btn) {
+        const list = document.getElementById('ops-list');
+        if (list) list.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:11px">Loading…</div>';
+        try {
+          const key = sessionStorage.getItem('API_KEY') || '';
+          const r = await fetch('/api/admin/operator-tasks', { headers: key ? { 'X-API-Key': key } : {} });
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          const data = await r.json();
+          const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+          // stats
+          const high = tasks.filter(t => t.severity === 'high').length;
+          const inprog = tasks.filter(t => t.status === 'IN-PROGRESS').length;
+          const todo = tasks.filter(t => t.status === 'TODO').length;
+          document.getElementById('ops-stat-total').textContent = tasks.length;
+          document.getElementById('ops-stat-high').textContent = high;
+          document.getElementById('ops-stat-inprog').textContent = inprog;
+          document.getElementById('ops-stat-todo').textContent = todo;
+          document.getElementById('ops-meta-updated').textContent = 'updated ' + (data.updated_at || '—');
+          document.getElementById('ops-list-count').textContent = tasks.length + ' task' + (tasks.length === 1 ? '' : 's');
+          // sidebar pending count (TODO + IN-PROGRESS)
+          const pendBadge = document.getElementById('ops-pending-count');
+          if (pendBadge) pendBadge.textContent = (todo + inprog);
+          // list
+          if (!tasks.length) {
+            list.innerHTML = '<div style="padding:20px;color:var(--text3);font-size:11px;text-align:center">No pending operator tasks. 🎉</div>';
+          } else {
+            // sort: high severity + TODO first
+            const sevRank = { high: 0, medium: 1, low: 2 };
+            const statRank = { 'TODO': 0, 'IN-PROGRESS': 1, 'BLOCKED': 2, 'DONE': 3 };
+            tasks.sort((a, b) => {
+              const sa = (sevRank[a.severity] ?? 9) - (sevRank[b.severity] ?? 9);
+              if (sa) return sa;
+              return (statRank[a.status] ?? 9) - (statRank[b.status] ?? 9);
+            });
+            list.innerHTML = tasks.map(_renderTask).join('');
+          }
+        } catch (e) {
+          list.innerHTML = '<div style="padding:20px;color:#ff6060;font-size:11px">Error loading operator tasks: ' + (e.message || e) + '</div>';
+        }
+      };
+      // Lazy-load on first nav into page-ops + initial badge populate
+      document.addEventListener('DOMContentLoaded', function() {
+        const el = document.getElementById('page-ops');
+        if (!el) return;
+        let loaded = false;
+        const obs = new MutationObserver(() => {
+          if (!loaded && el.classList.contains('active')) {
+            loaded = true;
+            window.opsLoad();
+          }
+        });
+        obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+        // Populate the sidebar badge once on startup (don't render full list yet)
+        setTimeout(() => {
+          const key = sessionStorage.getItem('API_KEY') || '';
+          fetch('/api/admin/operator-tasks', { headers: key ? { 'X-API-Key': key } : {} })
+            .then(r => r.ok ? r.json() : null)
+            .then(data => {
+              if (!data || !Array.isArray(data.tasks)) return;
+              const pend = data.tasks.filter(t => t.status === 'TODO' || t.status === 'IN-PROGRESS').length;
+              const badge = document.getElementById('ops-pending-count');
+              if (badge) badge.textContent = pend;
+            })
+            .catch(() => {});
+        }, 1500);
       });
     })();
   </script>
@@ -6799,7 +6932,7 @@ curl -X POST /v1/bots/run \
 const API=window.location.origin;
 let botsData=[],allLogs=[],logRunning=true,sseSource=null;
 let healthData=[],projData={};
-const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',suprema:'🛡️ SUPREMA — Workspace Autorepair · 19 patterns · daily cron',siteboost:'🚀 SiteBoost — Local-Business Outbound (Scan · Sequences · Selftest)',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
+const TITLES={hub:'🛰️ Command Hub — Operator surfaces & external services',aichat:'💬 AI Chat — NarAI Personal Assistant',agentmode:'🧠 Agent Mode — NarAI Autonomous Task Execution',promptlib:'📚 Prompt Library — Reusable AI Prompts',kb:'📖 Knowledge Base — Local RAG Document Store',analytics:'📊 Analytics — Bot Runs & API Usage',builder:'🔧 Bot Builder — No-Code Bot Creation',creative:'🎨 Creative Tools — Lyrics · Novel · Social · Ads',kai:'🤖 KAI — Operator Dashboard (Stats · Chat · Scanner · Brief)',suprema:'🛡️ SUPREMA — Workspace Autorepair · 19 patterns · daily cron',ops:'📋 Operator Tasks — Pending operator-only actions (rotations, env-vars, decisions)',siteboost:'🚀 SiteBoost — Local-Business Outbound (Scan · Sequences · Selftest)',market:'📈 Market Live — Stocks & Crypto Real-Time',github:'🐙 GitHub — Repos, Issues & CI',tokens:'🗝️ Token Vault — All API Keys & Credentials',apikeys:'🔑 API Keys — Public API Management',billing:'💳 Billing — Subscription & Plans',botctl:'🤖 Bot Control Panel — Start, Stop & Monitor All Bots',codestudio:'💻 Code Studio — AI Code Generation & Live Execution',shopify:'🟢 Shopify — Autonomous Revenue Store',naraischedules:'📅 NarAI Schedules — Autonomous Task Manager',narai:'🌟 NarAI — General Overseer AI',whatsapp:'📱 WhatsApp — Messaging Control Center',pixelagents:'🕹️ Pixel Agents — Live Office',superagent:'SuperAgent — Autonomous Revenue Intelligence',overview:'Overview',bots:'Bot Manager',pipelines:'Pipelines',scheduler:'Scheduler',decisions:'Decision Engine',health:'Bot Health',memory:'Memory System',revenue:'Money Board',publish:'🚀 Publish Pipeline',integrations:'Market Data & Trends',automation:'Output Automation',content:'Content Engine',intelligence:'Intelligence System',outputs:'Outputs',logs:'Live Logs',projects:'Projects',settings:'Settings',command:'Command Center',blog:'📰 Blog Command Board',twitter:'🐦 Twitter Blitz',tiktokblitz:'🎵 TikTok Blitz',autopublish:'📡 Auto-Publish Pipeline',newsletter:'✉️ Newsletter Bot',revenue2:'📊 Revenue Tracker V2',reddit:'🔴 Reddit Blitz',gsc:'🔍 Google Search Console',telegramalerts:'📲 Telegram Alerts',adsboard:'📢 Ads Board — Generate & Deploy to All Platforms',kdpbooks:'📚 Amazon KDP — Book Publishing Command Center',publisherengine:'✍️ NarAI Publisher Engine — 7-Agent Literary Production Pipeline',money:'💰 Money Command Center — Revenue Intelligence',nexora:'🌐 NEXORA — Creator Platform Control Panel',wordpress:'📝 WordPress — Blog Management',notion:'🗒️ Notion — Workspace Manager',canva:'🎨 Canva — Design Studio',gumroad:'🛒 Gumroad — Digital Store',payhip:'💳 Payhip — Digital Store',etsy:'🛍️ Etsy — Templates & Printables',factory:'🏭 Product Factory — Daily AI Publishing Engine',marketintel:'🔭 Market Intelligence — NarAI\'s Eyes on the World',qcreview:'🔬 Quality Control — NarAI Masterpiece Reviewer',autopilot:'🤖 NarAI Autopilot — Autonomous Daily Creation Engine',video:'🎬 AI Video Engine — Anime · Cinematic · Avatar',toodle:'🎯 Toodle — AI Marketing Operating System',sol:'💰 Sol — ROSCA Savings Admin'};
 const API_KEY = '';  // injected by server when API_KEY env is set
 
 function nav(p){

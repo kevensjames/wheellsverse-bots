@@ -2114,13 +2114,9 @@ def run_autopilot_session(session_id: str = None):
             from core.narai_memory_manager import save_autopilot_session
             stats = state.get("stats", {})
             content_count = sum([
-                stats.get("facebook_posts", 0),
-                stats.get("instagram_posts", 0),
-                stats.get("tweets", 0),
-                stats.get("blogs", 0),
-                stats.get("videos", 0),
-                stats.get("products", 0),
-                stats.get("kdp_books", 0),
+                stats.get("posts_created", 0),
+                stats.get("products_created", 0),
+                stats.get("books_written", 0),
             ])
             save_autopilot_session(
                 session_id=session_id,
