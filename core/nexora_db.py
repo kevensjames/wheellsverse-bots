@@ -34,6 +34,11 @@ def get_conn() -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    # WAL allows concurrent readers + one writer, but a second writer (e.g. two
+    # webhook events, or a webhook racing a recalc) errors *immediately* with
+    # "database is locked" unless we wait. Without this the money path 500s under
+    # concurrency. Wait up to 5s for the write lock instead of failing.
+    conn.execute("PRAGMA busy_timeout=5000")
     return conn
 
 
@@ -292,6 +297,43 @@ CREATE TABLE IF NOT EXISTS nx_dms (
     text            TEXT    DEFAULT '',
     created_at      REAL    NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS nx_payment_events (
+    event_id    TEXT    PRIMARY KEY,
+    type        TEXT    DEFAULT '',
+    created_at  REAL    NOT NULL
+);
+"""
+
+# Indexes on hot lookup columns. Applied AFTER _ensure_columns() in init_db()
+# because several targets (to_email, creator_email) are added by the column
+# migrator, not the base schema. CREATE INDEX IF NOT EXISTS is idempotent.
+# Without these, recalc + dashboard + feed queries are full table scans.
+_INDEXES = """
+CREATE INDEX IF NOT EXISTS ix_tx_to_email      ON nx_transactions(to_email);
+CREATE INDEX IF NOT EXISTS ix_tx_creator_stat  ON nx_transactions(creator_id, status);
+CREATE INDEX IF NOT EXISTS ix_tx_payment_intent ON nx_transactions(payment_intent);
+CREATE INDEX IF NOT EXISTS ix_tx_charge_id      ON nx_transactions(charge_id);
+-- Partial UNIQUE: closes the checkout double-record race (concurrent Stripe retries
+-- racing past the SELECT-1 fast path). Partial so legacy DEFAULT '' rows don't collide.
+CREATE UNIQUE INDEX IF NOT EXISTS ux_tx_stripe_id ON nx_transactions(stripe_id) WHERE stripe_id != '';
+CREATE INDEX IF NOT EXISTS ix_sub_creator_stat ON nx_subscribers(creator_email, status);
+CREATE INDEX IF NOT EXISTS ix_sub_fan          ON nx_subscribers(fan_email);
+CREATE INDEX IF NOT EXISTS ix_sub_status_exp   ON nx_subscribers(status, expires_at);
+CREATE INDEX IF NOT EXISTS ix_payout_creator   ON nx_payouts(creator_id, status);
+CREATE INDEX IF NOT EXISTS ix_follow_creator   ON nx_follows(creator_email);
+CREATE INDEX IF NOT EXISTS ix_follow_fan       ON nx_follows(fan_email);
+CREATE INDEX IF NOT EXISTS ix_post_creator     ON nx_posts(creator_email);
+CREATE INDEX IF NOT EXISTS ix_notif_user       ON nx_notifications(user_email);
+CREATE INDEX IF NOT EXISTS ix_cp_fan           ON nx_content_purchases(fan_email);
+CREATE INDEX IF NOT EXISTS ix_cp_creator       ON nx_content_purchases(creator_email);
+CREATE INDEX IF NOT EXISTS ix_tip_to           ON nx_tips(to_email);
+CREATE INDEX IF NOT EXISTS ix_dm_convo         ON nx_dms(conversation_id);
+CREATE INDEX IF NOT EXISTS ix_dm_from          ON nx_dms(from_email);
+CREATE INDEX IF NOT EXISTS ix_dm_to            ON nx_dms(to_email);
+CREATE INDEX IF NOT EXISTS ix_report_status    ON nx_reports(status);
+CREATE INDEX IF NOT EXISTS ix_creator_acct     ON nx_creators(stripe_account_id);
+CREATE INDEX IF NOT EXISTS ix_payout_transfer  ON nx_payouts(stripe_transfer_id);
 """
 
 
@@ -311,6 +353,10 @@ def init_db() -> None:
         "subscriber_count": "subscriber_count INTEGER DEFAULT 0",
         "follower_count": "follower_count INTEGER DEFAULT 0",
         "is_live": "is_live INTEGER DEFAULT 0",
+        # Stripe Connect scaffolding (inert until STRIPE_CONNECT_ENABLED + KYC).
+        "stripe_account_id": "stripe_account_id TEXT DEFAULT ''",
+        "stripe_payouts_enabled": "stripe_payouts_enabled INTEGER DEFAULT 0",
+        "stripe_onboarding_status": "stripe_onboarding_status TEXT DEFAULT 'none'",
     })
     _ensure_columns(conn, "nx_posts", {
         "creator_email": "creator_email TEXT DEFAULT ''",
@@ -335,12 +381,26 @@ def init_db() -> None:
         "creator_amount": "creator_amount REAL DEFAULT 0",
         "platform_fee": "platform_fee REAL DEFAULT 0",
         "description": "description TEXT DEFAULT ''",
+        # Refund/dispute correlation: stripe_id stores the checkout SESSION id (cs_),
+        # but charge.refunded / charge.dispute.created carry payment_intent (pi_) /
+        # charge id (ch_). Persist those so refund webhooks can find the original txn.
+        "payment_intent": "payment_intent TEXT DEFAULT ''",
+        "charge_id": "charge_id TEXT DEFAULT ''",
+        "refunded_amount": "refunded_amount REAL DEFAULT 0",
+        # post_id lets a PPV refund revoke the EXACT purchased post (the charge
+        # object carries no post_id, so we persist it on the transaction).
+        "post_id": "post_id INTEGER DEFAULT 0",
     })
     _ensure_columns(conn, "nx_payouts", {
         "creator_email": "creator_email TEXT DEFAULT ''",
         "payout_method": "payout_method TEXT DEFAULT 'bank'",
         "admin_notes": "admin_notes TEXT DEFAULT ''",
+        # Stripe Connect scaffolding.
+        "stripe_transfer_id": "stripe_transfer_id TEXT DEFAULT ''",
+        "stripe_payout_id": "stripe_payout_id TEXT DEFAULT ''",
+        "failure_reason": "failure_reason TEXT DEFAULT ''",
     })
+    conn.executescript(_INDEXES)
     conn.commit()
     conn.close()
 
@@ -406,6 +466,29 @@ def create_post(creator_id: int, title: str, body: str,
     return post_id
 
 
+def _effective_access(row: Dict) -> str:
+    """Reconcile the dual post schema into one canonical access value.
+
+    Two writers populate nx_posts differently:
+      legacy create_post -> `body` + `access`        (access default 'subscribers')
+      entity Post.create -> `text` + `access_type`   (access_type default 'free')
+    Both leave the OTHER pair at its default, so columns alone can't tell an
+    entity-free post (access='subscribers' default) from a legacy-subscribers post
+    (access_type='free' default). The discriminator is which CONTENT column the
+    writer populated: trust the gating column that belongs to that writer.
+    Ambiguous rows (both/neither populated) bias to the more restrictive value.
+    """
+    body = (row.get("body") or "").strip()
+    text = (row.get("text") or "").strip()
+    access = row.get("access") or "subscribers"
+    access_type = row.get("access_type") or "free"
+    if text and not body:
+        return access_type          # entity-written row
+    if body and not text:
+        return access               # legacy-written row
+    return access if access != "free" else access_type   # ambiguous -> restrictive
+
+
 def list_posts(creator_id: int, limit: int = 50) -> List[Dict]:
     conn = get_conn()
     rows = conn.execute(
@@ -420,6 +503,11 @@ def list_posts(creator_id: int, limit: int = 50) -> List[Dict]:
             d["media_urls"] = json.loads(d.get("media_urls") or "[]")
         except Exception:
             d["media_urls"] = []
+        # Normalize the dual schema so all readers (which gate on access=='free'
+        # and render body) work regardless of which writer created the row.
+        d["access"] = _effective_access(d)
+        d["body"] = (d.get("body") or "") or (d.get("text") or "")
+        d["text"] = d["body"]       # keep both in sync for spread-based readers
         out.append(d)
     return out
 
@@ -557,6 +645,34 @@ def get_pending_payout_amount(creator_id: int) -> float:
     ).fetchone()
     conn.close()
     return round(row["total"] if row else 0, 2)
+
+
+def get_available_balance(creator_id: int) -> float:
+    """Amount a creator may actually request to withdraw, right now.
+
+    = lifetime succeeded earnings (creator_cut)
+      − already paid-out payouts
+      − payouts still in-flight (requested/approved/processing)
+
+    The legacy payout route used to authorize against lifetime earnings ALONE,
+    which let a creator who earned $100 and was already paid $90 request another
+    $100 (double-payout). Subtracting paid + in-flight closes that hole.
+    """
+    conn = get_conn()
+    try:
+        earn = conn.execute(
+            "SELECT COALESCE(SUM(creator_cut),0) s FROM nx_transactions "
+            "WHERE creator_id=? AND status='succeeded'", (creator_id,)).fetchone()["s"]
+        paid = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM nx_payouts "
+            "WHERE creator_id=? AND status='paid'", (creator_id,)).fetchone()["s"]
+        inflight = conn.execute(
+            "SELECT COALESCE(SUM(amount),0) s FROM nx_payouts "
+            "WHERE creator_id=? AND status IN ('requested','approved','processing')",
+            (creator_id,)).fetchone()["s"]
+    finally:
+        conn.close()
+    return round(earn - paid - inflight, 2)
 
 # ── Messages ───────────────────────────────────────────────────────────────────
 

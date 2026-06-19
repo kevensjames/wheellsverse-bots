@@ -10421,6 +10421,21 @@ def _nx_require_creator(request: Request) -> Dict:
     return creator
 
 
+def _nx_require_active_creator(request: Request) -> Dict:
+    """Like _nx_require_creator but also 403s a suspended account. Used on routes
+    that initiate money movement (Stripe Connect). Checks the unified nx_users
+    suspension flag directly to avoid mixing the creator/user identity layers."""
+    creator = _nx_require_creator(request)
+    from core.nexora_db import get_conn
+    conn = get_conn()
+    row = conn.execute("SELECT is_suspended FROM nx_users WHERE email=? COLLATE NOCASE",
+                       (creator.get("email", ""),)).fetchone()
+    conn.close()
+    if row and row["is_suspended"]:
+        raise HTTPException(status_code=403, detail="Account suspended")
+    return creator
+
+
 def _nx_resolve_user(request: Request):
     auth = request.headers.get("Authorization", "")
     token = auth[7:] if auth[:7].lower() == "bearer " else ""
@@ -10631,6 +10646,50 @@ async def nx_admin_recalc_stats(request: Request):
     return {"ok": True, "recalculated": len(results), "results": results}
 
 
+@app.post("/api/nx/admin/expire-subscriptions")
+async def nx_admin_expire_subscriptions(request: Request):
+    """Sweep past-due subscriptions to 'expired' + recalc affected creators.
+    Cron-triggerable (operator wires the schedule). grace_days falls back to
+    NEXORA_SUB_GRACE_DAYS (default 0)."""
+    _nx_require_admin(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    import os
+    from core.nexora_subscriptions import sweep_and_recalc
+    grace_days = body.get("grace_days")
+    if grace_days is None:
+        grace_days = float(os.getenv("NEXORA_SUB_GRACE_DAYS", "0") or 0)
+    out = sweep_and_recalc(grace_secs=float(grace_days) * 86400)
+    return {"ok": True, "expired": out["expired_count"], "recalculated": out["creators_recalced"]}
+
+
+# ── Stripe Connect (creator payouts) — scaffolding, inert until enabled ──────────
+
+@app.post("/api/nx/connect/onboarding-link")
+async def nx_connect_onboarding_link(request: Request):
+    """Return a Stripe Express onboarding URL. 503 while Connect is not configured."""
+    creator = _nx_require_active_creator(request)   # suspended accounts cannot onboard for payouts
+    from core.nexora_connect import create_onboarding_link, ConnectNotConfigured
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        return create_onboarding_link(creator["email"], body.get("refresh_url", ""),
+                                      body.get("return_url", ""))
+    except ConnectNotConfigured:
+        raise HTTPException(status_code=503, detail="Stripe Connect not configured")
+
+
+@app.get("/api/nx/connect/status")
+async def nx_connect_status(request: Request):
+    creator = _nx_require_active_creator(request)
+    from core.nexora_connect import connect_status
+    return connect_status(creator["email"])
+
+
 @app.post("/api/nx/fn/createSubscriptionCheckout")
 async def nx_fn_sub_checkout(request: Request):
     user = _nx_require_user(request)
@@ -10740,13 +10799,16 @@ async def nx_public_creator(handle: str):
 @app.get("/api/nx/creator/{handle}/posts")
 async def nx_public_posts(handle: str, request: Request):
     """Return posts for a fan — subscribers see all, others only free."""
-    from core.nexora_db import (get_creator_by_handle, list_posts, get_conn)
+    from core.nexora_db import (get_creator_by_handle, list_posts, get_conn, verify_fan_token)
     creator = get_creator_by_handle(handle)
     if not creator:
         raise HTTPException(status_code=404, detail="Creator not found")
     posts = list_posts(creator["id"], limit=50)
-    # Check if the requesting fan has an active subscription
-    fan_email = request.query_params.get("fan_email", "")
+    # Authenticate the fan via their Bearer token — NEVER trust a fan_email query
+    # param (an attacker could pass a known subscriber's email to unlock gated posts).
+    auth = request.headers.get("Authorization", "")
+    token = auth.removeprefix("Bearer ").strip() if auth.startswith("Bearer ") else ""
+    fan_email = verify_fan_token(token) if token else None
     is_subscribed = False
     if fan_email:
         conn = get_conn()
@@ -10762,7 +10824,9 @@ async def nx_public_posts(handle: str, request: Request):
         if p["access"] == "free" or is_subscribed:
             visible.append(p)
         else:
-            visible.append({**p, "body": "", "media_urls": [], "locked": True})
+            # Blank BOTH body and text — list_posts mirrors content into `text`,
+            # so spreading the row would otherwise leak gated content via `text`.
+            visible.append({**p, "body": "", "text": "", "media_urls": [], "locked": True})
     return {"posts": visible, "is_subscribed": is_subscribed}
 
 
@@ -10823,9 +10887,11 @@ class _NxPayoutReq(BaseModel):
 @app.post("/api/nx/payouts")
 async def nx_request_payout(req: _NxPayoutReq, request: Request):
     creator = _nx_require_creator(request)
-    from core.nexora_db import get_earnings, request_payout
-    earnings = get_earnings(creator["id"])
-    available = earnings["total"]
+    from core.nexora_db import get_available_balance, request_payout
+    # Authorize against the REQUESTABLE balance (earnings − paid − in-flight),
+    # NOT lifetime earnings. Gating on lifetime earnings allowed double-payout:
+    # a creator who earned $100 and was paid $90 could still request $100.
+    available = get_available_balance(creator["id"])
     if req.amount < 20:
         raise HTTPException(status_code=400, detail="Minimum payout is $20")
     if req.amount > available:
