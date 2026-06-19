@@ -33,13 +33,17 @@ export class KaiAvatar {
     this.aura = document.createElement('div');
     this.aura.className = 'kai-aura';
 
-    this.photo = document.createElement('img');
+    // A looping cinematic video (Higgsfield) is the living face; the still
+    // portrait is the poster + fallback if video can't play.
+    this.photo = document.createElement('video');
     this.photo.className = 'kai-photo';
-    this.photo.alt = 'KAI';
-    this.photo.decoding = 'async';
-    this.photo.src = opts.src || './kai_portrait.png';
-    this.photo.addEventListener('load', () => { this.ready = true; });
-    this.photo.addEventListener('error', () => { this.root.classList.add('kai-photo-missing'); this.ready = true; });
+    this.photo.muted = true; this.photo.loop = true; this.photo.autoplay = true;
+    this.photo.playsInline = true;
+    this.photo.setAttribute('muted', ''); this.photo.setAttribute('playsinline', '');
+    this.photo.poster = opts.poster || './kai_portrait.png';
+    this.photo.src = opts.src || './kai_avatar.mp4';
+    this.photo.addEventListener('loadeddata', () => { this.ready = true; this.photo.play().catch(() => {}); });
+    this.photo.addEventListener('error', () => this._useStill());
 
     this.eq = document.createElement('div');
     this.eq.className = 'kai-eq';
@@ -63,6 +67,17 @@ export class KaiAvatar {
       this.root.style.setProperty('--kr', (x * 2.4).toFixed(2) + 'deg');
     };
     window.addEventListener('pointermove', this._onPointer, { passive: true });
+  }
+
+  _useStill() {
+    try {
+      const img = document.createElement('img');
+      img.className = 'kai-photo'; img.alt = 'KAI'; img.src = './kai_portrait.png';
+      img.addEventListener('load', () => { this.ready = true; });
+      img.addEventListener('error', () => { this.root.classList.add('kai-photo-missing'); this.ready = true; });
+      if (this.photo && this.photo.parentElement) this.photo.replaceWith(img);
+      this.photo = img;
+    } catch (_) { this.root.classList.add('kai-photo-missing'); this.ready = true; }
   }
 
   start() { if (this.running) return; this.running = true; this.root.classList.add('kai-live'); }
