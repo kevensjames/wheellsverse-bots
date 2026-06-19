@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_security, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_security, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -98,6 +98,15 @@ def _start_digest_scheduler():
 def _stop_digest_scheduler():
     from app.services.digest.scheduler import stop as _stop
     _stop()
+
+
+# CEO heartbeat scheduler — opt-in via KAI_CEO_HEARTBEAT_ENABLED=1. Stays idle
+# until a router_factory is wired (see ceo/SETUP.md); the manual
+# POST /admin/ceo/run works now. Each tick re-checks KAI_SCOPE_CEO + kill switch.
+@app.on_event("startup")
+def _start_ceo_scheduler():
+    from app.services.ceo.heartbeat import start as _start
+    _start()
 
 
 # Sol monthly scheduler — opt-in via KAI_SOL_SCHEDULER_ENABLED=1. Daily tick at
@@ -194,6 +203,7 @@ app.include_router(admin_superrouter.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_security.router)
 app.include_router(admin_digest.router)
+app.include_router(admin_ceo.router)
 app.include_router(api_keys_admin.router)
 app.include_router(documents.router)
 # Sol ROSCA — operator admin surface (/admin/sol, token-gated) + the Dwolla
