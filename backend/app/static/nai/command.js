@@ -6,7 +6,7 @@
 // window): adminChatPost(), apiGet(), getToken(), fmtUSD(). Falls back
 // gracefully if any are absent. Purely additive — admin.js is untouched.
 
-import { KaiAvatar } from './avatar.js?v=cyborg3';
+import { KaiAvatar } from './avatar.js?v=cyborg4';
 
 const $ = (s) => document.querySelector(s);
 const token = () => (window.getToken ? window.getToken() : '') || '';
@@ -97,21 +97,76 @@ function stripMd(t) {
     .replace(/\s+/g, ' ').trim();
 }
 
-function speak(text) {
-  const toggle = $('#kai-speak-toggle');
-  if (!synth || (toggle && !toggle.checked)) return;
-  const clean = stripMd(text).slice(0, 650);
-  if (!clean) return;
+let _audioCtx = null;
+function _ctx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { _audioCtx = null; }
+  }
+  return _audioCtx;
+}
+
+// Fallback: browser SpeechSynthesis, tuned warmer/slower (storyteller pace).
+// Used only when /admin/tts is unavailable (no token / no OpenAI key / error).
+function speakBrowser(clean) {
+  if (!synth) return;
   try { synth.cancel(); } catch (_) {}
   const u = new SpeechSynthesisUtterance(clean);
-  u.rate = 1.03; u.pitch = 0.85;
+  u.rate = 0.95; u.pitch = 1.0;
   const voice = preferredVoice || pickVoice();
   if (voice) u.voice = voice;
   u.onstart = () => kai && kai.setSpeaking(true);
   u.onboundary = () => kai && kai.pulseMouth(0.7 + Math.random() * 0.3);
-  u.onend = () => kai && kai.setSpeaking(false);
+  u.onend = () => { if (kai) { kai.setSpeaking(false); kai.setVoiceLevel && kai.setVoiceLevel(0); } };
   u.onerror = () => kai && kai.setSpeaking(false);
   synth.speak(u);
+}
+
+// Primary: KAI's warm storyteller voice via /admin/tts (Piper local, else
+// OpenAI TTS-1 'fable'), played through Web Audio so the live amplitude drives
+// the avatar's mouth + equalizer (audio-reactive lip-sync).
+async function speak(text) {
+  const toggle = $('#kai-speak-toggle');
+  if (toggle && !toggle.checked) return;
+  const clean = stripMd(text).slice(0, 800);
+  if (!clean) return;
+  const tok = token();
+  const ctx = _ctx();
+  if (!tok || !ctx) return speakBrowser(clean);
+  try {
+    const r = await fetch('/admin/tts', {
+      method: 'POST',
+      headers: { 'X-Admin-Token': tok, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean }),
+    });
+    if (!r.ok) throw new Error('tts ' + r.status);
+    const audio = await ctx.decodeAudioData(await r.arrayBuffer());
+    try { await ctx.resume(); } catch (_) {}
+    const src = ctx.createBufferSource();
+    src.buffer = audio;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 256;
+    src.connect(analyser);
+    analyser.connect(ctx.destination);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    if (kai) kai.setSpeaking(true);
+    let raf = 0;
+    const tick = () => {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+      const level = Math.min(1, Math.sqrt(sum / buf.length) * 3.4); // live mouth opening
+      if (kai && kai.setVoiceLevel) kai.setVoiceLevel(level);
+      raf = requestAnimationFrame(tick);
+    };
+    tick();
+    src.onended = () => {
+      cancelAnimationFrame(raf);
+      if (kai) { kai.setVoiceLevel && kai.setVoiceLevel(0); kai.setSpeaking(false); }
+    };
+    src.start();
+  } catch (e) {
+    speakBrowser(clean); // any failure → browser voice, still speaks
+  }
 }
 
 // ── voice: listen via mic ──────────────────────────────────────

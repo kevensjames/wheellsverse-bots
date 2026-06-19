@@ -167,6 +167,31 @@ _CONFIDENCE_INSTRUCTION = (
 )
 
 
+class AdminTTSRequest(BaseModel):
+    text: str
+    # OpenAI TTS voices: alloy/echo/fable/onyx/nova/shimmer. 'fable' = warm
+    # storyteller. speed < 1 = slower, more deliberate "angelic narrator" feel.
+    voice: str = "fable"
+    speed: float = 0.96
+
+
+@router.post("/tts")
+def admin_tts(body: AdminTTSRequest):
+    """Admin-gated TTS so the operator dashboard speaks in KAI's warm voice
+    (Piper local if installed, else OpenAI TTS-1 with a warm storyteller voice).
+    Returns WAV bytes for the browser to play (and analyze for lip-sync)."""
+    from fastapi import Response
+    from app.services import tts as _tts
+    text = (body.text or "").strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text cannot be empty")
+    try:
+        wav, mime = _tts.synthesize(text, voice=(body.voice or "fable"), speed=(body.speed or 0.96))
+    except _tts.TTSError as e:
+        raise HTTPException(status_code=502, detail=f"tts error: {e}")
+    return Response(content=wav, media_type=mime)
+
+
 @router.post("/kai-chat")
 def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
     try:

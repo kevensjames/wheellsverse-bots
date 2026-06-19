@@ -82,10 +82,11 @@ def _synthesize_piper(text: str) -> bytes:
     return buf.getvalue()
 
 
-def _synthesize_openai(text: str) -> bytes:
+def _synthesize_openai(text: str, voice: str = "alloy", speed: float = 1.0) -> bytes:
     """OpenAI TTS-1 fallback. Returns MP3-style WAV bytes (response_format=wav
     asks for raw PCM packaged as WAV — same shape the browser <audio> tag
-    decodes regardless of backend)."""
+    decodes regardless of backend). `voice` (alloy/echo/fable/onyx/nova/shimmer)
+    and `speed` (0.25-4.0) let callers pick a warmer/slower delivery."""
     api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         raise TTSError("openai fallback unavailable (no OPENAI_API_KEY)")
@@ -94,16 +95,17 @@ def _synthesize_openai(text: str) -> bytes:
         client = OpenAI(api_key=api_key)
         resp = client.audio.speech.create(
             model="tts-1",
-            voice="alloy",   # neutral default; matches Whisper's expected register
+            voice=voice,
             input=text,
             response_format="wav",
+            speed=max(0.25, min(4.0, float(speed))),
         )
         return resp.read()
     except Exception as e:
         raise TTSError(f"openai TTS failed: {e}")
 
 
-def synthesize(text: str) -> tuple[bytes, str]:
+def synthesize(text: str, *, voice: str = "alloy", speed: float = 1.0) -> tuple[bytes, str]:
     """Synthesize WAV audio from text. Try Piper, fall back to OpenAI.
 
     Returns (wav_bytes, mime_type). Raises TTSError only if BOTH backends
@@ -123,7 +125,7 @@ def synthesize(text: str) -> tuple[bytes, str]:
         logger.warning("piper failed (%s); trying openai fallback", piper_err)
 
     try:
-        wav = _synthesize_openai(text)
+        wav = _synthesize_openai(text, voice=voice, speed=speed)
         return wav, "audio/wav"
     except TTSError as openai_err:
         raise TTSError(

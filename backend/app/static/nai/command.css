@@ -262,3 +262,13 @@ body::before {
 .kai-pulse .kai-eq span { height: 22px; }
 
 .kai-caption { z-index: 4; }
+
+/* audio-reactive: live voice amplitude (--kai-voice 0..1) drives the equalizer
+   bars + speaking glow so KAI visibly reacts to his own voice. */
+.kai-eq { transform-origin: 50% 100%; }
+.kai-speaking .kai-eq {
+  transform: translateX(-50%) scaleY(calc(0.45 + var(--kai-voice, 0) * 1.7));
+  transition: transform .06s linear;
+}
+.kai-speaking .kai-aura { opacity: calc(0.62 + var(--kai-voice, 0) * 0.38); }
+.kai-speaking .kai-photo { filter: brightness(calc(1.05 + var(--kai-voice, 0) * 0.12)); }

@@ -40,8 +40,8 @@ export class KaiAvatar {
     this.photo.muted = true; this.photo.loop = true; this.photo.autoplay = true;
     this.photo.playsInline = true;
     this.photo.setAttribute('muted', ''); this.photo.setAttribute('playsinline', '');
-    this.photo.poster = opts.poster || './kai_portrait.png?v=cyborg3';
-    this.photo.src = opts.src || './kai_avatar.mp4?v=cyborg3';
+    this.photo.poster = opts.poster || './kai_portrait.png?v=cyborg4';
+    this.photo.src = opts.src || './kai_avatar.mp4?v=cyborg4';
     this.photo.addEventListener('loadeddata', () => { this.ready = true; this.photo.play().catch(() => {}); });
     this.photo.addEventListener('error', () => this._useStill());
 
@@ -72,7 +72,7 @@ export class KaiAvatar {
   _useStill() {
     try {
       const img = document.createElement('img');
-      img.className = 'kai-photo'; img.alt = 'KAI'; img.src = './kai_portrait.png?v=cyborg3';
+      img.className = 'kai-photo'; img.alt = 'KAI'; img.src = './kai_portrait.png?v=cyborg4';
       img.addEventListener('load', () => { this.ready = true; });
       img.addEventListener('error', () => { this.root.classList.add('kai-photo-missing'); this.ready = true; });
       if (this.photo && this.photo.parentElement) this.photo.replaceWith(img);
@@ -83,7 +83,13 @@ export class KaiAvatar {
   start() { if (this.running) return; this.running = true; this.root.classList.add('kai-live'); }
   stop() { this.running = false; this.root.classList.remove('kai-live'); }
 
-  setSpeaking(on) { this.speaking = !!on; this.root.classList.toggle('kai-speaking', !!on); }
+  setSpeaking(on) { this.speaking = !!on; this.root.classList.toggle('kai-speaking', !!on); if (!on) this.setVoiceLevel(0); }
+  // Live audio amplitude (0..1) from the TTS stream → drives the equalizer +
+  // speaking glow so KAI visibly reacts to his own voice (audio-reactive lip-sync).
+  setVoiceLevel(level) {
+    const v = Math.max(0, Math.min(1, level || 0));
+    if (this.root) this.root.style.setProperty('--kai-voice', v.toFixed(3));
+  }
   pulseMouth() {
     this.root.classList.add('kai-pulse');
     clearTimeout(this._pt);
