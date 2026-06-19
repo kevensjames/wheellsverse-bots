@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -12,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_security, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1, ws_collab
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1, ws_collab
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -30,129 +31,132 @@ if not any(isinstance(h, logging.StreamHandler) for h in _root.handlers):
 _root.setLevel(logging.INFO)
 
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    version="0.1.0",
-    debug=settings.DEBUG,
-)
+# ── Lifespan — single context manager replacing 12 deprecated @app.on_event
+# handlers (6 startup/shutdown pairs + 1 startup-only fail-soft persona seed).
+# Each handler call is wrapped in its own try/except so one failure cannot
+# block boot — matches the existing fail-soft pattern around _seed_persona.
+# Shutdown runs scheduler stops in reverse-registration order.
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _log = logging.getLogger(__name__)
 
+    # ── Startup ──────────────────────────────────────────────────────────────
+    # KAI Supreme scheduler — opt-in via KAI_SUPREME_ENABLED=1. Background
+    # thread runs scan cycles every N seconds while the daemon is alive,
+    # replacing the standalone WheellsverseNarAISupreme.app Login Item.
+    try:
+        from app.services.supreme.scheduler import start as _start_supreme
+        _start_supreme()
+    except Exception as e:
+        _log.warning("supreme scheduler start failed: %s", e)
 
-# KAI Supreme scheduler — opt-in via KAI_SUPREME_ENABLED=1. Background
-# thread runs scan cycles every N seconds while the daemon is alive,
-# replacing the standalone WheellsverseNarAISupreme.app Login Item.
-@app.on_event("startup")
-def _start_supreme():
-    from app.services.supreme.scheduler import start as _start
-    _start()
+    # KAI bounded self-healing scheduler — opt-in via
+    # KAI_SELF_HEAL_SCHEDULER_ENABLED=1. Auto-runs the SAFE auto-fix allowlist
+    # every N seconds (also gated by scope self_heal + KAI_SELF_HEAL_ENABLED).
+    try:
+        from app.services.self_heal_scheduler import start as _start_self_heal
+        _start_self_heal()
+    except Exception as e:
+        _log.warning("self-heal scheduler start failed: %s", e)
 
+    # Continuous Research scheduler — opt-in via KAI_RESEARCH_ENABLED=1.
+    # Background thread runs one cycle per day at the configured UTC hour
+    # (KAI_RESEARCH_HOUR_UTC, default 8). Fetches HN+arXiv+GH-trending,
+    # scores against KAI_RESEARCH_INTERESTS, persists a digest, Telegram
+    # alert on HIGH items.
+    try:
+        from app.services.research.scheduler import start as _start_research
+        _start_research()
+    except Exception as e:
+        _log.warning("research scheduler start failed: %s", e)
 
-@app.on_event("shutdown")
-def _stop_supreme():
-    from app.services.supreme.scheduler import stop as _stop
-    _stop()
+    # Operator Digest scheduler — opt-in via KAI_DIGEST_SCHEDULER_ENABLED=1.
+    # Background thread sends the cross-subsystem digest to Telegram once per
+    # day at KAI_DIGEST_HOUR_UTC (default 13). No startup send (Telegram is
+    # noisy); each cycle also re-checks KAI_SCOPE_DIGEST.
+    try:
+        from app.services.digest.scheduler import start as _start_digest
+        _start_digest()
+    except Exception as e:
+        _log.warning("digest scheduler start failed: %s", e)
 
+    # Sol monthly scheduler — opt-in via KAI_SOL_SCHEDULER_ENABLED=1. Daily
+    # tick at KAI_SOL_SCHEDULER_HOUR_UTC (default 14) that scans active
+    # circles for due actions and Telegram-reminds the operator.
+    # NON-DESTRUCTIVE: money actions (collect/payout) stay operator-approved;
+    # only cycle-advance auto-runs under KAI_SOL_AUTOPILOT. Each cycle
+    # re-checks KAI_SCOPE_SOL.
+    try:
+        from app.services.sol.scheduler import start as _start_sol
+        _start_sol()
+    except Exception as e:
+        _log.warning("sol scheduler start failed: %s", e)
 
-# KAI bounded self-healing scheduler — opt-in via
-# KAI_SELF_HEAL_SCHEDULER_ENABLED=1. Auto-runs the SAFE auto-fix allowlist
-# every N seconds (also gated by scope self_heal + KAI_SELF_HEAL_ENABLED).
-@app.on_event("startup")
-def _start_self_heal():
-    from app.services.self_heal_scheduler import start as _start
-    _start()
-
-
-@app.on_event("shutdown")
-def _stop_self_heal():
-    from app.services.self_heal_scheduler import stop as _stop
-    _stop()
-
-
-# Continuous Research scheduler — opt-in via KAI_RESEARCH_ENABLED=1.
-# Background thread runs one cycle per day at the configured UTC hour
-# (KAI_RESEARCH_HOUR_UTC, default 8). Fetches HN+arXiv+GH-trending,
-# scores against KAI_RESEARCH_INTERESTS, persists a digest, Telegram
-# alert on HIGH items.
-@app.on_event("startup")
-def _start_research():
-    from app.services.research.scheduler import start as _start
-    _start()
-
-
-@app.on_event("shutdown")
-def _stop_research():
-    from app.services.research.scheduler import stop as _stop
-    _stop()
-
-
-# Operator Digest scheduler — opt-in via KAI_DIGEST_SCHEDULER_ENABLED=1.
-# Background thread sends the cross-subsystem digest to Telegram once per day
-# at KAI_DIGEST_HOUR_UTC (default 13). No startup send (Telegram is noisy);
-# each cycle also re-checks KAI_SCOPE_DIGEST.
-@app.on_event("startup")
-def _start_digest_scheduler():
-    from app.services.digest.scheduler import start as _start
-    _start()
-
-
-@app.on_event("shutdown")
-def _stop_digest_scheduler():
-    from app.services.digest.scheduler import stop as _stop
-    _stop()
-
-
-# CEO heartbeat scheduler — opt-in via KAI_CEO_HEARTBEAT_ENABLED=1. Stays idle
-# until a router_factory is wired (see ceo/SETUP.md); the manual
-# POST /admin/ceo/run works now. Each tick re-checks KAI_SCOPE_CEO + kill switch.
-@app.on_event("startup")
-def _start_ceo_scheduler():
-    from app.services.ceo.heartbeat import start as _start
-    _start()
-
-
-# Sol monthly scheduler — opt-in via KAI_SOL_SCHEDULER_ENABLED=1. Daily tick at
-# KAI_SOL_SCHEDULER_HOUR_UTC (default 14) that scans active circles for due
-# actions and Telegram-reminds the operator. NON-DESTRUCTIVE: money actions
-# (collect/payout) stay operator-approved; only cycle-advance auto-runs under
-# KAI_SOL_AUTOPILOT. Each cycle re-checks KAI_SCOPE_SOL.
-@app.on_event("startup")
-def _start_sol_scheduler():
-    from app.services.sol.scheduler import start as _start
-    _start()
-
-
-@app.on_event("shutdown")
-def _stop_sol_scheduler():
-    from app.services.sol.scheduler import stop as _stop
-    _stop()
-
-
-# KAI persona — seed the default warm-companion character on first boot so KAI
-# is friendly out of the box. Idempotent (no-op once any trait exists), fail-soft.
-@app.on_event("startup")
-def _seed_persona():
+    # KAI persona — seed the default warm-companion character on first boot so
+    # KAI is friendly out of the box. Idempotent (no-op once any trait exists),
+    # fail-soft (do NOT block boot if seed fails).
     try:
         from app.services.persona import storage as _persona
         _persona.seed_defaults()
     except Exception as e:  # pragma: no cover - defensive
-        logging.getLogger(__name__).warning("persona seed skipped: %s", e)
+        _log.warning("persona seed skipped: %s", e)
 
-
-# Daily check-in scheduler — opt-in via KAI_CHECKIN_SCHEDULER_ENABLED=1. Sends
-# one warm proactive Telegram check-in per day at KAI_CHECKIN_HOUR_UTC; each
-# cycle re-checks KAI_SCOPE_CHECKIN. No startup send.
-@app.on_event("startup")
-def _start_checkin():
+    # Daily check-in scheduler — opt-in via KAI_CHECKIN_SCHEDULER_ENABLED=1.
+    # Sends one warm proactive Telegram check-in per day at
+    # KAI_CHECKIN_HOUR_UTC; each cycle re-checks KAI_SCOPE_CHECKIN.
+    # No startup send.
     try:
-        from app.services.checkin.scheduler import start as _start
-        _start()
-    except Exception as e:  # pragma: no cover - a companion import must never block boot
-        logging.getLogger(__name__).warning("checkin scheduler start skipped: %s", e)
+        from app.services.checkin.scheduler import start as _start_checkin
+        _start_checkin()
+    except Exception as e:
+        _log.warning("checkin scheduler start failed: %s", e)
+
+    yield
+
+    # ── Shutdown (reverse-registration order) ────────────────────────────────
+    try:
+        from app.services.checkin.scheduler import stop as _stop_checkin
+        _stop_checkin()
+    except Exception as e:
+        _log.warning("checkin scheduler stop failed: %s", e)
+
+    try:
+        from app.services.sol.scheduler import stop as _stop_sol
+        _stop_sol()
+    except Exception as e:
+        _log.warning("sol scheduler stop failed: %s", e)
+
+    try:
+        from app.services.digest.scheduler import stop as _stop_digest
+        _stop_digest()
+    except Exception as e:
+        _log.warning("digest scheduler stop failed: %s", e)
+
+    try:
+        from app.services.research.scheduler import stop as _stop_research
+        _stop_research()
+    except Exception as e:
+        _log.warning("research scheduler stop failed: %s", e)
+
+    try:
+        from app.services.self_heal_scheduler import stop as _stop_self_heal
+        _stop_self_heal()
+    except Exception as e:
+        _log.warning("self-heal scheduler stop failed: %s", e)
+
+    try:
+        from app.services.supreme.scheduler import stop as _stop_supreme
+        _stop_supreme()
+    except Exception as e:
+        _log.warning("supreme scheduler stop failed: %s", e)
 
 
-@app.on_event("shutdown")
-def _stop_checkin():
-    from app.services.checkin.scheduler import stop as _stop
-    _stop()
+app = FastAPI(
+    title=settings.APP_NAME,
+    version="0.1.0",
+    debug=settings.DEBUG,
+    lifespan=lifespan,
+)
 
 # Wire the shared limiter so route decorators (@limiter.limit("...")) take effect.
 app.state.limiter = limiter
@@ -198,10 +202,9 @@ app.include_router(admin_eq.router)
 app.include_router(admin_relationship.router)
 app.include_router(admin_checkin.router)
 app.include_router(admin_journal.router)
-# Super-router: decompose a complex ask into a proposed plan (P3 "smarter" layer).
-app.include_router(admin_superrouter.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_security.router)
+app.include_router(admin_superrouter.router)
 app.include_router(admin_digest.router)
 app.include_router(admin_ceo.router)
 app.include_router(api_keys_admin.router)
