@@ -286,6 +286,8 @@ function activateTab(name) {
     loadSecurity();
   } else if (name === "ceo") {
     loadCeo();
+  } else if (name === "room") {
+    connectRoom();
   }
 }
 
@@ -362,6 +364,67 @@ async function setCeoGoal(ev) {
   } catch (e) {
     if (line) line.textContent = `set-goal failed: ${e.message}`;
   }
+}
+
+// ─── Room (real-time collaboration) ───────────────────────────────────
+
+let roomWS = null;
+
+function connectRoom() {
+  if (roomWS && (roomWS.readyState === 0 || roomWS.readyState === 1)) return;
+  const tok = getToken();
+  const line = $("#room-status-line");
+  if (!tok) { if (line) line.textContent = "unlock first"; return; }
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws/collab/main?token=${encodeURIComponent(tok)}&name=operator`;
+  if (line) line.textContent = "connecting…";
+  try { roomWS = new WebSocket(url); } catch (e) { if (line) line.textContent = "ws error"; return; }
+  roomWS.onopen = () => { if (line) line.textContent = "● connected"; };
+  roomWS.onclose = () => { if (line) line.textContent = "disconnected"; };
+  roomWS.onerror = () => { if (line) line.textContent = "ws error"; };
+  roomWS.onmessage = (ev) => {
+    let m;
+    try { m = JSON.parse(ev.data); } catch (_) { return; }
+    if (m.type === "presence") renderRoomPresence(m.users || []);
+    else if (m.type === "message") appendRoomMsg(m.from, m.text);
+  };
+}
+
+function renderRoomPresence(users) {
+  const el = $("#room-presence");
+  if (!el) return;
+  el.replaceChildren();
+  for (const u of users) {
+    const c = document.createElement("span");
+    c.className = "tier-chip";
+    c.textContent = u.name || "?";
+    el.appendChild(c);
+  }
+}
+
+function appendRoomMsg(from, text) {
+  const feed = $("#room-feed");
+  if (!feed) return;
+  const row = document.createElement("div");
+  row.className = "admin-chat-msg admin-chat-msg-assistant";
+  const b = document.createElement("div");
+  b.className = "admin-chat-bubble";
+  const who = document.createElement("strong");
+  who.textContent = `${from}: `;
+  b.appendChild(who);
+  b.appendChild(document.createTextNode(text || ""));
+  row.appendChild(b);
+  feed.appendChild(row);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+function sendRoomMsg(ev) {
+  if (ev) ev.preventDefault();
+  const inp = $("#room-input");
+  const text = (inp && inp.value || "").trim();
+  if (!text || !roomWS || roomWS.readyState !== 1) return;
+  roomWS.send(JSON.stringify({ type: "message", text }));
+  if (inp) inp.value = "";
 }
 
 // ─── Security Center ──────────────────────────────────────────────────
@@ -2794,6 +2857,14 @@ document.addEventListener("DOMContentLoaded", () => {
   if (ceoKillBtn) ceoKillBtn.addEventListener("click", ceoKill);
   const ceoGoalForm = $("#ceo-goal-form");
   if (ceoGoalForm) ceoGoalForm.addEventListener("submit", setCeoGoal);
+
+  // Room (collaboration)
+  const roomForm = $("#room-form");
+  if (roomForm) roomForm.addEventListener("submit", sendRoomMsg);
+  const roomInput = $("#room-input");
+  if (roomInput) roomInput.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) { ev.preventDefault(); sendRoomMsg(ev); }
+  });
 
   // Chat
   $("#admin-chat-form").addEventListener("submit", sendChat);

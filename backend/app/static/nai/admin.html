@@ -29,6 +29,7 @@
         <button type="button" class="admin-tab" data-tab="twin">Twin</button>
         <button type="button" class="admin-tab" data-tab="audit">Audit</button>
         <button type="button" class="admin-tab" data-tab="ceo">👔 CEO</button>
+        <button type="button" class="admin-tab" data-tab="room">👥 Room</button>
         <button type="button" class="admin-tab" data-tab="security">🔐 Security</button>
         <button type="button" class="admin-tab" data-tab="sol">Sol</button>
         <button type="button" class="admin-tab" data-tab="persona">Persona</button>
@@ -805,6 +806,32 @@
         </div>
       </div><!-- /admin-pane-ceo -->
 
+      <!-- ─── Room tab · live collaboration ─── -->
+      <div id="admin-pane-room" class="admin-pane" hidden>
+        <div class="admin-card admin-chat-card">
+          <div class="admin-chat-toolbar">
+            <h2>👥 Room · live collaboration</h2>
+            <div class="admin-chat-tools">
+              <span id="room-status-line" class="admin-chat-status">disconnected</span>
+              <span id="room-presence" class="admin-stat-tiers"></span>
+            </div>
+          </div>
+          <p class="admin-hint">
+            A real-time shared room over WebSocket — everyone connected sees
+            presence + messages live (backend: <code>/ws/collab/{room}</code>,
+            token-gated). Broadcasting KAI's own replies into the room is a
+            follow-up.
+          </p>
+          <div id="room-feed" class="admin-chat-messages" aria-live="polite"></div>
+          <form id="room-form" class="admin-chat-form">
+            <div class="admin-chat-inputrow">
+              <textarea id="room-input" rows="1" placeholder="Message the room…  (Enter sends)"></textarea>
+              <button type="submit" class="admin-chat-send" aria-label="Send" title="Send">➤</button>
+            </div>
+          </form>
+        </div>
+      </div><!-- /admin-pane-room -->
+
       <div id="admin-pane-sol" class="admin-pane" hidden>
         <div class="admin-card">
           <div class="admin-chat-toolbar">
@@ -877,7 +904,7 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-kai-ceo-1" defer></script>
+  <script src="admin.js?v=ts-kai-2" defer></script>
 
   <!-- KAI 3D avatar (vendored three.module.js, relative imports — no CDN, no
        import map, CSP-safe) + command bridge. Module defers, so it runs after
