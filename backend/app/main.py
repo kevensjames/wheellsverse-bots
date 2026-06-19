@@ -12,7 +12,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_security, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_security, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1, ws_collab
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -212,6 +212,7 @@ app.include_router(documents.router)
 app.include_router(sol.router)
 app.include_router(sol.webhook_router)
 app.include_router(transcribe.router)
+app.include_router(ws_collab.router)
 app.include_router(tts.router)
 app.include_router(v1.router)
 # Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
