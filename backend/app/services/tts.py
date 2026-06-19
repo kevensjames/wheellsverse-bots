@@ -37,10 +37,20 @@ logger = logging.getLogger(__name__)
 # user can re-click to hear the next chunk if we ever need that.
 MAX_INPUT_CHARS = 4_000
 
-_PIPER_MODEL_PATH = os.environ.get(
-    "PIPER_MODEL_PATH",
-    "/Users/jhonwheeler/wheellsverse_bots/models/piper/en_US-lessac-medium.onnx",
-)
+_PIPER_DIR = "/Users/jhonwheeler/wheellsverse_bots/models/piper"
+
+
+def _default_piper_model() -> str:
+    # Prefer a warm, expressive storyteller voice when present; fall back to the
+    # clear lessac voice. Override entirely with PIPER_MODEL_PATH.
+    for name in ("en_US-ryan-high.onnx", "en_US-lessac-medium.onnx"):
+        p = os.path.join(_PIPER_DIR, name)
+        if os.path.exists(p):
+            return p
+    return os.path.join(_PIPER_DIR, "en_US-lessac-medium.onnx")
+
+
+_PIPER_MODEL_PATH = os.environ.get("PIPER_MODEL_PATH") or _default_piper_model()
 
 # Singleton — loaded lazily on first call.
 _piper_voice = None
@@ -73,12 +83,22 @@ def _synthesize_piper(text: str) -> bytes:
     voice = _get_piper()
     if voice is None:
         raise TTSError("piper unavailable")
+    # Storyteller cadence: length_scale > 1 = slower, calmer, "angelic narrator".
+    syn = None
+    try:
+        from piper import SynthesisConfig
+        syn = SynthesisConfig(length_scale=float(os.environ.get("PIPER_LENGTH_SCALE", "1.12")))
+    except Exception:
+        syn = None
     buf = io.BytesIO()
     with wave.open(buf, "wb") as wf:
         wf.setnchannels(1)
         wf.setsampwidth(2)
         wf.setframerate(voice.config.sample_rate)
-        voice.synthesize_wav(text, wf)
+        if syn is not None:
+            voice.synthesize_wav(text, wf, syn_config=syn)
+        else:
+            voice.synthesize_wav(text, wf)
     return buf.getvalue()
 
 
