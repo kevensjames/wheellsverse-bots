@@ -284,10 +284,85 @@ function activateTab(name) {
     loadPersona();
   } else if (name === "security") {
     loadSecurity();
+  } else if (name === "ceo") {
+    loadCeo();
   }
 }
 
 // ─── Persona (KAI's character) + mood ─────────────────────────────────
+
+// ─── CEO (autonomous executive) ───────────────────────────────────────
+
+async function loadCeo() {
+  const line = $("#ceo-status-line");
+  try {
+    const d = await apiGet("/admin/ceo/");
+    const c = d.company || {};
+    setText("#ceo-company-goal", c.goal || "— not set —");
+    setText("#ceo-company-metric", c.metric || "net_revenue");
+    setText("#ceo-scope", d.scope_on ? "yes" : "no (set KAI_SCOPE_CEO=1)");
+    setText("#ceo-killed", d.killed ? "🛑 ENGAGED" : "armed");
+    const s = d.snapshot || {};
+    setText("#ceo-kpi-rev", s.revenue != null ? s.revenue : "—");
+    setText("#ceo-kpi-plans", s.plans_active != null ? `${s.plans_active}/${s.plans_total ?? "?"}` : "—");
+    setText("#ceo-kpi-alerts", s.alerts != null ? s.alerts : "—");
+    setText("#ceo-kpi-sec", s.security_score != null ? s.security_score : "—");
+    const tb = $("#ceo-decisions-table tbody");
+    if (tb) {
+      tb.replaceChildren();
+      const rows = d.decisions || [];
+      if (!rows.length) tb.appendChild(emptyRow(4, "no decisions yet"));
+      for (const r of rows) {
+        const tr = document.createElement("tr");
+        tr.appendChild(td(fmtTime(r.ts)));
+        tr.appendChild(td(r.kind));
+        tr.appendChild(td(r.rationale || ""));
+        tr.appendChild(td(r.linked_plan_id ? `#${r.linked_plan_id}` : ""));
+        tb.appendChild(tr);
+      }
+    }
+    if (line) line.textContent = `${(d.decisions || []).length} decision(s) logged`;
+  } catch (e) {
+    if (e instanceof AuthError) { clearToken(); showAuth("Token rejected."); return; }
+    if (line) line.textContent = `error: ${e.message}`;
+  }
+}
+
+async function ceoRun() {
+  const line = $("#ceo-status-line");
+  if (line) line.textContent = "running cycle…";
+  try {
+    const out = await apiPost("/admin/ceo/run", { approved: true });
+    if (line) {
+      line.textContent = out && out.ran
+        ? `ran · ${out.result ? out.result.decisions : 0} decision(s)`
+        : `skipped · ${(out && out.reason) || "?"}`;
+    }
+    loadCeo();
+  } catch (e) {
+    if (line) line.textContent = `run failed: ${e.message}`;
+  }
+}
+
+async function ceoKill() {
+  try { await apiPost("/admin/ceo/kill", {}); } catch (e) { /* surfaced via reload */ }
+  loadCeo();
+}
+
+async function setCeoGoal(ev) {
+  ev.preventDefault();
+  const goalEl = $("#ceo-goal");
+  const goal = (goalEl && goalEl.value || "").trim();
+  if (!goal) return;
+  const line = $("#ceo-status-line");
+  try {
+    await apiPost("/admin/ceo/company", { goal, approved: true });
+    if (goalEl) goalEl.value = "";
+    loadCeo();
+  } catch (e) {
+    if (line) line.textContent = `set-goal failed: ${e.message}`;
+  }
+}
 
 // ─── Security Center ──────────────────────────────────────────────────
 
@@ -2709,6 +2784,16 @@ document.addEventListener("DOMContentLoaded", () => {
   if (personaRefresh) personaRefresh.addEventListener("click", loadPersona);
   const personaForm = $("#persona-add-form");
   if (personaForm) personaForm.addEventListener("submit", addPersonaTrait);
+
+  // CEO (autonomous executive)
+  const ceoRefresh = $("#ceo-refresh");
+  if (ceoRefresh) ceoRefresh.addEventListener("click", loadCeo);
+  const ceoRunBtn = $("#ceo-run");
+  if (ceoRunBtn) ceoRunBtn.addEventListener("click", ceoRun);
+  const ceoKillBtn = $("#ceo-kill");
+  if (ceoKillBtn) ceoKillBtn.addEventListener("click", ceoKill);
+  const ceoGoalForm = $("#ceo-goal-form");
+  if (ceoGoalForm) ceoGoalForm.addEventListener("submit", setCeoGoal);
 
   // Chat
   $("#admin-chat-form").addEventListener("submit", sendChat);
