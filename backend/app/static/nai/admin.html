@@ -7,13 +7,15 @@
   <meta name="robots" content="noindex,nofollow" />
   <link rel="stylesheet" href="style.css?v=ts-1781406183" />
   <link rel="stylesheet" href="admin.css?v=ts-1781441788" />
+  <link rel="stylesheet" href="command.css?v=kai-avatar-1" />
 </head>
 <body>
   <main class="admin-main">
     <header class="admin-header">
       <h1>KAI · operator</h1>
       <nav class="admin-tabs" id="admin-tabs" hidden>
-        <button type="button" class="admin-tab is-active" data-tab="stats">Stats</button>
+        <button type="button" class="admin-tab is-active" data-tab="command">◉ KAI</button>
+        <button type="button" class="admin-tab" data-tab="stats">Stats</button>
         <button type="button" class="admin-tab" data-tab="chat">Chat with KAI</button>
         <button type="button" class="admin-tab" data-tab="scanner">Scanner</button>
         <button type="button" class="admin-tab" data-tab="brief">Brief</button>
@@ -48,8 +50,39 @@
     </section>
 
     <section id="admin-body" hidden>
+      <!-- ─── Command tab · the AGI "body" (centered 3D robot + live HUD) ─── -->
+      <div id="admin-pane-command" class="admin-pane kai-command">
+        <div class="kai-hero">
+          <div class="kai-rail">
+            <div class="kai-orbit"><span class="kai-orbit-k">operator mood</span><span class="kai-orbit-v" id="kai-hud-mood">—</span></div>
+            <div class="kai-orbit"><span class="kai-orbit-k">active plans</span><span class="kai-orbit-v" id="kai-hud-plans">—</span></div>
+            <div class="kai-orbit"><span class="kai-orbit-k">users</span><span class="kai-orbit-v" id="kai-hud-users">—</span></div>
+          </div>
+
+          <div class="kai-stage" id="kai-stage">
+            <canvas id="kai-avatar-canvas"></canvas>
+            <div class="kai-caption" id="kai-caption">KAI online.</div>
+          </div>
+
+          <div class="kai-rail">
+            <div class="kai-orbit"><span class="kai-orbit-k">spend · 7d</span><span class="kai-orbit-v" id="kai-hud-spend">—</span></div>
+            <div class="kai-orbit"><span class="kai-orbit-k">security</span><span class="kai-orbit-v" id="kai-hud-security">—</span></div>
+            <div class="kai-orbit"><span class="kai-orbit-k">alerts · 24h</span><span class="kai-orbit-v" id="kai-hud-alerts">—</span></div>
+          </div>
+        </div>
+
+        <form class="kai-voicebar" id="kai-voiceform">
+          <button type="button" id="kai-mic" class="kai-mic" title="Click to talk to KAI">🎙</button>
+          <input id="kai-voice-input" class="kai-voice-input"
+            placeholder="Talk to KAI…  (or type and press Enter)" autocomplete="off" />
+          <button type="submit" id="kai-voice-send" class="kai-voice-send" title="Send">➤</button>
+          <label class="kai-voice-toggle"><input type="checkbox" id="kai-speak-toggle" checked> speak</label>
+        </form>
+        <div class="kai-statusline" id="kai-voice-status">Procedural KAI · full voice loop · everything you see, it feels.</div>
+      </div><!-- /admin-pane-command -->
+
       <!-- ─── Stats tab ─── -->
-      <div id="admin-pane-stats" class="admin-pane">
+      <div id="admin-pane-stats" class="admin-pane" hidden>
       <!-- Top row: 3 stat cards -->
       <div class="admin-grid admin-grid-3">
         <div class="admin-card">
@@ -787,6 +820,11 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-1781678939" defer></script>
+  <script src="admin.js?v=ts-1781789956" defer></script>
+
+  <!-- KAI 3D avatar (vendored three.module.js, relative imports — no CDN, no
+       import map, CSP-safe) + command bridge. Module defers, so it runs after
+       admin.js's globals (adminChatPost/apiGet/getToken) exist. -->
+  <script type="module" src="command.js?v=kai-avatar-2"></script>
 </body>
 </html>
