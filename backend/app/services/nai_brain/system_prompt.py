@@ -72,6 +72,7 @@ def build_system_prompt(
         lessons_preamble = _auto_lessons_preamble()
     persona = _auto_persona_preamble()
     twin = _auto_twin_preamble()
+    ceo = _auto_ceo_preamble()
     relationship = _auto_relationship_preamble()
     parts = []
     # KAI's OWN persona leads — model attention treats the first block as the
@@ -82,6 +83,9 @@ def build_system_prompt(
         parts.append(persona_prompt.strip())
     if twin:
         parts.append(twin.strip())
+    # The company north-star sits with the operator-model context.
+    if ceo:
+        parts.append(ceo.strip())
     # The shared-history bond sits with the who-you're-talking-to context.
     if relationship:
         parts.append(relationship.strip())
@@ -123,6 +127,16 @@ def _auto_twin_preamble() -> str:
     try:
         from app.services.twin.injection import twin_preamble
         return twin_preamble()
+    except Exception:
+        return ""
+
+
+def _auto_ceo_preamble() -> str:
+    """Pull the company/CEO context (if KAI_SCOPE_CEO is on). Lazy + fail-open
+    so nai_brain never hard-depends on the ceo module."""
+    try:
+        from app.services.ceo.injection import ceo_preamble
+        return ceo_preamble()
     except Exception:
         return ""
 

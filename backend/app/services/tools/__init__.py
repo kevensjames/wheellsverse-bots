@@ -3,6 +3,7 @@ import os
 
 from app.services.browser.config import browser_enabled as _browser_enabled
 from app.services.tools.audit_query import AuditQueryTool
+from app.services.tools.ceo_query import CeoQueryTool
 from app.services.tools.base import (
     Tool,
     ToolCall,
@@ -75,6 +76,9 @@ def build_default_registry(
         logger.info("tools: web_search skipped (PERPLEXITY_API_KEY not set)")
 
     reg.register(MemoryTool())
+    # CEO board (read-only) — KAI introspects its own company goal + decisions.
+    # SQLite-backed, ships with the daemon. No env key.
+    reg.register(CeoQueryTool())
     reg.register(TradingSignalTool())
     # No env key required — pure-Python fetch + trafilatura extraction
     reg.register(WebFetchTool())
