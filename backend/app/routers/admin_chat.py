@@ -118,6 +118,9 @@ def _resolve_operator_profile(session: Session) -> Profile:
 
 class AdminChatRequest(BaseModel):
     message: str
+    # Optional attached image as a data URL (data:image/...;base64,...) or http
+    # URL. When set, the turn takes the isolated multimodal/vision path below.
+    image: str | None = None
     conversation_id: _uuid.UUID | None = None
     # Tools on by default — the whole point of admin chat is full power.
     use_tools: bool = True
@@ -170,6 +173,40 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
         prof = _resolve_operator_profile(session)
     except OperatorNotConfigured as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+    # ─── multimodal: image attached → dedicated vision path ──────────
+    # Fully isolated from the normal text router so attaching an image can't
+    # affect (or break) text chat. Uses gpt-4o (vision). Not persisted to
+    # conversation history in v1. Returns the same response shape as text.
+    if req.image:
+        try:
+            from app.services.router.adapters.openai_adapter import OpenAIAdapter
+            adapter = OpenAIAdapter(model="gpt-4o")
+            content = [
+                {"type": "text", "text": req.message or "Analyze this image."},
+                {"type": "image_url", "image_url": {"url": req.image}},
+            ]
+            res = adapter.complete(
+                [{"role": "user", "content": content}],
+                system=(
+                    "You are KAI. The operator shared an image. Analyze it "
+                    "carefully and answer their message about it."
+                ),
+                max_tokens=req.max_tokens, temperature=0.4,
+            )
+        except Exception as e:
+            logger.exception("admin chat vision failed")
+            raise HTTPException(status_code=502, detail=f"vision error: {e}")
+        return {
+            "conversation_id": str(req.conversation_id) if req.conversation_id else None,
+            "message": {"role": "assistant", "content": res.content},
+            "preset_id": None,
+            "auto_routed": False,
+            "total_cost_usd": res.cost_usd,
+            "self_correction": None,
+            "verification": None,
+            "multimodal": True,
+        }
 
     # ─── preset handling ─────────────────────────────────────────────
     # If the operator selected an expert-agent preset, look it up + apply:

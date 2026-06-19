@@ -175,10 +175,13 @@
 
           <form id="admin-chat-form" class="admin-chat-form">
             <div class="admin-chat-inputrow">
+              <input type="file" id="admin-chat-image" accept="image/*" hidden />
+              <button type="button" id="admin-chat-attach" class="admin-chat-send" aria-label="Attach image" title="Attach an image (KAI will analyze it)">📎</button>
               <textarea id="admin-chat-input" rows="1"
-                placeholder="Ask KAI…  (Enter sends · Shift+Enter = new line)"></textarea>
+                placeholder="Ask KAI…  (Enter sends · Shift+Enter = new line · 📎 to attach an image)"></textarea>
               <button type="submit" id="admin-chat-send" class="admin-chat-send" aria-label="Send" title="Send (Enter)">➤</button>
             </div>
+            <span id="admin-chat-imgchip" class="admin-chat-status" hidden></span>
             <span id="admin-chat-status" class="admin-chat-status"></span>
           </form>
         </div>
@@ -904,7 +907,7 @@
     </section>
   </main>
 
-  <script src="admin.js?v=ts-kai-2" defer></script>
+  <script src="admin.js?v=ts-kai-3" defer></script>
 
   <!-- KAI 3D avatar (vendored three.module.js, relative imports — no CDN, no
        import map, CSP-safe) + command bridge. Module defers, so it runs after

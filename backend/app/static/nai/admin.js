@@ -742,6 +742,21 @@ function renderSolDetail(box, detail) {
 // ─── operator chat ─────────────────────────────────────────────────
 
 let adminConversationId = null;
+let adminPendingImage = null;
+
+function setPendingImage(dataUrl) {
+  adminPendingImage = dataUrl || null;
+  const chip = $("#admin-chat-imgchip");
+  if (chip) {
+    chip.hidden = !adminPendingImage;
+    chip.textContent = adminPendingImage ? "📎 image attached — KAI will analyze it on send" : "";
+  }
+}
+function clearPendingImage() {
+  setPendingImage(null);
+  const f = $("#admin-chat-image");
+  if (f) f.value = "";
+}
 
 async function adminChatPost(message) {
   const presetSel = $("#admin-preset-select");
@@ -756,6 +771,7 @@ async function adminChatPost(message) {
     auto_route: !!$("#admin-auto-route")?.checked,
     self_correct: !!(selfCorrect && selfCorrect.checked),
     verify: !!$("#admin-verify")?.checked,
+    image: adminPendingImage || null,
   };
   const r = await fetch("/admin/kai-chat", {
     method: "POST",
@@ -905,6 +921,7 @@ async function sendChat(e) {
   try {
     const resp = await adminChatPost(text);
     adminConversationId = resp.conversation_id;
+    clearPendingImage();
     const msg = resp.message || {};
     const sc = resp.self_correction;
     const meta = [
@@ -2869,6 +2886,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // Chat
   $("#admin-chat-form").addEventListener("submit", sendChat);
   $("#admin-chat-new").addEventListener("click", resetChat);
+
+  // Multimodal: attach an image; read as data URL into adminPendingImage.
+  const attachBtn = $("#admin-chat-attach");
+  const imgInput = $("#admin-chat-image");
+  if (attachBtn && imgInput) {
+    attachBtn.addEventListener("click", () => imgInput.click());
+    imgInput.addEventListener("change", () => {
+      const file = imgInput.files && imgInput.files[0];
+      if (!file) { clearPendingImage(); return; }
+      const reader = new FileReader();
+      reader.onload = () => setPendingImage(reader.result);
+      reader.onerror = () => clearPendingImage();
+      reader.readAsDataURL(file);
+    });
+  }
 
   // Enter sends; Shift+Enter inserts a newline. (isComposing guards IME so
   // confirming a candidate doesn't fire a send.) The input auto-grows as you
