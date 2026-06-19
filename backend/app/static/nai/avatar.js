@@ -40,8 +40,8 @@ export class KaiAvatar {
     this.photo.muted = true; this.photo.loop = true; this.photo.autoplay = true;
     this.photo.playsInline = true;
     this.photo.setAttribute('muted', ''); this.photo.setAttribute('playsinline', '');
-    this.photo.poster = opts.poster || './kai_portrait.png?v=cyborg1';
-    this.photo.src = opts.src || './kai_avatar.mp4?v=cyborg1';
+    this.photo.poster = opts.poster || './kai_portrait.png?v=cyborg2';
+    this.photo.src = opts.src || './kai_avatar.mp4?v=cyborg2';
     this.photo.addEventListener('loadeddata', () => { this.ready = true; this.photo.play().catch(() => {}); });
     this.photo.addEventListener('error', () => this._useStill());
 
@@ -72,7 +72,7 @@ export class KaiAvatar {
   _useStill() {
     try {
       const img = document.createElement('img');
-      img.className = 'kai-photo'; img.alt = 'KAI'; img.src = './kai_portrait.png?v=cyborg1';
+      img.className = 'kai-photo'; img.alt = 'KAI'; img.src = './kai_portrait.png?v=cyborg2';
       img.addEventListener('load', () => { this.ready = true; });
       img.addEventListener('error', () => { this.root.classList.add('kai-photo-missing'); this.ready = true; });
       if (this.photo && this.photo.parentElement) this.photo.replaceWith(img);
