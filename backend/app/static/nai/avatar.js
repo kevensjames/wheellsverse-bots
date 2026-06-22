@@ -42,7 +42,7 @@ export class KaiAvatar {
     this.photo.setAttribute('muted', ''); this.photo.setAttribute('playsinline', '');
     this.photo.poster = opts.poster || './kai_portrait.png?v=cyborg4';
     this.photo.src = opts.src || './kai_avatar.mp4?v=cyborg4';
-    this.photo.addEventListener('loadeddata', () => { this.ready = true; this.photo.play().catch(() => {}); });
+    this.photo.addEventListener('loadeddata', () => { this.ready = true; try { this.photo.playbackRate = 0.85; } catch (_) {} this.photo.play().catch(() => {}); });
     this.photo.addEventListener('error', () => this._useStill());
 
     this.eq = document.createElement('div');
@@ -83,12 +83,24 @@ export class KaiAvatar {
   start() { if (this.running) return; this.running = true; this.root.classList.add('kai-live'); }
   stop() { this.running = false; this.root.classList.remove('kai-live'); }
 
-  setSpeaking(on) { this.speaking = !!on; this.root.classList.toggle('kai-speaking', !!on); if (!on) this.setVoiceLevel(0); }
-  // Live audio amplitude (0..1) from the TTS stream → drives the equalizer +
-  // speaking glow so KAI visibly reacts to his own voice (audio-reactive lip-sync).
+  setSpeaking(on) {
+    this.speaking = !!on;
+    this.root.classList.toggle('kai-speaking', !!on);
+    if (!on) { this.setVoiceLevel(0); this._setRate(0.85); } // back to calm idle drift
+  }
+  // Live audio amplitude (0..1) from the TTS stream drives the equalizer + glow
+  // AND the video's playback speed, so the (pre-rendered) mouth tracks the speech
+  // envelope — faster on loud syllables, near-still on pauses. Not phoneme-perfect,
+  // but it reads as moving in time with the voice instead of looping out of sync.
   setVoiceLevel(level) {
     const v = Math.max(0, Math.min(1, level || 0));
     if (this.root) this.root.style.setProperty('--kai-voice', v.toFixed(3));
+    if (this.speaking) this._setRate(0.45 + v * 2.2);
+  }
+  _setRate(r) {
+    if (this.photo && this.photo.tagName === 'VIDEO') {
+      try { this.photo.playbackRate = Math.max(0.3, Math.min(3, r)); } catch (_) {}
+    }
   }
   pulseMouth() {
     this.root.classList.add('kai-pulse');
