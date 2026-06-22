@@ -195,18 +195,33 @@ function toggleMic() {
 function setCaption(t) { const c = $('#kai-caption'); if (c) c.textContent = t; }
 function setStatus(t) { const s = $('#kai-voice-status'); if (s) s.textContent = t; }
 
+// Quick chat for the ◉ KAI voice bar. Forces prefer_local (Ollama) + no tools
+// so KAI replies even with NO cloud LLM key — using tools would force a cloud
+// adapter, which fails without a key (that was the "nothing happens" bug).
+async function kaiChat(text) {
+  const r = await fetch('/admin/kai-chat', {
+    method: 'POST',
+    headers: { 'X-Admin-Token': token(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: text, use_tools: false, prefer_local: true, max_tokens: 800 }),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error(`chat ${r.status}${t ? ': ' + t.slice(0, 160) : ''}`);
+  }
+  return r.json();
+}
+
 async function send() {
   const input = $('#kai-voice-input');
   const text = (input && input.value.trim()) || '';
   if (!text) return;
   if (!token()) { setCaption('Unlock with your admin token first (top of the page).'); return; }
-  if (!window.adminChatPost) { setCaption('Chat unavailable — admin.js not loaded.'); return; }
   if (input) input.value = '';
   setCaption(`You: ${text}`);
   setStatus('KAI is thinking…');
   if (kai) kai.setThinking(true);
   try {
-    const resp = await window.adminChatPost(text);
+    const resp = await kaiChat(text);
     const reply = (resp && resp.message && resp.message.content) || '(no reply)';
     if (kai) kai.setThinking(false);
     setCaption(reply.length > 260 ? `${reply.slice(0, 260)}…` : reply);
