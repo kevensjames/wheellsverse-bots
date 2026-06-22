@@ -55,6 +55,13 @@ _PIPER_MODEL_PATH = os.environ.get("PIPER_MODEL_PATH") or _default_piper_model()
 # Singleton — loaded lazily on first call.
 _piper_voice = None
 
+# Kokoro-82M (StyleTTS2) — warm, natural local neural TTS. KAI's PRIMARY voice
+# when its model files are present (~/.kokoro). Falls back to Piper, then OpenAI.
+_KOKORO_MODEL = os.path.expanduser(os.environ.get("KOKORO_MODEL_PATH", "~/.kokoro/kokoro-v1.0.onnx"))
+_KOKORO_VOICES = os.path.expanduser(os.environ.get("KOKORO_VOICES_PATH", "~/.kokoro/voices-v1.0.bin"))
+_KOKORO_VOICE = os.environ.get("KOKORO_DEFAULT_VOICE", "am_michael")
+_kokoro = None
+
 
 class TTSError(RuntimeError):
     """User-facing TTS failure — both Piper and the OpenAI fallback failed."""
@@ -102,6 +109,41 @@ def _synthesize_piper(text: str) -> bytes:
     return buf.getvalue()
 
 
+def _get_kokoro():
+    """Load + cache the Kokoro voice. None means unavailable (model files missing
+    / lib not installed) → caller falls back to Piper."""
+    global _kokoro
+    if _kokoro is not None:
+        return _kokoro
+    if not (os.path.exists(_KOKORO_MODEL) and os.path.exists(_KOKORO_VOICES)):
+        return None
+    try:
+        from kokoro_onnx import Kokoro
+        _kokoro = Kokoro(_KOKORO_MODEL, _KOKORO_VOICES)
+        logger.info("kokoro voice loaded (%s)", _KOKORO_VOICE)
+        return _kokoro
+    except Exception as e:
+        logger.warning("kokoro load failed: %s", e)
+        return None
+
+
+def _synthesize_kokoro(text: str, voice: str | None = None, speed: float = 0.95) -> bytes:
+    kok = _get_kokoro()
+    if kok is None:
+        raise TTSError("kokoro unavailable")
+    try:
+        import soundfile as sf
+        samples, sr = kok.create(
+            text, voice=(voice or _KOKORO_VOICE),
+            speed=max(0.6, min(1.3, float(speed))), lang="en-us",
+        )
+        buf = io.BytesIO()
+        sf.write(buf, samples, sr, format="WAV", subtype="PCM_16")
+        return buf.getvalue()
+    except Exception as e:
+        raise TTSError(f"kokoro synth failed: {e}")
+
+
 def _synthesize_openai(text: str, voice: str = "alloy", speed: float = 1.0) -> bytes:
     """OpenAI TTS-1 fallback. Returns MP3-style WAV bytes (response_format=wav
     asks for raw PCM packaged as WAV — same shape the browser <audio> tag
@@ -137,6 +179,16 @@ def synthesize(text: str, *, voice: str = "alloy", speed: float = 1.0) -> tuple[
     if len(text) > MAX_INPUT_CHARS:
         text = text[:MAX_INPUT_CHARS]
         logger.info("tts: truncated input to %d chars", MAX_INPUT_CHARS)
+
+    backend = (os.environ.get("KAI_TTS_BACKEND", "kokoro") or "kokoro").strip().lower()
+
+    if backend == "kokoro":
+        try:
+            # caller's slower cadence for the storyteller feel (default 0.95)
+            ksp = speed if (speed and speed != 1.0) else 0.95
+            return _synthesize_kokoro(text, speed=ksp), "audio/wav"
+        except TTSError as kerr:
+            logger.warning("kokoro failed (%s); trying piper", kerr)
 
     try:
         wav = _synthesize_piper(text)
