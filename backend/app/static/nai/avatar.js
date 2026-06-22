@@ -86,10 +86,10 @@ export class KaiAvatar {
           });
           this._frame(root);
           this.loaded = urls[i];
-          // The fallback demo head is a plain mannequin — give it a metallic
-          // android finish + glowing blue eyes so it reads as a robot. The real
-          // RPM/robot GLB keeps its own (already good) materials.
-          if (urls[i].indexOf('kai_face') !== -1) this._robotize();
+          // Give the loaded head a metallic android finish + glowing blue eyes so
+          // KAI reads as a robot. (No ready-made robot head lip-syncs, so we chrome
+          // a morph-capable human head.) Pass {keepMaterials:true} to skip.
+          if (!this.opts.keepMaterials) this._robotize();
           this.ready = true;
         },
         undefined,
@@ -99,37 +99,58 @@ export class KaiAvatar {
     attempt(0);
   }
 
-  // Center the model's bounding box at the origin, then frame a face-height
-  // window. "Tall body" (a standing RPM export) is detected by ASPECT RATIO, not
-  // absolute size — facecap is quantized to ~5×7 world units, so a size threshold
-  // misfires. For a body we frame the top ~20% (the head); for a head/bust the
-  // whole thing.
+  // World-space bbox from raw vertex positions × world matrix. Unlike
+  // Box3.setFromObject, this is correct for SKINNED meshes (whose head verts a
+  // rig places far from the model origin) and for quantized meshes (facecap).
+  _worldBox(obj) {
+    obj.updateWorldMatrix(true, true);
+    const min = new THREE.Vector3(1e9, 1e9, 1e9), max = new THREE.Vector3(-1e9, -1e9, -1e9);
+    const v = new THREE.Vector3();
+    obj.traverse((o) => {
+      const p = o.isMesh && o.geometry && o.geometry.attributes.position;
+      if (!p) return;
+      const step = Math.max(1, Math.floor(p.count / 1500));
+      for (let i = 0; i < p.count; i += step) { v.fromBufferAttribute(p, i).applyMatrix4(o.matrixWorld); min.min(v); max.max(v); }
+    });
+    return new THREE.Box3(min, max);
+  }
+
+  // Frame the HEAD as a portrait. Humanoid avatars (RPM/Avaturn) have a
+  // 'Head'-named mesh — frame just that, so a full body / T-pose doesn't shrink
+  // the face. A bare head (facecap, no 'head' name) frames the whole model.
   _frame(root) {
-    const box = new THREE.Box3().setFromObject(root);
+    let headObj = null;
+    root.traverse((o) => { if (o.isMesh && !headObj && /head/i.test(o.name || '')) headObj = o; });
+    const fitObj = headObj || root;
+    const box = this._worldBox(fitObj);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
     this._size = size.clone();
-    root.position.sub(center);                              // bbox centered at origin
-    const tallBody = size.y / Math.max(1e-4, size.x) > 1.7; // standing body vs. head/bust
-    const faceH = tallBody ? size.y * 0.20 : size.y;
-    const faceCenterY = tallBody ? size.y * 0.5 - faceH * 0.5 : 0;
-    root.position.y -= faceCenterY;                         // bring the face to the origin
+    root.position.sub(center);                              // head centered at origin
     const aspect = this.camera.aspect || 1;
-    const winW = tallBody ? faceH * 0.8 : size.x;
-    const halfH = Math.max(faceH, winW / aspect) * 0.5;
-    const dist = halfH / Math.tan((this.camera.fov * Math.PI / 180) / 2) * 1.12 + size.z * 0.6;
+    const margin = 1.22;                                    // tight portrait — crop neck/shoulders
+    const halfH = Math.max(size.y, size.x / aspect) * 0.5 * margin;
+    const dist = halfH / Math.tan((this.camera.fov * Math.PI / 180) / 2) + size.z * 0.6;
     this.camera.position.set(0, 0, dist);
     this.camera.lookAt(0, 0, 0);
   }
 
-  // Turn the plain demo head into a metallic android with glowing blue eyes.
+  // Turn a human head into a metallic android: chrome the skin/hair/body, and
+  // make real eye meshes glow blue. Works for facecap (1 mesh → add eye spheres)
+  // and for RPM/Avaturn (separate Wolf3D_Eye meshes → glow them in place).
   _robotize() {
-    for (const m of this.meshes) {
-      m.material = new THREE.MeshStandardMaterial({
-        color: 0x2b3a4d, metalness: 0.92, roughness: 0.36,
-        emissive: 0x0c2742, emissiveIntensity: 0.4,
-      });
-    }
+    let foundEyes = false;
+    const target = this.model || { traverse: (f) => this.meshes.forEach(f) };
+    target.traverse((o) => {
+      if (!o.isMesh) return;
+      const n = (o.name || '').toLowerCase();
+      const isEye = n.includes('eye') && !n.includes('eyelash') && !n.includes('brow');
+      o.material = new THREE.MeshStandardMaterial(isEye
+        ? { color: 0xbff0ff, emissive: 0x35c6ff, emissiveIntensity: 2.6, metalness: 0, roughness: 0.15 }
+        : { color: 0x2b3a4d, metalness: 0.92, roughness: 0.36, emissive: 0x0c2742, emissiveIntensity: 0.4 });
+      if (isEye) foundEyes = true;
+    });
+    if (foundEyes) return;     // real eye meshes glowing → no need for spheres
     const s = this._size || new THREE.Vector3(5, 7, 7);
     const r = Math.max(s.x, s.y) * 0.038;
     const geo = new THREE.SphereGeometry(r, 24, 24);
@@ -148,12 +169,18 @@ export class KaiAvatar {
     const d = mesh.morphTargetDictionary, inf = mesh.morphTargetInfluences;
     for (const n of names) if (n in d) inf[d[n]] = val;
   }
+  // Set ONLY the first available morph (avatars with both jawOpen + mouthOpen
+  // would double-open the mouth into a gape if we set both).
+  _setFirst(mesh, names, val) {
+    const d = mesh.morphTargetDictionary, inf = mesh.morphTargetInfluences;
+    for (const n of names) if (n in d) { inf[d[n]] = val; return; }
+  }
   _applyMorphs() {
     const open = this.jaw;
-    const smile = this.mood === 'happy' ? 0.30 + this.jaw * 0.15 : this.mood === 'calm' ? 0.10 : 0;
+    const smile = this.mood === 'happy' ? 0.26 + this.jaw * 0.12 : this.mood === 'calm' ? 0.08 : 0;
     for (const m of this.meshes) {
-      this._setMorph(m, M_OPEN, open * 0.95);
-      this._setMorph(m, M_WIDE, open * 0.22);
+      this._setFirst(m, M_OPEN, open * 0.78);   // jaw drop tracks the voice
+      this._setMorph(m, M_WIDE, open * 0.16);
       this._setMorph(m, M_SMILE, smile);
       this._setMorph(m, M_BLINK, this.blink);
     }
