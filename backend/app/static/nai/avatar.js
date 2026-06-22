@@ -85,8 +85,12 @@ export class KaiAvatar {
             }
           });
           this._frame(root);
-          this.ready = true;
           this.loaded = urls[i];
+          // The fallback demo head is a plain mannequin — give it a metallic
+          // android finish + glowing blue eyes so it reads as a robot. The real
+          // RPM/robot GLB keeps its own (already good) materials.
+          if (urls[i].indexOf('kai_face') !== -1) this._robotize();
+          this.ready = true;
         },
         undefined,
         () => attempt(i + 1),   // 404 / parse error → try the fallback face
@@ -104,6 +108,7 @@ export class KaiAvatar {
     const box = new THREE.Box3().setFromObject(root);
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
+    this._size = size.clone();
     root.position.sub(center);                              // bbox centered at origin
     const tallBody = size.y / Math.max(1e-4, size.x) > 1.7; // standing body vs. head/bust
     const faceH = tallBody ? size.y * 0.20 : size.y;
@@ -115,6 +120,28 @@ export class KaiAvatar {
     const dist = halfH / Math.tan((this.camera.fov * Math.PI / 180) / 2) * 1.12 + size.z * 0.6;
     this.camera.position.set(0, 0, dist);
     this.camera.lookAt(0, 0, 0);
+  }
+
+  // Turn the plain demo head into a metallic android with glowing blue eyes.
+  _robotize() {
+    for (const m of this.meshes) {
+      m.material = new THREE.MeshStandardMaterial({
+        color: 0x2b3a4d, metalness: 0.92, roughness: 0.36,
+        emissive: 0x0c2742, emissiveIntensity: 0.4,
+      });
+    }
+    const s = this._size || new THREE.Vector3(5, 7, 7);
+    const r = Math.max(s.x, s.y) * 0.038;
+    const geo = new THREE.SphereGeometry(r, 24, 24);
+    const eyeMat = new THREE.MeshStandardMaterial({
+      color: 0xbff0ff, emissive: 0x35c6ff, emissiveIntensity: 2.8, metalness: 0, roughness: 0.15,
+    });
+    this.eyes = [];
+    for (const sx of [-1, 1]) {
+      const e = new THREE.Mesh(geo, eyeMat);
+      e.position.set(sx * s.x * 0.118, s.y * 0.045, s.z * 0.255);
+      this.head.add(e); this.eyes.push(e);
+    }
   }
 
   _setMorph(mesh, names, val) {
