@@ -104,7 +104,7 @@ async function loadOverview(){
   document.getElementById('ov-body').innerHTML=
     (d.steps&&d.steps.length)
       ? d.steps.map(s=>'<tr><td>'+esc(s.verb)+'</td><td>'+esc(s.class)+'</td>'+
-          '<td><span class="pill '+(s.state==='done'?'on':s.state==='pending'?'off':'kill')+'">'+esc(s.state)+'</span></td></tr>').join('')
+          '<td><span class="pill '+((s.state==='completed'||s.state==='next')?'on':'off')+'">'+esc(s.state)+'</span></td></tr>').join('')
       : '<tr><td colspan="3" class="muted">No steps yet.</td></tr>';
 }
 async function loadArtifacts(){

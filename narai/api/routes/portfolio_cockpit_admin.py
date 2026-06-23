@@ -76,7 +76,7 @@ def tick(slug: str, _=Depends(verify_admin_api_key)) -> dict:
     result = loops.tick(slug, adapters.adapter_for, adapters.ctx_for)
     if result is None:
         return {"status": "idle", "detail": "no step ready"}
-    return {"status": result.status, "verb": getattr(result, "detail", ""), "detail": result.detail}
+    return {"status": result.status, "detail": result.detail}
 
 
 @router.post("/{slug}/seed")
