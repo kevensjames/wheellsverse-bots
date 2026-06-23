@@ -95,7 +95,15 @@ def dispatch(
         # fall through to execution
 
     # GREEN (or AUTO_CAPPED with all preconditions met) — execute.
-    output = adapter.run(action)
+    # The execute path is the only one with a real external side effect, so an
+    # adapter failure MUST still be audited (spec: everything is audited) — never
+    # let an attempted action vanish without a record. dispatch never raises.
+    try:
+        output = adapter.run(action)
+    except Exception as e:
+        res = DispatchResult("failed", f"adapter raised: {e}")
+        on_audit(_audit_record(action, res.status, res.detail))
+        return res
     res = DispatchResult("executed", "executed", output=output)
     on_audit(_audit_record(action, res.status, res.detail))
     return res

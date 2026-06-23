@@ -78,3 +78,16 @@ def test_check_preconditions_reports_all_failures():
     ok, failed = check_preconditions(action, {"a": True, "b": False, "c": 0})
     assert ok is False
     assert failed == ["b", "c"]
+
+
+def test_execute_path_audits_adapter_failure_and_does_not_raise():
+    class _BoomAdapter:
+        def run(self, action):
+            raise RuntimeError("provider down")
+    q, a, on_queue, on_audit = _harness()
+    res = dispatch(_mk(ActionClass.GREEN), _BoomAdapter(), {},
+                   on_queue=on_queue, on_audit=on_audit)
+    assert res.status == "failed"
+    assert "provider down" in res.detail
+    assert a and a[-1]["status"] == "failed"   # the failure WAS audited
+    assert q == []                              # attempted, not queued
