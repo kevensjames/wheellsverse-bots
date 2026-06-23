@@ -56,7 +56,7 @@ def _audit_record(action: Action, status: str, detail: str) -> dict:
         "business": action.business,
         "verb": action.verb,
         "agent": action.agent,
-        "action_class": action.action_class.value,
+        "action_class": getattr(action.action_class, "value", str(action.action_class)),
         "status": status,
         "detail": detail,
     }
@@ -94,16 +94,21 @@ def dispatch(
             return res
         # fall through to execution
 
-    # GREEN (or AUTO_CAPPED with all preconditions met) — execute.
-    # The execute path is the only one with a real external side effect, so an
-    # adapter failure MUST still be audited (spec: everything is audited) — never
-    # let an attempted action vanish without a record. dispatch never raises.
-    try:
-        output = adapter.run(action)
-    except Exception as e:
-        res = DispatchResult("failed", f"adapter raised: {e}")
+    # Execute ONLY for GREEN or an AUTO_CAPPED that passed its preconditions.
+    # Fail CLOSED: any action_class that isn't explicitly executable is refused,
+    # so an unexpected / out-of-enum class can never reach the adapter.
+    if action.action_class is ActionClass.GREEN or action.action_class is ActionClass.AUTO_CAPPED:
+        try:
+            output = adapter.run(action)
+        except Exception as e:
+            res = DispatchResult("failed", f"adapter raised: {e}")
+            on_audit(_audit_record(action, res.status, res.detail))
+            return res
+        res = DispatchResult("executed", "executed", output=output)
         on_audit(_audit_record(action, res.status, res.detail))
         return res
-    res = DispatchResult("executed", "executed", output=output)
+
+    # Terminal safety net — unknown/unhandled class never executes.
+    res = DispatchResult("refused", f"unknown action_class: {action.action_class!r}")
     on_audit(_audit_record(action, res.status, res.detail))
     return res

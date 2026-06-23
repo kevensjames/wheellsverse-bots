@@ -31,3 +31,9 @@ def test_load_json_survives_corrupt_file(tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text("{not json")
     assert paths.load_json(bad, []) == []
+
+
+def test_jsonl_roundtrips_non_ascii(tmp_path):
+    log = tmp_path / "audit.jsonl"
+    paths.append_jsonl(log, {"msg": "café ☕ — déjà vu"})
+    assert paths.read_jsonl(log) == [{"msg": "café ☕ — déjà vu"}]

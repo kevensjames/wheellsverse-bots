@@ -48,7 +48,7 @@ def mark_completed(slug: str, verb: str) -> None:
 def record_artifact(slug: str, kind: str, name: str, content: str) -> Path:
     target = paths.business_dir(slug) / "artifacts" / kind / name
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content)
+    target.write_text(content, encoding="utf-8")
     return target
 
 
@@ -108,6 +108,6 @@ def resolve_approval(approval_id: str, status: str) -> bool:
     # Rewrite the whole file atomically as JSONL.
     f.parent.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".jsonl.tmp")
-    tmp.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    tmp.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
     tmp.replace(f)
     return True

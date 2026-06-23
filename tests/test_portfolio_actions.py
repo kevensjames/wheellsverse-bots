@@ -91,3 +91,15 @@ def test_execute_path_audits_adapter_failure_and_does_not_raise():
     assert "provider down" in res.detail
     assert a and a[-1]["status"] == "failed"   # the failure WAS audited
     assert q == []                              # attempted, not queued
+
+
+def test_unknown_action_class_fails_closed():
+    adapter = _RecordingAdapter()
+    q, a, on_queue, on_audit = _harness()
+    bogus = Action(verb="x", agent="?", action_class="not_a_real_class",
+                   preconditions=[], business="n8n", payload={})
+    res = dispatch(bogus, adapter, {}, on_queue=on_queue, on_audit=on_audit)
+    assert res.status == "refused"
+    assert adapter.ran == []      # never executed
+    assert q == []                # never queued
+    assert a and a[-1]["status"] == "refused"   # refusal was audited
