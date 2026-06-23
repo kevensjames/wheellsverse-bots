@@ -1684,6 +1684,22 @@ async def serve_siteboost_admin():
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
+@app.get("/admin/portfolio", response_class=HTMLResponse)
+async def serve_portfolio_admin():
+    """Portfolio HQ — W-MOS Master Supervisor control panel. Shows the 10-business
+    rollup, the AMBER approval queue, the orchestrator arm/kill controls, and the
+    audit log. API at /api/narai/portfolio/*. Auth via X-API-Key.
+    """
+    path = ROOT / "frontend" / "admin" / "portfolio.html"
+    if not path.exists():
+        return HTMLResponse("<h1>portfolio.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
 @app.get("/p/{slug}", response_class=HTMLResponse)
 async def siteboost_preview(slug: str):
     """Public preview of a generated SiteBoost site. This URL is embedded in every
@@ -15102,6 +15118,13 @@ try:
         app.include_router(_siteboost_admin_rt)                  # /api/narai/siteboost/*
     except Exception as _sb_exc:
         logging.getLogger("api").warning(f"siteboost_admin router skipped: {_sb_exc}")
+
+    # Portfolio HQ admin API — W-MOS Master Supervisor operator surface
+    try:
+        from narai.api.routes.portfolio_admin import router as _portfolio_admin_rt
+        app.include_router(_portfolio_admin_rt)                  # /api/narai/portfolio/*
+    except Exception as _pf_exc:
+        logging.getLogger("api").warning(f"portfolio_admin router skipped: {_pf_exc}")
     logger.info("NarAI multi-tenant Shopify routes loaded")
 except Exception as _e:
     logger.warning(f"NarAI multi-tenant Shopify not loaded: {_e}")
