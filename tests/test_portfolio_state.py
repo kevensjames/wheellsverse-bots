@@ -48,3 +48,19 @@ def test_approval_queue_lifecycle(monkeypatch, tmp_path):
     assert state.list_approvals("pending") == []
     assert state.list_approvals("approved")[0]["id"] == aid
     assert state.resolve_approval("missing-id", "approved") is False
+
+
+def test_mark_pending_is_idempotent(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    state.mark_pending("n8n", "draft_outreach")
+    state.mark_pending("n8n", "draft_outreach")
+    assert state.load_state("n8n")["pending_verbs"] == ["draft_outreach"]
+
+
+def test_load_state_coerces_null_verb_lists(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    paths.save_json_atomic(tmp_path / "n8n" / "state.json",
+                           {"phase": "planning", "completed_verbs": None, "pending_verbs": None})
+    s = state.load_state("n8n")
+    assert s["completed_verbs"] == []
+    assert s["pending_verbs"] == []

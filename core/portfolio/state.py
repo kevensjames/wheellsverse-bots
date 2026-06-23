@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from pathlib import Path
 
 from core.portfolio import paths
 from core.portfolio.actions import Action
@@ -20,8 +21,8 @@ def load_state(slug: str) -> dict:
     base = {k: (list(v) if isinstance(v, list) else v) for k, v in _DEFAULT_STATE.items()}
     stored = paths.load_json(_state_file(slug), {})
     base.update(stored or {})
-    base.setdefault("completed_verbs", [])
-    base.setdefault("pending_verbs", [])
+    base["completed_verbs"] = base.get("completed_verbs") or []
+    base["pending_verbs"] = base.get("pending_verbs") or []
     return base
 
 
@@ -44,7 +45,7 @@ def mark_completed(slug: str, verb: str) -> None:
     save_state(slug, s)
 
 
-def record_artifact(slug: str, kind: str, name: str, content: str):
+def record_artifact(slug: str, kind: str, name: str, content: str) -> Path:
     target = paths.business_dir(slug) / "artifacts" / kind / name
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content)
@@ -95,7 +96,8 @@ def list_approvals(status: str | None = None) -> list[dict]:
 
 
 def resolve_approval(approval_id: str, status: str) -> bool:
-    rows = paths.read_jsonl(_approvals_file())
+    f = _approvals_file()
+    rows = paths.read_jsonl(f)
     found = False
     for r in rows:
         if r.get("id") == approval_id:
@@ -104,7 +106,6 @@ def resolve_approval(approval_id: str, status: str) -> bool:
     if not found:
         return False
     # Rewrite the whole file atomically as JSONL.
-    f = _approvals_file()
     f.parent.mkdir(parents=True, exist_ok=True)
     tmp = f.with_suffix(".jsonl.tmp")
     tmp.write_text("".join(json.dumps(r) + "\n" for r in rows))
