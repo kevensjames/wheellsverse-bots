@@ -15118,16 +15118,18 @@ try:
         app.include_router(_siteboost_admin_rt)                  # /api/narai/siteboost/*
     except Exception as _sb_exc:
         logging.getLogger("api").warning(f"siteboost_admin router skipped: {_sb_exc}")
-
-    # Portfolio HQ admin API — W-MOS Master Supervisor operator surface
-    try:
-        from narai.api.routes.portfolio_admin import router as _portfolio_admin_rt
-        app.include_router(_portfolio_admin_rt)                  # /api/narai/portfolio/*
-    except Exception as _pf_exc:
-        logging.getLogger("api").warning(f"portfolio_admin router skipped: {_pf_exc}")
     logger.info("NarAI multi-tenant Shopify routes loaded")
 except Exception as _e:
     logger.warning(f"NarAI multi-tenant Shopify not loaded: {_e}")
+
+
+# Portfolio HQ admin API — W-MOS Master Supervisor operator surface (independent mount,
+# decoupled from the Shopify/SiteBoost try so a Shopify import error can't drop it).
+try:
+    from narai.api.routes.portfolio_admin import router as _portfolio_admin_rt
+    app.include_router(_portfolio_admin_rt)                      # /api/narai/portfolio/*
+except Exception as _pf_exc:
+    logging.getLogger("api").warning(f"portfolio_admin router skipped: {_pf_exc}")
 
 
 # ── Toodle / Second Brain Inbox ────────────────────────────────────────────────
