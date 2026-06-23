@@ -3,12 +3,15 @@ log, and the approval queue (the AMBER one-click surface, stored as JSONL)."""
 from __future__ import annotations
 
 import json
+import threading
 import time
 import uuid
 from pathlib import Path
 
 from core.portfolio import paths
 from core.portfolio.actions import Action
+
+_APPROVALS_LOCK = threading.Lock()
 
 _DEFAULT_STATE = {"phase": "planning", "completed_verbs": [], "pending_verbs": []}
 
@@ -68,7 +71,7 @@ def _approvals_file():
 
 def queue_approval(action: Action) -> str:
     aid = uuid.uuid4().hex[:12]
-    paths.append_jsonl(_approvals_file(), {
+    record = {
         "id": aid,
         "status": "pending",
         "business": action.business,
@@ -78,7 +81,9 @@ def queue_approval(action: Action) -> str:
         "preconditions": list(action.preconditions),
         "payload": action.payload,
         "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-    })
+    }
+    with _APPROVALS_LOCK:
+        paths.append_jsonl(_approvals_file(), record)
     return aid
 
 
@@ -96,18 +101,19 @@ def list_approvals(status: str | None = None) -> list[dict]:
 
 
 def resolve_approval(approval_id: str, status: str) -> bool:
-    f = _approvals_file()
-    rows = paths.read_jsonl(f)
-    found = False
-    for r in rows:
-        if r.get("id") == approval_id:
-            r["status"] = status
-            found = True
-    if not found:
-        return False
-    # Rewrite the whole file atomically as JSONL.
-    f.parent.mkdir(parents=True, exist_ok=True)
-    tmp = f.with_suffix(".jsonl.tmp")
-    tmp.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
-    tmp.replace(f)
+    with _APPROVALS_LOCK:
+        f = _approvals_file()
+        rows = paths.read_jsonl(f)
+        found = False
+        for r in rows:
+            if r.get("id") == approval_id:
+                r["status"] = status
+                found = True
+        if not found:
+            return False
+        # Rewrite the whole file atomically as JSONL.
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".jsonl.tmp")
+        tmp.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        tmp.replace(f)
     return True
