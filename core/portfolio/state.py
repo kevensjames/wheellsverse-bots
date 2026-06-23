@@ -117,3 +117,24 @@ def resolve_approval(approval_id: str, status: str) -> bool:
         tmp.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
         tmp.replace(f)
     return True
+
+
+def compare_and_set_approval(approval_id: str, expect: str, new: str) -> bool:
+    """Atomically set an approval's status to `new` ONLY if it is currently `expect`.
+    Returns True on success, False if the id is missing or not in `expect` state.
+    Serialized with the other approvals writers via _APPROVALS_LOCK."""
+    with _APPROVALS_LOCK:
+        f = _approvals_file()
+        rows = paths.read_jsonl(f)
+        target = None
+        for r in rows:
+            if r.get("id") == approval_id:
+                target = r
+        if target is None or target.get("status") != expect:
+            return False
+        target["status"] = new
+        f.parent.mkdir(parents=True, exist_ok=True)
+        tmp = f.with_suffix(".jsonl.tmp")
+        tmp.write_text("".join(json.dumps(r) + "\n" for r in rows), encoding="utf-8")
+        tmp.replace(f)
+        return True

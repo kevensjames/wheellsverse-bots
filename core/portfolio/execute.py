@@ -14,26 +14,36 @@ def execute_approval(approval_id: str) -> dict:
     appr = next((a for a in state.list_approvals() if a.get("id") == approval_id), None)
     if appr is None:
         return {"status": "not_found"}
-    if appr.get("status") != "approved":
+
+    # Reconstruct defensively — a corrupt action_class must refuse, not crash.
+    try:
+        action = Action(
+            verb=appr["verb"],
+            agent=appr.get("agent", ""),
+            action_class=ActionClass(appr.get("action_class", "amber")),
+            preconditions=list(appr.get("preconditions", [])),
+            business=appr["business"],
+            payload=appr.get("payload", {}),
+        )
+    except (KeyError, ValueError):
+        return {"status": "refused", "detail": "malformed approval record"}
+
+    # Atomically CLAIM the item: only an 'approved' row transitions to 'executing'.
+    # Blocks concurrent double-fire AND prevents a crash mid-run from re-arming it.
+    if not state.compare_and_set_approval(approval_id, "approved", "executing"):
         return {"status": "refused",
                 "detail": f"approval status is {appr.get('status')!r}, not 'approved'"}
 
-    action = Action(
-        verb=appr["verb"],
-        agent=appr.get("agent", ""),
-        action_class=ActionClass(appr.get("action_class", "amber")),
-        preconditions=list(appr.get("preconditions", [])),
-        business=appr["business"],
-        payload=appr.get("payload", {}),
-    )
-    # adapters.adapter_for(step) only needs `.verb`; the Action provides it.
-    output = adapters.adapter_for(action).run(action)
-    state.audit({
-        "business": action.business,
-        "verb": action.verb,
-        "status": "executed_by_approval",
-        "approval_id": approval_id,
-    })
+    try:
+        output = adapters.adapter_for(action).run(action)
+    except Exception as e:
+        state.resolve_approval(approval_id, "failed")
+        state.audit({"business": action.business, "verb": action.verb,
+                     "status": "execute_failed", "approval_id": approval_id, "error": str(e)})
+        return {"status": "failed", "verb": action.verb, "detail": str(e)}
+
+    state.audit({"business": action.business, "verb": action.verb,
+                 "status": "executed_by_approval", "approval_id": approval_id, "output": output})
     state.mark_completed(action.business, action.verb)
-    state.resolve_approval(approval_id, "executed")  # idempotent: blocks double-fire
+    state.resolve_approval(approval_id, "executed")
     return {"status": "executed", "verb": action.verb, "output": output}

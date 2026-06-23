@@ -42,3 +42,34 @@ def test_rejected_never_executes(monkeypatch, tmp_path):
     aid = _queue(monkeypatch, tmp_path)
     state.resolve_approval(aid, "rejected")
     assert execute.execute_approval(aid)["status"] == "refused"
+
+
+def test_refused_pending_does_not_run_adapter(monkeypatch, tmp_path):
+    aid = _queue(monkeypatch, tmp_path)  # pending
+    assert execute.execute_approval(aid)["status"] == "refused"
+    # the infra adapter NEVER ran -> no manifest on disk
+    assert not (tmp_path / "n8n" / "artifacts" / "infra" / "deploy-manifest.json").exists()
+
+
+def test_adapter_failure_marks_failed_not_executed(monkeypatch, tmp_path):
+    aid = _queue(monkeypatch, tmp_path)
+    state.resolve_approval(aid, "approved")
+    import core.portfolio.adapters as ad
+
+    class _Boom:
+        def run(self, action):
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(ad, "adapter_for", lambda step: _Boom())
+    res = execute.execute_approval(aid)
+    assert res["status"] == "failed"
+    assert {a["id"]: a["status"] for a in state.list_approvals()}[aid] == "failed"
+
+
+def test_compare_and_set_claim_semantics(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    aid = state.queue_approval(Action("v", "a", ActionClass.AMBER, [], "n8n", {}))
+    assert state.compare_and_set_approval(aid, "approved", "executing") is False  # currently pending
+    state.resolve_approval(aid, "approved")
+    assert state.compare_and_set_approval(aid, "approved", "executing") is True
+    assert state.compare_and_set_approval(aid, "approved", "executing") is False  # now 'executing'
