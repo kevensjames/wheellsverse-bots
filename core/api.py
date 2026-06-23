@@ -1700,6 +1700,19 @@ async def serve_portfolio_admin():
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
+@app.get("/admin/portfolio/{slug}", response_class=HTMLResponse)
+async def serve_portfolio_cockpit(slug: str):
+    """Per-business Build Cockpit. API at /api/narai/portfolio/biz/{slug}/*."""
+    path = ROOT / "frontend" / "admin" / "portfolio_cockpit.html"
+    if not path.exists():
+        return HTMLResponse("<h1>portfolio_cockpit.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
 @app.get("/p/{slug}", response_class=HTMLResponse)
 async def siteboost_preview(slug: str):
     """Public preview of a generated SiteBoost site. This URL is embedded in every
@@ -15130,6 +15143,14 @@ try:
     app.include_router(_portfolio_admin_rt)                      # /api/narai/portfolio/*
 except Exception as _pf_exc:
     logging.getLogger("api").warning(f"portfolio_admin router skipped: {_pf_exc}")
+
+
+# Portfolio Build Cockpit API — per-business operator surface
+try:
+    from narai.api.routes.portfolio_cockpit_admin import router as _portfolio_cockpit_rt
+    app.include_router(_portfolio_cockpit_rt)                    # /api/narai/portfolio/biz/*
+except Exception as _pc_exc:
+    logging.getLogger("api").warning(f"portfolio_cockpit router skipped: {_pc_exc}")
 
 
 # ── Toodle / Second Brain Inbox ────────────────────────────────────────────────
