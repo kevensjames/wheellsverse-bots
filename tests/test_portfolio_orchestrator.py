@@ -46,3 +46,21 @@ def test_enabled_sweep_with_no_loop_returns_none_for_business(monkeypatch, tmp_p
     monkeypatch.delenv("WMOS_KILL", raising=False)
     res = orchestrator.run_once(lambda s: _OkAdapter(), lambda s: {}, slugs=["ghost"])
     assert res["ticked"]["ghost"] is None      # no loop.json yet -> nothing ticked
+
+
+def test_sweep_isolates_per_business_errors(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("WMOS_ORCHESTRATOR_ENABLED", "1")
+    monkeypatch.delenv("WMOS_KILL", raising=False)
+    from core.portfolio.actions import DispatchResult
+
+    def fake_tick(slug, adapter_for, ctx_for):
+        if slug == "bad":
+            raise RuntimeError("boom")
+        return DispatchResult("executed", "ok")
+
+    monkeypatch.setattr(orchestrator.loops, "tick", fake_tick)
+    res = orchestrator.run_once(lambda s: _OkAdapter(), lambda s: {}, slugs=["bad", "good"])
+    assert res["status"] == "ran"
+    assert res["ticked"]["bad"] == "error"      # the failing business is isolated
+    assert res["ticked"]["good"] == "executed"  # the sweep continued to the next one

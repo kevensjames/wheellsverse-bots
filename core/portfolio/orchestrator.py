@@ -1,9 +1,13 @@
 """W-MOS Master Supervisor: the autonomous sweep over all businesses.
 
-Three hard gates, every cycle:
+Two active gates, every cycle:
   1. kill-switch  (WMOS_KILL=1)               -> halt immediately
   2. dormant      (WMOS_ORCHESTRATOR_ENABLED) -> do nothing until armed
-  3. budget       (budget.would_exceed)       -> skip a tick that would breach caps
+
+Deferred gates:
+  3. budget       (budget.would_exceed)       -> [DEFERRED — not enforced in this sweep yet;
+                                                   wired later via the auto_capped
+                                                   under_cost_ceiling precondition]
 
 Ships dormant. Arm only after hand-verifying ticks tick-by-tick (see plan §scope).
 Mirrors core/siteboost_scheduler.start_worker for the daemon-thread pattern.
