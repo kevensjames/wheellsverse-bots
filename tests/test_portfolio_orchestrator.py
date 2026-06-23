@@ -64,3 +64,34 @@ def test_sweep_isolates_per_business_errors(monkeypatch, tmp_path):
     assert res["status"] == "ran"
     assert res["ticked"]["bad"] == "error"      # the failing business is isolated
     assert res["ticked"]["good"] == "executed"  # the sweep continued to the next one
+
+
+def test_persisted_arm_and_kill_flags(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    monkeypatch.delenv("WMOS_ORCHESTRATOR_ENABLED", raising=False)
+    monkeypatch.delenv("WMOS_KILL", raising=False)
+    # dormant + not killed by default
+    assert orchestrator.is_enabled() is False
+    assert orchestrator.kill_engaged() is False
+    # arm via persisted flag
+    orchestrator.set_enabled(True)
+    assert orchestrator.is_enabled() is True
+    assert orchestrator.control_state() == {"enabled": True, "kill": False}
+    # kill via persisted flag (checked first in run_once)
+    orchestrator.engage_kill()
+    assert orchestrator.kill_engaged() is True
+    res = orchestrator.run_once(lambda s: None, lambda s: {}, slugs=["n8n"])
+    assert res["status"] == "killed"
+    # disengage kill, disarm
+    orchestrator.disengage_kill()
+    orchestrator.set_enabled(False)
+    assert orchestrator.kill_engaged() is False
+    assert orchestrator.is_enabled() is False
+
+
+def test_env_still_overrides_persisted(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    monkeypatch.setenv("WMOS_ORCHESTRATOR_ENABLED", "1")
+    monkeypatch.delenv("WMOS_KILL", raising=False)
+    # env arms even with no persisted flag
+    assert orchestrator.is_enabled() is True

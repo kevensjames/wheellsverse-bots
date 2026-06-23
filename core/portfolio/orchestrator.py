@@ -19,17 +19,49 @@ import os
 import threading
 import time
 
-from core.portfolio import loops, registry, state
+from core.portfolio import loops, paths, registry, state
 
 logger = logging.getLogger("wmos_orchestrator")
 
 
+def _control() -> dict:
+    cfg = paths.load_json(paths.data_root() / "portfolio.json", {})
+    return (cfg or {}).get("control", {}) or {}
+
+
 def is_enabled() -> bool:
-    return os.getenv("WMOS_ORCHESTRATOR_ENABLED") == "1"
+    if os.getenv("WMOS_ORCHESTRATOR_ENABLED") == "1":
+        return True
+    return bool(_control().get("enabled"))
 
 
 def kill_engaged() -> bool:
-    return os.getenv("WMOS_KILL") == "1"
+    if os.getenv("WMOS_KILL") == "1":
+        return True
+    return bool(_control().get("kill"))
+
+
+def _set_control(key: str, value: bool) -> None:
+    f = paths.data_root() / "portfolio.json"
+    cfg = paths.load_json(f, {}) or {}
+    cfg.setdefault("control", {})[key] = bool(value)
+    paths.save_json_atomic(f, cfg)
+
+
+def set_enabled(enabled: bool) -> None:
+    _set_control("enabled", enabled)
+
+
+def engage_kill() -> None:
+    _set_control("kill", True)
+
+
+def disengage_kill() -> None:
+    _set_control("kill", False)
+
+
+def control_state() -> dict:
+    return {"enabled": is_enabled(), "kill": kill_engaged()}
 
 
 def run_once(adapter_for, ctx_for, *, slugs: list[str] | None = None) -> dict:
