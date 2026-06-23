@@ -28,6 +28,9 @@ def execute_approval(approval_id: str) -> dict:
     except (KeyError, ValueError):
         return {"status": "refused", "detail": "malformed approval record"}
 
+    if action.verb not in adapters.ADAPTERS:
+        return {"status": "refused", "detail": f"no adapter registered for verb {action.verb!r}"}
+
     # Atomically CLAIM the item: only an 'approved' row transitions to 'executing'.
     # Blocks concurrent double-fire AND prevents a crash mid-run from re-arming it.
     if not state.compare_and_set_approval(approval_id, "approved", "executing"):

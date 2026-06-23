@@ -73,3 +73,27 @@ def test_compare_and_set_claim_semantics(monkeypatch, tmp_path):
     state.resolve_approval(aid, "approved")
     assert state.compare_and_set_approval(aid, "approved", "executing") is True
     assert state.compare_and_set_approval(aid, "approved", "executing") is False  # now 'executing'
+
+
+def test_appended_rearm_row_is_refused(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    aid = state.queue_approval(Action("research_niche", "kai.research", ActionClass.GREEN, [], "n8n", {}))
+    state.resolve_approval(aid, "approved")
+    assert state.compare_and_set_approval(aid, "approved", "executing") is True  # legit claim
+    # attacker appends a crafted duplicate 'approved' row for the same id
+    import json as _j
+    with (tmp_path / "approvals.jsonl").open("a", encoding="utf-8") as fh:
+        fh.write(_j.dumps({"id": aid, "status": "approved", "verb": "research_niche",
+                           "agent": "kai.research", "action_class": "green",
+                           "preconditions": [], "business": "n8n", "payload": {}}) + "\n")
+    # mixed {executing, approved} state -> must REFUSE the re-claim
+    assert state.compare_and_set_approval(aid, "approved", "executing") is False
+
+
+def test_unknown_verb_refused_not_completed(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    aid = state.queue_approval(Action("totally_unknown_verb", "x", ActionClass.AMBER, [], "n8n", {}))
+    state.resolve_approval(aid, "approved")
+    res = execute.execute_approval(aid)
+    assert res["status"] == "refused"
+    assert "totally_unknown_verb" not in state.load_state("n8n").get("completed_verbs", [])
