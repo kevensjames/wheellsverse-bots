@@ -104,15 +104,26 @@ async function loadOverview(){
      <td>${esc(b.completed)}</td><td>${esc(b.pending)}</td><td>${esc(b.total_steps)}</td></tr>`).join('');
 }
 async function loadApprovals(){
-  const {approvals}=await api('/approvals?status=pending');
+  const [p, a] = await Promise.all([api('/approvals?status=pending'), api('/approvals?status=approved')]);
+  const rows = [
+    ...p.approvals.map(x=>({x, kind:'pending'})),
+    ...a.approvals.map(x=>({x, kind:'approved'})),
+  ];
   const body=document.getElementById('ap-body');
-  body.innerHTML = approvals.length ? approvals.map(a=>
-    `<tr><td>${esc(a.business)}</td><td>${esc(a.verb)}</td><td>${esc(a.action_class)}</td>
-     <td><button class="btn accent" onclick="resolve('${esc(a.id)}','approved')">Approve</button>
-         <button class="btn danger" onclick="resolve('${esc(a.id)}','rejected')">Reject</button></td></tr>`).join('')
-    : '<tr><td colspan="4" class="muted">No pending approvals.</td></tr>';
+  body.innerHTML = rows.length ? rows.map(({x,kind})=>
+    `<tr><td>${esc(x.business)}</td><td>${esc(x.verb)}</td><td>${esc(x.action_class)} · ${esc(kind)}</td>
+     <td>${kind==='pending'
+       ? `<button class="btn accent" onclick="resolve('${esc(x.id)}','approved')">Approve</button>
+          <button class="btn danger" onclick="resolve('${esc(x.id)}','rejected')">Reject</button>`
+       : `<button class="btn accent" onclick="fire('${esc(x.id)}')">Fire</button>`}</td></tr>`).join('')
+    : '<tr><td colspan="4" class="muted">No pending or approved actions.</td></tr>';
 }
 async function resolve(id,status){await api('/approvals/'+id+'/resolve',{method:'POST',body:JSON.stringify({status})});loadApprovals();}
+async function fire(id){
+  const r = await api('/approvals/'+id+'/execute',{method:'POST'});
+  err('Fired '+id+': '+(r.status||'?')+(r.verb? ' ('+r.verb+')':''));  // err() doubles as a transient toast
+  loadApprovals();
+}
 async function loadOrchestrator(){
   const s=await api('/orchestrator');
   const e=document.getElementById('orch-enabled'),k=document.getElementById('orch-kill');

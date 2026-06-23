@@ -14,7 +14,7 @@ import os
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 
-from core.portfolio import orchestrator, rollup, state
+from core.portfolio import execute, orchestrator, rollup, state
 
 router = APIRouter(prefix="/api/narai/portfolio", tags=["portfolio-admin"])
 
@@ -52,6 +52,11 @@ def resolve(approval_id: str, req: ResolveRequest, _=Depends(verify_admin_api_ke
     if req.status not in ("approved", "rejected"):
         raise HTTPException(400, "status must be 'approved' or 'rejected'")
     return {"ok": state.resolve_approval(approval_id, req.status)}
+
+
+@router.post("/approvals/{approval_id}/execute")
+def execute_approved(approval_id: str, _=Depends(verify_admin_api_key)) -> dict:
+    return execute.execute_approval(approval_id)
 
 
 @router.get("/orchestrator")

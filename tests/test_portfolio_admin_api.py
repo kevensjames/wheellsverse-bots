@@ -86,3 +86,19 @@ def test_resolve_rejects_bad_status(monkeypatch, tmp_path):
     aid = state.queue_approval(Action("x", "a", ActionClass.AMBER, [], "n8n", {}))
     r = c.post(f"/api/narai/portfolio/approvals/{aid}/resolve", headers=HEAD, json={"status": "cancelled"})
     assert r.status_code == 400
+
+
+def test_execute_endpoint_runs_approved(monkeypatch, tmp_path):
+    c = _client(monkeypatch, tmp_path)
+    from core.portfolio.actions import Action, ActionClass
+    aid = state.queue_approval(Action("deploy_demo_instance", "infra", ActionClass.AUTO_CAPPED, [], "n8n", {}))
+    # not approved yet -> refused
+    r1 = c.post(f"/api/narai/portfolio/approvals/{aid}/execute", headers=HEAD)
+    assert r1.json()["status"] == "refused"
+    # approve, then execute
+    c.post(f"/api/narai/portfolio/approvals/{aid}/resolve", headers=HEAD, json={"status": "approved"})
+    r2 = c.post(f"/api/narai/portfolio/approvals/{aid}/execute", headers=HEAD)
+    assert r2.json()["status"] == "executed"
+    assert r2.json()["verb"] == "deploy_demo_instance"
+    # auth still enforced
+    assert c.post(f"/api/narai/portfolio/approvals/{aid}/execute").status_code == 401
