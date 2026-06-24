@@ -10,6 +10,7 @@ _N8N_STEPS = [
     {"verb": "research_niche", "agent": "kai.research", "class": "green"},
     {"verb": "build_workflow_pack", "agent": "kai.planning", "class": "green"},
     {"verb": "generate_lead_list", "agent": "places_scanner", "class": "green"},
+    {"verb": "enrich_leads", "agent": "email_enricher", "class": "green"},
     {"verb": "draft_outreach", "agent": "cold_outreach", "class": "green"},
     {"verb": "run_outreach_campaign", "agent": "cold_outreach", "class": "auto_capped",
      "preconditions": ["warmup_complete", "campaign_approved_once", "under_daily_cap"]},

@@ -4,7 +4,7 @@ from core.portfolio.actions import Action, ActionClass
 
 def _advance_to_outreach(slug="n8n"):
     seed.seed_n8n_loop()
-    for v in ["research_niche", "build_workflow_pack", "generate_lead_list", "draft_outreach"]:
+    for v in ["research_niche", "build_workflow_pack", "generate_lead_list", "enrich_leads", "draft_outreach"]:
         state.mark_completed(slug, v)
 
 
