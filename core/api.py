@@ -1731,10 +1731,9 @@ async def api_opportunities(limit: int = 8):
 
 @app.get("/api/narai/killswitch")
 async def api_killswitch():
-    """Kill Switch — ROI triage across the portfolio (recommend-only, never auto-pauses)."""
-    import time as _t
-    from core.portfolio.killswitch import assess
-    return assess(_t.strftime("%Y-%m", _t.gmtime()))
+    """Kill Switch — DEACTIVATED per operator request. Module core.portfolio.killswitch
+    is retained; reactivate by restoring the assess() call below."""
+    return {"status": "deactivated", "note": "Kill Switch deactivated by operator"}
 
 
 @app.get("/admin/scoreboard", response_class=HTMLResponse)

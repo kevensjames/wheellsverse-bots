@@ -24,12 +24,11 @@ def test_scoreboard_api_real_and_authed(monkeypatch):
     assert c.get("/api/narai/scoreboard").status_code in (401, 403)
 
 
-def test_killswitch_endpoint(monkeypatch):
+def test_killswitch_endpoint_deactivated(monkeypatch):
     c = _client(monkeypatch)
     r = c.get("/api/narai/killswitch", headers={"X-API-Key": "test-key-123"})
     assert r.status_code == 200
-    j = r.json()
-    assert "businesses" in j and j["auto_paused"] == []        # recommend-only
+    assert r.json()["status"] == "deactivated"                 # deactivated per operator
     assert c.get("/api/narai/killswitch").status_code in (401, 403)
 
 

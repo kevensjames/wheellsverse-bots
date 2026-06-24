@@ -16,10 +16,11 @@ def test_auto_fires_when_all_preconditions_met(monkeypatch, tmp_path):
     aid = state.queue_approval(Action("run_outreach_campaign", "cold_outreach", ActionClass.AUTO_CAPPED, [], "n8n", {}))
     state.resolve_approval(aid, "approved")               # campaign_approved_once -> True
     res = loops.tick("n8n", adapters.adapter_for, preconditions.make_ctx_for("n8n"))
-    assert res.status == "executed"                       # auto-fired (inert would_send)
-    assert res.output == {"status": "would_send",
-                          "note": "gated send — wire cold_outreach.send_sequences(confirm=True, live=True) on approval",
-                          "verb": "run_outreach_campaign"}
+    assert res.status == "executed"                       # auto-fired the real send adapter
+    # no leads seeded -> the real adapter honestly reports no recipients (enrichment gap),
+    # rather than pretending to send. (With enriched leads + arming it goes through cold_outreach.)
+    assert res.output["verb"] == "run_outreach_campaign"
+    assert res.output["status"] == "no_recipients"
 
 
 def test_queues_when_a_precondition_missing(monkeypatch, tmp_path):
