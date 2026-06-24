@@ -61,6 +61,45 @@ def _draft(niche: str, value_prop: str, name: str, domain: str) -> list[dict]:
     ]
 
 
+def _parse_place(p: dict) -> dict:
+    return {
+        "name": (p.get("displayName") or {}).get("text") or "",
+        "address": p.get("formattedAddress") or "",
+        "phone": p.get("nationalPhoneNumber") or "",
+        "website": p.get("websiteUri") or "",
+        "rating": p.get("rating") or 0,
+        "review_count": p.get("userRatingCount") or 0,
+        "category": (p.get("types") or [""])[0],
+    }
+
+
+def _places_text_search(query: str, key: str, want: int) -> list[dict]:
+    """Google Places (New) searchText with pagination — returns ALL matching
+    businesses (chains filtered by the caller), not just bad-website ones."""
+    import requests
+    url = "https://places.googleapis.com/v1/places:searchText"
+    headers = {"Content-Type": "application/json", "X-Goog-Api-Key": key,
+               "X-Goog-FieldMask": ("places.displayName,places.formattedAddress,"
+                                    "places.nationalPhoneNumber,places.websiteUri,places.rating,"
+                                    "places.userRatingCount,places.types,nextPageToken")}
+    out: list[dict] = []
+    token = None
+    for _ in range(5):
+        body = {"textQuery": query}
+        if token:
+            body["pageToken"] = token
+        r = requests.post(url, headers=headers, json=body, timeout=20)
+        if r.status_code != 200:
+            break
+        d = r.json()
+        out.extend(d.get("places", []))
+        token = d.get("nextPageToken")
+        if not token or len(out) >= want:
+            break
+        time.sleep(2)  # next_page token needs a moment to activate
+    return out[:want]
+
+
 def run_campaign(slug: str) -> dict:
     camp = _BY_SLUG.get(slug)
     if camp is None:
@@ -72,13 +111,20 @@ def run_campaign(slug: str) -> dict:
     # excluded by places_scanner's own blocklist + is_targetable filter.
     from core import places_scanner
     dry_scan = not creds["google_places"]
-    prospects = places_scanner.scan(location=camp["city"], categories=[camp["category"]],
-                                    limit=camp["limit"], dry_run=dry_scan)
-    leads = []
-    for p in prospects:
-        d = getattr(p, "__dict__", p)
-        leads.append({k: d.get(k) for k in
-                      ("name", "category", "address", "phone", "website", "rating", "review_count")})
+    if dry_scan:
+        prospects = places_scanner.scan(location=camp["city"], categories=[camp["category"]],
+                                        limit=camp["limit"], dry_run=True)
+        leads = [{k: getattr(p, "__dict__", p).get(k) for k in
+                  ("name", "category", "address", "phone", "website", "rating", "review_count")}
+                 for p in prospects]
+    else:
+        # REAL: all independent businesses for the niche (chains excluded, NO
+        # website-quality filter), via Places searchText pagination.
+        key = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+        raw = _places_text_search(f"{camp['niche']} in {camp['city']}", key, camp["limit"] * 2)
+        leads = [_parse_place(p) for p in raw]
+        leads = [L for L in leads
+                 if L.get("name") and not places_scanner._is_chain(L["name"])][:camp["limit"]]
 
     # ENRICH (live only with Hunter; dry-run flagged otherwise).
     from core import email_enricher
