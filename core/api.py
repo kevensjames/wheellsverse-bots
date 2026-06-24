@@ -1749,6 +1749,33 @@ async def serve_scoreboard():
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
+@app.get("/api/narai/leadgen/campaigns")
+async def api_leadgen_campaigns():
+    """Lead-gen campaigns + live credential status (honest connected/not-connected)."""
+    from core.portfolio.leadgen import list_campaigns, credential_status
+    return {"campaigns": list_campaigns(), "credentials": credential_status()}
+
+
+@app.post("/api/narai/leadgen/run/{slug}")
+async def api_leadgen_run(slug: str):
+    """Run one lead-gen campaign (scan->enrich->draft->CRM). DRY-RUN unless creds set."""
+    from core.portfolio.leadgen import run_campaign
+    return run_campaign(slug)
+
+
+@app.get("/admin/leadgen", response_class=HTMLResponse)
+async def serve_leadgen():
+    """Lead-Gen Campaigns toodle — scan→enrich→draft→CRM per niche, honest about creds."""
+    path = ROOT / "frontend" / "admin" / "leadgen.html"
+    if not path.exists():
+        return HTMLResponse("<h1>leadgen.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
 @app.get("/p/{slug}", response_class=HTMLResponse)
 async def siteboost_preview(slug: str):
     """Public preview of a generated SiteBoost site. This URL is embedded in every
