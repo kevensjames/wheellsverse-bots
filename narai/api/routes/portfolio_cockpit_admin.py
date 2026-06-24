@@ -8,7 +8,7 @@ import os
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-from core.portfolio import adapters, loops, registry, rollup, seed, state, paths
+from core.portfolio import adapters, loops, preconditions, registry, rollup, seed, state, paths
 
 router = APIRouter(prefix="/api/narai/portfolio/biz", tags=["portfolio-cockpit"])
 
@@ -73,7 +73,7 @@ def audit(slug: str, limit: int = 50, _=Depends(verify_admin_api_key)) -> dict:
 @router.post("/{slug}/tick")
 def tick(slug: str, _=Depends(verify_admin_api_key)) -> dict:
     _require(slug)
-    result = loops.tick(slug, adapters.adapter_for, adapters.ctx_for)
+    result = loops.tick(slug, adapters.adapter_for, preconditions.make_ctx_for(slug))
     if result is None:
         return {"status": "idle", "detail": "no step ready"}
     return {"status": result.status, "detail": result.detail}
