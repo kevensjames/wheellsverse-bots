@@ -24,6 +24,8 @@
 .pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:.68rem;font-weight:700;margin-top:8px}
 .pill.on{background:rgba(16,185,129,.15);color:var(--green)}
 .pill.off{background:rgba(148,163,184,.14);color:var(--muted)}
+.pill.kill{background:rgba(239,68,68,.15);color:var(--red)}
+h2{letter-spacing:-.01em}td a{text-decoration:none}td a:hover{text-decoration:underline}
 .surfaces{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px}
 .surf{padding:4px 10px;border-radius:999px;font-size:.78rem;border:1px solid var(--border)}
 .surf.on{color:var(--green);border-color:rgba(16,185,129,.4)}
@@ -47,6 +49,22 @@
 <div class="wrap">
   <div class="grid" id="grid"></div>
   <div class="surfaces" id="surfaces"></div>
+
+  <h2 style="margin:28px 0 4px;font-size:1.05rem">🔭 Opportunity Scanner <span class="src" id="opp-meta"></span></h2>
+  <div class="truth">Live demand from Hacker News + GitHub — a real link each. Act on one or dismiss it; don't let this become a feed you scroll.</div>
+  <table style="width:100%;border-collapse:collapse;margin-top:8px"><tbody id="opp-body"><tr><td class="src">Loading…</td></tr></tbody></table>
+
+  <h2 style="margin:28px 0 4px;font-size:1.05rem">🛑 Kill Switch <span class="src" id="kill-meta"></span></h2>
+  <div class="truth">ROI triage — <strong>recommend-only, nothing auto-pauses</strong>. “dormant” = never started (nothing to kill); “pause_candidate” = spent with no return.</div>
+  <table style="width:100%;border-collapse:collapse;margin-top:8px">
+    <thead><tr>
+      <th style="text-align:left;color:var(--muted);font-size:.78rem;padding:6px">Business</th>
+      <th style="text-align:left;color:var(--muted);font-size:.78rem;padding:6px">Spend</th>
+      <th style="text-align:left;color:var(--muted);font-size:.78rem;padding:6px">Revenue</th>
+      <th style="text-align:left;color:var(--muted);font-size:.78rem;padding:6px">Status</th>
+    </tr></thead>
+    <tbody id="kill-body"><tr><td class="src" style="padding:6px">Loading…</td></tr></tbody>
+  </table>
 </div>
 <script>
 const API='/api/narai/scoreboard';
@@ -85,6 +103,26 @@ async function load(){
   const s=snap.surfaces||{};
   document.getElementById('surfaces').innerHTML=Object.keys(s).map(k=>
     `<span class="surf ${s[k]?'on':'off'}">${s[k]?'● ':'○ '}${esc(k)}</span>`).join('');
+  loadOpps(); loadKill();
+}
+async function loadOpps(){
+  let d; try{ const r=await fetch('/api/narai/opportunities?limit=8',{headers:{'X-API-Key':key()}}); if(!r.ok)return; d=await r.json(); }catch(e){return;}
+  document.getElementById('opp-meta').textContent=(d.connected_feeds||0)+'/5 feeds · scanned '+(d.scanned||0);
+  const rows=d.opportunities||[];
+  document.getElementById('opp-body').innerHTML = rows.length ? rows.map(o=>
+    `<tr><td style="padding:7px 6px;border-bottom:1px solid var(--border)">
+      <a href="${esc(o.url)}" target="_blank" rel="noopener" style="color:var(--accent)">${esc(o.title)}</a>
+      <div class="src">${esc(o.source)} · ${esc(o.popularity)} · signal ${esc(o.score)}</div></td></tr>`).join('')
+    : '<tr><td class="src" style="padding:6px">No live opportunities (feeds unreachable).</td></tr>';
+}
+async function loadKill(){
+  let d; try{ const r=await fetch('/api/narai/killswitch',{headers:{'X-API-Key':key()}}); if(!r.ok)return; d=await r.json(); }catch(e){return;}
+  document.getElementById('kill-meta').textContent=(d.pause_candidates||[]).length+' pause · '+(d.dormant||[]).length+' dormant';
+  document.getElementById('kill-body').innerHTML=(d.businesses||[]).map(b=>{
+    const cls=b.status==='pause_candidate'?'kill':(b.status==='ok'?'on':'off');
+    return `<tr><td style="padding:6px">${esc(b.name)}</td><td style="padding:6px">$${esc(b.spend)}</td>
+      <td style="padding:6px">$${esc(b.revenue)}</td><td style="padding:6px"><span class="pill ${cls}">${esc(b.status)}</span></td></tr>`;
+  }).join('');
 }
 load();
 </script>

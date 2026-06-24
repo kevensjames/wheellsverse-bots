@@ -1722,6 +1722,21 @@ async def api_scoreboard():
     return snapshot()
 
 
+@app.get("/api/narai/opportunities")
+async def api_opportunities(limit: int = 8):
+    """Opportunity Scanner — live HN + GitHub demand signal, ranked + actionable."""
+    from core.opportunities import scan
+    return scan(limit=limit)
+
+
+@app.get("/api/narai/killswitch")
+async def api_killswitch():
+    """Kill Switch — ROI triage across the portfolio (recommend-only, never auto-pauses)."""
+    import time as _t
+    from core.portfolio.killswitch import assess
+    return assess(_t.strftime("%Y-%m", _t.gmtime()))
+
+
 @app.get("/admin/scoreboard", response_class=HTMLResponse)
 async def serve_scoreboard():
     """Portfolio Scoreboard — the standing accountability mirror over real surfaces."""
