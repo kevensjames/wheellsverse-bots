@@ -33,6 +33,27 @@ def save_state(slug: str, state: dict) -> None:
     paths.save_json_atomic(_state_file(slug), state)
 
 
+def get_flag(business: str, key: str, default: bool = False) -> bool:
+    return bool(load_state(business).get("flags", {}).get(key, default))
+
+
+def set_flag(business: str, key: str, value: bool) -> None:
+    s = load_state(business)
+    s.setdefault("flags", {})[key] = bool(value)
+    save_state(business, s)
+
+
+def send_count(business: str, day: str) -> int:
+    return int(load_state(business).get("sends", {}).get(day, 0))
+
+
+def record_send(business: str, day: str, n: int = 1) -> None:
+    s = load_state(business)
+    sends = s.setdefault("sends", {})
+    sends[day] = int(sends.get(day, 0)) + int(n)
+    save_state(business, s)
+
+
 def mark_pending(slug: str, verb: str) -> None:
     s = load_state(slug)
     if verb not in s["pending_verbs"] and verb not in s["completed_verbs"]:
