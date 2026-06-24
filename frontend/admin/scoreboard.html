@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio Scoreboard · Wheellsverse</title>
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--border:#262626;--text:#fafafa;--muted:#94a3b8;
+  --green:#10b981;--red:#ef4444;--amber:#f59e0b;--accent:#6366f1;--radius:10px;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,Inter,sans-serif;font-size:14px}
+.top{padding:18px 24px;border-bottom:1px solid var(--border);display:flex;
+  justify-content:space-between;align-items:center;background:var(--panel)}
+.brand{font-weight:800;font-size:1.05rem}
+.headline{padding:18px 24px;font-size:1.5rem;font-weight:800;letter-spacing:-.01em}
+.sub{padding:0 24px 8px;color:var(--muted)}
+.wrap{padding:16px 24px;max-width:1000px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.label{color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.04em}
+.val{font-size:1.8rem;font-weight:800;margin-top:6px}
+.val.off{color:var(--muted);font-weight:600;font-size:1.1rem}
+.src{color:var(--muted);font-size:.72rem;margin-top:6px}
+.pill{display:inline-block;padding:1px 7px;border-radius:999px;font-size:.68rem;font-weight:700;margin-top:8px}
+.pill.on{background:rgba(16,185,129,.15);color:var(--green)}
+.pill.off{background:rgba(148,163,184,.14);color:var(--muted)}
+.surfaces{margin-top:18px;display:flex;flex-wrap:wrap;gap:8px}
+.surf{padding:4px 10px;border-radius:999px;font-size:.78rem;border:1px solid var(--border)}
+.surf.on{color:var(--green);border-color:rgba(16,185,129,.4)}
+.surf.off{color:var(--muted)}
+.btn{padding:8px 14px;border:1px solid var(--border);background:#1a1a1a;color:var(--text);
+  border-radius:8px;cursor:pointer;font-weight:600}
+#err{background:rgba(239,68,68,.12);color:#fca5a5;padding:8px 24px;display:none}
+.note{color:var(--amber);font-size:.72rem;margin-top:4px}
+.truth{margin:6px 24px 0;color:var(--muted);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="brand">📊 Portfolio Scoreboard</div>
+  <button class="btn" onclick="load()">Refresh</button>
+</div>
+<div id="err"></div>
+<div class="headline" id="headline">Loading…</div>
+<div class="sub" id="meta"></div>
+<div class="truth">Honest view: a metric reads <strong>“not connected”</strong> when its surface has no live integration — never a fake zero. A real <strong>0</strong> means measured-and-empty.</div>
+<div class="wrap">
+  <div class="grid" id="grid"></div>
+  <div class="surfaces" id="surfaces"></div>
+</div>
+<script>
+const API='/api/narai/scoreboard';
+const INJECTED='%%API_KEY%%';
+function key(){
+  if(INJECTED && INJECTED!=='%%API_KEY%%') return INJECTED.replace(/[^ -~]/g,'').trim();
+  let k=sessionStorage.getItem('wv_key');
+  if(!k){k=prompt('Paste platform admin API_KEY:');if(k)sessionStorage.setItem('wv_key',k.trim());}
+  return (k||'').replace(/[^ -~]/g,'').trim();
+}
+function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.style.display='block';setTimeout(()=>e.style.display='none',8000);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+const MONEY=new Set(['revenue_month','revenue_all_time','mrr']);
+const ORDER=['mrr','revenue_month','revenue_all_time','users','trials','leads','emails_sent','conversion','churn','open_bugs','deployments'];
+async function load(){
+  let snap;
+  try{
+    const res=await fetch(API,{headers:{'X-API-Key':key()}});
+    if(res.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401) — refresh');return;}
+    if(!res.ok){err('HTTP '+res.status);return;}
+    snap=await res.json();
+  }catch(e){err(e.message);return;}
+  document.getElementById('headline').textContent=snap.headline||'—';
+  document.getElementById('meta').textContent=
+    'As of '+esc(snap.generated_at)+' · '+snap.connected_count+'/'+snap.total_surfaces+' surfaces connected';
+  const m=snap.metrics||{};
+  document.getElementById('grid').innerHTML=ORDER.filter(k=>m[k]).map(k=>{
+    const x=m[k]; const lbl=k.replace(/_/g,' ');
+    let body;
+    if(!x.connected){ body=`<div class="val off">not connected</div><span class="pill off">no live source</span>`; }
+    else { const v = MONEY.has(k) ? ('$'+(x.value??0)) : (x.value??0);
+           body=`<div class="val">${esc(v)}</div><span class="pill on">live</span>`; }
+    return `<div class="card"><div class="label">${esc(lbl)}</div>${body}
+      <div class="src">${esc(x.source)}</div>${x.note?`<div class="note">${esc(x.note)}</div>`:''}</div>`;
+  }).join('');
+  const s=snap.surfaces||{};
+  document.getElementById('surfaces').innerHTML=Object.keys(s).map(k=>
+    `<span class="surf ${s[k]?'on':'off'}">${s[k]?'● ':'○ '}${esc(k)}</span>`).join('');
+}
+load();
+</script>
+</body>
+</html>

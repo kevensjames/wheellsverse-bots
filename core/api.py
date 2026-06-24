@@ -1713,6 +1713,28 @@ async def serve_portfolio_cockpit(slug: str):
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
+@app.get("/api/narai/scoreboard")
+async def api_scoreboard():
+    """Honest portfolio scoreboard — real numbers from connected revenue surfaces
+    (Stripe via core.revenue, SiteBoost leads); unconnected surfaces reported as
+    not-connected, never faked. Auth-gated by the global api_key_middleware."""
+    from core.scoreboard import snapshot
+    return snapshot()
+
+
+@app.get("/admin/scoreboard", response_class=HTMLResponse)
+async def serve_scoreboard():
+    """Portfolio Scoreboard — the standing accountability mirror over real surfaces."""
+    path = ROOT / "frontend" / "admin" / "scoreboard.html"
+    if not path.exists():
+        return HTMLResponse("<h1>scoreboard.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
 @app.get("/p/{slug}", response_class=HTMLResponse)
 async def siteboost_preview(slug: str):
     """Public preview of a generated SiteBoost site. This URL is embedded in every
