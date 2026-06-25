@@ -1684,6 +1684,98 @@ async def serve_siteboost_admin():
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
+@app.get("/admin/portfolio", response_class=HTMLResponse)
+async def serve_portfolio_admin():
+    """Portfolio HQ — W-MOS Master Supervisor control panel. Shows the 10-business
+    rollup, the AMBER approval queue, the orchestrator arm/kill controls, and the
+    audit log. API at /api/narai/portfolio/*. Auth via X-API-Key.
+    """
+    path = ROOT / "frontend" / "admin" / "portfolio.html"
+    if not path.exists():
+        return HTMLResponse("<h1>portfolio.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/admin/portfolio/{slug}", response_class=HTMLResponse)
+async def serve_portfolio_cockpit(slug: str):
+    """Per-business Build Cockpit. API at /api/narai/portfolio/biz/{slug}/*."""
+    path = ROOT / "frontend" / "admin" / "portfolio_cockpit.html"
+    if not path.exists():
+        return HTMLResponse("<h1>portfolio_cockpit.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/api/narai/scoreboard")
+async def api_scoreboard():
+    """Honest portfolio scoreboard — real numbers from connected revenue surfaces
+    (Stripe via core.revenue, SiteBoost leads); unconnected surfaces reported as
+    not-connected, never faked. Auth-gated by the global api_key_middleware."""
+    from core.scoreboard import snapshot
+    return snapshot()
+
+
+@app.get("/api/narai/opportunities")
+async def api_opportunities(limit: int = 8):
+    """Opportunity Scanner — live HN + GitHub demand signal, ranked + actionable."""
+    from core.opportunities import scan
+    return scan(limit=limit)
+
+
+@app.get("/api/narai/killswitch")
+async def api_killswitch():
+    """Kill Switch — DEACTIVATED per operator request. Module core.portfolio.killswitch
+    is retained; reactivate by restoring the assess() call below."""
+    return {"status": "deactivated", "note": "Kill Switch deactivated by operator"}
+
+
+@app.get("/admin/scoreboard", response_class=HTMLResponse)
+async def serve_scoreboard():
+    """Portfolio Scoreboard — the standing accountability mirror over real surfaces."""
+    path = ROOT / "frontend" / "admin" / "scoreboard.html"
+    if not path.exists():
+        return HTMLResponse("<h1>scoreboard.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/api/narai/leadgen/campaigns")
+async def api_leadgen_campaigns():
+    """Lead-gen campaigns + live credential status (honest connected/not-connected)."""
+    from core.portfolio.leadgen import list_campaigns, credential_status
+    return {"campaigns": list_campaigns(), "credentials": credential_status()}
+
+
+@app.post("/api/narai/leadgen/run/{slug}")
+async def api_leadgen_run(slug: str):
+    """Run one lead-gen campaign (scan->enrich->draft->CRM). DRY-RUN unless creds set."""
+    from core.portfolio.leadgen import run_campaign
+    return run_campaign(slug)
+
+
+@app.get("/admin/leadgen", response_class=HTMLResponse)
+async def serve_leadgen():
+    """Lead-Gen Campaigns toodle — scan→enrich→draft→CRM per niche, honest about creds."""
+    path = ROOT / "frontend" / "admin" / "leadgen.html"
+    if not path.exists():
+        return HTMLResponse("<h1>leadgen.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
 @app.get("/p/{slug}", response_class=HTMLResponse)
 async def siteboost_preview(slug: str):
     """Public preview of a generated SiteBoost site. This URL is embedded in every
@@ -15105,6 +15197,23 @@ try:
     logger.info("NarAI multi-tenant Shopify routes loaded")
 except Exception as _e:
     logger.warning(f"NarAI multi-tenant Shopify not loaded: {_e}")
+
+
+# Portfolio HQ admin API — W-MOS Master Supervisor operator surface (independent mount,
+# decoupled from the Shopify/SiteBoost try so a Shopify import error can't drop it).
+try:
+    from narai.api.routes.portfolio_admin import router as _portfolio_admin_rt
+    app.include_router(_portfolio_admin_rt)                      # /api/narai/portfolio/*
+except Exception as _pf_exc:
+    logging.getLogger("api").warning(f"portfolio_admin router skipped: {_pf_exc}")
+
+
+# Portfolio Build Cockpit API — per-business operator surface
+try:
+    from narai.api.routes.portfolio_cockpit_admin import router as _portfolio_cockpit_rt
+    app.include_router(_portfolio_cockpit_rt)                    # /api/narai/portfolio/biz/*
+except Exception as _pc_exc:
+    logging.getLogger("api").warning(f"portfolio_cockpit router skipped: {_pc_exc}")
 
 
 # ── Toodle / Second Brain Inbox ────────────────────────────────────────────────

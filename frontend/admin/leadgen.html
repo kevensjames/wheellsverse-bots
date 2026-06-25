@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lead-Gen Campaigns · Wheellsverse</title>
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--panel2:#1a1a1a;--border:#262626;--text:#fafafa;--muted:#94a3b8;
+  --green:#10b981;--red:#ef4444;--amber:#f59e0b;--accent:#6366f1;--radius:10px;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Inter,sans-serif;font-size:14px}
+.top{padding:16px 24px;border-bottom:1px solid var(--border);background:var(--panel);font-weight:800}
+.wrap{padding:18px 24px;max-width:1000px}
+.banner{padding:12px 14px;border-radius:var(--radius);margin-bottom:14px;font-weight:600}
+.banner.warn{background:rgba(245,158,11,.12);color:#fcd34d;border:1px solid rgba(245,158,11,.3)}
+.banner.ok{background:rgba(16,185,129,.12);color:#6ee7b7;border:1px solid rgba(16,185,129,.3)}
+.creds{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.cred{padding:4px 10px;border-radius:999px;font-size:.78rem;border:1px solid var(--border)}
+.cred.on{color:var(--green);border-color:rgba(16,185,129,.4)}.cred.off{color:var(--muted)}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px}
+.card h3{margin:0 0 2px;font-size:1rem}.card .sub{color:var(--muted);font-size:.82rem}
+.btn{padding:8px 14px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-weight:700}
+.btn:disabled{opacity:.5;cursor:wait}
+.rep{margin-top:10px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:.84rem;display:none}
+.rep table{width:100%;border-collapse:collapse}.rep td{padding:3px 6px}
+.tag{padding:1px 7px;border-radius:999px;font-size:.72rem;font-weight:700}
+.tag.sample{background:rgba(245,158,11,.15);color:var(--amber)}.tag.real{background:rgba(16,185,129,.15);color:var(--green)}
+.acts{margin:8px 0 0;padding-left:18px;color:var(--amber)}.acts li{margin:2px 0}
+#err{background:rgba(239,68,68,.12);color:#fca5a5;padding:8px 24px;display:none}
+a.dl{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="top">📋 Lead-Gen Campaigns</div>
+<div id="err"></div>
+<div class="wrap">
+  <div id="banner" class="banner warn">Loading credential status…</div>
+  <div class="creds" id="creds"></div>
+  <div id="cards"></div>
+</div>
+<script>
+const API='/api/narai/leadgen';
+const INJECTED='%%API_KEY%%';
+function key(){ if(INJECTED&&INJECTED!=='%%API_KEY%%')return INJECTED.replace(/[^ -~]/g,'').trim();
+  let k=sessionStorage.getItem('wv_key'); if(!k){k=prompt('Paste platform admin API_KEY:');if(k)sessionStorage.setItem('wv_key',k.trim());}
+  return (k||'').replace(/[^ -~]/g,'').trim(); }
+function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.style.display='block';setTimeout(()=>e.style.display='none',8000);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function api(path,opts={}){const r=await fetch(API+path,{...opts,headers:{'X-API-Key':key(),'Content-Type':'application/json',...(opts.headers||{})}});
+  if(r.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401) — refresh');throw 0;} if(!r.ok)throw new Error('HTTP '+r.status); return r.json();}
+
+let CREDS={};
+async function init(){
+  let d; try{ d=await api('/campaigns'); }catch(e){ return; }
+  CREDS=d.credentials||{};
+  const allReal = CREDS.google_places && CREDS.hunter;
+  const b=document.getElementById('banner');
+  b.className='banner '+(allReal?'ok':'warn');
+  b.innerHTML = allReal
+    ? '✅ Google Places + Hunter configured — campaigns run on REAL data.'
+    : '⚠ Live keys missing — campaigns run in <strong>DRY-RUN (sample data, not real leads)</strong>. Set GOOGLE_PLACES_API_KEY + HUNTER_API_KEY in Railway to go real.';
+  document.getElementById('creds').innerHTML=Object.keys(CREDS).map(k=>
+    `<span class="cred ${CREDS[k]?'on':'off'}">${CREDS[k]?'● ':'○ '}${esc(k)}</span>`).join('');
+  document.getElementById('cards').innerHTML=(d.campaigns||[]).map(c=>
+    `<div class="card"><h3>${esc(c.niche)} <span class="sub">— ${esc(c.city)} · target ${c.limit}</span></h3>
+      <button class="btn" id="b-${esc(c.slug)}" onclick="run('${esc(c.slug)}')">Generate list</button>
+      <div class="rep" id="r-${esc(c.slug)}"></div></div>`).join('');
+}
+async function run(slug){
+  const btn=document.getElementById('b-'+slug); btn.disabled=true; btn.textContent='Generating…';
+  let rep; try{ rep=await api('/run/'+slug,{method:'POST'}); }catch(e){ err('run failed'); btn.disabled=false; btn.textContent='Generate list'; return; }
+  btn.disabled=false; btn.textContent='Re-generate';
+  const dq=rep.data_quality||{}, mi=rep.missing_information||{};
+  const box=document.getElementById('r-'+slug); box.style.display='block';
+  box.innerHTML=
+    `<div><span class="tag ${rep.is_real?'real':'sample'}">${rep.is_real?'REAL DATA':'DRY-RUN SAMPLE — not real leads'}</span></div>
+     <table>
+       <tr><td>Total leads found</td><td><strong>${rep.total_leads_found}</strong> / ${rep.target} target</td></tr>
+       <tr><td>With email</td><td>${dq.with_email} (${dq.with_email_pct}%)</td></tr>
+       <tr><td>With phone</td><td>${dq.with_phone}</td></tr>
+       <tr><td>With website</td><td>${dq.with_website}</td></tr>
+       <tr><td>Missing email</td><td>${mi.no_email}</td></tr>
+     </table>
+     <div><strong>Next actions:</strong></div>
+     <ul class="acts">${(rep.next_actions||[]).map(a=>`<li>${esc(a)}</li>`).join('')}</ul>
+     <div style="margin-top:6px">CRM import: <code>${esc((rep.artifacts||{}).crm_csv||'')}</code></div>`;
+}
+init();
+</script>
+</body>
+</html>

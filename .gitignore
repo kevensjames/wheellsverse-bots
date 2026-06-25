@@ -234,3 +234,6 @@ audits/
 
 # === Devvit subproject (separate Reddit-app codebase, own git history) ===
 wheellsverse1/
+
+# Lead-gen output contains real business PII — never commit to the repo
+data/launches/portfolio/leadgen/

@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Build Cockpit · W-MOS</title>
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--panel-2:#1a1a1a;--border:#262626;--text:#fafafa;
+  --muted:#94a3b8;--accent:#6366f1;--accent-bg:rgba(99,102,241,.12);--green:#10b981;
+  --red:#ef4444;--yellow:#f59e0b;--radius:8px;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);
+  font-family:system-ui,Inter,sans-serif;font-size:14px}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:12px 24px;
+  display:flex;justify-content:space-between;align-items:center}
+.brand{font-weight:700;display:flex;align-items:center;gap:10px}
+.brand .pulse{width:8px;height:8px;background:var(--green);border-radius:50%}
+.topnav{display:flex;gap:4px}
+.tab{padding:8px 14px;color:var(--muted);background:transparent;border:0;border-radius:6px;
+  font-weight:500;cursor:pointer;font-size:.9rem}
+.tab.active{color:var(--text);background:var(--accent-bg)}
+.wrap{padding:24px;max-width:1100px;margin:0 auto}
+.panel{display:none}.panel.active{display:block}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px;margin-bottom:12px}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px 10px;
+  border-bottom:1px solid var(--border)}th{color:var(--muted);font-weight:600}
+.btn{padding:8px 14px;border:1px solid var(--border);background:var(--panel-2);
+  color:var(--text);border-radius:6px;cursor:pointer;font-weight:600}
+.btn.accent{background:var(--accent);border-color:var(--accent)}
+.btn.danger{background:var(--red);border-color:var(--red)}
+.pill{padding:2px 8px;border-radius:999px;font-size:.75rem;font-weight:600}
+.pill.on{background:rgba(16,185,129,.15);color:var(--green)}
+.pill.off{background:rgba(148,163,184,.15);color:var(--muted)}
+.pill.kill{background:rgba(239,68,68,.15);color:var(--red)}
+#error{background:rgba(239,68,68,.12);color:#fca5a5;padding:10px 24px;display:none}
+.muted{color:var(--muted)}
+#build-result{margin-top:12px;padding:10px 14px;background:var(--panel-2);
+  border:1px solid var(--border);border-radius:6px;display:none;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="pulse"></span> Build Cockpit · W-MOS</div>
+  <div class="topnav">
+    <button type="button" class="tab active" data-tab="overview">Overview</button>
+    <button type="button" class="tab" data-tab="build">Build</button>
+    <button type="button" class="tab" data-tab="artifacts">Artifacts</button>
+    <button type="button" class="tab" data-tab="audit">Audit</button>
+  </div>
+</div>
+<div id="error"></div>
+<div class="wrap">
+  <section class="panel active" data-panel="overview">
+    <div class="card" id="ov-meta"><strong>Loading…</strong></div>
+    <div class="card"><table><thead><tr><th>Verb</th><th>Class</th><th>State</th></tr></thead>
+      <tbody id="ov-body"><tr><td colspan="3" class="muted">Loading…</td></tr></tbody></table></div>
+  </section>
+  <section class="panel" data-panel="build">
+    <div class="card">
+      <strong>Build actions</strong>
+      <p class="muted">Seed initialises the loop; Tick runs the next step.</p>
+      <button type="button" class="btn accent" onclick="doSeed()">Seed loop</button>
+      &nbsp;
+      <button type="button" class="btn" onclick="doTick()">Run next step</button>
+      <div id="build-result"></div>
+    </div>
+  </section>
+  <section class="panel" data-panel="artifacts">
+    <div class="card"><strong>Artifacts</strong></div>
+    <div class="card"><table><thead><tr><th>Kind</th><th>Name</th></tr></thead>
+      <tbody id="ar-body"><tr><td colspan="2" class="muted">Loading…</td></tr></tbody></table></div>
+  </section>
+  <section class="panel" data-panel="audit">
+    <div class="card"><strong>Audit log</strong></div>
+    <div class="card"><table><thead><tr><th>#</th><th>Entry</th></tr></thead>
+      <tbody id="au-body"><tr><td colspan="2" class="muted">Loading…</td></tr></tbody></table></div>
+  </section>
+</div>
+<script>
+const INJECTED='%%API_KEY%%';
+const SLUG=location.pathname.split('/').filter(Boolean).pop();
+const API='/api/narai/portfolio/biz/'+SLUG;
+function key(){
+  if(INJECTED&&INJECTED!=='%%API_KEY%%') return INJECTED.replace(/[^ -~]/g,'').trim();
+  let k=sessionStorage.getItem('wmos_key');
+  if(!k){k=prompt('Paste platform admin API_KEY:');if(k)sessionStorage.setItem('wmos_key',k.trim());}
+  return (k||'').replace(/[^ -~]/g,'').trim();
+}
+function esc(s){return String(s==null?'':s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&#34;'}[c]));}
+function err(m){const e=document.getElementById('error');e.textContent='⚠ '+m;e.style.display='block';
+  setTimeout(()=>e.style.display='none',8000);}
+async function api(path,opts={}){
+  const res=await fetch(API+path,{...opts,headers:{'X-API-Key':key(),
+    'Content-Type':'application/json',...(opts.headers||{})}});
+  if(res.status===401){sessionStorage.removeItem('wmos_key');err('API key rejected (401) — refresh');throw new Error('401');}
+  if(!res.ok){const t=await res.text();err(path+' → '+res.status+': '+t.slice(0,140));throw new Error(res.status);}
+  return res.json();
+}
+async function loadOverview(){
+  const d=await api('/overview');
+  document.getElementById('ov-meta').innerHTML=
+    '<strong>'+esc(d.name||SLUG)+'</strong> — Phase: '+esc(d.phase||'—')+
+    ' &nbsp;|&nbsp; Done: '+esc(d.completed)+'&nbsp;/&nbsp;Pending: '+esc(d.pending);
+  document.getElementById('ov-body').innerHTML=
+    (d.steps&&d.steps.length)
+      ? d.steps.map(s=>'<tr><td>'+esc(s.verb)+'</td><td>'+esc(s.class)+'</td>'+
+          '<td><span class="pill '+((s.state==='completed'||s.state==='next')?'on':'off')+'">'+esc(s.state)+'</span></td></tr>').join('')
+      : '<tr><td colspan="3" class="muted">No steps yet.</td></tr>';
+}
+async function loadArtifacts(){
+  const d=await api('/artifacts');
+  document.getElementById('ar-body').innerHTML=
+    (d.artifacts&&d.artifacts.length)
+      ? d.artifacts.map(a=>'<tr><td>'+esc(a.kind)+'</td><td>'+esc(a.name)+'</td></tr>').join('')
+      : '<tr><td colspan="2" class="muted">No artifacts yet.</td></tr>';
+}
+async function loadAudit(){
+  const d=await api('/audit');
+  document.getElementById('au-body').innerHTML=
+    (d.audit&&d.audit.length)
+      ? d.audit.map((a,i)=>'<tr><td class="muted">'+esc(i+1)+'</td><td>'+esc(JSON.stringify(a))+'</td></tr>').join('')
+      : '<tr><td colspan="2" class="muted">No audit entries yet.</td></tr>';
+}
+function showBuildResult(text){
+  const el=document.getElementById('build-result');
+  el.textContent=text;
+  el.style.display='block';
+}
+async function doSeed(){
+  try{const d=await api('/seed',{method:'POST',body:'{}'});
+    showBuildResult('Seed: '+(d.ok?'OK':'FAILED')+'\n'+JSON.stringify(d,null,2));}
+  catch(e){/* err() already called */}
+}
+async function doTick(){
+  try{const d=await api('/tick',{method:'POST',body:'{}'});
+    showBuildResult('Tick: '+esc(d.status)+'\n'+esc(d.detail||''));
+    await loadOverview();
+    await loadArtifacts();}
+  catch(e){/* err() already called */}
+}
+const LOADERS={overview:loadOverview,build:()=>{},artifacts:loadArtifacts,audit:loadAudit};
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  const name=t.dataset.tab;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===t));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('active',p.dataset.panel===name));
+  LOADERS[name]();
+}));
+loadOverview();
+</script>
+</body>
+</html>
