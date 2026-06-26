@@ -239,6 +239,17 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
       <p class="err" id="regErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="regBtn">Create account</button>
     </form>
+
+    <!-- 2FA / TOTP step — shown when /auth/login returns totp_required -->
+    <form id="totpForm" style="display:none" onsubmit="handleTotp(event)">
+      <h2>Two-factor code</h2>
+      <p style="color:var(--muted);font-size:.9rem;margin:-.25rem 0 1rem">Enter the 6-digit code from your authenticator app to finish signing in.</p>
+      <div class="field"><label>Authentication code</label>
+        <input type="text" id="totpCode" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]*" maxlength="6" placeholder="123456" required></div>
+      <p class="err" id="totpErr" role="alert" aria-live="assertive"></p>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn">Verify</button>
+      <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="switchTab('login')">← Back to sign in</button>
+    </form>
   </div>
 </div>
 
@@ -253,6 +264,9 @@ function closeModal() {
   document.getElementById('authModal').classList.remove('open');
 }
 function switchTab(tab) {
+  // Leaving the 2FA step (e.g. "Back to sign in") restores the normal tabs.
+  const totp = document.getElementById('totpForm'); if (totp) totp.style.display = 'none';
+  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = '';
   document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
   document.getElementById('registerForm').style.display = tab === 'register' ? '' : 'none';
   document.getElementById('tabLogin').className = 'tab' + (tab === 'login' ? ' active' : '');
@@ -309,6 +323,30 @@ if (_inviteFromUrl) {
   });
 }
 
+// Holds the short-lived challenge token between the password step and the
+// 2FA code step for accounts with two-factor enabled.
+let _totpChallenge = null;
+
+function finishAuth(data) {
+  // Persist tokens and enter the app. Guards against a malformed response
+  // silently storing "undefined" as the token (the old 2FA login bug).
+  if (!data || !data.access_token) {
+    throw new Error('Unexpected response from the server. Please try again.');
+  }
+  localStorage.setItem('sol_token', data.access_token);
+  if (data.refresh_token) localStorage.setItem('sol_refresh', data.refresh_token);
+  window.location.href = '/sol/app';
+}
+
+function showTotpStep() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('registerForm').style.display = 'none';
+  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = 'none';
+  document.getElementById('totpForm').style.display = '';
+  const code = document.getElementById('totpCode');
+  code.value = ''; code.focus();
+}
+
 async function handleLogin(e) {
   e.preventDefault();
   const btn = document.getElementById('loginBtn');
@@ -320,12 +358,33 @@ async function handleLogin(e) {
       email: document.getElementById('loginEmail').value,
       password: document.getElementById('loginPassword').value
     });
-    localStorage.setItem('sol_token', data.access_token);
-    if (data.refresh_token) localStorage.setItem('sol_refresh', data.refresh_token);
-    window.location.href = '/sol/app';
+    if (data.totp_required) {
+      // Two-factor account: stash the challenge and ask for the code.
+      _totpChallenge = data.challenge_token;
+      showTotpStep();
+      return;
+    }
+    finishAuth(data);
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Sign in'; btn.disabled = false; }
+}
+
+async function handleTotp(e) {
+  e.preventDefault();
+  const btn = document.getElementById('totpBtn');
+  const err = document.getElementById('totpErr');
+  err.style.display = 'none';
+  btn.textContent = 'Verifying…'; btn.disabled = true;
+  try {
+    const data = await apiPost('/auth/login/totp', {
+      challenge_token: _totpChallenge,
+      code: document.getElementById('totpCode').value.trim()
+    });
+    finishAuth(data);
+  } catch(ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+  } finally { btn.textContent = 'Verify'; btn.disabled = false; }
 }
 
 async function handleRegister(e) {
@@ -340,9 +399,7 @@ async function handleRegister(e) {
       password: document.getElementById('regPassword').value,
       full_name: document.getElementById('regName').value
     });
-    localStorage.setItem('sol_token', data.access_token);
-    if (data.refresh_token) localStorage.setItem('sol_refresh', data.refresh_token);
-    window.location.href = '/sol/app';
+    finishAuth(data);
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Create account'; btn.disabled = false; }
