@@ -119,3 +119,48 @@ def self_test(offer: str = "a quick WheellsVerse demo call", **kw) -> dict:
     if not me:
         return {"status": "blocked", "reason": "set VOICE_TEST_NUMBER to your own phone first"}
     return place_call(me, offer, target_name="you (self-test)", **kw)
+
+
+def dial_campaign(slug: str, offer: str | None = None, *, confirm: bool = False,
+                  live: bool = False, cap: int | None = None) -> dict:
+    """Phase 2: dial a lead-gen campaign's leads. DEFAULT = dry-run preview (no calls).
+    Real dialing requires confirm+live+VAPI_API_KEY AND each lead passes place_call's
+    gates (valid number, not suppressed/opted-out, business hours). Capped per run.
+
+    ARM CHECKLIST before going live (operator): set VOICE_OFFER (real offer),
+    confirm the business is registered, populate data/voice_suppression.txt (DNC),
+    then call with confirm=True, live=True. Nothing fires otherwise."""
+    import json as _json
+    from core.portfolio import paths
+    from core.portfolio.leadgen import _BY_SLUG
+
+    camp = _BY_SLUG.get(slug)
+    if camp is None:
+        return {"status": "unknown_campaign", "slug": slug}
+    offer = offer or os.getenv("VOICE_OFFER", "").strip() or "a quick intro to what WheellsVerse offers your practice"
+    cap = cap or DAILY_CAP
+    lp = paths.data_root() / "leadgen" / slug / "leads.json"
+    if not lp.exists():
+        return {"status": "no_leads", "reason": "run the campaign first", "slug": slug}
+
+    leads = _json.loads(lp.read_text(encoding="utf-8"))
+    queue, queued = [], 0
+    for L in leads:
+        if queued >= cap:
+            break
+        if not L.get("phone"):
+            continue  # phone is required to dial
+        r = place_call(L["phone"], offer, target_name=L.get("name") or "your business",
+                       confirm=confirm, live=live)
+        queue.append({"name": L.get("name"), "phone": L.get("phone"),
+                      "outcome": r.get("status"), "why": r.get("reason")})
+        if r.get("status") in ("calling", "dry_run"):
+            queued += 1
+
+    armed = bool(confirm and live and os.getenv("VAPI_API_KEY", "").strip())
+    return {
+        "status": "ARMED_DIALING" if armed else "dry_run_preview",
+        "slug": slug, "offer": offer, "cap": cap,
+        "total_leads": len(leads), "with_phone": sum(1 for L in leads if L.get("phone")),
+        "queued_this_run": queued, "queue": queue[:cap],
+    }

@@ -37,3 +37,27 @@ def test_invalid_number_blocked(monkeypatch):
 def test_self_test_needs_operator_number(monkeypatch):
     monkeypatch.delenv("VOICE_TEST_NUMBER", raising=False)
     assert vo.self_test()["status"] == "blocked"
+
+
+def test_dial_campaign_dry_run_preview(monkeypatch, tmp_path):
+    import json
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    monkeypatch.setattr(vo, "_within_business_hours", lambda now=None: True)
+    for k in ("VAPI_API_KEY", "VAPI_PHONE_NUMBER_ID"):
+        monkeypatch.delenv(k, raising=False)
+    base = tmp_path / "leadgen" / "dental-boston"
+    base.mkdir(parents=True)
+    (base / "leads.json").write_text(json.dumps([
+        {"name": "A Dental", "phone": "(617) 555-0101"},
+        {"name": "No Phone Co", "phone": ""},
+        {"name": "B Dental", "phone": "617-555-0102"}]))
+    r = vo.dial_campaign("dental-boston")
+    assert r["status"] == "dry_run_preview"          # unarmed -> NO calls
+    assert r["with_phone"] == 2 and r["queued_this_run"] == 2
+    assert all(q["outcome"] == "dry_run" for q in r["queue"])
+
+
+def test_dial_campaign_unknown_and_no_leads(monkeypatch, tmp_path):
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    assert vo.dial_campaign("nope")["status"] == "unknown_campaign"
+    assert vo.dial_campaign("dental-boston")["status"] == "no_leads"
