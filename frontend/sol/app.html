@@ -385,12 +385,12 @@ function badge(status) {
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 
-async function copyInvite(groupId) {
+async function copyInvite(ev, groupId) {
   const input = document.getElementById('inviteUrl-' + groupId);
   if (!input) return;
   try {
     await navigator.clipboard.writeText(input.value);
-    const btn = event.target;
+    const btn = ev.currentTarget;
     const orig = btn.textContent;
     btn.textContent = '✓ Copied';
     setTimeout(() => { btn.textContent = orig; }, 1500);
@@ -434,7 +434,7 @@ async function loadMoneyPanel() {
       api('/payments/my').catch(() => []),
     ]);
     const myGroups = groups.filter(g =>
-      (g.status === 'ACTIVE' || g.status === 'FORMING') && g.created_by // any group listed is one we're visible to
+      (g.status === 'ACTIVE' || g.status === 'FORMING') && g.created_by && !isTestCircle(g) // visible, non-test
     );
     if (myGroups.length === 0) { panel.style.display = 'none'; return; }
 
@@ -583,6 +583,13 @@ async function loadOnboarding() {
 }
 
 // ── Dashboard groups ──────────────────────────────────────────────────────────
+// Hide seed/load-test circles (named "Smoketest …" / "LoadTest …") from every
+// Sol view until they're purged from the database. Conservative prefix match so
+// a real member-named circle is never hidden.
+function isTestCircle(g) {
+  return /^(smoketest|loadtest)\b/i.test((g && g.name) || '');
+}
+
 // Statuses that mean a circle is over — kept out of the main grid so a pile of
 // old/failed/cancelled circles never buries the ones the member is active in.
 const ENDED_GROUP_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
@@ -590,7 +597,7 @@ const ENDED_GROUP_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
 async function loadDashGroups() {
   const el = document.getElementById('dashGroups');
   try {
-    const gs = await api('/groups');
+    const gs = (await api('/groups')).filter(g => !isTestCircle(g));
     if (!gs.length) {
       el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
       return;
@@ -629,7 +636,7 @@ async function loadGroups() {
   const el = document.getElementById('groupList');
   el.innerHTML = '<div class="spinner"></div>';
   try {
-    const gs = await api('/groups');
+    const gs = (await api('/groups')).filter(g => !isTestCircle(g));
     if (!gs.length) {
       el.innerHTML = '<div class="empty">No circles found. Create the first one!</div>';
       return;
@@ -736,7 +743,7 @@ async function showGroup(id) {
           </div>`
         : '';
       const recipientBanner = isRecipient
-        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(232,147,36,.08);border:1px solid rgba(232,147,36,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You are this cycle's payout recipient — ${fmt$(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000))} net will be sent to your bank.</div>`
+        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(232,147,36,.08);border:1px solid rgba(232,147,36,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You're this cycle's payout recipient — your net payout is ${fmt$(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000))}, paid to your linked bank once the cycle settles.</div>`
         : '';
       cycleSection = `<div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
@@ -765,7 +772,7 @@ async function showGroup(id) {
         <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">Share this link — only people with it can ${g.is_private ? 'find and ' : ''}join.</div>
         <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
           <input readonly value="${inviteUrl}" id="inviteUrl-${g.id}" style="flex:1;min-width:200px;background:var(--surface-2);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900);font-size:.8rem;font-family:monospace">
-          <button type="button" class="btn btn-primary" style="font-size:.8rem;padding:.45rem 1rem" onclick="copyInvite('${g.id}')">Copy</button>
+          <button type="button" class="btn btn-primary" style="font-size:.8rem;padding:.45rem 1rem" onclick="copyInvite(event, '${g.id}')">Copy</button>
         </div>
         <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--sol-600)">${g.invite_code}</code></div>
       </div>
@@ -885,7 +892,7 @@ async function submitKyc() {
       method: 'POST',
       body: JSON.stringify(dob ? { date_of_birth: dob } : {}),
     });
-    ok.textContent = '✓ Submitted! Status updated.'; ok.style.display = 'block';
+    ok.textContent = '✓ Saved. In beta, identity checks are simplified — full ID + selfie verification is required before public launch.'; ok.style.display = 'block';
     me = await api('/auth/me');
     document.getElementById('dKyc').innerHTML = badge(me.kyc_status);
     loadOnboarding();
