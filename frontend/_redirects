@@ -15,10 +15,12 @@
 /privacy/                   /privacy.html               200
 /disclaimer/                /disclaimer.html            200
 
-# Sol — ROSCA savings platform
+# Sol — ROSCA savings platform.
+# /sol is the directory index (safe rewrite). Do NOT add /sol/app or /sol/admin
+# rewrites to their .html files: that fights Cloudflare Pages' automatic
+# .html-stripping and produces an infinite 308 loop on /sol/app. Pages serves
+# app.html / admin.html natively at /sol/app and /sol/admin.
 /sol                        /sol/index.html             200
-/sol/app                    /sol/app.html               200
-/sol/admin                  /sol/admin.html             200
 
 # TikTok Developer Portal file-verification routing (current Login Kit app)
 # Each URL TikTok verifies (the apex, /terms, /privacy) needs its own .txt
