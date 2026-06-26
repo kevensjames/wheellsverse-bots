@@ -122,7 +122,7 @@ def self_test(offer: str = "a quick WheellsVerse demo call", **kw) -> dict:
 
 
 def dial_campaign(slug: str, offer: str | None = None, *, confirm: bool = False,
-                  live: bool = False, cap: int | None = None) -> dict:
+                  live: bool = False, cap: int | None = None, redirect_to: str | None = None) -> dict:
     """Phase 2: dial a lead-gen campaign's leads. DEFAULT = dry-run preview (no calls).
     Real dialing requires confirm+live+VAPI_API_KEY AND each lead passes place_call's
     gates (valid number, not suppressed/opted-out, business hours). Capped per run.
@@ -144,23 +144,33 @@ def dial_campaign(slug: str, offer: str | None = None, *, confirm: bool = False,
         return {"status": "no_leads", "reason": "run the campaign first", "slug": slug}
 
     leads = _json.loads(lp.read_text(encoding="utf-8"))
+    armed = bool(confirm and live and os.getenv("VAPI_API_KEY", "").strip())
+
+    # REGISTRATION GATE (defense-in-depth): never auto-dial REAL leads for an
+    # unregistered business. Armed real-lead calling requires VOICE_BUSINESS_REGISTERED=1.
+    # redirect_to (calling your own phone to prove the pipeline) bypasses this — it's a self-test.
+    if armed and not redirect_to and os.getenv("VOICE_BUSINESS_REGISTERED", "").strip() != "1":
+        return {"status": "blocked", "slug": slug,
+                "reason": "VOICE_BUSINESS_REGISTERED != 1 — real-lead calling is disabled until "
+                          "the business is registered. Use redirect_to=<your phone> to self-test."}
+
     queue, queued = [], 0
     for L in leads:
         if queued >= cap:
             break
         if not L.get("phone"):
             continue  # phone is required to dial
-        r = place_call(L["phone"], offer, target_name=L.get("name") or "your business",
+        dest = redirect_to or L["phone"]   # redirect_to => every call rings YOU, not the lead
+        r = place_call(dest, offer, target_name=L.get("name") or "your business",
                        confirm=confirm, live=live)
-        queue.append({"name": L.get("name"), "phone": L.get("phone"),
+        queue.append({"name": L.get("name"), "lead_phone": L.get("phone"), "dialed": dest,
                       "outcome": r.get("status"), "why": r.get("reason")})
         if r.get("status") in ("calling", "dry_run"):
             queued += 1
 
-    armed = bool(confirm and live and os.getenv("VAPI_API_KEY", "").strip())
     return {
-        "status": "ARMED_DIALING" if armed else "dry_run_preview",
-        "slug": slug, "offer": offer, "cap": cap,
+        "status": ("SELF_TEST_DIALING" if redirect_to else "ARMED_DIALING") if armed else "dry_run_preview",
+        "slug": slug, "offer": offer, "cap": cap, "redirect_to": redirect_to,
         "total_leads": len(leads), "with_phone": sum(1 for L in leads if L.get("phone")),
         "queued_this_run": queued, "queue": queue[:cap],
     }

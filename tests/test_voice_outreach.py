@@ -61,3 +61,20 @@ def test_dial_campaign_unknown_and_no_leads(monkeypatch, tmp_path):
     monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
     assert vo.dial_campaign("nope")["status"] == "unknown_campaign"
     assert vo.dial_campaign("dental-boston")["status"] == "no_leads"
+
+
+def test_dial_campaign_registration_gate(monkeypatch, tmp_path):
+    import json
+    monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path))
+    monkeypatch.setattr(vo, "_within_business_hours", lambda now=None: True)
+    monkeypatch.setenv("VAPI_API_KEY", "x")                     # -> armed
+    monkeypatch.delenv("VOICE_BUSINESS_REGISTERED", raising=False)
+    monkeypatch.setattr(vo, "place_call", lambda *a, **k: {"status": "dry_run"})  # no network
+    base = tmp_path / "leadgen" / "dental-boston"
+    base.mkdir(parents=True)
+    (base / "leads.json").write_text(json.dumps([{"name": "A", "phone": "(617) 555-0101"}]))
+    # armed + REAL leads + unregistered -> HARD blocked by the compliance gate
+    assert vo.dial_campaign("dental-boston", confirm=True, live=True)["status"] == "blocked"
+    # redirect_to (self-test to your own phone) bypasses the gate
+    assert vo.dial_campaign("dental-boston", confirm=True, live=True,
+                            redirect_to="+15551234567")["status"] == "SELF_TEST_DIALING"
