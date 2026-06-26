@@ -83,11 +83,21 @@ async function run(slug){
      <div><strong>Next actions:</strong></div>
      <ul class="acts">${(rep.next_actions||[]).map(a=>`<li>${esc(a)}</li>`).join('')}</ul>
      <div style="margin-top:8px">
-       <a class="dl" href="${API}/download/${esc(slug)}?api_key=${encodeURIComponent(key())}">⬇ Download CRM CSV</a>
+       <a class="dl" href="#" onclick="downloadCsv('${esc(slug)}');return false;">⬇ Download CRM CSV</a>
        &nbsp;·&nbsp;
        <a class="dl" href="#" onclick="reenrich('${esc(slug)}');return false;">↻ Re-enrich emails (Hunter)</a>
      </div>
      <div id="re-${esc(slug)}" style="color:var(--muted);font-size:.78rem;margin-top:4px"></div>`;
+}
+async function downloadCsv(slug){
+  // fetch with the key in the HEADER (never the URL) + client-side blob download
+  try{
+    const r=await fetch(API+'/download/'+encodeURIComponent(slug),{headers:{'X-API-Key':key()}});
+    if(!r.ok){ err('download failed ('+r.status+')'); return; }
+    const blob=await r.blob(), url=URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=slug+'-leads.csv';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+  }catch(e){ err('download failed'); }
 }
 async function reenrich(slug){
   const el=document.getElementById('re-'+slug); el.textContent='Re-enriching via Hunter…';

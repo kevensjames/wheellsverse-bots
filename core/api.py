@@ -1772,9 +1772,13 @@ async def api_leadgen_reenrich(slug: str):
 
 @app.get("/api/narai/leadgen/download/{slug}")
 async def api_leadgen_download(slug: str):
-    """Download a campaign's CRM import CSV. Accepts ?api_key= so a plain <a> link works."""
+    """Download a campaign's CRM import CSV. `slug` is whitelisted against known
+    campaigns to prevent path traversal (it is used to build a filesystem path)."""
     from fastapi import Response
     from core.portfolio import paths
+    from core.portfolio.leadgen import CAMPAIGNS
+    if slug not in {c["slug"] for c in CAMPAIGNS}:   # path-traversal guard
+        return JSONResponse({"error": "unknown campaign"}, status_code=404)
     p = paths.data_root() / "leadgen" / slug / "crm_import.csv"
     if not p.exists():
         return JSONResponse({"error": "no CSV yet — run the campaign first"}, status_code=404)
