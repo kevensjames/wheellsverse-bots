@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import io
 import os
+import re
 import time
 
 from core.portfolio import paths
@@ -34,6 +35,27 @@ CAMPAIGNS = [
      "category": "real_estate_agency", "limit": 100, "value_prop": "convert more buyer/seller leads"},
 ]
 _BY_SLUG = {c["slug"]: c for c in CAMPAIGNS}
+
+# Sub-areas per campaign — Google Places searchText caps ~60 results per query,
+# so we sweep the metro by neighborhood/suburb and dedupe to approach the target.
+_CITY_AREAS = {
+    "dental-boston": ["Boston, MA", "South Boston, MA", "Back Bay, Boston, MA", "Dorchester, MA",
+                      "Brighton, MA", "Cambridge, MA", "Brookline, MA", "Somerville, MA"],
+    "pi-lawyers-miami": ["Miami, FL", "Miami Beach, FL", "Coral Gables, FL", "Brickell, Miami, FL",
+                         "Little Havana, Miami, FL", "Coconut Grove, FL", "Hialeah, FL", "Doral, FL"],
+    "hvac-houston": ["Houston, TX", "Sugar Land, TX", "Katy, TX", "The Woodlands, TX",
+                     "Pasadena, TX", "Pearland, TX", "Spring, TX", "Cypress, TX"],
+    "roofing-phoenix": ["Phoenix, AZ", "Scottsdale, AZ", "Mesa, AZ", "Tempe, AZ",
+                        "Chandler, AZ", "Glendale, AZ", "Gilbert, AZ", "Peoria, AZ"],
+    "chiro-dallas": ["Dallas, TX", "Plano, TX", "Irving, TX", "Garland, TX",
+                     "Richardson, TX", "Arlington, TX", "Frisco, TX", "Carrollton, TX"],
+    "realestate-atlanta": ["Atlanta, GA", "Buckhead, Atlanta, GA", "Decatur, GA", "Marietta, GA",
+                           "Sandy Springs, GA", "Alpharetta, GA", "Roswell, GA", "Midtown, Atlanta, GA"],
+}
+
+
+def _dedupe_key(lead: dict) -> str:
+    return re.sub(r"[^a-z0-9]", "", (lead.get("name") or "").lower()) + re.sub(r"\D", "", lead.get("phone") or "")
 
 
 def credential_status() -> dict:
@@ -118,13 +140,26 @@ def run_campaign(slug: str) -> dict:
                   ("name", "category", "address", "phone", "website", "rating", "review_count")}
                  for p in prospects]
     else:
-        # REAL: all independent businesses for the niche (chains excluded, NO
-        # website-quality filter), via Places searchText pagination.
+        # REAL: sweep the metro by sub-area (Places searchText caps ~60/query),
+        # chains excluded, NO website-quality filter, deduped, stop at target.
         key = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
-        raw = _places_text_search(f"{camp['niche']} in {camp['city']}", key, camp["limit"] * 2)
-        leads = [_parse_place(p) for p in raw]
-        leads = [L for L in leads
-                 if L.get("name") and not places_scanner._is_chain(L["name"])][:camp["limit"]]
+        areas = _CITY_AREAS.get(camp["slug"]) or [camp["city"]]
+        seen: set[str] = set()
+        leads = []
+        for area in areas:
+            if len(leads) >= camp["limit"]:
+                break
+            for p in _places_text_search(f"{camp['niche']} in {area}", key, 60):
+                L = _parse_place(p)
+                if not L.get("name") or places_scanner._is_chain(L["name"]):
+                    continue
+                k = _dedupe_key(L)
+                if k in seen:
+                    continue
+                seen.add(k)
+                leads.append(L)
+                if len(leads) >= camp["limit"]:
+                    break
 
     # ENRICH (live only with Hunter; dry-run flagged otherwise).
     from core import email_enricher
@@ -208,3 +243,34 @@ def _next_actions(creds, dry_scan, dry_enrich, n, target) -> list[str]:
 
 def list_campaigns() -> list[dict]:
     return [{k: c[k] for k in ("slug", "niche", "city", "limit")} for c in CAMPAIGNS]
+
+
+def reenrich(slug: str) -> dict:
+    """Re-run Hunter enrichment on ALREADY-scanned leads (no re-scan, no Places cost).
+    For when Hunter quota refreshes/upgrades. Fills only leads still missing an email."""
+    camp = _BY_SLUG.get(slug)
+    if camp is None:
+        return {"status": "unknown_campaign", "slug": slug}
+    if not os.getenv("HUNTER_API_KEY", "").strip():
+        return {"status": "blocked", "reason": "HUNTER_API_KEY not set", "slug": slug}
+    import json as _json
+    base = paths.data_root() / "leadgen" / slug
+    lp = base / "leads.json"
+    if not lp.exists():
+        return {"status": "no_scan", "reason": "run the campaign first", "slug": slug}
+
+    from core import email_enricher
+    hkey = os.getenv("HUNTER_API_KEY", "").strip()
+    leads = _json.loads(lp.read_text(encoding="utf-8"))
+    before = sum(1 for L in leads if L.get("email"))
+    for L in leads:
+        if L.get("email") or not L.get("website"):
+            continue
+        hit = email_enricher._hunter_domain_lookup(L.get("website") or "", hkey)
+        if hit and hit.get("email"):
+            L["email"] = hit["email"]
+            L["contact_name"] = hit.get("first_name", "")
+    after = sum(1 for L in leads if L.get("email"))
+    paths.save_json_atomic(lp, leads)
+    return {"status": "reenriched", "slug": slug, "emails_before": before,
+            "emails_after": after, "new_emails": after - before, "total": len(leads)}

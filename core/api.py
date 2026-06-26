@@ -1763,6 +1763,25 @@ async def api_leadgen_run(slug: str):
     return run_campaign(slug)
 
 
+@app.post("/api/narai/leadgen/reenrich/{slug}")
+async def api_leadgen_reenrich(slug: str):
+    """Re-run Hunter enrichment on already-scanned leads (no re-scan). For quota refresh/upgrade."""
+    from core.portfolio.leadgen import reenrich
+    return reenrich(slug)
+
+
+@app.get("/api/narai/leadgen/download/{slug}")
+async def api_leadgen_download(slug: str):
+    """Download a campaign's CRM import CSV. Accepts ?api_key= so a plain <a> link works."""
+    from fastapi import Response
+    from core.portfolio import paths
+    p = paths.data_root() / "leadgen" / slug / "crm_import.csv"
+    if not p.exists():
+        return JSONResponse({"error": "no CSV yet — run the campaign first"}, status_code=404)
+    return Response(content=p.read_text(encoding="utf-8"), media_type="text/csv",
+                    headers={"Content-Disposition": f'attachment; filename="{slug}-leads.csv"'})
+
+
 @app.get("/admin/leadgen", response_class=HTMLResponse)
 async def serve_leadgen():
     """Lead-Gen Campaigns toodle — scan→enrich→draft→CRM per niche, honest about creds."""
