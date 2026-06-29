@@ -1,0 +1,9 @@
+name = "sol-redirect"
+main = "index.js"
+compatibility_date = "2025-01-01"
+workers_dev = false
+
+# Intercept ONLY /sol and everything under it on the stale app. origin.
+routes = [
+  { pattern = "app.wheellsverse.com/sol*", zone_name = "wheellsverse.com" }
+]
