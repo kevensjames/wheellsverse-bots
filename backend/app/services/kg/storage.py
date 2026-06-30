@@ -38,6 +38,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from app.services._sqlite_util import ensure_schema
+
 logger = logging.getLogger(__name__)
 
 # Repo root = .../wheellsverse_bots/. Walk up from this file:
@@ -122,7 +124,7 @@ def _conn() -> Iterator[sqlite3.Connection]:
     try:
         c.execute("PRAGMA journal_mode=WAL")
         c.execute("PRAGMA foreign_keys=ON")
-        c.executescript(_SCHEMA)
+        ensure_schema(c, str(KG_DB_PATH), _SCHEMA)  # PERF-F4: run schema once per path
         yield c
     finally:
         c.close()
