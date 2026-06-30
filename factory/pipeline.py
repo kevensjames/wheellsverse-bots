@@ -103,8 +103,11 @@ def run_cycle(slug: str, runner, *, now_iso: str, ctx: dict | None = None) -> Cy
             pr_url = out.get("pr_url")
 
         adapter_failed = result.status == "failed"
-        gate_failed = (stage.hard_gate and result.status == "executed"
-                       and not out.get("ok", True))
+        gate_failed = (
+            stage.hard_gate
+            and result.status == "executed"
+            and not (isinstance(out, dict) and out.get("ok") is True)
+        )
         if adapter_failed or gate_failed:
             rec["blocked"] = True
             stages_out.append(rec)

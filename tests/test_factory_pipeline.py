@@ -92,6 +92,36 @@ def test_done_when_roadmap_complete_and_no_tasks():
     assert P.get_project("a").phase == "done"
 
 
+class _BadOutputRunner:
+    """Returns malformed output for the security hard-gate stage."""
+    def __init__(self, bad):
+        self.bad = bad
+        self.calls = []
+
+    def run(self, action):
+        self.calls.append(action.verb)
+        if action.verb == "security":
+            return self.bad           # None or a dict missing "ok"
+        return {"ok": True, "cost_usd": 0.0, "output": "", "pr_url":
+                "https://gh/pr/1" if action.verb == "commit_pr" else None}
+
+
+def test_hard_gate_fails_closed_on_none_output():
+    _seed()
+    runner = _BadOutputRunner(None)
+    res = pipeline.run_cycle("a", runner, now_iso="2026-06-30T02:00:00Z")
+    assert res.status == "blocked"
+    assert "commit_pr" not in runner.calls
+
+
+def test_hard_gate_fails_closed_on_missing_ok_key():
+    _seed()
+    runner = _BadOutputRunner({"cost_usd": 0.0, "output": "scan crashed"})
+    res = pipeline.run_cycle("a", runner, now_iso="2026-06-30T02:00:00Z")
+    assert res.status == "blocked"
+    assert "commit_pr" not in runner.calls
+
+
 def test_budget_overrun_queues_and_releases_task():
     _seed()
     paths.save_json_atomic(paths.data_root() / "portfolio.json",
