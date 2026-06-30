@@ -6,7 +6,7 @@ import time
 
 
 def main() -> int:
-    mode = os.environ.get("FAKE_CLAUDE_MODE", "success")
+    mode = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("FAKE_CLAUDE_MODE", "success")
     # drain stdin (the runner pipes the prompt in); we ignore it
     try:
         sys.stdin.read()

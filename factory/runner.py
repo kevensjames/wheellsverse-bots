@@ -97,14 +97,10 @@ class ClaudeCliRunner:
         head = shlex.split(self.claude_bin)
         argv = head[1:] if len(head) > 1 else []
         cmd = [head[0], *argv] + build_argv(role)[1:]  # drop the placeholder bin from build_argv
-        env = build_env()
-        # Pass test-mode marker through to the subprocess when present (never set in prod).
-        if "FAKE_CLAUDE_MODE" in os.environ:
-            env["FAKE_CLAUDE_MODE"] = os.environ["FAKE_CLAUDE_MODE"]
         try:
             proc = subprocess.run(
                 cmd, cwd=str(self.worktree), input=self._brief(action),
-                capture_output=True, text=True, timeout=self.timeout_s, env=env,
+                capture_output=True, text=True, timeout=self.timeout_s, env=build_env(),
             )
         except subprocess.TimeoutExpired:
             return {"ok": False, "cost_usd": 0.0, "output": "timeout", "pr_url": None}
