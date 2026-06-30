@@ -59,3 +59,7 @@ google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.130.0
 google-auth-httplib2>=0.2.0
 facebook-business>=20.0
+
+# Error reporting — core/sentry_init.py imports sentry_sdk in a try/except and
+# silently no-ops if absent. Declaring it makes prod error reporting actually work.
+sentry-sdk[fastapi]>=2.0.0

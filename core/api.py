@@ -10843,30 +10843,12 @@ async def nx_list_subscribers(request: Request):
         "subscribers": subs,
     }
 
-class _NxSubscribeReq(BaseModel):
-    creator_handle: str
-    fan_email:      str
-    fan_name:       str = ""
-    price_paid:     float = 0
-    stripe_cust:    str = ""
-
-@app.post("/api/nx/subscribe")
-async def nx_subscribe(req: _NxSubscribeReq):
-    """Called after Stripe checkout completes to record a new fan subscriber."""
-    from core.nexora_db import get_creator_by_handle, add_subscriber, record_transaction
-    creator = get_creator_by_handle(req.creator_handle)
-    if not creator:
-        raise HTTPException(status_code=404, detail="Creator not found")
-    add_subscriber(creator["id"], req.fan_email, req.fan_name, req.price_paid, req.stripe_cust)
-    if req.price_paid > 0:
-        record_transaction(creator["id"], req.price_paid, "subscription", req.fan_email)
-    # Also enroll in ConvertKit
-    try:
-        from core.convertkit import get_convertkit
-        get_convertkit().add_subscriber(req.fan_email, req.fan_name, tags=["nexora_subscriber"])
-    except Exception:
-        pass
-    return {"status": "subscribed", "creator": creator["name"]}
+# REMOVED (2026-06-30 security): the legacy unauthenticated POST /api/nx/subscribe.
+# It bypassed the API-key guard via the /api/nx/ prefix and let ANY caller forge a
+# free active subscription + inject a fake earnings transaction (record_transaction
+# with an attacker-supplied price_paid). Subscriptions are now created EXCLUSIVELY by
+# the signature-verified Stripe webhook (_handle_checkout in core/nexora_payments.py),
+# which is the only trustworthy post-checkout path. The frontend never called this route.
 
 
 # ── Earnings ───────────────────────────────────────────────────────────────────

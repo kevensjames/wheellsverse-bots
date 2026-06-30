@@ -337,7 +337,27 @@ CREATE INDEX IF NOT EXISTS ix_payout_transfer  ON nx_payouts(stripe_transfer_id)
 """
 
 
-def init_db() -> None:
+_initialized_paths: set = set()
+
+
+def _dedupe_stripe_id(conn) -> int:
+    """Delete duplicate non-empty stripe_id rows, keeping the earliest (min id).
+    Idempotent. Must run BEFORE the partial UNIQUE index ux_tx_stripe_id, which
+    otherwise throws on a prod DB with pre-existing duplicate stripe_id rows."""
+    cur = conn.execute(
+        "DELETE FROM nx_transactions WHERE stripe_id != '' AND id NOT IN "
+        "(SELECT MIN(id) FROM nx_transactions WHERE stripe_id != '' GROUP BY stripe_id)")
+    return cur.rowcount
+
+
+def init_db(force: bool = False) -> None:
+    # Run the full schema/migration DDL ONCE per DB path — not on every entity
+    # request. The entity_* helpers call init_db() defensively; without this guard
+    # that meant ~28 CREATE TABLE + ~22 CREATE INDEX + PRAGMA on the hot read path,
+    # taking the WAL write lock. Keyed on DB_PATH so each test's tmp DB still inits.
+    key = str(DB_PATH)
+    if not force and key in _initialized_paths:
+        return
     conn = get_conn()
     conn.executescript(_SCHEMA)
     _ensure_columns(conn, "nx_creators", {
@@ -400,9 +420,11 @@ def init_db() -> None:
         "stripe_payout_id": "stripe_payout_id TEXT DEFAULT ''",
         "failure_reason": "failure_reason TEXT DEFAULT ''",
     })
+    _dedupe_stripe_id(conn)   # must precede the partial UNIQUE index below
     conn.executescript(_INDEXES)
     conn.commit()
     conn.close()
+    _initialized_paths.add(key)
 
 # ── Creators ───────────────────────────────────────────────────────────────────
 

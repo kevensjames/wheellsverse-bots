@@ -99,7 +99,11 @@ ENTITIES = {
             "created_date": ("created_at", "ts"),
         },
         "filterable": ["email", "role", "is_suspended"],
-        "writable": ["is_suspended", "full_name"],
+        # is_suspended is admin-only: a non-admin must NOT be able to PATCH their own
+        # User row to un-suspend themselves (suspension is the abuse control).
+        # full_name stays self-writable (legitimate profile editing; email is the identity).
+        "writable": ["full_name"],
+        "writable_admin": ["is_suspended"],
         "create_roles": ["admin"], "read_public": False,
         "self_cols": ["email"],
     },

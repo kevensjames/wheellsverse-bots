@@ -1,0 +1,37 @@
+name: nexora-ci
+
+# Runs the NEXORA test suite on every PR that touches the /api/nx backend.
+# Previously the only gate was the Dockerfile import smoke-test on push-to-main;
+# the 132 nexora tests never ran on a PR. Tests are the blocking gate; lint is
+# advisory until the nexora files are flake8-clean.
+
+on:
+  pull_request:
+    paths:
+      - 'core/nexora_*.py'
+      - 'core/api.py'
+      - 'tests/test_nexora_*.py'
+      - 'requirements-server.txt'
+      - '.github/workflows/nexora-ci.yml'
+  push:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-server.txt
+          pip install pytest pytest-asyncio flake8
+      - name: Lint (nexora) — advisory
+        continue-on-error: true
+        run: flake8 core/nexora_*.py tests/test_nexora_*.py
+      - name: Test (nexora) — blocking
+        run: pytest tests/test_nexora_*.py -q
