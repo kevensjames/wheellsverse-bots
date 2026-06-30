@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Portfolio HQ · W-MOS</title>
+<style>
+:root{--bg:#0a0a0a;--panel:#111;--panel2:#1a1a1a;--border:#262626;--text:#fafafa;--muted:#94a3b8;
+  --green:#10b981;--amber:#f59e0b;--accent:#6366f1;--radius:10px;}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,Inter,sans-serif;font-size:14px}
+.top{padding:16px 24px;border-bottom:1px solid var(--border);background:var(--panel);font-weight:800;display:flex;gap:16px;align-items:center}
+.tabs{display:flex;gap:8px;margin-left:auto;font-size:.85rem;font-weight:600}
+.tab{padding:6px 12px;border-radius:8px;cursor:pointer;color:var(--muted);border:1px solid transparent}
+.tab.on{color:#fff;background:var(--accent);border-color:var(--accent)}
+.wrap{padding:18px 24px;max-width:1100px}
+.note{color:var(--muted);font-size:.84rem;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:14px}
+.card h3{margin:0 0 2px;font-size:1rem}.card .sub{color:var(--muted);font-size:.8rem;margin-bottom:6px}
+.offer{font-size:.84rem;color:#cbd5e1;margin:6px 0}
+.row{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0;font-size:.74rem}
+.pill{padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+.pill.price{color:var(--green);border-color:rgba(16,185,129,.4)}
+.pill.kit{color:var(--amber);border-color:rgba(245,158,11,.4)}
+.btn{padding:7px 12px;border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;cursor:pointer;font-weight:700;font-size:.82rem;margin-top:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+/* org */
+.sup{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px}
+.sup h4{margin:0 0 2px;font-size:.95rem}.sup .ch{color:var(--muted);font-size:.8rem;margin-bottom:8px}
+.agents{display:flex;flex-wrap:wrap;gap:6px}
+.ag{font-size:.74rem;padding:3px 8px;border-radius:6px;background:var(--panel2);border:1px solid var(--border)}
+.ag b{color:#c7d2fe}
+.ceo{background:linear-gradient(90deg,#6366f1,#4338ca);padding:12px 16px;border-radius:var(--radius);font-weight:800;margin-bottom:12px}
+/* kit modal */
+#modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;padding:24px;overflow:auto}
+#modalCard{max-width:860px;margin:0 auto;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+#modalCard .x{float:right;cursor:pointer;color:var(--muted);font-size:1.3rem}
+#kitBody{white-space:pre-wrap;font-size:.82rem;line-height:1.5;color:#e5e7eb;margin-top:10px}
+#kitBody h1,#kitBody h2{color:#fff}
+#err{background:rgba(239,68,68,.12);color:#fca5a5;padding:8px 24px;display:none}
+</style>
+</head>
+<body>
+<div class="top">🛰️ Portfolio HQ <span style="color:var(--muted);font-weight:500;font-size:.8rem">W-MOS · 10 OSS businesses</span>
+  <div class="tabs"><span class="tab on" id="t-biz" onclick="showTab('biz')">Businesses</span>
+    <span class="tab" id="t-org" onclick="showTab('org')">Org Chart</span></div>
+</div>
+<div id="err"></div>
+<div class="wrap">
+  <div id="biz">
+    <div class="note">Each business is a productized service around an open-source tool. Every one has a full GTM kit (market brief · service pack · outreach · landing · proposal) — drafts, propose-mode.</div>
+    <div class="grid" id="cards"></div>
+  </div>
+  <div id="org" style="display:none"></div>
+</div>
+
+<div id="modal"><div id="modalCard"><span class="x" onclick="closeKit()">✕</span><h2 id="kitTitle"></h2><div id="kitBody"></div></div></div>
+
+<script>
+const API='/api/narai/portfolio';
+const INJECTED='%%API_KEY%%';
+function key(){ if(INJECTED&&INJECTED!=='%%API_KEY%%')return INJECTED.replace(/[^ -~]/g,'').trim();
+  let k=sessionStorage.getItem('wv_key'); if(!k){k=prompt('Paste platform admin API_KEY:');if(k)sessionStorage.setItem('wv_key',k.trim());}
+  return (k||'').replace(/[^ -~]/g,'').trim(); }
+function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.style.display='block';setTimeout(()=>e.style.display='none',7000);}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+async function api(p){const r=await fetch(API+p,{headers:{'X-API-Key':key()}});
+  if(r.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401)');throw 0;} if(!r.ok)throw new Error('HTTP '+r.status); return r.json();}
+function showTab(t){document.getElementById('biz').style.display=t==='biz'?'':'none';document.getElementById('org').style.display=t==='org'?'':'none';
+  document.getElementById('t-biz').className='tab'+(t==='biz'?' on':'');document.getElementById('t-org').className='tab'+(t==='org'?' on':'');
+  if(t==='org'&&!document.getElementById('org').dataset.loaded)loadOrg();}
+
+async function loadBiz(){
+  let d; try{ d=await api('/businesses'); }catch(e){ return; }
+  document.getElementById('cards').innerHTML=(d.businesses||[]).map(b=>`
+    <div class="card"><h3>${esc(b.name)}</h3><div class="sub">${esc(b.lead_niche)} · ${esc(b.lead_geo)}</div>
+      <div class="offer">${esc(b.offer)}</div>
+      <div class="row"><span class="pill price">${esc(b.price)}</span><span class="pill">${esc(b.phase)}</span>
+        <span class="pill kit">${b.has_kit?'GTM kit ✓':'no kit'}</span></div>
+      <button class="btn" ${b.has_kit?'':'disabled'} onclick="openKit('${esc(b.slug)}','${esc(b.name)}')">View GTM kit</button>
+    </div>`).join('');
+}
+async function loadOrg(){
+  let d; try{ d=await api('/org'); }catch(e){ return; }
+  const bySup={}; (d.agents||[]).forEach(a=>{(bySup[a.reports_to]=bySup[a.reports_to]||[]).push(a);});
+  let html=`<div class="ceo">👑 ${esc(d.ceo||'KAI')} — CEO (AGI)</div>`;
+  (d.supervisors||[]).forEach(s=>{
+    const ags=(bySup[s.slug]||[]);
+    html+=`<div class="sup"><h4>${esc(s.name)}</h4><div class="ch">${esc(s.charter)}</div>
+      <div class="agents">${ags.map(a=>`<span class="ag"><b>${esc(a.role)}</b> · ${esc(a.agent_type)}</span>`).join('')||'<span class="ag">—</span>'}</div></div>`;
+  });
+  const o=document.getElementById('org'); o.innerHTML=html; o.dataset.loaded='1';
+}
+async function openKit(slug,name){
+  document.getElementById('kitTitle').textContent=name+' — GTM Kit';
+  document.getElementById('kitBody').textContent='Loading…';
+  document.getElementById('modal').style.display='block';
+  try{ const d=await api('/kit/'+encodeURIComponent(slug)); document.getElementById('kitBody').textContent=d.kit; }
+  catch(e){ document.getElementById('kitBody').textContent='Failed to load kit.'; }
+}
+function closeKit(){document.getElementById('modal').style.display='none';}
+document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeKit();};
+loadBiz();
+</script>
+</body>
+</html>

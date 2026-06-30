@@ -1786,6 +1786,58 @@ async def api_leadgen_download(slug: str):
                     headers={"Content-Disposition": f'attachment; filename="{slug}-leads.csv"'})
 
 
+@app.get("/api/narai/portfolio/businesses")
+async def api_portfolio_businesses():
+    """The 10 W-MOS businesses (full GTM defs) + whether each has a generated kit."""
+    from core.portfolio.registry import list_businesses
+    kdir = ROOT / "core" / "portfolio" / "gtm_kits"
+    return {"businesses": [{
+        "slug": b.slug, "name": b.name, "thesis": b.thesis, "offer": b.offer, "price": b.price,
+        "icp": b.icp, "lead_niche": b.lead_niche, "lead_geo": b.lead_geo,
+        "landing_headline": b.landing_headline, "phase": b.phase,
+        "has_kit": (kdir / f"{b.slug}.md").exists(),
+    } for b in list_businesses()]}
+
+
+@app.get("/api/narai/portfolio/kit/{slug}")
+async def api_portfolio_kit(slug: str):
+    """A business's GTM kit (markdown). Slug whitelisted vs the registry (path-traversal guard)."""
+    from core.portfolio.registry import list_businesses
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    p = ROOT / "core" / "portfolio" / "gtm_kits" / f"{slug}.md"
+    if not p.exists():
+        return JSONResponse({"error": "no kit yet"}, status_code=404)
+    return {"slug": slug, "kit": p.read_text(encoding="utf-8")}
+
+
+@app.get("/api/narai/portfolio/org")
+async def api_portfolio_org():
+    """KAI org chart: 10 supervisors + 21 specialist agents."""
+    from core.portfolio.org import list_agents, list_supervisors
+    return {
+        "ceo": "KAI",
+        "supervisors": [{"slug": s.slug, "name": s.name, "charter": s.charter,
+                         "manages": list(s.manages)} for s in list_supervisors()],
+        "agents": [{"slug": a.slug, "role": a.role, "reports_to": a.reports_to,
+                    "agent_type": a.agent_type, "capabilities": list(a.capabilities)}
+                   for a in list_agents()],
+    }
+
+
+@app.get("/admin/portfolio-hq", response_class=HTMLResponse)
+async def serve_portfolio_hq():
+    """Portfolio HQ toodle — 10 businesses + GTM kits + the KAI org chart."""
+    path = ROOT / "frontend" / "admin" / "portfolio-hq.html"
+    if not path.exists():
+        return HTMLResponse("<h1>portfolio-hq.html not found</h1>", status_code=404)
+    html = path.read_text(encoding="utf-8")
+    if _API_KEY:
+        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
+        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+
+
 @app.get("/admin/leadgen", response_class=HTMLResponse)
 async def serve_leadgen():
     """Lead-Gen Campaigns toodle — scan→enrich→draft→CRM per niche, honest about creds."""
