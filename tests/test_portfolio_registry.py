@@ -13,7 +13,7 @@ def test_get_business_found_and_missing():
     n8n = registry.get_business("n8n")
     assert n8n is not None
     assert n8n.name == "n8n Automation Agency"
-    assert n8n.phase == "planning"
+    assert n8n.phase == "defined"   # all 10 now carry full GTM definitions, not stubs
     assert registry.get_business("does-not-exist") is None
 
 
