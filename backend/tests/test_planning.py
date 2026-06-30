@@ -688,6 +688,7 @@ def test_admin_create_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_create_requires_approval_409(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # GOV-005: destructive needs its exact flag
     r = client.post(
         "/admin/planning/create", headers=ADMIN_HEADERS,
         json={"goal": "x", "approved": False},
@@ -697,6 +698,7 @@ def test_admin_create_requires_approval_409(client, monkeypatch, _isolated_audit
 
 def test_admin_create_approved_generates_plan(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # GOV-005: destructive needs its exact flag
     _patch_llm(monkeypatch, '{"steps":[{"action":"one"},{"action":"two"}]}')
     r = client.post(
         "/admin/planning/create", headers=ADMIN_HEADERS,
@@ -724,6 +726,7 @@ def test_admin_approve_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_approve_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # GOV-005: destructive needs its exact flag
     p = pl.create_plan("a", "g")
     pl.add_step(p.id, "one")
     # no approval → 409
@@ -743,6 +746,7 @@ def test_admin_approve_flow(client, monkeypatch, _isolated_audit):
 
 def test_admin_approve_rejects_done_plan_400(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # GOV-005: destructive needs its exact flag
     p = pl.create_plan("a", "g")
     pl.update_plan_status(p.id, "done")
     r = client.post(
@@ -757,6 +761,7 @@ def test_admin_approve_rejects_done_plan_400(client, monkeypatch, _isolated_audi
 
 def test_admin_edit_steps(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # GOV-005: destructive needs its exact flag
     p = pl.create_plan("a", "g")
     pl.add_step(p.id, "old")
     r = client.post(
@@ -789,6 +794,7 @@ def test_admin_execute_next_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_execute_next_runs_step(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # GOV-005: destructive needs its exact flag
     _patch_llm(monkeypatch, "step output here")
     p = pl.create_plan("a", "g")
     pl.add_step(p.id, "do it")
@@ -808,6 +814,7 @@ def test_admin_execute_next_runs_step(client, monkeypatch, _isolated_audit):
 
 def test_admin_revise_proposes(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # GOV-005: destructive needs its exact flag
     _patch_llm(monkeypatch, '{"diagnosis":"needs outline","steps":[{"action":"outline"}]}')
     p, _ = _blocked_with_failure()
     r = client.post(

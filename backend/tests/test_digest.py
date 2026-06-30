@@ -127,12 +127,14 @@ def test_admin_run_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_run_no_approval_409(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_DIGEST", "1")
+    monkeypatch.setenv("KAI_SCOPE_DIGEST_RUN", "1")  # GOV-005: destructive needs its exact flag
     r = client.post("/admin/digest/run", headers=ADMIN_HEADERS, json={"deliver": False, "approved": False})
     assert r.status_code == 409
 
 
 def test_admin_run_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_DIGEST", "1")
+    monkeypatch.setenv("KAI_SCOPE_DIGEST_RUN", "1")  # GOV-005: destructive needs its exact flag
     _patch(monkeypatch, content="Today: all green.")
     r = client.post("/admin/digest/run", headers=ADMIN_HEADERS, json={"deliver": True, "approved": True})
     assert r.status_code == 200
