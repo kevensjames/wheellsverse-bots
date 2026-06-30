@@ -854,6 +854,23 @@ async def security_headers_middleware(request: Request, call_next):
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""
+    # FAIL-CLOSED gate for code-execution + arbitrary-command endpoints. The
+    # `if _API_KEY:` guard below is fail-OPEN: with API_KEY unset, every /api/
+    # route is unauthenticated — including /api/code/run, a remote
+    # code-execution surface (save attacker code, then run it as the daemon
+    # user with the full environment). We refuse those endpoints outright (503)
+    # whenever no key is configured, so an unset API_KEY DISABLES code exec
+    # instead of exposing it. With API_KEY set they fall through to the standard
+    # X-API-Key check below (these paths are not in _PUBLIC_PREFIXES).
+    _EXEC_PREFIXES = ("/api/code/save", "/api/code/run", "/api/code/kill",
+                      "/api/code/generate", "/api/command")
+    if any(request.url.path.startswith(p) for p in _EXEC_PREFIXES) and not _API_KEY:
+        return JSONResponse(
+            {"error": "code execution disabled",
+             "hint": "set API_KEY in the server env to enable authenticated "
+                     "code/command endpoints (the dashboard sends X-API-Key)"},
+            status_code=503,
+        )
     if _API_KEY:
         path = request.url.path
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
@@ -1968,12 +1985,9 @@ async def _serve_old_dashboard():
     if not html_path.exists():
         return HTMLResponse("<h1>Dashboard not found. Expected: dashboard/index.html</h1>", status_code=500)
     html = html_path.read_text(encoding="utf-8")
-    # Inject API key for authenticated dashboard access
-    if _API_KEY:
-        html = html.replace(
-            "const API_KEY = '';",
-            f"const API_KEY = '{_API_KEY}';",
-        )
+    # SECURITY: never inject the API key — /admin is reachable unauthenticated, so an
+    # injected key leaks to anyone who fetches the page. The dashboard prompts for the
+    # key (sessionStorage 'wv_admin_key') instead; see dashboard/index.html.
     return HTMLResponse(html, headers={
         "Cache-Control": "no-store, no-cache, must-revalidate",
         "Pragma": "no-cache",
