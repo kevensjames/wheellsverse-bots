@@ -15,6 +15,11 @@ def main() -> int:
     if mode == "hang":
         time.sleep(30)
         return 0
+    try:
+        with open("agent_was_here.txt", "w") as f:
+            f.write("ok")
+    except Exception:
+        pass
     if mode == "error":
         print('{"type":"result","is_error":true,"total_cost_usd":0.0,"result":"failed"}')
         return 1

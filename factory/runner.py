@@ -10,7 +10,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from factory.roles import Role
+from factory.roles import Role, DENY_TOOLS
 from factory import roles as _roles
 
 # env allowlist — keep only innocuous vars + the explicit claude-auth set; nothing
@@ -26,7 +26,6 @@ AGENT_WORK_VERBS: frozenset[str] = frozenset(
 
 
 def build_argv(role: Role, *, claude_bin: str = "claude") -> list[str]:
-    # --allowedTools is variadic; keep it LAST so it consumes only the tool list.
     argv = [
         claude_bin, "-p",
         "--output-format", "json",
@@ -34,8 +33,10 @@ def build_argv(role: Role, *, claude_bin: str = "claude") -> list[str]:
         "--permission-mode", "acceptEdits",
         "--model", role.model,
         "--max-budget-usd", str(role.max_budget_usd),
-        "--allowedTools", *role.allowed_tools,
+        "--disallowedTools", *DENY_TOOLS,
     ]
+    if role.allowed_tools:
+        argv += ["--allowedTools", *role.allowed_tools]
     return argv
 
 

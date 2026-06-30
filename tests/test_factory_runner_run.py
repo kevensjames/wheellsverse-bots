@@ -54,3 +54,9 @@ def test_report_verb_is_noop_ok(tmp_path):
     r = runner.ClaudeCliRunner(tmp_path, claude_bin=f"{sys.executable} {FAKE} success")
     out = r.run(_action(verb="report", agent="writer"))
     assert out["ok"] is True and out["cost_usd"] == 0.0
+
+
+def test_subprocess_runs_in_worktree_cwd(tmp_path):
+    r = runner.ClaudeCliRunner(tmp_path, claude_bin=f"{sys.executable} {FAKE} success")
+    r.run(_action())
+    assert (tmp_path / "agent_was_here.txt").exists()

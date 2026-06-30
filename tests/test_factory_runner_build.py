@@ -21,6 +21,22 @@ def test_build_argv_allowedtools_is_last_and_variadic():
     assert tuple(argv[i + 1:]) == role.allowed_tools  # nothing after the tool list
 
 
+def test_build_argv_has_disallowed_denylist():
+    from factory.roles import DENY_TOOLS
+    argv = runner.build_argv(roles.ROLES["engineer"])
+    i = argv.index("--disallowedTools")
+    # denylist immediately follows --disallowedTools, up to --allowedTools
+    j = argv.index("--allowedTools")
+    assert tuple(argv[i + 1:j]) == DENY_TOOLS
+
+
+def test_build_argv_empty_allowlist_omits_allowedtools():
+    argv = runner.build_argv(roles.ROLES["daemon"])  # empty allowed_tools
+    assert "--allowedTools" not in argv
+    # disallow denylist still present and well-formed (variadic at end is fine)
+    assert "--disallowedTools" in argv
+
+
 def test_build_argv_no_positional_prompt():
     # prompt is delivered via stdin, so no role text should appear as a bare positional
     argv = runner.build_argv(roles.ROLES["reviewer"])

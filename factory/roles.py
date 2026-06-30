@@ -7,6 +7,14 @@ from dataclasses import dataclass
 
 FORBIDDEN_TOOL_SUBSTRINGS: tuple[str, ...] = ("push", "deploy", "merge", "secret")
 
+_BASH_TEST = ("Bash(python *)", "Bash(python3 *)", "Bash(pytest *)", "Bash(pip *)")
+
+# Escape vectors denied for EVERY role (deny wins over allow in claude CLI).
+DENY_TOOLS: tuple[str, ...] = (
+    "Bash(git push *)", "Bash(git remote *)", "Bash(curl *)", "Bash(wget *)",
+    "Bash(ssh *)", "Bash(scp *)", "Bash(nc *)", "Bash(telnet *)",
+)
+
 _COST_BY_TIER = {"haiku": 0.05, "sonnet": 0.25, "opus": 1.0}
 
 
@@ -24,7 +32,7 @@ def estimated_cost(model: str) -> float:
 
 
 _READ_ONLY = ("Read", "Grep", "Glob")
-_EDIT = ("Read", "Edit", "Write", "Grep", "Glob", "Bash")
+_EDIT = ("Read", "Edit", "Write", "Grep", "Glob", *_BASH_TEST)
 
 ROLES: dict[str, Role] = {
     "techlead": Role("techlead",
@@ -50,10 +58,10 @@ ROLES: dict[str, Role] = {
     "debugger": Role("debugger",
         "Act like a senior debugging engineer investigating a failing build. Trace the real "
         "root cause and apply the most robust fix.",
-        ("Read", "Edit", "Grep", "Glob", "Bash"), "sonnet", 1.0),
+        ("Read", "Edit", "Grep", "Glob", *_BASH_TEST), "sonnet", 1.0),
     "performance": Role("performance",
         "Act like a senior performance engineer. Identify and fix a measured hotspot only.",
-        ("Read", "Edit", "Grep", "Glob", "Bash"), "sonnet", 1.0),
+        ("Read", "Edit", "Grep", "Glob", *_BASH_TEST), "sonnet", 1.0),
     "security": Role("security",
         "Act like a senior security engineer auditing a change. Report vulnerabilities, "
         "severity, and fixes.",
@@ -61,7 +69,7 @@ ROLES: dict[str, Role] = {
     "qa": Role("qa",
         "Act like a senior test engineer. Add/extend tests that verify real behavior and "
         "edge cases for the change.",
-        ("Read", "Edit", "Write", "Grep", "Glob", "Bash"), "haiku", 1.0),
+        _EDIT, "haiku", 1.0),
     "writer": Role("writer",
         "Act like a technical documentation writer. Summarize what changed, clearly.",
         ("Read", "Write"), "haiku", 0.25),

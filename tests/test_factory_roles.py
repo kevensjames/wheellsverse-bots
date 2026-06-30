@@ -1,4 +1,23 @@
+import re
+
 from factory import roles
+
+_ALLOWED_BASH_PREFIXES = {"python", "python3", "pytest", "pip",
+                          "gitleaks", "trivy", "npm", "node", "ruff", "mypy"}
+_NET_PUSH = re.compile(r"git push|git remote|curl|wget|ssh|scp|\bnc\b|telnet", re.I)
+_PLAIN_TOOLS = {"Read", "Edit", "Write", "Grep", "Glob"}
+
+
+def test_allowlists_are_capability_safe():
+    for key, role in roles.ROLES.items():
+        for tool in role.allowed_tools:
+            assert not tool.startswith("-"), f"{key}: flag-shaped tool {tool!r}"
+            assert not _NET_PUSH.search(tool), f"{key}: network/push tool {tool!r}"
+            m = re.fullmatch(r"Bash\((\S+).*\)", tool)
+            if m:
+                assert m.group(1) in _ALLOWED_BASH_PREFIXES, f"{key}: unscoped/odd Bash {tool!r}"
+            else:
+                assert tool in _PLAIN_TOOLS, f"{key}: unknown tool {tool!r}"
 
 
 def test_registry_has_core_agent_roles():
