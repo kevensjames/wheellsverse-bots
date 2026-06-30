@@ -1675,12 +1675,9 @@ async def serve_siteboost_admin():
     if not path.exists():
         return HTMLResponse("<h1>siteboost.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        # Sanitize before injection — fetch() headers must be ISO-8859-1 (≤ U+00FF).
-        # If the env var was ever pasted with a smart-quote / fancy unicode char
-        # via copy-paste, strip it out so the JS fetch doesn't crash.
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY: never inject the API key into the served HTML — /admin/* pages are
+    # reachable unauthenticated, so an injected key leaks to anyone who fetches the page.
+    # The page prompts for the key (key()) and holds it in sessionStorage instead.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1694,9 +1691,9 @@ async def serve_portfolio_admin():
     if not path.exists():
         return HTMLResponse("<h1>portfolio.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY: never inject the API key into the served HTML — /admin/* pages are
+    # reachable unauthenticated, so an injected key leaks to anyone who fetches the page.
+    # The page prompts for the key (key()) and holds it in sessionStorage instead.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1707,9 +1704,9 @@ async def serve_portfolio_cockpit(slug: str):
     if not path.exists():
         return HTMLResponse("<h1>portfolio_cockpit.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY: never inject the API key into the served HTML — /admin/* pages are
+    # reachable unauthenticated, so an injected key leaks to anyone who fetches the page.
+    # The page prompts for the key (key()) and holds it in sessionStorage instead.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1743,9 +1740,9 @@ async def serve_scoreboard():
     if not path.exists():
         return HTMLResponse("<h1>scoreboard.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY: never inject the API key into the served HTML — /admin/* pages are
+    # reachable unauthenticated, so an injected key leaks to anyone who fetches the page.
+    # The page prompts for the key (key()) and holds it in sessionStorage instead.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1832,9 +1829,9 @@ async def serve_portfolio_hq():
     if not path.exists():
         return HTMLResponse("<h1>portfolio-hq.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY: never inject the API key into the served HTML — /admin/* pages are
+    # reachable unauthenticated, so an injected key leaks to anyone who fetches the page.
+    # The page prompts for the key (key()) and holds it in sessionStorage instead.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1845,9 +1842,9 @@ async def serve_leadgen():
     if not path.exists():
         return HTMLResponse("<h1>leadgen.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY: never inject the API key into the served HTML — /admin/* pages are
+    # reachable unauthenticated, so an injected key leaks to anyone who fetches the page.
+    # The page prompts for the key (key()) and holds it in sessionStorage instead.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
