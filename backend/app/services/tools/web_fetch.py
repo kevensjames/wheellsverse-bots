@@ -14,12 +14,21 @@ crawl4ai's basic mode wraps anyway, minus the Playwright overhead.
 Output: cleaned-up markdown-ish text capped at 8000 chars so the
 model doesn't choke. Most articles fit comfortably; very long ones
 get truncated with a clear marker.
+
+SSRF hardening (audit SSRF-001): the host is RESOLVED and every resulting
+IP is checked against private/loopback/link-local/reserved ranges with the
+`ipaddress` module (not a string-prefix check, which missed DNS names that
+resolve internally, IPv6, and encoded IPs like http://2130706433/). Redirects
+are followed MANUALLY so each hop's Location is re-validated — `follow_redirects`
+is off, closing the "302 → 169.254.169.254" bypass.
 """
 from __future__ import annotations
 
+import ipaddress
 import logging
+import socket
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import httpx
 
@@ -29,11 +38,66 @@ logger = logging.getLogger(__name__)
 
 MAX_OUTPUT_CHARS = 8_000
 FETCH_TIMEOUT = 15.0
+MAX_REDIRECTS = 5
+_REDIRECT_CODES = (301, 302, 303, 307, 308)
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) "
     "AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15 "
     "KAI-bot/1.0 (+https://kai.wheellsverse.com)"
 )
+
+
+def _ip_is_blocked(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return True  # unparseable → refuse
+    return bool(
+        addr.is_private or addr.is_loopback or addr.is_link_local
+        or addr.is_reserved or addr.is_multicast or addr.is_unspecified
+    )
+
+
+def _assert_safe_url(url: str) -> None:
+    """Reject non-http(s), hostless, and any host that resolves to a
+    private/internal address. Resolution failures fail open (httpx will then
+    just fail to connect — nothing internal is reached)."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https"):
+        raise ToolError("url must start with http:// or https://")
+    host = parsed.hostname
+    if not host:
+        raise ToolError("url is missing a host")
+    try:
+        infos = socket.getaddrinfo(host, parsed.port or (443 if parsed.scheme == "https" else 80))
+    except socket.gaierror:
+        return  # can't resolve here → connection will fail anyway
+    for info in infos:
+        if _ip_is_blocked(info[4][0]):
+            raise ToolError("blocked: URL resolves to a private/internal address")
+
+
+def _fetch(url: str) -> httpx.Response:
+    """GET `url`, following up to MAX_REDIRECTS hops MANUALLY so every hop's
+    host is re-validated against the SSRF guard before we connect to it."""
+    current = url
+    for _ in range(MAX_REDIRECTS + 1):
+        _assert_safe_url(current)
+        try:
+            r = httpx.get(
+                current, timeout=FETCH_TIMEOUT, follow_redirects=False,
+                headers={"User-Agent": USER_AGENT},
+            )
+        except httpx.HTTPError as e:
+            raise ToolError(f"fetch failed: {e}")
+        if r.status_code in _REDIRECT_CODES:
+            loc = r.headers.get("location")
+            if not loc:
+                return r
+            current = urljoin(str(r.url), loc)
+            continue
+        return r
+    raise ToolError("too many redirects")
 
 
 class WebFetchTool:
@@ -60,30 +124,7 @@ class WebFetchTool:
         if not url or not url.strip():
             raise ToolError("url cannot be empty")
 
-        parsed = urlparse(url.strip())
-        if parsed.scheme not in ("http", "https"):
-            raise ToolError("url must start with http:// or https://")
-        if not parsed.netloc:
-            raise ToolError("url is missing a host")
-        # Don't let the model accidentally probe the daemon's own loopback
-        if parsed.hostname in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
-            raise ToolError("loopback URLs are not allowed")
-        # Reject private IPs (best-effort SSRF guard)
-        if parsed.hostname and parsed.hostname.startswith((
-            "10.", "192.168.", "169.254.", "172.16.", "172.17.", "172.18.",
-            "172.19.", "172.20.", "172.21.", "172.22.", "172.23.", "172.24.",
-            "172.25.", "172.26.", "172.27.", "172.28.", "172.29.", "172.30.",
-            "172.31.",
-        )):
-            raise ToolError("private/internal IP addresses are not allowed")
-
-        try:
-            r = httpx.get(
-                url, timeout=FETCH_TIMEOUT, follow_redirects=True,
-                headers={"User-Agent": USER_AGENT},
-            )
-        except httpx.HTTPError as e:
-            raise ToolError(f"fetch failed: {e}")
+        r = _fetch(url.strip())
 
         if r.status_code >= 400:
             raise ToolError(f"page returned HTTP {r.status_code}")
