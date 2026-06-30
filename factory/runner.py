@@ -44,3 +44,21 @@ def build_env(source: dict[str, str] | None = None) -> dict[str, str]:
         if k in src:
             env[k] = src[k]
     return env
+
+
+def parse_result(stdout: str) -> tuple[bool, float, str]:
+    """Parse a `claude -p --output-format json` envelope. Fail-closed on anything
+    unexpected. Returns (ok, cost_usd, text)."""
+    try:
+        data = json.loads(stdout)
+    except Exception:
+        return (False, 0.0, "")
+    if not isinstance(data, dict):
+        return (False, 0.0, "")
+    is_error = bool(data.get("is_error", False))
+    try:
+        cost = float(data.get("total_cost_usd", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        cost = 0.0
+    text = str(data.get("result", ""))
+    return (not is_error, cost, text)
