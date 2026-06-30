@@ -6,10 +6,12 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
 from factory.roles import Role
+from factory import roles as _roles
 
 # env allowlist — keep only innocuous vars + the explicit claude-auth set; nothing
 # secret-shaped reaches the agent (synthetic-data invariant).
@@ -62,3 +64,53 @@ def parse_result(stdout: str) -> tuple[bool, float, str]:
         cost = 0.0
     text = str(data.get("result", ""))
     return (not is_error, cost, text)
+
+
+class ClaudeCliRunner:
+    """Real AgentAdapter for the factory pipeline. F2a: agent-work verbs only."""
+
+    def __init__(self, worktree, *, claude_bin: str = "claude", timeout_s: int = 1800):
+        self.worktree = Path(worktree)
+        self.claude_bin = claude_bin
+        self.timeout_s = timeout_s
+
+    def _brief(self, action) -> str:
+        task = (action.payload or {}).get("task", {})
+        return (f"Task: {task.get('title', '(untitled)')}\n"
+                f"Task id: {task.get('id', '?')}\n"
+                f"Work only within this worktree. Satisfy the task; keep the change minimal.")
+
+    def run(self, action) -> dict:
+        verb = action.verb
+        if verb in AGENT_WORK_VERBS:
+            return self._run_agent(action)
+        if verb in {"build", "security", "commit_pr"}:
+            raise NotImplementedError(f"{verb} runner path is wired in F2b")
+        return {"ok": True, "cost_usd": 0.0, "output": "", "pr_url": None}
+
+    def _run_agent(self, action) -> dict:
+        role = _roles.ROLES.get(action.agent)
+        if role is None:
+            return {"ok": False, "cost_usd": 0.0,
+                    "output": f"no role for agent {action.agent!r}", "pr_url": None}
+        # claude_bin may be "python /path/fake_claude.py"; split into argv head.
+        head = shlex.split(self.claude_bin)
+        argv = head[1:] if len(head) > 1 else []
+        cmd = [head[0], *argv] + build_argv(role)[1:]  # drop the placeholder bin from build_argv
+        env = build_env()
+        # Pass test-mode marker through to the subprocess when present (never set in prod).
+        if "FAKE_CLAUDE_MODE" in os.environ:
+            env["FAKE_CLAUDE_MODE"] = os.environ["FAKE_CLAUDE_MODE"]
+        try:
+            proc = subprocess.run(
+                cmd, cwd=str(self.worktree), input=self._brief(action),
+                capture_output=True, text=True, timeout=self.timeout_s, env=env,
+            )
+        except subprocess.TimeoutExpired:
+            return {"ok": False, "cost_usd": 0.0, "output": "timeout", "pr_url": None}
+        if proc.returncode != 0:
+            _, cost, _ = parse_result(proc.stdout)
+            return {"ok": False, "cost_usd": cost,
+                    "output": (proc.stdout or proc.stderr or "")[:2000], "pr_url": None}
+        ok, cost, text = parse_result(proc.stdout)
+        return {"ok": ok, "cost_usd": cost, "output": text[:2000], "pr_url": None}
