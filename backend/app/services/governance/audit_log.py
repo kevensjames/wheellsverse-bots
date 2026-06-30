@@ -1,8 +1,11 @@
 """Append-only audit log for KAI governance.
 
 Format: JSON Lines at data/governance/audit.jsonl. One record per line.
-Append is atomic on POSIX for writes under PIPE_BUF (4096 bytes), which
-our records comfortably fit. No locking needed for single-daemon writes.
+Writes take an exclusive fcntl.flock(LOCK_EX) so concurrent writers (request
+threads + the background scheduler threads) cannot interleave. Records
+routinely exceed PIPE_BUF (4096 bytes) once inputs/outputs are redacted in,
+so the previous "append is atomic under PIPE_BUF" assumption was false and
+unlocked appends could corrupt lines under concurrency (audit CORR-F3).
 
 Why JSONL instead of a Postgres table:
   - Zero migration / schema management for v1
@@ -26,6 +29,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+try:
+    import fcntl  # POSIX advisory file locking; absent on Windows
+except ImportError:  # pragma: no cover
+    fcntl = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +84,16 @@ def record_action(
         "outputs": _truncate(outputs or {}),
     }
     try:
+        line = json.dumps(record, default=str) + "\n"
         with AUDIT_LOG_PATH.open("a") as fp:
-            fp.write(json.dumps(record, default=str) + "\n")
+            if fcntl is not None:
+                fcntl.flock(fp.fileno(), fcntl.LOCK_EX)
+            try:
+                fp.write(line)
+                fp.flush()
+            finally:
+                if fcntl is not None:
+                    fcntl.flock(fp.fileno(), fcntl.LOCK_UN)
     except Exception as e:
         logger.warning("audit_log: write failed for %s: %s", action, e)
     return record
