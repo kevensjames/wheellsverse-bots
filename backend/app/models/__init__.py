@@ -13,6 +13,7 @@ from app.models.document import KaiDocument
 from app.models.memory import Memory
 from app.models.prediction import Prediction
 from app.models.profile import Profile
+from app.models.stripe_event import ProcessedStripeEvent
 from app.models.subscription import Subscription  # Plan removed: see app/services/billing/tiers.py
 from app.models.usage import UsageLog
 
@@ -30,6 +31,7 @@ __all__ = [
     "Message",
     "Prediction",
     "PriceHistory",
+    "ProcessedStripeEvent",
     "Profile",
     "Subscription",
     "UsageLog",

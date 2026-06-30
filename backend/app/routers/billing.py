@@ -20,8 +20,11 @@ Why this looks different from Stage 5 / earlier billing.py:
   price; we own the meaning.
 - Subscription rows store tier (text) + stripe_price_id (text) directly,
   matching prod's denormalized schema.
-- Webhook handler is idempotent: stripe_subscription_id has a UNIQUE
-  constraint in prod, so re-deliveries are safe upserts.
+- Webhook handler is idempotent at the EVENT level: each Stripe event.id is
+  claimed in processed_stripe_events before handling (CORR-F2), so a
+  re-delivery of ANY event type is skipped — not just the subscription upserts
+  that the UNIQUE(stripe_subscription_id) constraint protected. The claim is
+  released if the handler raises, so Stripe's retry can re-process.
 """
 from __future__ import annotations
 
@@ -31,13 +34,15 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db
+from app.database import engine, get_db
 from app.dependencies.auth import get_current_user
 from app.dependencies.supabase_jwt import UserPrincipal
 from app.models.profile import Profile
+from app.models.stripe_event import ProcessedStripeEvent
 from app.models.subscription import Subscription
 from app.schemas.billing import (
     CheckoutRequest,
@@ -295,6 +300,59 @@ def apply_winback_discount(
 # ---------- webhook ----------
 
 
+# ---------- webhook idempotency (CORR-F2) ----------
+
+_event_table_ready = False
+
+
+def _ensure_event_table() -> None:
+    """Best-effort create of the dedupe table (idempotent, checkfirst). Lets the
+    fix work without a separate Alembic step; if the DB is unreachable we skip
+    dedupe rather than break billing."""
+    global _event_table_ready
+    if _event_table_ready:
+        return
+    try:
+        ProcessedStripeEvent.__table__.create(bind=engine, checkfirst=True)
+        _event_table_ready = True
+    except Exception as e:  # noqa: BLE001
+        logger.warning("billing: could not ensure processed_stripe_events table: %s", e)
+
+
+def _claim_event(db: Session, event_id: str | None, event_type: str | None) -> bool:
+    """Atomically claim `event_id`. Returns True if this is the FIRST time we've
+    seen it (proceed), False if already processed (skip). Fail-soft: any DB
+    error → True, so a transient dedupe-store problem never blocks a real
+    billing event."""
+    if not event_id:
+        return True
+    _ensure_event_table()
+    try:
+        stmt = (
+            pg_insert(ProcessedStripeEvent)
+            .values(event_id=event_id, event_type=event_type)
+            .on_conflict_do_nothing(index_elements=["event_id"])
+        )
+        res = db.execute(stmt)
+        db.commit()
+        return res.rowcount > 0
+    except Exception as e:  # noqa: BLE001
+        logger.warning("billing: event claim failed for %s: %s", event_id, e)
+        db.rollback()
+        return True
+
+
+def _release_event(db: Session, event_id: str | None) -> None:
+    """Undo a claim when the handler failed, so Stripe's retry re-processes."""
+    if not event_id:
+        return
+    try:
+        db.query(ProcessedStripeEvent).filter_by(event_id=event_id).delete()
+        db.commit()
+    except Exception:  # noqa: BLE001
+        db.rollback()
+
+
 @router.post("/webhook", response_model=WebhookAck)
 async def stripe_webhook(
     request: Request,
@@ -313,8 +371,20 @@ async def stripe_webhook(
         logger.warning("webhook signature verify failed: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
 
+    event_id = event.get("id")
     event_type = event.get("type")
     data = event.get("data", {}).get("object", {}) or {}
+
+    # Idempotency (CORR-F2): claim the event id before handling. A duplicate
+    # delivery (Stripe retries for ~3 days) hits the PK and is skipped so side
+    # effects don't re-fire — covers ALL event types, not just the subscription
+    # upserts the UNIQUE(stripe_subscription_id) constraint protected.
+    if not _claim_event(db, event_id, event_type):
+        logger.info(
+            "webhook: duplicate event %s (%s) — already processed, skipping",
+            event_id, event_type,
+        )
+        return WebhookAck(received=True, event_type=event_type)
 
     try:
         if event_type == "checkout.session.completed":
@@ -329,6 +399,7 @@ async def stripe_webhook(
             logger.info("webhook: ignoring unhandled event type %s", event_type)
     except Exception:
         logger.exception("webhook handler crashed for %s", event_type)
+        _release_event(db, event_id)  # let Stripe's retry re-process
         raise HTTPException(status_code=500, detail="handler error")
 
     return WebhookAck(received=True, event_type=event_type)
