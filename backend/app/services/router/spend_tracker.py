@@ -10,6 +10,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.database import SessionLocal
 from app.services.router.types import CompletionResult
 
 logger = logging.getLogger(__name__)
@@ -48,30 +49,45 @@ class SpendTracker:
         error_message: str | None = None,
         metadata: dict[str, Any] | None = None,
     ) -> None:
-        self.session.execute(
-            text(
-                """
-                INSERT INTO llm_call_log
-                    (user_id, adapter, model, input_tokens, output_tokens,
-                     cost_usd, latency_ms, success, error_message, metadata)
-                VALUES
-                    (:user_id, :adapter, :model, :in_tok, :out_tok,
-                     :cost, :latency, :success, :error, CAST(:metadata AS jsonb))
-                """
-            ),
-            {
-                "user_id": str(user_id),
-                "adapter": adapter,
-                "model": model,
-                "in_tok": input_tokens,
-                "out_tok": output_tokens,
-                "cost": cost_usd,
-                "latency": latency_ms,
-                "success": success,
-                "error": error_message,
-                "metadata": _json_dump(metadata or {}),
-            },
-        )
+        # Durability (CORR-F5): write the spend row on a DEDICATED session and
+        # commit immediately, so a later rollback/failure of the request
+        # transaction can't lose it — the row also feeds the soft daily/monthly
+        # caps, so dropping it would let a failed-but-charged call evade the cap.
+        # Fail-soft: spend logging must never break a paid request. Reads (the
+        # cap queries below) still use self.session and see the committed rows.
+        params = {
+            "user_id": str(user_id),
+            "adapter": adapter,
+            "model": model,
+            "in_tok": input_tokens,
+            "out_tok": output_tokens,
+            "cost": cost_usd,
+            "latency": latency_ms,
+            "success": success,
+            "error": error_message,
+            "metadata": _json_dump(metadata or {}),
+        }
+        s = SessionLocal()
+        try:
+            s.execute(
+                text(
+                    """
+                    INSERT INTO llm_call_log
+                        (user_id, adapter, model, input_tokens, output_tokens,
+                         cost_usd, latency_ms, success, error_message, metadata)
+                    VALUES
+                        (:user_id, :adapter, :model, :in_tok, :out_tok,
+                         :cost, :latency, :success, :error, CAST(:metadata AS jsonb))
+                    """
+                ),
+                params,
+            )
+            s.commit()
+        except Exception as e:
+            s.rollback()
+            logger.warning("spend log_call failed for %s/%s: %s", adapter, model, e)
+        finally:
+            s.close()
 
     def log_result(self, user_id: uuid.UUID, result: CompletionResult) -> None:
         self.log_call(

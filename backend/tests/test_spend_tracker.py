@@ -49,3 +49,16 @@ def test_log_failure_contributes_zero_cost(db_session, free_user):
     )
     db_session.commit()
     assert tracker.daily_spend(free_user.id) == pytest.approx(0.0)
+
+
+def test_log_survives_request_rollback(db_session, free_user):
+    """CORR-F5: the spend row is committed on its own session, so a rollback of
+    the request transaction does not lose it (and can't let a charged call evade
+    the soft cap). On the old code this asserted 0.0."""
+    tracker = SpendTracker(db_session)
+    tracker.log_call(
+        user_id=free_user.id, adapter="openai", model="gpt-4o",
+        input_tokens=10, output_tokens=5, cost_usd=0.005,
+    )
+    db_session.rollback()  # simulate the request transaction failing afterwards
+    assert tracker.daily_spend(free_user.id) == pytest.approx(0.005)
