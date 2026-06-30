@@ -258,6 +258,7 @@ def test_admin_kg_neighbors(client):
 
 def test_admin_kg_add_edge_requires_approval(client, monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_KG", "1")
+    monkeypatch.setenv("KAI_SCOPE_KG_ADD_EDGE", "1")  # GOV-005: destructive needs its exact flag
     r = client.post(
         "/admin/kg/add-edge",
         headers=ADMIN_HEADERS,
@@ -269,6 +270,7 @@ def test_admin_kg_add_edge_requires_approval(client, monkeypatch):
 
 def test_admin_kg_add_edge_approved_writes(client, monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_KG", "1")
+    monkeypatch.setenv("KAI_SCOPE_KG_ADD_EDGE", "1")  # GOV-005: destructive needs its exact flag
     # Isolate the audit log so this test doesn't pollute
     from app.services.governance import audit_log as _al
     import tempfile
@@ -301,6 +303,7 @@ def test_admin_kg_add_edge_scope_off_403(client, monkeypatch):
 
 def test_admin_kg_add_edge_validates_input(client, monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_KG", "1")
+    monkeypatch.setenv("KAI_SCOPE_KG_ADD_EDGE", "1")  # GOV-005: destructive needs its exact flag
     # Empty relation
     r = client.post(
         "/admin/kg/add-edge",

@@ -449,6 +449,7 @@ def test_admin_activate_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_activate_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # GOV-005: destructive needs its exact flag
     lesson = ls.add_lesson("Be concise")
     # no approval → 409
     r1 = client.post(f"/admin/learning/lessons/{lesson.id}/activate",
@@ -463,6 +464,7 @@ def test_admin_activate_flow(client, monkeypatch, _isolated_audit):
 
 def test_admin_dismiss_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # GOV-005: destructive needs its exact flag
     lesson = ls.add_lesson("Be concise")
     ls.set_lesson_status(lesson.id, "active")
     r = client.post(f"/admin/learning/lessons/{lesson.id}/dismiss",
