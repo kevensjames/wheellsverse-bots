@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from app.services._sqlite_util import ensure_schema
+
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 CEO_DB_PATH = Path(os.environ.get("KAI_CEO_DB_PATH", str(_REPO_ROOT / "data" / "ceo" / "ceo.db")))
 
@@ -47,7 +49,7 @@ def _conn():
     c = sqlite3.connect(CEO_DB_PATH)
     c.row_factory = sqlite3.Row
     try:
-        c.executescript(_SCHEMA)
+        ensure_schema(c, str(CEO_DB_PATH), _SCHEMA)  # PERF-F4: run schema once per path
         yield c
         c.commit()
     finally:
