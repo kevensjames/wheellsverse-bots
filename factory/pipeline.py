@@ -57,6 +57,7 @@ def run_cycle(slug: str, runner, *, now_iso: str, ctx: dict | None = None) -> Cy
     ctx = ctx or {}
     month = now_iso[:7]
     cid = _cycle_id(slug, now_iso)
+    state.reclaim_orphans(slug, cid)  # crash-resume: reset orphaned in_progress tasks
 
     # Stopping condition: roadmap done and nothing ready.
     if state.roadmap_complete(slug) and state.next_ready_task(slug) is None:
@@ -92,7 +93,7 @@ def run_cycle(slug: str, runner, *, now_iso: str, ctx: dict | None = None) -> Cy
             on_queue=lambda a: state.queue_approval(a, now_iso=now_iso),
             on_audit=lambda r: state.audit(r, now_iso=now_iso),
         )
-        out = result.output or {}
+        out = result.output if isinstance(result.output, dict) else {}
         step_cost = float(out.get("cost_usd", 0.0))
         if step_cost:
             cost += step_cost

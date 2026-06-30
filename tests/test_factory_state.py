@@ -69,6 +69,20 @@ def test_roadmap_complete():
     assert state.roadmap_complete("a") is True
 
 
+def test_reclaim_orphans_resets_stale_in_progress():
+    state.save_backlog("a", [
+        {"id": "t1", "title": "x", "priority": 1, "status": "in_progress",
+         "depends_on": [], "source": "s", "cycle_id": "OLD"},
+        {"id": "t2", "title": "y", "priority": 1, "status": "done",
+         "depends_on": [], "source": "s", "cycle_id": "OLD"},
+    ])
+    reclaimed = state.reclaim_orphans("a", "NEW")
+    assert reclaimed == ["t1"]
+    tasks = {t["id"]: t for t in state.load_backlog("a")}
+    assert tasks["t1"]["status"] == "pending" and tasks["t1"]["cycle_id"] is None
+    assert tasks["t2"]["status"] == "done"
+
+
 def test_audit_and_approval_stamp_now_iso():
     state.audit({"verb": "x", "status": "ran"}, now_iso="2026-06-30T02:00:00Z")
     rows = paths.read_jsonl(paths.data_root() / "audit.jsonl")

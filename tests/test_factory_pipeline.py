@@ -122,6 +122,36 @@ def test_hard_gate_fails_closed_on_missing_ok_key():
     assert "commit_pr" not in runner.calls
 
 
+def test_orphaned_in_progress_task_is_reclaimed_and_processed():
+    P.upsert_project(P.Project(slug="a", name="a", repo_url="x"))
+    state.save_backlog("a", [{"id": "t1", "title": "x", "priority": 1,
+                              "status": "in_progress", "depends_on": [], "source": "seed",
+                              "cycle_id": "DEAD-CYCLE"}])
+    runner = MockRunner({"commit_pr": {"pr_url": "https://gh/pr/1"}})
+    res = pipeline.run_cycle("a", runner, now_iso="2026-06-30T02:00:00Z")
+    assert res.status == "completed"
+    assert state.load_backlog("a")[0]["status"] == "done"
+
+
+def test_hard_gate_fails_closed_on_non_dict_output():
+    _seed()
+    class _NonDictRunner:
+        def __init__(self):
+            self.calls = []
+        def run(self, action):
+            self.calls.append(action.verb)
+            if action.verb == "security":
+                return "done"  # non-dict truthy output
+            return {"ok": True, "cost_usd": 0.0, "output": "",
+                    "pr_url": "https://gh/pr/1" if action.verb == "commit_pr" else None}
+    runner = _NonDictRunner()
+    res = pipeline.run_cycle("a", runner, now_iso="2026-06-30T02:00:00Z")
+    assert res.status == "blocked"
+    assert "commit_pr" not in runner.calls
+    assert P.get_project("a").consecutive_failures == 1
+    assert state.load_backlog("a")[0]["status"] == "blocked"
+
+
 def test_budget_overrun_queues_and_releases_task():
     _seed()
     paths.save_json_atomic(paths.data_root() / "portfolio.json",

@@ -3,7 +3,6 @@ factory-wide audit log and approval queue. Atomic writes + a module lock around
 the compare-and-set task claim so a crashed/concurrent cycle never double-claims."""
 from __future__ import annotations
 
-import json
 import threading
 import uuid
 
@@ -79,6 +78,23 @@ def block_task(slug: str, task_id: str) -> None:
 
 def release_task(slug: str, task_id: str) -> None:
     _set_status(slug, task_id, "pending", clear_cycle=True)
+
+
+def reclaim_orphans(slug: str, current_cid: str) -> list[str]:
+    """Reset tasks left 'in_progress' by a PRIOR (dead) cycle back to 'pending'.
+    A task whose cycle_id != current_cid was claimed by a cycle that crashed before
+    completing/blocking it; reclaim it so the daemon can retry. Returns reclaimed ids."""
+    with _CLAIM_LOCK:
+        tasks = load_backlog(slug)
+        reclaimed: list[str] = []
+        for t in tasks:
+            if t.get("status") == "in_progress" and t.get("cycle_id") != current_cid:
+                t["status"] = "pending"
+                t["cycle_id"] = None
+                reclaimed.append(t["id"])
+        if reclaimed:
+            save_backlog(slug, tasks)
+        return reclaimed
 
 
 # ---- roadmap -------------------------------------------------------------
