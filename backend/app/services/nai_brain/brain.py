@@ -323,6 +323,8 @@ class Brain:
         system = build_system_prompt(memory_preamble, eq_preamble=eq_preamble)
 
         collected: list[str] = []
+        errored = False
+        saved_id: str | None = None
         try:
             for delta in self.router.stream(
                 user_id=user_id,
@@ -334,18 +336,32 @@ class Brain:
                 collected.append(delta)
                 yield {"type": "delta", "content": delta}
         except Exception as e:
+            errored = True
             logger.exception("stream failure")
             yield {"type": "error", "error": str(e)}
-            return
+        finally:
+            # Persist whatever was streamed so far — on success, on a mid-stream
+            # provider error, AND on a client disconnect (GeneratorExit, a
+            # BaseException that skips `except Exception`). Otherwise the
+            # conversation is left with a user turn and no assistant reply, even
+            # though the user already saw the partial text (CORR-F4). No yields
+            # here: the generator may be closing.
+            full_content = "".join(collected)
+            if full_content:
+                try:
+                    # adapter/model not surfaced by router.stream() — Phase B refinement.
+                    assistant_msg = self._save_message(conv, "assistant", full_content)
+                    conv.updated_at = func.now()
+                    self.session.commit()
+                    saved_id = str(assistant_msg.id)
+                except Exception:
+                    logger.exception("stream: failed to persist partial assistant message")
+                    self.session.rollback()
 
-        full_content = "".join(collected)
-        # adapter/model not surfaced by router.stream() — Phase B refinement.
-        assistant_msg = self._save_message(conv, "assistant", full_content)
-        conv.updated_at = func.now()
-        self.session.commit()
-        self.session.refresh(assistant_msg)
+        if errored:
+            return
 
         yield {
             "type": "done",
-            "assistant_message_id": str(assistant_msg.id),
+            "assistant_message_id": saved_id,
         }

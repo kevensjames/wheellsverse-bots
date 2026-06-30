@@ -170,6 +170,54 @@ def test_stream_yields_meta_then_deltas_then_done(db_session, free_user):
     assert assistant_rows[0].content == "hello world"
 
 
+def test_stream_persists_partial_reply_on_midstream_error(db_session, free_user):
+    """CORR-F4: if the provider errors after streaming some text, the partial
+    assistant reply (already shown to the user) must still be persisted — not
+    dropped, leaving a user turn with no answer. On the old code the except
+    block `return`ed and the partial was lost."""
+
+    @dataclass
+    class FailingRouter:
+        completion: CompletionResult
+
+        def complete(self, **kwargs):
+            return self.completion
+
+        def chat(self, **kwargs):
+            return self.completion
+
+        def stream(self, **kwargs) -> Iterator[str]:
+            yield "partial "
+            yield "answer"
+            raise RuntimeError("provider exploded mid-stream")
+
+    brain = Brain(
+        session=db_session,
+        router=FailingRouter(_result()),
+        registry=ToolRegistry(),
+    )
+    events = list(
+        brain.stream(
+            user_id=free_user.id,
+            conversation_id=None,
+            user_message="stream me",
+        )
+    )
+    types = [e["type"] for e in events]
+    assert "delta" in types
+    assert types[-1] == "error"      # errored → no "done"
+    assert "done" not in types
+
+    # the partial reply the user already saw must be saved
+    assistant_rows = (
+        db_session.query(Message)
+        .filter(Message.role == "assistant")
+        .order_by(Message.created_at.desc())
+        .all()
+    )
+    assert assistant_rows and assistant_rows[0].content == "partial answer"
+
+
 def test_chat_uses_tool_loop_when_use_tools_true(db_session, free_user):
     """use_tools=True should hit router.chat (not router.complete)."""
 
