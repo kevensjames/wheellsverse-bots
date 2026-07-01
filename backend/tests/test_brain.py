@@ -218,6 +218,40 @@ def test_stream_persists_partial_reply_on_midstream_error(db_session, free_user)
     assert assistant_rows and assistant_rows[0].content == "partial answer"
 
 
+def test_chat_verify_before_answer_uses_corrected_text(db_session, free_user, monkeypatch):
+    """KAI v1 build #1: with KAI_SELF_CORRECTION_ON_CHAT=1, the reply is run
+    through the critique+revise loop before it's saved/returned."""
+    monkeypatch.setenv("KAI_SELF_CORRECTION_ON_CHAT", "1")
+    from app.services.self_correction import loop as sc_loop
+
+    def fake_loop(*, user_message, initial_draft, router, original_adapter, prefer_local=False, max_iterations=1):
+        return sc_loop.CorrectionResult(
+            final_text=initial_draft + " [verified]", iterations=1,
+            total_cost=0.0001, was_revised=True,
+        )
+
+    monkeypatch.setattr(sc_loop, "run_correction_loop", fake_loop)
+    brain = Brain(
+        session=db_session,
+        router=ScriptedRouter(_result("draft answer")),
+        registry=ToolRegistry(),
+    )
+    conv, msg, cost = brain.chat(user_id=free_user.id, conversation_id=None, user_message="hi")
+    assert msg.content == "draft answer [verified]"
+    assert cost >= 0.0001  # correction cost folded into the reported cost
+
+
+def test_chat_no_verify_when_flag_off(db_session, free_user, monkeypatch):
+    monkeypatch.delenv("KAI_SELF_CORRECTION_ON_CHAT", raising=False)
+    brain = Brain(
+        session=db_session,
+        router=ScriptedRouter(_result("draft answer")),
+        registry=ToolRegistry(),
+    )
+    conv, msg, cost = brain.chat(user_id=free_user.id, conversation_id=None, user_message="hi")
+    assert msg.content == "draft answer"  # unchanged when opt-in is off
+
+
 def test_chat_uses_tool_loop_when_use_tools_true(db_session, free_user):
     """use_tools=True should hit router.chat (not router.complete)."""
 
