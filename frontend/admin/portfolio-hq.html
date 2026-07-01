@@ -85,9 +85,12 @@ async function loadBiz(){
 async function loadLoop(slug){
   const el=document.getElementById('loop-'+slug); el.textContent='…';
   try{
-    const d=await api('/loop/'+encodeURIComponent(slug));
+    const [d,a]=await Promise.all([api('/loop/'+encodeURIComponent(slug)), api('/arm/'+encodeURIComponent(slug))]);
+    const arm = a.armed ? '<span style="color:#10b981">✅ ARMED</span>'
+      : `<span style="color:#ef4444">🔒 not armed — ${(a.blockers||[]).length} blocker(s): ${esc((a.blockers||[]).join(', '))}</span>`;
     el.innerHTML=`<b style="color:#cbd5e1">Loop: ${d.total} steps · ${d.auto} auto · ${d.gated} approval-gated</b><br>`+
-      (d.steps||[]).map(s=>`<span style="color:${s.gated?'#f59e0b':'#10b981'}">${s.gated?'🔒':'●'} ${esc(s.verb)}</span>`).join(' &nbsp; ');
+      (d.steps||[]).map(s=>`<span style="color:${s.gated?'#f59e0b':'#10b981'}">${s.gated?'🔒':'●'} ${esc(s.verb)}</span>`).join(' &nbsp; ')+
+      `<br>${arm}`;
   }catch(e){ el.textContent='loop load failed'; }
 }
 async function loadOrg(){

@@ -1856,6 +1856,26 @@ async def api_portfolio_loop(slug: str):
             "gated": sum(1 for s in out if s["gated"])}
 
 
+@app.get("/api/narai/portfolio/arm/{slug}")
+async def api_portfolio_arm_status(slug: str):
+    """Arm-readiness checklist for a business (read-only). Slug whitelisted."""
+    from core.portfolio.registry import list_businesses
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    from core.portfolio.arm import arm_readiness
+    return arm_readiness(slug)
+
+
+@app.post("/api/narai/portfolio/arm/{slug}")
+async def api_portfolio_arm(slug: str, confirm: bool = False):
+    """Attempt to arm a business's REAL actions. Refuses unless every gate is green + confirm=True."""
+    from core.portfolio.registry import list_businesses
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    from core.portfolio.arm import arm_business
+    return arm_business(slug, confirm=confirm)
+
+
 @app.get("/admin/portfolio-hq", response_class=HTMLResponse)
 async def serve_portfolio_hq():
     """Portfolio HQ toodle — 10 businesses + GTM kits + the KAI org chart."""
