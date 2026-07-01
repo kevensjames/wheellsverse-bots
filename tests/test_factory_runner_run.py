@@ -2,7 +2,6 @@
 import sys
 from pathlib import Path
 
-import pytest
 from core.portfolio.actions import Action, ActionClass
 from factory import runner
 
@@ -42,12 +41,6 @@ def test_unknown_role_is_not_ok(tmp_path):
     out = r.run(_action(agent="nonexistent"))
     assert out["ok"] is False
 
-
-def test_gate_verbs_not_implemented_in_f2a(tmp_path):
-    r = runner.ClaudeCliRunner(tmp_path, claude_bin=f"{sys.executable} {FAKE} success")
-    for verb in ("build", "security", "commit_pr"):
-        with pytest.raises(NotImplementedError):
-            r.run(_action(verb=verb, agent="daemon"))
 
 
 def test_report_verb_is_noop_ok(tmp_path):

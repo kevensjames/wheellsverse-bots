@@ -12,6 +12,8 @@ from pathlib import Path
 
 from factory.roles import Role, DENY_TOOLS
 from factory import roles as _roles
+from factory import gates as _gates
+from factory import pr as _pr
 
 # env allowlist — keep only innocuous vars + the explicit claude-auth set; nothing
 # secret-shaped reaches the agent (synthetic-data invariant).
@@ -70,10 +72,14 @@ def parse_result(stdout: str) -> tuple[bool, float, str]:
 class ClaudeCliRunner:
     """Real AgentAdapter for the factory pipeline. F2a: agent-work verbs only."""
 
-    def __init__(self, worktree, *, claude_bin: str = "claude", timeout_s: int = 1800):
+    def __init__(self, worktree, *, claude_bin: str = "claude", timeout_s: int = 1800,
+                 build_cmd: str = "python -m pytest -q", pr_base: str = "main", gh_bin: str = "gh"):
         self.worktree = Path(worktree)
         self.claude_bin = claude_bin
         self.timeout_s = timeout_s
+        self.build_cmd = build_cmd
+        self.pr_base = pr_base
+        self.gh_bin = gh_bin
 
     def _brief(self, action) -> str:
         task = (action.payload or {}).get("task", {})
@@ -85,8 +91,17 @@ class ClaudeCliRunner:
         verb = action.verb
         if verb in AGENT_WORK_VERBS:
             return self._run_agent(action)
-        if verb in {"build", "security", "commit_pr"}:
-            raise NotImplementedError(f"{verb} runner path is wired in F2b")
+        if verb == "build":
+            r = _gates.run_build(self.worktree, cmd=self.build_cmd, timeout_s=self.timeout_s)
+            return {"ok": r.ok, "cost_usd": 0.0, "output": r.detail, "pr_url": None}
+        if verb == "security":
+            r = _gates.run_security(self.worktree)
+            return {"ok": r.ok, "cost_usd": 0.0, "output": r.detail, "pr_url": None}
+        if verb == "commit_pr":
+            task = (action.payload or {}).get("task", {})
+            url = _pr.open_pr(self.worktree, action.business, task,
+                              base=self.pr_base, gh_bin=self.gh_bin)
+            return {"ok": url is not None, "cost_usd": 0.0, "output": "", "pr_url": url}
         return {"ok": True, "cost_usd": 0.0, "output": "", "pr_url": None}
 
     def _run_agent(self, action) -> dict:
