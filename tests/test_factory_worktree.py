@@ -81,3 +81,36 @@ def test_safe_push_allows_and_pushes_factory_branch(tmp_path):
     worktree.safe_push(wt, "acme", "factory/acme/t1")
     branches = _run("git", "--git-dir", str(remote), "branch", "--list", "factory/acme/t1").stdout
     assert "factory/acme/t1" in branches
+
+
+def test_safe_push_rejects_refspec_injection(tmp_path):
+    remote = _bare_remote(tmp_path)
+    clone = worktree.ensure_clone("acme", str(remote))
+    worktree.prepare("acme", "c1", "t1", clone_path=clone)
+    wt = paths.worktrees_root() / "acme" / "c1"
+    (wt / "evil.txt").write_text("evil\n")
+    _run("git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(wt), "add", ".")
+    _run("git", "-c", "user.email=t@t", "-c", "user.name=t", "-C", str(wt), "commit", "-m", "evil")
+    main_before = _run("git", "--git-dir", str(remote), "rev-parse", "main").stdout.strip()
+    # a colon-bearing branch must be REJECTED, not pushed as a refspec onto main
+    with pytest.raises(worktree.PushRejected):
+        worktree.safe_push(wt, "acme", "factory/acme/t1:refs/heads/main")
+    main_after = _run("git", "--git-dir", str(remote), "rev-parse", "main").stdout.strip()
+    assert main_before == main_after  # remote main was NOT moved
+
+
+def test_branch_name_rejects_unsafe_components():
+    with pytest.raises(ValueError):
+        worktree.branch_name("acme", "t1:refs/heads/main")
+    with pytest.raises(ValueError):
+        worktree.branch_name("acme", "../evil")
+
+
+def test_prepare_is_idempotent(tmp_path):
+    remote = _bare_remote(tmp_path)
+    clone = worktree.ensure_clone("acme", str(remote))
+    wt1 = worktree.prepare("acme", "c1", "t1", clone_path=clone)
+    wt2 = worktree.prepare("acme", "c1", "t1", clone_path=clone)  # second call must NOT raise
+    assert wt1 == wt2 and wt2.exists()
+    head = _run("git", "-C", str(wt2), "rev-parse", "--abbrev-ref", "HEAD").stdout.strip()
+    assert head == "factory/acme/t1"
