@@ -1,6 +1,8 @@
 """Builds KAI's system prompt for each turn."""
 from __future__ import annotations
 
+import os
+
 
 BASE_SYSTEM_PROMPT = """You are KAI, a personal AI companion for the user.
 
@@ -74,6 +76,7 @@ def build_system_prompt(
     twin = _auto_twin_preamble()
     ceo = _auto_ceo_preamble()
     relationship = _auto_relationship_preamble()
+    grounding = _grounding_preamble()
     parts = []
     # KAI's OWN persona leads — model attention treats the first block as the
     # primary identity (warm companion voice), before any expert-preset overlay.
@@ -93,6 +96,10 @@ def build_system_prompt(
         parts.append(lessons_preamble.strip())
     if memory_preamble:
         parts.append(memory_preamble.strip())
+    # Grounding/citation directive — verify facts with tools before asserting,
+    # refuse-when-uncertain (KAI v1 build #2; opt-in KAI_GROUNDING_ON_CHAT=1).
+    if grounding:
+        parts.append(grounding.strip())
     # EQ directive sits LAST before the baseline — most-recent = most salient for
     # the immediate reply's tone.
     if eq_preamble:
@@ -150,3 +157,25 @@ def _auto_lessons_preamble() -> str:
         return active_lessons_preamble()
     except Exception:
         return ""
+
+
+_GROUNDING_DIRECTIVE = """GROUNDING DIRECTIVE — verify before you assert:
+Before stating a factual claim the user could check (names, numbers, dates,
+statuses, prices, facts about the world or about the user's own data), VERIFY it
+with a tool instead of relying on memory:
+- verify_claim / document_search — check claims against the user's documents.
+- kg_query — facts about the user's entities (people, products, companies) and
+  how they relate.
+- web_search — live external facts.
+If you cannot verify a claim, say so plainly ("I'm not certain, but…") rather than
+stating it confidently — prefer "I don't know" over a confident guess. When a
+claim is grounded in a source, cite it briefly."""
+
+
+def _grounding_preamble() -> str:
+    """Verify-don't-trust / citation directive (KAI v1 build #2). Opt-in via
+    KAI_GROUNDING_ON_CHAT=1 — nudges the model toward tool-grounded facts and
+    refuse-when-uncertain, cutting hallucination on checkable claims."""
+    if (os.environ.get("KAI_GROUNDING_ON_CHAT") or "").strip().lower() in ("1", "true", "yes", "on"):
+        return _GROUNDING_DIRECTIVE
+    return ""
