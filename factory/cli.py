@@ -27,6 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     t = sub.add_parser("tick")
     t.add_argument("slug")
     t.add_argument("--now", default=None, help="ISO-8601 timestamp (default: now, UTC)")
+    t.add_argument("--real", action="store_true", help="use the real claude/gh runner + worktree")
 
     try:
         args = parser.parse_args(argv)
@@ -41,6 +42,12 @@ def main(argv: list[str] | None = None) -> int:
         import time
         now_iso = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
+    if getattr(args, "real", False):
+        from factory import cycle, runner as _runner
+        res = cycle.run_with_worktree(args.slug, now_iso=now_iso,
+                                      make_runner=lambda wt: _runner.ClaudeCliRunner(wt))
+        print(json.dumps(asdict(res), indent=2))
+        return 0
     print(json.dumps(tick(args.slug, now_iso=now_iso), indent=2))
     return 0
 
