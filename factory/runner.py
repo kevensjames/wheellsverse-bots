@@ -96,6 +96,12 @@ class ClaudeCliRunner:
             return {"ok": r.ok, "cost_usd": 0.0, "output": r.detail, "pr_url": None}
         if verb == "security":
             r = _gates.run_security(self.worktree)
+            if not r.ok and r.findings:
+                from factory import state as _state
+                _state.append_known_issue(action.business, {
+                    "kind": "security", "severity": "high", "findings": r.findings,
+                    "detail": r.detail, "task_id": (action.payload or {}).get("task", {}).get("id"),
+                })
             return {"ok": r.ok, "cost_usd": 0.0, "output": r.detail, "pr_url": None}
         if verb == "commit_pr":
             task = (action.payload or {}).get("task", {})
