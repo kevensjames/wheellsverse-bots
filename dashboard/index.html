@@ -430,6 +430,20 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
   if(document.readyState==='loading')
     document.addEventListener('DOMContentLoaded',enhance);
   else enhance();
+  // Escape closes the topmost visible modal/overlay (frontend audit M4).
+  // Precise selector: container ids ending -modal + the known overlay classes,
+  // so we never hit a child element. Additive and idempotent alongside the few
+  // bespoke Escape handlers already in the file.
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Escape') return;
+    var nodes=document.querySelectorAll(
+      '[id$="-modal"],.report-modal,.nl-modal,.preview-overlay,.cmd-overlay');
+    for(var i=nodes.length-1;i>=0;i--){
+      var el=nodes[i];
+      var disp=el.style.display||getComputedStyle(el).display;
+      if(disp && disp!=='none'){ el.style.display='none'; break; }
+    }
+  });
 })();
 </script>
 </head>
