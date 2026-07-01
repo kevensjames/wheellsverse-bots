@@ -16,6 +16,15 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     DEBUG: bool = True
 
+    # Deployment profile (App-Store Step 0 — the consumer/operator split).
+    #   "operator" (default) = the full single-node daemon: control plane
+    #     (/admin/*), agent subsystems, money ops (Sol/Dwolla), and the
+    #     background schedulers. This preserves today's behavior.
+    #   "consumer" = the multi-user app backend: mounts ONLY the public /kai/*
+    #     product surface (chat, auth, billing, documents, voice) so the
+    #     operator/agent/money surface is physically unreachable from the app.
+    KAI_PROFILE: str = "operator"
+
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
 
@@ -42,6 +51,10 @@ class Settings(BaseSettings):
     @property
     def admin_token(self) -> str:
         return self.ADMIN_TOKEN or self.JWT_SECRET_KEY
+
+    @property
+    def is_consumer(self) -> bool:
+        return self.KAI_PROFILE.strip().lower() == "consumer"
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

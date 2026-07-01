@@ -192,52 +192,58 @@ async def _no_cache_dashboard(request, call_next):
     return response
 
 
+# ── Consumer product surface — mounted in BOTH profiles. This is the ONLY
+#    surface a mobile/web app user needs: chat, auth, billing, documents, voice.
 app.include_router(auth.router)
-app.include_router(predictions.router)
 app.include_router(billing.router)
-app.include_router(admin_data.router)
-app.include_router(admin_chat.router)
-app.include_router(admin_supreme.router)
-app.include_router(admin_briefing.router)
-app.include_router(admin_presets.router)
-app.include_router(admin_kg.router)
-app.include_router(admin_failures.router)
-app.include_router(admin_research.router)
-app.include_router(admin_self_correction.router)
-app.include_router(admin_self_heal.router)
-app.include_router(admin_planning.router)
-app.include_router(admin_browser.router)
-app.include_router(admin_learning.router)
-app.include_router(admin_twin.router)
-# KAI companion soul: own persona (warm character, edit to reshape KAI's voice)
-# + emotional intelligence (mood read → tone adaptation, auto on every message).
-app.include_router(admin_persona.router)
-app.include_router(admin_eq.router)
-# Companion relationship + proactive check-in + journal.
-app.include_router(admin_relationship.router)
-app.include_router(admin_checkin.router)
-app.include_router(admin_journal.router)
-app.include_router(admin_audit.router)
-app.include_router(admin_security.router)
-app.include_router(admin_superrouter.router)
-app.include_router(admin_digest.router)
-app.include_router(admin_ceo.router)
-app.include_router(api_keys_admin.router)
 app.include_router(documents.router)
-# Sol ROSCA — operator admin surface (/admin/sol, token-gated) + the Dwolla
-# webhook (/sol/webhook, HMAC-verified, no auth). Money endpoints are gated by
-# KAI_SCOPE_SOL_TRANSFER + approved=True + the DwollaClient sandbox-lock.
-app.include_router(sol.router)
-app.include_router(sol.webhook_router)
+app.include_router(predictions.router)
 app.include_router(transcribe.router)
-app.include_router(ws_collab.router)
 app.include_router(tts.router)
 app.include_router(v1.router)
 # Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
-# canonical; /nai stays alive so any in-flight client (cached JS, open SSE
-# stream, third-party bookmark) keeps working until the legacy window closes.
+# canonical; /nai stays alive so any in-flight client keeps working.
 app.include_router(nai.router, prefix="/kai")
 app.include_router(nai.router, prefix="/nai")
+
+# ── Operator surface — control plane, agent subsystems, money ops. NEVER
+#    mounted when KAI_PROFILE=consumer (App-Store Step 0): the /admin/* control
+#    plane, Sol/Dwolla transfers, browser-control, real-time collab, and
+#    API-key admin must be physically unreachable from a consumer app — the
+#    routes are simply never registered, so a consumer replica returns 404 for
+#    all of them (the #1 App Store rejection + security boundary, per the audit).
+if not settings.is_consumer:
+    app.include_router(admin_data.router)
+    app.include_router(admin_chat.router)
+    app.include_router(admin_supreme.router)
+    app.include_router(admin_briefing.router)
+    app.include_router(admin_presets.router)
+    app.include_router(admin_kg.router)
+    app.include_router(admin_failures.router)
+    app.include_router(admin_research.router)
+    app.include_router(admin_self_correction.router)
+    app.include_router(admin_self_heal.router)
+    app.include_router(admin_planning.router)
+    app.include_router(admin_browser.router)
+    app.include_router(admin_learning.router)
+    app.include_router(admin_twin.router)
+    # Companion soul: persona + EQ (also drive /kai chat tone via build_system_prompt).
+    app.include_router(admin_persona.router)
+    app.include_router(admin_eq.router)
+    app.include_router(admin_relationship.router)
+    app.include_router(admin_checkin.router)
+    app.include_router(admin_journal.router)
+    app.include_router(admin_audit.router)
+    app.include_router(admin_security.router)
+    app.include_router(admin_superrouter.router)
+    app.include_router(admin_digest.router)
+    app.include_router(admin_ceo.router)
+    app.include_router(api_keys_admin.router)
+    # Sol ROSCA money surface (/admin/sol) + Dwolla webhook (/sol/webhook, HMAC).
+    app.include_router(sol.router)
+    app.include_router(sol.webhook_router)
+    # Real-time collab (in-memory, single-node) — operator-only for now.
+    app.include_router(ws_collab.router)
 
 _STATIC_DIR = Path(__file__).parent / "static" / "nai"
 if _STATIC_DIR.exists():
@@ -278,13 +284,14 @@ def _redirect_pricing():
     return RedirectResponse(url="/kai-ui/pricing.html", status_code=307)
 
 
-@app.get("/admin", include_in_schema=False)
-def _redirect_admin():
-    # Operator dashboard at a clean URL — kai.wheellsverse.com/admin
-    # serves the same page as /kai-ui/admin.html. Auth happens client-side
-    # via X-Admin-Token; this redirect itself is intentionally open so a
-    # 404 doesn't leak "no admin here" to fingerprinters.
-    return RedirectResponse(url="/kai-ui/admin.html", status_code=307)
+# Operator-dashboard entry — NOT registered in a consumer backend (Step 0), so a
+# consumer replica has no /admin surface at all.
+if not settings.is_consumer:
+    @app.get("/admin", include_in_schema=False)
+    def _redirect_admin():
+        # kai.wheellsverse.com/admin → the same page as /kai-ui/admin.html.
+        # Auth is client-side via X-Admin-Token.
+        return RedirectResponse(url="/kai-ui/admin.html", status_code=307)
 
 
 def _dashboard_build() -> int:
