@@ -13,11 +13,12 @@ def run_with_worktree(slug: str, *, now_iso: str, make_runner, repo_url: str | N
         p = projects.get_project(slug)
         repo_url = p.repo_url if p else None
     cid = pipeline._cycle_id(slug, now_iso)
+    pipeline.advance_backlog(slug, cid)  # mirror run_cycle's pre-selection so peek == claim
 
     # Peek the ready task to name the worktree branch; if none, don't provision.
     task = state.next_ready_task(slug)
     if task is None:
-        return pipeline.run_cycle(slug, _NoopRunner(), now_iso=now_iso)  # returns idle/done cheaply
+        return pipeline.run_cycle(slug, _NoopRunner(), now_iso=now_iso)  # idle/done; run_cycle's advance is now a no-op
 
     clone = worktree.ensure_clone(slug, repo_url)
     wt = worktree.prepare(slug, cid, task["id"], clone_path=clone)

@@ -53,16 +53,24 @@ def _cycle_id(slug: str, now_iso: str) -> str:
     return f"{stamp[:14]}-{slug}"
 
 
+def advance_backlog(slug: str, cid: str) -> None:
+    """Pre-selection backlog maintenance run at the START of a cycle: reclaim
+    tasks orphaned by a crashed cycle, then (unless the project is blocked_red)
+    requeue a blocked task if nothing else is ready. Idempotent — calling it twice
+    for the same (slug, cid) is a no-op the second time. Extracted so an outer
+    wrapper (factory.cycle) can run the SAME pre-selection before it peeks the
+    ready task, guaranteeing the peeked task equals the one run_cycle claims."""
+    state.reclaim_orphans(slug, cid)
+    proj = projects.get_project(slug)
+    if proj is not None and proj.phase != "blocked_red" and state.next_ready_task(slug) is None:
+        state.requeue_oldest_blocked(slug)
+
+
 def run_cycle(slug: str, runner: AgentAdapter, *, now_iso: str, ctx: dict | None = None) -> CycleResult:
     ctx = ctx or {}
     month = now_iso[:7]
     cid = _cycle_id(slug, now_iso)
-    state.reclaim_orphans(slug, cid)  # crash-resume: reset orphaned in_progress tasks
-
-    # Kill-criteria: retry a blocked task (unless the project is already flagged red).
-    if projects.get_project(slug) is not None and projects.get_project(slug).phase != "blocked_red":
-        if state.next_ready_task(slug) is None:
-            state.requeue_oldest_blocked(slug)
+    advance_backlog(slug, cid)
 
     # Stopping condition: roadmap done and nothing ready.
     if state.roadmap_complete(slug) and state.next_ready_task(slug) is None:

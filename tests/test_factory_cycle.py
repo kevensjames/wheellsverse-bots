@@ -55,3 +55,27 @@ def test_run_with_worktree_idle_when_no_task(tmp_path):
     # no worktree provisioned
     assert not (paths.worktrees_root() / "acme").exists() or \
            list((paths.worktrees_root() / "acme").glob("*")) == []
+
+
+def test_run_with_worktree_cleans_up_on_exception(tmp_path):
+    _project_with_repo(tmp_path)
+    def _boom(wt):
+        raise RuntimeError("boom")
+    with pytest.raises(RuntimeError):
+        cycle.run_with_worktree("acme", now_iso="2026-07-01T02:00:00Z", make_runner=_boom)
+    root = paths.worktrees_root() / "acme"
+    leftover = list(root.glob("*")) if root.exists() else []
+    assert leftover == []  # finally cleaned the worktree even though make_runner raised
+
+
+def test_run_with_worktree_no_divergence_with_orphan(tmp_path):
+    _project_with_repo(tmp_path)  # seeds task t1 pending
+    # simulate a crashed prior cycle: t1 left in_progress with a stale cycle_id
+    state.save_backlog("acme", [{"id": "t1", "title": "x", "priority": 1,
+                                 "status": "in_progress", "depends_on": [], "source": "seed",
+                                 "cycle_id": "DEAD"}])
+    res = cycle.run_with_worktree("acme", now_iso="2026-07-01T02:00:00Z",
+                                  make_runner=lambda wt: _MockRunner(wt))
+    # t1 is reclaimed to pending, claimed, and really processed on its worktree branch
+    assert res.status == "completed" and res.task_id == "t1"
+    assert state.load_backlog("acme")[0]["status"] == "done"
