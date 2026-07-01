@@ -139,7 +139,22 @@ def run_code(path: str) -> str:
     Launch a Python file in a subprocess with piped stdout+stderr.
     Returns a run_id (UUID) that can be used to stream output or kill.
     """
-    file_path = Path(path)
+    # Confinement: only execute .py files that live INSIDE generated_bots/.
+    # `path` arrives straight from an HTTP request; without this check run_code
+    # would launch any Python file on the host (arbitrary-file execution /
+    # path traversal). A bare name or relative path resolves under
+    # GENERATED_DIR; an absolute path is accepted only if it resolves to a
+    # file within GENERATED_DIR. This is behavior-preserving for the legit
+    # flow (save_code returns an absolute path inside generated_bots/).
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = GENERATED_DIR / candidate
+    file_path = candidate.resolve()
+    gen_root = GENERATED_DIR.resolve()
+    if gen_root != file_path and gen_root not in file_path.parents:
+        raise ValueError("refusing to run a path outside generated_bots/")
+    if file_path.suffix != ".py":
+        raise ValueError("only .py files may be run")
     if not file_path.exists():
         raise ValueError(f"File not found: {path}")
 
