@@ -396,6 +396,42 @@ body{font-family:'SF Mono',Consolas,monospace;background:var(--bg);color:var(--t
 .ads-stat-val{font-size:22px;font-weight:700;color:var(--text)}
 .ads-stat-lbl{font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-top:2px}
 </style>
+<style id="a11y-fixes">
+/* Additive accessibility layer (frontend-lens H2 + checklist #5/#10).
+   New rules only — no overrides of existing layout/behavior. */
+.nav-item:focus-visible,button:focus-visible,.tbtn:focus-visible,
+[role="button"]:focus-visible,a:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid #00d4ff;outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;
+    animation-iteration-count:1!important;transition-duration:.001ms!important;
+    scroll-behavior:auto!important}}
+</style>
+<script id="a11y-keyboard-nav">
+/* Keyboard-operable sidebar. The 74 .nav-item are <div onclick="nav('x')">,
+   unreachable without a mouse (frontend audit H2). Additively make them
+   focusable buttons and fire their existing onclick on Enter/Space. No markup
+   restructure, no behavior change for mouse users. */
+(function(){
+  function enhance(){
+    document.querySelectorAll('.nav-item').forEach(function(n){
+      if(!n.hasAttribute('role')) n.setAttribute('role','button');
+      if(!n.hasAttribute('tabindex')) n.setAttribute('tabindex','0');
+    });
+  }
+  document.addEventListener('keydown',function(e){
+    if(e.key!=='Enter' && e.key!==' ' && e.key!=='Spacebar') return;
+    var t=e.target;
+    if(t && t.classList && t.classList.contains('nav-item')){
+      e.preventDefault();
+      t.click();               // fires the inline onclick="nav('x')"
+    }
+  });
+  if(document.readyState==='loading')
+    document.addEventListener('DOMContentLoaded',enhance);
+  else enhance();
+})();
+</script>
 </head>
 <body>
 
