@@ -258,6 +258,23 @@ def find_entities(
     return out
 
 
+def count_entities() -> int:
+    """Exact entity total — a real COUNT(*), not a capped sample length.
+
+    The admin panel previously derived its count from len(find_entities(limit=500)),
+    which silently saturated at 500. This returns the true number so the UI can
+    stop lying once the graph passes 500 nodes.
+    """
+    with _conn() as c:
+        return int(c.execute("SELECT COUNT(*) FROM entities").fetchone()[0])
+
+
+def count_edges() -> int:
+    """Exact edge total — a real COUNT(*)."""
+    with _conn() as c:
+        return int(c.execute("SELECT COUNT(*) FROM edges").fetchone()[0])
+
+
 def neighbors(
     label: str,
     *,

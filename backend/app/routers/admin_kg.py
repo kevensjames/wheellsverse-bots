@@ -25,6 +25,7 @@ from app.services.governance import PendingApproval, ScopeDenied, audited
 from app.services.kg import (
     add_edge as _add_edge,
     all_relations,
+    count_entities,
     find_entities,
     neighbors,
 )
@@ -42,10 +43,8 @@ router = APIRouter(
 def kg_stats() -> dict[str, Any]:
     """Cheap counters for the admin panel header. Doesn't dump the graph."""
     relations = all_relations()
-    # all entities, capped — find_entities() respects the limit param
-    entity_sample = find_entities(limit=500)
     return {
-        "entity_count": len(entity_sample),  # ≤500; UI shows "500+" when at cap
+        "entity_count": count_entities(),  # exact COUNT(*), no longer capped at 500
         "relation_count_distinct": len(relations),
         "edge_count_by_relation": [
             {"relation": r, "count": n} for r, n in relations

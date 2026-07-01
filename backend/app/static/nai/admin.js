@@ -24,13 +24,36 @@ function clearToken() {
   sessionStorage.removeItem(TOKEN_KEY);
 }
 
+// Auth vs authorization. A 401 — and a bad/missing admin token — are
+// AUTHENTICATION failures: re-auth (log out). A 403 from the governance layer
+// is an AUTHORIZATION (scope) denial: the token is valid but the action's
+// KAI_SCOPE_* flag is off. Those must NOT log the operator out — they should
+// surface an actionable message so the operator knows to enable the scope.
+//
+// require_admin_token (dependencies/admin.py) AND ScopeDenied (routers/*) BOTH
+// raise 403 — a contract the tests lock in — so status code alone can't tell
+// them apart. We disambiguate on the admin-token dependency's fixed detail.
+class AuthError extends Error {}
+class ScopeError extends Error {}
+
+async function authErrorFor(r) {
+  if (r.status === 401) return new AuthError("auth rejected (401)");
+  let detail = "";
+  try {
+    const j = await r.json();
+    detail = j && j.detail ? String(j.detail) : "";
+  } catch (_) { /* non-JSON body — fall through to generic scope message */ }
+  if (detail === "Admin token required") return new AuthError("auth rejected (403)");
+  return new ScopeError(detail || "action not authorized — scope disabled");
+}
+
 async function apiGet(path) {
   const r = await fetch(path, {
     method: "GET",
     headers: { "X-Admin-Token": getToken() },
   });
-  if (r.status === 403 || r.status === 401) {
-    throw new AuthError(`auth rejected (${r.status})`);
+  if (r.status === 401 || r.status === 403) {
+    throw await authErrorFor(r);
   }
   if (!r.ok) {
     throw new Error(`${path} returned ${r.status}`);
@@ -50,8 +73,8 @@ async function apiPost(path, body) {
     init.body = JSON.stringify(body);
   }
   const r = await fetch(path, init);
-  if (r.status === 403 || r.status === 401) {
-    throw new AuthError(`auth rejected (${r.status})`);
+  if (r.status === 401 || r.status === 403) {
+    throw await authErrorFor(r);
   }
   if (!r.ok) {
     let detail = "";
@@ -63,8 +86,6 @@ async function apiPost(path, body) {
   }
   return r.json();
 }
-
-class AuthError extends Error {}
 
 function fmtUSD(n) {
   if (typeof n !== "number" || isNaN(n)) return "—";
@@ -549,8 +570,8 @@ async function adminChatPost(message) {
     },
     body: JSON.stringify(body),
   });
-  if (r.status === 403 || r.status === 401) {
-    throw new AuthError(`auth rejected (${r.status})`);
+  if (r.status === 401 || r.status === 403) {
+    throw await authErrorFor(r);
   }
   if (!r.ok) {
     const text = await r.text();
@@ -778,8 +799,8 @@ async function loadKgStats() {
   try {
     if (line) line.textContent = "loading…";
     const stats = await apiGet("/admin/kg/stats");
-    setText("kg-entity-count", stats.entity_count);
-    setText("kg-relation-count", stats.relation_count_distinct);
+    setText("kg-entity-count", stats.entity_count ?? "—");
+    setText("kg-relation-count", stats.relation_count_distinct ?? "—");
     const totalEdges = (stats.edge_count_by_relation || [])
       .reduce((sum, r) => sum + (r.count || 0), 0);
     setText("kg-edge-count", totalEdges);
@@ -1449,7 +1470,7 @@ async function runSupremeScan() {
     if (r.status === 403 || r.status === 401) throw new AuthError("auth rejected");
     if (!r.ok) throw new Error(`scan ${r.status}`);
     const data = await r.json();
-    if (line) line.textContent = `scan complete · ${data.finding_count} findings · ${data.proposal_name}`;
+    if (line) line.textContent = `scan complete · ${data.finding_count ?? 0} findings · ${data.proposal_name ?? "—"}`;
     await loadSupreme();
   } catch (e) {
     if (e instanceof AuthError) {
