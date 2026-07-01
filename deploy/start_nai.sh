@@ -50,7 +50,12 @@ load_env() {
             \"*\") val="${val#\"}"; val="${val%\"}" ;;
             \'*\') val="${val#\'}"; val="${val%\'}" ;;
         esac
-        export "$key=$val"
+        # A malformed key (e.g. a pasted "Public API Keys=..." with spaces) makes
+        # `export` fail; under `set -e` that aborts the whole wrapper and
+        # crash-loops the daemon. Guard it so one bad line is skipped with a
+        # warning instead of taking the whole service down.
+        export "$key=$val" 2>/dev/null || \
+            echo "WARNING: start_nai.sh: skipped invalid env key '$key' in $f" >&2
     done < "$f"
 }
 load_env .env
