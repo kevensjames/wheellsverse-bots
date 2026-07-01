@@ -1,0 +1,76 @@
+name: CI — backend (KAI app) [advisory]
+
+# Runs the backend/ KAI operator-app test suite (54 tests) against a real
+# Postgres + pgvector service. The app uses pgvector (backend/app/models/
+# memory.py) so a plain postgres image is not enough.
+#
+# ADVISORY (not a deploy gate yet): deploy.yml depends only on
+# "CI — lint + test gate" (ci.yml, the root suite). Once this proves green on a
+# few runs, promote it by adding it to deploy.yml's workflow_run trigger.
+
+on:
+  push:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/ci-backend.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["backend/**", ".github/workflows/ci-backend.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        # pgvector image = postgres 16 with the `vector` extension available.
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: wheellsverse_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      APP_ENV: test
+      # conftest builds the schema from SQLAlchemy models against this DB.
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wheellsverse_test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/wheellsverse_test
+      SENTRY_DSN: ""
+      # conftest stubs Supabase + Claude; these satisfy settings at import time.
+      JWT_SECRET_KEY: ci-test-jwt-secret
+      ADMIN_TOKEN: ci-admin-token
+      API_KEY: ci-test-key
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Enable required Postgres extensions (vector + pgcrypto)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          PGPASSWORD=postgres psql -h localhost -U postgres -d wheellsverse_test \
+            -c "CREATE EXTENSION IF NOT EXISTS vector;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d wheellsverse_test \
+            -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
+      - name: Install backend deps
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-timeout
+      - name: Run backend test suite (KAI app)
+        run: pytest -q -p no:cacheprovider --timeout=120

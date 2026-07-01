@@ -59,3 +59,9 @@ google-auth-oauthlib>=1.2.0
 google-api-python-client>=2.130.0
 google-auth-httplib2>=0.2.0
 facebook-business>=20.0
+
+# Error tracking. core/sentry_init.py imports sentry_sdk + the FastAPI/Starlette
+# integrations; without the package installed it logs a warning and disables
+# itself (silent no-op even when SENTRY_DSN is set). Declaring it here makes
+# error tracking actually work once SENTRY_DSN is set in the deploy env.
+sentry-sdk[fastapi]>=2.0.0

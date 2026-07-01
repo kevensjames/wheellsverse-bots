@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta, timezone
 
 from celery.result import AsyncResult
@@ -153,6 +154,16 @@ def recent_users(limit: int = 20, db: Session = Depends(get_db)):
     }
 
 
+# Process-level TTL cache for the spend rollup. The dashboard Stats tab polls
+# this every 30s and the payload is identical for every admin viewer (no
+# per-user data), so without a cache N open dashboards each trigger 3 full
+# aggregate scans of llm_call_log every 30s. Caching just under the poll
+# interval collapses that to ~3 queries per 25s for the whole fleet. A stale
+# read is at most _SPEND_TTL_S old — fine for a cost dashboard.
+_SPEND_CACHE: dict = {"at": 0.0, "data": None}
+_SPEND_TTL_S = 25.0
+
+
 @router.get("/spend")
 def spend_rollup(db: Session = Depends(get_db)):
     """LLM-cost rollup: today + 7-day totals, broken down by adapter.
@@ -160,7 +171,11 @@ def spend_rollup(db: Session = Depends(get_db)):
     Reads llm_call_log directly (raw SQL — same pattern as SpendTracker).
     Today = since 00:00 UTC. 7d = trailing 168 hours. Adapters are listed
     in descending cost order so the most expensive shows first.
+    Cached process-wide for _SPEND_TTL_S (see note above).
     """
+    _now = time.monotonic()
+    if _SPEND_CACHE["data"] is not None and (_now - _SPEND_CACHE["at"]) < _SPEND_TTL_S:
+        return _SPEND_CACHE["data"]
     today = db.execute(
         text(
             """
@@ -193,7 +208,7 @@ def spend_rollup(db: Session = Depends(get_db)):
             """
         )
     ).scalar() or 0
-    return {
+    result = {
         "today": [
             {"adapter": r.adapter, "cost_usd": float(r.total), "calls": int(r.calls)}
             for r in today
@@ -206,3 +221,6 @@ def spend_rollup(db: Session = Depends(get_db)):
         "last_7d_total_usd": sum(float(r.total) for r in week),
         "failures_24h": int(failures_24h),
     }
+    _SPEND_CACHE["data"] = result
+    _SPEND_CACHE["at"] = _now
+    return result

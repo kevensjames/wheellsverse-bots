@@ -116,7 +116,10 @@ Rules:
                     try:
                         due = datetime.fromisoformat(p["due_date"].replace("Z", "+00:00"))
                         due_date = due.isoformat()
-                    except:
+                    except (ValueError, TypeError, AttributeError):
+                        # Best-effort parse: malformed due_date just stays unset.
+                        # Narrowed from bare `except:` so KeyboardInterrupt /
+                        # SystemExit aren't swallowed.
                         pass
                 
                 item = Item(
