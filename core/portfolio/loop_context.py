@@ -42,9 +42,12 @@ def kit_section(slug: str, keyword: str) -> str:
                     level = hl
                     out.append(ln)
                 continue
-            if hl <= level:            # same/higher heading -> section ends
+            # Sections are all level-2 (## 1..5). Stop only at the next SAME-level
+            # heading; a higher-level heading (e.g. a `# H1` inside Landing Copy) is
+            # content, not a boundary.
+            if hl == level:
                 break
-            out.append(ln)             # deeper sub-heading -> part of section
+            out.append(ln)
             continue
         if level is not None:
             out.append(ln)
