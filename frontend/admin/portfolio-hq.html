@@ -78,7 +78,17 @@ async function loadBiz(){
       <div class="row"><span class="pill price">${esc(b.price)}</span><span class="pill">${esc(b.phase)}</span>
         <span class="pill kit">${b.has_kit?'GTM kit ✓':'no kit'}</span></div>
       <button class="btn" ${b.has_kit?'':'disabled'} onclick="openKit('${esc(b.slug)}','${esc(b.name)}')">View GTM kit</button>
+      <button class="btn" style="background:#0f172a;border-color:var(--border);color:var(--muted)" onclick="loadLoop('${esc(b.slug)}')">▶ Loop</button>
+      <div id="loop-${esc(b.slug)}" style="margin-top:6px;font-size:.74rem;color:var(--muted)"></div>
     </div>`).join('');
+}
+async function loadLoop(slug){
+  const el=document.getElementById('loop-'+slug); el.textContent='…';
+  try{
+    const d=await api('/loop/'+encodeURIComponent(slug));
+    el.innerHTML=`<b style="color:#cbd5e1">Loop: ${d.total} steps · ${d.auto} auto · ${d.gated} approval-gated</b><br>`+
+      (d.steps||[]).map(s=>`<span style="color:${s.gated?'#f59e0b':'#10b981'}">${s.gated?'🔒':'●'} ${esc(s.verb)}</span>`).join(' &nbsp; ');
+  }catch(e){ el.textContent='loop load failed'; }
 }
 async function loadOrg(){
   let d; try{ d=await api('/org'); }catch(e){ return; }

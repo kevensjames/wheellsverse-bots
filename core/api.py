@@ -1839,6 +1839,23 @@ async def api_portfolio_org():
     }
 
 
+@app.get("/api/narai/portfolio/loop/{slug}")
+async def api_portfolio_loop(slug: str):
+    """A business's operating loop: the 9 steps + gating (green = auto-runs;
+    auto_capped = approval-gated). Read-only + safe (no execution). Slug whitelisted."""
+    from core.portfolio.registry import get_business, list_businesses
+    from core.portfolio.seed import _loop_for
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    b = get_business(slug)
+    steps = _loop_for(b.build_step if b else "build_pack")
+    out = [{"verb": s["verb"], "class": s.get("class", "green"),
+            "gated": s.get("class", "green") != "green"} for s in steps]
+    return {"slug": slug, "steps": out, "total": len(out),
+            "auto": sum(1 for s in out if not s["gated"]),
+            "gated": sum(1 for s in out if s["gated"])}
+
+
 @app.get("/admin/portfolio-hq", response_class=HTMLResponse)
 async def serve_portfolio_hq():
     """Portfolio HQ toodle — 10 businesses + GTM kits + the KAI org chart."""
