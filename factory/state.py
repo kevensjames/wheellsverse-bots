@@ -80,6 +80,20 @@ def release_task(slug: str, task_id: str) -> None:
     _set_status(slug, task_id, "pending", clear_cycle=True)
 
 
+def requeue_oldest_blocked(slug: str) -> str | None:
+    """Reset the first 'blocked' task back to 'pending' so it is re-attempted next
+    cycle. Returns its id, or None if nothing is blocked."""
+    with _CLAIM_LOCK:
+        tasks = load_backlog(slug)
+        for t in tasks:
+            if t.get("status") == "blocked":
+                t["status"] = "pending"
+                t["cycle_id"] = None
+                save_backlog(slug, tasks)
+                return t["id"]
+    return None
+
+
 def reclaim_orphans(slug: str, current_cid: str) -> list[str]:
     """Reset tasks left 'in_progress' by a PRIOR (dead) cycle back to 'pending'.
     A task whose cycle_id != current_cid was claimed by a cycle that crashed before

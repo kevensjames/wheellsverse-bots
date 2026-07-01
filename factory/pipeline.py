@@ -59,6 +59,11 @@ def run_cycle(slug: str, runner, *, now_iso: str, ctx: dict | None = None) -> Cy
     cid = _cycle_id(slug, now_iso)
     state.reclaim_orphans(slug, cid)  # crash-resume: reset orphaned in_progress tasks
 
+    # Kill-criteria: retry a blocked task (unless the project is already flagged red).
+    if projects.get_project(slug) is not None and projects.get_project(slug).phase != "blocked_red":
+        if state.next_ready_task(slug) is None:
+            state.requeue_oldest_blocked(slug)
+
     # Stopping condition: roadmap done and nothing ready.
     if state.roadmap_complete(slug) and state.next_ready_task(slug) is None:
         projects.set_phase(slug, "done")
