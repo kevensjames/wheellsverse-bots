@@ -83,6 +83,14 @@ def test_reclaim_orphans_resets_stale_in_progress():
     assert tasks["t2"]["status"] == "done"
 
 
+def test_save_backlog_rejects_unsafe_task_id():
+    import pytest
+    with pytest.raises(ValueError):
+        state.save_backlog("a", [{"id": "t1:refs/heads/main", "title": "x", "priority": 1,
+                                  "status": "pending", "depends_on": [], "source": "s",
+                                  "cycle_id": None}])
+
+
 def test_audit_and_approval_stamp_now_iso():
     state.audit({"verb": "x", "status": "ran"}, now_iso="2026-06-30T02:00:00Z")
     rows = paths.read_jsonl(paths.data_root() / "audit.jsonl")

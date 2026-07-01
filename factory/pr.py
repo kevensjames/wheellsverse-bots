@@ -33,7 +33,16 @@ def open_pr(worktree, slug: str, task: dict, *, base: str = "main", gh_bin: str 
                   f"Automated by KAI Factory for task {task.get('id')}."]
     try:
         proc = subprocess.run(cmd, cwd=str(worktree), capture_output=True, text=True, check=True)
-    except subprocess.CalledProcessError:
+    except subprocess.CalledProcessError as e:
+        # idempotency: if a PR already exists for this branch, recover its url
+        if "already exists" in (e.stderr or ""):
+            view = head + ["pr", "view", branch, "--json", "url", "-q", ".url"]
+            try:
+                vp = subprocess.run(view, cwd=str(worktree), capture_output=True, text=True, check=True)
+                u = vp.stdout.strip().splitlines()[-1] if vp.stdout.strip() else None
+                return u or None
+            except subprocess.CalledProcessError:
+                return None
         return None  # fail-soft: branch pushed, PR not opened
     url = proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else None
     return url or None

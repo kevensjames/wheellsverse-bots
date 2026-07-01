@@ -3,6 +3,7 @@ factory-wide audit log and approval queue. Atomic writes + a module lock around
 the compare-and-set task claim so a crashed/concurrent cycle never double-claims."""
 from __future__ import annotations
 
+import re
 import threading
 import uuid
 
@@ -10,6 +11,7 @@ from core.portfolio.actions import Action
 from factory import paths
 
 _CLAIM_LOCK = threading.Lock()
+_SAFE_ID = re.compile(r"^[A-Za-z0-9._-]+$")
 
 
 # ---- backlog -------------------------------------------------------------
@@ -23,6 +25,10 @@ def load_backlog(slug: str) -> list[dict]:
 
 
 def save_backlog(slug: str, tasks: list[dict]) -> None:
+    for t in tasks:
+        tid = t.get("id", "")
+        if not _SAFE_ID.fullmatch(str(tid)):
+            raise ValueError(f"unsafe task id {tid!r} (must match [A-Za-z0-9._-]+)")
     paths.save_json_atomic(_backlog_file(slug), {"tasks": tasks})
 
 
