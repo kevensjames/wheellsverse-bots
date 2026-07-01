@@ -19,7 +19,8 @@ class LeadsAdapter:
         b = loop_context.business_ctx(action.business)
         niche, geo = b.get("lead_niche", ""), b.get("lead_geo", "")
         limit = action.payload.get("limit", 25)
-        key = os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
+        # cockpit preview -> never touch the real Places API (no cost, safe to click)
+        key = "" if action.payload.get("preview") else os.getenv("GOOGLE_PLACES_API_KEY", "").strip()
 
         if key and niche and geo:
             from core import places_scanner

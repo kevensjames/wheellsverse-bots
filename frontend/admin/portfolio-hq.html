@@ -43,7 +43,8 @@
 <body>
 <div class="top">🛰️ Portfolio HQ <span style="color:var(--muted);font-weight:500;font-size:.8rem">W-MOS · 10 OSS businesses</span>
   <div class="tabs"><span class="tab on" id="t-biz" onclick="showTab('biz')">Businesses</span>
-    <span class="tab" id="t-org" onclick="showTab('org')">Org Chart</span></div>
+    <span class="tab" id="t-org" onclick="showTab('org')">Org Chart</span>
+    <span class="tab" id="t-control" onclick="showTab('control')">🎛 Control</span></div>
 </div>
 <div id="err"></div>
 <div class="wrap">
@@ -52,6 +53,10 @@
     <div class="grid" id="cards"></div>
   </div>
   <div id="org" style="display:none"></div>
+  <div id="control" style="display:none">
+    <div class="note">Full operator control. Every <b>Run</b> here is <b>preview / dry-run</b> — it proves each loop end-to-end and refreshes artifacts without spending money or firing real actions. Direction = arm a business (Loop tab) · orchestrator enable/kill · approve/reject queued actions.</div>
+    <div id="controlBody">Loading…</div>
+  </div>
 </div>
 
 <div id="modal"><div id="modalCard"><span class="x" onclick="closeKit()">✕</span><h2 id="kitTitle"></h2><div id="kitBody"></div></div></div>
@@ -66,9 +71,15 @@ function err(m){const e=document.getElementById('err');e.textContent='⚠ '+m;e.
 function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 async function api(p){const r=await fetch(API+p,{headers:{'X-API-Key':key()}});
   if(r.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401)');throw 0;} if(!r.ok)throw new Error('HTTP '+r.status); return r.json();}
-function showTab(t){document.getElementById('biz').style.display=t==='biz'?'':'none';document.getElementById('org').style.display=t==='org'?'':'none';
-  document.getElementById('t-biz').className='tab'+(t==='biz'?' on':'');document.getElementById('t-org').className='tab'+(t==='org'?' on':'');
-  if(t==='org'&&!document.getElementById('org').dataset.loaded)loadOrg();}
+async function apiPost(p){const r=await fetch(API+p,{method:'POST',headers:{'X-API-Key':key()}});
+  if(r.status===401){sessionStorage.removeItem('wv_key');err('API key rejected (401)');throw 0;} if(!r.ok)throw new Error('HTTP '+r.status); return r.json();}
+const TABS=['biz','org','control'];
+function showTab(t){
+  TABS.forEach(x=>{document.getElementById(x).style.display=x===t?'':'none';
+    document.getElementById('t-'+x).className='tab'+(x===t?' on':'');});
+  if(t==='org'&&!document.getElementById('org').dataset.loaded)loadOrg();
+  if(t==='control')loadControl();
+}
 
 async function loadBiz(){
   let d; try{ d=await api('/businesses'); }catch(e){ return; }
@@ -113,6 +124,76 @@ async function openKit(slug,name){
 }
 function closeKit(){document.getElementById('modal').style.display='none';}
 document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeKit();};
+
+/* ── Control cockpit ──────────────────────────────────────────────── */
+async function loadControl(){
+  const c=document.getElementById('controlBody');
+  let d; try{ d=await api('/control'); }catch(e){ return; }
+  const o=d.orchestrator||{};
+  const btn=(label,act,style)=>`<button class="btn" style="${style||''}" onclick="orchAct('${act}')">${label}</button>`;
+  const orchCard=`<div class="card"><h3>🧠 Orchestrator</h3>
+    <div class="sub">${o.enabled?'<span style="color:#10b981">enabled</span>':'<span style="color:#94a3b8">disabled (dormant)</span>'}
+      · ${o.kill?'<span style="color:#ef4444">⛔ KILL engaged</span>':'kill clear'}
+      · <span style="color:#f59e0b">${d.pending_approvals} pending approval(s)</span></div>
+    <div class="note" style="margin:6px 0">${esc(d.worker_note||'')}</div>
+    ${btn('Enable','enable')}
+    ${btn('Disable','disable','background:#0f172a;border-color:var(--border);color:var(--muted)')}
+    ${btn('⛔ Kill','kill','background:#7f1d1d;border-color:#ef4444')}
+    ${btn('Clear kill','unkill','background:#0f172a;border-color:var(--border);color:var(--muted)')}
+    <button class="btn" style="background:#065f46;border-color:#10b981" onclick="sweep()">↻ Preview sweep (all)</button>
+  </div>`;
+  const rows=(d.businesses||[]).map(b=>`<div class="card">
+    <h3 style="font-size:.95rem">${esc(b.name)}</h3>
+    <div class="sub">${b.completed} done · ${b.pending} queued ·
+      ${b.armed?'<span style="color:#10b981">✅ armed</span>':'<span style="color:#ef4444">🔒 '+b.blockers+' blocker(s)</span>'}</div>
+    <button class="btn" onclick="runLoop('${esc(b.slug)}')">▶ Run loop (preview)</button>
+    <button class="btn" style="background:#0f172a;border-color:var(--border);color:var(--muted)" onclick="loadArtifacts('${esc(b.slug)}')">📄 Artifacts</button>
+    <button class="btn" style="background:#0f172a;border-color:var(--border);color:var(--muted)" onclick="window.open('/admin/portfolio/${esc(b.slug)}','_blank')">🔬 Detail</button>
+    <div id="run-${esc(b.slug)}" style="margin-top:6px;font-size:.74rem;color:var(--muted)"></div>
+  </div>`).join('');
+  let ap; try{ ap=await api('/approvals'); }catch(e){ ap={pending:[]}; }
+  const approvals=(ap.pending||[]).length
+    ? (ap.pending||[]).map(r=>`<div class="card">
+        <h3 style="font-size:.9rem">${esc(r.business)} · ${esc(r.verb)}</h3>
+        <div class="sub">${esc(r.action_class)} · ${esc(r.at||'')}</div>
+        <button class="btn" style="background:#065f46;border-color:#10b981" onclick="resolveApproval('${esc(r.id)}','approved')">✓ Approve</button>
+        <button class="btn" style="background:#7f1d1d;border-color:#ef4444" onclick="resolveApproval('${esc(r.id)}','rejected')">✕ Reject</button>
+      </div>`).join('')
+    : '<div class="note">No pending approvals. Armed businesses queue their gated (auto_capped / amber) steps here for your sign-off.</div>';
+  c.innerHTML=orchCard+
+    '<h3 style="margin:16px 0 8px">Businesses</h3><div class="grid">'+rows+'</div>'+
+    '<h3 style="margin:16px 0 8px">⏸ Pending approvals</h3><div class="grid">'+approvals+'</div>';
+}
+async function orchAct(a){ try{ await apiPost('/orchestrator?action='+a); loadControl(); }catch(e){ err('orchestrator '+a+' failed'); } }
+async function sweep(){ try{ const d=await apiPost('/sweep'); err('preview swept: '+Object.keys(d.ticked||{}).length+' businesses ticked'); loadControl(); }catch(e){ err('sweep failed'); } }
+async function runLoop(slug){
+  const el=document.getElementById('run-'+slug); el.textContent='running (preview)…';
+  try{
+    const d=await apiPost('/run/'+encodeURIComponent(slug));
+    const made=Object.entries(d.artifacts||{}).filter(([k,v])=>v).map(([k])=>k);
+    el.innerHTML=`<b style="color:#10b981">✓ ran</b> ${(d.completed||[]).length} done · ${(d.pending||[]).length} queued<br>`+
+      `artifacts: `+(made.map(m=>`<span class="pill kit" style="cursor:pointer" onclick="viewArtifact('${esc(slug)}','${esc(m)}')">${esc(m)}</span>`).join(' ')||'—');
+  }catch(e){ el.textContent='run failed'; }
+}
+async function resolveApproval(id,dec){ try{ await apiPost('/approvals/'+encodeURIComponent(id)+'?decision='+dec); loadControl(); }catch(e){ err('resolve failed'); } }
+async function loadArtifacts(slug){
+  try{
+    const d=await api('/artifacts/'+encodeURIComponent(slug));
+    const list=(d.artifacts||[]).filter(a=>a.exists);
+    document.getElementById('kitTitle').textContent=slug+' — Artifacts';
+    document.getElementById('kitBody').innerHTML=list.length
+      ? list.map(a=>`<span class="pill kit" style="cursor:pointer;margin:3px;display:inline-block" onclick="viewArtifact('${esc(slug)}','${esc(a.kind)}')">${esc(a.kind)} (${a.bytes}b)</span>`).join(' ')
+      : 'No artifacts yet — run the loop.';
+    document.getElementById('modal').style.display='block';
+  }catch(e){ err('artifacts load failed'); }
+}
+async function viewArtifact(slug,kind){
+  document.getElementById('kitTitle').textContent=slug+' · '+kind;
+  document.getElementById('kitBody').textContent='Loading…';
+  document.getElementById('modal').style.display='block';
+  try{ const d=await api('/artifacts/'+encodeURIComponent(slug)+'/'+encodeURIComponent(kind)); document.getElementById('kitBody').textContent=d.content; }
+  catch(e){ document.getElementById('kitBody').textContent='Failed to load artifact (run the loop first).'; }
+}
 loadBiz();
 </script>
 </body>

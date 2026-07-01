@@ -1876,6 +1876,160 @@ async def api_portfolio_arm(slug: str, confirm: bool = False):
     return arm_business(slug, confirm=confirm)
 
 
+# ── Operator control cockpit ────────────────────────────────────────────────
+# "watch how it works + give direction." Every RUN here is preview/dry-run safe:
+# the loop's envelope still gates real actions, and payload={'preview':True} forces
+# adapters off any paid/live API. Direction = arm/disarm (above) + orchestrator
+# enable/kill (below) + approve/reject the queued (auto_capped/amber) actions.
+_ARTIFACT_FILES = {
+    "research": "niche.md", "pack": "pack.md", "leads": "prospects.json",
+    "outreach": "sequence.md", "sites": "landing.md", "proposals": "proposal.md",
+    "infra": "deploy-manifest.json", "workflows": "pack.md",
+}
+
+
+@app.post("/api/narai/portfolio/run/{slug}")
+async def api_portfolio_run(slug: str):
+    """Operator 'Run loop' — replays a business's whole loop in PREVIEW (reset + dry-run).
+    Never spends money or fires real actions; proves the loop end-to-end + refreshes
+    its artifacts so the operator can watch each step produce output. Slug whitelisted."""
+    from core.portfolio.registry import list_businesses
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    from core.portfolio import loops, adapters, paths
+    result = loops.run_business_loop(slug, adapters.adapter_for, adapters.ctx_for,
+                                     payload={"preview": True}, reset=True)
+    adir = paths.business_dir(slug) / "artifacts"
+    result["artifacts"] = {k: (adir / k / name).exists()
+                           for k, name in _ARTIFACT_FILES.items()}
+    return result
+
+
+@app.get("/api/narai/portfolio/artifacts/{slug}")
+async def api_portfolio_artifacts(slug: str):
+    """Which artifacts a business has produced (kind + byte size). Read-only. Whitelisted."""
+    from core.portfolio.registry import list_businesses
+    from core.portfolio import paths
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    adir = paths.business_dir(slug) / "artifacts"
+    out = []
+    for kind, name in _ARTIFACT_FILES.items():
+        p = adir / kind / name
+        out.append({"kind": kind, "name": name,
+                    "exists": p.exists(),
+                    "bytes": p.stat().st_size if p.exists() else 0})
+    return {"slug": slug, "artifacts": out}
+
+
+@app.get("/api/narai/portfolio/artifacts/{slug}/{kind}")
+async def api_portfolio_artifact(slug: str, kind: str):
+    """The content of one produced artifact so the operator can read what a step made.
+    Read-only. Slug + kind both whitelisted (no arbitrary path read)."""
+    from core.portfolio.registry import list_businesses
+    from core.portfolio import paths
+    if slug not in {b.slug for b in list_businesses()}:
+        return JSONResponse({"error": "unknown business"}, status_code=404)
+    if kind not in _ARTIFACT_FILES:
+        return JSONResponse({"error": "unknown artifact kind"}, status_code=404)
+    p = paths.business_dir(slug) / "artifacts" / kind / _ARTIFACT_FILES[kind]
+    if not p.exists():
+        return JSONResponse({"error": "not produced yet — run the loop first"}, status_code=404)
+    return {"slug": slug, "kind": kind, "name": _ARTIFACT_FILES[kind],
+            "content": p.read_text(encoding="utf-8")}
+
+
+@app.get("/api/narai/portfolio/control")
+async def api_portfolio_control():
+    """Cockpit dashboard state: orchestrator flags + per-business progress/armed/blockers
+    + pending-approval count. One read the Control tab polls. Read-only."""
+    from core.portfolio import orchestrator, arm, state
+    from core.portfolio.registry import list_businesses
+    biz = []
+    for b in list_businesses():
+        st = state.load_state(b.slug)
+        readiness = arm.arm_readiness(b.slug)
+        biz.append({
+            "slug": b.slug, "name": b.name,
+            "completed": len(st.get("completed_verbs", [])),
+            "pending": len(st.get("pending_verbs", [])),
+            "armed": arm.is_armed(b.slug),
+            "blockers": len(readiness.get("blockers", [])),
+        })
+    return {
+        "orchestrator": orchestrator.control_state(),
+        "worker_note": "manual only — the autonomous sweeper is NOT started on prod",
+        "businesses": biz,
+        "pending_approvals": len(state.list_approvals(status="pending")),
+    }
+
+
+@app.post("/api/narai/portfolio/orchestrator")
+async def api_portfolio_orchestrator(action: str):
+    """Direct the top-level orchestrator: enable | disable | kill | unkill. Sets the
+    control flags in portfolio.json. NOTE: the autonomous worker is not started on prod,
+    so enabling only sets intent; nothing sweeps until a worker is launched separately +
+    businesses are armed. Kill is the hard stop."""
+    from core.portfolio import orchestrator
+    act = (action or "").lower().strip()
+    if act == "enable":
+        orchestrator.set_enabled(True)
+    elif act == "disable":
+        orchestrator.set_enabled(False)
+    elif act == "kill":
+        orchestrator.engage_kill()
+    elif act == "unkill":
+        orchestrator.disengage_kill()
+    else:
+        return JSONResponse(
+            {"error": "action must be enable|disable|kill|unkill"}, status_code=400)
+    return {"status": "ok", "action": act, "orchestrator": orchestrator.control_state()}
+
+
+@app.post("/api/narai/portfolio/sweep")
+async def api_portfolio_sweep():
+    """Operator-triggered PREVIEW sweep: one dry-run tick per business so the operator can
+    watch the orchestrator advance every loop by a step. This is NOT the autonomous sweep
+    (it bypasses the dormant gate on purpose) and it never fires real actions."""
+    from core.portfolio import loops, adapters
+    from core.portfolio.registry import list_businesses
+    ticked = {}
+    for b in list_businesses():
+        try:
+            r = loops.tick(b.slug, adapters.adapter_for, adapters.ctx_for,
+                           payload={"preview": True})
+            ticked[b.slug] = r.status if r is not None else "done"
+        except Exception as e:
+            ticked[b.slug] = f"error: {e}"
+    return {"status": "preview_swept", "ticked": ticked}
+
+
+@app.get("/api/narai/portfolio/approvals")
+async def api_portfolio_approvals():
+    """The queue of actions parked for operator sign-off (auto_capped/amber steps).
+    These are what 'give direction' acts on. Read-only."""
+    from core.portfolio import state
+    rows = state.list_approvals(status="pending")
+    rows.sort(key=lambda r: r.get("at", ""), reverse=True)
+    return {"pending": rows, "count": len(rows)}
+
+
+@app.post("/api/narai/portfolio/approvals/{approval_id}")
+async def api_portfolio_resolve_approval(approval_id: str, decision: str):
+    """Operator approves or rejects a queued action. Atomic compare-and-set from 'pending'
+    so a double-click / stale click can't flip an already-resolved item. Approving marks
+    intent only — nothing executes here (execution still requires the business to be armed)."""
+    from core.portfolio import state
+    dec = (decision or "").lower().strip()
+    if dec not in ("approved", "rejected"):
+        return JSONResponse(
+            {"error": "decision must be approved|rejected"}, status_code=400)
+    ok = state.compare_and_set_approval(approval_id, "pending", dec)
+    state.audit({"verb": "_approval_resolved", "id": approval_id,
+                 "decision": dec, "applied": ok})
+    return {"status": "ok" if ok else "not_pending", "id": approval_id, "decision": dec}
+
+
 @app.get("/admin/portfolio-hq", response_class=HTMLResponse)
 async def serve_portfolio_hq():
     """Portfolio HQ toodle — 10 businesses + GTM kits + the KAI org chart."""

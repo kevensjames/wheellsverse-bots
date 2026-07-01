@@ -44,7 +44,7 @@ def select_next_step(steps: list[LoopStep], state_dict: dict):
     return None
 
 
-def tick(slug: str, adapter_for, ctx_for) -> DispatchResult | None:
+def tick(slug: str, adapter_for, ctx_for, payload: dict | None = None) -> DispatchResult | None:
     steps = load_loop(slug)
     st = state.load_state(slug)
     step = select_next_step(steps, st)
@@ -57,7 +57,7 @@ def tick(slug: str, adapter_for, ctx_for) -> DispatchResult | None:
         action_class=step.action_class,
         preconditions=step.preconditions,
         business=slug,
-        payload={},
+        payload=dict(payload or {}),
     )
     result = dispatch(
         action,
@@ -76,10 +76,18 @@ def tick(slug: str, adapter_for, ctx_for) -> DispatchResult | None:
     return result
 
 
-def run_business_loop(slug: str, adapter_for, ctx_for, max_ticks: int = 25) -> dict:
+def run_business_loop(slug: str, adapter_for, ctx_for, max_ticks: int = 25,
+                      payload: dict | None = None, reset: bool = False) -> dict:
     """Tick a business until its whole loop is processed (every step completed or
-    pending). Dry-run safe — the envelope still gates real actions. Returns the
-    per-verb status matrix so callers can prove the loop ran end to end."""
+    pending). Dry-run safe — the envelope still gates real actions. `payload` flows
+    to every step (e.g. {'preview': True} forces safe dry-run). `reset` clears prior
+    completed/pending so an operator can re-run the loop fresh from the cockpit.
+    Returns the per-verb status matrix so callers can prove the loop ran end to end."""
+    if reset:
+        st = state.load_state(slug)
+        st["completed_verbs"] = []
+        st["pending_verbs"] = []
+        state.save_state(slug, st)
     matrix: dict[str, str] = {}
     for _ in range(max_ticks):
         steps = load_loop(slug)
@@ -87,7 +95,7 @@ def run_business_loop(slug: str, adapter_for, ctx_for, max_ticks: int = 25) -> d
         step = select_next_step(steps, st)
         if step is None:
             break
-        result = tick(slug, adapter_for, ctx_for)
+        result = tick(slug, adapter_for, ctx_for, payload=payload)
         matrix[step.verb] = result.status if result is not None else "none"
     st = state.load_state(slug)
     return {
