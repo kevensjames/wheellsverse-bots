@@ -74,3 +74,26 @@ def tick(slug: str, adapter_for, ctx_for) -> DispatchResult | None:
         # the loop advances to the next step instead of re-selecting this one.
         state.mark_pending(slug, step.verb)
     return result
+
+
+def run_business_loop(slug: str, adapter_for, ctx_for, max_ticks: int = 25) -> dict:
+    """Tick a business until its whole loop is processed (every step completed or
+    pending). Dry-run safe — the envelope still gates real actions. Returns the
+    per-verb status matrix so callers can prove the loop ran end to end."""
+    matrix: dict[str, str] = {}
+    for _ in range(max_ticks):
+        steps = load_loop(slug)
+        st = state.load_state(slug)
+        step = select_next_step(steps, st)
+        if step is None:
+            break
+        result = tick(slug, adapter_for, ctx_for)
+        matrix[step.verb] = result.status if result is not None else "none"
+    st = state.load_state(slug)
+    return {
+        "slug": slug,
+        "matrix": matrix,
+        "completed": st.get("completed_verbs", []),
+        "pending": st.get("pending_verbs", []),
+        "steps_total": len(load_loop(slug)),
+    }
