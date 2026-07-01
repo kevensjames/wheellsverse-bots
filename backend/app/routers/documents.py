@@ -16,6 +16,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -64,7 +65,10 @@ async def upload_doc(
     _require_paid(db, user.id)
     raw = await file.read()
     try:
-        row = documents.upload(
+        # documents.upload does blocking text-extraction + embedding (rag) —
+        # offload it so it doesn't stall the event loop (PERF-F6).
+        row = await run_in_threadpool(
+            documents.upload,
             db,
             user_id=user.id,
             filename=file.filename or "untitled",

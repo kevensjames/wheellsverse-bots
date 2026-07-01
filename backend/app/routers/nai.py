@@ -31,7 +31,7 @@ from app.schemas.nai import (
 )
 from app.services.nai_brain import Brain
 from app.services.router import build_default_router
-from app.services.tools import build_default_registry
+from app.services.tools import get_default_registry
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def _build_brain(session: Session) -> Brain:
     return Brain(
         session=session,
         router=build_default_router(session),
-        registry=build_default_registry(),
+        registry=get_default_registry(),
     )
 
 
@@ -53,7 +53,7 @@ def chat(
     session: Session = Depends(get_db),
 ) -> ChatResponse:
     rt = build_default_router(session)
-    registry = build_default_registry()
+    registry = get_default_registry()
     persona_prompt = ""
     preset_id_used: str | None = None
     auto_routed = False

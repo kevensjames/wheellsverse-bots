@@ -43,20 +43,27 @@ class PendingApproval(PermissionError):
     surface a confirm prompt to the operator and retry with approved=True."""
 
 
-def is_scope_enabled(scope: str) -> bool:
+def is_scope_enabled(scope: str, *, destructive: bool = False) -> bool:
     """Check KAI_SCOPE_<NORMALIZED>. Scope 'briefing.generate' →
     KAI_SCOPE_BRIEFING_GENERATE. Truthy = '1', 'true', 'yes' (case-insensitive).
 
     A scope is enabled if either:
       - the specific scope env (e.g. KAI_SCOPE_BRIEFING_GENERATE), or
-      - the wildcard parent (KAI_SCOPE_BRIEFING) is set.
-    Wildcards let the operator opt-in to a whole module without listing
-    each action individually.
+      - (NON-destructive only) the wildcard parent (KAI_SCOPE_BRIEFING).
+
+    Wildcards let the operator opt-in to a whole module's READ-ONLY actions
+    without listing each. But a DESTRUCTIVE action (money transfer, refund,
+    delete) must NEVER be authorized by a wildcard parent — it requires its
+    EXACT flag (audit GOV-005: KAI_SCOPE_SOL=1 must not silently enable
+    KAI_SCOPE_SOL_TRANSFER). Defense-in-depth: destructive actions still also
+    require approved=True downstream.
     """
     norm = scope.replace(".", "_").replace("-", "_").upper()
     if _is_env_truthy(f"KAI_SCOPE_{norm}"):
         return True
-    # Wildcard parent — KAI_SCOPE_BRIEFING enables every BRIEFING.* scope
+    if destructive:
+        return False  # no wildcard short-cut for destructive scopes
+    # Wildcard parent — KAI_SCOPE_BRIEFING enables every non-destructive BRIEFING.* scope
     parent = norm.split("_")[0]
     if parent and _is_env_truthy(f"KAI_SCOPE_{parent}"):
         return True
@@ -92,8 +99,9 @@ def audited(
             actor = str(kwargs.pop("actor", actor_default))
 
             # Scope check FIRST — if the scope isn't enabled, we don't even
-            # consider the destructive-without-approval case.
-            if not is_scope_enabled(scope):
+            # consider the destructive-without-approval case. Destructive scopes
+            # are NOT satisfied by a wildcard parent (GOV-005).
+            if not is_scope_enabled(scope, destructive=destructive):
                 record_action(
                     action=fn.__name__, scope=scope, actor=actor,
                     destructive=destructive, approved=approved,

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import uuid
 from typing import Iterator
 
@@ -19,6 +20,14 @@ logger = logging.getLogger(__name__)
 
 HISTORY_WINDOW = 20
 TITLE_PREVIEW_CHARS = 60
+
+
+def _self_correction_on_chat() -> bool:
+    """Verify-before-answer is opt-in (adds one cheap critic call per chat turn).
+    Enable with KAI_SELF_CORRECTION_ON_CHAT=1."""
+    return (os.environ.get("KAI_SELF_CORRECTION_ON_CHAT") or "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
 
 
 def _eq_analyze_and_record(user_message: str) -> str:
@@ -266,13 +275,35 @@ class Brain:
                 prefer_local=prefer_local,
             )
 
+        # Verify-before-answer (KAI v1 build #1): optionally run a critique+revise
+        # pass so the reply is self-checked before the user sees it. Opt-in via
+        # KAI_SELF_CORRECTION_ON_CHAT=1 (it adds one cheap critic call per turn).
+        # Fail-soft: any error → the original draft is used unchanged.
+        final_content = result.content
+        correction_cost = 0.0
+        if _self_correction_on_chat():
+            try:
+                from app.services.self_correction.loop import run_correction_loop
+                cr = run_correction_loop(
+                    user_message=user_message,
+                    initial_draft=result.content,
+                    router=self.router,
+                    original_adapter=result.adapter,
+                    prefer_local=prefer_local,
+                )
+                final_content = cr.final_text or result.content
+                correction_cost = cr.total_cost
+            except Exception:
+                logger.exception("self-correction on chat failed; using original draft")
+
+        total_cost = float(result.cost_usd) + float(correction_cost)
         assistant_msg = self._save_message(
             conv,
             "assistant",
-            result.content,
+            final_content,
             adapter=result.adapter,
             model_used=result.model,
-            cost_usd=result.cost_usd,
+            cost_usd=total_cost,
             tokens_used=result.input_tokens + result.output_tokens,
         )
 
@@ -281,7 +312,7 @@ class Brain:
         self.session.refresh(assistant_msg)
         self.session.refresh(conv)
 
-        return conv, assistant_msg, float(result.cost_usd)
+        return conv, assistant_msg, total_cost
 
     def stream(
         self,
@@ -323,6 +354,8 @@ class Brain:
         system = build_system_prompt(memory_preamble, eq_preamble=eq_preamble)
 
         collected: list[str] = []
+        errored = False
+        saved_id: str | None = None
         try:
             for delta in self.router.stream(
                 user_id=user_id,
@@ -334,18 +367,32 @@ class Brain:
                 collected.append(delta)
                 yield {"type": "delta", "content": delta}
         except Exception as e:
+            errored = True
             logger.exception("stream failure")
             yield {"type": "error", "error": str(e)}
-            return
+        finally:
+            # Persist whatever was streamed so far — on success, on a mid-stream
+            # provider error, AND on a client disconnect (GeneratorExit, a
+            # BaseException that skips `except Exception`). Otherwise the
+            # conversation is left with a user turn and no assistant reply, even
+            # though the user already saw the partial text (CORR-F4). No yields
+            # here: the generator may be closing.
+            full_content = "".join(collected)
+            if full_content:
+                try:
+                    # adapter/model not surfaced by router.stream() — Phase B refinement.
+                    assistant_msg = self._save_message(conv, "assistant", full_content)
+                    conv.updated_at = func.now()
+                    self.session.commit()
+                    saved_id = str(assistant_msg.id)
+                except Exception:
+                    logger.exception("stream: failed to persist partial assistant message")
+                    self.session.rollback()
 
-        full_content = "".join(collected)
-        # adapter/model not surfaced by router.stream() — Phase B refinement.
-        assistant_msg = self._save_message(conv, "assistant", full_content)
-        conv.updated_at = func.now()
-        self.session.commit()
-        self.session.refresh(assistant_msg)
+        if errored:
+            return
 
         yield {
             "type": "done",
-            "assistant_message_id": str(assistant_msg.id),
+            "assistant_message_id": saved_id,
         }

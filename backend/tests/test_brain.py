@@ -170,6 +170,88 @@ def test_stream_yields_meta_then_deltas_then_done(db_session, free_user):
     assert assistant_rows[0].content == "hello world"
 
 
+def test_stream_persists_partial_reply_on_midstream_error(db_session, free_user):
+    """CORR-F4: if the provider errors after streaming some text, the partial
+    assistant reply (already shown to the user) must still be persisted — not
+    dropped, leaving a user turn with no answer. On the old code the except
+    block `return`ed and the partial was lost."""
+
+    @dataclass
+    class FailingRouter:
+        completion: CompletionResult
+
+        def complete(self, **kwargs):
+            return self.completion
+
+        def chat(self, **kwargs):
+            return self.completion
+
+        def stream(self, **kwargs) -> Iterator[str]:
+            yield "partial "
+            yield "answer"
+            raise RuntimeError("provider exploded mid-stream")
+
+    brain = Brain(
+        session=db_session,
+        router=FailingRouter(_result()),
+        registry=ToolRegistry(),
+    )
+    events = list(
+        brain.stream(
+            user_id=free_user.id,
+            conversation_id=None,
+            user_message="stream me",
+        )
+    )
+    types = [e["type"] for e in events]
+    assert "delta" in types
+    assert types[-1] == "error"      # errored → no "done"
+    assert "done" not in types
+
+    # the partial reply the user already saw must be saved
+    assistant_rows = (
+        db_session.query(Message)
+        .filter(Message.role == "assistant")
+        .order_by(Message.created_at.desc())
+        .all()
+    )
+    assert assistant_rows and assistant_rows[0].content == "partial answer"
+
+
+def test_chat_verify_before_answer_uses_corrected_text(db_session, free_user, monkeypatch):
+    """KAI v1 build #1: with KAI_SELF_CORRECTION_ON_CHAT=1, the reply is run
+    through the critique+revise loop before it's saved/returned."""
+    monkeypatch.setenv("KAI_SELF_CORRECTION_ON_CHAT", "1")
+    from app.services.self_correction import loop as sc_loop
+
+    def fake_loop(*, user_message, initial_draft, router, original_adapter, prefer_local=False, max_iterations=1):
+        return sc_loop.CorrectionResult(
+            final_text=initial_draft + " [verified]", iterations=1,
+            total_cost=0.0001, was_revised=True,
+        )
+
+    monkeypatch.setattr(sc_loop, "run_correction_loop", fake_loop)
+    brain = Brain(
+        session=db_session,
+        router=ScriptedRouter(_result("draft answer")),
+        registry=ToolRegistry(),
+    )
+    conv, msg, cost = brain.chat(user_id=free_user.id, conversation_id=None, user_message="hi")
+    assert msg.content == "draft answer [verified]"
+    assert cost >= 0.0001  # correction cost folded into the reported cost
+
+
+def test_chat_no_verify_when_flag_off(db_session, free_user, monkeypatch):
+    monkeypatch.delenv("KAI_SELF_CORRECTION_ON_CHAT", raising=False)
+    brain = Brain(
+        session=db_session,
+        router=ScriptedRouter(_result("draft answer")),
+        registry=ToolRegistry(),
+    )
+    conv, msg, cost = brain.chat(user_id=free_user.id, conversation_id=None, user_message="hi")
+    assert msg.content == "draft answer"  # unchanged when opt-in is off
+
+
 def test_chat_uses_tool_loop_when_use_tools_true(db_session, free_user):
     """use_tools=True should hit router.chat (not router.complete)."""
 

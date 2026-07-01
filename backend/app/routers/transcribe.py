@@ -20,6 +20,7 @@ import io
 import logging
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -52,6 +53,18 @@ def _require_paid(db: Session, user_id) -> Profile:
     return profile
 
 
+def _transcribe_blocking(api_key: str, bio: "io.BytesIO") -> str:
+    """The synchronous OpenAI Whisper call — run in a threadpool so it doesn't
+    block the event loop (PERF-F6)."""
+    from openai import OpenAI
+    client = OpenAI(api_key=api_key)
+    result = client.audio.transcriptions.create(
+        model="whisper-1", file=bio, response_format="text",
+    )
+    # whisper-1 with response_format=text returns a plain string
+    return str(result).strip() if result else ""
+
+
 @router.post("/transcribe")
 async def transcribe(
     file: UploadFile = File(...),
@@ -79,15 +92,9 @@ async def transcribe(
     bio.name = fname
 
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=settings.OPENAI_API_KEY)
-        result = client.audio.transcriptions.create(
-            model="whisper-1",
-            file=bio,
-            response_format="text",
+        text = await run_in_threadpool(
+            _transcribe_blocking, settings.OPENAI_API_KEY, bio
         )
-        # whisper-1 with response_format=text returns a plain string
-        text = str(result).strip() if result else ""
     except Exception as e:
         logger.exception("whisper transcription failed")
         raise HTTPException(status_code=502, detail=f"transcription error: {e}")

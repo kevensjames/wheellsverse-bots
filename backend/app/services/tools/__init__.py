@@ -1,5 +1,6 @@
 import logging
 import os
+from functools import lru_cache
 
 from app.services.browser.config import browser_enabled as _browser_enabled
 from app.services.tools.audit_query import AuditQueryTool
@@ -42,6 +43,19 @@ from app.services.tools.web_search import WebSearchTool
 
 
 logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def get_default_registry() -> ToolRegistry:
+    """Process-wide singleton of the default tool registry (PERF-F2).
+
+    The default tool set depends only on env (stable for a running daemon), and
+    request paths treat the registry as read-only — filter_registry() returns a
+    copy. So build it once and share it instead of re-wiring ~30 tools (and
+    re-reading the MCP config + re-initializing clients) on every chat turn.
+    Tests / explicit-arg callers keep using build_default_registry() directly.
+    """
+    return build_default_registry()
 
 
 def build_default_registry(

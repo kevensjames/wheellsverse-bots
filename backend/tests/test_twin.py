@@ -353,6 +353,7 @@ def test_admin_suggest_success(client, monkeypatch, _isolated_audit):
 
 def test_admin_activate_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # GOV-005: destructive needs its exact flag
     e = ts.add_entry("identity", "Founder", status="proposed")
     r1 = client.post(f"/admin/twin/entries/{e.id}/activate",
                      headers=ADMIN_HEADERS, json={"approved": False})

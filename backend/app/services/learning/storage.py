@@ -28,6 +28,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator
 
+from app.services._sqlite_util import ensure_schema
+
 logger = logging.getLogger(__name__)
 
 # backend/app/services/learning/storage.py → parents[4] = repo root
@@ -112,7 +114,7 @@ def _conn() -> Iterator[sqlite3.Connection]:
     c.row_factory = sqlite3.Row
     try:
         c.execute("PRAGMA journal_mode=WAL")
-        c.executescript(_SCHEMA)
+        ensure_schema(c, str(LEARNING_DB_PATH), _SCHEMA)  # PERF-F4: run schema once per path
         yield c
     finally:
         c.close()

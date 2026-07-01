@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import os
+from functools import lru_cache
 from typing import Sequence
 
 from openai import OpenAI
@@ -33,8 +34,17 @@ def _truncate(text: str) -> str:
     return text[:TRUNCATE_CHARS] if len(text) > TRUNCATE_CHARS else text
 
 
+@lru_cache(maxsize=512)
+def _embed_one_cached(text: str) -> tuple[float, ...]:
+    return tuple(embed_many([text])[0])
+
+
 def embed_one(text: str) -> list[float]:
-    return embed_many([text])[0]
+    # Cache identical query embeddings (PERF-F3): memory recall embeds the
+    # user's text on every chat turn, so repeats (retries, common phrases) skip
+    # the OpenAI round-trip. Cached as an immutable tuple; a fresh list is
+    # returned each call so the cache entry can't be mutated by a caller.
+    return list(_embed_one_cached(text.strip()))
 
 
 def embed_many(texts: Sequence[str]) -> list[list[float]]:
