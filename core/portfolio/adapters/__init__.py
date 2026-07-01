@@ -13,6 +13,7 @@ from core.portfolio.adapters.outreach_send import OutreachSendAdapter
 from core.portfolio.adapters.site import SiteAdapter
 from core.portfolio.adapters.infra import InfraAdapter
 from core.portfolio.adapters.enrich import LeadsEnrichAdapter
+from core.portfolio.adapters.build_pack import BuildPackAdapter
 
 
 class NoopAdapter:
@@ -33,9 +34,13 @@ ADAPTERS: dict[str, object] = {
     "deploy_demo_instance": InfraAdapter(),
 }
 _NOOP = NoopAdapter()
+_BUILD_PACK = BuildPackAdapter(generate=_g)
 
 
 def adapter_for(step):
+    # every business's build_* step -> the generic pack adapter (fixes the 9 no-ops)
+    if step.verb.startswith("build_"):
+        return _BUILD_PACK
     return ADAPTERS.get(step.verb, _NOOP)
 
 
