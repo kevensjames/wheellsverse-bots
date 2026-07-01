@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.portfolio.actions import Action, ActionClass, dispatch
-from factory import budget, project as projects, state
+from core.portfolio.actions import Action, ActionClass, AgentAdapter, dispatch
+from factory import budget, project as projects, roles as _roles, state
 
 
 @dataclass(frozen=True)
@@ -53,7 +53,7 @@ def _cycle_id(slug: str, now_iso: str) -> str:
     return f"{stamp[:14]}-{slug}"
 
 
-def run_cycle(slug: str, runner, *, now_iso: str, ctx: dict | None = None) -> CycleResult:
+def run_cycle(slug: str, runner: AgentAdapter, *, now_iso: str, ctx: dict | None = None) -> CycleResult:
     ctx = ctx or {}
     month = now_iso[:7]
     cid = _cycle_id(slug, now_iso)
@@ -83,7 +83,9 @@ def run_cycle(slug: str, runner, *, now_iso: str, ctx: dict | None = None) -> Cy
     for stage in PIPELINE:
         # Budget gate before any executable stage: if already over ceiling, stop.
         if stage.action_class in (ActionClass.GREEN, ActionClass.AUTO_CAPPED):
-            if budget.would_exceed(slug, 0.0, month):
+            role = _roles.ROLES.get(stage.role)
+            est = _roles.estimated_cost(role.model) if role else _roles.estimated_cost("sonnet")
+            if budget.would_exceed(slug, est, month):
                 state.release_task(slug, task["id"])
                 return CycleResult(slug, cid, task["id"], "budget_queued",
                                    stages_out, cost_usd=cost, note="budget ceiling")

@@ -9,6 +9,7 @@ import os
 import threading
 import time
 
+from core.portfolio.actions import AgentAdapter
 from factory import paths, pipeline, project as projects, report
 
 logger = logging.getLogger("factory_scheduler")
@@ -50,7 +51,7 @@ def control_state() -> dict:
     return {"enabled": is_enabled(), "kill": kill_engaged()}
 
 
-def run_once(runner, *, now_iso: str, slugs: list[str] | None = None) -> dict:
+def run_once(runner: AgentAdapter, *, now_iso: str, slugs: list[str] | None = None) -> dict:
     if kill_engaged():
         return {"status": "killed", "ticked": {}}
     if not is_enabled():
