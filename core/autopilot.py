@@ -468,16 +468,19 @@ class AutopilotEngine:
         log.info("AutopilotEngine: loop stopped")
 
     def _run(self):
-        last_hourly_minute = -1
+        last_hourly_hour = -1
         last_daily_day = -1
 
         while not self._stop_event.is_set():
             try:
                 now = datetime.now()
 
-                # Hourly cycle — at :00 of every hour
-                if now.minute == 0 and now.minute != last_hourly_minute:
-                    last_hourly_minute = now.minute
+                # Hourly cycle — at :00 of every hour (fire once per hour).
+                # Track the HOUR, not the minute: comparing now.minute against a
+                # stored minute-value of 0 could never differ, so the loop only
+                # ever fired once per process start. Fixed to compare the hour.
+                if now.minute == 0 and now.hour != last_hourly_hour:
+                    last_hourly_hour = now.hour
                     if self._state.enabled:
                         self.run_hourly()
 
