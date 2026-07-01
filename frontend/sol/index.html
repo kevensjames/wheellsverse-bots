@@ -226,6 +226,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
         <input type="password" id="loginPassword" placeholder="Your password" required></div>
       <p class="err" id="loginErr" role="alert" aria-live="assertive"></p>
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="loginBtn">Sign in</button>
+      <button type="button" onclick="showForgot()" style="display:block;margin:.8rem auto 0;background:none;border:none;color:var(--muted);font-size:.85rem;cursor:pointer;text-decoration:underline">Forgot your password?</button>
     </form>
 
     <!-- Register form -->
@@ -251,6 +252,18 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
       <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="totpBtn">Verify</button>
       <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="switchTab('login')">← Back to sign in</button>
     </form>
+
+    <!-- Forgot-password step — emails a reset link -->
+    <form id="forgotForm" style="display:none" onsubmit="handleForgot(event)">
+      <h2>Reset your password</h2>
+      <p style="color:var(--muted);font-size:.9rem;margin:-.25rem 0 1rem">Enter your account email and we'll send you a link to set a new password.</p>
+      <div class="field"><label>Email</label>
+        <input type="email" id="forgotEmail" placeholder="you@example.com" required></div>
+      <p class="err" id="forgotErr" role="alert" aria-live="assertive"></p>
+      <p id="forgotOk" style="display:none;color:var(--sol-600);font-size:.88rem;margin-bottom:.75rem"></p>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:.7rem" id="forgotBtn">Send reset link</button>
+      <button type="button" class="btn" style="width:100%;justify-content:center;padding:.55rem;margin-top:.5rem;background:transparent;color:var(--muted)" onclick="switchTab('login')">← Back to sign in</button>
+    </form>
   </div>
 </div>
 
@@ -267,6 +280,7 @@ function closeModal() {
 function switchTab(tab) {
   // Leaving the 2FA step (e.g. "Back to sign in") restores the normal tabs.
   const totp = document.getElementById('totpForm'); if (totp) totp.style.display = 'none';
+  const fg = document.getElementById('forgotForm'); if (fg) fg.style.display = 'none';
   const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = '';
   document.getElementById('loginForm').style.display = tab === 'login' ? '' : 'none';
   document.getElementById('registerForm').style.display = tab === 'register' ? '' : 'none';
@@ -386,6 +400,35 @@ async function handleTotp(e) {
   } catch(ex) {
     err.textContent = ex.message; err.style.display = 'block';
   } finally { btn.textContent = 'Verify'; btn.disabled = false; }
+}
+
+function showForgot() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('registerForm').style.display = 'none';
+  const tabs = document.querySelector('.tab-row'); if (tabs) tabs.style.display = 'none';
+  document.getElementById('forgotOk').style.display = 'none';
+  document.getElementById('forgotErr').style.display = 'none';
+  document.getElementById('forgotForm').style.display = '';
+  document.getElementById('forgotEmail').focus();
+}
+
+async function handleForgot(e) {
+  e.preventDefault();
+  const btn = document.getElementById('forgotBtn');
+  const err = document.getElementById('forgotErr');
+  const ok = document.getElementById('forgotOk');
+  err.style.display = 'none'; ok.style.display = 'none';
+  btn.textContent = 'Sending…'; btn.disabled = true;
+  try {
+    // Backend always returns 200 (no account enumeration), so success here just
+    // means "request accepted".
+    await apiPost('/auth/forgot-password', { email: document.getElementById('forgotEmail').value });
+    ok.textContent = 'If that email is registered, a reset link is on its way — check your inbox (and spam).';
+    ok.style.display = 'block';
+    document.getElementById('forgotEmail').value = '';
+  } catch (ex) {
+    err.textContent = ex.message; err.style.display = 'block';
+  } finally { btn.textContent = 'Send reset link'; btn.disabled = false; }
 }
 
 async function handleRegister(e) {
