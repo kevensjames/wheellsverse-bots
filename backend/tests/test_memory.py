@@ -6,6 +6,7 @@ because the existing User fixture covers the FK shape we need).
 """
 from __future__ import annotations
 
+import os
 import time
 import uuid
 
@@ -19,6 +20,14 @@ from app.services.memory.store import (
     count_memories,
     delete_memory,
     get_memory,
+)
+
+# These tests embed text through the real OpenAI embeddings API (semantic match
+# can't be faithfully mocked), so they're integration-only: skip cleanly when no
+# key is configured rather than failing. Run them in CI / locally with a key.
+pytestmark = pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="memory tests need real embeddings (OPENAI_API_KEY)",
 )
 
 
