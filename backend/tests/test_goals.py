@@ -73,3 +73,15 @@ def test_advance_failsoft_on_bad_json():
     out = engine.advance_active_goals(router=_FakeRouter("not json at all"))
     assert out[0]["assessed"] is False
     assert store.list_goals(status="active")[0].title == "X"  # goal untouched
+
+
+def test_goal_has_linked_plan_id_default_none():
+    g = store.create_goal("X")
+    assert g.linked_plan_id is None
+    assert "linked_plan_id" in g.as_dict()
+
+
+def test_update_goal_sets_linked_plan_id():
+    g = store.create_goal("X")
+    store.update_goal(g.id, linked_plan_id="42")
+    assert store.get_goal(g.id).linked_plan_id == "42"

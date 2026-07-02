@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS goals (
   progress       TEXT NOT NULL DEFAULT '',
   next_action    TEXT NOT NULL DEFAULT '',
   blocked_reason TEXT NOT NULL DEFAULT '',
+  linked_plan_id TEXT,
   created_at     TEXT NOT NULL,
   updated_at     TEXT NOT NULL
 );
@@ -51,6 +52,15 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _ensure_columns(c: sqlite3.Connection) -> None:
+    """Additive migration for columns introduced after the initial schema.
+    Idempotent — ALTERs only when the column is missing (real DBs created by
+    build #4 predate linked_plan_id)."""
+    cols = {r["name"] for r in c.execute("PRAGMA table_info(goals)").fetchall()}
+    if "linked_plan_id" not in cols:
+        c.execute("ALTER TABLE goals ADD COLUMN linked_plan_id TEXT")
+
+
 @contextlib.contextmanager
 def _conn() -> Iterator[sqlite3.Connection]:
     c = sqlite3.connect(str(GOALS_DB_PATH), isolation_level=None)
@@ -58,6 +68,7 @@ def _conn() -> Iterator[sqlite3.Connection]:
     try:
         c.execute("PRAGMA journal_mode=WAL")
         ensure_schema(c, str(GOALS_DB_PATH), _SCHEMA)  # PERF-F4: run schema once per path
+        _ensure_columns(c)
         yield c
     finally:
         c.close()
@@ -74,6 +85,7 @@ class Goal:
     blocked_reason: str
     created_at: str
     updated_at: str
+    linked_plan_id: Optional[str] = None
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -115,7 +127,8 @@ def list_goals(*, status: Optional[str] = None) -> list[Goal]:
 
 
 def update_goal(gid: str, **fields) -> Optional[Goal]:
-    allowed = {"title", "done_when", "status", "progress", "next_action", "blocked_reason"}
+    allowed = {"title", "done_when", "status", "progress", "next_action",
+               "blocked_reason", "linked_plan_id"}
     sets = {k: v for k, v in fields.items() if k in allowed}
     if not sets:
         return get_goal(gid)
