@@ -83,6 +83,16 @@ class UpdateRequest(BaseModel):
     approved: bool = False
 
 
+class ApproveProposalRequest(BaseModel):
+    prefer_local: bool = False
+    approved: bool = False
+
+
+class RunRequest(BaseModel):
+    notify: bool = False
+    approved: bool = False
+
+
 # ─── audited write actions ───────────────────────────────────────────
 
 @audited(scope="goals.create", destructive=True)
@@ -97,6 +107,50 @@ def _audited_update(*, goal_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         raise ValueError(f"no goal with id {goal_id}")
     updated = store.update_goal(goal_id, **fields)
     return {"goal": updated.as_dict() if updated else None}
+
+
+@audited(scope="goals.approve_proposal", destructive=True)
+def _audited_approve_proposal(*, goal_id: str, prefer_local: bool, session: Session) -> dict[str, Any]:
+    g = store.get_goal(goal_id)
+    if g is None:
+        raise ValueError(f"no goal with id {goal_id}")
+    if g.status != "active":
+        raise ValueError(f"cannot bridge a goal in status '{g.status}' (only active goals)")
+    proposal = (g.next_action or "").strip()
+    if not proposal:
+        raise ValueError("goal has no proposed next_action to approve")
+
+    rt = build_default_router(session)
+    prof = _resolve_operator_profile(session)
+    plan, cost = planner.generate_plan(
+        proposal, router=rt, user_id=prof.id,
+        title=f"[goal] {g.title}", prefer_local=prefer_local,
+        meta={"goal_id": g.id, "origin": "goal_bridge"},
+    )
+
+    note = ""
+    if plan.steps:
+        # Single-gate auto-approve: the operator's goals.approve_proposal consent
+        # IS the approval — deliberately NOT routed through planning.approve, so
+        # one action yields one approved plan. Steps still never auto-run
+        # (execute-next remains its own gated action).
+        storage.update_plan_status(plan.id, "approved")
+    else:
+        note = "plan created with no steps — left as draft (revise before approving)"
+
+    store.update_goal(g.id, linked_plan_id=str(plan.id))
+    final = storage.get_plan(plan.id)
+    return {
+        "goal": store.get_goal(g.id).as_dict(),
+        "plan": (final or plan).as_dict(),
+        "cost_usd": round(cost, 6),
+        "note": note,
+    }
+
+
+@audited(scope="goals.run", destructive=False)
+def _audited_run(*, notify: bool) -> dict[str, Any]:
+    return scheduler.run_cycle(notify=notify)
 
 
 def _guard(fn, **kwargs):
@@ -126,3 +180,15 @@ def goals_update(goal_id: str, body: UpdateRequest):
     fields = {k: v for k, v in {"status": body.status, "progress": body.progress}.items()
               if v is not None}
     return _guard(_audited_update, goal_id=goal_id, fields=fields, approved=body.approved)
+
+
+@router.post("/{goal_id}/approve-proposal")
+def goals_approve_proposal(goal_id: str, body: ApproveProposalRequest,
+                           session: Session = Depends(get_db)):
+    return _guard(_audited_approve_proposal, goal_id=goal_id,
+                  prefer_local=body.prefer_local, session=session, approved=body.approved)
+
+
+@router.post("/run")
+def goals_run(body: RunRequest):
+    return _guard(_audited_run, notify=body.notify, approved=body.approved)

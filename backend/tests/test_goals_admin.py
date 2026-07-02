@@ -96,3 +96,96 @@ def test_update_bad_status_400(client, monkeypatch, _isolated_audit):
     r = client.post(f"/admin/goals/{gid}/update", headers=ADMIN_HEADERS,
                     json={"status": "nonsense", "approved": True})
     assert r.status_code == 400
+
+
+def _patch_llm(monkeypatch, content, *, cost=0.001):
+    """Patch admin_goals' router build + operator resolution so the bridge runs
+    against a fake router with canned planner content — no real adapter/DB."""
+    import uuid
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from app.routers import admin_goals
+    fake_router = MagicMock()
+    fake_router.complete.return_value = SimpleNamespace(content=content, total_cost_usd=cost)
+    monkeypatch.setattr(admin_goals, "build_default_router", lambda session: fake_router)
+    monkeypatch.setattr(admin_goals, "_resolve_operator_profile",
+                        lambda session: SimpleNamespace(id=uuid.uuid4(), tier="ultra"))
+    return fake_router
+
+
+@pytest.fixture(autouse=True)
+def _isolated_planning_db(tmp_path, monkeypatch):
+    from app.services.planning import storage as pl
+    monkeypatch.setattr(pl, "PLANNING_DB_PATH", tmp_path / "planning.db")
+    yield
+
+
+def test_approve_proposal_scope_off_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.delenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", raising=False)
+    g = store.create_goal("x"); store.update_goal(g.id, next_action="do thing")
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": True})
+    assert r.status_code == 403
+
+
+def test_approve_proposal_wildcard_not_enough_403(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_GOALS", "1")  # wildcard only — GOV-005 must reject
+    monkeypatch.delenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", raising=False)
+    g = store.create_goal("x"); store.update_goal(g.id, next_action="do thing")
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": True})
+    assert r.status_code == 403
+
+
+def test_approve_proposal_requires_approval_409(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", "1")
+    g = store.create_goal("x"); store.update_goal(g.id, next_action="do thing")
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": False})
+    assert r.status_code == 409
+
+
+def test_approve_proposal_creates_and_autoapproves_plan(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", "1")
+    _patch_llm(monkeypatch, '{"steps":[{"action":"one"},{"action":"two"}]}')
+    g = store.create_goal("Ship v1"); store.update_goal(g.id, next_action="write the README")
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": True})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["plan"]["status"] == "approved"
+    assert len(body["plan"]["steps"]) == 2
+    assert body["plan"]["meta"]["goal_id"] == g.id
+    assert store.get_goal(g.id).linked_plan_id == str(body["plan"]["id"])
+
+
+def test_approve_proposal_empty_steps_stays_draft(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", "1")
+    _patch_llm(monkeypatch, "no parseable steps here")
+    g = store.create_goal("Ship v1"); store.update_goal(g.id, next_action="do thing")
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": True})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["plan"]["status"] == "draft"
+    assert body["note"]
+
+
+def test_approve_proposal_no_proposal_400(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", "1")
+    _patch_llm(monkeypatch, '{"steps":[{"action":"one"}]}')
+    g = store.create_goal("x")  # no next_action set
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": True})
+    assert r.status_code == 400
+
+
+def test_run_endpoint_triggers_cycle(client, monkeypatch, _isolated_audit):
+    monkeypatch.setenv("KAI_SCOPE_GOALS", "1")  # goals.run is non-destructive → wildcard ok
+    monkeypatch.setattr("app.services.goals.scheduler.run_cycle",
+                        lambda **kw: {"advanced": 0, "results": [], "notified": False})
+    r = client.post("/admin/goals/run", headers=ADMIN_HEADERS,
+                    json={"notify": False, "approved": True})
+    assert r.status_code == 200
+    assert r.json()["advanced"] == 0
