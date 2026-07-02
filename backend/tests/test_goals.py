@@ -85,3 +85,49 @@ def test_update_goal_sets_linked_plan_id():
     g = store.create_goal("X")
     store.update_goal(g.id, linked_plan_id="42")
     assert store.get_goal(g.id).linked_plan_id == "42"
+
+
+def test_migration_upgrades_preexisting_db(tmp_path, monkeypatch):
+    """A goals.db created by build #4 (9 columns, no linked_plan_id) must be
+    upgraded in place by _ensure_columns on first connect — without it, an
+    update touching linked_plan_id raises 'no such column'."""
+    import sqlite3
+    from app.services import _sqlite_util
+    from app.services.goals import store
+
+    db = tmp_path / "old_goals.db"
+    old_schema = """
+    CREATE TABLE goals (
+      id             TEXT PRIMARY KEY,
+      title          TEXT NOT NULL,
+      done_when      TEXT NOT NULL DEFAULT '',
+      status         TEXT NOT NULL DEFAULT 'active',
+      progress       TEXT NOT NULL DEFAULT '',
+      next_action    TEXT NOT NULL DEFAULT '',
+      blocked_reason TEXT NOT NULL DEFAULT '',
+      created_at     TEXT NOT NULL,
+      updated_at     TEXT NOT NULL
+    );
+    """
+    con = sqlite3.connect(str(db))
+    con.executescript(old_schema)
+    con.execute(
+        "INSERT INTO goals (id,title,done_when,status,progress,next_action,"
+        "blocked_reason,created_at,updated_at) VALUES "
+        "('g1','Old goal','','active','','','','2026-01-01T00:00:00','2026-01-01T00:00:00')"
+    )
+    con.commit()
+    con.close()
+
+    monkeypatch.setattr(store, "GOALS_DB_PATH", db)
+    _sqlite_util.reset_for_tests()
+
+    # read path works and back-fills None for the new column
+    g = store.get_goal("g1")
+    assert g is not None and g.linked_plan_id is None
+
+    # the update that would raise "no such column" without the ALTER now succeeds
+    store.update_goal("g1", linked_plan_id="42")
+    assert store.get_goal("g1").linked_plan_id == "42"
+
+    _sqlite_util.reset_for_tests()
