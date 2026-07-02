@@ -261,6 +261,33 @@ def _get_cmd():
 # ─── FastAPI App ───────────────────────────────────────────────────────────────
 
 from contextlib import asynccontextmanager
+import inspect as _inspect
+
+# Deferred startup/shutdown handlers — populated at module-import time by
+# optional-feature blocks below (e.g. NarAI v2 db init, briefing scheduler,
+# promo scheduler, Discord bot). Each handler runs inside the lifespan
+# context, wrapped in its own try/except so one failure cannot block boot.
+# Documented startup order (CRITICAL):
+#   1. _v2_init_db  — initialises chromadb-backed state used by schedulers
+#   2. start_briefing_scheduler  — depends on (1)
+#   3. start_promo_scheduler     — depends on (1)
+#   4. _spawn_discord            — background asyncio task, no DB dep
+# Shutdown runs in reverse-registration order.
+_DEFERRED_STARTUP_HANDLERS: list = []
+_DEFERRED_SHUTDOWN_HANDLERS: list = []
+
+
+def _register_startup(fn):
+    """Register a deferred startup handler that the lifespan will invoke."""
+    _DEFERRED_STARTUP_HANDLERS.append(fn)
+    return fn
+
+
+def _register_shutdown(fn):
+    """Register a deferred shutdown handler that the lifespan will invoke."""
+    _DEFERRED_SHUTDOWN_HANDLERS.append(fn)
+    return fn
+
 
 @asynccontextmanager
 async def _lifespan(application: FastAPI):
@@ -278,6 +305,21 @@ async def _lifespan(application: FastAPI):
         _add_log("Async job queue started", "INFO")
     except Exception as _jq_err:
         _add_log(f"Job queue start failed: {_jq_err}", "WARNING")
+
+    # ── Deferred startup handlers (registered by optional-feature blocks) ────
+    # Iterated in documented order: db init → schedulers → background tasks.
+    # Each handler wrapped in its own try/except so one failure can't block
+    # boot — matches the existing fail-soft pattern used throughout this file.
+    for _handler in list(_DEFERRED_STARTUP_HANDLERS):
+        _name = getattr(_handler, "__name__", repr(_handler))
+        try:
+            _result = _handler()
+            if _inspect.isawaitable(_result):
+                await _result
+            _add_log(f"Startup hook {_name} OK", "INFO")
+        except Exception as _hook_err:
+            logger.warning(f"startup hook {_name} failed: {_hook_err}")
+            _add_log(f"Startup hook {_name} failed: {_hook_err}", "WARNING")
 
     def _lifespan_bg():
         _ls_time.sleep(3)  # brief pause, then start loading
@@ -671,6 +713,18 @@ async def _lifespan(application: FastAPI):
 
     yield
     # Shutdown — must not raise; any exception here causes "Application shutdown failed"
+
+    # ── Deferred shutdown handlers — reverse-registration order ──────────────
+    for _sh_handler in list(reversed(_DEFERRED_SHUTDOWN_HANDLERS)):
+        _sh_name = getattr(_sh_handler, "__name__", repr(_sh_handler))
+        try:
+            _sh_result = _sh_handler()
+            if _inspect.isawaitable(_sh_result):
+                await _sh_result
+        except Exception as _sh_err:
+            logger.warning(f"shutdown hook {_sh_name} failed: {_sh_err}")
+            _add_log(f"Shutdown hook {_sh_name} failed: {_sh_err}", "WARNING")
+
     try:
         from core.job_queue import get_queue
         await get_queue().stop()
@@ -1535,6 +1589,26 @@ async def clone_new_meeting(body: ZoomMeetingCreateRequest, request: Request):
         "start_url": result.get("start_url"),
         "password": result.get("password"),
     }
+
+
+# ─── Operator Tasks panel ─────────────────────────────────────────────────────
+
+@app.get("/api/admin/operator-tasks")
+async def admin_operator_tasks():
+    """
+    Return the operator-actions panel payload from data/operator-tasks.json.
+    X-API-Key protected via global verify_api_key middleware (all /api/* routes).
+    """
+    import json as _json
+    from pathlib import Path as _Path
+    p = _Path(__file__).resolve().parent.parent / "data" / "operator-tasks.json"
+    if not p.exists():
+        return {"version": 0, "tasks": [], "error": "operator-tasks.json not found"}
+    try:
+        with p.open("r", encoding="utf-8") as f:
+            return _json.load(f)
+    except Exception as e:
+        raise HTTPException(500, f"Failed to read operator-tasks.json: {e}")
 
 
 @app.get("/api/narai/clone/meetings")
@@ -14768,12 +14842,13 @@ if _v2_auth_loaded:
         app.include_router(_v2_rag_rt, prefix="/api/v2/narai")
         app.include_router(_v2_skills_rt, prefix="/api/v2/narai")
 
-        # init_db is async; register it on FastAPI's startup so it runs inside
+        # init_db is async; register it on FastAPI's lifespan so it runs inside
         # the event loop. Calling asyncio.run() here fails when uvicorn imports
         # core.api from within an already-running loop.
-        # FastAPI ≥0.110 removed add_event_handler. on_event is also deprecated
-        # but still functional; lifespan migration tracked separately.
-        app.on_event("startup")(_v2_init_db)
+        # Migrated from deprecated @app.on_event to deferred-handler list that
+        # the lifespan context manager iterates in documented order; _v2_init_db
+        # MUST run before any scheduler that depends on initialised state.
+        _register_startup(_v2_init_db)
         logger.info("NarAI v2 chat/memory/rag/skills loaded at /api/v2/narai")
     except Exception as _e:
         logger.warning(f"NarAI v2 chat/memory/rag not loaded (chromadb missing?): {_e}")
@@ -14823,14 +14898,14 @@ if _v2_auth_loaded:
     # isn't configured (no point computing if no delivery channel).
     try:
         from narai.integrations.scheduler import start_briefing_scheduler
-        app.on_event("startup")(start_briefing_scheduler)
+        _register_startup(start_briefing_scheduler)
         logger.info("NarAI v2 briefing scheduler hook registered")
     except Exception as _e:
         logger.warning(f"NarAI v2 briefing scheduler not registered: {_e}")
 
     try:
         from narai.integrations.scheduler_promo import start_promo_scheduler
-        app.on_event("startup")(start_promo_scheduler)
+        _register_startup(start_promo_scheduler)
         logger.info("Insider promo scheduler hook registered")
     except Exception as _e:
         logger.warning(f"Insider promo scheduler not registered: {_e}")
@@ -14990,7 +15065,7 @@ if _v2_auth_loaded:
                     logger.info("Discord bot task exited cleanly")
             t.add_done_callback(_done)
             logger.info("Discord bot task launched")
-        app.on_event("startup")(_spawn_discord)
+        _register_startup(_spawn_discord)
         logger.info("Discord bot startup hook registered")
     except Exception as _e:
         logger.warning(f"Discord bot startup not registered: {_e}")

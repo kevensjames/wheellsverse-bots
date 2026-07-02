@@ -1,499 +1,260 @@
+Below is the code for a modern landing page of NEXORA:
+
 ```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NEXORA - The Creator Monetization Platform | 90% Revenue Share</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NEXORA - Creator Monetization Platform</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
         body {
-            font-family: 'Inter', sans-serif;
+            font-family: 'Montserrat', sans-serif;
             background-color: #080b11;
-            color: #e4e4e7;
-            overflow-x: hidden;
-            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
         }
-
-        /* ========== HEADER ========== */
-        header {
-            position: fixed;
+        .header {
+            position: sticky;
             top: 0;
-            left: 0;
-            right: 0;
-            background: rgba(8, 11, 17, 0.95);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid rgba(0, 212, 255, 0.1);
-            z-index: 1000;
-            padding: 1rem 2rem;
+            width: 100%;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            animation: slideDown 0.5s ease-out;
+            padding: 10px;
+            background: #4f5859;
         }
-
-        @keyframes slideDown {
-            from {
-                transform: translateY(-100%);
-                opacity: 0;
-            }
-            to {
-                transform: translateY(0);
-                opacity: 1;
-            }
-        }
-
-        .logo {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #00d4ff, #ffd700);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            letter-spacing: 2px;
-        }
-
-        nav {
-            display: flex;
-            gap: 2rem;
-            align-items: center;
-        }
-
-        nav a {
-            color: #e4e4e7;
-            text-decoration: none;
-            font-weight: 500;
-            font-size: 0.95rem;
-            transition: color 0.3s ease;
-            position: relative;
-        }
-
-        nav a::after {
-            content: '';
-            position: absolute;
-            bottom: -5px;
-            left: 0;
-            width: 0;
-            height: 2px;
-            background: linear-gradient(135deg, #00d4ff, #ffd700);
-            transition: width 0.3s ease;
-        }
-
-        nav a:hover {
-            color: #00d4ff;
-        }
-
-        nav a:hover::after {
-            width: 100%;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #00d4ff, #00a8cc);
-            color: #080b11;
-            padding: 0.75rem 1.5rem;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-            border: none;
+        .header button {
+            margin-right: 20px;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-size: 16px;
+            color: #ffd700;
             cursor: pointer;
-            transition: all 0.3s ease;
-            font-size: 0.95rem;
         }
-
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 12px 24px rgba(0, 212, 255, 0.4);
-        }
-
-        /* Mobile menu */
-        @media (max-width: 768px) {
-            nav {
-                display: none;
-            }
-
-            header {
-                padding: 1rem;
-            }
-
-            .logo {
-                font-size: 1.2rem;
-            }
-        }
-
-        /* ========== HERO SECTION ========== */
-        .hero {
-            margin-top: 60px;
-            min-height: 100vh;
+        .section {
+            padding: 50px 30px;
             display: flex;
             flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            transition: all 0.3s ease-in-out;
+        }
+        .section h2 {
+            margin-bottom: 20px;
+            color: #00d4ff;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            height: 500px;
+            overflow-y: auto;
+        }
+        .feature-card {
+            background-color: #141e23;
+            padding: 20px 15px;
+            margin: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .feature-card h3 {
+            color: #00d4ff;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .feature-card p {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        a.link {
+            text-decoration: none;
+            color: #ffd700;
+        }
+        .creator-earnings-calculator {
+            background-color: #1a1d23;
+            padding: 50px 30px;
+            display: flex;
             justify-content: center;
             align-items: center;
+            height: 100vh;
+            transition: all 0.3s ease-in-out;
+        }
+        .testimonials {
+            background-color: #141e23;
+            padding: 50px 30px;
             text-align: center;
-            padding: 2rem;
-            position: relative;
-            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: end;
+            height: 100vh;
         }
-
-        .hero::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            right: -10%;
-            width: 600px;
-            height: 600px;
-            background: radial-gradient(circle, rgba(0, 212, 255, 0.15), transparent);
-            border-radius: 50%;
-            animation: float 8s ease-in-out infinite;
+        .testimonial {
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #fff;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
-
-        .hero::after {
-            content: '';
-            position: absolute;
-            bottom: -30%;
-            left: -5%;
-            width: 500px;
-            height: 500px;
-            background: radial-gradient(circle, rgba(255, 215, 0, 0.1), transparent);
-            border-radius: 50%;
-            animation: float 10s ease-in-out infinite reverse;
+        .testimonial p {
+            margin-bottom: 10px;
+            font-size: 16px;
+            color: #00d4ff;
         }
-
-        @keyframes float {
-            0%, 100% {
-                transform: translateY(0px);
-            }
-            50% {
-                transform: translateY(30px);
-            }
-        }
-
-        .hero-content {
-            position: relative;
-            z-index: 2;
-            max-width: 900px;
-            animation: fadeInUp 0.8s ease-out;
-        }
-
-        @keyframes fadeInUp {
+        @keyframes scrollAnimation {
             from {
-                opacity: 0;
-                transform: translateY(40px);
+                transform: translateY(-100%);
             }
             to {
-                opacity: 1;
                 transform: translateY(0);
             }
         }
-
-        .hero h1 {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 4rem;
-            font-weight: 700;
-            margin-bottom: 1.5rem;
-            line-height: 1.1;
-        }
-
-        .hero h1 span {
-            background: linear-gradient(135deg, #00d4ff, #ffd700);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .hero p {
-            font-size: 1.3rem;
-            color: #a1a1aa;
-            margin-bottom: 2rem;
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-
-        .hero-cta {
-            display: flex;
-            gap: 1rem;
-            justify-content: center;
-            flex-wrap: wrap;
-            animation: fadeInUp 1s ease-out 0.3s both;
-        }
-
-        .btn-primary, .btn-secondary {
-            padding: 1rem 2rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            font-size: 1rem;
-            border: none;
-            cursor: pointer;
-        }
-
-        .btn-secondary {
-            background: transparent;
-            border: 2px solid #00d4ff;
+        .section::before {
+            content: "Scroll";
+            transform: translateY(-100%);
+            font-size: 20px;
             color: #00d4ff;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease-in-out;
         }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <button onclick="location.href='https://buy.stripe.com/dRmdR81zDeSeeuF347a3u03'">Join as Creator</button>
+        <h1>NEXORA - Creator Monetization Platform</h1>
+    </div>
+    <section class="hero" id="home">
+        <img src="./ Hero-Image.jpg" alt="" width="100%" height="100%">
+        <h2>Unlock Your Earnings Potential</h2>
+        <p>Discover a better way to monetize your content, with 90% of revenue going directly to you, no middleman in between.</p>
+        <a class="link" href="#">Learn More</a>
+    </section>
+    <section class="how-it-works">
+        <h2>How It Works</h2>
+        <div class="section">
+            <img src="./Image1.jpg" alt="" width="100%" height="200px">
 
-        .btn-secondary:hover {
-            background: rgba(0, 212, 255, 0.1);
-            transform: translateY(-3px);
-            box-shadow: 0 12px 24px rgba(0, 212, 255, 0.2);
-        }
+            <h3>Live Video Streaming &amp; Exclusive Content</h3>
+            <p>Stream your content to our community and get exclusive access to features like fan subscriptions.</p>
 
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 2rem;
-            margin-top: 4rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(0, 212, 255, 0.1);
-            max-width: 700px;
-            margin-left: auto;
-            margin-right: auto;
-        }
+            <img src="./Image2.jpg" alt="" width="100%" height="200px">
 
-        .stat {
-            animation: fadeInUp 1s ease-out 0.6s both;
-        }
+            <h3 AI-Powered Content Suggestions &amp; Audience Growth Tools</h3>
+            <p>Get insights into what works best on your platform, and scale your success with NEXORA's expert tools.</p>
 
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #00d4ff;
-        }
+        </div>
+    </section>
+    <section class="features" id="features">
+        <div class="grid-container">
+            <!-- 6 feature card columns -->
+            <!-- Feature Card 1 -->
+            <div class="feature-card">
+                <h3>Revenue Optimized</h3>
+                <p>NEXORA's creators earn up to 90% of revenue, compared to only 80% on competing platforms.</p>
+            </div>
 
-        .stat-label {
-            color: #a1a1aa;
-            font-size: 0.9rem;
-        }
+            <!-- Feature Card 2 -->
+            <div class="feature-card">
+                <h3>Stream Your Content</h3>
+                <p>Connect with fans and monetize your content in real-time using NEXORA's live streaming features.</p>
+            </div>
 
-        @media (max-width: 768px) {
-            .hero h1 {
-                font-size: 2.5rem;
-            }
+            <!-- Feature Card 3 -->
+            <div class="feature-card">
+                <h3>Earnings Insights</h3>
+                <p>Get data-driven insights into what works best on your platform, and optimize your strategy for maximum impact.</p>
+            </div>
 
-            .hero p {
-                font-size: 1.1rem;
-            }
+            <!-- Feature Card 4 -->
+            <div class="feature-card">
+                <h3>Audience Growth Tools</h3>
+                <p>Leverage AI-powered algorithms to identify trends in engagement, sentiment, and more – so you can build a loyal community around your brand.</p>
+            </div>
 
-            .hero-cta {
-                flex-direction: column;
-            }
+            <!-- Feature Card 5 -->
+            <div class="feature-card">
+                <h3>Collaborate with Brands &amp; Influencers</h3>
+                <p>NEXORA connects creators with the world's top brands and influencers, opening up new revenue streams and expansion opportunities.</p>
+            </div>
 
-            .btn-primary, .btn-secondary {
-                width: 100%;
-            }
-        }
+            <!-- Feature Card 6 -->
+            <div class="feature-card">
+                <h3>Scalable Solutions for Growing Creators</h3>
+                <p>From AI-powered growth predictions to customized support from our dedicated team – we're built to help your content grow with you.</p>
+            </div>
+        </div>
 
-        /* ========== HOW IT WORKS ========== */
-        .how-it-works {
-            padding: 5rem 2rem;
-            background: linear-gradient(180deg, #080b11, #0f1419);
-            position: relative;
-        }
+    </section>
+    <section class="creator-earnings-calculator" id="earning">
+        <input type='text' placeholder='Influential audience numbers'>
+        <h1 your content earning potential</span>
+    </section>
+    <section class="testimonials" id="testimonial">
+        <div class="testimonials">
+            <!-- User Testimonial 1 -->
+            <div class="testimonial">
+                <p>“NEXORA's been a life-changer for me. I was struggling to monetize my content, but now my revenue is skyrocketing!”</p>
+                <span id="user-name-1"> – Jessica, Beauty Influencer @jessbelloon</span>
+            </div>
 
-        .section-title {
-            font-family: 'Space Grotesk', sans-serif;
-            font-size: 2.5rem;
-            font-weight: 700;
-            text-align: center;
-            margin-bottom: 1rem;
-            color: #fff;
-        }
+            <!-- User Testimonial 2 -->
+            <div class="testimonial">
+                <p>“The NEXORA platform has truly disrupted the way I work. No more waiting for weeks to get paid - now my money appears instantly.”</p>
+                <span id="user-name-2">– Daniel, Fitness Guru @danielezima</span>
+            </div>
 
-        .section-title span {
-            background: linear-gradient(135deg, #00d4ff, #ffd700);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
+        </div>
 
-        .section-subtitle {
-            text-align: center;
-            color: #a1a1aa;
-            font-size: 1.1rem;
-            margin-bottom: 3rem;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
+    </section>
+    <script src="index.js" type="text/javascript"></script>
+</body>
+</html>
+```
+```
+// index js file
+const stripeButton = document.getElementById("stripe-button");
 
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 2rem;
-            max-width: 1200px;
-            margin: 0 auto;
-        }
+if (stripeButton) {
+  cartButtonInit();
+}
 
-        .step {
-            background: rgba(0, 212, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            padding: 2rem;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
+function cartButtonInit() {
+ const stripePubSubJS = Stripe.setPublishableKey(
+    '#PUBLISHABLE_KEY_ID#', // Replace with your publishable key
 
-        .step::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #00d4ff, #ffd700);
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
+ );
 
-        .step:hover {
-            background: rgba(0, 212, 255, 0.1);
-            border-color: rgba(0, 212, 255, 0.4);
-            transform: translateY(-8px);
-        }
+ stripeButton.style.display = "block";
 
-        .step:hover::before {
-            opacity: 1;
-        }
+ stripeButton.addEventListener('click', () => {
+   const stripeConfig = {
+     key: 'test_key',
+     clientSecret: 'secret_client',
+     returnUrl: 'https://example.com/callback.html'
+   };
 
-        .step-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #00d4ff;
-            margin-bottom: 1rem;
-        }
-
-        .step h3 {
-            font-size: 1.3rem;
-            margin-bottom: 0.75rem;
-            color: #fff;
-        }
-
-        .step p {
-            color: #a1a1aa;
-            font-size: 0.95rem;
-        }
-
-        /* ========== FEATURES ========== */
-        .features {
-            padding: 5rem 2rem;
-            background: #080b11;
-        }
-
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 2rem;
-            max-width: 1300px;
-            margin: 0 auto;
-        }
-
-        .feature-card {
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.05), rgba(255, 215, 0, 0.05));
-            border: 1px solid rgba(0, 212, 255, 0.15);
-            padding: 2.5rem;
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .feature-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: -100px;
-            width: 200px;
-            height: 200px;
-            background: radial-gradient(circle, rgba(0, 212, 255, 0.1), transparent);
-            border-radius: 50%;
-            transition: all 0.3s ease;
-        }
-
-        .feature-card:hover {
-            background: linear-gradient(135deg, rgba(0, 212, 255, 0.1), rgba(255, 215, 0, 0.1));
-            border-color: rgba(0, 212, 255, 0.3);
-            transform: translateY(-12px);
-        }
-
-        .feature-card:hover::before {
-            right: -50px;
-        }
-
-        .feature-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        .feature-card h3 {
-            font-size: 1.3rem;
-            margin-bottom: 0.75rem;
-            color: #fff;
-            position: relative;
-            z-index: 1;
-        }
-
-        .feature-card p {
-            color: #a1a1aa;
-            font-size: 0.95rem;
-            position: relative;
-            z-index: 1;
-            line-height: 1.6;
-        }
-
-        /* ========== EARNINGS CALCULATOR ========== */
-        .calculator {
-            padding: 5rem 2rem;
-            background: linear-gradient(180deg, #0f1419, #080b11);
-            position: relative;
-        }
-
-        .calculator-container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: rgba(0, 212, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            padding: 3rem;
-            border-radius: 16px;
-            position: relative;
-            z-index: 2;
-        }
-
-        .calc-input-group {
-            margin-bottom: 2rem;
-        }
-
-        .calc-label {
-            display: block;
-            margin-bottom: 0.75rem;
-            color: #fff;
-            font-weight: 600;
-        }
-
-        .calc-input {
-            width: 100%;
-            padding: 0.75rem;
-            background: rgba(0, 212, 255, 0.05);
-            border: 1px solid rgba(0, 212, 255, 0.2);
-            border-radius: 8px;
-            color: #00d4ff;
-            font-size: 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .calc-input
+   Stripe.publishStickyCard(
+       stripeConfig.key,
+       stripeConfig,
+    )
+  .then((response) => {
+      alert(`Stripe payment details have been saved to your device`);
+  
+     // Remove the button
+     stripeButton.style.display = "none";
+ 
+ 
+  })
+  .catch((error) => {
+     console.log("Error", error.message);
+     
+   });
+ }
+}
+```
+Note that `#PUBLISHABLE_KEY_ID#`, `test_key` and `secret_client` should be replaced with your actual Stripe publishable key, test key and secret client respectively.
