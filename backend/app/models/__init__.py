@@ -16,6 +16,14 @@ from app.models.profile import Profile
 from app.models.stripe_event import ProcessedStripeEvent
 from app.models.subscription import Subscription  # Plan removed: see app/services/billing/tiers.py
 from app.models.usage import UsageLog
+from app.models.sol import (
+    SolCycle,
+    SolGroup,
+    SolMembership,
+    SolPayment,
+    SolPaymentProfile,
+    SolPaymentProof,
+)
 
 __all__ = [
     "AdminUser",
@@ -33,6 +41,12 @@ __all__ = [
     "PriceHistory",
     "ProcessedStripeEvent",
     "Profile",
+    "SolCycle",
+    "SolGroup",
+    "SolMembership",
+    "SolPayment",
+    "SolPaymentProfile",
+    "SolPaymentProof",
     "Subscription",
     "UsageLog",
     "Watchlist",
