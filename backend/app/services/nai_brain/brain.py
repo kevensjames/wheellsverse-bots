@@ -30,6 +30,14 @@ def _self_correction_on_chat() -> bool:
     )
 
 
+def _memory_extract_on_chat() -> bool:
+    """Background continual-learning extraction is opt-in (a cheap async LLM call
+    per turn, OFF the reply path). Enable with KAI_MEMORY_EXTRACT_ON_CHAT=1."""
+    return (os.environ.get("KAI_MEMORY_EXTRACT_ON_CHAT") or "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+
+
 def _eq_analyze_and_record(user_message: str) -> str:
     """Per-message companion hook: detect mood (persist a non-neutral sample) and
     bump the relationship interaction counter. Returns the tone-adaptation
@@ -311,6 +319,19 @@ class Brain:
         self.session.commit()
         self.session.refresh(assistant_msg)
         self.session.refresh(conv)
+
+        # Continual learning (KAI v1 build #3): opt-in background extraction of
+        # durable facts from this turn into long-term memory. Fire-and-forget on
+        # its own thread + DB session — never blocks or fails the reply.
+        if _memory_extract_on_chat():
+            try:
+                from app.services.memory.extractor import spawn_extraction
+                spawn_extraction(
+                    user_id=user_id, user_message=user_message,
+                    assistant_reply=final_content, router=self.router,
+                )
+            except Exception:
+                logger.exception("memory extraction spawn failed")
 
         return conv, assistant_msg, total_cost
 
