@@ -13,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1, ws_collab
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, transcribe, tts, v1, ws_collab
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -220,6 +220,11 @@ app.include_router(v1.router)
 # canonical; /nai stays alive so any in-flight client keeps working.
 app.include_router(nai.router, prefix="/kai")
 app.include_router(nai.router, prefix="/nai")
+# Sol v1 — non-custodial ROSCA coordinator (/sol/v1). Safe on the consumer
+# surface because it never touches money: it only coordinates and records
+# member-to-member payments made outside the app. (The custodial Dwolla Sol
+# stays operator-only below.)
+app.include_router(sol_v1.router)
 
 # ── Operator surface — control plane, agent subsystems, money ops. NEVER
 #    mounted when KAI_PROFILE=consumer (App-Store Step 0): the /admin/* control

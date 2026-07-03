@@ -22,6 +22,14 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO_ROOT"
 export PYTHONPATH="$REPO_ROOT/backend:${PYTHONPATH:-}"
 
+# Pin the interpreter to the project's own venv when present, so bare `python`
+# (here AND inside pytest/conftest, which import app.main → slowapi etc.) is the
+# daemon's interpreter with all deps — NOT whatever stale venv happens to sit
+# first on PATH (e.g. a *.OLD_PRE_MIGRATION/.venv on the external SSD).
+if [ -x "$REPO_ROOT/.venv/bin/python" ]; then
+  export PATH="$REPO_ROOT/.venv/bin:$PATH"
+fi
+
 # Importing app.* loads app.config, which requires DATABASE_URL to exist (it is
 # NOT connected to — SQLAlchemy's create_engine is lazy). Provide a harmless
 # non-connecting placeholder ONLY if the operator hasn't set one, so import
@@ -101,8 +109,38 @@ case "$STAGE" in
       "schema: sol_groups table present (local/test DB only)" \
       python deploy/db_check.py table sol_groups
     ;;
+  2)
+    section "Sol Stage 2 — Group lifecycle API (create/join/lock + calendar)"
+
+    run_check "service: sol_v1 package imports" \
+      python -c "from app.services.sol_v1 import lifecycle"
+    run_check "schemas: sol_v1 imports" \
+      python -c "from app.schemas.sol_v1 import GroupCreate, GroupOut, JoinRequest, LockRequest, GroupDetail, MembershipOut, CycleOut"
+    run_check "router: sol_v1 exposes the 4 lifecycle routes" \
+      python -c "from app.routers.sol_v1 import router; p={r.path for r in router.routes}; assert p=={'/sol/v1/groups','/sol/v1/groups/join','/sol/v1/groups/{group_id}','/sol/v1/groups/{group_id}/lock'}, p"
+    run_check "router: registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with /sol/v1 mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/groups' in paths and '/sol/v1/groups/{group_id}/lock' in paths, 'sol_v1 routes missing from app'"
+
+    # NON-CUSTODIAL guard: the Sol v1 surface must contain no money-movement or
+    # bank primitives — no Dwolla/Stripe client imports, no ACH/wallet/escrow
+    # calls, no routing/account/card fields. Targets actual CODE (imports, calls,
+    # field names) over .py only, so prose that merely NAMES the custodial system
+    # it deliberately avoids ("separate from the legacy Dwolla Sol") is not a hit.
+    run_check "non-custodial: no money-movement/bank primitives in sol_v1" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1 backend/app/routers/sol_v1.py backend/app/schemas/sol_v1.py"
+
+    run_check "tests: pytest test_sol_v1_lifecycle (unit + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_lifecycle.py -v --tb=short'
+
+    # End-to-end DB lifecycle — needs a reachable test Postgres.
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: create→join→lock→detail on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_lifecycle.py::test_full_lifecycle_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (only Stage 1 exists so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-2 exist so far)"
     exit 3
     ;;
 esac
