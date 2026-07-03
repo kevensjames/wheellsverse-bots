@@ -139,8 +139,44 @@ case "$STAGE" in
       "e2e: create→join→lock→detail on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_lifecycle.py::test_full_lifecycle_on_real_db -v'
     ;;
+  3)
+    section "Sol Stage 3 — Ledger + double confirmation (manual/external rail)"
+
+    run_check "service: sol_v1 ledger imports" \
+      python -c "from app.services.sol_v1 import ledger"
+    run_check "schemas: sol_v1_ledger imports" \
+      python -c "from app.schemas.sol_v1_ledger import PaymentOut, PaymentDetail, MarkPaidRequest, PaymentProfileUpsert, PaymentProfileOut, ProofOut, CycleActivateOut"
+    run_check "router: sol_v1_ledger exposes the 9 ledger routes" \
+      python -c "from app.routers.sol_v1_ledger import router; p={r.path for r in router.routes}; want={'/sol/v1/cycles/{cycle_id}/activate','/sol/v1/payments','/sol/v1/payments/{payment_id}','/sol/v1/payments/{payment_id}/mark','/sol/v1/payments/{payment_id}/confirm','/sol/v1/payments/{payment_id}/dispute','/sol/v1/payments/{payment_id}/proofs','/sol/v1/payment-profiles','/sol/v1/payment-profiles/{profile_id}'}; assert p==want, p"
+    run_check "router: ledger registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_ledger\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with the ledger routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/payments/{payment_id}/confirm' in paths and '/sol/v1/payment-profiles' in paths, 'ledger routes missing from app'"
+
+    run_check "model: sol_payments.method is nullable (materialized-before-paid)" \
+      python -c "from app.models.sol import SolPayment; assert SolPayment.__table__.c.method.nullable is True, 'method must be nullable'"
+    run_check "migration: 0008 exists + chains onto 0007" \
+      bash -c "test -f backend/alembic/versions/0008_sol_payment_method_nullable.py && grep -qE 'down_revision.*0007_sol_v1_data_model' backend/alembic/versions/0008_sol_payment_method_nullable.py"
+    run_check "migration: 0009 exists + chains onto 0008" \
+      bash -c "test -f backend/alembic/versions/0009_sol_payments_cycle_payer_uq.py && grep -qE 'down_revision.*0008_sol_payment_method_nullable' backend/alembic/versions/0009_sol_payments_cycle_payer_uq.py"
+    run_check "model: sol_payments has UNIQUE(cycle_id,payer_id) backstop" \
+      python -c "from app.models.sol import SolPayment; names={c.name for c in SolPayment.__table__.constraints}; assert 'sol_payments_cycle_payer_uq' in names, names"
+
+    # NON-CUSTODIAL guard over the ledger surface — recording payments, never
+    # moving them. No payment-SDK imports, no bank/card fields, no transfer calls.
+    run_check "non-custodial: no money-movement/bank primitives in ledger" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/ledger.py backend/app/routers/sol_v1_ledger.py backend/app/schemas/sol_v1_ledger.py"
+
+    run_check "tests: pytest test_sol_v1_ledger (state machine + guard + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_ledger.py -v --tb=short'
+
+    # End-to-end DB ledger flow — needs a reachable test Postgres.
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: activate→mark→confirm→complete on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_ledger.py::test_ledger_end_to_end_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-2 exist so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-3 exist so far)"
     exit 3
     ;;
 esac

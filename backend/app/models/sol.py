@@ -150,6 +150,9 @@ class SolPayment(Base):
         CheckConstraint(_in("method", PAYMENT_METHODS), name="sol_payments_method_check"),
         CheckConstraint(_in("status", PAYMENT_STATUSES), name="sol_payments_status_check"),
         CheckConstraint("payer_id <> payee_id", name="sol_payments_distinct_parties_check"),
+        # One payment per (cycle, payer): DB backstop so a duplicate cycle
+        # activation can never materialize a second set of payment rows.
+        UniqueConstraint("cycle_id", "payer_id", name="sol_payments_cycle_payer_uq"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -165,7 +168,10 @@ class SolPayment(Base):
         UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
     )
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
-    method: Mapped[str] = mapped_column(Text, nullable=False)
+    # NULL until the payer actually marks paid and picks the rail they used
+    # (rows are materialized at cycle activation, before any payment happens).
+    # The method CHECK still constrains non-NULL values to PAYMENT_METHODS.
+    method: Mapped[str | None] = mapped_column(Text, nullable=True)
     payer_marked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     payee_confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
