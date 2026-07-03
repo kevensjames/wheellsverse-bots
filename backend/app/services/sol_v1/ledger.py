@@ -223,6 +223,8 @@ def dispute(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPayment:
     payment = _load_payment(db, payment_id, lock=True)
     _require_payment_party(payment, actor_id, side="payee")
     payment.status = next_status(payment.status, "dispute")
+    if payment.disputed_at is None:  # sticky — keep the first dispute time
+        payment.disputed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(payment)
     return payment

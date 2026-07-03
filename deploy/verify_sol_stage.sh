@@ -207,8 +207,42 @@ case "$STAGE" in
       "e2e: overdue→late + member_reminders on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_reminders.py::test_reminders_flow_on_real_db -v'
     ;;
+  5)
+    section "Sol Stage 5 — reputation (0-100 trust score from payer history)"
+
+    run_check "service: sol_v1 reputation imports" \
+      python -c "from app.services.sol_v1 import reputation; reputation.classify_payment; reputation.score_from_counts; reputation.compute_reputation"
+    run_check "schemas: ReputationOut imports" \
+      python -c "from app.schemas.sol_v1_reputation import ReputationOut, ReputationBreakdown"
+    run_check "router: sol_v1_reputation exposes the 2 routes" \
+      python -c "from app.routers.sol_v1_reputation import router; assert {r.path for r in router.routes}=={'/sol/v1/reputation/me','/sol/v1/groups/{group_id}/reputation'}"
+    run_check "router: reputation registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_reputation\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with reputation routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/reputation/me' in paths and '/sol/v1/groups/{group_id}/reputation' in paths"
+
+    # scoring sanity: pure function behaves (unrated / on-time-100 / overdue-drags)
+    run_check "scoring: unrated with no history, 100 all-on-time, 0 all-overdue" \
+      python -c "from app.services.sol_v1.reputation import score_from_counts as s; assert s({})['score'] is None; assert s({'on_time':3})['score']==100; assert s({'overdue':3})['score']==0; assert s({'on_time':5,'disputed':5})['score']==50"
+    run_check "anti-gaming: marked-past-due→overdue; disputes sticky" \
+      python -c "from datetime import date; from app.services.sol_v1.reputation import classify_payment as c; assert c(status='marked', due_date=date(2020,1,1), today=date(2026,1,1), marked_on=None)=='overdue'; assert c(status='marked', due_date=date(2030,1,1), today=date(2026,1,1), marked_on=None, ever_disputed=True)=='disputed'"
+    run_check "migration: 0010 exists + chains onto 0009" \
+      bash -c "test -f backend/alembic/versions/0010_sol_payment_disputed_at.py && grep -qE 'down_revision.*0009_sol_payments_cycle_payer_uq' backend/alembic/versions/0010_sol_payment_disputed_at.py"
+    run_check "model: sol_payments has disputed_at (sticky dispute)" \
+      python -c "from app.models.sol import SolPayment; assert 'disputed_at' in SolPayment.__table__.c, 'disputed_at column missing'"
+
+    run_check "non-custodial: no money-movement/bank primitives in reputation" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/reputation.py backend/app/routers/sol_v1_reputation.py backend/app/schemas/sol_v1_reputation.py"
+
+    run_check "tests: pytest test_sol_v1_reputation (classify + scoring + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_reputation.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: compute_reputation + group_reputations on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_reputation.py::test_reputation_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-4 exist so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-5 exist so far)"
     exit 3
     ;;
 esac

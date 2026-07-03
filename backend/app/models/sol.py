@@ -176,6 +176,9 @@ class SolPayment(Base):
     payee_confirmed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Sticky: the FIRST time the payee disputed. Set on dispute, never cleared by
+    # a payer re-mark — so reputation can't be gamed by re-marking a dispute away.
+    disputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
