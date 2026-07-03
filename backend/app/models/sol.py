@@ -43,6 +43,16 @@ PAYMENT_METHODS = ("zelle", "cashapp", "venmo", "cash", "other", "stripe")
 PAYMENT_STATUSES = ("pending", "marked", "confirmed", "disputed", "late")
 # Payment-profile methods add applepay; exclude "other" (a handle needs a rail).
 PROFILE_METHODS = ("zelle", "cashapp", "venmo", "applepay", "cash")
+# In-app notification kinds. Scan-driven (due/overdue) + ledger-event nudges.
+NOTIFICATION_KINDS = (
+    "payment_due",
+    "payment_overdue",
+    "payment_marked",
+    "payment_confirmed",
+    "payment_disputed",
+    "cycle_started",
+    "payout_incoming",
+)
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
@@ -356,5 +366,45 @@ class SolPaymentProof(Base):
     )
     image_url: Mapped[str] = mapped_column(Text, nullable=False)
     uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class SolNotification(Base):
+    """A durable, per-member in-app notification (the notifications inbox).
+
+    NON-CUSTODIAL: carries text + an optional deep-link only — never money or
+    bank data. `dedup_key` is UNIQUE per user so emission is idempotent: the
+    daily due/overdue scan re-runs without ever creating a duplicate nudge
+    (emit uses INSERT ... ON CONFLICT DO NOTHING on this constraint). Email/SMS
+    are optional fail-soft channels layered on top; this row is the source of
+    truth and always works with no external provider.
+    """
+
+    __tablename__ = "sol_notifications"
+    __table_args__ = (
+        CheckConstraint(_in("kind", NOTIFICATION_KINDS), name="sol_notifications_kind_check"),
+        UniqueConstraint("user_id", "dedup_key", name="sol_notifications_user_dedup_uq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    # The recipient of the notification.
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    # Optional in-app deep link (e.g. "#/payment/<id>"); rendered client-side only.
+    link: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Context for payment-related notifications (SET NULL if the payment is gone).
+    payment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sol_payments.id", ondelete="SET NULL"), nullable=True
+    )
+    dedup_key: Mapped[str] = mapped_column(Text, nullable=False)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

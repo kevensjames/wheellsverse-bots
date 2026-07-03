@@ -68,7 +68,7 @@ def run_once() -> dict:
     """Open a session, run one reminder cycle, deliver the digest. Fail-soft."""
     from app.database import SessionLocal
     from app.services import observability
-    from app.services.sol_v1 import reminders
+    from app.services.sol_v1 import notifications, reminders
 
     # date.today() at the daemon's local tz is fine for a due-date sweep; dates
     # are date-only (no tz) in the ledger.
@@ -76,6 +76,14 @@ def run_once() -> dict:
     session = SessionLocal()
     try:
         result = reminders.run_reminder_cycle(session, today)
+        # Members finally get nudged: emit per-member in-app notifications for
+        # due/overdue obligations (idempotent via dedup — safe to run daily).
+        # Fail-soft: a notification error must never abort the overdue sweep.
+        try:
+            result["notified"] = notifications.emit_due_overdue_scan(session, today)
+        except Exception as e:
+            logger.warning("sol_v1 reminders: member notification emit failed: %s", e)
+            result["notified"] = 0
     finally:
         session.close()
     # Only ping the operator when there's something to say — including an

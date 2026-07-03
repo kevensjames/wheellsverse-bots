@@ -127,6 +127,12 @@ class Settings(BaseSettings):
     # When True, creating/joining a circle requires an active member subscription
     # (access suspension). Default False so the free manual rail is unaffected.
     SOL_REQUIRE_SUBSCRIPTION: bool = False
+    # Optional external notification channels (Stage 8). In-app notifications
+    # ALWAYS work with no config; these opt into email/SMS on top. Both default
+    # off and are fail-soft — no provider is bundled yet, so turning one on just
+    # logs until a provider is wired. Member reminders never depend on them.
+    SOL_NOTIFY_EMAIL_ENABLED: bool = False
+    SOL_NOTIFY_SMS_ENABLED: bool = False
 
     @property
     def cors_origins(self) -> List[str]:
