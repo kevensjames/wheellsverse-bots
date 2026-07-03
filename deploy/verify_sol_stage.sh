@@ -300,8 +300,41 @@ case "$STAGE" in
       "e2e: consent recording + create-gate on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_legal.py::test_consent_and_create_gate_on_real_db -v'
     ;;
+  8)
+    section "Sol Connect Stage A — Stripe Connect rail foundation (sandbox-locked onboarding)"
+
+    run_check "service: sol_v1 stripe_connect imports" \
+      python -c "from app.services.sol_v1 import stripe_connect as s; s.sandbox_state; s._guard; s.onboarding_link; s.account_status"
+    run_check "schemas: ConnectStatusOut/OnboardingLinkOut import" \
+      python -c "from app.schemas.sol_v1_stripe import ConnectStatusOut, OnboardingLinkOut"
+    run_check "model: SolStripeAccount registered" \
+      python -c "from app.models import SolStripeAccount; assert SolStripeAccount.__tablename__=='sol_stripe_accounts'"
+    run_check "migration: 0012 exists + chains onto 0011" \
+      bash -c "test -f backend/alembic/versions/0012_sol_stripe_accounts.py && grep -qE 'down_revision.*0011_sol_consents' backend/alembic/versions/0012_sol_stripe_accounts.py"
+    run_check "router: sol_v1_stripe exposes the 3 account routes" \
+      python -c "from app.routers.sol_v1_stripe import router; assert {r.path for r in router.routes}=={'/sol/v1/stripe/account','/sol/v1/stripe/account/onboard','/sol/v1/stripe/account/refresh'}"
+    run_check "router: stripe registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_stripe\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with stripe routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/stripe/account/onboard' in paths"
+
+    # SANDBOX LOCK: the rail must default OFF, and Stage A must NOT move money.
+    run_check "sandbox: Connect defaults OFF (enabled + live-approved both default False)" \
+      python -c "from app.config import Settings; f=Settings.model_fields; assert f['STRIPE_CONNECT_ENABLED'].default is False and f['STRIPE_CONNECT_LIVE_APPROVED'].default is False"
+    run_check "sandbox: guard + sandbox_state present (live-key lock)" \
+      python -c "from app.services.sol_v1 import stripe_connect as s; assert callable(s._guard) and callable(s.sandbox_state)"
+    run_check "scope: Stage A moves NO money (no Transfer/Payout/Charge/PaymentIntent)" \
+      bash -c "! grep -qE 'stripe\\.(Transfer|Payout|Charge|PaymentIntent)' backend/app/services/sol_v1/stripe_connect.py"
+
+    run_check "tests: pytest test_sol_v1_stripe (sandbox lock + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_stripe.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: onboarding + refresh (mocked Stripe) on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_stripe.py::test_onboarding_and_refresh_with_mocked_stripe -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-7 exist so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-7 + Connect A(8) exist so far)"
     exit 3
     ;;
 esac

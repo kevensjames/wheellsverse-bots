@@ -105,6 +105,18 @@ class Settings(BaseSettings):
     STRIPE_CANCEL_URL: str = "http://localhost:5173/billing/cancel"
     BILLING_PUBLIC_UPGRADE_URL: str = "http://localhost:5173/pricing"
 
+    # Sol Stripe Connect rail (second, non-custodial payment provider).
+    # SANDBOX-LOCKED: Connect operations refuse a live (sk_live_) key unless
+    # STRIPE_CONNECT_LIVE_APPROVED=1, which the operator only sets AFTER Stripe
+    # approves the ROSCA use case in writing AND counsel signs off. Enabled at
+    # all only when STRIPE_CONNECT_ENABLED=1.
+    STRIPE_CONNECT_ENABLED: bool = False
+    STRIPE_CONNECT_LIVE_APPROVED: bool = False
+    STRIPE_CONNECT_REFRESH_URL: str = "http://localhost:8001/sol-app/#/me"
+    STRIPE_CONNECT_RETURN_URL: str = "http://localhost:8001/sol-app/#/me"
+    # $9.99/member/month platform subscription (SaaS fee, NOT member ROSCA money).
+    STRIPE_PRICE_SOL_MEMBER: str = ""
+
     @property
     def cors_origins(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]

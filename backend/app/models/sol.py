@@ -212,6 +212,39 @@ class SolPaymentProfile(Base):
     )
 
 
+class SolStripeAccount(Base):
+    """A member's own Stripe Connect (Express) account for the Stripe rail.
+
+    NON-CUSTODIAL: the connected account belongs to the MEMBER; Sol never holds
+    their funds. Contributions settle directly into the recipient's connected
+    account via destination charges (Sol's platform balance is never touched).
+    We store only the account id + Stripe's capability flags — no bank details.
+    """
+
+    __tablename__ = "sol_stripe_accounts"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="sol_stripe_accounts_user_uq"),
+        UniqueConstraint("stripe_account_id", name="sol_stripe_accounts_acct_uq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    stripe_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    charges_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    payouts_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    details_submitted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class SolConsent(Base):
     """A recorded acceptance of a versioned disclosure (e.g. the non-custodial
     terms). One row per (user, document, version); re-consent on a new version.
