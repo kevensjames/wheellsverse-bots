@@ -245,6 +245,41 @@ class SolStripeAccount(Base):
     )
 
 
+class SolMemberSubscription(Base):
+    """A member's $9.99/mo platform (SaaS) subscription — the software fee.
+
+    This is Sol's OWN revenue (a Stripe Billing subscription on Sol's platform
+    account), entirely separate from member ROSCA money. Status
+    (active/trialing/past_due/canceled/incomplete/none) is synced from Stripe by
+    refresh() and by the access-gate re-sync; Stage D adds webhook mirroring.
+    'active'/'trialing' mean the member has platform access.
+    """
+
+    __tablename__ = "sol_member_subscriptions"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="sol_member_subscriptions_user_uq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    stripe_customer_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="none")
+    current_period_end: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class SolConsent(Base):
     """A recorded acceptance of a versioned disclosure (e.g. the non-custodial
     terms). One row per (user, document, version); re-consent on a new version.

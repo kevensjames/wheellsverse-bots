@@ -24,7 +24,7 @@ from app.schemas.sol_v1 import (
     LockRequest,
     MembershipOut,
 )
-from app.services.sol_v1 import disclosures, lifecycle
+from app.services.sol_v1 import disclosures, lifecycle, subscription
 from app.services.sol_v1.lifecycle import SolError
 
 router = APIRouter(prefix="/sol/v1", tags=["sol-v1"])
@@ -50,6 +50,7 @@ def create_group(
 ) -> GroupOut:
     try:
         disclosures.require_consent(db, user_id=current.id)  # legal gate
+        subscription.require_active_if_enabled(db, user_id=current.id)  # access gate (opt-in)
         group = lifecycle.create_group(
             db,
             organizer_id=current.id,
@@ -82,6 +83,7 @@ def join_group(
 ) -> MembershipOut:
     try:
         disclosures.require_consent(db, user_id=current.id)  # legal gate
+        subscription.require_active_if_enabled(db, user_id=current.id)  # access gate (opt-in)
         membership = lifecycle.join_group(
             db, user_id=current.id, invite_code=body.invite_code
         )

@@ -333,8 +333,39 @@ case "$STAGE" in
       "e2e: onboarding + refresh (mocked Stripe) on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_stripe.py::test_onboarding_and_refresh_with_mocked_stripe -v'
     ;;
+  9)
+    section "Sol Connect Stage B — member subscription (\$9.99/mo SaaS fee) + access gate"
+
+    run_check "service: sol_v1 subscription imports" \
+      python -c "from app.services.sol_v1 import subscription as s; s.create_checkout; s.refresh; s.status; s.require_active_if_enabled; s.is_active"
+    run_check "schemas: SubscriptionStatusOut/CheckoutOut/PortalOut import" \
+      python -c "from app.schemas.sol_v1_subscription import SubscriptionStatusOut, CheckoutOut, PortalOut"
+    run_check "model: SolMemberSubscription registered" \
+      python -c "from app.models import SolMemberSubscription; assert SolMemberSubscription.__tablename__=='sol_member_subscriptions'"
+    run_check "migration: 0013 exists + chains onto 0012" \
+      bash -c "test -f backend/alembic/versions/0013_sol_member_subscriptions.py && grep -qE 'down_revision.*0012_sol_stripe_accounts' backend/alembic/versions/0013_sol_member_subscriptions.py"
+    run_check "router: sol_v1_subscription exposes the 4 routes" \
+      python -c "from app.routers.sol_v1_subscription import router; assert {r.path for r in router.routes}=={'/sol/v1/subscription','/sol/v1/subscription/checkout','/sol/v1/subscription/refresh','/sol/v1/subscription/portal'}"
+    run_check "router: subscription registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_subscription\\.router\\)' backend/app/main.py"
+    run_check "gate: create + join call require_active_if_enabled (opt-in access gate)" \
+      bash -c "test \$(grep -cE 'require_active_if_enabled' backend/app/routers/sol_v1.py) -ge 2"
+    run_check "app: full app assembles with subscription routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/subscription/checkout' in paths"
+
+    # SAFE DEFAULT: access suspension OFF by default so the free manual rail works.
+    run_check "default: SOL_REQUIRE_SUBSCRIPTION defaults OFF (manual rail stays free)" \
+      python -c "from app.config import Settings; assert Settings.model_fields['SOL_REQUIRE_SUBSCRIPTION'].default is False"
+
+    run_check "tests: pytest test_sol_v1_subscription (status + gate + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_subscription.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: checkout + refresh + gate (mocked Stripe) on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_subscription.py::test_subscription_flow_and_gate -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-7 + Connect A(8) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7 + Connect A(8)/B(9) exist so far)"
     exit 3
     ;;
 esac

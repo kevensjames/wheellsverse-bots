@@ -115,7 +115,15 @@ class Settings(BaseSettings):
     STRIPE_CONNECT_REFRESH_URL: str = "http://localhost:8001/sol-app/#/me"
     STRIPE_CONNECT_RETURN_URL: str = "http://localhost:8001/sol-app/#/me"
     # $9.99/member/month platform subscription (SaaS fee, NOT member ROSCA money).
+    # This is clean SaaS on Sol's OWN Stripe account (like the KAI tiers), so it
+    # does NOT need the Connect live-approval gate — it's available once the
+    # operator creates the recurring price in Stripe and sets this id.
     STRIPE_PRICE_SOL_MEMBER: str = ""
+    SOL_SUBSCRIPTION_SUCCESS_URL: str = "http://localhost:8001/sol-app/#/me"
+    SOL_SUBSCRIPTION_CANCEL_URL: str = "http://localhost:8001/sol-app/#/me"
+    # When True, creating/joining a circle requires an active member subscription
+    # (access suspension). Default False so the free manual rail is unaffected.
+    SOL_REQUIRE_SUBSCRIPTION: bool = False
 
     @property
     def cors_origins(self) -> List[str]:
