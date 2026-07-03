@@ -493,8 +493,52 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: emit idempotency + ownership + due/overdue scan on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_notifications.py -k "idempotent or scan" -v'
     ;;
+  13)
+    section "Sol Stage 13 — operator dashboard (read-only, admin-token gated)"
+
+    run_check "service: sol_v1 admin_metrics imports" \
+      python -c "from app.services.sol_v1 import admin_metrics as m; m.overview; m.risk_items; m.disputes; m.groups; m.group_detail; m.recent_activity"
+    run_check "schemas: sol_v1_admin imports" \
+      python -c "from app.schemas.sol_v1_admin import OverviewOut, RiskOut, DisputesOut, GroupsOut, GroupDetailOut, ActivityOut"
+    run_check "router: sol_v1_admin exposes the 6 routes under /admin/sol-v1" \
+      python -c "from app.routers.sol_v1_admin import router; p={r.path for r in router.routes}; want={'/admin/sol-v1/overview','/admin/sol-v1/risk','/admin/sol-v1/disputes','/admin/sol-v1/groups','/admin/sol-v1/groups/{group_id}','/admin/sol-v1/activity'}; assert p==want, p"
+
+    # ── THE security boundary: EVERY route is admin-token gated (fail-closed),
+    #    NOT the member cookie. This is the whole point of the stage.
+    run_check "AUTHZ: router gated by require_admin_token at the router level" \
+      python -c "from app.routers.sol_v1_admin import router; from app.dependencies.admin import require_admin_token; assert require_admin_token in [d.dependency for d in router.dependencies], 'admin router is NOT token-gated'"
+    run_check "AUTHZ: does NOT use the member cookie/JWT dependency" \
+      bash -c "! grep -qE 'get_current_user|UserPrincipal|supabase_jwt' backend/app/routers/sol_v1_admin.py"
+    run_check "prefix: /admin/sol-v1 (distinct from the legacy custodial /admin/sol)" \
+      bash -c "grep -qE 'prefix=\"/admin/sol-v1\"' backend/app/routers/sol_v1_admin.py"
+
+    run_check "router: registered in the OPERATOR profile (not is_consumer)" \
+      bash -c "grep -qE 'include_router\\(sol_v1_admin\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with the /admin/sol-v1 routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/admin/sol-v1/overview' in paths and '/admin/sol-v1/groups/{group_id}' in paths"
+    run_check "ui: /sol-admin static page files exist + mounted" \
+      bash -c "test -f backend/app/static/sol_v1_admin/index.html && test -f backend/app/static/sol_v1_admin/app.js && grep -qE '\"/sol-admin\"' backend/app/main.py"
+
+    # NON-CUSTODIAL: read-only aggregation — no money-move/bank primitives, no writes.
+    run_check "non-custodial: no money-movement/bank primitives in admin surface" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/admin_metrics.py backend/app/routers/sol_v1_admin.py backend/app/schemas/sol_v1_admin.py"
+    run_check "read-only: admin surface performs no writes (no commit/add/delete)" \
+      bash -c "! grep -qE '\\.commit\\(|\\.add\\(|\\.delete\\(|db\\.execute\\(update|db\\.execute\\(insert' backend/app/services/sol_v1/admin_metrics.py backend/app/routers/sol_v1_admin.py"
+    run_check "spa: no innerHTML sink in the admin page (XSS)" \
+      bash -c "! grep -q '\\.innerHTML' backend/app/static/sol_v1_admin/app.js"
+
+    run_check "tests: pytest test_sol_v1_admin (authz + aggregation + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_admin.py -v --tb=short'
+    run_or_defer 'command -v node >/dev/null 2>&1' \
+      "js: admin page pure-helper unit tests (node --test app.test.js)" \
+      bash -c 'cd backend/app/static/sol_v1_admin && node --test app.test.js'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: aggregations over a seeded circle on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_admin.py::test_aggregations_over_a_seeded_circle -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13) exist so far)"
     exit 3
     ;;
 esac

@@ -13,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, sol_v1_charges, sol_v1_ledger, sol_v1_legal, sol_v1_notifications, sol_v1_reminders, sol_v1_reputation, sol_v1_stripe, sol_v1_subscription, sol_v1_webhook, transcribe, tts, v1, ws_collab
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, sol_v1_admin, sol_v1_charges, sol_v1_ledger, sol_v1_legal, sol_v1_notifications, sol_v1_reminders, sol_v1_reputation, sol_v1_stripe, sol_v1_subscription, sol_v1_webhook, transcribe, tts, v1, ws_collab
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -287,6 +287,8 @@ if not settings.is_consumer:
     # Sol ROSCA money surface (/admin/sol) + Dwolla webhook (/sol/webhook, HMAC).
     app.include_router(sol.router)
     app.include_router(sol.webhook_router)
+    # Sol v1 NON-CUSTODIAL operator dashboard (/admin/sol-v1, read-only, token-gated).
+    app.include_router(sol_v1_admin.router)
     # Real-time collab (in-memory, single-node) — operator-only for now.
     app.include_router(ws_collab.router)
 
@@ -313,6 +315,17 @@ if _SOL_APP_DIR.exists():
         "/sol-app",
         StaticFiles(directory=str(_SOL_APP_DIR), html=True),
         name="sol-v1-app",
+    )
+
+# Sol v1 operator dashboard — read-only viewer over /admin/sol-v1/* (token-gated).
+# Operator surface only (never on a consumer replica); the page itself carries no
+# data — every fetch requires the admin token, enforced server-side.
+_SOL_ADMIN_DIR = Path(__file__).parent / "static" / "sol_v1_admin"
+if not settings.is_consumer and _SOL_ADMIN_DIR.exists():
+    app.mount(
+        "/sol-admin",
+        StaticFiles(directory=str(_SOL_ADMIN_DIR), html=True),
+        name="sol-v1-admin",
     )
 
 
