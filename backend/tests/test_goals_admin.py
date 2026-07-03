@@ -189,3 +189,14 @@ def test_run_endpoint_triggers_cycle(client, monkeypatch, _isolated_audit):
                     json={"notify": False, "approved": True})
     assert r.status_code == 200
     assert r.json()["advanced"] == 0
+
+
+def test_approve_proposal_non_active_goal_400(client, monkeypatch, _isolated_audit):
+    # Only an *active* goal may be bridged; a blocked goal with a proposal must 400.
+    monkeypatch.setenv("KAI_SCOPE_GOALS_APPROVE_PROPOSAL", "1")
+    _patch_llm(monkeypatch, '{"steps":[{"action":"one"}]}')
+    g = store.create_goal("x")
+    store.update_goal(g.id, next_action="do thing", status="blocked")
+    r = client.post(f"/admin/goals/{g.id}/approve-proposal", headers=ADMIN_HEADERS,
+                    json={"approved": True})
+    assert r.status_code == 400
