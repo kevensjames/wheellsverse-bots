@@ -364,8 +364,55 @@ case "$STAGE" in
       "e2e: checkout + refresh + gate (mocked Stripe) on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_subscription.py::test_subscription_flow_and_gate -v'
     ;;
+  10)
+    section "Sol Connect Stage C — destination-charge contribution flow (non-custodial)"
+
+    run_check "service: sol_v1 stripe_charges imports" \
+      python -c "from app.services.sol_v1 import stripe_charges as c; c.build_direct_charge_call; c.create_contribution_checkout; c.mark_settled; c.reconcile; c.to_cents"
+    run_check "schemas: ChargeCheckoutOut/ChargeStatusOut import" \
+      python -c "from app.schemas.sol_v1_charges import ChargeCheckoutOut, ChargeStatusOut"
+    run_check "model: SolStripePayment registered" \
+      python -c "from app.models import SolStripePayment; assert SolStripePayment.__tablename__=='sol_stripe_payments'"
+    run_check "migration: 0014 chains 0013 + 0015 chains 0014" \
+      bash -c "grep -qE 'down_revision.*0013_sol_member_subscriptions' backend/alembic/versions/0014_sol_stripe_payments.py && grep -qE 'down_revision.*0014_sol_stripe_payments' backend/alembic/versions/0015_sol_payment_method_stripe.py"
+    run_check "router: sol_v1_charges exposes the 3 routes" \
+      python -c "from app.routers.sol_v1_charges import router; assert {r.path for r in router.routes}=={'/sol/v1/stripe/payments/{payment_id}/checkout','/sol/v1/stripe/payments/{payment_id}/reconcile','/sol/v1/stripe/payments/{payment_id}'}"
+    run_check "router: charges registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_charges\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with charge routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/stripe/payments/{payment_id}/checkout' in paths"
+
+    # ── NON-CUSTODIAL INVARIANT (the whole point of Stage C) ──────────────────
+    run_check "non-custodial: DIRECT charge on the recipient's account (no transfer_data); empty is REFUSED" \
+      python -c "
+from uuid import uuid4
+from app.services.sol_v1 import stripe_charges as c
+from app.services.sol_v1.lifecycle import SolError
+p = c.build_direct_charge_call(connected_account_id='acct_x', amount_cents=4000, payment_id=uuid4(), payer_id=uuid4(), success_url='s', cancel_url='c')
+assert p['stripe_account']=='acct_x', 'charge not on the connected account'
+assert 'transfer_data' not in p.get('payment_intent_data',{}), 'must not be a destination charge (Sol would be merchant of record)'
+try:
+    c.build_direct_charge_call(connected_account_id='', amount_cents=4000, payment_id=uuid4(), payer_id=uuid4(), success_url='s', cancel_url='c')
+    raise SystemExit('FAIL: empty connected account was allowed')
+except SolError:
+    pass
+"
+    run_check "non-custodial: destination_account_id is NOT NULL (never a chargeless charge)" \
+      python -c "from app.models.sol import SolStripePayment; assert SolStripePayment.__table__.c.destination_account_id.nullable is False"
+    run_check "non-custodial: NO application_fee_amount + NO transfer_data key/Transfer/Payout (Sol never merchant/holder)" \
+      bash -c "! grep -qE 'application_fee_amount|\"transfer_data\"|stripe\\.Charge\\.create|stripe\\.Transfer\\.create|stripe\\.Payout\\.create' backend/app/services/sol_v1/stripe_charges.py"
+    run_check "sandbox: contribution checkout goes through the Connect sandbox lock" \
+      bash -c "grep -qE '_connect_guard\\(\\)' backend/app/services/sol_v1/stripe_charges.py"
+
+    run_check "tests: pytest test_sol_v1_charges (invariant + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_charges.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: pay→settle→cycle-complete (mocked Stripe) on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_charges.py::test_contribution_flow_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7 + Connect A(8)/B(9) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7 + Connect A(8)/B(9)/C(10) exist so far)"
     exit 3
     ;;
 esac

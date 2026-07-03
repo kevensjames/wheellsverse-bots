@@ -26,6 +26,7 @@ from app.models.sol import (
     SolPaymentProfile,
     SolPaymentProof,
     SolStripeAccount,
+    SolStripePayment,
 )
 
 __all__ = [
@@ -53,6 +54,7 @@ __all__ = [
     "SolPaymentProfile",
     "SolPaymentProof",
     "SolStripeAccount",
+    "SolStripePayment",
     "Subscription",
     "UsageLog",
     "Watchlist",

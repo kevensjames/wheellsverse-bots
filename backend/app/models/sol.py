@@ -39,7 +39,7 @@ FREQUENCIES = ("weekly", "biweekly", "monthly")
 GROUP_STATUSES = ("open", "locked", "complete")
 MEMBERSHIP_ROLES = ("organizer", "member")
 CYCLE_STATUSES = ("pending", "active", "complete")
-PAYMENT_METHODS = ("zelle", "cashapp", "venmo", "cash", "other")
+PAYMENT_METHODS = ("zelle", "cashapp", "venmo", "cash", "other", "stripe")
 PAYMENT_STATUSES = ("pending", "marked", "confirmed", "disputed", "late")
 # Payment-profile methods add applepay; exclude "other" (a handle needs a rail).
 PROFILE_METHODS = ("zelle", "cashapp", "venmo", "applepay", "cash")
@@ -209,6 +209,45 @@ class SolPaymentProfile(Base):
     is_default: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class SolStripePayment(Base):
+    """A ledger payment settled via the Stripe rail (DIRECT charge).
+
+    NON-CUSTODIAL: destination_account_id is the RECIPIENT's connected account —
+    the charge is created ON that account (stripe_account=<recipient>), so the
+    recipient is the merchant of record: funds settle in their account, Sol's
+    platform balance is never touched, and Sol bears no refund/chargeback
+    liability. A row is never written without the connected account. Sol takes no
+    cut of contributions (it earns only the $9.99 subscription).
+    """
+
+    __tablename__ = "sol_stripe_payments"
+    __table_args__ = (
+        UniqueConstraint("payment_id", name="sol_stripe_payments_payment_uq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    payment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sol_payments.id", ondelete="CASCADE"), nullable=False
+    )
+    payer_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    # The recipient's connected account — the charge destination. Never empty.
+    destination_account_id: Mapped[str] = mapped_column(Text, nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    stripe_checkout_session_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    stripe_payment_intent_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
 

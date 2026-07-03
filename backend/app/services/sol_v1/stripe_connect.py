@@ -104,7 +104,10 @@ def create_or_get_account(db: Session, *, user_id: UUID, email: str | None = Non
         acct = stripe.Account.create(
             type="express",
             email=email,
-            capabilities={"transfers": {"requested": True}},
+            # card_payments so the member can accept DIRECT charges (they are the
+            # merchant of record for contributions they receive); transfers for
+            # payouts. charges_enabled then reflects card_payments being active.
+            capabilities={"card_payments": {"requested": True}, "transfers": {"requested": True}},
             metadata={"sol_user_id": str(user_id)},
             # Dedupe concurrent/retried creates so a double-click can't mint a
             # second real connected account for the same member.
