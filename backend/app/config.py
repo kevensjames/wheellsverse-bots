@@ -112,6 +112,9 @@ class Settings(BaseSettings):
     # all only when STRIPE_CONNECT_ENABLED=1.
     STRIPE_CONNECT_ENABLED: bool = False
     STRIPE_CONNECT_LIVE_APPROVED: bool = False
+    # Signing secret for the Sol Stripe webhook endpoint (/sol/v1/stripe/webhook)
+    # — separate from the KAI billing webhook so the two never interfere.
+    STRIPE_CONNECT_WEBHOOK_SECRET: str = ""
     STRIPE_CONNECT_REFRESH_URL: str = "http://localhost:8001/sol-app/#/me"
     STRIPE_CONNECT_RETURN_URL: str = "http://localhost:8001/sol-app/#/me"
     # $9.99/member/month platform subscription (SaaS fee, NOT member ROSCA money).

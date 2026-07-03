@@ -411,8 +411,36 @@ except SolError:
       "e2e: pay→settle→cycle-complete (mocked Stripe) on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_charges.py::test_contribution_flow_on_real_db -v'
     ;;
+  11)
+    section "Sol Connect Stage D — Stripe webhooks (settle / mirror / reverse)"
+
+    run_check "service: sol_v1 stripe_webhooks imports" \
+      python -c "from app.services.sol_v1 import stripe_webhooks as w; w.handle_event; w.HANDLED_TYPES"
+    run_check "router: sol_v1_webhook exposes /sol/v1/stripe/webhook" \
+      python -c "from app.routers.sol_v1_webhook import router; assert '/sol/v1/stripe/webhook' in {r.path for r in router.routes}"
+    run_check "router: webhook registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_webhook\\.router\\)' backend/app/main.py"
+    run_check "config: STRIPE_CONNECT_WEBHOOK_SECRET exists (separate from KAI billing)" \
+      python -c "from app.config import Settings; assert 'STRIPE_CONNECT_WEBHOOK_SECRET' in Settings.model_fields"
+    run_check "app: full app assembles with the webhook mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/stripe/webhook' in paths"
+
+    run_check "events: HANDLED_TYPES covers settle + subscription + account + refund/dispute" \
+      python -c "from app.services.sol_v1.stripe_webhooks import HANDLED_TYPES as H; need={'checkout.session.completed','customer.subscription.updated','customer.subscription.deleted','account.updated','charge.refunded','charge.dispute.created'}; assert need <= H, need - H"
+    run_check "security: signature verified with the Sol secret + idempotency via ProcessedStripeEvent" \
+      bash -c "grep -q 'construct_event' backend/app/routers/sol_v1_webhook.py && grep -q 'STRIPE_CONNECT_WEBHOOK_SECRET' backend/app/routers/sol_v1_webhook.py && grep -q 'ProcessedStripeEvent' backend/app/routers/sol_v1_webhook.py"
+    run_check "non-custodial: webhook records/settles only (no Charge/Transfer/Payout money-move)" \
+      bash -c "! grep -qE 'stripe\\.(Charge|Transfer|Payout|PaymentIntent)\\.create' backend/app/services/sol_v1/stripe_webhooks.py"
+
+    run_check "tests: pytest test_sol_v1_webhooks (dispatch + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_webhooks.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: settle/mirror/account/refund handlers on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_webhooks.py::test_webhook_handlers_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7 + Connect A(8)/B(9)/C(10) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7 + Connect A-D(8-11) exist so far)"
     exit 3
     ;;
 esac

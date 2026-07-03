@@ -100,11 +100,14 @@ def mark_settled(db: Session, *, sol_stripe_payment: SolStripePayment) -> SolStr
     MUST have verified the charge genuinely succeeded first.
     """
     row = sol_stripe_payment
-    if row.status == "paid":
-        return row  # idempotent — webhook + reconcile may both fire
+    if row.status in ("paid", "refunded", "disputed"):
+        # already settled, or REVERSED (refund/chargeback) — never (re)settle.
+        # This is the guard that stops an out-of-order/retried
+        # checkout.session.completed from re-confirming reversed money.
+        return row
     row.status = "paid"
     payment = db.get(SolPayment, row.payment_id, with_for_update=True)
-    if payment is not None and payment.status != "confirmed":
+    if payment is not None and payment.disputed_at is None and payment.status not in ("confirmed", "disputed"):
         now = datetime.now(timezone.utc)
         payment.method = "stripe"
         payment.status = "confirmed"
