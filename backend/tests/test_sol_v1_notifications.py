@@ -69,6 +69,20 @@ def test_fmt_amount():
     assert N._fmt_amount("garbage").startswith("$")   # never raises
 
 
+def test_ledger_event_builders():
+    m = N.content_payment_marked(payment_id=PID, amount=Decimal("30"))
+    assert m["kind"] == "payment_marked" and m["link"] == f"#/payment/{PID}" and "$30.00" in m["body"]
+    c = N.content_payment_confirmed(payment_id=PID, amount=Decimal("30"))
+    assert c["kind"] == "payment_confirmed" and c["payment_id"] == PID
+    d = N.content_payment_disputed(payment_id=PID, amount=Decimal("30"))
+    assert d["kind"] == "payment_disputed"
+    cs = N.content_cycle_started(payment_id=PID, amount=Decimal("30"), due_date=date(2026, 7, 10))
+    assert cs["kind"] == "cycle_started" and "2026-07-10" in cs["body"]
+    po = N.content_payout_incoming(group_id=PID, cycle_number=2, amount=Decimal("30"))
+    # payout_incoming links to the group (recipient has no payment row) + carries no payment_id
+    assert po["kind"] == "payout_incoming" and po["link"] == f"#/group/{PID}" and "payment_id" not in po
+
+
 # ── external channels: fail-soft + off by default ──────────────────────────────
 
 
@@ -231,6 +245,105 @@ def test_scan_emits_one_overdue_per_payer_and_is_idempotent():
         # mark_all_read clears one payer's inbox
         assert N.mark_all_read(db, user_id=payments[0].payer_id) == 1
         assert N.unread_count(db, user_id=payments[0].payer_id) == 0
+
+        db.close()
+        conn.close()
+    finally:
+        with engine.begin() as c2:
+            c2.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+        engine.dispose()
+
+
+def test_notify_hooks_route_to_the_right_party(monkeypatch):
+    # offline: the hooks emit in their OWN session, so capture the emit args by
+    # patching _emit_event_soft and feed a plain object (no DB, no session).
+    import types
+    from datetime import datetime, timezone
+
+    captured: list[dict] = []
+    monkeypatch.setattr(N, "_emit_event_soft", lambda **kw: captured.append(kw))
+
+    pid, payer, payee = uuid4(), uuid4(), uuid4()
+    payment = types.SimpleNamespace(
+        id=pid, payer_id=payer, payee_id=payee, amount=Decimal("30"),
+        payer_marked_at=datetime(2026, 7, 3, 12, 0, tzinfo=timezone.utc),
+    )
+    N.notify_payment_marked(payment)     # → payee, dedup carries the mark time
+    N.notify_payment_confirmed(payment)  # → payer
+    N.notify_payment_disputed(payment)   # → payer
+
+    marked = next(c for c in captured if c["content"]["kind"] == "payment_marked")
+    assert marked["user_id"] == payee
+    assert str(pid) in marked["dedup_key"] and "2026-07-03" in marked["dedup_key"]
+    confirmed = next(c for c in captured if c["content"]["kind"] == "payment_confirmed")
+    assert confirmed["user_id"] == payer and confirmed["dedup_key"] == f"payment_confirmed:{pid}"
+    disputed = next(c for c in captured if c["content"]["kind"] == "payment_disputed")
+    assert disputed["user_id"] == payer and disputed["dedup_key"] == f"payment_disputed:{pid}"
+
+
+def test_notify_cycle_activated_fans_out(monkeypatch):
+    import types
+
+    captured: list[dict] = []
+    monkeypatch.setattr(N, "_emit_event_soft", lambda **kw: captured.append(kw))
+
+    gid, cid, recip = uuid4(), uuid4(), uuid4()
+    p1 = types.SimpleNamespace(id=uuid4(), payer_id=uuid4())
+    p2 = types.SimpleNamespace(id=uuid4(), payer_id=uuid4())
+    cycle = types.SimpleNamespace(id=cid, group_id=gid, cycle_number=1, due_date=date(2026, 7, 10))
+    N.notify_cycle_activated(cycle=cycle, payments=[p1, p2], recipient_user_id=recip, amount=Decimal("30"))
+
+    kinds = [c["content"]["kind"] for c in captured]
+    assert kinds.count("cycle_started") == 2 and kinds.count("payout_incoming") == 1
+    assert {c["user_id"] for c in captured if c["content"]["kind"] == "cycle_started"} == {p1.payer_id, p2.payer_id}
+    payout = next(c for c in captured if c["content"]["kind"] == "payout_incoming")
+    assert payout["user_id"] == recip and payout["dedup_key"] == f"payout_incoming:{cid}"
+
+
+@pytest.mark.skipif(
+    not os.getenv("TEST_DATABASE_URL"),
+    reason="TEST_DATABASE_URL not set — ledger-transition wiring DEFERRED",
+)
+def test_ledger_transitions_invoke_notify_hooks(monkeypatch):
+    from sqlalchemy import text
+
+    from app.services.sol_v1 import ledger as LG
+    from app.services.sol_v1 import lifecycle as LC
+
+    # Patch the hooks to RECORD calls (no emit, no side session) so this proves
+    # the wiring — ledger transition → correct hook with the right payment —
+    # without any cross-session DB writes.
+    calls: list = []
+    monkeypatch.setattr(N, "notify_cycle_activated", lambda **kw: calls.append(("cycle", kw)))
+    monkeypatch.setattr(N, "notify_payment_marked", lambda p: calls.append(("marked", p.id)))
+    monkeypatch.setattr(N, "notify_payment_confirmed", lambda p: calls.append(("confirmed", p.id)))
+    monkeypatch.setattr(N, "notify_payment_disputed", lambda p: calls.append(("disputed", p.id)))
+
+    engine, conn, db, schema = _db()
+    organizer, alice, bob = uuid4(), uuid4(), uuid4()
+    try:
+        _add_profiles(conn, organizer, alice, bob)
+        group = LC.create_group(
+            db, organizer_id=organizer, name="Notif circle",
+            contribution_amount=Decimal("30.00"), frequency="weekly", member_limit=3,
+        )
+        LC.join_group(db, user_id=alice, invite_code=group.invite_code)
+        LC.join_group(db, user_id=bob, invite_code=group.invite_code)
+        LC.lock_group(db, group_id=group.id, actor_id=organizer,
+                      order_mode="random", start_date=date(2026, 7, 1), rng=Random(1))
+        _, _, cycles = LC.get_group_for_member(db, group_id=group.id, user_id=organizer)
+        cycle, payments = LG.activate_cycle(db, cycle_id=cycles[0].id, actor_id=organizer)
+        assert len(payments) == 2
+        assert any(c[0] == "cycle" for c in calls)  # activation fired the fan-out
+
+        p0, p1 = payments[0], payments[1]
+        LG.mark_paid(db, payment_id=p0.id, actor_id=p0.payer_id, method="zelle")
+        assert ("marked", p0.id) in calls
+        LG.confirm_received(db, payment_id=p0.id, actor_id=p0.payee_id)
+        assert ("confirmed", p0.id) in calls
+        LG.mark_paid(db, payment_id=p1.id, actor_id=p1.payer_id, method="cash")
+        LG.dispute(db, payment_id=p1.id, actor_id=p1.payee_id)
+        assert ("disputed", p1.id) in calls
 
         db.close()
         conn.close()

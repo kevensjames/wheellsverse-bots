@@ -162,6 +162,11 @@ def activate_cycle(db: Session, *, cycle_id: UUID, actor_id: UUID) -> tuple[SolC
     db.refresh(cycle)
     for p in payments:
         db.refresh(p)
+    from app.services.sol_v1 import notifications  # local: avoid import cycle
+    notifications.notify_cycle_activated(  # → each payer: cycle_started; recipient: payout_incoming
+        cycle=cycle, payments=payments,
+        recipient_user_id=recipient.user_id, amount=group.contribution_amount,
+    )
     return cycle, payments
 
 
@@ -202,6 +207,8 @@ def mark_paid(
         db.add(SolPaymentProof(payment_id=payment.id, image_url=proof_image_url.strip()))
     db.commit()
     db.refresh(payment)
+    from app.services.sol_v1 import notifications  # local: avoid import cycle
+    notifications.notify_payment_marked(payment)  # → payee: confirm receipt (own session)
     return payment
 
 
@@ -215,6 +222,8 @@ def confirm_received(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPay
     _maybe_complete_cycle(db, payment.cycle_id)
     db.commit()
     db.refresh(payment)
+    from app.services.sol_v1 import notifications  # local: avoid import cycle
+    notifications.notify_payment_confirmed(payment)  # → payer: confirmed (own session)
     return payment
 
 
@@ -227,6 +236,8 @@ def dispute(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPayment:
         payment.disputed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(payment)
+    from app.services.sol_v1 import notifications  # local: avoid import cycle
+    notifications.notify_payment_disputed(payment)  # → payer: not received (own session)
     return payment
 
 

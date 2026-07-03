@@ -185,6 +185,114 @@ def emit_due_overdue_scan(db: Session, today: date, upcoming_within_days: int = 
     return created
 
 
+# ── ledger-event content builders (offline-testable) ───────────────────────────
+
+
+def content_payment_marked(*, payment_id: UUID, amount) -> dict:
+    """To the PAYEE: the payer says they sent the money — go confirm receipt."""
+    return {
+        "kind": "payment_marked",
+        "title": "Confirm payment received",
+        "body": f"A circle member marked a {_fmt_amount(amount)} payment to you as sent. Confirm it once you receive it.",
+        "link": f"#/payment/{payment_id}",
+        "payment_id": payment_id,
+    }
+
+
+def content_payment_confirmed(*, payment_id: UUID, amount) -> dict:
+    """To the PAYER: the recipient acknowledged receipt."""
+    return {
+        "kind": "payment_confirmed",
+        "title": "Payment confirmed",
+        "body": f"Your {_fmt_amount(amount)} payment was confirmed received. Thanks for keeping the circle on track!",
+        "link": f"#/payment/{payment_id}",
+        "payment_id": payment_id,
+    }
+
+
+def content_payment_disputed(*, payment_id: UUID, amount) -> dict:
+    """To the PAYER: the recipient says they did NOT receive it."""
+    return {
+        "kind": "payment_disputed",
+        "title": "Payment disputed",
+        "body": f"The recipient reports they haven't received your {_fmt_amount(amount)} payment. Please follow up or re-send, then mark it paid again.",
+        "link": f"#/payment/{payment_id}",
+        "payment_id": payment_id,
+    }
+
+
+def content_cycle_started(*, payment_id: UUID, amount, due_date: date) -> dict:
+    """To a PAYER: a new cycle began; here's what you owe and by when."""
+    return {
+        "kind": "cycle_started",
+        "title": "New cycle started",
+        "body": f"A new cycle began — your {_fmt_amount(amount)} contribution is due {due_date.isoformat()}.",
+        "link": f"#/payment/{payment_id}",
+        "payment_id": payment_id,
+    }
+
+
+def content_payout_incoming(*, group_id: UUID, cycle_number: int, amount) -> dict:
+    """To the RECIPIENT: it's your turn — members will pay you this cycle."""
+    return {
+        "kind": "payout_incoming",
+        "title": "It's your turn to get paid",
+        "body": f"Cycle {cycle_number} started — your circle members will each send you {_fmt_amount(amount)} directly.",
+        "link": f"#/group/{group_id}",
+    }
+
+
+# ── ledger-event hooks (called by ledger.py transitions; fully fail-soft) ───────
+
+
+def _emit_event_soft(*, user_id: UUID, dedup_key: str, content: dict) -> None:
+    """Emit one ledger-event notification in ITS OWN session — fully DECOUPLED
+    and fail-soft. It never touches, blocks, or rolls back the ledger session
+    that triggered it, so a member's payment can never fail (or stall) because a
+    notification couldn't be written. No-ops cleanly if the DB is unreachable."""
+    from app.database import SessionLocal
+
+    try:
+        session = SessionLocal()
+        try:
+            emit(session, user_id=user_id, dedup_key=dedup_key, **content)
+        finally:
+            session.close()
+    except Exception as e:
+        logger.warning("sol notify: event '%s' emit failed: %s", content.get("kind"), e)
+
+
+# The hooks take the (already-committed) ORM object and read plain attribute
+# VALUES off it — they never re-use its session (see _emit_event_soft).
+
+
+def notify_payment_marked(payment) -> None:
+    # dedup includes payer_marked_at so a legitimate re-mark (after a dispute)
+    # re-prompts the payee, while an exact duplicate emit stays idempotent.
+    ts = payment.payer_marked_at.isoformat() if payment.payer_marked_at else "0"
+    _emit_event_soft(user_id=payment.payee_id, dedup_key=f"payment_marked:{payment.id}:{ts}",
+                     content=content_payment_marked(payment_id=payment.id, amount=payment.amount))
+
+
+def notify_payment_confirmed(payment) -> None:
+    _emit_event_soft(user_id=payment.payer_id, dedup_key=f"payment_confirmed:{payment.id}",
+                     content=content_payment_confirmed(payment_id=payment.id, amount=payment.amount))
+
+
+def notify_payment_disputed(payment) -> None:
+    _emit_event_soft(user_id=payment.payer_id, dedup_key=f"payment_disputed:{payment.id}",
+                     content=content_payment_disputed(payment_id=payment.id, amount=payment.amount))
+
+
+def notify_cycle_activated(*, cycle, payments, recipient_user_id: UUID, amount) -> None:
+    """One 'cycle_started' to each payer + one 'payout_incoming' to the recipient."""
+    for p in payments:
+        _emit_event_soft(user_id=p.payer_id, dedup_key=f"cycle_started:{p.id}",
+                         content=content_cycle_started(payment_id=p.id, amount=amount, due_date=cycle.due_date))
+    _emit_event_soft(user_id=recipient_user_id, dedup_key=f"payout_incoming:{cycle.id}",
+                     content=content_payout_incoming(group_id=cycle.group_id, cycle_number=cycle.cycle_number, amount=amount))
+
+
 # ── readers ─────────────────────────────────────────────────────────────────────
 
 
