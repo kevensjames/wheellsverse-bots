@@ -159,14 +159,16 @@ def activate_cycle(db: Session, *, cycle_id: UUID, actor_id: UUID) -> tuple[SolC
 
     cycle.status = "active"
     db.commit()
-    db.refresh(cycle)
-    for p in payments:
-        db.refresh(p)
+    # Notify before the refreshes (see mark_paid) — the fan-out reads only
+    # id/payer_id/due_date/etc., all populated post-commit (expire_on_commit=False).
     from app.services.sol_v1 import notifications  # local: avoid import cycle
     notifications.notify_cycle_activated(  # → each payer: cycle_started; recipient: payout_incoming
         cycle=cycle, payments=payments,
         recipient_user_id=recipient.user_id, amount=group.contribution_amount,
     )
+    db.refresh(cycle)
+    for p in payments:
+        db.refresh(p)
     return cycle, payments
 
 
@@ -206,9 +208,12 @@ def mark_paid(
     if proof_image_url:
         db.add(SolPaymentProof(payment_id=payment.id, image_url=proof_image_url.strip()))
     db.commit()
-    db.refresh(payment)
+    # Notify BEFORE refresh so the ledger session isn't pinned idle-in-transaction
+    # across the notification's own-session write (expire_on_commit=False keeps the
+    # attributes the hook reads populated after commit).
     from app.services.sol_v1 import notifications  # local: avoid import cycle
     notifications.notify_payment_marked(payment)  # → payee: confirm receipt (own session)
+    db.refresh(payment)
     return payment
 
 
@@ -221,9 +226,9 @@ def confirm_received(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPay
     db.flush()
     _maybe_complete_cycle(db, payment.cycle_id)
     db.commit()
-    db.refresh(payment)
     from app.services.sol_v1 import notifications  # local: avoid import cycle
-    notifications.notify_payment_confirmed(payment)  # → payer: confirmed (own session)
+    notifications.notify_payment_confirmed(payment)  # → payer: confirmed (own session, pre-refresh)
+    db.refresh(payment)
     return payment
 
 
@@ -235,9 +240,9 @@ def dispute(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPayment:
     if payment.disputed_at is None:  # sticky — keep the first dispute time
         payment.disputed_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(payment)
     from app.services.sol_v1 import notifications  # local: avoid import cycle
-    notifications.notify_payment_disputed(payment)  # → payer: not received (own session)
+    notifications.notify_payment_disputed(payment)  # → payer: not received (own session, pre-refresh)
+    db.refresh(payment)
     return payment
 
 

@@ -280,7 +280,12 @@ def notify_payment_confirmed(payment) -> None:
 
 
 def notify_payment_disputed(payment) -> None:
-    _emit_event_soft(user_id=payment.payer_id, dedup_key=f"payment_disputed:{payment.id}",
+    # dedup includes payer_marked_at (the mark THIS dispute reacts to) so a
+    # re-dispute after a re-mark re-notifies the payer — symmetric with
+    # notify_payment_marked. A static key would silently swallow dispute #2,
+    # stranding a payer who just re-sent money on the strength of dispute #1.
+    ts = payment.payer_marked_at.isoformat() if payment.payer_marked_at else "0"
+    _emit_event_soft(user_id=payment.payer_id, dedup_key=f"payment_disputed:{payment.id}:{ts}",
                      content=content_payment_disputed(payment_id=payment.id, amount=payment.amount))
 
 

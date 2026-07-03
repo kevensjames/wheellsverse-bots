@@ -278,7 +278,28 @@ def test_notify_hooks_route_to_the_right_party(monkeypatch):
     confirmed = next(c for c in captured if c["content"]["kind"] == "payment_confirmed")
     assert confirmed["user_id"] == payer and confirmed["dedup_key"] == f"payment_confirmed:{pid}"
     disputed = next(c for c in captured if c["content"]["kind"] == "payment_disputed")
-    assert disputed["user_id"] == payer and disputed["dedup_key"] == f"payment_disputed:{pid}"
+    assert disputed["user_id"] == payer
+    # dedup carries the mark timestamp so a re-dispute (after a re-mark) re-notifies
+    assert disputed["dedup_key"] == f"payment_disputed:{pid}:{payment.payer_marked_at.isoformat()}"
+
+
+def test_dispute_dedup_distinguishes_re_disputes(monkeypatch):
+    # regression for the reviewed HIGH: a second dispute (after a re-mark) must
+    # NOT be swallowed by a static dedup key — the payer re-sent money and needs
+    # to hear it was disputed again.
+    import types
+    from datetime import datetime, timezone
+
+    captured: list[dict] = []
+    monkeypatch.setattr(N, "_emit_event_soft", lambda **kw: captured.append(kw))
+    pid = uuid4()
+    p = types.SimpleNamespace(id=pid, payer_id=uuid4(), payee_id=uuid4(), amount=Decimal("30"),
+                              payer_marked_at=datetime(2026, 7, 3, 10, 0, tzinfo=timezone.utc))
+    N.notify_payment_disputed(p)  # dispute of mark #1
+    p.payer_marked_at = datetime(2026, 7, 4, 10, 0, tzinfo=timezone.utc)  # payer re-marks
+    N.notify_payment_disputed(p)  # dispute of mark #2
+    keys = [c["dedup_key"] for c in captured]
+    assert len(set(keys)) == 2  # distinct keys → dispute #2 is NOT deduped away
 
 
 def test_notify_cycle_activated_fans_out(monkeypatch):
