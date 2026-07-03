@@ -432,6 +432,13 @@
       var p = d.payment, me = STATE.me || {};
       var isPayer = p.payer_id === me.id, isPayee = p.payee_id === me.id;
       var st = statusMeta(p.status);
+      // Stripe rail extras for the payer (fail-soft — hidden when the rail is off)
+      var charge = null, connectMode = "unconfigured";
+      if (isPayer) {
+        try { charge = await api("GET", "/sol/v1/stripe/payments/" + id); } catch (e) { /* ignore */ }
+        try { connectMode = await ensureConnectMode(); } catch (e) { /* ignore */ }
+        if (stale(gen)) return;
+      }
       var nodes = [backBtn("#/pay", "Payments"),
         el("div", { class: "row between" }, el("h1", { text: money(p.amount) }), badge(st.label, st.cls)),
         el("div", { class: "card" },
@@ -461,7 +468,17 @@
       }
 
       var actionable = p.status === "pending" || p.status === "late" || p.status === "disputed";
-      if (isPayer && actionable) { nodes.push(el("hr")); nodes.push(markForm(p.id)); }
+      if (isPayer && actionable) {
+        nodes.push(el("hr"));
+        nodes.push(markForm(p.id));
+        if (stripeOn(connectMode)) {
+          nodes.push(el("p", { class: "small muted", style: "text-align:center;margin:var(--s-3) 0 var(--s-2)", text: "— or —" }));
+          nodes.push(el("button", { class: "btn btn--ghost", type: "button", onclick: function () { payWithCard(p.id); }, text: "💳 Pay with card" }));
+        }
+        if (charge && charge.exists && charge.status === "pending") {
+          nodes.push(el("button", { class: "btn btn--ghost btn--sm", style: "margin-top:var(--s-2)", type: "button", onclick: function () { reconcileCard(p.id); }, text: "Already paid by card? Check with Stripe" }));
+        }
+      }
       if (isPayee && p.status === "marked") {
         nodes.push(el("hr"));
         nodes.push(el("p", { class: "muted small", text: "The payer marked this paid. Did you receive it?" }));
@@ -504,6 +521,11 @@
       if (stale(gen)) return;
       var profiles = await api("GET", "/sol/v1/payment-profiles");
       if (stale(gen)) return;
+      // Stripe rail (fail-soft — these hide themselves when the rail is off)
+      var sub = null, acct = null;
+      try { sub = await api("GET", "/sol/v1/subscription"); } catch (e) { /* ignore */ }
+      try { acct = await api("GET", "/sol/v1/stripe/account"); STATE.connectMode = acct.mode; } catch (e) { /* ignore */ }
+      if (stale(gen)) return;
       var me = STATE.me || {};
       var rm = repMeta(rep.label);
       var displayName = me.full_name || me.name || me.email || "Member";
@@ -518,6 +540,8 @@
             el("div", {}, badge(rep.label + (rep.provisional && rep.score != null ? " · new" : ""), rm.cls),
               el("div", { class: "small muted", text: rep.actionable + " payment" + (rep.actionable === 1 ? "" : "s") + " counted" }))))),
         el("p", { class: "small muted", text: "On-time confirmed payments build your score. Disputes and overdue payments lower it." }),
+        subscriptionSection(sub),
+        connectSection(acct),
         el("div", { class: "section-title", text: "How you get paid" }),
       ];
       nodes.push(profiles.length ? el("div", { class: "stack" }, profiles.map(function (pp) { return profileCard(pp); })) : el("p", { class: "muted small", text: "Add a handle so members know how to pay you." }));
@@ -613,6 +637,57 @@
   async function logout() {
     try { await api("POST", "/auth/logout"); } catch (e) { /* ignore */ }
     STATE.me = null; go("#/login");
+  }
+
+  // ── Stripe rail (Connect) — degrades gracefully when the rail is off ──────
+  function stripeOn(mode) { return mode === "test" || mode === "live"; }
+  async function ensureConnectMode() {
+    if (STATE.connectMode !== undefined) return STATE.connectMode;
+    try { STATE.connectMode = (await api("GET", "/sol/v1/stripe/account")).mode; }
+    catch (e) { STATE.connectMode = "unconfigured"; }
+    return STATE.connectMode;
+  }
+  async function redirectTo(method, path) {
+    try { var r = await api(method, path); if (r && r.url) window.location.href = r.url; }
+    catch (e) { toast(e.detail, true); }
+  }
+  var startSubscription = function () { redirectTo("POST", "/sol/v1/subscription/checkout"); };
+  var manageSubscription = function () { redirectTo("POST", "/sol/v1/subscription/portal"); };
+  var startConnectOnboarding = function () { redirectTo("POST", "/sol/v1/stripe/account/onboard"); };
+  function payWithCard(paymentId) { redirectTo("POST", "/sol/v1/stripe/payments/" + paymentId + "/checkout"); }
+  async function reconcileCard(paymentId) {
+    try { await api("POST", "/sol/v1/stripe/payments/" + paymentId + "/reconcile"); toast("Checked with Stripe"); go("#/payment/" + paymentId); }
+    catch (e) { toast(e.detail, true); }
+  }
+  function subscriptionSection(sub) {
+    if (!sub || !sub.available) return null;  // price not configured → hide
+    var body;
+    if (sub.active) {
+      body = el("div", { class: "row between" },
+        el("div", {}, el("strong", { text: "Membership active" }),
+          sub.current_period_end ? el("div", { class: "small muted", text: "renews " + shortDate(sub.current_period_end) }) : null),
+        el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: manageSubscription, text: "Manage" }));
+    } else {
+      body = el("div", {},
+        el("p", { class: "small muted", text: "Unlock unlimited circles, reminders, and reports — $9.99/mo." }),
+        el("button", { class: "btn btn--primary btn--sm", type: "button", onclick: startSubscription, text: "Start membership · $9.99/mo" }));
+    }
+    return el("div", {}, el("div", { class: "section-title", text: "Membership" }), el("div", { class: "card" }, body));
+  }
+  function connectSection(acct) {
+    if (!acct || acct.mode === "unconfigured") return null;  // rail off → hide
+    var body;
+    if (acct.onboarding_complete) {
+      body = el("div", { class: "row between" }, el("strong", { text: "Card payouts ready" }), badge("ready", "badge--ok"));
+    } else {
+      body = el("div", {},
+        el("p", { class: "small muted", text: acct.connected
+          ? "Finish your Stripe setup to receive contributions by card."
+          : "Let members pay you by card. Powered by Stripe — Sol never holds your money." }),
+        el("button", { class: "btn btn--primary btn--sm", type: "button", onclick: startConnectOnboarding,
+          text: acct.connected ? "Finish payout setup" : "Set up card payouts" }));
+    }
+    return el("div", {}, el("div", { class: "section-title", text: "Get paid by card" }), el("div", { class: "card" }, body));
   }
 
   // ── shell + router ─────────────────────────────────────────────────────
