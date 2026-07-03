@@ -265,8 +265,43 @@ case "$STAGE" in
     run_check "tests: pytest test_sol_v1_frontend (files + contract + wiring)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_frontend.py -v --tb=short'
     ;;
+  7)
+    section "Sol Stage 7 — legal disclosure surface (non-custodial terms + consent gate)"
+
+    run_check "service: sol_v1 disclosures imports" \
+      python -c "from app.services.sol_v1 import disclosures; disclosures.require_consent; disclosures.record_consent; disclosures.CURRENT['version']"
+    run_check "schemas: LegalStatusOut/AcceptRequest import" \
+      python -c "from app.schemas.sol_v1_legal import LegalStatusOut, AcceptRequest"
+    run_check "model: sol_consents (SolConsent) registered" \
+      python -c "from app.models import SolConsent; assert SolConsent.__tablename__=='sol_consents'"
+    run_check "migration: 0011 exists + chains onto 0010" \
+      bash -c "test -f backend/alembic/versions/0011_sol_consents.py && grep -qE 'down_revision.*0010_sol_payment_disputed_at' backend/alembic/versions/0011_sol_consents.py"
+    run_check "router: sol_v1_legal exposes current + accept" \
+      python -c "from app.routers.sol_v1_legal import router; assert {r.path for r in router.routes}=={'/sol/v1/legal/current','/sol/v1/legal/accept'}"
+    run_check "router: legal registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_legal\\.router\\)' backend/app/main.py"
+    run_check "gate: create + join require consent (server-enforced)" \
+      bash -c "grep -qE 'require_consent' backend/app/routers/sol_v1.py"
+    run_check "app: full app assembles with legal routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/legal/current' in paths and '/sol/v1/legal/accept' in paths"
+
+    run_check "terms: non-custodial disclosure document present" \
+      bash -c "test -f backend/app/static/sol_v1_app/terms.html && grep -qi 'not a bank' backend/app/static/sol_v1_app/terms.html && grep -qi 'pay each other directly' backend/app/static/sol_v1_app/terms.html"
+    run_check "app: consent screen wired in the SPA" \
+      bash -c "grep -q 'consentScreen' backend/app/static/sol_v1_app/app.js && grep -q '/sol/v1/legal/accept' backend/app/static/sol_v1_app/app.js"
+
+    run_check "non-custodial: no money-movement/bank primitives in legal surface" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/disclosures.py backend/app/routers/sol_v1_legal.py backend/app/schemas/sol_v1_legal.py"
+
+    run_check "tests: pytest test_sol_v1_legal (consent + gate + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_legal.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: consent recording + create-gate on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_legal.py::test_consent_and_create_gate_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-6 exist so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-7 exist so far)"
     exit 3
     ;;
 esac

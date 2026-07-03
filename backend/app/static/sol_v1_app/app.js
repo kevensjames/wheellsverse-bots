@@ -267,7 +267,10 @@
     ], function () { go("#/group/" + g.id); }, "Open circle " + g.name);
   }
 
-  function createGroupScreen() {
+  async function createGroupScreen() {
+    var gen = STATE.gen; loading();
+    try { if (!(await ensureConsent("#/groups/new")) || stale(gen)) return; }
+    catch (e) { if (stale(gen)) return; return render(el("h1", { text: "New circle" }), errorView(e, "#/groups/new")); }
     var err = el("div", { class: "errbox", role: "alert", style: "display:none" });
     var name = el("input", { type: "text", required: true, maxlength: 120, placeholder: "e.g. Rent circle" });
     var amount = el("input", { type: "number", required: true, min: "1", step: "0.01", placeholder: "100.00", inputmode: "decimal" });
@@ -293,7 +296,11 @@
     render(backBtn("#/groups", "Circles"), el("h1", { text: "New circle" }), ncNote(), err, form);
   }
 
-  function joinScreen(prefill) {
+  async function joinScreen(prefill) {
+    var self = "#/join" + (prefill ? "?code=" + encodeURIComponent(prefill) : "");
+    var gen = STATE.gen; loading();
+    try { if (!(await ensureConsent(self)) || stale(gen)) return; }
+    catch (e) { if (stale(gen)) return; return render(el("h1", { text: "Join a circle" }), errorView(e, self)); }
     var err = el("div", { class: "errbox", role: "alert", style: "display:none" });
     var code = el("input", { type: "text", required: true, maxlength: 32, placeholder: "ABCD1234", value: prefill || "", style: "text-transform:uppercase;letter-spacing:2px;font-family:var(--font-display)" });
     var submit = el("button", { class: "btn btn--primary", type: "submit", text: "Join circle" });
@@ -546,6 +553,44 @@
       submit);
   }
 
+  // ── consent gate ─────────────────────────────────────────────────────────
+  async function ensureConsent(selfHash) {
+    // Returns true if the current terms are accepted (the screen may render).
+    // Otherwise routes to the consent screen (which returns here on accept) and
+    // returns false. Used by BOTH create + join so every entry point — button,
+    // deep link, and the shared invite link — is gated identically.
+    var s = await api("GET", "/sol/v1/legal/current");
+    if (s.accepted) return true;
+    go("#/consent?next=" + encodeURIComponent(selfHash));
+    return false;
+  }
+  async function consentScreen(nextHash) {
+    var gen = STATE.gen; loading();
+    var next = nextHash || "#/groups";
+    try {
+      var s = await api("GET", "/sol/v1/legal/current");
+      if (stale(gen)) return;
+      if (s.accepted) { go(next); return; }
+      var agree = el("input", { type: "checkbox" });
+      var accept = el("button", { class: "btn btn--primary", type: "button", disabled: true, text: "I agree — continue" });
+      agree.addEventListener("change", function () { accept.disabled = !agree.checked; });
+      accept.addEventListener("click", async function () {
+        accept.disabled = true;
+        try { await api("POST", "/sol/v1/legal/accept", { version: s.version }); toast("Terms accepted"); go(next); }
+        catch (e) { toast(e.detail, true); accept.disabled = false; }
+      });
+      render(backBtn("#/groups", "Circles"),
+        el("h1", { text: "Before you start" }),
+        el("div", { class: "card stack" },
+          el("p", { text: "Sol is a coordination tool, not a bank. Sol never holds, pools, or moves your money — members pay each other directly, and Sol only records it." }),
+          el("p", { text: "A savings circle depends on members paying each other. Sol does not guarantee any payment; you could receive less than you contributed, or nothing. Only join circles with people you trust." }),
+          el("a", { href: "terms.html", target: "_blank", rel: "noopener noreferrer", text: "Read the full terms & risk disclosure →" })),
+        el("label", { class: "row small", style: "font-weight:400;margin:var(--s-3) 0" }, agree,
+          el("span", { text: " I understand and agree to the " + s.title + " (v" + s.version + ")." })),
+        accept);
+    } catch (e) { if (stale(gen)) return; render(el("h1", { text: "Before you start" }), errorView(e, "#/consent")); }
+  }
+
   function legalScreen() {
     render(backBtn("#/me", "You"), el("h1", { text: "How Sol handles money" }),
       el("div", { class: "card stack" },
@@ -590,7 +635,7 @@
   }
 
   var AUTH_ROUTES = { login: 1, signup: 1 };
-  var TAB_FOR = { groups: "#/groups", pay: "#/pay", me: "#/me", group: "#/groups", payment: "#/pay", "groups/new": "#/groups", join: "#/groups", legal: "#/me" };
+  var TAB_FOR = { groups: "#/groups", pay: "#/pay", me: "#/me", group: "#/groups", payment: "#/pay", "groups/new": "#/groups", join: "#/groups", legal: "#/me", consent: "#/groups" };
 
   async function ensureMe() {
     if (STATE.me) return true;
@@ -621,6 +666,7 @@
       case "payment": return h.id ? paymentDetailScreen(h.id) : payScreen();
       case "me": return meScreen();
       case "legal": return legalScreen();
+      case "consent": return consentScreen(h.query.next);
       default: return groupsScreen();
     }
   }

@@ -212,6 +212,30 @@ class SolPaymentProfile(Base):
     )
 
 
+class SolConsent(Base):
+    """A recorded acceptance of a versioned disclosure (e.g. the non-custodial
+    terms). One row per (user, document, version); re-consent on a new version.
+    This is the audit trail proving a member acknowledged the terms + risk
+    disclosure before creating or joining a circle."""
+
+    __tablename__ = "sol_consents"
+    __table_args__ = (
+        UniqueConstraint("user_id", "document_key", "version", name="sol_consents_user_doc_version_uq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    document_key: Mapped[str] = mapped_column(Text, nullable=False)
+    version: Mapped[str] = mapped_column(Text, nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
 class SolPaymentProof(Base):
     """Optional screenshot a payer attaches when marking paid; payee reviews it."""
 

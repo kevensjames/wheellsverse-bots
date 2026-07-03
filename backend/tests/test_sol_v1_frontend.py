@@ -25,6 +25,7 @@ NODE = shutil.which("node")
 
 def test_static_files_exist():
     assert INDEX.is_file() and APP_JS.is_file() and STYLES.is_file()
+    assert (APP_DIR / "terms.html").is_file()  # Stage 7 legal document
     html = INDEX.read_text()
     assert 'src="app.js"' in html and 'href="styles.css"' in html
     assert 'name="viewport"' in html  # mobile-first
@@ -135,5 +136,6 @@ def test_contract_covers_the_core_endpoints():
         '"/sol/v1/reminders"', '"/sol/v1/reputation/me"', '"/sol/v1/payment-profiles"',
         "/mark", "/activate", "/lock",   # literal path suffixes
         '"confirm"', '"dispute"',        # actions built dynamically in paymentAction
+        '"/sol/v1/legal/current"', '"/sol/v1/legal/accept"', "#/consent",  # Stage 7 gate
     ]:
         assert needed in js, f"SPA no longer references {needed}"

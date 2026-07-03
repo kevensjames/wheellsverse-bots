@@ -17,6 +17,7 @@ from app.models.stripe_event import ProcessedStripeEvent
 from app.models.subscription import Subscription  # Plan removed: see app/services/billing/tiers.py
 from app.models.usage import UsageLog
 from app.models.sol import (
+    SolConsent,
     SolCycle,
     SolGroup,
     SolMembership,
@@ -41,6 +42,7 @@ __all__ = [
     "PriceHistory",
     "ProcessedStripeEvent",
     "Profile",
+    "SolConsent",
     "SolCycle",
     "SolGroup",
     "SolMembership",
