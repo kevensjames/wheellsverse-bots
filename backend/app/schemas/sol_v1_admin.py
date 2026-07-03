@@ -41,6 +41,8 @@ class CycleCounts(BaseModel):
 
 class Attention(BaseModel):
     overdue: int
+    # past-due but payer-marked & unconfirmed (stale — needs payee confirm/dispute)
+    unconfirmed: int
     disputed: int
 
 

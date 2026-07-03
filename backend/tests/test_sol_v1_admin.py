@@ -138,55 +138,62 @@ def test_aggregations_over_a_seeded_circle():
     from app.services.sol_v1 import lifecycle as LC
 
     engine, conn, db, schema = _db()
-    organizer, alice, bob, carol = uuid4(), uuid4(), uuid4(), uuid4()
+    organizer, alice, bob, carol, dave = uuid4(), uuid4(), uuid4(), uuid4(), uuid4()
     today = date(2026, 7, 2)
     try:
-        _add_profiles(conn, organizer, alice, bob, carol)
+        _add_profiles(conn, organizer, alice, bob, carol, dave)
 
         g = LC.create_group(
             db, organizer_id=organizer, name="Rent circle",
-            contribution_amount=Decimal("30.00"), frequency="weekly", member_limit=4,
+            contribution_amount=Decimal("30.00"), frequency="weekly", member_limit=5,
         )
-        for u in (alice, bob, carol):
+        for u in (alice, bob, carol, dave):
             LC.join_group(db, user_id=u, invite_code=g.invite_code)
         # start far in the past so the first cycle is already overdue
         LC.lock_group(db, group_id=g.id, actor_id=organizer,
                       order_mode="random", start_date=date(2020, 1, 1), rng=Random(3))
         _, _, cycles = LC.get_group_for_member(db, group_id=g.id, user_id=organizer)
         _, payments = LG.activate_cycle(db, cycle_id=cycles[0].id, actor_id=organizer)
-        assert len(payments) == 3
-        p0, p1, p2 = payments
+        assert len(payments) == 4
+        p0, p1, p2, p3 = payments
 
-        # p0 → confirmed; p1 → disputed (with a proof); p2 → left pending (overdue)
+        # p0 → confirmed; p1 → disputed (w/ proof); p2 → pending (overdue);
+        # p3 → marked-but-unconfirmed (past due) = the "mark-to-vanish" case
         LG.mark_paid(db, payment_id=p0.id, actor_id=p0.payer_id, method="zelle")
         LG.confirm_received(db, payment_id=p0.id, actor_id=p0.payee_id)
         LG.mark_paid(db, payment_id=p1.id, actor_id=p1.payer_id, method="cash",
                      proof_image_url="https://example.test/proof.png")
         LG.dispute(db, payment_id=p1.id, actor_id=p1.payee_id)
+        LG.mark_paid(db, payment_id=p3.id, actor_id=p3.payer_id, method="venmo")
 
         ov = M.overview(db, today)
         assert ov["payments"]["confirmed"] == 1
         assert ov["payments"]["disputed"] == 1
         assert ov["payments"]["pending"] == 1
-        assert ov["payments"]["total"] == 3
-        assert ov["groups"]["locked"] == 1 and ov["members_total"] == 4
-        assert ov["attention"]["disputed"] == 1 and ov["attention"]["overdue"] == 1
+        assert ov["payments"]["marked"] == 1
+        assert ov["payments"]["total"] == 4
+        assert ov["groups"]["locked"] == 1 and ov["members_total"] == 5
+        # the fix: a past-due 'marked' payment surfaces as 'unconfirmed', NOT hidden
+        assert ov["attention"]["overdue"] == 1      # p2 (pending, past due)
+        assert ov["attention"]["unconfirmed"] == 1  # p3 (marked, past due) — the reopened hole
+        assert ov["attention"]["disputed"] == 1     # p1
         assert ov["recorded_confirmed_volume"] == Decimal("30.00")  # only p0
 
         risk = M.risk_items(db, today)
-        assert [i["kind"] for i in risk] == ["disputed", "overdue"]  # disputed triaged first
-        assert {i["payment_id"] for i in risk} == {p1.id, p2.id}
+        assert risk[0]["kind"] == "disputed"  # disputed triaged first
+        assert {i["kind"] for i in risk} == {"disputed", "overdue", "unconfirmed"}
+        assert {i["payment_id"] for i in risk} == {p1.id, p2.id, p3.id}
 
         disp = M.disputes(db)
         assert len(disp) == 1 and disp[0]["payment_id"] == p1.id and disp[0]["proof_count"] == 1
 
         grps = M.groups(db)
-        assert len(grps) == 1 and grps[0]["member_count"] == 4 and grps[0]["cycles_total"] >= 1
+        assert len(grps) == 1 and grps[0]["member_count"] == 5 and grps[0]["cycles_total"] >= 1
 
         detail = M.group_detail(db, group_id=g.id, today=today)
-        assert len(detail["members"]) == 4
-        assert len(detail["payments"]) == 3
-        assert len(detail["reputations"]) == 4
+        assert len(detail["members"]) == 5
+        assert len(detail["payments"]) == 4
+        assert len(detail["reputations"]) == 5
 
         act = M.recent_activity(db, limit=50)
         assert {"created", "marked", "confirmed", "disputed"} <= {a["event"] for a in act}

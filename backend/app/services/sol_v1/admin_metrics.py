@@ -21,8 +21,16 @@ from sqlalchemy.orm import Session
 from app.models.sol import SolCycle, SolGroup, SolMembership, SolPayment, SolPaymentProof
 from app.services.sol_v1 import reputation as rep
 
-# statuses a payer still owes on (drives the overdue side of the risk board)
+# statuses a payer still owes on (plainly unpaid)
 _UNPAID = ("pending", "late")
+# at-risk WHEN PAST DUE: unpaid OR claimed-but-unconfirmed ('marked'). This aligns
+# the dashboard with reputation.classify_payment + the operator digest, which both
+# treat a past-due 'marked' payment as needing attention — closing the "mark-to-
+# vanish" hole where a payer marks paid to disappear from the operator's risk view.
+_AT_RISK = ("pending", "late", "marked")
+# Hard safety cap on the list endpoints. overview's counts stay EXACT (COUNT()),
+# so the operator still sees the true totals even if a list is capped.
+_MAX_ROWS = 1000
 
 
 def _counts_by(db: Session, column) -> dict[str, int]:
@@ -30,13 +38,14 @@ def _counts_by(db: Session, column) -> dict[str, int]:
     return {k: int(v) for k, v in db.execute(select(column, func.count()).group_by(column)).all()}
 
 
-def _overdue_count(db: Session, today: date) -> int:
+def _past_due_count(db: Session, today: date, statuses: tuple[str, ...]) -> int:
+    """How many payments in `statuses` are past their cycle's due date."""
     return int(
         db.scalar(
             select(func.count(SolPayment.id))
             .select_from(SolPayment)
             .join(SolCycle, SolPayment.cycle_id == SolCycle.id)
-            .where(SolPayment.status.in_(_UNPAID), SolCycle.due_date < today)
+            .where(SolPayment.status.in_(statuses), SolCycle.due_date < today)
         )
         or 0
     )
@@ -77,7 +86,10 @@ def overview(db: Session, today: date) -> dict:
         # RECORDED (members paid each other directly; Sol moved nothing).
         "recorded_confirmed_volume": Decimal(recorded_confirmed),
         "attention": {
-            "overdue": _overdue_count(db, today),
+            "overdue": _past_due_count(db, today, _UNPAID),
+            # past-due but payer-marked & unconfirmed — stale, needs the payee to
+            # confirm/dispute (a mark alone must NOT clear the payment from view).
+            "unconfirmed": _past_due_count(db, today, ("marked",)),
             "disputed": payments.get("disputed", 0),
         },
     }
@@ -93,10 +105,19 @@ def risk_items(db: Session, today: date) -> list[dict]:
         .where(
             or_(
                 SolPayment.status == "disputed",
-                and_(SolPayment.status.in_(_UNPAID), SolCycle.due_date < today),
+                and_(SolPayment.status.in_(_AT_RISK), SolCycle.due_date < today),
             )
         )
+        .limit(_MAX_ROWS)
     ).all()
+
+    def _kind(status: str) -> str:
+        if status == "disputed":
+            return "disputed"
+        if status == "marked":
+            return "unconfirmed"  # claimed paid, not yet confirmed, and past due
+        return "overdue"
+
     items = [
         {
             "payment_id": p.id,
@@ -107,12 +128,12 @@ def risk_items(db: Session, today: date) -> list[dict]:
             "amount": p.amount,
             "status": p.status,
             "due_date": due,
-            "kind": "disputed" if p.status == "disputed" else "overdue",
+            "kind": _kind(p.status),
             "disputed_at": p.disputed_at,
         }
         for p, due, gid, gname in rows
     ]
-    # disputed (0) before overdue (1); within each, oldest due first
+    # disputed (0) first; the rest (overdue / unconfirmed) by oldest due date
     items.sort(key=lambda i: (0 if i["kind"] == "disputed" else 1, i["due_date"]))
     return items
 
@@ -126,6 +147,7 @@ def disputes(db: Session) -> list[dict]:
         .outerjoin(SolPaymentProof, SolPaymentProof.payment_id == SolPayment.id)
         .where(SolPayment.status == "disputed")
         .group_by(SolPayment.id, SolGroup.id, SolGroup.name)
+        .limit(_MAX_ROWS)
     ).all()
     out = [
         {
@@ -160,7 +182,9 @@ def groups(db: Session) -> list[dict]:
             .group_by(SolCycle.group_id)
         ).all()
     )
-    rows = db.scalars(select(SolGroup).order_by(SolGroup.created_at.desc())).all()
+    rows = db.scalars(
+        select(SolGroup).order_by(SolGroup.created_at.desc()).limit(_MAX_ROWS)
+    ).all()
     return [
         {
             "id": g.id,
@@ -194,7 +218,11 @@ def group_detail(db: Session, *, group_id: UUID, today: date) -> dict:
     )
     cycle_ids = [c.id for c in cycles]
     payments = (
-        list(db.scalars(select(SolPayment).where(SolPayment.cycle_id.in_(cycle_ids))).all())
+        list(
+            db.scalars(
+                select(SolPayment).where(SolPayment.cycle_id.in_(cycle_ids)).limit(_MAX_ROWS)
+            ).all()
+        )
         if cycle_ids
         else []
     )

@@ -31,7 +31,7 @@
       case "confirmed": case "complete": case "ok": return "b-ok";
       case "marked": case "active": case "open": return "b-info";
       case "disputed": return "b-danger";
-      case "late": case "overdue": case "pending": return "b-warn";
+      case "late": case "overdue": case "pending": case "unconfirmed": return "b-warn";
       default: return "b-muted";
     }
   }
@@ -121,6 +121,7 @@
     var wrap = el("div", {});
     wrap.appendChild(el("div", { class: "cards" },
       metricCard(o.attention.overdue, "Overdue", "attn-overdue"),
+      metricCard(o.attention.unconfirmed, "Awaiting confirm", "attn-overdue"),
       metricCard(o.attention.disputed, "Disputed", "attn-disputed"),
       metricCard(o.groups.total, "Circles"),
       metricCard(o.members_total, "Members"),
