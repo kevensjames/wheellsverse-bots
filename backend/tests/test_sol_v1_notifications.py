@@ -46,7 +46,12 @@ def test_bucket_due_today_and_upcoming_build_due_kind():
         payment_id=PID, amount=Decimal("50"), due_date=TODAY + timedelta(days=3), bucket="upcoming"
     )
     assert today["kind"] == "payment_due" and "today" in today["body"]
-    assert upcoming["kind"] == "payment_due" and upcoming["dedup_key"] == f"payment_due:{PID}"
+    assert upcoming["kind"] == "payment_due"
+    # Distinct dedup keys per bucket so the due-today nudge is NOT swallowed by
+    # the earlier "upcoming" one (they'd otherwise share payment_due:<pid>).
+    assert upcoming["dedup_key"] == f"upcoming:{PID}"
+    assert today["dedup_key"] == f"due_today:{PID}"
+    assert upcoming["dedup_key"] != today["dedup_key"]
 
 
 def test_scheduled_bucket_does_not_notify():
@@ -169,6 +174,12 @@ def test_emit_is_idempotent_and_ownership_scoped():
         assert N.unread_count(db, user_id=a) == 0
         # idempotent second mark
         assert N.mark_read(db, user_id=a, notification_id=first) is False
+
+        # distinct dedup_keys for the SAME user coexist (escalation: upcoming vs
+        # due_today are different keys, so both nudges land — the confirmed fix)
+        assert N.emit(db, user_id=a, kind="payment_due", title="t", body="b",
+                      dedup_key="due_today:x") is not None
+        assert N.unread_count(db, user_id=a) == 1  # the new due_today row
 
         db.close()
         conn.close()

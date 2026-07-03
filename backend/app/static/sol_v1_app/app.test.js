@@ -65,6 +65,19 @@ test("safeHref allows only http(s), blocks script/data URLs", () => {
   assert.equal(H.safeHref(null), null);
 });
 
+test("inAppLink allows only well-formed in-app hashes", () => {
+  assert.equal(H.inAppLink("#/payment/abc-123"), "#/payment/abc-123");
+  assert.equal(H.inAppLink("#/group/9a9d23c"), "#/group/9a9d23c");
+  assert.equal(H.inAppLink("  #/payment/x  "), "#/payment/x");
+  assert.equal(H.inAppLink("#/payment/a/b"), null);        // too deep
+  assert.equal(H.inAppLink("#/payment"), null);            // no id
+  assert.equal(H.inAppLink("https://evil.example"), null); // not a hash
+  assert.equal(H.inAppLink("javascript:alert(1)"), null);
+  assert.equal(H.inAppLink("#/payment/<script>"), null);   // no injection chars
+  assert.equal(H.inAppLink(""), null);
+  assert.equal(H.inAppLink(null), null);
+});
+
 test("parseHash routes + params + query", () => {
   assert.deepEqual(H.parseHash("#/groups"), { route: "groups", id: null, sub: null, query: {} });
   assert.equal(H.parseHash("#/group/abc123").route, "group");

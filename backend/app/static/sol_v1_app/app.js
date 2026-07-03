@@ -68,6 +68,13 @@
     var u = String(url == null ? "" : url).trim();
     return /^https?:\/\//i.test(u) ? u : null;
   }
+  function inAppLink(link) {
+    // A notification deep-link is only followed if it's a well-formed in-app
+    // hash like "#/payment/<id>" (letters route + id). Defense in depth: links
+    // are server-generated, but this refuses anything else before go() sees it.
+    var s = String(link == null ? "" : link).trim();
+    return /^#\/[a-z]+\/[A-Za-z0-9-]+$/.test(s) ? s : null;
+  }
   function parseHash(hash) {
     var h = (hash || "").replace(/^#\/?/, "");
     var qs = "";
@@ -85,7 +92,8 @@
   }
 
   var HELPERS = { money: money, shortDate: shortDate, statusMeta: statusMeta, dueMeta: dueMeta,
-    repMeta: repMeta, groupStatusMeta: groupStatusMeta, shortId: shortId, safeHref: safeHref, parseHash: parseHash };
+    repMeta: repMeta, groupStatusMeta: groupStatusMeta, shortId: shortId, safeHref: safeHref,
+    inAppLink: inAppLink, parseHash: parseHash };
   if (typeof module !== "undefined" && module.exports) { module.exports = HELPERS; return; }
   if (typeof window !== "undefined") window.SolV1Helpers = HELPERS;
 
@@ -164,7 +172,7 @@
   }
 
   // ── UI plumbing ──────────────────────────────────────────────────────────
-  var mainEl, toastTimer, liveEl;
+  var mainEl, toastTimer, liveEl, bellBadge;
   function ensureLive() {
     if (!liveEl) {
       liveEl = el("div", { class: "sr-only", "aria-live": "polite", "aria-atomic": "true" });
@@ -513,6 +521,58 @@
     catch (e) { toast(e.detail, true); }
   }
 
+  // ── notifications (in-app inbox) ─────────────────────────────────────────
+  async function refreshBell() {
+    // Update the header unread badge. Fail-soft: on any error the bell just
+    // stays hidden — notifications are a nicety, never block the app.
+    var badge = bellBadge;
+    if (!badge) return;
+    try {
+      var r = await api("GET", "/sol/v1/notifications/unread-count");
+      var n = (r && r.count) || 0;
+      if (badge !== bellBadge) return;  // a newer shell() replaced the badge
+      badge.textContent = n > 99 ? "99+" : String(n);
+      badge.style.display = n > 0 ? "inline-flex" : "none";
+    } catch (e) { /* fail-soft */ }
+  }
+  async function notificationsScreen() {
+    var gen = STATE.gen; loading();
+    try {
+      var data = await api("GET", "/sol/v1/notifications");
+      if (stale(gen)) return;
+      var items = data.items || [];
+      var nodes = [el("h1", { text: "Notifications" })];
+      if (data.unread > 0) {
+        nodes.push(el("div", { class: "btnrow", style: "margin-bottom:var(--s-4)" },
+          el("button", { class: "btn btn--ghost btn--sm", type: "button",
+            onclick: markAllNotificationsRead, text: "Mark all read" })));
+      }
+      nodes.push(items.length
+        ? el("div", { class: "stack" }, items.map(function (n) { return notifCard(n); }))
+        : empty("🔔", "No notifications", "You're all caught up."));
+      render.apply(null, nodes);
+      refreshBell();
+    } catch (e) { if (stale(gen)) return; render(el("h1", { text: "Notifications" }), errorView(e, "#/notifications")); }
+  }
+  function notifCard(n) {
+    var unread = !n.read_at;
+    var link = inAppLink(n.link);
+    return tapCard({ class: "card tap" + (unread ? " unread" : "") }, [
+      el("div", { class: "row between" }, el("strong", { text: n.title }), unread ? badge("new", "badge--info") : null),
+      el("div", { class: "small muted", text: n.body }),
+      el("div", { class: "small muted", text: shortDate(n.created_at) })
+    ], function () { openNotification(n, link); }, n.title);
+  }
+  async function openNotification(n, link) {
+    if (!n.read_at) { try { await api("POST", "/sol/v1/notifications/" + n.id + "/read"); } catch (e) { /* ignore */ } }
+    go(link || "#/notifications");   // follow the deep-link, else re-render (now read)
+  }
+  async function markAllNotificationsRead() {
+    try { await api("POST", "/sol/v1/notifications/read-all"); toast("All marked read"); }
+    catch (e) { toast(e.detail, true); }
+    go("#/notifications");
+  }
+
   // ── me: reputation + payment profiles ────────────────────────────────────
   async function meScreen() {
     var gen = STATE.gen; loading();
@@ -694,9 +754,14 @@
   function shell(activeTab) {
     var app = document.getElementById("app");
     app.textContent = "";
+    bellBadge = el("span", { class: "bell-badge", "aria-hidden": "true", style: "display:none" });
+    var bell = el("button", { class: "bell", type: "button", "aria-label": "Notifications",
+      onclick: function () { go("#/notifications"); } },
+      el("span", { class: "ico", "aria-hidden": "true", text: "🔔" }), bellBadge);
     app.appendChild(el("header", { class: "appbar" },
       el("div", { class: "brand" }, el("span", { class: "sun", "aria-hidden": "true" }), el("span", { text: "Sol" })),
-      el("div", { class: "spacer" })));
+      el("div", { class: "spacer" }), bell));
+    refreshBell();
     app.appendChild(el("div", { class: "ncbanner" }, el("span", { text: "Non-custodial · members pay each other directly. " }),
       el("a", { href: "#/legal", text: "Learn more" })));
     mainEl = el("main", { id: "view" });
@@ -710,7 +775,7 @@
   }
 
   var AUTH_ROUTES = { login: 1, signup: 1 };
-  var TAB_FOR = { groups: "#/groups", pay: "#/pay", me: "#/me", group: "#/groups", payment: "#/pay", "groups/new": "#/groups", join: "#/groups", legal: "#/me", consent: "#/groups" };
+  var TAB_FOR = { groups: "#/groups", pay: "#/pay", me: "#/me", group: "#/groups", payment: "#/pay", "groups/new": "#/groups", join: "#/groups", legal: "#/me", consent: "#/groups", notifications: "#/notifications" };
 
   async function ensureMe() {
     if (STATE.me) return true;
@@ -740,6 +805,7 @@
       case "pay": return payScreen();
       case "payment": return h.id ? paymentDetailScreen(h.id) : payScreen();
       case "me": return meScreen();
+      case "notifications": return notificationsScreen();
       case "legal": return legalScreen();
       case "consent": return consentScreen(h.query.next);
       default: return groupsScreen();

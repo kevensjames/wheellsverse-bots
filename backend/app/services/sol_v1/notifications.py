@@ -72,13 +72,19 @@ def content_for_payer_obligation(
         when = "today" if bucket == "due_today" else f"on {due_date.isoformat()}"
         title = "Payment due"
         body = f"Your {amt} contribution is due {when}. Pay your circle member, then mark it paid."
+    # Dedup on the BUCKET for the payment_due family (upcoming vs due_today), else
+    # the earlier "upcoming" nudge's key would swallow the "due today" one (same
+    # kind) and the member would get no reminder ON the due date. Overdue already
+    # has its own kind. → three escalating one-shot nudges: upcoming, due_today,
+    # overdue — each fires exactly once, no daily spam.
+    dedup_scope = bucket if kind == "payment_due" else kind
     return {
         "kind": kind,
         "title": title,
         "body": body,
         "link": f"#/payment/{payment_id}",
         "payment_id": payment_id,
-        "dedup_key": f"{kind}:{payment_id}",
+        "dedup_key": f"{dedup_scope}:{payment_id}",
     }
 
 
@@ -164,16 +170,16 @@ def emit_due_overdue_scan(db: Session, today: date, upcoming_within_days: int = 
 
     created = 0
     for payment_id, payer_id, amount, due in rows:
-        bucket = classify_due(due, today, upcoming_within_days)
-        content = content_for_payer_obligation(
-            payment_id=payment_id, amount=amount, due_date=due, bucket=bucket
-        )
-        if content is None:
-            continue
-        try:
+        try:  # one bad row must not abort the whole sweep — guard build + emit
+            bucket = classify_due(due, today, upcoming_within_days)
+            content = content_for_payer_obligation(
+                payment_id=payment_id, amount=amount, due_date=due, bucket=bucket
+            )
+            if content is None:
+                continue
             if emit(db, user_id=payer_id, **content) is not None:
                 created += 1
-        except Exception as e:  # one bad row must not abort the whole sweep
+        except Exception as e:
             db.rollback()
             logger.warning("sol notify: emit failed for payment %s: %s", payment_id, e)
     return created

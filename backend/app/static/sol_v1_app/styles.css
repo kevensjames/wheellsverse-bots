@@ -44,6 +44,10 @@ p{margin:0 0 var(--s-3)} a{color:var(--brand-strong)}
 .appbar .sun{width:22px;height:22px;border-radius:var(--r-pill);background:radial-gradient(circle at 50% 60%,var(--sol-400),var(--sol-600));box-shadow:0 0 0 3px var(--sol-200)}
 .appbar .spacer{flex:1}
 .appbar button.icon{background:none;border:0;color:var(--ink-500);font-size:var(--step-1);cursor:pointer;padding:var(--s-2)}
+.appbar .bell{position:relative;background:none;border:0;color:var(--ink-500);cursor:pointer;padding:var(--s-2);line-height:1}
+.appbar .bell .ico{font-size:1.15rem;line-height:1}
+.bell-badge{position:absolute;top:0;right:0;min-width:16px;height:16px;padding:0 4px;border-radius:var(--r-pill);background:var(--danger-700);color:#fff;font-size:11px;font-weight:700;align-items:center;justify-content:center;box-sizing:border-box}
+.card.unread{border-left:3px solid var(--sol-500)}
 
 /* non-custodial banner (always visible reminder) */
 .ncbanner{background:var(--warn-100);color:var(--ink-800);font-size:var(--step--1);padding:var(--s-2) var(--s-4);border-bottom:1px solid var(--border);text-align:center}

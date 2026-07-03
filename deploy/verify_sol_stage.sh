@@ -439,8 +439,62 @@ except SolError:
       "e2e: settle/mirror/account/refund handlers on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_webhooks.py::test_webhook_handlers_on_real_db -v'
     ;;
+  12)
+    section "Sol Stage 12 — notifications (durable in-app inbox + member reminders)"
+
+    run_check "service: sol_v1 notifications imports" \
+      python -c "from app.services.sol_v1 import notifications as n; n.emit; n.emit_due_overdue_scan; n.content_for_payer_obligation; n.list_for_user; n.unread_count; n.mark_read; n.mark_all_read"
+    run_check "schemas: sol_v1_notifications imports" \
+      python -c "from app.schemas.sol_v1_notifications import NotificationOut, NotificationListOut, UnreadCountOut, MarkedOut"
+    run_check "model: SolNotification registered + namespaced" \
+      python -c "from app.models import SolNotification; assert SolNotification.__tablename__=='sol_notifications'"
+    run_check "model: dedup_key UNIQUE(user_id,dedup_key) + kind CHECK + payment_id FK SET NULL" \
+      python -c "
+from app.models.sol import SolNotification as N
+cons={c.name for c in N.__table__.constraints}
+assert 'sol_notifications_user_dedup_uq' in cons, cons
+assert 'sol_notifications_kind_check' in cons, cons
+fk=list(N.__table__.c.payment_id.foreign_keys)[0]
+assert fk.ondelete=='SET NULL', fk.ondelete
+"
+    run_check "migration: 0016 exists + chains onto 0015" \
+      bash -c "test -f backend/alembic/versions/0016_sol_notifications.py && grep -qE 'down_revision.*0015_sol_payment_method_stripe' backend/alembic/versions/0016_sol_notifications.py"
+    run_check "router: sol_v1_notifications exposes the 4 routes" \
+      python -c "from app.routers.sol_v1_notifications import router; p={r.path for r in router.routes}; want={'/sol/v1/notifications','/sol/v1/notifications/unread-count','/sol/v1/notifications/{notification_id}/read','/sol/v1/notifications/read-all'}; assert p==want, p"
+    run_check "router: notifications registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_notifications\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with the notification routes mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/notifications/unread-count' in paths and '/sol/v1/notifications/read-all' in paths"
+
+    run_check "scheduler: run_once emits member notifications (fail-soft)" \
+      bash -c "grep -qE 'emit_due_overdue_scan' backend/app/services/sol_v1/reminder_scheduler.py"
+    run_check "authz: mark_read/mark_all_read are ownership-scoped (user_id in the WHERE)" \
+      bash -c "grep -qE 'SolNotification.user_id == user_id' backend/app/services/sol_v1/notifications.py"
+    run_check "default: external channels OFF (email + sms both default False)" \
+      python -c "from app.config import Settings; f=Settings.model_fields; assert f['SOL_NOTIFY_EMAIL_ENABLED'].default is False and f['SOL_NOTIFY_SMS_ENABLED'].default is False"
+
+    # NON-CUSTODIAL guard: notifications carry text only — no money-move/bank primitives.
+    run_check "non-custodial: no money-movement/bank primitives in notifications surface" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/notifications.py backend/app/routers/sol_v1_notifications.py backend/app/schemas/sol_v1_notifications.py"
+
+    # SPA: the bell + screen are wired, deep-links are validated, no XSS sink.
+    run_check "spa: notifications bell + screen + inAppLink validator wired" \
+      bash -c "grep -q 'notificationsScreen' backend/app/static/sol_v1_app/app.js && grep -q 'refreshBell' backend/app/static/sol_v1_app/app.js && grep -q 'inAppLink' backend/app/static/sol_v1_app/app.js"
+    run_check "spa: no innerHTML sink introduced (XSS)" \
+      bash -c "! grep -q '\\.innerHTML' backend/app/static/sol_v1_app/app.js"
+
+    run_check "tests: pytest test_sol_v1_notifications (builders + emit + readers + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_notifications.py -v --tb=short'
+    run_or_defer 'command -v node >/dev/null 2>&1' \
+      "js: SPA pure-helper unit tests incl. inAppLink (node --test app.test.js)" \
+      bash -c 'cd backend/app/static/sol_v1_app && node --test app.test.js'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: emit idempotency + ownership + due/overdue scan on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_notifications.py -k "idempotent or scan" -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7 + Connect A-D(8-11) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12) exist so far)"
     exit 3
     ;;
 esac
