@@ -13,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, sol_v1_ledger, transcribe, tts, v1, ws_collab
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, sol_v1_ledger, sol_v1_reminders, transcribe, tts, v1, ws_collab
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -120,9 +120,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _log.warning("goals scheduler start failed: %s", e)
 
+    # Sol v1 reminders — opt-in via SOL_V1_REMINDERS_ENABLED=1. Once/day at
+    # SOL_V1_REMINDERS_HOUR_UTC, flips overdue member payments to 'late' and
+    # pushes an operator digest. NON-CUSTODIAL: labels + notifies only.
+    try:
+        from app.services.sol_v1.reminder_scheduler import start as _start_sol_v1_reminders
+        _start_sol_v1_reminders()
+    except Exception as e:
+        _log.warning("sol_v1 reminders scheduler start failed: %s", e)
+
     yield
 
     # ── Shutdown (reverse-registration order) ────────────────────────────────
+    try:
+        from app.services.sol_v1.reminder_scheduler import stop as _stop_sol_v1_reminders
+        _stop_sol_v1_reminders()
+    except Exception as e:
+        _log.warning("sol_v1 reminders scheduler stop failed: %s", e)
+
     try:
         from app.services.goals.scheduler import stop as _stop_goals
         _stop_goals()
@@ -226,6 +241,7 @@ app.include_router(nai.router, prefix="/nai")
 # stays operator-only below.)
 app.include_router(sol_v1.router)
 app.include_router(sol_v1_ledger.router)  # Sol v1 ledger: double-confirmed member payments
+app.include_router(sol_v1_reminders.router)  # Sol v1 reminders: member's due/overdue view
 
 # ── Operator surface — control plane, agent subsystems, money ops. NEVER
 #    mounted when KAI_PROFILE=consumer (App-Store Step 0): the /admin/* control

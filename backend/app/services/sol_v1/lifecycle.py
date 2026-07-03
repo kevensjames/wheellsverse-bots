@@ -239,7 +239,10 @@ def lock_group(
     for m in members:
         m.payout_position = positions[m.id]
 
-    start = start_date or date.today()
+    # Mint due dates on the SAME clock the reminders read (UTC), so generation
+    # and the due/overdue sweep never disagree at a day boundary on a non-UTC
+    # host. (Per-member/group timezones are a future refinement.)
+    start = start_date or datetime.now(timezone.utc).date()
     group.status = "locked"
     group.locked_at = datetime.now(timezone.utc)
 

@@ -5,7 +5,7 @@ Money-free: `amount` is a recorded number, `method` is an external rail name,
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 from uuid import UUID
@@ -80,3 +80,24 @@ class PaymentDetail(BaseModel):
 class CycleActivateOut(BaseModel):
     cycle: CycleOut
     payments: list[PaymentOut]
+
+
+# ── reminders (Stage 4) ───────────────────────────────────────────────────────
+
+
+class ReminderItem(BaseModel):
+    payment_id: UUID
+    cycle_id: UUID
+    counterparty_id: UUID
+    amount: Decimal
+    status: str
+    due_date: date
+    # 'overdue' | 'due_today' | 'upcoming' | 'scheduled'
+    kind: str
+    # 'payer' (you owe) | 'payee' (owed to you)
+    role: str
+
+
+class RemindersOut(BaseModel):
+    as_payer: list[ReminderItem]
+    as_payee: list[ReminderItem]

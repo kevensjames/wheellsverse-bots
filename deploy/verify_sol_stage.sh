@@ -175,8 +175,40 @@ case "$STAGE" in
       "e2e: activate→mark→confirm→complete on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_ledger.py::test_ledger_end_to_end_on_real_db -v'
     ;;
+  4)
+    section "Sol Stage 4 — reminders (due/overdue sweep + member view)"
+
+    run_check "service: sol_v1 reminders imports" \
+      python -c "from app.services.sol_v1 import reminders; reminders.classify_due"
+    run_check "service: sol_v1 reminder_scheduler imports" \
+      python -c "from app.services.sol_v1 import reminder_scheduler as s; s.start; s.stop; s.status"
+    run_check "schemas: RemindersOut/ReminderItem import" \
+      python -c "from app.schemas.sol_v1_ledger import RemindersOut, ReminderItem"
+    run_check "router: sol_v1_reminders exposes /sol/v1/reminders" \
+      python -c "from app.routers.sol_v1_reminders import router; assert {r.path for r in router.routes}=={'/sol/v1/reminders'}"
+    run_check "router: reminders registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_reminders\\.router\\)' backend/app/main.py"
+    run_check "lifespan: reminder scheduler wired (start + stop)" \
+      bash -c "grep -qE 'reminder_scheduler import start' backend/app/main.py && grep -qE 'reminder_scheduler import stop' backend/app/main.py"
+    run_check "app: full app assembles with /sol/v1/reminders mounted" \
+      python -c "import app.main as m; paths=[r.path for r in m.app.routes]; assert '/sol/v1/reminders' in paths, 'reminders route missing'"
+
+    run_check "scheduler: OFF by default (no thread without the env flag)" \
+      python -c "import os; os.environ.pop('SOL_V1_REMINDERS_ENABLED', None); from app.services.sol_v1 import reminder_scheduler as s; assert s.start() is False and s.is_running() is False, 'scheduler must not start without SOL_V1_REMINDERS_ENABLED'"
+
+    # NON-CUSTODIAL guard over the reminders surface.
+    run_check "non-custodial: no money-movement/bank primitives in reminders" \
+      bash -c "! grep -rnE --include='*.py' 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|StripeClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/reminders.py backend/app/services/sol_v1/reminder_scheduler.py backend/app/routers/sol_v1_reminders.py"
+
+    run_check "tests: pytest test_sol_v1_reminders (buckets + digest + scheduler + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_reminders.py -v --tb=short'
+
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: overdue→late + member_reminders on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_reminders.py::test_reminders_flow_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-3 exist so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-4 exist so far)"
     exit 3
     ;;
 esac
