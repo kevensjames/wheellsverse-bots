@@ -111,9 +111,24 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _log.warning("checkin scheduler start failed: %s", e)
 
+    # Goal-loop heartbeat scheduler — opt-in via KAI_GOALS_HEARTBEAT_ENABLED=1.
+    # Once/day at KAI_GOALS_HEARTBEAT_HOUR_UTC, runs the NON-DESTRUCTIVE goal
+    # advance pass; each cycle re-checks KAI_SCOPE_GOALS. No startup run.
+    try:
+        from app.services.goals.scheduler import start as _start_goals
+        _start_goals()
+    except Exception as e:
+        _log.warning("goals scheduler start failed: %s", e)
+
     yield
 
     # ── Shutdown (reverse-registration order) ────────────────────────────────
+    try:
+        from app.services.goals.scheduler import stop as _stop_goals
+        _stop_goals()
+    except Exception as e:
+        _log.warning("goals scheduler stop failed: %s", e)
+
     try:
         from app.services.checkin.scheduler import stop as _stop_checkin
         _stop_checkin()

@@ -68,3 +68,14 @@ def test_notify_sends_summary(monkeypatch):
 
 def test_notify_noop_when_nothing(monkeypatch):
     assert scheduler._notify([]) is False
+
+
+def test_app_mounts_goals_and_lifespan_safe():
+    # importing the app must not raise, and the goals routes must be mounted
+    from app.main import app
+    paths = {getattr(r, "path", None) for r in app.routes}
+    assert "/admin/goals/stats" in paths
+    assert "/admin/goals/{goal_id}/approve-proposal" in paths
+    # lifespan wiring imports the scheduler start/stop by name — assert they exist
+    from app.services.goals import scheduler as sch
+    assert callable(sch.start) and callable(sch.stop)
