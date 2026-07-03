@@ -298,6 +298,17 @@ if _STATIC_DIR.exists():
         name="nai-ui",
     )
 
+# Sol v1 member app — mobile-first SPA over /sol/v1/*. Served SAME-ORIGIN from the
+# daemon so the httpOnly nai_access cookie authenticates its fetches (no CORS, no
+# token in JS). Consumer surface (a member feature), so mounted unconditionally.
+_SOL_APP_DIR = Path(__file__).parent / "static" / "sol_v1_app"
+if _SOL_APP_DIR.exists():
+    app.mount(
+        "/sol-app",
+        StaticFiles(directory=str(_SOL_APP_DIR), html=True),
+        name="sol-v1-app",
+    )
+
 
 @app.get("/")
 def root():

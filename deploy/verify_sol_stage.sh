@@ -241,8 +241,32 @@ case "$STAGE" in
       "e2e: compute_reputation + group_reputations on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_reputation.py::test_reputation_on_real_db -v'
     ;;
+  6)
+    section "Sol Stage 6 — mobile-first member app (static SPA over /sol/v1)"
+
+    run_check "files: index.html + app.js + styles.css exist" \
+      bash -c "test -f backend/app/static/sol_v1_app/index.html && test -f backend/app/static/sol_v1_app/app.js && test -f backend/app/static/sol_v1_app/styles.css"
+    run_check "index: mobile viewport + wires app.js/styles.css" \
+      bash -c "grep -q 'name=\"viewport\"' backend/app/static/sol_v1_app/index.html && grep -q 'src=\"app.js\"' backend/app/static/sol_v1_app/index.html && grep -q 'href=\"styles.css\"' backend/app/static/sol_v1_app/index.html"
+    run_check "mount: /sol-app registered in main.py" \
+      bash -c "grep -qE '\"/sol-app\"' backend/app/main.py && grep -qE 'sol_v1_app' backend/app/main.py"
+    run_check "security: no innerHTML sink in app.js (XSS)" \
+      bash -c "! grep -q '\\.innerHTML' backend/app/static/sol_v1_app/app.js"
+    run_check "non-custodial: disclosure copy present in app.js" \
+      bash -c "grep -qi 'never' backend/app/static/sol_v1_app/app.js && grep -qi 'pay each other' backend/app/static/sol_v1_app/app.js"
+
+    run_or_defer 'command -v node >/dev/null 2>&1' \
+      "js: app.js parses (node --check)" \
+      node --check backend/app/static/sol_v1_app/app.js
+    run_or_defer 'command -v node >/dev/null 2>&1' \
+      "js: pure-helper unit tests (node --test app.test.js)" \
+      bash -c 'cd backend/app/static/sol_v1_app && node --test app.test.js'
+
+    run_check "tests: pytest test_sol_v1_frontend (files + contract + wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_frontend.py -v --tb=short'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-5 exist so far)"
+    log "ERROR: no Sol checks defined for stage $STAGE (stages 1-6 exist so far)"
     exit 3
     ;;
 esac

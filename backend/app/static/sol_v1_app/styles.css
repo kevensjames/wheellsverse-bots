@@ -1,0 +1,136 @@
+/* Sol v1 — mobile-first member app. Tokens mirror frontend/sol/sol-design-system.css
+   (sunrise brand) so this stays visually consistent with the Sol identity. */
+:root{
+  --ink-900:#0E1726; --ink-800:#14223A; --ink-700:#1E3050; --ink-500:#46577A;
+  --ink-300:#8A96AD; --ink-100:#E5E9F0;
+  --paper:#FBFAF7; --surface:#FFFFFF; --surface-2:#F4F2EC; --line:#E7E2D7;
+  --sol-600:#C9781F; --sol-500:#E89324; --sol-400:#F4A93C; --sol-200:#FBD9A2;
+  --coral-500:#E5654B;
+  --success-600:#1E9E6A; --success-100:#DCF3E8;
+  --warn-600:#C98A14; --warn-100:#FBEFD2;
+  --danger-600:#D33A3A; --danger-700:#B02525; --danger-100:#FBE3E1;
+  --info-600:#2D6BB5; --info-100:#DDEBFA;
+  --bg:var(--paper); --text:var(--ink-900); --text-muted:var(--ink-500);
+  --border:var(--line); --brand:var(--sol-500); --brand-strong:var(--sol-600);
+  --font-display:"Space Grotesk",system-ui,-apple-system,Segoe UI,sans-serif;
+  --font-body:"Inter",system-ui,-apple-system,Segoe UI,sans-serif;
+  --step--1:.833rem; --step-0:1rem; --step-1:1.15rem; --step-2:1.4rem; --step-3:1.7rem;
+  --s-1:.25rem; --s-2:.5rem; --s-3:.75rem; --s-4:1rem; --s-5:1.25rem; --s-6:1.5rem; --s-8:2rem;
+  --r-sm:.375rem; --r-md:.625rem; --r-lg:1rem; --r-pill:999px;
+  --shadow-1:0 1px 2px rgba(14,23,38,.06); --shadow-2:0 4px 16px rgba(14,23,38,.10);
+  --ease:cubic-bezier(.2,.7,.2,1); --dur:180ms;
+  --nav-h:64px; --bar-h:56px;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  font-family:var(--font-body); font-size:var(--step-0); line-height:1.55;
+  color:var(--text); background:var(--bg);
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+h1,h2,h3,h4{font-family:var(--font-display); line-height:1.2; margin:0 0 var(--s-3); font-weight:600}
+h1{font-size:var(--step-3)} h2{font-size:var(--step-2)} h3{font-size:var(--step-1)}
+p{margin:0 0 var(--s-3)} a{color:var(--brand-strong)}
+:focus-visible{outline:2px solid var(--sol-500); outline-offset:2px; border-radius:var(--r-sm)}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
+/* ── app shell ─────────────────────────────────────────────────────────── */
+#app{min-height:100dvh;display:flex;flex-direction:column;max-width:560px;margin:0 auto;background:var(--bg)}
+.appbar{
+  position:sticky;top:0;z-index:20;height:var(--bar-h);display:flex;align-items:center;gap:var(--s-3);
+  padding:0 var(--s-4); background:var(--surface); border-bottom:1px solid var(--border);
+}
+.appbar .brand{display:flex;align-items:center;gap:var(--s-2);font-family:var(--font-display);font-weight:700;font-size:var(--step-1)}
+.appbar .sun{width:22px;height:22px;border-radius:var(--r-pill);background:radial-gradient(circle at 50% 60%,var(--sol-400),var(--sol-600));box-shadow:0 0 0 3px var(--sol-200)}
+.appbar .spacer{flex:1}
+.appbar button.icon{background:none;border:0;color:var(--ink-500);font-size:var(--step-1);cursor:pointer;padding:var(--s-2)}
+
+/* non-custodial banner (always visible reminder) */
+.ncbanner{background:var(--warn-100);color:var(--ink-800);font-size:var(--step--1);padding:var(--s-2) var(--s-4);border-bottom:1px solid var(--border);text-align:center}
+.ncbanner a{color:var(--brand-strong);font-weight:600}
+
+main{flex:1;padding:var(--s-4) var(--s-4) calc(var(--nav-h) + var(--s-6) + env(safe-area-inset-bottom,0px));overflow-x:hidden}
+
+/* bottom nav — min-height + safe-area padding so the tab bar clears the iOS home indicator */
+.bottomnav{
+  position:fixed;left:0;right:0;bottom:0;z-index:20;min-height:var(--nav-h);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  max-width:560px;margin:0 auto;display:grid;grid-template-columns:repeat(3,1fr);
+  background:var(--surface);border-top:1px solid var(--border);
+}
+.bottomnav a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-height:var(--nav-h);text-decoration:none;color:var(--ink-500);font-size:var(--step--1);font-weight:600}
+.bottomnav a .ico{font-size:1.25rem;line-height:1}
+.bottomnav a[aria-current="page"]{color:var(--brand-strong)}
+
+/* ── components ────────────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r-lg);padding:var(--s-4);box-shadow:var(--shadow-1);margin-bottom:var(--s-3)}
+.card.tap{cursor:pointer;transition:transform var(--dur) var(--ease),box-shadow var(--dur) var(--ease)}
+.card.tap:active{transform:scale(.99)}
+.card.tap:hover{box-shadow:var(--shadow-2)}
+.row{display:flex;align-items:center;gap:var(--s-3)}
+.row.between{justify-content:space-between}
+.muted{color:var(--text-muted)}
+.small{font-size:var(--step--1)}
+.stack>*+*{margin-top:var(--s-3)}
+.mono{font-variant-numeric:tabular-nums}
+.amount{font-family:var(--font-display);font-weight:700;font-variant-numeric:tabular-nums}
+hr{border:0;border-top:1px solid var(--border);margin:var(--s-4) 0}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s-2);
+  font-family:var(--font-display);font-weight:600;font-size:var(--step-0);
+  padding:.7rem 1.1rem;border-radius:var(--r-md);border:1px solid transparent;cursor:pointer;
+  transition:transform var(--dur) var(--ease),background var(--dur) var(--ease);width:100%;
+}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.btn--primary{background:var(--sol-500);color:var(--ink-900)}
+.btn--primary:hover:not(:disabled){background:var(--sol-400)}
+.btn--ghost{background:transparent;color:var(--ink-800);border-color:var(--line)}
+.btn--ghost:hover{background:var(--surface-2)}
+.btn--danger{background:var(--danger-700);color:#fff}
+.btn--success{background:var(--success-600);color:#fff}
+.btn--sm{width:auto;padding:.45rem .8rem;font-size:var(--step--1)}
+.btnrow{display:flex;gap:var(--s-2);flex-wrap:wrap}
+.btnrow .btn{width:auto;flex:1}
+
+label{display:block;font-weight:600;font-size:var(--step--1);margin-bottom:var(--s-1)}
+input,select,textarea{
+  width:100%;font-family:inherit;font-size:var(--step-0);padding:.7rem .8rem;
+  border:1px solid var(--border);border-radius:var(--r-md);background:var(--surface);color:var(--text);
+}
+.field{margin-bottom:var(--s-4)}
+.hint{font-size:var(--step--1);color:var(--text-muted);margin-top:var(--s-1)}
+
+.badge{display:inline-flex;align-items:center;gap:4px;font-size:var(--step--1);font-weight:600;padding:.15rem .55rem;border-radius:var(--r-pill);white-space:nowrap}
+.badge--ok{background:var(--success-100);color:var(--success-600)}
+.badge--warn{background:var(--warn-100);color:var(--warn-600)}
+.badge--danger{background:var(--danger-100);color:var(--danger-700)}
+.badge--info{background:var(--info-100);color:var(--info-600)}
+.badge--muted{background:var(--surface-2);color:var(--ink-500)}
+
+.pill-code{font-family:var(--font-display);font-weight:700;letter-spacing:2px;font-size:var(--step-1);background:var(--surface-2);border:1px dashed var(--sol-400);border-radius:var(--r-md);padding:.5rem .9rem;display:inline-block}
+
+.empty{text-align:center;padding:var(--s-8) var(--s-4);color:var(--text-muted)}
+.empty .big{font-size:2.5rem;line-height:1;margin-bottom:var(--s-3)}
+
+.toast{position:fixed;left:50%;bottom:calc(var(--nav-h) + var(--s-4));transform:translateX(-50%);
+  background:var(--ink-900);color:#fff;padding:.7rem 1.1rem;border-radius:var(--r-pill);font-size:var(--step--1);
+  box-shadow:var(--shadow-2);z-index:40;max-width:90%;text-align:center}
+.toast.err{background:var(--danger-700)}
+
+.spinner{width:26px;height:26px;border:3px solid var(--surface-2);border-top-color:var(--sol-500);border-radius:50%;animation:spin .7s linear infinite;margin:var(--s-8) auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* auth screen */
+.auth{max-width:400px;margin:var(--s-8) auto;padding:0 var(--s-2)}
+.auth .logo{text-align:center;margin-bottom:var(--s-6)}
+.auth .logo .sun{width:52px;height:52px;border-radius:var(--r-pill);margin:0 auto var(--s-3);background:radial-gradient(circle at 50% 60%,var(--sol-400),var(--sol-600));box-shadow:0 0 0 6px var(--sol-200)}
+.auth .tabs{display:flex;gap:var(--s-2);margin-bottom:var(--s-4)}
+.auth .tabs button{flex:1;background:none;border:1px solid var(--border);border-radius:var(--r-md);padding:.5rem;font-weight:600;cursor:pointer;color:var(--ink-500)}
+.auth .tabs button.on{background:var(--sol-500);color:var(--ink-900);border-color:var(--sol-500)}
+
+.errbox{background:var(--danger-100);color:var(--danger-700);border-radius:var(--r-md);padding:.6rem .8rem;font-size:var(--step--1);margin-bottom:var(--s-3)}
+.section-title{font-size:var(--step--1);text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);font-weight:700;margin:var(--s-5) 0 var(--s-2)}
+.backlink{background:none;border:0;color:var(--brand-strong);font-weight:600;cursor:pointer;padding:var(--s-2) 0;font-size:var(--step-0)}
+.repdial{font-family:var(--font-display);font-weight:700;font-size:2.4rem;line-height:1}
