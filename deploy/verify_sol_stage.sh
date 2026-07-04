@@ -564,8 +564,41 @@ assert fk.ondelete=='SET NULL', fk.ondelete
     run_check "tests: pytest test_sol_v1_ratelimit (limiter RE-ENABLED → 429 past the cap)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_ratelimit.py -v --tb=short'
     ;;
+  15)
+    section "Sol Stage 15 — supervisor (read-only integrity + health monitor)"
+
+    run_check "service: sol_v1 supervisor imports" \
+      python -c "from app.services.sol_v1 import supervisor as s; s.run_checks; s.integrity_violations; s.health; s.build_alert; s.is_noteworthy"
+    run_check "scheduler: sol_v1 supervisor_scheduler imports" \
+      python -c "from app.services.sol_v1 import supervisor_scheduler as s; s.start; s.stop; s.status; s.run_once"
+    run_check "schemas: SupervisorReportOut imports" \
+      python -c "from app.schemas.sol_v1_admin import SupervisorReportOut, IntegrityViolation, SupervisorHealth"
+    run_check "router: /admin/sol-v1/supervisor exposed (admin-gated router)" \
+      python -c "from app.routers.sol_v1_admin import router; assert '/admin/sol-v1/supervisor' in {r.path for r in router.routes}"
+    run_check "app: full app assembles with the supervisor endpoint mounted" \
+      python -c "import app.main as m; paths=[getattr(r,'path','') for r in m.app.routes]; assert '/admin/sol-v1/supervisor' in paths"
+
+    run_check "scheduler: OFF by default (no thread without the env flag)" \
+      python -c "import os; os.environ.pop('SOL_V1_SUPERVISOR_ENABLED', None); from app.services.sol_v1 import supervisor_scheduler as s; assert s.start() is False and s.is_running() is False"
+    run_check "lifespan: supervisor scheduler wired (start + stop)" \
+      bash -c "grep -qE 'supervisor_scheduler import start' backend/app/main.py && grep -qE 'supervisor_scheduler import stop' backend/app/main.py"
+
+    # READ-ONLY: a monitor must never mutate. NON-CUSTODIAL: no money.
+    run_check "read-only: supervisor performs NO writes (no commit/add/update/insert/delete)" \
+      bash -c "! grep -qE '\\.commit\\(|\\.add\\(|\\.delete\\(|db\\.execute\\(update|db\\.execute\\(insert|UPDATE |INSERT |DELETE ' backend/app/services/sol_v1/supervisor.py"
+    run_check "non-custodial: no money-movement/bank primitives in the supervisor" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|DwollaClient|StripeClient|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/supervisor.py backend/app/services/sol_v1/supervisor_scheduler.py"
+    run_check "custody check present: supervisor flags Stripe payments without a destination" \
+      bash -c "grep -q 'stripe_payment_no_destination' backend/app/services/sol_v1/supervisor.py"
+
+    run_check "tests: pytest test_sol_v1_supervisor (integrity + corruption + health + authz)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_supervisor.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: clean circle → no violations; injected corruption caught (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_supervisor.py::test_clean_circle_has_no_violations_then_corruption_is_caught -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15) exist so far)"
     exit 3
     ;;
 esac

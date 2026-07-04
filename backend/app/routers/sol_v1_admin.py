@@ -33,8 +33,10 @@ from app.schemas.sol_v1_admin import (
     GroupsOut,
     OverviewOut,
     RiskOut,
+    SupervisorReportOut,
 )
 from app.services.sol_v1 import admin_metrics as M
+from app.services.sol_v1 import supervisor as SUP
 
 router = APIRouter(
     prefix="/admin/sol-v1",
@@ -81,3 +83,9 @@ def activity(
     db: Session = Depends(get_db),
 ) -> ActivityOut:
     return ActivityOut(items=M.recent_activity(db, limit=limit))
+
+
+@router.get("/supervisor", response_model=SupervisorReportOut)
+def supervisor(db: Session = Depends(get_db)) -> SupervisorReportOut:
+    """Run the read-only integrity + health monitor on demand. NEVER mutates."""
+    return SupervisorReportOut(**SUP.run_checks(db, _today()))

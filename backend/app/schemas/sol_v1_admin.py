@@ -126,3 +126,23 @@ class ActivityItem(BaseModel):
 
 class ActivityOut(BaseModel):
     items: list[ActivityItem]
+
+
+class IntegrityViolation(BaseModel):
+    check: str
+    description: str
+    sample_ids: list[str]
+    has_more: bool
+
+
+class SupervisorHealth(BaseModel):
+    overdue: int
+    unconfirmed: int
+    stuck_disputes: int
+
+
+class SupervisorReportOut(BaseModel):
+    ok: bool
+    integrity_violations: list[IntegrityViolation]
+    health: SupervisorHealth
+    checked_at: str

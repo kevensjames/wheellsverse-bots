@@ -129,6 +129,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         _log.warning("sol_v1 reminders scheduler start failed: %s", e)
 
+    # Sol v1 supervisor — opt-in via SOL_V1_SUPERVISOR_ENABLED=1. Once/day, a
+    # READ-ONLY integrity + health sweep that alerts the operator on findings.
+    try:
+        from app.services.sol_v1.supervisor_scheduler import start as _start_sol_v1_supervisor
+        _start_sol_v1_supervisor()
+    except Exception as e:
+        _log.warning("sol_v1 supervisor scheduler start failed: %s", e)
+
     yield
 
     # ── Shutdown (reverse-registration order) ────────────────────────────────
@@ -137,6 +145,12 @@ async def lifespan(app: FastAPI):
         _stop_sol_v1_reminders()
     except Exception as e:
         _log.warning("sol_v1 reminders scheduler stop failed: %s", e)
+
+    try:
+        from app.services.sol_v1.supervisor_scheduler import stop as _stop_sol_v1_supervisor
+        _stop_sol_v1_supervisor()
+    except Exception as e:
+        _log.warning("sol_v1 supervisor scheduler stop failed: %s", e)
 
     try:
         from app.services.goals.scheduler import stop as _stop_goals
