@@ -13,9 +13,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1_notifications import (
@@ -51,8 +52,10 @@ def my_unread_count(
 
 
 @router.post("/notifications/{notification_id}/read", response_model=MarkedOut)
+@limiter.limit("60/minute")
 def mark_one_read(
     notification_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MarkedOut:
@@ -63,7 +66,9 @@ def mark_one_read(
 
 
 @router.post("/notifications/read-all", response_model=MarkedOut)
+@limiter.limit("60/minute")
 def mark_all_read(
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> MarkedOut:

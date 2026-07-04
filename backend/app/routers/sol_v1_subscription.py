@@ -10,9 +10,10 @@ ROSCA money. Access suspension (SOL_REQUIRE_SUBSCRIPTION) is off by default.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1_subscription import CheckoutOut, PortalOut, SubscriptionStatusOut
@@ -35,7 +36,9 @@ def get_status(
 
 
 @router.post("/subscription/checkout", response_model=CheckoutOut)
+@limiter.limit("15/minute")
 def checkout(
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CheckoutOut:
@@ -47,7 +50,9 @@ def checkout(
 
 
 @router.post("/subscription/refresh", response_model=SubscriptionStatusOut)
+@limiter.limit("15/minute")
 def refresh(
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> SubscriptionStatusOut:
@@ -59,7 +64,9 @@ def refresh(
 
 
 @router.post("/subscription/portal", response_model=PortalOut)
+@limiter.limit("15/minute")
 def portal(
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PortalOut:

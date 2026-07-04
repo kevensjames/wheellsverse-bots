@@ -12,9 +12,10 @@ from __future__ import annotations
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1 import CycleOut
@@ -42,8 +43,10 @@ def _raise(err: SolError):
 
 
 @router.post("/cycles/{cycle_id}/activate", response_model=CycleActivateOut)
+@limiter.limit("30/minute")
 def activate_cycle(
     cycle_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> CycleActivateOut:
@@ -96,8 +99,10 @@ def payment_detail(
 
 
 @router.post("/payments/{payment_id}/mark", response_model=PaymentOut)
+@limiter.limit("30/minute")
 def mark_paid(
     payment_id: UUID,
+    request: Request,
     body: MarkPaidRequest,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -116,8 +121,10 @@ def mark_paid(
 
 
 @router.post("/payments/{payment_id}/confirm", response_model=PaymentOut)
+@limiter.limit("30/minute")
 def confirm_received(
     payment_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaymentOut:
@@ -129,8 +136,10 @@ def confirm_received(
 
 
 @router.post("/payments/{payment_id}/dispute", response_model=PaymentOut)
+@limiter.limit("30/minute")
 def dispute(
     payment_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> PaymentOut:
@@ -146,8 +155,10 @@ def dispute(
     response_model=ProofOut,
     status_code=status.HTTP_201_CREATED,
 )
+@limiter.limit("20/minute")
 def add_proof(
     payment_id: UUID,
+    request: Request,
     body: ProofCreate,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -174,7 +185,9 @@ def my_payment_profiles(
 
 
 @router.put("/payment-profiles", response_model=PaymentProfileOut)
+@limiter.limit("20/minute")
 def upsert_payment_profile(
+    request: Request,
     body: PaymentProfileUpsert,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -193,8 +206,10 @@ def upsert_payment_profile(
 
 
 @router.delete("/payment-profiles/{profile_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("20/minute")
 def delete_payment_profile(
     profile_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> None:

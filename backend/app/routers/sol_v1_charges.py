@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1_charges import ChargeCheckoutOut, ChargeStatusOut
@@ -28,8 +29,10 @@ def _raise(err: SolError):
 
 
 @router.post("/stripe/payments/{payment_id}/checkout", response_model=ChargeCheckoutOut)
+@limiter.limit("20/minute")
 def contribution_checkout(
     payment_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChargeCheckoutOut:
@@ -41,8 +44,10 @@ def contribution_checkout(
 
 
 @router.post("/stripe/payments/{payment_id}/reconcile", response_model=ChargeStatusOut)
+@limiter.limit("20/minute")
 def contribution_reconcile(
     payment_id: UUID,
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChargeStatusOut:

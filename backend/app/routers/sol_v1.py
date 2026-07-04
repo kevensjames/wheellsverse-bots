@@ -10,9 +10,10 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1 import (
@@ -43,7 +44,9 @@ def _detail(group, members, cycles) -> GroupDetail:
 
 
 @router.post("/groups", response_model=GroupOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("15/minute")  # anti-spam: cap how fast one IP can create circles
 def create_group(
+    request: Request,
     body: GroupCreate,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -76,7 +79,9 @@ def my_groups(
 @router.post(
     "/groups/join", response_model=MembershipOut, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("10/minute")  # BRUTE-FORCE DEFENSE: cap invite-code guessing per IP
 def join_group(
+    request: Request,
     body: JoinRequest,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -108,8 +113,10 @@ def group_detail(
 
 
 @router.post("/groups/{group_id}/lock", response_model=GroupDetail)
+@limiter.limit("30/minute")
 def lock_group(
     group_id: UUID,
+    request: Request,
     body: LockRequest,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),

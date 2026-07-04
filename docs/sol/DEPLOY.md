@@ -99,3 +99,34 @@ Set in the daemon's env (as `start_nai.sh` reads it), then restart.
   *synthetic* Stripe key in a pre-existing test fixture (`backend/tests/security/test_runner_secrets.py`
   — not a real secret). To back up to GitHub, either allow that one finding via the URL GitHub printed,
   or scrub it from history first.
+
+## 6. Security
+
+**Rate limits (active now on `/sol/v1/*`).** The member API is rate-limited per IP (slowapi). The caps
+are backstops for real users and abuse-defense for attackers; legitimate use never hits them:
+
+| Endpoint(s) | Limit | Defends against |
+|---|---|---|
+| `POST /sol/v1/groups/join` | **10/min** | **invite-code brute-force** (guessing codes to join a circle) |
+| `POST /sol/v1/groups` | 15/min | circle spam |
+| `activate` / `mark` / `confirm` / `dispute` | 30/min each | write flooding (and notification spam) |
+| `lock` / `proofs` / `payment-profiles` / `legal/accept` | 20–30/min | write abuse |
+| subscription / stripe / charges writes | 15–20/min | external-call abuse |
+| notifications read / read-all | 60/min | benign; light cap |
+
+In-memory counters are fine for the single-worker daemon we ship (`--workers 1`). If you ever run
+multiple workers/hosts, set `storage_uri="redis://…"` on the limiter so all workers share the counters
+(see `app/core/rate_limit.py`).
+
+**Operator action — set a dedicated `ADMIN_TOKEN`.** The `/admin/*` control plane (including the Sol
+operator dashboard `/admin/sol-v1`) is gated by `X-Admin-Token`. If `ADMIN_TOKEN` is unset, the gate
+*falls back* to `JWT_SECRET_KEY` (a deliberate transition convenience — see `app/dependencies/admin.py`).
+That works, but couples the admin surface to a long-lived legacy secret you can't rotate independently, and
+that dashboard exposes every circle/member/payment. **Recommended:** set a dedicated, random `ADMIN_TOKEN`
+in the daemon env and rotate it on its own schedule; do not rely on the fallback in production. (Not changed
+in code because a hard requirement could lock the operator out mid-transition — it's your call to set it.)
+
+**Already in place:** member auth (Supabase JWT, httpOnly cookie), admin-token gate (constant-time,
+fail-closed), webhook HMAC verification, Pydantic input validation, parameterized SQL, XSS-safe SPAs
+(textContent only), non-custodial invariant (verifier-checked every stage). MFA is available via Supabase
+(operator toggle, no code change).

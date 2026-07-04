@@ -8,9 +8,10 @@ front to show the consent screen.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1_legal import AcceptRequest, LegalStatusOut
@@ -29,7 +30,9 @@ def current_terms(
 
 
 @router.post("/legal/accept", response_model=LegalStatusOut, status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
 def accept_terms(
+    request: Request,
     body: AcceptRequest,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),

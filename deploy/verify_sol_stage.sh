@@ -537,8 +537,35 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: aggregations over a seeded circle on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_admin.py::test_aggregations_over_a_seeded_circle -v'
     ;;
+  14)
+    section "Sol Stage 14 — security hardening (rate limits on the member API)"
+
+    SOL_MEMBER_ROUTERS="backend/app/routers/sol_v1.py backend/app/routers/sol_v1_ledger.py backend/app/routers/sol_v1_legal.py backend/app/routers/sol_v1_subscription.py backend/app/routers/sol_v1_stripe.py backend/app/routers/sol_v1_charges.py backend/app/routers/sol_v1_notifications.py"
+
+    run_check "rate-limit: shared limiter imported across the sol member routers" \
+      bash -c "test \$(grep -l 'from app.core.rate_limit import limiter' $SOL_MEMBER_ROUTERS | wc -l) -ge 7"
+    run_check "rate-limit: >=18 endpoints decorated with @limiter.limit" \
+      bash -c "test \$(grep -rh '@limiter.limit' $SOL_MEMBER_ROUTERS | wc -l) -ge 18"
+    run_check "rate-limit: JOIN is the strictest (invite-code brute-force → 10/minute)" \
+      bash -c "grep -A2 '10/minute' backend/app/routers/sol_v1.py | grep -q 'def join_group'"
+    run_check "rate-limit: the write mutations (mark/confirm/dispute/activate) are limited" \
+      bash -c "test \$(grep -c '@limiter.limit' backend/app/routers/sol_v1_ledger.py) -ge 7"
+    run_check "app: full app assembles with the rate-limited routes mounted" \
+      python -c "import app.main as m; paths=[getattr(r,'path','') for r in m.app.routes]; assert '/sol/v1/groups/join' in paths and '/sol/v1/payments/{payment_id}/mark' in paths; assert hasattr(m.app.state,'limiter'), 'limiter not wired on app'"
+
+    run_check "safe default: the limiter is DISABLED in the test suite (no flakiness)" \
+      bash -c "grep -qE '_disable_rate_limiter' backend/tests/conftest.py"
+
+    # NON-CUSTODIAL: rate-limiting is orthogonal to custody — the change is
+    # decorators only; no money-move/bank primitives in the member routers.
+    run_check "non-custodial: no money-movement/bank primitives in the sol member routers" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +dwolla|from +dwolla|services\\.dwolla|DwollaClient|\\bwallet\\b|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' $SOL_MEMBER_ROUTERS"
+
+    run_check "tests: pytest test_sol_v1_ratelimit (limiter RE-ENABLED → 429 past the cap)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_ratelimit.py -v --tb=short'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14) exist so far)"
     exit 3
     ;;
 esac

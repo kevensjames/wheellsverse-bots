@@ -51,8 +51,15 @@ def test_consent_and_create_gate_on_real_db():
 
     from app.dependencies.supabase_jwt import UserPrincipal
     from app.models.sol import SolConsent, SolCycle, SolGroup, SolMembership, SolPayment
+    from starlette.requests import Request as _Request
+
     from app.routers.sol_v1 import create_group as create_group_route
     from app.schemas.sol_v1 import GroupCreate
+
+    # create_group is @limiter.limit-decorated → it now takes `request` first.
+    # A minimal real Request satisfies slowapi (the limiter is disabled in tests).
+    _req = _Request({"type": "http", "method": "POST", "path": "/sol/v1/groups",
+                     "headers": [], "client": ("127.0.0.1", 0)})
 
     url = os.environ["TEST_DATABASE_URL"].replace("+asyncpg", "").replace("+psycopg2", "")
     engine = create_engine(url, future=True)
@@ -84,7 +91,7 @@ def test_consent_and_create_gate_on_real_db():
 
         # the create route is GATED: 403 before consent
         with pytest.raises(HTTPException) as ex:
-            create_group_route(body, current=principal, db=db)
+            create_group_route(_req, body, current=principal, db=db)
         assert ex.value.status_code == 403
 
         # accept the current terms → idempotent
@@ -95,7 +102,7 @@ def test_consent_and_create_gate_on_real_db():
         assert D.consent_status(db, user_id=uid)["accepted"] is True
 
         # now the gate opens: create succeeds
-        out = create_group_route(body, current=principal, db=db)
+        out = create_group_route(_req, body, current=principal, db=db)
         assert out.name == "Gated circle" and out.status == "open"
 
         db.close(); conn.close()

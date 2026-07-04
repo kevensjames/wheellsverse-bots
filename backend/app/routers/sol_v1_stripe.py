@@ -10,9 +10,10 @@ Non-custodial: the connected account belongs to the member; Sol never holds fund
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1_stripe import ConnectStatusOut, OnboardingLinkOut
@@ -35,7 +36,9 @@ def stripe_account(
 
 
 @router.post("/stripe/account/onboard", response_model=OnboardingLinkOut)
+@limiter.limit("15/minute")
 def stripe_onboard(
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> OnboardingLinkOut:
@@ -47,7 +50,9 @@ def stripe_onboard(
 
 
 @router.post("/stripe/account/refresh", response_model=ConnectStatusOut)
+@limiter.limit("15/minute")
 def stripe_refresh(
+    request: Request,
     current: UserPrincipal = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ConnectStatusOut:
