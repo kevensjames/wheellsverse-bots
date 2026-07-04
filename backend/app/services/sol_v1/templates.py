@@ -158,7 +158,10 @@ def auto_spawn_next_if_full(db: Session, group: SolGroup) -> SolGroup | None:
     ) or 0
     if filled < group.member_limit:
         return None  # not full yet
-    tpl = db.get(SolCircleTemplate, group.template_id)
+    # Lock the template row to serialize concurrent fills of SIBLING instances of
+    # the same template: the second caller blocks, then sees the first's committed
+    # new instance in the open_with_room check below and returns None (no dup).
+    tpl = db.get(SolCircleTemplate, group.template_id, with_for_update=True)
     if tpl is None or not tpl.active:
         return None
 

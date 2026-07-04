@@ -193,8 +193,14 @@ def create_group(
 
 def join_group(db: Session, *, user_id: UUID, invite_code: str) -> SolMembership:
     """Join an open, non-full group by its invite code."""
+    # Lock the group row so the "is it full?" check + the membership insert are
+    # atomic against a concurrent join racing the last seat (else two joiners can
+    # both pass the count check and exceed member_limit). Mirrors ledger.py's
+    # with_for_update pattern.
     group = db.scalar(
-        select(SolGroup).where(SolGroup.invite_code == invite_code.strip().upper())
+        select(SolGroup)
+        .where(SolGroup.invite_code == invite_code.strip().upper())
+        .with_for_update()
     )
     if group is None:
         raise SolError(404, "invite code not found")
@@ -217,6 +223,11 @@ def join_group(db: Session, *, user_id: UUID, invite_code: str) -> SolMembership
     db.add(membership)
     db.commit()
     db.refresh(membership)
+    # Detach the committed membership so the fail-soft rollback in the hook below
+    # can't re-expire it — the router serializes it AFTER this returns, and a
+    # rollback would otherwise force a lazy reload that fails on a degraded DB
+    # (turning a durably-committed join into a 500). Its columns are all loaded.
+    db.expunge(membership)
     # If this join FILLED a template instance, auto-spawn the next open instance
     # so the waitlist has somewhere to flow. Best-effort — a spawn failure must
     # NEVER break the join that already committed. (local import avoids a cycle.)
