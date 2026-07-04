@@ -94,8 +94,9 @@ def test_channels_off_by_default(monkeypatch):
 
 
 def test_deliver_external_never_raises():
-    # even if a future provider throws, the caller must be shielded
-    N._deliver_external(user_id=uuid4(), kind="payment_due", title="t", body="b")  # no raise
+    # even if a future provider throws, the caller must be shielded (email is off
+    # by default here, so db isn't touched — None is fine)
+    N._deliver_external(None, user_id=uuid4(), kind="payment_due", title="t", body="b")  # no raise
 
 
 # ── router wiring ──────────────────────────────────────────────────────────────

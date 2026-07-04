@@ -710,8 +710,30 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: fill auto-spawns the next instance + notifies waitlist (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_autospawn.py::test_fill_auto_spawns_next_instance_and_notifies_waitlist -v'
     ;;
+  20)
+    section "Sol Stage 20 — email notification channel (opt-in, fail-soft)"
+
+    run_check "config: SMTP_* keys present + email OFF by default" \
+      python -c "from app.config import Settings; f=Settings.model_fields; assert all(k in f for k in ('SMTP_HOST','SMTP_PORT','SMTP_FROM','SMTP_STARTTLS')); assert f['SOL_NOTIFY_EMAIL_ENABLED'].default is False"
+    run_check "service: notifications email channel present" \
+      python -c "from app.services.sol_v1 import notifications as n; n._email_configured; n._resolve_email; n._send_email; n._deliver_external"
+    run_check "gated: email sends only when opt-in flag AND SMTP config (both)" \
+      bash -c "grep -qE '_email_enabled\\(\\) and _email_configured\\(\\)' backend/app/services/sol_v1/notifications.py"
+    run_check "fail-soft: _deliver_external swallows provider errors (never raises)" \
+      bash -c "grep -qE 'a broken channel must never break emission' backend/app/services/sol_v1/notifications.py"
+    run_check "emit passes db to the channel (for email resolution)" \
+      bash -c "grep -qE '_deliver_external\\(db,' backend/app/services/sol_v1/notifications.py"
+    run_check "resolve: the address comes from the member's Profile" \
+      bash -c "grep -qE 'from app.models.profile import Profile' backend/app/services/sol_v1/notifications.py"
+
+    run_check "non-custodial: no money/bank primitives in the email channel" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\biban\\b|import +dwolla|from +dwolla|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/notifications.py"
+
+    run_check "tests: pytest test_sol_v1_email (send / no-op / fail-soft / message build)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_email.py -v --tb=short'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20) exist so far)"
     exit 3
     ;;
 esac

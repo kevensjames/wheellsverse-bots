@@ -133,6 +133,15 @@ class Settings(BaseSettings):
     # logs until a provider is wired. Member reminders never depend on them.
     SOL_NOTIFY_EMAIL_ENABLED: bool = False
     SOL_NOTIFY_SMS_ENABLED: bool = False
+    # SMTP for the email channel (Stage 20). Any provider speaks SMTP
+    # (SendGrid/Mailgun/SES/Gmail). Email only sends when SOL_NOTIFY_EMAIL_ENABLED
+    # is on AND SMTP_HOST + SMTP_FROM are set; otherwise it's a silent no-op.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_STARTTLS: bool = True
 
     @property
     def cors_origins(self) -> List[str]:

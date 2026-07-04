@@ -96,8 +96,7 @@ def _flag(name: str) -> bool:
 
 
 def _email_enabled() -> bool:
-    # Opt-in AND a provider must be configured; neither is bundled yet, so this
-    # is False by default and emit() degrades to in-app only.
+    # Opt-in flag; email ALSO requires SMTP to be configured (see _email_configured).
     return _flag("SOL_NOTIFY_EMAIL_ENABLED")
 
 
@@ -105,17 +104,49 @@ def _sms_enabled() -> bool:
     return _flag("SOL_NOTIFY_SMS_ENABLED")
 
 
-def _deliver_external(*, user_id: UUID, kind: str, title: str, body: str) -> None:
-    """Best-effort email/SMS fan-out. NEVER raises — the in-app row already
-    landed. No provider is wired yet; when one is, plug it in here behind the
-    flags. Kept a no-op-by-default so we don't fake a channel that can't send."""
+def _email_configured() -> bool:
+    return bool((settings.SMTP_HOST or "").strip() and (settings.SMTP_FROM or "").strip())
+
+
+def _resolve_email(db: Session, user_id: UUID) -> str | None:
+    """The member's email from their profile (or None). Money-free lookup."""
+    from app.models.profile import Profile
+
+    return db.scalar(select(Profile.email).where(Profile.id == user_id))
+
+
+def _send_email(to: str, subject: str, body: str) -> None:
+    """Send one email over SMTP (any provider — SendGrid/Mailgun/SES/Gmail all
+    speak SMTP). Raises on failure; the caller is fail-soft."""
+    import smtplib
+    from email.message import EmailMessage
+
+    msg = EmailMessage()
+    msg["From"] = settings.SMTP_FROM
+    msg["To"] = to
+    msg["Subject"] = subject
+    msg.set_content(body)
+    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT or 587, timeout=10) as s:
+        if settings.SMTP_STARTTLS:
+            s.starttls()
+        if settings.SMTP_USER:
+            s.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+        s.send_message(msg)
+
+
+def _deliver_external(db: Session, *, user_id: UUID, kind: str, title: str, body: str) -> None:
+    """Best-effort email/SMS fan-out. NEVER raises — the in-app row already landed.
+    Email is opt-in (SOL_NOTIFY_EMAIL_ENABLED) AND requires SMTP config; otherwise
+    a silent no-op. Any provider/lookup error is swallowed so it can't break
+    emission — the member still has their durable in-app notification."""
     try:
-        if _email_enabled():
-            logger.info("sol notify: email channel enabled but no provider wired (kind=%s)", kind)
-            # TODO(provider): send_email(resolve_email(user_id), title, body)
+        if _email_enabled() and _email_configured():
+            to = _resolve_email(db, user_id)
+            if to:
+                _send_email(to, title, body)
         if _sms_enabled():
+            # SMS needs a provider (Twilio) + a phone on file; not wired. No-op log.
             logger.info("sol notify: sms channel enabled but no provider wired (kind=%s)", kind)
-            # TODO(provider): send_sms(resolve_phone(user_id), f"{title}: {body}")
     except Exception as e:  # a broken channel must never break emission
         logger.warning("sol notify: external delivery failed (kind=%s): %s", kind, e)
 
@@ -154,7 +185,7 @@ def emit(
     new_id = db.execute(stmt).scalar_one_or_none()
     db.commit()
     if new_id is not None:
-        _deliver_external(user_id=user_id, kind=kind, title=title, body=body)
+        _deliver_external(db, user_id=user_id, kind=kind, title=title, body=body)
     return new_id
 
 
