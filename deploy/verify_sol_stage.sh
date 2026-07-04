@@ -719,10 +719,16 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       python -c "from app.services.sol_v1 import notifications as n; n._email_configured; n._resolve_email; n._send_email; n._deliver_external"
     run_check "gated: email sends only when opt-in flag AND SMTP config (both)" \
       bash -c "grep -qE '_email_enabled\\(\\) and _email_configured\\(\\)' backend/app/services/sol_v1/notifications.py"
-    run_check "fail-soft: _deliver_external swallows provider errors (never raises)" \
+    run_check "fail-soft: email failure is swallowed (never breaks emission)" \
       bash -c "grep -qE 'a broken channel must never break emission' backend/app/services/sol_v1/notifications.py"
-    run_check "emit passes db to the channel (for email resolution)" \
-      bash -c "grep -qE '_deliver_external\\(db,' backend/app/services/sol_v1/notifications.py"
+    run_check "off critical path: email delivered on a background daemon thread" \
+      bash -c "grep -qE 'threading.Thread\\(target=_run.*daemon=True' backend/app/services/sol_v1/notifications.py"
+    run_check "own session: _resolve_email uses its own SessionLocal (no shared-session poison)" \
+      bash -c "grep -qE 'from app.database import SessionLocal' backend/app/services/sol_v1/notifications.py && grep -qE 'def _resolve_email\\(user_id' backend/app/services/sol_v1/notifications.py"
+    run_check "security: TLS certificate verification on send (blocks MITM)" \
+      bash -c "grep -qE 'ssl.create_default_context\\(\\)' backend/app/services/sol_v1/notifications.py && grep -qE 'starttls\\(context=ctx\\)' backend/app/services/sol_v1/notifications.py"
+    run_check "security: refuse SMTP AUTH over cleartext" \
+      bash -c "grep -qE 'refusing SMTP AUTH over cleartext' backend/app/services/sol_v1/notifications.py"
     run_check "resolve: the address comes from the member's Profile" \
       bash -c "grep -qE 'from app.models.profile import Profile' backend/app/services/sol_v1/notifications.py"
 

@@ -79,6 +79,8 @@ Set in the daemon's env (as `start_nai.sh` reads it), then restart.
 | `SOL_V1_REMINDERS_ENABLED` / `SOL_V1_REMINDERS_HOUR_UTC` | daily due/overdue Telegram digest (opt-in) | optional (default off) |
 | `SOL_V1_SUPERVISOR_ENABLED` / `SOL_V1_SUPERVISOR_HOUR_UTC` | daily read-only integrity + health sweep → operator alert | optional (default off) |
 | `SOL_NOTIFY_EMAIL_ENABLED` + `SMTP_HOST`/`SMTP_PORT`/`SMTP_USER`/`SMTP_PASSWORD`/`SMTP_FROM`/`SMTP_STARTTLS` | email members their notifications (in-app always works regardless) | optional — needs BOTH the flag AND SMTP config, else silent no-op |
+
+**Email TLS:** the sender verifies the server certificate (chain + hostname) on every send, so an on-path attacker can't MITM the SMTP AUTH exchange. Use `SMTP_PORT=587` with `SMTP_STARTTLS=1` (STARTTLS) **or** `SMTP_PORT=465` (implicit TLS — STARTTLS flag ignored). It **refuses to send AUTH credentials over cleartext**: if `SMTP_USER` is set you must be on 465 or have STARTTLS on, else the send raises (and is fail-soft-swallowed — the in-app notification still lands). Delivery runs on a background thread with its own DB session, so a slow/unreachable SMTP host never blocks a member's request or the reminder scan.
 | `STRIPE_CONNECT_ENABLED` | turn the Stripe rail ON | **leave off** until approved |
 | `STRIPE_CONNECT_LIVE_APPROVED` | allow a live Stripe key | **leave off** — only after Stripe + counsel |
 | `STRIPE_PRICE_SOL_MEMBER` | the $9.99/mo recurring price id | set when you enable the subscription |

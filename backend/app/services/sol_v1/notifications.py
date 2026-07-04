@@ -21,6 +21,7 @@ The pure `content_*` builders are testable offline; the DB helpers are thin.
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import date
 from decimal import Decimal
 from uuid import UUID
@@ -108,17 +109,28 @@ def _email_configured() -> bool:
     return bool((settings.SMTP_HOST or "").strip() and (settings.SMTP_FROM or "").strip())
 
 
-def _resolve_email(db: Session, user_id: UUID) -> str | None:
-    """The member's email from their profile (or None). Money-free lookup."""
+def _resolve_email(user_id: UUID) -> str | None:
+    """The member's email — resolved in its OWN short-lived session so a lookup
+    error can never poison the caller's (scan/request) session. Money-free."""
+    from app.database import SessionLocal
     from app.models.profile import Profile
 
-    return db.scalar(select(Profile.email).where(Profile.id == user_id))
+    s = SessionLocal()
+    try:
+        return s.scalar(select(Profile.email).where(Profile.id == user_id))
+    finally:
+        s.close()
 
 
 def _send_email(to: str, subject: str, body: str) -> None:
-    """Send one email over SMTP (any provider — SendGrid/Mailgun/SES/Gmail all
-    speak SMTP). Raises on failure; the caller is fail-soft."""
+    """Send one email over SMTP with certificate verification. Any provider speaks
+    SMTP (SendGrid/Mailgun/SES/Gmail). Raises on failure; the caller is fail-soft.
+
+    Security: verifies the server cert (create_default_context → CERT_REQUIRED +
+    hostname check) so an on-path attacker can't MITM the AUTH exchange, and NEVER
+    sends AUTH credentials over an unencrypted channel."""
     import smtplib
+    import ssl
     from email.message import EmailMessage
 
     msg = EmailMessage()
@@ -126,29 +138,53 @@ def _send_email(to: str, subject: str, body: str) -> None:
     msg["To"] = to
     msg["Subject"] = subject
     msg.set_content(body)
-    with smtplib.SMTP(settings.SMTP_HOST, settings.SMTP_PORT or 587, timeout=10) as s:
+    port = settings.SMTP_PORT or 587
+    ctx = ssl.create_default_context()  # verify cert chain + hostname (blocks MITM)
+
+    if port == 465:  # implicit TLS from the first byte
+        with smtplib.SMTP_SSL(settings.SMTP_HOST, port, timeout=10, context=ctx) as s:
+            if settings.SMTP_USER:
+                s.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
+            s.send_message(msg)
+        return
+
+    with smtplib.SMTP(settings.SMTP_HOST, port, timeout=10) as s:
         if settings.SMTP_STARTTLS:
-            s.starttls()
+            s.starttls(context=ctx)
         if settings.SMTP_USER:
+            if not settings.SMTP_STARTTLS:
+                # refuse to send credentials over a cleartext channel
+                raise RuntimeError(
+                    "refusing SMTP AUTH over cleartext — enable SMTP_STARTTLS or use port 465"
+                )
             s.login(settings.SMTP_USER, settings.SMTP_PASSWORD or "")
         s.send_message(msg)
 
 
-def _deliver_external(db: Session, *, user_id: UUID, kind: str, title: str, body: str) -> None:
-    """Best-effort email/SMS fan-out. NEVER raises — the in-app row already landed.
-    Email is opt-in (SOL_NOTIFY_EMAIL_ENABLED) AND requires SMTP config; otherwise
-    a silent no-op. Any provider/lookup error is swallowed so it can't break
-    emission — the member still has their durable in-app notification."""
-    try:
-        if _email_enabled() and _email_configured():
-            to = _resolve_email(db, user_id)
-            if to:
-                _send_email(to, title, body)
-        if _sms_enabled():
-            # SMS needs a provider (Twilio) + a phone on file; not wired. No-op log.
-            logger.info("sol notify: sms channel enabled but no provider wired (kind=%s)", kind)
-    except Exception as e:  # a broken channel must never break emission
-        logger.warning("sol notify: external delivery failed (kind=%s): %s", kind, e)
+def _deliver_email_sync(user_id: UUID, subject: str, body: str) -> None:
+    """Resolve the member's address (own session) + send. Synchronous; raises on
+    error. Runs on the background thread below and is tested directly."""
+    to = _resolve_email(user_id)
+    if to:
+        _send_email(to, subject, body)
+
+
+def _deliver_external(*, user_id: UUID, kind: str, title: str, body: str) -> None:
+    """Fire email/SMS OFF the caller's critical path. Email runs in a BACKGROUND
+    daemon thread with its OWN session, so a slow/unreachable SMTP host or a lookup
+    error can never block the caller (the per-payer scan loop, or a member's
+    mark/confirm/dispute request) nor poison its session. NEVER raises; the member
+    always has their durable in-app notification regardless."""
+    if _email_enabled() and _email_configured():
+        def _run() -> None:
+            try:
+                _deliver_email_sync(user_id, title, body)
+            except Exception as e:  # a broken channel must never break emission
+                logger.warning("sol notify: email delivery failed (kind=%s): %s", kind, e)
+        threading.Thread(target=_run, name="sol-email", daemon=True).start()
+    if _sms_enabled():
+        # SMS needs a provider (Twilio) + a phone on file; not wired. No-op log.
+        logger.info("sol notify: sms channel enabled but no provider wired (kind=%s)", kind)
 
 
 # ── emit (idempotent) ───────────────────────────────────────────────────────────
@@ -185,7 +221,7 @@ def emit(
     new_id = db.execute(stmt).scalar_one_or_none()
     db.commit()
     if new_id is not None:
-        _deliver_external(db, user_id=user_id, kind=kind, title=title, body=body)
+        _deliver_external(user_id=user_id, kind=kind, title=title, body=body)
     return new_id
 
 
