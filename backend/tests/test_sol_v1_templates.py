@@ -25,6 +25,8 @@ def test_templates_router_paths():
         "/sol/v1/templates/{template_id}",
         "/sol/v1/templates/{template_id}/spawn",
         "/sol/v1/groups/{group_id}/next-round",
+        "/sol/v1/templates/{template_id}/waitlist",
+        "/sol/v1/waitlists",
     }
 
 

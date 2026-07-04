@@ -653,8 +653,42 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: spawn instance + next-round cohort clone on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_templates.py -k "spawn or next_round" -v'
     ;;
+  18)
+    section "Sol Stage 18 — template waitlist (+ notify-on-spawn)"
+
+    run_check "migration: 0018 exists + chains onto 0017" \
+      bash -c "test -f backend/alembic/versions/0018_sol_waitlist.py && grep -qE 'down_revision.*0017_sol_circle_templates' backend/alembic/versions/0018_sol_waitlist.py"
+    run_check "model: SolWaitlist registered + namespaced" \
+      python -c "from app.models import SolWaitlist; assert SolWaitlist.__tablename__=='sol_waitlist'"
+    run_check "model: NOTIFICATION_KINDS includes circle_opening" \
+      python -c "from app.models.sol import NOTIFICATION_KINDS; assert 'circle_opening' in NOTIFICATION_KINDS"
+    run_check "service: sol_v1 waitlist imports" \
+      python -c "from app.services.sol_v1 import waitlist as w; w.join_waitlist; w.leave_waitlist; w.list_waitlist; w.my_waitlists; w.notify_waitlist"
+    run_check "schemas: WaitlistEntryOut imports" \
+      python -c "from app.schemas.sol_v1_templates import WaitlistEntryOut"
+    run_check "router: waitlist routes exposed" \
+      python -c "from app.routers.sol_v1_templates import router; p={r.path for r in router.routes}; assert '/sol/v1/templates/{template_id}/waitlist' in p and '/sol/v1/waitlists' in p"
+    run_check "app: full app assembles with the waitlist routes mounted" \
+      python -c "import app.main as m; paths=[getattr(r,'path','') for r in m.app.routes]; assert '/sol/v1/waitlists' in paths"
+
+    run_check "notify: spawn_instance nudges the waitlist (fail-soft)" \
+      bash -c "grep -qE 'notify_waitlist' backend/app/services/sol_v1/templates.py"
+    run_check "rate-limit: waitlist join/leave are limited" \
+      bash -c "test \$(grep -c '@limiter.limit' backend/app/routers/sol_v1_templates.py) -ge 5"
+    run_check "owner-scope: list_waitlist is creator-only" \
+      bash -c "grep -qE 'only the template creator can see its waitlist' backend/app/services/sol_v1/waitlist.py"
+
+    run_check "non-custodial: no bank cols/money in the waitlist model + service" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|DwollaClient|StripeClient|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/waitlist.py"
+
+    run_check "tests: pytest test_sol_v1_waitlist (join/leave/owner-scope/notify)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_waitlist.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: waitlist + notify-on-spawn on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_waitlist.py -k notify -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18) exist so far)"
     exit 3
     ;;
 esac

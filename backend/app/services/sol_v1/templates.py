@@ -14,11 +14,14 @@ records (SolGroup/SolMembership). Members still pay each other directly.
 """
 from __future__ import annotations
 
+import logging
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.models.sol import (
     FREQUENCIES,
@@ -111,7 +114,7 @@ def spawn_instance(
     tpl = _owned_template(db, template_id=template_id, creator_id=actor_id)
     if not tpl.active:
         raise SolError(409, "template is archived; reactivate it to spawn instances")
-    return lifecycle.create_group(
+    group = lifecycle.create_group(
         db,
         organizer_id=actor_id,
         name=(name.strip() if name else tpl.name),
@@ -121,6 +124,15 @@ def spawn_instance(
         template_id=tpl.id,
         round_number=1,
     )
+    # Nudge everyone waiting on this template that a new instance is open (best
+    # effort — the spawn already committed; a notify failure must not undo it).
+    try:
+        from app.services.sol_v1 import waitlist
+        waitlist.notify_waitlist(db, template=tpl, group=group)
+    except Exception as e:  # noqa: BLE001 — non-critical side effect
+        db.rollback()
+        logger.warning("sol templates: waitlist notify failed: %s", e)
+    return group
 
 
 def start_next_round(db: Session, *, group_id: UUID, actor_id: UUID) -> SolGroup:

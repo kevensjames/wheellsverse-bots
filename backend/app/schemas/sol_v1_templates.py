@@ -45,3 +45,12 @@ class TemplateDetail(BaseModel):
     template: TemplateOut
     # every group spawned from this template (each an "instance")
     instances: list[GroupOut]
+
+
+class WaitlistEntryOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    template_id: UUID
+    user_id: UUID
+    created_at: datetime

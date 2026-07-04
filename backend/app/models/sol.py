@@ -52,6 +52,7 @@ NOTIFICATION_KINDS = (
     "payment_disputed",
     "cycle_started",
     "payout_incoming",
+    "circle_opening",  # Stage 18: a template's waitlist gets a new open instance
 )
 # Circle-template visibility (Stage 17).
 VISIBILITIES = ("public", "private", "invite_only")
@@ -141,6 +142,33 @@ class SolCircleTemplate(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class SolWaitlist(Base):
+    """A user waiting for the next instance of a circle template (Stage 18).
+
+    When the creator spawns a new instance of the template, waitlisted users get
+    a 'circle_opening' notification (with the invite code) so they can join.
+    One entry per (template, user). NON-CUSTODIAL: a waitlist row holds no money.
+    """
+
+    __tablename__ = "sol_waitlist"
+    __table_args__ = (
+        UniqueConstraint("template_id", "user_id", name="sol_waitlist_template_user_uq"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    template_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sol_circle_templates.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
 

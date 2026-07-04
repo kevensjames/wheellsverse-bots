@@ -26,8 +26,9 @@ from app.schemas.sol_v1_templates import (
     TemplateCreate,
     TemplateDetail,
     TemplateOut,
+    WaitlistEntryOut,
 )
-from app.services.sol_v1 import disclosures, subscription, templates
+from app.services.sol_v1 import disclosures, subscription, templates, waitlist
 from app.services.sol_v1.lifecycle import SolError
 
 router = APIRouter(prefix="/sol/v1", tags=["sol-v1", "sol-templates"])
@@ -119,3 +120,54 @@ def start_next_round(
     except SolError as e:
         _raise(e)
     return GroupOut.model_validate(group)
+
+
+# ── waitlist ──────────────────────────────────────────────────────────────────
+
+
+@router.post("/templates/{template_id}/waitlist", response_model=WaitlistEntryOut,
+             status_code=status.HTTP_201_CREATED)
+@limiter.limit("20/minute")
+def join_waitlist(
+    template_id: UUID,
+    request: Request,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> WaitlistEntryOut:
+    try:
+        entry = waitlist.join_waitlist(db, template_id=template_id, user_id=current.id)
+    except SolError as e:
+        _raise(e)
+    return WaitlistEntryOut.model_validate(entry)
+
+
+@router.delete("/templates/{template_id}/waitlist", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("20/minute")
+def leave_waitlist(
+    template_id: UUID,
+    request: Request,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    waitlist.leave_waitlist(db, template_id=template_id, user_id=current.id)
+
+
+@router.get("/templates/{template_id}/waitlist", response_model=list[WaitlistEntryOut])
+def template_waitlist(
+    template_id: UUID,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[WaitlistEntryOut]:
+    try:
+        entries = waitlist.list_waitlist(db, template_id=template_id, creator_id=current.id)
+    except SolError as e:
+        _raise(e)
+    return [WaitlistEntryOut.model_validate(w) for w in entries]
+
+
+@router.get("/waitlists", response_model=list[WaitlistEntryOut])
+def my_waitlists(
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[WaitlistEntryOut]:
+    return [WaitlistEntryOut.model_validate(w) for w in waitlist.my_waitlists(db, user_id=current.id)]
