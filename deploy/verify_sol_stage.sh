@@ -687,8 +687,31 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: waitlist + notify-on-spawn on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_waitlist.py -k notify -v'
     ;;
+  19)
+    section "Sol Stage 19 — auto-spawn a template's next instance on fill"
+
+    run_check "service: templates exposes auto_spawn_next_if_full + _do_spawn" \
+      python -c "from app.services.sol_v1 import templates as t; t.auto_spawn_next_if_full; t._do_spawn; t.spawn_instance"
+    run_check "hook: join_group calls auto_spawn_next_if_full" \
+      bash -c "grep -qE 'auto_spawn_next_if_full' backend/app/services/sol_v1/lifecycle.py"
+    run_check "fail-soft: the auto-spawn hook is wrapped (try/except + rollback), never breaks the join" \
+      bash -c "grep -qE 'auto-spawn-on-fill failed' backend/app/services/sol_v1/lifecycle.py"
+    run_check "guard: only spawns when NO other open instance has room (no over-spawn)" \
+      bash -c "grep -qE 'open_with_room' backend/app/services/sol_v1/templates.py"
+    run_check "app: full app assembles (lifecycle+templates import clean, no cycle)" \
+      python -c "import app.main as m; from app.services.sol_v1 import templates, lifecycle; assert hasattr(templates,'auto_spawn_next_if_full')"
+
+    run_check "non-custodial: no money-movement/bank primitives introduced in the hook" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +dwolla|from +dwolla|DwollaClient|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/templates.py backend/app/services/sol_v1/lifecycle.py"
+
+    run_check "tests: pytest test_sol_v1_autospawn (fill→spawn+notify / room-guard / standalone)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_autospawn.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: fill auto-spawns the next instance + notifies waitlist (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_autospawn.py::test_fill_auto_spawns_next_instance_and_notifies_waitlist -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19) exist so far)"
     exit 3
     ;;
 esac

@@ -11,6 +11,7 @@ offline. The DB operations are thin wrappers that persist the results.
 from __future__ import annotations
 
 import calendar as _calendar
+import logging
 import secrets
 from datetime import date, datetime, timedelta, timezone
 from random import Random
@@ -20,6 +21,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.sol import FREQUENCIES, SolCycle, SolGroup, SolMembership
+
+logger = logging.getLogger(__name__)
 
 # ── domain error ─────────────────────────────────────────────────────────────
 
@@ -214,6 +217,15 @@ def join_group(db: Session, *, user_id: UUID, invite_code: str) -> SolMembership
     db.add(membership)
     db.commit()
     db.refresh(membership)
+    # If this join FILLED a template instance, auto-spawn the next open instance
+    # so the waitlist has somewhere to flow. Best-effort — a spawn failure must
+    # NEVER break the join that already committed. (local import avoids a cycle.)
+    try:
+        from app.services.sol_v1 import templates as _templates
+        _templates.auto_spawn_next_if_full(db, group)
+    except Exception as e:  # noqa: BLE001 — non-critical side effect
+        db.rollback()
+        logger.warning("sol: auto-spawn-on-fill failed: %s", e)
     return membership
 
 

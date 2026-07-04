@@ -17,11 +17,9 @@ from __future__ import annotations
 import logging
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
-
-logger = logging.getLogger(__name__)
 
 from app.models.sol import (
     FREQUENCIES,
@@ -32,6 +30,8 @@ from app.models.sol import (
 )
 from app.services.sol_v1 import lifecycle
 from app.services.sol_v1.lifecycle import SolError
+
+logger = logging.getLogger(__name__)
 
 
 def create_template(
@@ -114,9 +114,16 @@ def spawn_instance(
     tpl = _owned_template(db, template_id=template_id, creator_id=actor_id)
     if not tpl.active:
         raise SolError(409, "template is archived; reactivate it to spawn instances")
+    return _do_spawn(db, tpl, name=name)
+
+
+def _do_spawn(db: Session, tpl: SolCircleTemplate, *, name: str | None = None) -> SolGroup:
+    """Create a fresh open instance of `tpl` (organizer = the creator) and nudge
+    the waitlist. Auth is the CALLER's job — spawn_instance checks ownership;
+    auto-spawn-on-fill is system-triggered."""
     group = lifecycle.create_group(
         db,
-        organizer_id=actor_id,
+        organizer_id=tpl.creator_id,
         name=(name.strip() if name else tpl.name),
         contribution_amount=tpl.contribution_amount,
         frequency=tpl.frequency,
@@ -133,6 +140,47 @@ def spawn_instance(
         db.rollback()
         logger.warning("sol templates: waitlist notify failed: %s", e)
     return group
+
+
+def auto_spawn_next_if_full(db: Session, group: SolGroup) -> SolGroup | None:
+    """When a join FILLS a template instance, auto-spawn the next open instance so
+    the waitlist has somewhere to flow. Returns the new group, or None if nothing
+    was spawned. Best-effort — the caller wraps this fail-soft.
+
+    Guards (avoid over-spawning): only fires for a full, still-'open' template
+    instance of an ACTIVE template, and only when there is NO OTHER open instance
+    of the template that still has room (that one will absorb the next joiners).
+    """
+    if group.template_id is None or group.status != "open":
+        return None
+    filled = db.scalar(
+        select(func.count(SolMembership.id)).where(SolMembership.group_id == group.id)
+    ) or 0
+    if filled < group.member_limit:
+        return None  # not full yet
+    tpl = db.get(SolCircleTemplate, group.template_id)
+    if tpl is None or not tpl.active:
+        return None
+
+    member_ct = (
+        select(func.count(SolMembership.id))
+        .where(SolMembership.group_id == SolGroup.id)
+        .correlate(SolGroup)
+        .scalar_subquery()
+    )
+    open_with_room = db.scalar(
+        select(SolGroup.id)
+        .where(
+            SolGroup.template_id == tpl.id,
+            SolGroup.status == "open",
+            SolGroup.id != group.id,
+            member_ct < SolGroup.member_limit,
+        )
+        .limit(1)
+    )
+    if open_with_room is not None:
+        return None  # another open instance can still take members
+    return _do_spawn(db, tpl)
 
 
 def start_next_round(db: Session, *, group_id: UUID, actor_id: UUID) -> SolGroup:
