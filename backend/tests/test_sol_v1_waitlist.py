@@ -93,7 +93,18 @@ def test_join_leave_owner_scope_and_notify_on_spawn():
         tpl = T.create_template(
             db, creator_id=creator, name="Rent",
             contribution_amount=Decimal("100.00"), frequency="monthly", member_limit=5,
+            visibility="public",
         )
+
+        # only PUBLIC templates are self-serve waitlistable (review fix)
+        priv = T.create_template(
+            db, creator_id=creator, name="Private",
+            contribution_amount=Decimal("100.00"), frequency="monthly", member_limit=5,
+            visibility="invite_only",
+        )
+        with pytest.raises(SolError) as ep:
+            W.join_waitlist(db, template_id=priv.id, user_id=alice)
+        assert ep.value.status_code == 403
 
         # join is idempotent (one entry per user)
         e1 = W.join_waitlist(db, template_id=tpl.id, user_id=alice)

@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models.sol import SolCircleTemplate, SolGroup, SolWaitlist
+from app.models.sol import SolCircleTemplate, SolGroup, SolMembership, SolWaitlist
 from app.services.sol_v1.lifecycle import SolError
 
 logger = logging.getLogger(__name__)
@@ -38,8 +38,15 @@ def _entry(db: Session, template_id: UUID, user_id: UUID) -> SolWaitlist | None:
 
 
 def join_waitlist(db: Session, *, template_id: UUID, user_id: UUID) -> SolWaitlist:
-    """Add the user to a template's waitlist (idempotent — one entry per user)."""
-    _require_template(db, template_id)
+    """Add the user to a template's waitlist (idempotent — one entry per user).
+
+    Only PUBLIC templates are self-serve waitlistable — otherwise anyone holding a
+    template id could waitlist a private circle and be auto-handed its spawned
+    invite code. Private/invite_only circles are creator-invited directly.
+    """
+    tpl = _require_template(db, template_id)
+    if tpl.visibility != "public":
+        raise SolError(403, "only public circles can be self-serve waitlisted")
     existing = _entry(db, template_id, user_id)
     if existing is not None:
         return existing
@@ -106,10 +113,25 @@ def notify_waitlist(db: Session, *, template: SolCircleTemplate, group: SolGroup
         db.rollback()
         logger.warning("sol waitlist: could not read waitlist: %s", e)
         return 0
+    # Don't re-nudge a waiter who is ALREADY in an instance of this template
+    # (joining a spawned circle doesn't remove the waitlist row) — avoids repeat
+    # 'circle_opening' spam on every future spawn.
+    try:
+        joined = set(
+            db.scalars(
+                select(SolMembership.user_id)
+                .join(SolGroup, SolMembership.group_id == SolGroup.id)
+                .where(SolGroup.template_id == template.id)
+            ).all()
+        )
+    except Exception:
+        joined = set()
     title = "A circle just opened"
     body = f"A new '{template.name}' circle is open — join with invite code {group.invite_code}."
     created = 0
     for uid in waiters:
+        if uid in joined:
+            continue
         try:
             if notifications.emit(
                 db, user_id=uid, kind="circle_opening", title=title, body=body,
