@@ -83,7 +83,9 @@ def _loop() -> None:
     while _stop_event is not None and not _stop_event.is_set():
         now = datetime.now(timezone.utc)
         today_key = now.strftime("%Y%m%d")
-        if now.hour == _scheduled_hour() and today_key != last_run_day:
+        # `>=` (not `==`) so a restart that misses the exact hour still catches up
+        # the same day; the durable per-day marker keeps it to one run per day.
+        if now.hour >= _scheduled_hour() and today_key != last_run_day:
             try:
                 run_once()
             except Exception as e:

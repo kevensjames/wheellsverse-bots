@@ -588,8 +588,8 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       bash -c "! grep -qE '\\.commit\\(|\\.add\\(|\\.delete\\(|db\\.execute\\(update|db\\.execute\\(insert|UPDATE |INSERT |DELETE ' backend/app/services/sol_v1/supervisor.py"
     run_check "non-custodial: no money-movement/bank primitives in the supervisor" \
       bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|DwollaClient|StripeClient|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/supervisor.py backend/app/services/sol_v1/supervisor_scheduler.py"
-    run_check "custody check present: supervisor flags Stripe payments without a destination" \
-      bash -c "grep -q 'stripe_payment_no_destination' backend/app/services/sol_v1/supervisor.py"
+    run_check "custody check present: supervisor flags Stripe payments to the wrong destination" \
+      bash -c "grep -q 'stripe_payment_wrong_destination' backend/app/services/sol_v1/supervisor.py"
 
     run_check "tests: pytest test_sol_v1_supervisor (integrity + corruption + health + authz)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_supervisor.py -v --tb=short'

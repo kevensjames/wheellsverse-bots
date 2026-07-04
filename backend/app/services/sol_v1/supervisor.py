@@ -16,10 +16,9 @@ Two batteries:
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
-from uuid import UUID
+from datetime import date, datetime, time, timedelta, timezone
 
-from sqlalchemy import and_, exists, func, select
+from sqlalchemy import exists, func, select
 from sqlalchemy.orm import Session
 
 from app.models.sol import (
@@ -27,6 +26,7 @@ from app.models.sol import (
     SolGroup,
     SolMembership,
     SolPayment,
+    SolStripeAccount,
     SolStripePayment,
 )
 
@@ -59,16 +59,21 @@ def integrity_violations(db: Session, *, sample: int = 5) -> list[dict]:
     """Structural invariants that must ALWAYS be empty. Any result is a defect."""
     findings: list[dict] = []
 
-    # 1. A 'complete' cycle with a payment that isn't confirmed.
+    # 1. A 'complete' cycle with a payment that is neither confirmed NOR disputed.
+    #    A post-completion Stripe refund/chargeback legitimately flips a payment to
+    #    'disputed' WITHOUT reverting the completed cycle (see stripe_webhooks
+    #    ._on_charge_reversal) — that's a handled business event, surfaced under
+    #    health.stuck_disputes, NOT corruption. But 'pending'/'marked'/'late' on a
+    #    complete cycle is a real completion-logic bug.
     ids = _sample(
         db, SolCycle.id,
         SolCycle.status == "complete",
-        SolPayment.status != "confirmed",
+        SolPayment.status.notin_(("confirmed", "disputed")),
         sample=sample,
         join=SolCycle.__table__.join(SolPayment, SolPayment.cycle_id == SolCycle.id),
     )
     findings.append(_violation("completed_cycle_unconfirmed_payment",
-        "cycle is 'complete' but has a non-confirmed payment", ids, sample))
+        "cycle is 'complete' but has a pending/marked/late payment", ids, sample))
 
     # 2. A 'complete' group with a non-complete cycle.
     ids = _sample(
@@ -145,16 +150,25 @@ def integrity_violations(db: Session, *, sample: int = 5) -> list[dict]:
     findings.append(_violation("duplicate_payout_position",
         "two members share a payout position in one group", ids, sample))
 
-    # 9. NON-CUSTODIAL invariant: a Stripe payment row without a destination
-    #    (recipient) account — a charge could only be non-direct, i.e. custodial.
+    # 9. NON-CUSTODIAL invariant: a Stripe payment whose destination is NOT the
+    #    PAYEE's OWN connected account. Missing/empty destination, a payee with no
+    #    connected account, or a destination pointing anywhere else (e.g. Sol's
+    #    platform account) would make the charge custodial. This checks the actual
+    #    custody property, not mere presence.
     ids = _sample(
         db, SolStripePayment.id,
         (SolStripePayment.destination_account_id.is_(None))
-        | (func.trim(SolStripePayment.destination_account_id) == ""),
+        | (func.trim(SolStripePayment.destination_account_id) == "")
+        | (SolStripeAccount.stripe_account_id.is_(None))
+        | (SolStripePayment.destination_account_id != SolStripeAccount.stripe_account_id),
         sample=sample,
+        join=SolStripePayment.__table__
+            .join(SolPayment, SolPayment.id == SolStripePayment.payment_id)
+            .outerjoin(SolStripeAccount, SolStripeAccount.user_id == SolPayment.payee_id),
     )
-    findings.append(_violation("stripe_payment_no_destination",
-        "Stripe payment has no destination account (custody risk)", ids, sample))
+    findings.append(_violation("stripe_payment_wrong_destination",
+        "Stripe payment destination is not the payee's own connected account (custody risk)",
+        ids, sample))
 
     return [f for f in findings if f is not None]
 
@@ -175,7 +189,12 @@ def health(db: Session, today: date, *, stuck_dispute_days: int = 7) -> dict:
             .where(SolPayment.status == "marked", SolCycle.due_date < today)
         ) or 0
     )
-    cutoff = today - timedelta(days=stuck_dispute_days)
+    # UTC-anchor the cutoff: disputed_at is timestamptz, so comparing it to a bare
+    # date would cast at the DB SESSION timezone's midnight (off-by-up-to-a-day at
+    # the boundary). Pin the boundary to 00:00 UTC to match the module's discipline.
+    cutoff = datetime.combine(
+        today - timedelta(days=stuck_dispute_days), time.min, tzinfo=timezone.utc
+    )
     stuck_disputes = int(
         db.scalar(
             select(func.count(SolPayment.id)).where(

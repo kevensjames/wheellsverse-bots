@@ -92,13 +92,13 @@ def _db():
     from sqlalchemy.schema import CreateTable
 
     from app.models.sol import (
-        SolCycle, SolGroup, SolMembership, SolPayment, SolStripePayment,
+        SolCycle, SolGroup, SolMembership, SolPayment, SolStripeAccount, SolStripePayment,
     )
 
     url = os.environ["TEST_DATABASE_URL"].replace("+asyncpg", "").replace("+psycopg2", "")
     engine = create_engine(url, future=True)
     schema = "sol_v1_supervisor_e2e"
-    models = (SolGroup, SolMembership, SolCycle, SolPayment, SolStripePayment)
+    models = (SolGroup, SolMembership, SolCycle, SolPayment, SolStripeAccount, SolStripePayment)
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
         conn.execute(text(f"CREATE SCHEMA {schema}"))
@@ -170,6 +170,58 @@ def test_clean_circle_has_no_violations_then_corruption_is_caught():
         db.commit()
         rep3 = S.run_checks(db, today)
         assert "completed_cycle_unconfirmed_payment" in {v["check"] for v in rep3["integrity_violations"]}
+
+        db.close()
+        conn.close()
+    finally:
+        with engine.begin() as c2:
+            c2.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
+        engine.dispose()
+
+
+@pytest.mark.skipif(
+    not os.getenv("TEST_DATABASE_URL"),
+    reason="TEST_DATABASE_URL not set — supervisor refund-case DEFERRED",
+)
+def test_disputed_payment_on_complete_cycle_is_not_corruption():
+    """Review fix: a post-completion Stripe refund/chargeback flips a payment to
+    'disputed' on an already-'complete' cycle. That's a handled business event,
+    NOT an integrity violation — the supervisor must not raise a red alarm."""
+    from sqlalchemy import text
+
+    from app.services.sol_v1 import ledger as LG
+    from app.services.sol_v1 import lifecycle as LC
+
+    engine, conn, db, schema = _db()
+    organizer, alice, bob = uuid4(), uuid4(), uuid4()
+    today = date(2026, 7, 2)
+    try:
+        _add_profiles(conn, organizer, alice, bob)
+        g = LC.create_group(db, organizer_id=organizer, name="Refund",
+            contribution_amount=Decimal("30.00"), frequency="weekly", member_limit=3)
+        LC.join_group(db, user_id=alice, invite_code=g.invite_code)
+        LC.join_group(db, user_id=bob, invite_code=g.invite_code)
+        LC.lock_group(db, group_id=g.id, actor_id=organizer,
+                      order_mode="random", start_date=date(2020, 1, 1), rng=Random(1))
+        _, _, cycles = LC.get_group_for_member(db, group_id=g.id, user_id=organizer)
+        _, payments = LG.activate_cycle(db, cycle_id=cycles[0].id, actor_id=organizer)
+
+        # complete the cycle the Stripe way: all payments confirmed, cycle complete
+        db.execute(text("UPDATE sol_payments SET status='confirmed', payee_confirmed_at=now() "
+                        "WHERE cycle_id = :c"), {"c": cycles[0].id})
+        db.execute(text("UPDATE sol_cycles SET status='complete' WHERE id = :c"),
+                   {"c": cycles[0].id})
+        db.commit()
+        assert S.run_checks(db, today)["ok"] is True  # all-confirmed complete cycle is clean
+
+        # a refund/chargeback: one payment → 'disputed', cycle stays 'complete'
+        db.execute(text("UPDATE sol_payments SET status='disputed', disputed_at=now() "
+                        "WHERE id = :p"), {"p": payments[0].id})
+        db.commit()
+        rep = S.run_checks(db, today)
+        assert "completed_cycle_unconfirmed_payment" not in {
+            v["check"] for v in rep["integrity_violations"]
+        }
 
         db.close()
         conn.close()
