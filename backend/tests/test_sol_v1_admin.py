@@ -98,6 +98,7 @@ def _db():
     from sqlalchemy.schema import CreateTable
 
     from app.models.sol import (
+        SolCircleTemplate,
         SolCycle,
         SolGroup,
         SolMembership,
@@ -108,7 +109,7 @@ def _db():
     url = os.environ["TEST_DATABASE_URL"].replace("+asyncpg", "").replace("+psycopg2", "")
     engine = create_engine(url, future=True)
     schema = "sol_v1_admin_e2e"
-    models = (SolGroup, SolMembership, SolCycle, SolPayment, SolPaymentProof)
+    models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment, SolPaymentProof)
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
         conn.execute(text(f"CREATE SCHEMA {schema}"))

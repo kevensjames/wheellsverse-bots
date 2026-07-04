@@ -50,7 +50,7 @@ def test_consent_and_create_gate_on_real_db():
     from sqlalchemy.schema import CreateTable
 
     from app.dependencies.supabase_jwt import UserPrincipal
-    from app.models.sol import SolConsent, SolCycle, SolGroup, SolMembership, SolPayment
+    from app.models.sol import SolCircleTemplate, SolConsent, SolCycle, SolGroup, SolMembership, SolPayment
     from starlette.requests import Request as _Request
 
     from app.routers.sol_v1 import create_group as create_group_route
@@ -65,7 +65,7 @@ def test_consent_and_create_gate_on_real_db():
     engine = create_engine(url, future=True)
     schema = "sol_v1_legal_e2e"
     uid = uuid4()
-    models = (SolGroup, SolMembership, SolCycle, SolPayment, SolConsent)
+    models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment, SolConsent)
 
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))

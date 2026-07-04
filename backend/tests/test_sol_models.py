@@ -22,6 +22,7 @@ from app.models.sol import (
     PAYMENT_METHODS,
     PAYMENT_STATUSES,
     PROFILE_METHODS,
+    SolCircleTemplate,
     SolCycle,
     SolGroup,
     SolMembership,
@@ -31,6 +32,7 @@ from app.models.sol import (
 )
 
 ALL_MODELS = [
+    SolCircleTemplate,  # created first: sol_groups.template_id FKs to it
     SolGroup,
     SolMembership,
     SolCycle,

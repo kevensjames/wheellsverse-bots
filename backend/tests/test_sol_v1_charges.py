@@ -78,6 +78,7 @@ def test_contribution_flow_on_real_db(monkeypatch):
     from sqlalchemy.schema import CreateTable
 
     from app.models.sol import (
+        SolCircleTemplate,
         SolCycle, SolGroup, SolMembership, SolPayment, SolStripeAccount, SolStripePayment,
     )
     from app.services.sol_v1 import ledger as LG
@@ -108,7 +109,7 @@ def test_contribution_flow_on_real_db(monkeypatch):
     engine = create_engine(url, future=True)
     schema = "sol_v1_charges_e2e"
     organizer, alice, bob = uuid4(), uuid4(), uuid4()
-    models = (SolGroup, SolMembership, SolCycle, SolPayment, SolStripeAccount, SolStripePayment)
+    models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment, SolStripeAccount, SolStripePayment)
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
         conn.execute(text(f"CREATE SCHEMA {schema}"))

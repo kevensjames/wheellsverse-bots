@@ -139,6 +139,7 @@ def test_ledger_end_to_end_on_real_db():
     from sqlalchemy.schema import CreateTable
 
     from app.models.sol import (
+        SolCircleTemplate,
         SolCycle,
         SolGroup,
         SolMembership,
@@ -152,7 +153,7 @@ def test_ledger_end_to_end_on_real_db():
     engine = create_engine(url, future=True)
     schema = "sol_v1_ledger_e2e"
     organizer, alice, bob = uuid4(), uuid4(), uuid4()
-    all_models = (SolGroup, SolMembership, SolCycle, SolPayment, SolPaymentProfile, SolPaymentProof)
+    all_models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment, SolPaymentProfile, SolPaymentProof)
 
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))

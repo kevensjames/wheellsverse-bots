@@ -163,7 +163,7 @@ def test_full_lifecycle_on_real_db():
     from sqlalchemy.orm import Session
     from sqlalchemy.schema import CreateTable
 
-    from app.models.sol import SolCycle, SolGroup, SolMembership
+    from app.models.sol import SolCircleTemplate, SolCycle, SolGroup, SolMembership
 
     url = os.environ["TEST_DATABASE_URL"].replace("+asyncpg", "").replace("+psycopg2", "")
     engine = create_engine(url, future=True)
@@ -175,7 +175,7 @@ def test_full_lifecycle_on_real_db():
         conn.execute(text(f"CREATE SCHEMA {schema}"))
         conn.execute(text(f"SET search_path TO {schema}"))
         conn.execute(text("CREATE TABLE profiles (id UUID PRIMARY KEY)"))
-        for model in (SolGroup, SolMembership, SolCycle):
+        for model in (SolCircleTemplate, SolGroup, SolMembership, SolCycle):
             conn.execute(text(str(CreateTable(model.__table__).compile(dialect=postgresql.dialect()))))
         for uid in (organizer, alice, bob):
             conn.execute(text("INSERT INTO profiles (id) VALUES (:id)"), {"id": uid})

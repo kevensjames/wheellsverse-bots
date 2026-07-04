@@ -46,6 +46,7 @@ def test_webhook_handlers_on_real_db(monkeypatch):
     from sqlalchemy.schema import CreateTable
 
     from app.models.sol import (
+        SolCircleTemplate,
         SolCycle, SolGroup, SolMemberSubscription, SolMembership, SolPayment,
         SolStripeAccount, SolStripePayment,
     )
@@ -63,7 +64,7 @@ def test_webhook_handlers_on_real_db(monkeypatch):
     engine = create_engine(url, future=True)
     schema = "sol_v1_webhook_e2e"
     organizer, alice, bob = uuid4(), uuid4(), uuid4()
-    models = (SolGroup, SolMembership, SolCycle, SolPayment, SolStripeAccount,
+    models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment, SolStripeAccount,
               SolStripePayment, SolMemberSubscription)
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))

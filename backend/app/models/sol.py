@@ -53,6 +53,8 @@ NOTIFICATION_KINDS = (
     "cycle_started",
     "payout_incoming",
 )
+# Circle-template visibility (Stage 17).
+VISIBILITIES = ("public", "private", "invite_only")
 
 
 def _in(col: str, values: tuple[str, ...]) -> str:
@@ -85,6 +87,55 @@ class SolGroup(Base):
     # Random token for "join via link"; set at create, used in Stage 2.
     invite_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Stage 17 — template/instance/round links (all optional; NULL = a standalone
+    # group, i.e. the pre-Stage-17 behavior). template_id: the blueprint this group
+    # is an instance of; round_number: which round for the same cohort; prev group:
+    # the earlier round's group (round chaining).
+    template_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("sol_circle_templates.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    round_number: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    previous_group_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("sol_groups.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class SolCircleTemplate(Base):
+    """A reusable blueprint for a recurring savings circle (Stage 17).
+
+    Defines the recurring PRODUCT (amount / frequency / size / rules) once; a
+    template SPAWNS instances (each a SolGroup with template_id set). Separating
+    the blueprint from the filled cohort lets the same product run again and
+    again without recreating it. NON-CUSTODIAL: a blueprint holds no money.
+    """
+
+    __tablename__ = "sol_circle_templates"
+    __table_args__ = (
+        CheckConstraint(_in("frequency", FREQUENCIES), name="sol_circle_templates_frequency_check"),
+        CheckConstraint(_in("visibility", VISIBILITIES), name="sol_circle_templates_visibility_check"),
+        CheckConstraint("member_limit >= 2", name="sol_circle_templates_member_limit_check"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid()
+    )
+    creator_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="CASCADE"), nullable=False
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False)
+    contribution_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    frequency: Mapped[str] = mapped_column(Text, nullable=False)
+    member_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    visibility: Mapped[str] = mapped_column(Text, nullable=False, server_default="invite_only")
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

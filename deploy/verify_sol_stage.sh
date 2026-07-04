@@ -617,8 +617,44 @@ assert fk.ondelete=='SET NULL', fk.ondelete
     run_check "tests: pytest test_sol_v1_observability (authz + health shape + prometheus)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_observability.py -v --tb=short'
     ;;
+  17)
+    section "Sol Stage 17 — template / instance / round (additive)"
+
+    run_check "migration: 0017 exists + chains onto 0016" \
+      bash -c "test -f backend/alembic/versions/0017_sol_circle_templates.py && grep -qE 'down_revision.*0016_sol_notifications' backend/alembic/versions/0017_sol_circle_templates.py"
+    run_check "model: SolCircleTemplate registered + namespaced" \
+      python -c "from app.models import SolCircleTemplate; assert SolCircleTemplate.__tablename__=='sol_circle_templates'"
+    run_check "model: SolGroup gains template_id/round_number/previous_group_id" \
+      python -c "from app.models.sol import SolGroup as G; c=G.__table__.c; assert 'template_id' in c and 'round_number' in c and 'previous_group_id' in c"
+    run_check "ADDITIVE: template_id is nullable (existing groups untouched)" \
+      python -c "from app.models.sol import SolGroup as G; assert G.__table__.c.template_id.nullable is True and str(G.__table__.c.round_number.server_default.arg)=='1'"
+    run_check "service: sol_v1 templates imports" \
+      python -c "from app.services.sol_v1 import templates as t; t.create_template; t.spawn_instance; t.start_next_round; t.list_templates; t.instances_of"
+    run_check "schemas: sol_v1_templates imports" \
+      python -c "from app.schemas.sol_v1_templates import TemplateCreate, TemplateOut, TemplateDetail, SpawnRequest"
+    run_check "router: sol_v1_templates exposes the 4 routes" \
+      python -c "from app.routers.sol_v1_templates import router; p={r.path for r in router.routes}; want={'/sol/v1/templates','/sol/v1/templates/{template_id}','/sol/v1/templates/{template_id}/spawn','/sol/v1/groups/{group_id}/next-round'}; assert p==want, p"
+    run_check "router: templates registered in main.py" \
+      bash -c "grep -qE 'include_router\\(sol_v1_templates\\.router\\)' backend/app/main.py"
+    run_check "app: full app assembles with the template routes mounted" \
+      python -c "import app.main as m; paths=[getattr(r,'path','') for r in m.app.routes]; assert '/sol/v1/templates/{template_id}/spawn' in paths and '/sol/v1/groups/{group_id}/next-round' in paths"
+
+    run_check "rate-limit: template writes (create/spawn/next-round) are limited" \
+      bash -c "test \$(grep -c '@limiter.limit' backend/app/routers/sol_v1_templates.py) -ge 3"
+    run_check "gate: create_template is consent-gated (server-enforced, non-custodial)" \
+      bash -c "grep -q 'require_consent' backend/app/routers/sol_v1_templates.py"
+
+    run_check "non-custodial: no bank cols in the template model + no money in the service/router" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|DwollaClient|StripeClient|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/templates.py backend/app/routers/sol_v1_templates.py backend/app/schemas/sol_v1_templates.py"
+
+    run_check "tests: pytest test_sol_v1_templates (create/spawn/owner-scope/next-round)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_templates.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: spawn instance + next-round cohort clone on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_templates.py -k "spawn or next_round" -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17) exist so far)"
     exit 3
     ;;
 esac

@@ -121,7 +121,7 @@ def test_reputation_on_real_db():
     from sqlalchemy.orm import Session
     from sqlalchemy.schema import CreateTable
 
-    from app.models.sol import SolCycle, SolGroup, SolMembership, SolPayment
+    from app.models.sol import SolCircleTemplate, SolCycle, SolGroup, SolMembership, SolPayment
     from app.services.sol_v1 import ledger as LG
     from app.services.sol_v1 import lifecycle as LC
 
@@ -129,7 +129,7 @@ def test_reputation_on_real_db():
     engine = create_engine(url, future=True)
     schema = "sol_v1_reputation_e2e"
     organizer, alice, bob = uuid4(), uuid4(), uuid4()
-    models = (SolGroup, SolMembership, SolCycle, SolPayment)
+    models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment)
 
     with engine.begin() as conn:
         conn.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))

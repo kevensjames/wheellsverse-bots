@@ -134,8 +134,15 @@ def create_group(
     contribution_amount,
     frequency: str,
     member_limit: int,
+    template_id: UUID | None = None,
+    round_number: int = 1,
+    previous_group_id: UUID | None = None,
 ) -> SolGroup:
-    """Create a group (status=open) and enroll the organizer as its first member."""
+    """Create a group (status=open) and enroll the organizer as its first member.
+
+    The template/round args are optional (Stage 17): a standalone group leaves
+    them at their defaults (template_id NULL, round 1) — identical to before.
+    """
     if frequency not in FREQUENCIES:
         raise SolError(400, f"frequency must be one of {FREQUENCIES}")
     if member_limit < 2:
@@ -153,6 +160,9 @@ def create_group(
             member_limit=member_limit,
             status="open",
             invite_code=generate_invite_code(),
+            template_id=template_id,
+            round_number=round_number,
+            previous_group_id=previous_group_id,
         )
         db.add(group)
         try:
