@@ -597,8 +597,28 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: clean circle → no violations; injected corruption caught (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_supervisor.py::test_clean_circle_has_no_violations_then_corruption_is_caught -v'
     ;;
+  16)
+    section "Sol Stage 16 — observability (health + Prometheus metrics)"
+
+    run_check "service: sol_v1 health imports" \
+      python -c "from app.services.sol_v1 import health as h; h.health; h.prometheus_metrics"
+    run_check "schemas: HealthOut/SchedulerStatus import" \
+      python -c "from app.schemas.sol_v1_admin import HealthOut, SchedulerStatus"
+    run_check "router: /admin/sol-v1/health + /metrics exposed" \
+      python -c "from app.routers.sol_v1_admin import router; p={r.path for r in router.routes}; assert '/admin/sol-v1/health' in p and '/admin/sol-v1/metrics' in p"
+    run_check "app: full app assembles with the observability endpoints mounted" \
+      python -c "import app.main as m; paths=[getattr(r,'path','') for r in m.app.routes]; assert '/admin/sol-v1/health' in paths and '/admin/sol-v1/metrics' in paths"
+
+    run_check "read-only: health service performs NO writes" \
+      bash -c "! grep -qE '\\.commit\\(|\\.add\\(|\\.delete\\(|db\\.execute\\(update|db\\.execute\\(insert|UPDATE |INSERT |DELETE ' backend/app/services/sol_v1/health.py"
+    run_check "non-custodial: no money-movement/bank primitives in observability" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\bcvv\\b|\\biban\\b|import +stripe|from +stripe|import +dwolla|from +dwolla|DwollaClient|StripeClient|\\bescrow\\b|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/health.py"
+
+    run_check "tests: pytest test_sol_v1_observability (authz + health shape + prometheus)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_observability.py -v --tb=short'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16) exist so far)"
     exit 3
     ;;
 esac

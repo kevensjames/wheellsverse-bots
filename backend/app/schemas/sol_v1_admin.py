@@ -146,3 +146,16 @@ class SupervisorReportOut(BaseModel):
     integrity_violations: list[IntegrityViolation]
     health: SupervisorHealth
     checked_at: str
+
+
+class SchedulerStatus(BaseModel):
+    enabled: bool
+    running: bool
+    hour_utc: int
+
+
+class HealthOut(BaseModel):
+    status: str
+    db_ok: bool
+    schedulers: dict[str, SchedulerStatus]
+    counts: dict[str, int]

@@ -21,7 +21,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -31,11 +31,13 @@ from app.schemas.sol_v1_admin import (
     DisputesOut,
     GroupDetailOut,
     GroupsOut,
+    HealthOut,
     OverviewOut,
     RiskOut,
     SupervisorReportOut,
 )
 from app.services.sol_v1 import admin_metrics as M
+from app.services.sol_v1 import health as H
 from app.services.sol_v1 import supervisor as SUP
 
 router = APIRouter(
@@ -89,3 +91,18 @@ def activity(
 def supervisor(db: Session = Depends(get_db)) -> SupervisorReportOut:
     """Run the read-only integrity + health monitor on demand. NEVER mutates."""
     return SupervisorReportOut(**SUP.run_checks(db, _today()))
+
+
+@router.get("/health", response_model=HealthOut)
+def sol_health(db: Session = Depends(get_db)) -> HealthOut:
+    """Sol subsystem liveness: DB reachable + scheduler arm-state + row counts."""
+    return HealthOut(**H.health(db))
+
+
+@router.get("/metrics")
+def sol_metrics(db: Session = Depends(get_db)) -> Response:
+    """The Sol counters in Prometheus text-exposition format (scrapeable)."""
+    return Response(
+        content=H.prometheus_metrics(db, _today()),
+        media_type="text/plain; version=0.0.4; charset=utf-8",
+    )

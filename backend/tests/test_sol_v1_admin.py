@@ -74,6 +74,8 @@ def test_admin_router_paths():
         "/admin/sol-v1/groups/{group_id}",
         "/admin/sol-v1/activity",
         "/admin/sol-v1/supervisor",
+        "/admin/sol-v1/health",
+        "/admin/sol-v1/metrics",
     }
 
 
