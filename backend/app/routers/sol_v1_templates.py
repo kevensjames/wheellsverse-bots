@@ -112,6 +112,9 @@ def start_next_round(
     db: Session = Depends(get_db),
 ) -> GroupOut:
     try:
+        # next-round CREATES a new circle → same gates as create/join/spawn
+        disclosures.require_consent(db, user_id=current.id)
+        subscription.require_active_if_enabled(db, user_id=current.id)
         group = templates.start_next_round(db, group_id=group_id, actor_id=current.id)
     except SolError as e:
         _raise(e)

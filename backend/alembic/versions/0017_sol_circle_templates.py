@@ -73,9 +73,17 @@ def upgrade() -> None:
     op.execute(
         "CREATE INDEX IF NOT EXISTS sol_groups_template_idx ON sol_groups (template_id)"
     )
+    # At most ONE next-round group per completed source (idempotency backstop for
+    # start_next_round against a concurrent double-submit). Partial: standalone
+    # groups (previous_group_id NULL) are unconstrained.
+    op.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS sol_groups_previous_group_uq "
+        "ON sol_groups (previous_group_id) WHERE previous_group_id IS NOT NULL"
+    )
 
 
 def downgrade() -> None:
+    op.execute("DROP INDEX IF EXISTS sol_groups_previous_group_uq")
     op.execute("DROP INDEX IF EXISTS sol_groups_template_idx")
     op.execute("ALTER TABLE sol_groups DROP COLUMN IF EXISTS previous_group_id")
     op.execute("ALTER TABLE sol_groups DROP COLUMN IF EXISTS round_number")

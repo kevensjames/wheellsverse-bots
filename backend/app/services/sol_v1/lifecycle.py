@@ -137,11 +137,14 @@ def create_group(
     template_id: UUID | None = None,
     round_number: int = 1,
     previous_group_id: UUID | None = None,
+    commit: bool = True,
 ) -> SolGroup:
     """Create a group (status=open) and enroll the organizer as its first member.
 
     The template/round args are optional (Stage 17): a standalone group leaves
     them at their defaults (template_id NULL, round 1) — identical to before.
+    commit=False leaves the group + organizer membership pending (flushed, not
+    committed) so a caller can add more rows and commit atomically (next-round).
     """
     if frequency not in FREQUENCIES:
         raise SolError(400, f"frequency must be one of {FREQUENCIES}")
@@ -177,8 +180,11 @@ def create_group(
     db.add(
         SolMembership(user_id=organizer_id, group_id=group.id, role="organizer")
     )
-    db.commit()
-    db.refresh(group)
+    if commit:
+        db.commit()
+        db.refresh(group)
+    else:
+        db.flush()  # group.id available; caller commits atomically
     return group
 
 

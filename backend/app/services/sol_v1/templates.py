@@ -17,6 +17,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.sol import (
@@ -137,27 +138,41 @@ def start_next_round(db: Session, *, group_id: UUID, actor_id: UUID) -> SolGroup
         raise SolError(403, "only the organizer can start the next round")
     if group.status != "complete":
         raise SolError(409, "the current round must be complete before starting the next")
+    # Idempotency: at most ONE successor per completed group. The source group's
+    # status never changes (it stays 'complete'), so guard on the successor link
+    # instead — otherwise a double-submit would fork the circle into two divergent
+    # round-N+1 groups. A DB partial-unique index (migration 0017) backstops this
+    # against a concurrent double-submit (TOCTOU).
+    if db.scalar(select(SolGroup.id).where(SolGroup.previous_group_id == group.id)) is not None:
+        raise SolError(409, "the next round has already been started for this group")
 
     members = list(
         db.scalars(select(SolMembership).where(SolMembership.group_id == group.id)).all()
     )
 
-    new_group = lifecycle.create_group(
-        db,
-        organizer_id=group.organizer_id,
-        name=group.name,
-        contribution_amount=group.contribution_amount,
-        frequency=group.frequency,
-        member_limit=group.member_limit,
-        template_id=group.template_id,
-        round_number=group.round_number + 1,
-        previous_group_id=group.id,
-    )
-    # Clone the cohort (create_group already enrolled the organizer).
-    for m in members:
-        if m.user_id == group.organizer_id:
-            continue
-        db.add(SolMembership(user_id=m.user_id, group_id=new_group.id, role=m.role))
-    db.commit()
+    # ONE atomic transaction: the new group, its organizer, and the cloned cohort
+    # commit together (commit=False), so a mid-operation failure can't leave a
+    # round group with only the organizer enrolled.
+    try:
+        new_group = lifecycle.create_group(
+            db,
+            organizer_id=group.organizer_id,
+            name=group.name,
+            contribution_amount=group.contribution_amount,
+            frequency=group.frequency,
+            member_limit=group.member_limit,
+            template_id=group.template_id,
+            round_number=group.round_number + 1,
+            previous_group_id=group.id,
+            commit=False,
+        )
+        for m in members:
+            if m.user_id == group.organizer_id:
+                continue  # create_group already enrolled the organizer
+            db.add(SolMembership(user_id=m.user_id, group_id=new_group.id, role=m.role))
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise SolError(409, "the next round has already been started for this group")
     db.refresh(new_group)
     return new_group

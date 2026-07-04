@@ -161,6 +161,12 @@ def test_next_round_clones_the_cohort():
         members = db.scalars(select_members(SolMembership, g2.id)).all()
         assert {m.user_id for m in members} == {organizer, alice, bob}
 
+        # idempotent: a second next-round on the same completed group is rejected
+        # (the review fix — otherwise it would fork into two divergent round-2s)
+        with pytest.raises(SolError) as e3:
+            T.start_next_round(db, group_id=g.id, actor_id=organizer)
+        assert e3.value.status_code == 409
+
         db.close()
         conn.close()
     finally:
