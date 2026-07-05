@@ -256,7 +256,11 @@ def lock_group(
     rejects a second lock. On success the group has status=locked, every
     membership has a payout_position, and one SolCycle row exists per member.
     """
-    group = db.get(SolGroup, group_id)
+    # Lock the group row so lock serializes with join/leave/remove (all of which
+    # take this row lock): a member can't slip in or out AFTER we snapshot the
+    # roster but BEFORE we assign positions + create cycles, which would strand a
+    # member with no cycle (or a cycle whose recipient membership was deleted).
+    group = db.get(SolGroup, group_id, with_for_update=True)
     if group is None:
         raise SolError(404, "group not found")
     if group.organizer_id != actor_id:
@@ -301,6 +305,57 @@ def lock_group(
     db.commit()
     db.refresh(group)
     return group
+
+
+def leave_group(db: Session, *, group_id: UUID, user_id: UUID) -> None:
+    """A member leaves an OPEN circle, freeing their seat. Valid only before lock
+    (after lock the payout rotation + cycles are fixed). The ORGANIZER can't leave
+    — they own the circle (cancelling it is a separate, not-yet-built action).
+
+    Non-custodial: a membership row is pure coordination; nothing owed exists
+    before lock (cycles/payments are materialized at lock/activation).
+    """
+    group = db.get(SolGroup, group_id, with_for_update=True)  # serialize vs lock/join
+    if group is None:
+        raise SolError(404, "group not found")
+    if group.status != "open":
+        raise SolError(409, "the circle has started — members can't leave after it locks")
+    if user_id == group.organizer_id:
+        raise SolError(409, "the organizer can't leave their own circle")
+    membership = db.scalar(
+        select(SolMembership).where(
+            SolMembership.group_id == group_id, SolMembership.user_id == user_id
+        )
+    )
+    if membership is None:
+        raise SolError(404, "you are not a member of this circle")
+    db.delete(membership)
+    db.commit()
+
+
+def remove_member(db: Session, *, group_id: UUID, actor_id: UUID, target_user_id: UUID) -> None:
+    """The organizer removes another member from an OPEN circle (e.g. a no-show or
+    a leaked-invite joiner blocking a seat), freeing the seat. Valid only before
+    lock. The organizer can't remove themselves.
+    """
+    group = db.get(SolGroup, group_id, with_for_update=True)  # serialize vs lock/join
+    if group is None:
+        raise SolError(404, "group not found")
+    if group.organizer_id != actor_id:
+        raise SolError(403, "only the organizer can remove members")
+    if group.status != "open":
+        raise SolError(409, "the circle has started — members can't be removed after it locks")
+    if target_user_id == group.organizer_id:
+        raise SolError(400, "the organizer can't be removed from their own circle")
+    membership = db.scalar(
+        select(SolMembership).where(
+            SolMembership.group_id == group_id, SolMembership.user_id == target_user_id
+        )
+    )
+    if membership is None:
+        raise SolError(404, "that user is not a member of this circle")
+    db.delete(membership)
+    db.commit()
 
 
 def list_groups_for_user(db: Session, *, user_id: UUID) -> list[SolGroup]:

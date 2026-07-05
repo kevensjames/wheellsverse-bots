@@ -357,6 +357,9 @@
         } else if (isOrganizer) {
           nodes.push(el("p", { class: "muted small", text: "Invite at least one more member, then you can lock the circle." }));
         }
+        if (!isOrganizer) {  // a member can back out before the circle locks
+          nodes.push(el("button", { class: "btn btn--ghost btn--sm", type: "button", style: "margin-bottom:var(--s-3)", onclick: function () { leaveCircle(id); }, text: "Leave circle" }));
+        }
       }
 
       nodes.push(el("div", { class: "section-title", text: "Members" }));
@@ -366,10 +369,13 @@
         var right = rep && rep.score != null
           ? badge(rep.score + " · " + rep.label, repMeta(rep.label).cls)
           : badge("unrated", "badge--muted");
+        var canRemove = isOrganizer && g.status === "open" && m.user_id !== g.organizer_id;
         return el("div", { class: "card" }, el("div", { class: "row between" },
           el("div", {}, el("strong", { text: (isMe ? "You" : shortId(m.user_id)) }),
             el("span", { class: "muted small", text: (m.role === "organizer" ? " · organizer" : "") + (m.payout_position ? " · gets paid #" + m.payout_position : "") })),
-          right));
+          el("div", { class: "row", style: "gap:var(--s-2);align-items:center" },
+            right,
+            canRemove ? el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: function () { removeMember(id, m.user_id); }, text: "Remove" }) : null)));
       })));
 
       if (d.cycles.length) {
@@ -396,6 +402,16 @@
   async function lockGroup(id) {
     if (!confirm("Lock the circle and randomly set the payout order? No new members can join after this.")) return;
     try { await api("POST", "/sol/v1/groups/" + id + "/lock", { order_mode: "random" }); toast("Circle locked"); go("#/group/" + id); }
+    catch (e) { toast(e.detail, true); }
+  }
+  async function leaveCircle(id) {
+    if (!confirm("Leave this circle? You can rejoin with the invite link while it's still open.")) return;
+    try { await api("DELETE", "/sol/v1/groups/" + id + "/members/me"); toast("You left the circle"); go("#/groups"); }
+    catch (e) { toast(e.detail, true); }
+  }
+  async function removeMember(groupId, userId) {
+    if (!confirm("Remove this member from the circle? This frees their seat.")) return;
+    try { await api("DELETE", "/sol/v1/groups/" + groupId + "/members/" + userId); toast("Member removed"); go("#/group/" + groupId); }
     catch (e) { toast(e.detail, true); }
   }
   async function activateCycle(cycleId, groupId) {

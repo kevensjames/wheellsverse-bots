@@ -112,6 +112,41 @@ def group_detail(
     return _detail(group, members, cycles)
 
 
+@router.delete("/groups/{group_id}/members/me", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("15/minute")
+def leave_group(
+    group_id: UUID,
+    request: Request,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """The caller leaves an OPEN circle they're a member of (frees their seat)."""
+    try:
+        lifecycle.leave_group(db, group_id=group_id, user_id=current.id)
+    except SolError as e:
+        _raise(e)
+
+
+@router.delete(
+    "/groups/{group_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+@limiter.limit("15/minute")
+def remove_member(
+    group_id: UUID,
+    user_id: UUID,
+    request: Request,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """The organizer removes another member from an OPEN circle (frees the seat)."""
+    try:
+        lifecycle.remove_member(
+            db, group_id=group_id, actor_id=current.id, target_user_id=user_id
+        )
+    except SolError as e:
+        _raise(e)
+
+
 @router.post("/groups/{group_id}/lock", response_model=GroupDetail)
 @limiter.limit("30/minute")
 def lock_group(

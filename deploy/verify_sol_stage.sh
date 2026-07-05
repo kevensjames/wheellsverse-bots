@@ -771,8 +771,31 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: withdraw + waive-completes-cycle + authz + reputation on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_dispute_resolution.py::test_dispute_resolution_end_to_end_on_real_db -v'
     ;;
+  22)
+    section "Sol Stage 22 — open-circle membership management (leave + remove)"
+
+    run_check "service: leave_group + remove_member present" \
+      python -c "from app.services.sol_v1 import lifecycle as l; l.leave_group; l.remove_member"
+    run_check "guard: both require an OPEN circle (409 after lock)" \
+      bash -c "grep -A20 'def leave_group' backend/app/services/sol_v1/lifecycle.py | grep -qE \"status != .open.\" && grep -A20 'def remove_member' backend/app/services/sol_v1/lifecycle.py | grep -qE \"status != .open.\""
+    run_check "authz: organizer can't leave; remove is organizer-only + can't remove organizer" \
+      bash -c "grep -A20 'def leave_group' backend/app/services/sol_v1/lifecycle.py | grep -qE 'user_id == group.organizer_id' && grep -A20 'def remove_member' backend/app/services/sol_v1/lifecycle.py | grep -qE 'organizer_id != actor_id' && grep -A20 'def remove_member' backend/app/services/sol_v1/lifecycle.py | grep -qE 'target_user_id == group.organizer_id'"
+    run_check "concurrency: lock_group locks the group row (serialize vs join/leave/remove)" \
+      bash -c "grep -A6 'def lock_group' backend/app/services/sol_v1/lifecycle.py | grep -qE 'with_for_update=True' || grep -A12 'Lock the group row so lock serializes' backend/app/services/sol_v1/lifecycle.py | grep -qE 'with_for_update=True'"
+    run_check "endpoints: DELETE /members/me + /members/{user_id} registered" \
+      python -c "import app.main as m; p={r.path for r in m.app.routes}; assert '/sol/v1/groups/{group_id}/members/me' in p and '/sol/v1/groups/{group_id}/members/{user_id}' in p"
+
+    run_check "non-custodial: no money/bank primitives in the membership ops" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\biban\\b|import +dwolla|from +dwolla|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/lifecycle.py"
+
+    run_check "tests: pytest test_sol_v1_membership (routes + guards)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_membership.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: leave + remove + seat-frees + post-lock-frozen on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_membership.py::test_membership_leave_and_remove_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22) exist so far)"
     exit 3
     ;;
 esac
