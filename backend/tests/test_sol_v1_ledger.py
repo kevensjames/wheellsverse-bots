@@ -118,6 +118,8 @@ def test_ledger_router_registers_expected_paths():
         "/sol/v1/payments/{payment_id}/mark",
         "/sol/v1/payments/{payment_id}/confirm",
         "/sol/v1/payments/{payment_id}/dispute",
+        "/sol/v1/payments/{payment_id}/dispute/withdraw",
+        "/sol/v1/payments/{payment_id}/resolve",
         "/sol/v1/payments/{payment_id}/proofs",
         "/sol/v1/payment-profiles",
         "/sol/v1/payment-profiles/{profile_id}",
@@ -239,10 +241,11 @@ def test_ledger_end_to_end_on_real_db():
         # get_payment_detail: how-to-pay handles are the PAYEE's, proof present, authz
         LG.upsert_payment_profile(db, user_id=fp.payee_id, method="venmo",
                                   handle="@payee", is_default=True)
-        detail_payment, proofs, pay_to = LG.get_payment_detail(
+        detail_payment, proofs, pay_to, org_id = LG.get_payment_detail(
             db, payment_id=fp.id, user_id=fp.payer_id
         )
         assert detail_payment.id == fp.id
+        assert org_id == organizer  # the circle organizer id is surfaced
         assert pay_to and all(pp.user_id == fp.payee_id for pp in pay_to)
         assert any(pr.image_url == "https://img/p.png" for pr in proofs)  # proof persisted
         with pytest.raises(SolError):  # a non-party cannot read the payment

@@ -24,6 +24,7 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     Numeric,
+    String,
     Text,
     UniqueConstraint,
     func,
@@ -40,7 +41,10 @@ GROUP_STATUSES = ("open", "locked", "complete")
 MEMBERSHIP_ROLES = ("organizer", "member")
 CYCLE_STATUSES = ("pending", "active", "complete")
 PAYMENT_METHODS = ("zelle", "cashapp", "venmo", "cash", "other", "stripe")
-PAYMENT_STATUSES = ("pending", "marked", "confirmed", "disputed", "late")
+# 'waived' (Stage 21): a TERMINAL outcome — the organizer wrote off a stuck
+# dispute (forgiveness/write-off). It counts as SETTLED for cycle completion and
+# is NEUTRAL for reputation. No money moves; it only records the decision.
+PAYMENT_STATUSES = ("pending", "marked", "confirmed", "disputed", "late", "waived")
 # Payment-profile methods add applepay; exclude "other" (a handle needs a rail).
 PROFILE_METHODS = ("zelle", "cashapp", "venmo", "applepay", "cash")
 # In-app notification kinds. Scan-driven (due/overdue) + ledger-event nudges.
@@ -53,6 +57,7 @@ NOTIFICATION_KINDS = (
     "cycle_started",
     "payout_incoming",
     "circle_opening",  # Stage 18: a template's waitlist gets a new open instance
+    "payment_resolved",  # Stage 21: a disputed payment was waived or withdrawn
 )
 # Circle-template visibility (Stage 17).
 VISIBILITIES = ("public", "private", "invite_only")
@@ -269,6 +274,14 @@ class SolPayment(Base):
     # a payer re-mark — so reputation can't be gamed by re-marking a dispute away.
     disputed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="pending")
+    # Stage 21 — dispute resolution audit (all NULL unless the organizer waived a
+    # dispute). Records ONLY the decision: why (free text), who resolved it, when.
+    # No money reference. resolved_by is the organizer who wrote the payment off.
+    resolution_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    resolved_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("profiles.id", ondelete="SET NULL"), nullable=True
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

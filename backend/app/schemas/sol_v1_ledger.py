@@ -26,6 +26,13 @@ class ProofCreate(BaseModel):
     image_url: str = Field(min_length=1, max_length=2048)
 
 
+class ResolvePaymentRequest(BaseModel):
+    # Stage 21: only 'waive' is exposed this stage (organizer write-off of a
+    # disputed payment). `note` is an optional audit reason. No money field.
+    outcome: Literal["waive"] = "waive"
+    note: str | None = Field(default=None, max_length=500)
+
+
 class PaymentProfileUpsert(BaseModel):
     method: Literal["zelle", "cashapp", "venmo", "applepay", "cash"]
     handle: str = Field(min_length=1, max_length=128)
@@ -56,6 +63,10 @@ class PaymentOut(BaseModel):
     status: str
     payer_marked_at: datetime | None = None
     payee_confirmed_at: datetime | None = None
+    # Stage 21 — dispute-resolution audit (populated only for a waived payment).
+    resolution_note: str | None = None
+    resolved_by: UUID | None = None
+    resolved_at: datetime | None = None
     created_at: datetime
 
 
@@ -75,6 +86,9 @@ class PaymentDetail(BaseModel):
     proofs: list[ProofOut]
     # How to pay this payment: the payee's external-rail handles.
     pay_to: list[PaymentProfileOut]
+    # Stage 21 — server-decided dispute-resolution affordances for the viewer.
+    can_withdraw: bool = False  # viewer is the payee of a disputed payment
+    can_waive: bool = False     # viewer is the circle organizer of a disputed payment
 
 
 class CycleActivateOut(BaseModel):

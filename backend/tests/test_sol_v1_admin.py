@@ -176,6 +176,11 @@ def test_aggregations_over_a_seeded_circle():
         assert ov["payments"]["pending"] == 1
         assert ov["payments"]["marked"] == 1
         assert ov["payments"]["total"] == 4
+        # Stage 21: 'waived' is itemized so the line items reconcile with total
+        assert "waived" in ov["payments"]
+        assert ov["payments"]["total"] == sum(
+            ov["payments"][k] for k in ("pending", "marked", "confirmed", "disputed", "late", "waived")
+        )
         assert ov["groups"]["locked"] == 1 and ov["members_total"] == 5
         # the fix: a past-due 'marked' payment surfaces as 'unconfirmed', NOT hidden
         assert ov["attention"]["overdue"] == 1      # p2 (pending, past due)

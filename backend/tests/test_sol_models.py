@@ -135,7 +135,7 @@ def test_enumerated_domains():
     assert MEMBERSHIP_ROLES == ("organizer", "member")
     assert CYCLE_STATUSES == ("pending", "active", "complete")
     assert PAYMENT_METHODS == ("zelle", "cashapp", "venmo", "cash", "other", "stripe")
-    assert PAYMENT_STATUSES == ("pending", "marked", "confirmed", "disputed", "late")
+    assert PAYMENT_STATUSES == ("pending", "marked", "confirmed", "disputed", "late", "waived")
     assert PROFILE_METHODS == ("zelle", "cashapp", "venmo", "applepay", "cash")
 
 

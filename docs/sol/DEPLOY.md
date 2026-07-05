@@ -2,8 +2,8 @@
 
 **Audience:** operator (steps to run yourself). Nothing here has been executed — the assistant
 prepared this but did **not** touch the production database or restart the daemon (those are your
-go). Migrations `0007`→`0015` are additive and were proven to apply cleanly on real Postgres; still,
-**back up the DB first**.
+go). Migrations `0007`→`0019` are additive and were proven to apply cleanly on real Postgres (the
+`0019` upgrade/downgrade round-trip is verified); still, **back up the DB first**.
 
 **Where Sol runs:** the local Mac daemon `com.wheellsverse.nai` (launchd) serves both the API
 (`/sol/v1/*`) and the member SPA (`/sol-app/`) **same-origin** from `~/wheellsverse_bots` via
@@ -24,7 +24,7 @@ git status -s                   # working tree clean
   deploy branch (`master`) first — the daemon runs whatever is checked out here.
 - **Back up the daemon's Postgres** before migrating (a dump, or a Railway/provider snapshot).
 
-## 1. Apply the migrations (0007→0015)
+## 1. Apply the migrations (0007→0019)
 
 Run against the **same DATABASE_URL the daemon uses** — `deploy/start_nai.sh` sets it, so source that
 env (or export the URL yourself), then:
@@ -34,14 +34,17 @@ cd ~/wheellsverse_bots
 export DATABASE_URL='...'            # the SAME url deploy/start_nai.sh gives the daemon
 cd backend
 ../.venv/bin/alembic current         # expect head = 0006_add_kai_api_keys (or your current head)
-../.venv/bin/alembic upgrade head    # applies 0007..0015 (sol_* tables + additive column changes)
-../.venv/bin/alembic current         # expect 0015_sol_payment_method_stripe
+../.venv/bin/alembic upgrade head    # applies 0007..0019 (sol_* tables + additive column/CHECK changes)
+../.venv/bin/alembic current         # expect 0019_sol_dispute_resolution
 ```
 
-What these add (all additive — new tables + a nullable column + widened CHECKs; no destructive change):
+What these add (all additive — new tables + nullable columns + widened CHECKs; no destructive change):
 `sol_groups/memberships/cycles/payments/payment_profiles/payment_proofs` (0007), method nullable
 (0008), a UNIQUE (0009), `disputed_at` (0010), `sol_consents` (0011), `sol_stripe_accounts` (0012),
-`sol_member_subscriptions` (0013), `sol_stripe_payments` (0014), method='stripe' allowed (0015).
+`sol_member_subscriptions` (0013), `sol_stripe_payments` (0014), method='stripe' allowed (0015),
+`sol_notifications` (0016), `sol_circle_templates` (0017), `sol_waitlist` + `circle_opening` kind
+(0018), and **dispute resolution** (0019: `status='waived'` allowed + `resolution_note`/`resolved_by`/
+`resolved_at` columns on `sol_payments` + `payment_resolved` notification kind).
 
 **Rollback:** `../.venv/bin/alembic downgrade 0006_add_kai_api_keys` (each migration has a downgrade).
 
@@ -64,10 +67,17 @@ signed in with a **real Supabase account**, walk the flow:
 3. Copy the invite link; from a second account, open it → consent → **Join**.
 4. As organizer: **Lock circle** → **Start this cycle**.
 5. As a payer: open the payment → **I paid this** (pick a method) → as the recipient: **Confirm received**.
-6. Check **Payments** (owed/incoming) and **You** (reliability score + payment handles).
+6. **Dispute resolution (Stage 21):** on another payment, as the recipient tap **Dispute**. The **organizer
+   gets an in-app notification** about it (their path to the payment even when they're neither party). Then
+   either (a) as that recipient, **Withdraw dispute** (it returns to *marked*), or (b) as the **organizer**,
+   open that payment (from the notification) and **Waive this payment** (a terminal write-off — the badge
+   shows *Waived*, the resolution note/when is recorded, and a previously-stuck cycle can now complete).
+   Both parties get a *payment_resolved* in-app notification. No money moves — it only records the decision.
+7. Check **Payments** (owed/incoming) and **You** (reliability score + payment handles). A waived payment
+   is neutral for the payer's score.
 
-This exercises the entire non-custodial manual rail live. The Connect UI (Membership / card payouts /
-pay-with-card) stays **hidden** because the Stripe rail is off — that's expected.
+This exercises the entire non-custodial manual rail live, including dispute resolution. The Connect UI
+(Membership / card payouts / pay-with-card) stays **hidden** because the Stripe rail is off — expected.
 
 ## 4. Feature flags (env) — what to set, what to leave OFF
 

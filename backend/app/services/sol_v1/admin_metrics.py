@@ -75,6 +75,7 @@ def overview(db: Session, today: date) -> dict:
             "confirmed": payments.get("confirmed", 0),
             "disputed": payments.get("disputed", 0),
             "late": payments.get("late", 0),
+            "waived": payments.get("waived", 0),  # Stage 21 terminal status — keep total reconcilable
             "total": sum(payments.values()),
         },
         "cycles": {

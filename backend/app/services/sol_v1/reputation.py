@@ -10,6 +10,7 @@ Categories (per payment the member owes):
   overdue    still unpaid (pending/late) past its due date        → no credit
   disputed   payee contests receipt                               → no credit
   in_flight  not yet due, or marked-and-awaiting-confirm          → excluded
+  waived     organizer wrote the obligation off (a forgiven dispute) → excluded
 
 score = 100 * (on_time + 0.6·late_paid) / (on_time + late_paid + overdue + disputed)
 
@@ -30,8 +31,10 @@ WEIGHTS = {"on_time": 1.0, "late_paid": 0.6, "overdue": 0.0, "disputed": 0.0}
 # below this many actionable payments, the score is a weak signal
 PROVISIONAL_BELOW = 3
 
-CATEGORIES = ("on_time", "late_paid", "overdue", "disputed", "in_flight")
-# categories that count toward the denominator (a resolved-or-actionable outcome)
+CATEGORIES = ("on_time", "late_paid", "overdue", "disputed", "in_flight", "waived")
+# categories that count toward the denominator (a resolved-or-actionable outcome).
+# 'waived' and 'in_flight' are EXCLUDED — a forgiven write-off is neutral, exactly
+# like a not-yet-due payment: it neither credits nor penalizes the payer.
 _ACTIONABLE = ("on_time", "late_paid", "overdue", "disputed")
 
 
@@ -51,7 +54,14 @@ def classify_payment(
       - An unconfirmed self-claim ('marked') past its due date earns NO credit
         until the payee actually confirms — otherwise a delinquent could mark an
         overdue payment and make it vanish from the denominator.
+      - A 'waived' payment is NEUTRAL and short-circuits FIRST: the organizer
+        deliberately wrote it off, so it drops out of the score entirely (it is
+        not a payer signal). Checked before `ever_disputed` because a waived
+        payment was disputed, and we must not let the sticky dispute re-penalize
+        a debt the organizer already forgave.
     """
+    if status == "waived":
+        return "waived"
     if ever_disputed:
         return "late_paid" if status == "confirmed" else "disputed"
     if status == "confirmed":

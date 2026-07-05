@@ -34,6 +34,7 @@
       case "confirmed": return { label: "Confirmed", cls: "badge--ok" };
       case "disputed": return { label: "Disputed", cls: "badge--danger" };
       case "late": return { label: "Late", cls: "badge--warn" };
+      case "waived": return { label: "Waived", cls: "badge--muted" };
       default: return { label: s || "—", cls: "badge--muted" };
     }
   }
@@ -494,6 +495,33 @@
           el("button", { class: "btn btn--success", type: "button", onclick: function () { paymentAction(p.id, "confirm", "Confirmed received"); }, text: "✓ Confirm received" }),
           el("button", { class: "btn btn--danger", type: "button", onclick: function () { paymentAction(p.id, "dispute", "Disputed"); }, text: "Dispute" })));
       }
+
+      // Stage 21 — dispute resolution. When a payment is disputed, the payee can
+      // withdraw a mistaken dispute and the circle organizer can waive it (a
+      // recorded write-off that unfreezes the cycle). Flags are server-decided.
+      if (p.status === "disputed" && (d.can_withdraw || d.can_waive)) {
+        nodes.push(el("hr"));
+        nodes.push(el("p", { class: "muted small", text: "This payment is disputed." }));
+        var acts = el("div", { class: "btnrow" });
+        if (d.can_withdraw) {
+          acts.appendChild(el("button", { class: "btn btn--ghost", type: "button", onclick: function () { paymentAction(p.id, "dispute/withdraw", "Dispute withdrawn"); }, text: "Withdraw dispute" }));
+        }
+        if (d.can_waive) {
+          acts.appendChild(el("button", { class: "btn btn--danger", type: "button", onclick: function () { waivePayment(p.id); }, text: "Waive this payment" }));
+        }
+        nodes.push(acts);
+        if (d.can_waive) {
+          nodes.push(el("p", { class: "small muted", text: "Waiving writes this payment off so the cycle can close. It moves no money and can't be undone." }));
+        }
+      }
+      // Read-only resolution record (shown to everyone once waived).
+      if (p.resolved_at) {
+        nodes.push(el("hr"));
+        nodes.push(el("div", { class: "card" },
+          el("div", { class: "row between" }, el("span", { class: "muted small", text: "Resolution" }), el("span", { text: p.status === "waived" ? "Waived by organizer" : "Resolved" })),
+          p.resolution_note ? el("p", { class: "small", text: p.resolution_note }) : null,
+          el("div", { class: "row between" }, el("span", { class: "muted small", text: "When" }), el("span", { class: "small", text: shortDate(p.resolved_at) }))));
+      }
       render.apply(null, nodes);
     } catch (e) { if (stale(gen)) return; render(backBtn("#/pay", "Payments"), errorView(e, "#/payment/" + id)); }
   }
@@ -519,6 +547,14 @@
     if (action === "dispute" && !confirm("Dispute this — tell the payer you did NOT receive the money?")) return;
     try { await api("POST", "/sol/v1/payments/" + id + "/" + action); toast(okMsg); go("#/payment/" + id); }
     catch (e) { toast(e.detail, true); }
+  }
+  async function waivePayment(id) {
+    if (!confirm("Waive this disputed payment? It's written off so the cycle can close. This moves no money and can't be undone.")) return;
+    var note = prompt("Reason (optional, shown to both members):", "") || "";
+    try {
+      await api("POST", "/sol/v1/payments/" + id + "/resolve", { outcome: "waive", note: note.slice(0, 500) });
+      toast("Payment waived"); go("#/payment/" + id);
+    } catch (e) { toast(e.detail, true); }
   }
 
   // ── notifications (in-app inbox) ─────────────────────────────────────────

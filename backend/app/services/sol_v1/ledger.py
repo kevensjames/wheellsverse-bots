@@ -5,13 +5,22 @@ the app (Zelle / CashApp / Venmo / cash); this module only RECORDS what they say
 happened and reconciles it with a two-sided confirmation:
 
     pending ──payer marks paid──▶ marked ──payee confirms──▶ confirmed
-                                    │
-                                    └──payee disputes──▶ disputed ──payer re-marks──▶ marked
+                                    ▲ │
+             payer re-marks / payee │ └──payee disputes──▶ disputed
+                  withdraws ────────┘                         │
+                                    organizer waives (write-off) ──▶ waived (terminal)
     (late is set by the Stage-4 scheduler for overdue pending rows; it marks like pending)
 
-When every payment in a cycle is confirmed the cycle completes; when every cycle
-completes the group completes. Payment rows are materialized at cycle activation
-(one per non-recipient → recipient), so the ledger is fully queryable/remindable.
+A dispute used to be a dead-end — the ONLY exit was the payer re-marking, so an
+unresolved dispute stranded its cycle (and then the whole group) in a non-terminal
+state forever. Stage 21 adds two exits: the payee can WITHDRAW a mistaken dispute
+(back to 'marked'), and the organizer can WAIVE it (a terminal write-off that lets
+a frozen cycle close). A 'waived' payment counts as settled for completion and is
+neutral for reputation — it is a recorded forgiveness DECISION; no money moves.
+
+When every payment in a cycle is confirmed-or-waived the cycle completes; when
+every cycle completes the group completes. Payment rows are materialized at cycle
+activation (one per non-recipient → recipient), so the ledger is fully queryable.
 
 The state-transition table and the payment-handle guard are pure functions
 (no DB) so the core rules are unit-tested offline; the rest is thin persistence.
@@ -46,8 +55,11 @@ _TRANSITIONS: dict[tuple[str, str], str] = {
     ("disputed", "mark"): "marked",  # payer re-marks after a dispute
     ("marked", "confirm"): "confirmed",
     ("marked", "dispute"): "disputed",
+    # Stage 21 — dispute resolution:
+    ("disputed", "withdraw"): "marked",  # payee retracts a mistaken dispute
+    ("disputed", "waive"): "waived",     # organizer writes it off (terminal)
 }
-PAYMENT_ACTIONS = ("mark", "confirm", "dispute")
+PAYMENT_ACTIONS = ("mark", "confirm", "dispute", "withdraw", "waive")
 
 
 def next_status(current: str, action: str) -> str:
@@ -240,8 +252,85 @@ def dispute(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPayment:
     if payment.disputed_at is None:  # sticky — keep the first dispute time
         payment.disputed_at = datetime.now(timezone.utc)
     db.commit()
+    # The organizer needs to hear about the dispute so they can reach the waive
+    # action (they may be neither party). Scalar lookup — no SolGroup ORM load.
+    cycle = db.get(SolCycle, payment.cycle_id)
+    organizer_id = (
+        db.scalar(select(SolGroup.organizer_id).where(SolGroup.id == cycle.group_id))
+        if cycle is not None
+        else None
+    )
     from app.services.sol_v1 import notifications  # local: avoid import cycle
-    notifications.notify_payment_disputed(payment)  # → payer: not received (own session, pre-refresh)
+    # → payer: not received; → organizer (if a non-party): review + can waive
+    notifications.notify_payment_disputed(payment, organizer_id=organizer_id)
+    db.refresh(payment)
+    return payment
+
+
+def withdraw_dispute(db: Session, *, payment_id: UUID, actor_id: UUID) -> SolPayment:
+    """Payee retracts a dispute they raised in error → back to 'marked' (the
+    confirm/dispute decision point). PAYEE-only.
+
+    Non-custodial: flips status only. The sticky `disputed_at` is deliberately
+    NOT cleared — the dispute did happen, so if the payee later confirms, the
+    payer earns partial (not full) reputation credit. This preserves the
+    anti-gaming invariant that a non-receipt signal can't be erased.
+    """
+    payment = _load_payment(db, payment_id, lock=True)
+    _require_payment_party(payment, actor_id, side="payee")
+    payment.status = next_status(payment.status, "withdraw")  # disputed -> marked (else 409)
+    # Refresh the mark timestamp: the payer's mark is live again (awaiting confirm).
+    # This ALSO gives each disputed→marked→disputed round-trip a distinct value, so
+    # the payment_disputed / payment_resolved dedup keys (both keyed on
+    # payer_marked_at) don't collide and swallow a genuine re-notification. Safe for
+    # reputation: an ever-disputed payment ignores marked_on entirely (see
+    # reputation.classify_payment), so this never changes on-time vs late credit.
+    payment.payer_marked_at = datetime.now(timezone.utc)
+    db.commit()
+    from app.services.sol_v1 import notifications  # local: avoid import cycle
+    notifications.notify_dispute_resolved(payment, outcome="withdrawn")  # → both parties
+    db.refresh(payment)
+    return payment
+
+
+def waive_dispute(
+    db: Session, *, payment_id: UUID, actor_id: UUID, note: str | None = None
+) -> SolPayment:
+    """Organizer writes off a stuck disputed payment as a TERMINAL 'waived'
+    outcome — the recorded forgiveness that lets a frozen cycle/group close.
+    ORGANIZER-only. Moves no money; records only status + who/when/why.
+
+    A waived payment is SETTLED for cycle completion and NEUTRAL for reputation
+    (it neither credits nor penalizes the payer). `resolved_by` is always stamped
+    so the decision is auditable even when the organizer is also the payee.
+    """
+    cleaned = (note or "").strip()
+    if len(cleaned) > 500:
+        raise SolError(400, "resolution note too long (max 500 characters)")
+    payment = _load_payment(db, payment_id, lock=True)
+    cycle = db.get(SolCycle, payment.cycle_id)
+    if cycle is None:
+        raise SolError(404, "cycle not found")
+    # Fetch ONLY the organizer id as a scalar — do NOT load the SolGroup as an ORM
+    # object, or it would sit in the identity map and _maybe_complete_cycle's
+    # `db.get(SolGroup, ..., with_for_update=True)` would return the cached row
+    # WITHOUT issuing the FOR UPDATE lock, breaking completion serialization.
+    organizer_id = db.scalar(select(SolGroup.organizer_id).where(SolGroup.id == cycle.group_id))
+    if organizer_id is None:
+        raise SolError(404, "group not found")
+    if organizer_id != actor_id:
+        raise SolError(403, "only the organizer can waive a disputed payment")
+
+    payment.status = next_status(payment.status, "waive")  # disputed -> waived (else 409)
+    payment.resolution_note = cleaned or None
+    payment.resolved_by = actor_id
+    payment.resolved_at = datetime.now(timezone.utc)
+    db.flush()
+    # A waive can immediately close a previously-stranded cycle (and its group).
+    _maybe_complete_cycle(db, payment.cycle_id)
+    db.commit()
+    from app.services.sol_v1 import notifications  # local: avoid import cycle
+    notifications.notify_dispute_resolved(payment, outcome="waived")  # → both parties
     db.refresh(payment)
     return payment
 
@@ -261,8 +350,9 @@ def add_proof(db: Session, *, payment_id: UUID, actor_id: UUID, image_url: str) 
 
 
 def _maybe_complete_cycle(db: Session, cycle_id: UUID) -> None:
-    """If every payment in the cycle is confirmed, complete it — and if every
-    cycle in the group is complete, complete the group. Call within a txn."""
+    """If every payment in the cycle is settled (confirmed OR waived), complete
+    it — and if every cycle in the group is complete, complete the group. Call
+    within a txn."""
     cycle = db.get(SolCycle, cycle_id)
     if cycle is None:
         return
@@ -274,7 +364,8 @@ def _maybe_complete_cycle(db: Session, cycle_id: UUID) -> None:
 
     remaining = db.scalar(
         select(func.count(SolPayment.id)).where(
-            SolPayment.cycle_id == cycle_id, SolPayment.status != "confirmed"
+            SolPayment.cycle_id == cycle_id,
+            SolPayment.status.notin_(("confirmed", "waived")),
         )
     )
     if remaining and remaining > 0:
@@ -318,13 +409,28 @@ def list_payments(
 
 def get_payment_detail(
     db: Session, *, payment_id: UUID, user_id: UUID
-) -> tuple[SolPayment, list[SolPaymentProof], list[SolPaymentProfile]]:
-    """Payment + its proofs + how-to-pay handles (the payee's profiles).
+) -> tuple[SolPayment, list[SolPaymentProof], list[SolPaymentProfile], UUID | None]:
+    """Payment + its proofs + how-to-pay handles (the payee's profiles) + the
+    circle's organizer_id (for the caller to decide who may waive).
 
-    Visible only to the payer or the payee of this payment.
+    Visible to the payer, the payee, OR the circle organizer — but the organizer
+    (when not a party) may view a payment ONLY while it is disputed (so they can
+    review + waive it) or after they themselves resolved it (resolved_by == them,
+    so the post-waive refresh still loads). This keeps settled payments between
+    two other members private to those parties. Everyone else gets 403.
     """
     payment = _load_payment(db, payment_id)
-    if user_id not in (payment.payer_id, payment.payee_id):
+    cycle = db.get(SolCycle, payment.cycle_id)
+    organizer_id = (
+        db.scalar(select(SolGroup.organizer_id).where(SolGroup.id == cycle.group_id))
+        if cycle is not None
+        else None
+    )
+    is_party = user_id in (payment.payer_id, payment.payee_id)
+    organizer_may_view = user_id == organizer_id and (
+        payment.status == "disputed" or payment.resolved_by == user_id
+    )
+    if not is_party and not organizer_may_view:
         raise SolError(403, "you are not a party to this payment")
     proofs = list(
         db.scalars(
@@ -340,7 +446,7 @@ def get_payment_detail(
             .order_by(SolPaymentProfile.is_default.desc(), SolPaymentProfile.method)
         ).all()
     )
-    return payment, proofs, pay_to
+    return payment, proofs, pay_to, organizer_id
 
 
 # ── payment profiles (how a member wants to be paid) ──────────────────────────

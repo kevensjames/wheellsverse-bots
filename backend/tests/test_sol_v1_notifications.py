@@ -340,7 +340,7 @@ def test_ledger_transitions_invoke_notify_hooks(monkeypatch):
     monkeypatch.setattr(N, "notify_cycle_activated", lambda **kw: calls.append(("cycle", kw)))
     monkeypatch.setattr(N, "notify_payment_marked", lambda p: calls.append(("marked", p.id)))
     monkeypatch.setattr(N, "notify_payment_confirmed", lambda p: calls.append(("confirmed", p.id)))
-    monkeypatch.setattr(N, "notify_payment_disputed", lambda p: calls.append(("disputed", p.id)))
+    monkeypatch.setattr(N, "notify_payment_disputed", lambda p, **kw: calls.append(("disputed", p.id)))
 
     engine, conn, db, schema = _db()
     organizer, alice, bob = uuid4(), uuid4(), uuid4()

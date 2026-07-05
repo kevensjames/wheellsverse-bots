@@ -28,6 +28,7 @@ from app.schemas.sol_v1_ledger import (
     PaymentProfileUpsert,
     ProofCreate,
     ProofOut,
+    ResolvePaymentRequest,
 )
 from app.services.sol_v1 import ledger
 from app.services.sol_v1.lifecycle import SolError
@@ -86,15 +87,20 @@ def payment_detail(
     db: Session = Depends(get_db),
 ) -> PaymentDetail:
     try:
-        payment, proofs, pay_to = ledger.get_payment_detail(
+        payment, proofs, pay_to, organizer_id = ledger.get_payment_detail(
             db, payment_id=payment_id, user_id=current.id
         )
     except SolError as e:
         _raise(e)
+    disputed = payment.status == "disputed"
     return PaymentDetail(
         payment=PaymentOut.model_validate(payment),
         proofs=[ProofOut.model_validate(pr) for pr in proofs],
         pay_to=[PaymentProfileOut.model_validate(pp) for pp in pay_to],
+        # who may act on a disputed payment, computed server-side so the SPA
+        # never has to guess (and never shows a button that would 403)
+        can_withdraw=disputed and current.id == payment.payee_id,
+        can_waive=disputed and current.id == organizer_id,
     )
 
 
@@ -145,6 +151,44 @@ def dispute(
 ) -> PaymentOut:
     try:
         payment = ledger.dispute(db, payment_id=payment_id, actor_id=current.id)
+    except SolError as e:
+        _raise(e)
+    return PaymentOut.model_validate(payment)
+
+
+@router.post("/payments/{payment_id}/dispute/withdraw", response_model=PaymentOut)
+@limiter.limit("30/minute")
+def withdraw_dispute(
+    payment_id: UUID,
+    request: Request,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaymentOut:
+    """PAYEE retracts a mistaken dispute → the payment returns to 'marked'."""
+    try:
+        payment = ledger.withdraw_dispute(db, payment_id=payment_id, actor_id=current.id)
+    except SolError as e:
+        _raise(e)
+    return PaymentOut.model_validate(payment)
+
+
+@router.post("/payments/{payment_id}/resolve", response_model=PaymentOut)
+@limiter.limit("30/minute")
+def resolve_payment(
+    payment_id: UUID,
+    request: Request,
+    body: ResolvePaymentRequest,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PaymentOut:
+    """ORGANIZER resolves a disputed payment. This stage supports outcome='waive'
+    (a terminal write-off that unfreezes a stranded cycle). No money moves."""
+    if body.outcome != "waive":
+        raise HTTPException(status_code=400, detail=f"unsupported outcome {body.outcome!r}")
+    try:
+        payment = ledger.waive_dispute(
+            db, payment_id=payment_id, actor_id=current.id, note=body.note
+        )
     except SolError as e:
         _raise(e)
     return PaymentOut.model_validate(payment)

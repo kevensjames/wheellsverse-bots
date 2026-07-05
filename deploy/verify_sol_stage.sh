@@ -738,8 +738,41 @@ assert fk.ondelete=='SET NULL', fk.ondelete
     run_check "tests: pytest test_sol_v1_email (send / no-op / fail-soft / message build)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_email.py -v --tb=short'
     ;;
+  21)
+    section "Sol Stage 21 — dispute resolution (payee withdraw + organizer waive)"
+
+    run_check "model: 'waived' status + resolution audit columns exist" \
+      python -c "from app.models.sol import PAYMENT_STATUSES, SolPayment; assert 'waived' in PAYMENT_STATUSES; c=SolPayment.__table__.c; assert all(k in c for k in ('resolution_note','resolved_by','resolved_at'))"
+    run_check "model: 'payment_resolved' notification kind added" \
+      python -c "from app.models.sol import NOTIFICATION_KINDS; assert 'payment_resolved' in NOTIFICATION_KINDS"
+    run_check "transitions: disputed→marked (withdraw) and disputed→waived (waive)" \
+      python -c "from app.services.sol_v1 import ledger as L; assert L._TRANSITIONS[('disputed','withdraw')]=='marked'; assert L._TRANSITIONS[('disputed','waive')]=='waived'; assert {'withdraw','waive'} <= set(L.PAYMENT_ACTIONS)"
+    run_check "completion guard now treats 'waived' as settled (no bare != 'confirmed')" \
+      bash -c "grep -qE 'status.notin_..\"confirmed\", \"waived\"' backend/app/services/sol_v1/ledger.py && ! grep -qE 'SolPayment.status != .confirmed.' backend/app/services/sol_v1/ledger.py"
+    run_check "authz: withdraw is payee-only; waive is organizer-only" \
+      bash -c "grep -A12 'def withdraw_dispute' backend/app/services/sol_v1/ledger.py | grep -qE \"side=.payee.\" && grep -A28 'def waive_dispute' backend/app/services/sol_v1/ledger.py | grep -qE 'organizer_id != actor_id'"
+    run_check "safety: waive reads organizer via scalar (never loads SolGroup ORM pre-lock)" \
+      bash -c "grep -A28 'def waive_dispute' backend/app/services/sol_v1/ledger.py | grep -qE 'select.SolGroup.organizer_id.'"
+    run_check "reputation: 'waived' is a neutral, EXCLUDED category" \
+      python -c "from app.services.sol_v1 import reputation as R; assert 'waived' in R.CATEGORIES and 'waived' not in R._ACTIONABLE; assert R.classify_payment(status='waived', due_date=__import__('datetime').date(2026,1,1), today=__import__('datetime').date(2026,6,1), marked_on=None, ever_disputed=True)=='waived'"
+    run_check "service: notification builder + hook present" \
+      python -c "from app.services.sol_v1 import notifications as n; n.content_payment_resolved; n.notify_dispute_resolved"
+    run_check "endpoints: withdraw + resolve routes registered" \
+      python -c "import app.main as m; p={r.path for r in m.app.routes}; assert '/sol/v1/payments/{payment_id}/dispute/withdraw' in p and '/sol/v1/payments/{payment_id}/resolve' in p"
+    run_check "migration: 0019 revises 0018 and is additive (widen CHECK + ADD COLUMN, no DROP COLUMN in upgrade)" \
+      bash -c "grep -qE \"down_revision.*0018_sol_waitlist\" backend/alembic/versions/0019_sol_dispute_resolution.py && grep -qE 'ADD COLUMN IF NOT EXISTS resolution_note' backend/alembic/versions/0019_sol_dispute_resolution.py && ! sed -n '/def upgrade/,/def downgrade/p' backend/alembic/versions/0019_sol_dispute_resolution.py | grep -qE 'DROP COLUMN'"
+
+    run_check "non-custodial: no money/bank primitives in the resolution code" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\biban\\b|import +dwolla|from +dwolla|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/ledger.py backend/app/services/sol_v1/notifications.py"
+
+    run_check "tests: pytest test_sol_v1_dispute_resolution (pure state-machine / reputation / notify)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_dispute_resolution.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: withdraw + waive-completes-cycle + authz + reputation on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_dispute_resolution.py::test_dispute_resolution_end_to_end_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21) exist so far)"
     exit 3
     ;;
 esac

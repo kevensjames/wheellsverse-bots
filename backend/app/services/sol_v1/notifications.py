@@ -288,6 +288,44 @@ def content_payment_disputed(*, payment_id: UUID, amount) -> dict:
     }
 
 
+def content_payment_disputed_for_organizer(*, payment_id: UUID, amount) -> dict:
+    """To the ORGANIZER: a payment in your circle was disputed — review it. This
+    is the discovery path to the waive action (the organizer may be neither party
+    to the payment, so they'd otherwise never learn a dispute is blocking a cycle)."""
+    return {
+        "kind": "payment_disputed",
+        "title": "A payment in your circle was disputed",
+        "body": f"A {_fmt_amount(amount)} payment was disputed. Review it — you can waive it to unblock the cycle if it can't be resolved.",
+        "link": f"#/payment/{payment_id}",
+        "payment_id": payment_id,
+    }
+
+
+def content_payment_resolved(*, payment_id: UUID, amount, outcome: str) -> dict:
+    """To BOTH parties: a disputed payment was resolved. outcome 'waived'
+    (organizer write-off — terminal) or 'withdrawn' (payee retracted the dispute
+    → back to awaiting confirmation)."""
+    if outcome == "waived":
+        title = "Dispute resolved — payment waived"
+        body = (
+            f"A disputed {_fmt_amount(amount)} payment was waived by the circle organizer. "
+            "It's settled on the books; no further action is needed."
+        )
+    else:  # withdrawn
+        title = "Dispute withdrawn"
+        body = (
+            f"The dispute on a {_fmt_amount(amount)} payment was withdrawn — "
+            "the recipient will confirm receipt."
+        )
+    return {
+        "kind": "payment_resolved",
+        "title": title,
+        "body": body,
+        "link": f"#/payment/{payment_id}",
+        "payment_id": payment_id,
+    }
+
+
 def content_cycle_started(*, payment_id: UUID, amount, due_date: date) -> dict:
     """To a PAYER: a new cycle began; here's what you owe and by when."""
     return {
@@ -346,14 +384,46 @@ def notify_payment_confirmed(payment) -> None:
                      content=content_payment_confirmed(payment_id=payment.id, amount=payment.amount))
 
 
-def notify_payment_disputed(payment) -> None:
+def notify_payment_disputed(payment, *, organizer_id: UUID | None = None) -> None:
     # dedup includes payer_marked_at (the mark THIS dispute reacts to) so a
-    # re-dispute after a re-mark re-notifies the payer — symmetric with
-    # notify_payment_marked. A static key would silently swallow dispute #2,
-    # stranding a payer who just re-sent money on the strength of dispute #1.
+    # re-dispute after a re-mark OR a withdraw (both refresh payer_marked_at)
+    # re-notifies — symmetric with notify_payment_marked. A static key would
+    # silently swallow dispute #2, stranding a payer who re-sent on dispute #1.
     ts = payment.payer_marked_at.isoformat() if payment.payer_marked_at else "0"
     _emit_event_soft(user_id=payment.payer_id, dedup_key=f"payment_disputed:{payment.id}:{ts}",
                      content=content_payment_disputed(payment_id=payment.id, amount=payment.amount))
+    # Also nudge the circle organizer (if they're not already a party) — this is
+    # their discovery path to the waive action for a dispute between two others.
+    if organizer_id is not None and organizer_id not in (payment.payer_id, payment.payee_id):
+        _emit_event_soft(
+            user_id=organizer_id,
+            dedup_key=f"payment_disputed:organizer:{payment.id}:{ts}",
+            content=content_payment_disputed_for_organizer(payment_id=payment.id, amount=payment.amount),
+        )
+
+
+def notify_dispute_resolved(payment, *, outcome: str) -> None:
+    """Tell BOTH parties a disputed payment was resolved — 'waived' (organizer
+    write-off, terminal) or 'withdrawn' (payee retracted, back to 'marked').
+
+    dedup discriminator: for a waive we key on resolved_at (a re-dispute →
+    re-waive always re-notifies); for a withdraw we key on payer_marked_at (the
+    mark the dispute reacted to) so a fresh dispute cycle re-notifies, mirroring
+    notify_payment_disputed. Own session, fully fail-soft (see _emit_event_soft).
+    """
+    if outcome == "waived" and payment.resolved_at is not None:
+        disc = payment.resolved_at.isoformat()
+    else:
+        disc = payment.payer_marked_at.isoformat() if payment.payer_marked_at else "0"
+    content = content_payment_resolved(
+        payment_id=payment.id, amount=payment.amount, outcome=outcome
+    )
+    for uid in (payment.payer_id, payment.payee_id):
+        _emit_event_soft(
+            user_id=uid,
+            dedup_key=f"payment_resolved:{outcome}:{payment.id}:{disc}",
+            content=content,
+        )
 
 
 def notify_cycle_activated(*, cycle, payments, recipient_user_id: UUID, amount) -> None:
