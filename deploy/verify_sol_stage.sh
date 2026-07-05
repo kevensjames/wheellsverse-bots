@@ -794,8 +794,31 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: leave + remove + seat-frees + post-lock-frozen on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_membership.py::test_membership_leave_and_remove_on_real_db -v'
     ;;
+  23)
+    section "Sol Stage 23 — member timeline (what's-next projection, read-only)"
+
+    run_check "service: build_timeline + status classifiers present" \
+      python -c "from app.services.sol_v1 import timeline as t; t.build_timeline; t.contribution_status; t.payout_status; t.contribution_labels; t.payout_labels"
+    run_check "pure: contribution status buckets (paid / overdue / upcoming)" \
+      python -c "from app.services.sol_v1 import timeline as t; from datetime import date; d=date(2026,6,1); assert t.contribution_status(payment_status='confirmed',due_date=date(2026,5,1),today=d)=='paid'; assert t.contribution_status(payment_status='pending',due_date=date(2026,5,1),today=d)=='overdue'; assert t.contribution_status(payment_status='pending',due_date=date(2026,7,1),today=d)=='upcoming'"
+    run_check "pure: payout status buckets (received / incoming / scheduled)" \
+      python -c "from app.services.sol_v1 import timeline as t; from datetime import date; d=date(2026,6,1); assert t.payout_status(cycle_status='complete',due_date=d,today=d)=='received'; assert t.payout_status(cycle_status='active',due_date=d,today=d)=='incoming'; assert t.payout_status(cycle_status='pending',due_date=date(2026,7,1),today=d)=='scheduled'"
+    run_check "endpoint: GET /sol/v1/timeline registered" \
+      python -c "import app.main as m; assert '/sol/v1/timeline' in {r.path for r in m.app.routes}"
+    run_check "read-only: the projection never writes (no add/commit/delete/flush)" \
+      bash -c "! grep -qE 'db.add\\(|db.commit\\(|db.delete\\(|db.flush\\(' backend/app/services/sol_v1/timeline.py"
+
+    run_check "non-custodial: no money/bank primitives in the timeline" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\biban\\b|import +dwolla|from +dwolla|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/timeline.py"
+
+    run_check "tests: pytest test_sol_v1_timeline (classifiers + labels)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_timeline.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: member stream (contributions + payout + ordering) on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_timeline.py::test_timeline_end_to_end_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23) exist so far)"
     exit 3
     ;;
 esac

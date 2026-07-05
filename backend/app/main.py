@@ -13,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, sol_v1_admin, sol_v1_charges, sol_v1_ledger, sol_v1_legal, sol_v1_notifications, sol_v1_reminders, sol_v1_reputation, sol_v1_stripe, sol_v1_subscription, sol_v1_templates, sol_v1_webhook, transcribe, tts, v1, ws_collab
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_ceo, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_goals, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_security, admin_self_correction, admin_self_heal, admin_superrouter, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, sol_v1, sol_v1_admin, sol_v1_charges, sol_v1_ledger, sol_v1_legal, sol_v1_notifications, sol_v1_reminders, sol_v1_reputation, sol_v1_stripe, sol_v1_subscription, sol_v1_templates, sol_v1_timeline, sol_v1_webhook, transcribe, tts, v1, ws_collab
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -259,6 +259,7 @@ app.include_router(sol_v1_reminders.router)  # Sol v1 reminders: member's due/ov
 app.include_router(sol_v1_notifications.router)  # Sol v1 notifications: member in-app inbox
 app.include_router(sol_v1_templates.router)  # Sol v1 templates: reusable blueprint + instances/rounds
 app.include_router(sol_v1_reputation.router)  # Sol v1 reputation: trust scores from history
+app.include_router(sol_v1_timeline.router)  # Sol v1 timeline: member's "what's next" projection
 app.include_router(sol_v1_legal.router)  # Sol v1 legal: disclosure + recorded consent
 app.include_router(sol_v1_stripe.router)  # Sol v1 Stripe Connect rail (sandbox-locked onboarding)
 app.include_router(sol_v1_subscription.router)  # Sol v1 member subscription ($9.99/mo SaaS fee)

@@ -63,6 +63,23 @@
       default: return { label: s || "—", cls: "badge--muted" };
     }
   }
+  function timelineMeta(s) {
+    switch (s) {
+      case "paid": return { label: "Paid", cls: "badge--ok" };
+      case "received": return { label: "Received", cls: "badge--ok" };
+      case "completed": return { label: "Done", cls: "badge--muted" };
+      case "waived": return { label: "Waived", cls: "badge--muted" };
+      case "disputed": return { label: "Disputed", cls: "badge--danger" };
+      case "overdue": return { label: "Overdue", cls: "badge--danger" };
+      case "due_today": return { label: "Due today", cls: "badge--warn" };
+      case "awaiting_start": return { label: "Not started", cls: "badge--warn" };
+      case "awaiting_confirmation": return { label: "Awaiting", cls: "badge--info" };
+      case "incoming": return { label: "Incoming", cls: "badge--info" };
+      case "upcoming": return { label: "Upcoming", cls: "badge--info" };
+      case "scheduled": return { label: "Scheduled", cls: "badge--muted" };
+      default: return { label: s || "—", cls: "badge--muted" };
+    }
+  }
   function shortId(id) { return id ? String(id).slice(0, 8) : "—"; }
   function safeHref(url) {
     // Only http(s) becomes a clickable link — blocks javascript:/data:/etc.
@@ -418,6 +435,46 @@
     if (!confirm("Start this cycle? Everyone except the recipient will be asked to pay.")) return;
     try { await api("POST", "/sol/v1/cycles/" + cycleId + "/activate"); toast("Cycle started"); go("#/group/" + groupId); }
     catch (e) { toast(e.detail, true); }
+  }
+
+  // ── timeline (what's next) ───────────────────────────────────────────────
+  async function timelineScreen() {
+    var gen = STATE.gen; loading();
+    try {
+      var t = await api("GET", "/sol/v1/timeline");
+      if (stale(gen)) return;
+      var nodes = [el("h1", { text: "Timeline" }),
+        el("p", { class: "muted small", text: "Everything coming up across your circles — contributions you owe and payouts headed your way." })];
+      if (!t.events.length) {
+        nodes.push(el("div", { class: "empty" },
+          el("p", { text: "Nothing scheduled yet." }),
+          el("p", { class: "muted small", text: "Join or start a circle and your contributions and payouts will show up here." }),
+          el("button", { class: "btn btn--primary btn--sm", type: "button", onclick: function () { go("#/groups"); }, text: "Go to circles" })));
+        render.apply(null, nodes);
+        return;
+      }
+      var todayIso = t.as_of;
+      nodes.push(el("div", { class: "stack" }, t.events.map(function (ev) {
+        var m = timelineMeta(ev.status);
+        var isFuture = ev.date >= todayIso && (ev.status === "upcoming" || ev.status === "scheduled" || ev.status === "due_today");
+        var icon = ev.kind === "payout" ? "💰" : ev.kind === "milestone" ? "🎉" : "•";
+        var card = el("div", { class: "card" },
+          el("div", { class: "row between" },
+            el("span", { class: "muted small", text: shortDate(ev.date) + (ev.date === todayIso ? " · today" : "") }),
+            badge(m.label, m.cls)),
+          el("div", { style: "margin-top:var(--s-2)" },
+            el("strong", { text: (ev.kind === "contribution" ? "" : icon + " ") + ev.title }),
+            ev.amount != null ? el("span", { class: "muted small", text: " · " + money(ev.amount) }) : null),
+          el("p", { class: "muted small", style: "margin:var(--s-1) 0 0", text: ev.detail }));
+        if (ev.payment_id) {  // contribution rows deep-link to the payment
+          card.style.cursor = "pointer";
+          card.setAttribute("role", "button");
+          card.onclick = function () { go("#/payment/" + ev.payment_id); };
+        }
+        return card;
+      })));
+      render.apply(null, nodes);
+    } catch (e) { if (stale(gen)) return; render(el("h1", { text: "Timeline" }), errorView(e, "#/timeline")); }
   }
 
   // ── payments (reminders) ─────────────────────────────────────────────────
@@ -823,11 +880,11 @@
         el("span", { class: "ico", "aria-hidden": "true", text: ico }), el("span", { text: label }));
     };
     app.appendChild(el("nav", { class: "bottomnav", "aria-label": "Primary" },
-      tab("#/groups", "🌅", "Circles"), tab("#/pay", "💸", "Payments"), tab("#/me", "🙂", "You")));
+      tab("#/groups", "🌅", "Circles"), tab("#/timeline", "📅", "Timeline"), tab("#/pay", "💸", "Payments"), tab("#/me", "🙂", "You")));
   }
 
   var AUTH_ROUTES = { login: 1, signup: 1 };
-  var TAB_FOR = { groups: "#/groups", pay: "#/pay", me: "#/me", group: "#/groups", payment: "#/pay", "groups/new": "#/groups", join: "#/groups", legal: "#/me", consent: "#/groups", notifications: "#/notifications" };
+  var TAB_FOR = { groups: "#/groups", timeline: "#/timeline", pay: "#/pay", me: "#/me", group: "#/groups", payment: "#/pay", "groups/new": "#/groups", join: "#/groups", legal: "#/me", consent: "#/groups", notifications: "#/notifications" };
 
   async function ensureMe() {
     if (STATE.me) return true;
@@ -854,6 +911,7 @@
       case "groups": return groupsScreen();
       case "join": return joinScreen(h.query.code);
       case "group": return h.id ? groupDetailScreen(h.id) : groupsScreen();
+      case "timeline": return timelineScreen();
       case "pay": return payScreen();
       case "payment": return h.id ? paymentDetailScreen(h.id) : payScreen();
       case "me": return meScreen();
