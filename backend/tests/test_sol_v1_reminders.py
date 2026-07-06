@@ -31,6 +31,22 @@ def test_classify_due_buckets():
     assert RM.classify_due(TODAY + timedelta(days=8), TODAY, upcoming_within_days=7) == "scheduled"
 
 
+@pytest.mark.parametrize(
+    "delta,expected",
+    [
+        (-3, "overdue"), (-1, "overdue"),
+        (0, "due_today"),
+        (1, "due_1d"),
+        (2, "due_3d"), (3, "due_3d"),
+        (4, "due_7d"), (7, "due_7d"),
+        (8, None), (30, None),  # too far out — no nudge yet
+    ],
+)
+def test_reminder_tier_bands(delta, expected):
+    # Stage 27: the escalating daily reminder ladder, robust to a missed scan day.
+    assert RM.reminder_tier(TODAY + timedelta(days=delta), TODAY) == expected
+
+
 def test_build_operator_digest_mentions_counts():
     txt = RM.build_operator_digest(
         marked_late=2,

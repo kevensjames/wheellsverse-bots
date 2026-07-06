@@ -33,7 +33,7 @@ UNPAID_STATUSES = ("pending", "late")
 
 
 def classify_due(due_date: date, today: date, upcoming_within_days: int = 7) -> str:
-    """Bucket a due date relative to today."""
+    """Bucket a due date relative to today (member view + operator digest)."""
     if due_date < today:
         return "overdue"
     if due_date == today:
@@ -41,6 +41,30 @@ def classify_due(due_date: date, today: date, upcoming_within_days: int = 7) -> 
     if (due_date - today).days <= upcoming_within_days:
         return "upcoming"
     return "scheduled"
+
+
+# Stage 27 — the daily PAYER reminder cadence. Bands (not exact days) so a missed
+# scan day can't skip a tier: a payment escalates 7d → 3d → tomorrow → due-today →
+# overdue as its due date approaches, and each band nudges exactly once (distinct
+# dedup key downstream). This is the spec's 7d/3d/24h reminder ladder.
+REMINDER_TIERS = ("due_7d", "due_3d", "due_1d", "due_today", "overdue")
+
+
+def reminder_tier(due_date: date, today: date) -> str | None:
+    """Which reminder band an unpaid obligation is in, or None if too far out
+    (8+ days) to warrant a nudge yet."""
+    days = (due_date - today).days
+    if days < 0:
+        return "overdue"
+    if days == 0:
+        return "due_today"
+    if days == 1:
+        return "due_1d"
+    if days <= 3:
+        return "due_3d"
+    if days <= 7:
+        return "due_7d"
+    return None
 
 
 def build_operator_digest(*, marked_late: int, summary: dict[str, int]) -> str:

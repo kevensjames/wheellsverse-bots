@@ -32,16 +32,18 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.sol import SolCycle, SolNotification, SolPayment
-from app.services.sol_v1.reminders import UNPAID_STATUSES, classify_due
+from app.services.sol_v1.reminders import UNPAID_STATUSES, reminder_tier
 
 logger = logging.getLogger(__name__)
 
-# Due-bucket → notification kind. Only buckets that warrant a payer nudge.
-_BUCKET_KIND = {
+# Reminder tier → notification kind. Only tiers that warrant a payer nudge; a
+# None/unknown tier (too far out) does NOT notify. (Stage 27 multi-tier cadence.)
+_TIER_KIND = {
     "overdue": "payment_overdue",
     "due_today": "payment_due",
-    "upcoming": "payment_due",
-    # "scheduled" (far future) intentionally does NOT notify.
+    "due_1d": "payment_due",
+    "due_3d": "payment_due",
+    "due_7d": "payment_due",
 }
 
 
@@ -57,35 +59,39 @@ def _fmt_amount(amount: Decimal | int | float | str) -> str:
 
 
 def content_for_payer_obligation(
-    *, payment_id: UUID, amount, due_date: date, bucket: str
+    *, payment_id: UUID, amount, due_date: date, bucket: str | None
 ) -> dict | None:
-    """Build the notification a PAYER gets about an open obligation, or None if
-    the bucket doesn't warrant one. `dedup_key` ties one nudge to (kind,payment)
-    so 'due' then later 'overdue' each fire once — natural escalation, no spam."""
-    kind = _BUCKET_KIND.get(bucket)
+    """Build the PAYER reminder for a tier ('bucket'), or None if the tier doesn't
+    warrant one (too far out / unknown). Each tier has its OWN dedup key, so a
+    payment nudges ONCE PER BAND as its due date approaches — an escalating ladder
+    (7-days-out → 3-days-out → tomorrow → due today → overdue), never daily spam,
+    and never re-nudged once paid."""
+    kind = _TIER_KIND.get(bucket)
     if kind is None:
         return None
-    amt = _fmt_amount(amount)
-    if kind == "payment_overdue":
-        title = "Payment overdue"
-        body = f"Your {amt} contribution was due {due_date.isoformat()}. Please pay your circle member."
-    else:
-        when = "today" if bucket == "due_today" else f"on {due_date.isoformat()}"
-        title = "Payment due"
-        body = f"Your {amt} contribution is due {when}. Pay your circle member, then mark it paid."
-    # Dedup on the BUCKET for the payment_due family (upcoming vs due_today), else
-    # the earlier "upcoming" nudge's key would swallow the "due today" one (same
-    # kind) and the member would get no reminder ON the due date. Overdue already
-    # has its own kind. → three escalating one-shot nudges: upcoming, due_today,
-    # overdue — each fires exactly once, no daily spam.
-    dedup_scope = bucket if kind == "payment_due" else kind
+    amt, when = _fmt_amount(amount), due_date.isoformat()
+    copy = {
+        "overdue": ("Payment overdue",
+                    f"Your {amt} contribution was due {when}. Please pay your circle member."),
+        "due_today": ("Payment due today",
+                      f"Your {amt} contribution is due today. Pay your circle member, then mark it paid."),
+        "due_1d": ("Payment due tomorrow",
+                   f"Your {amt} contribution is due tomorrow ({when}). Pay your circle member, then mark it paid."),
+        "due_3d": ("Payment due soon",
+                   f"Your {amt} contribution is due {when} — in a few days. Get ready to pay your circle member."),
+        "due_7d": ("Payment coming up",
+                   f"Your {amt} contribution is due {when} — about a week away."),
+    }
+    title, body = copy[bucket]
+    # dedup on the TIER so each band fires exactly once (an earlier band's key can't
+    # swallow the next); a paid payment simply drops out of the scan and never re-nudges.
     return {
         "kind": kind,
         "title": title,
         "body": body,
         "link": f"#/payment/{payment_id}",
         "payment_id": payment_id,
-        "dedup_key": f"{dedup_scope}:{payment_id}",
+        "dedup_key": f"{bucket}:{payment_id}",
     }
 
 
@@ -225,8 +231,9 @@ def emit(
     return new_id
 
 
-def emit_due_overdue_scan(db: Session, today: date, upcoming_within_days: int = 7) -> int:
-    """Scan every open (unpaid) obligation and nudge each PAYER once per bucket.
+def emit_due_overdue_scan(db: Session, today: date) -> int:
+    """Scan every open (unpaid) obligation and nudge each PAYER once per reminder
+    tier (7d → 3d → tomorrow → due-today → overdue).
 
     Idempotent via emit()'s dedup — safe to run daily. Returns rows created."""
     rows = db.execute(
@@ -238,9 +245,9 @@ def emit_due_overdue_scan(db: Session, today: date, upcoming_within_days: int = 
     created = 0
     for payment_id, payer_id, amount, due in rows:
         try:  # one bad row must not abort the whole sweep — guard build + emit
-            bucket = classify_due(due, today, upcoming_within_days)
+            tier = reminder_tier(due, today)
             content = content_for_payer_obligation(
-                payment_id=payment_id, amount=amount, due_date=due, bucket=bucket
+                payment_id=payment_id, amount=amount, due_date=due, bucket=tier
             )
             if content is None:
                 continue

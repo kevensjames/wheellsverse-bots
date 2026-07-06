@@ -32,31 +32,36 @@ def test_bucket_overdue_builds_overdue_kind():
         payment_id=PID, amount=Decimal("100.00"), due_date=date(2026, 6, 1), bucket="overdue"
     )
     assert c["kind"] == "payment_overdue"
-    assert c["dedup_key"] == f"payment_overdue:{PID}"
+    assert c["dedup_key"] == f"overdue:{PID}"  # tier-based dedup (Stage 27)
     assert c["payment_id"] == PID
     assert c["link"] == f"#/payment/{PID}"
     assert "$100.00" in c["body"] and "2026-06-01" in c["body"]
 
 
-def test_bucket_due_today_and_upcoming_build_due_kind():
-    today = N.content_for_payer_obligation(
-        payment_id=PID, amount=Decimal("50"), due_date=TODAY, bucket="due_today"
-    )
-    upcoming = N.content_for_payer_obligation(
-        payment_id=PID, amount=Decimal("50"), due_date=TODAY + timedelta(days=3), bucket="upcoming"
-    )
-    assert today["kind"] == "payment_due" and "today" in today["body"]
-    assert upcoming["kind"] == "payment_due"
-    # Distinct dedup keys per bucket so the due-today nudge is NOT swallowed by
-    # the earlier "upcoming" one (they'd otherwise share payment_due:<pid>).
-    assert upcoming["dedup_key"] == f"upcoming:{PID}"
-    assert today["dedup_key"] == f"due_today:{PID}"
-    assert upcoming["dedup_key"] != today["dedup_key"]
+def test_reminder_tiers_build_due_kind_with_distinct_dedup_keys():
+    # the four pre-due tiers of the escalation ladder (Stage 27)
+    tiers = ["due_7d", "due_3d", "due_1d", "due_today"]
+    contents = {
+        t: N.content_for_payer_obligation(
+            payment_id=PID, amount=Decimal("50"), due_date=TODAY, bucket=t
+        )
+        for t in tiers
+    }
+    assert all(c["kind"] == "payment_due" for c in contents.values())
+    # each tier carries a DISTINCT dedup key, so the ladder can't self-swallow —
+    # a payment nudges once per band, 7d → 3d → tomorrow → due-today.
+    keys = {t: c["dedup_key"] for t, c in contents.items()}
+    assert len(set(keys.values())) == 4
+    assert keys["due_today"] == f"due_today:{PID}" and keys["due_1d"] == f"due_1d:{PID}"
+    # tier-specific copy
+    assert "today" in contents["due_today"]["body"]
+    assert "tomorrow" in contents["due_1d"]["body"]
 
 
-def test_scheduled_bucket_does_not_notify():
+def test_far_future_and_unknown_tiers_do_not_notify():
+    # None (too far out) and any unknown tier build nothing
     assert N.content_for_payer_obligation(
-        payment_id=PID, amount=Decimal("10"), due_date=TODAY + timedelta(days=90), bucket="scheduled"
+        payment_id=PID, amount=Decimal("10"), due_date=TODAY, bucket=None
     ) is None
     assert N.content_for_payer_obligation(
         payment_id=PID, amount=Decimal("10"), due_date=TODAY, bucket="nonsense"

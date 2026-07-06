@@ -886,8 +886,26 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: complete a circle → first_circle/reliable/perfect + organizer badge (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_badges.py::test_badges_end_to_end_on_real_db -v'
     ;;
+  27)
+    section "Sol Stage 27 — multi-tier payer reminders (7d / 3d / tomorrow / due / overdue)"
+
+    run_check "service: reminder_tier + REMINDER_TIERS present" \
+      python -c "from app.services.sol_v1 import reminders as r; r.reminder_tier; assert r.REMINDER_TIERS == ('due_7d','due_3d','due_1d','due_today','overdue')"
+    run_check "pure: the escalation bands (7d/3d/tomorrow/today/overdue + far=None)" \
+      python -c "from app.services.sol_v1 import reminders as r; from datetime import date,timedelta; t=date(2026,6,1); f=lambda d: r.reminder_tier(t+timedelta(days=d),t); assert [f(-1),f(0),f(1),f(3),f(7),f(8)]==['overdue','due_today','due_1d','due_3d','due_7d',None]"
+    run_check "distinct dedup keys per tier (the ladder can't self-swallow)" \
+      python -c "from app.services.sol_v1 import notifications as n; from datetime import date; from decimal import Decimal; from uuid import uuid4; pid=uuid4(); ks={n.content_for_payer_obligation(payment_id=pid,amount=Decimal('5'),due_date=date(2026,6,1),bucket=b)['dedup_key'] for b in ('due_7d','due_3d','due_1d','due_today','overdue')}; assert len(ks)==5, ks"
+    run_check "scan drives the tiers (emit_due_overdue_scan uses reminder_tier)" \
+      bash -c "grep -qE 'reminder_tier' backend/app/services/sol_v1/notifications.py && grep -A14 'def emit_due_overdue_scan' backend/app/services/sol_v1/notifications.py | grep -qE 'reminder_tier'"
+
+    run_check "non-custodial: no money/bank primitives in the reminder tiers" \
+      bash -c "! grep -A20 'def reminder_tier' backend/app/services/sol_v1/reminders.py | grep -qE 'routing_number|account_number|card_number|\\.charge\\(|\\.transfer\\('"
+
+    run_check "tests: pytest reminder tiers + content ladder" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_reminders.py tests/test_sol_v1_notifications.py -k "tier or far_future or overdue" -v --tb=short'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24), invite-rotation(25), badges(26) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24), invite-rotation(25), badges(26), multi-tier-reminders(27) exist so far)"
     exit 3
     ;;
 esac
