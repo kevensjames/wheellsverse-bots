@@ -136,6 +136,22 @@ def test_delinquency_end_to_end_on_real_db(monkeypatch):
             D.find_delinquencies(db, group_id=ga.id, actor_id=alice, today=today)
         assert e.value.status_code == 403
 
+        # escalation LOGIC — assert it HERE (circle A has 2 delinquents, so >= 1 is a
+        # non-organizer regardless of the rotation). Monkeypatch the notify hook so this
+        # doesn't depend on the app SessionLocal (which points at the remote pooler);
+        # the organizer is never escalated to themselves. sent must equal the ground
+        # truth exactly (deterministic).
+        escalated = []
+        monkeypatch.setattr(
+            "app.services.sol_v1.notifications.notify_member_delinquent",
+            lambda **kw: escalated.append(kw["member_id"]),
+        )
+        expected = [d["user_id"] for d in delq if d["user_id"] != org]
+        assert len(expected) >= 1  # 2 delinquents, <=1 organizer → the feature escalates someone
+        sent = D.notify_organizer_delinquencies(db, today)
+        assert sent == len(expected) == len(escalated)
+        assert org not in escalated
+
         # a payer who settles up drops off the delinquency list
         pay = db.scalar(
             select(SolPayment).where(SolPayment.cycle_id == cyc_a.id).limit(1)
@@ -148,19 +164,6 @@ def test_delinquency_end_to_end_on_real_db(monkeypatch):
         # Circle B: 30-day grace → the SAME 24-day-overdue is still within grace.
         gb, _ = build(30)
         assert D.find_delinquencies(db, group_id=gb.id, actor_id=org, today=today) == []
-
-        # escalation LOGIC — monkeypatch the notify hook so this asserts WHO gets
-        # escalated without depending on the app SessionLocal (which the stage
-        # verifier deliberately points at a dead host). The organizer is never
-        # escalated to themselves.
-        escalated = []
-        monkeypatch.setattr(
-            "app.services.sol_v1.notifications.notify_member_delinquent",
-            lambda **kw: escalated.append(kw["member_id"]),
-        )
-        sent = D.notify_organizer_delinquencies(db, today)
-        assert sent >= 1 and len(escalated) == sent
-        assert org not in escalated  # organizer never escalated to themselves
 
         db.rollback()  # end the open read txn so teardown's DROP SCHEMA can't deadlock on its locks
         db.close()
