@@ -715,6 +715,9 @@
     try {
       var rep = await api("GET", "/sol/v1/reputation/me");
       if (stale(gen)) return;
+      var prof = null;
+      try { prof = await api("GET", "/sol/v1/badges/me"); } catch (e) { prof = null; }
+      if (stale(gen)) return;
       var profiles = await api("GET", "/sol/v1/payment-profiles");
       if (stale(gen)) return;
       // Stripe rail (fail-soft — these hide themselves when the rail is off)
@@ -736,10 +739,24 @@
             el("div", {}, badge(rep.label + (rep.provisional && rep.score != null ? " · new" : ""), rm.cls),
               el("div", { class: "small muted", text: rep.actionable + " payment" + (rep.actionable === 1 ? "" : "s") + " counted" }))))),
         el("p", { class: "small muted", text: "On-time confirmed payments build your score. Disputes and overdue payments lower it." }),
+      ];
+      if (prof && prof.badges && prof.badges.length) {
+        var earnedCount = prof.badges.filter(function (b) { return b.earned; }).length;
+        nodes.push(el("div", { class: "section-title", text: "Your badges" }));
+        nodes.push(el("p", { class: "small muted", text: earnedCount + " of " + prof.badges.length + " earned · " + prof.stats.circles_completed + " circle" + (prof.stats.circles_completed === 1 ? "" : "s") + " completed" }));
+        nodes.push(el("div", { class: "stack" }, prof.badges.map(function (b) {
+          return el("div", { class: "card", style: b.earned ? "" : "opacity:.55" },
+            el("div", { class: "row between" },
+              el("strong", { text: (b.earned ? "🏅 " : "🔒 ") + b.label }),
+              badge(b.earned ? "Earned" : "Locked", b.earned ? "badge--ok" : "badge--muted")),
+            el("p", { class: "small muted", style: "margin:var(--s-1) 0 0", text: b.description }));
+        })));
+      }
+      nodes = nodes.concat([
         subscriptionSection(sub),
         connectSection(acct),
         el("div", { class: "section-title", text: "How you get paid" }),
-      ];
+      ]);
       nodes.push(profiles.length ? el("div", { class: "stack" }, profiles.map(function (pp) { return profileCard(pp); })) : el("p", { class: "muted small", text: "Add a handle so members know how to pay you." }));
       nodes.push(addProfileForm());
       nodes.push(el("hr"));

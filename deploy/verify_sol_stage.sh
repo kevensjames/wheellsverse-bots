@@ -865,8 +865,29 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: rotate invalidates old link + new link joins + authz + post-lock 409 (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_invite_rotation.py::test_invite_rotation_end_to_end_on_real_db -v'
     ;;
+  26)
+    section "Sol Stage 26 — SOL profile + badges (derived read-only achievements)"
+
+    run_check "service: award_badges + member_profile + compute_member_stats present" \
+      python -c "from app.services.sol_v1 import badges as b; b.award_badges; b.member_profile; b.compute_member_stats"
+    run_check "pure: a new member earns nothing; a veteran earns the wall" \
+      python -c "from app.services.sol_v1 import badges as b; new={'circles_completed':0,'circles_organized':0,'actionable':0,'on_time':0,'reputation_label':'unrated'}; assert not any(x['earned'] for x in b.award_badges(new)); vet={'circles_completed':5,'circles_organized':2,'actionable':10,'on_time':10,'reputation_label':'excellent'}; assert all(x['earned'] for x in b.award_badges(vet))"
+    run_check "read-only: the projection never writes (no add/commit/delete/flush)" \
+      bash -c "! grep -qE 'db.add\\(|db.commit\\(|db.delete\\(|db.flush\\(' backend/app/services/sol_v1/badges.py"
+    run_check "endpoint: GET /sol/v1/badges/me registered" \
+      python -c "import app.main as m; assert '/sol/v1/badges/me' in {r.path for r in m.app.routes}"
+
+    run_check "non-custodial: no money/bank primitives in the badges projection" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\biban\\b|import +dwolla|from +dwolla|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/badges.py"
+
+    run_check "tests: pytest test_sol_v1_badges (catalog + thresholds)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_badges.py -k "not real_db" -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: complete a circle → first_circle/reliable/perfect + organizer badge (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_badges.py::test_badges_end_to_end_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24), invite-rotation(25) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24), invite-rotation(25), badges(26) exist so far)"
     exit 3
     ;;
 esac

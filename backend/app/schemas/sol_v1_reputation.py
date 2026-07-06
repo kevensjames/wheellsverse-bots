@@ -22,3 +22,28 @@ class ReputationOut(BaseModel):
     actionable: int
     provisional: bool
     breakdown: ReputationBreakdown
+
+
+# ── SOL profile / badges (Stage 26) ─────────────────────────────────────────────
+
+
+class BadgeOut(BaseModel):
+    key: str
+    label: str
+    description: str
+    earned: bool
+
+
+class MemberStatsOut(BaseModel):
+    circles_joined: int
+    circles_completed: int
+    circles_organized: int
+    on_time: int
+    actionable: int
+    sol_score: int | None = None  # the 0-100 reliability score, surfaced as SOL Score
+    reputation_label: str
+
+
+class MemberProfileOut(BaseModel):
+    stats: MemberStatsOut
+    badges: list[BadgeOut]

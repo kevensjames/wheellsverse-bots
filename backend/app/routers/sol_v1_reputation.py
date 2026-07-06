@@ -16,8 +16,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.models.sol import SolMembership
-from app.schemas.sol_v1_reputation import ReputationOut
-from app.services.sol_v1 import reputation
+from app.schemas.sol_v1_reputation import MemberProfileOut, ReputationOut
+from app.services.sol_v1 import badges, reputation
 
 router = APIRouter(prefix="/sol/v1", tags=["sol-v1", "sol-reputation"])
 
@@ -30,6 +30,17 @@ def my_reputation(
     today = datetime.now(timezone.utc).date()
     data = reputation.compute_reputation(db, user_id=current.id, today=today)
     return ReputationOut.model_validate(data)
+
+
+@router.get("/badges/me", response_model=MemberProfileOut)
+def my_profile(
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> MemberProfileOut:
+    """The member's SOL profile: stats + earned/locked badge wall (derived read-only)."""
+    today = datetime.now(timezone.utc).date()
+    data = badges.member_profile(db, user_id=current.id, today=today)
+    return MemberProfileOut.model_validate(data)
 
 
 @router.get("/groups/{group_id}/reputation", response_model=list[ReputationOut])

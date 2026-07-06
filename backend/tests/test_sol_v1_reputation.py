@@ -104,6 +104,7 @@ def test_reputation_router_paths():
 
     assert {r.path for r in router.routes} == {
         "/sol/v1/reputation/me",
+        "/sol/v1/badges/me",
         "/sol/v1/groups/{group_id}/reputation",
     }
 
