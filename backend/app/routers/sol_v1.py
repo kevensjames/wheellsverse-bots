@@ -18,6 +18,8 @@ from app.database import get_db
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.sol_v1 import (
     CycleOut,
+    DelinquencyOut,
+    DelinquentMemberOut,
     GroupCreate,
     GroupDetail,
     GroupOut,
@@ -25,7 +27,7 @@ from app.schemas.sol_v1 import (
     LockRequest,
     MembershipOut,
 )
-from app.services.sol_v1 import disclosures, lifecycle, subscription
+from app.services.sol_v1 import delinquency, disclosures, lifecycle, subscription
 from app.services.sol_v1.lifecycle import SolError
 
 router = APIRouter(prefix="/sol/v1", tags=["sol-v1"])
@@ -61,6 +63,7 @@ def create_group(
             contribution_amount=body.contribution_amount,
             frequency=body.frequency,
             member_limit=body.member_limit,
+            grace_period_days=body.grace_period_days,
         )
     except SolError as e:
         _raise(e)
@@ -110,6 +113,31 @@ def group_detail(
     except SolError as e:
         _raise(e)
     return _detail(group, members, cycles)
+
+
+@router.get("/groups/{group_id}/delinquencies", response_model=DelinquencyOut)
+def group_delinquencies(
+    group_id: UUID,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> DelinquencyOut:
+    """Organizer-only: members of this circle who are unpaid past the grace period."""
+    from datetime import datetime, timezone
+
+    today = datetime.now(timezone.utc).date()
+    try:
+        rows = delinquency.find_delinquencies(
+            db, group_id=group_id, actor_id=current.id, today=today
+        )
+        grp = lifecycle.get_group_for_member(db, group_id=group_id, user_id=current.id)[0]
+    except SolError as e:
+        _raise(e)
+    return DelinquencyOut(
+        group_id=group_id,
+        grace_period_days=grp.grace_period_days,
+        as_of=today,
+        delinquents=[DelinquentMemberOut(**r) for r in rows],
+    )
 
 
 @router.delete("/groups/{group_id}/members/me", status_code=status.HTTP_204_NO_CONTENT)

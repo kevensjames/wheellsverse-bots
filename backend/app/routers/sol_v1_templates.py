@@ -53,6 +53,7 @@ def create_template(
             db, creator_id=current.id, name=body.name,
             contribution_amount=body.contribution_amount, frequency=body.frequency,
             member_limit=body.member_limit, visibility=body.visibility,
+            grace_period_days=body.grace_period_days,
         )
     except SolError as e:
         _raise(e)

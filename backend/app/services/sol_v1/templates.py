@@ -43,6 +43,7 @@ def create_template(
     frequency: str,
     member_limit: int,
     visibility: str = "invite_only",
+    grace_period_days: int = 0,
 ) -> SolCircleTemplate:
     """Create a reusable blueprint. Validates the same domain rules as a group."""
     if frequency not in FREQUENCIES:
@@ -53,6 +54,8 @@ def create_template(
         raise SolError(400, "member_limit must be at least 2")
     if contribution_amount is None or contribution_amount <= 0:
         raise SolError(400, "contribution_amount must be positive")
+    if grace_period_days < 0 or grace_period_days > 90:
+        raise SolError(400, "grace_period_days must be between 0 and 90")
 
     tpl = SolCircleTemplate(
         creator_id=creator_id,
@@ -61,6 +64,7 @@ def create_template(
         frequency=frequency,
         member_limit=member_limit,
         visibility=visibility,
+        grace_period_days=grace_period_days,
     )
     db.add(tpl)
     db.commit()
@@ -128,6 +132,7 @@ def _do_spawn(db: Session, tpl: SolCircleTemplate, *, name: str | None = None) -
         contribution_amount=tpl.contribution_amount,
         frequency=tpl.frequency,
         member_limit=tpl.member_limit,
+        grace_period_days=tpl.grace_period_days,
         template_id=tpl.id,
         round_number=1,
     )
@@ -224,6 +229,7 @@ def start_next_round(db: Session, *, group_id: UUID, actor_id: UUID) -> SolGroup
             contribution_amount=group.contribution_amount,
             frequency=group.frequency,
             member_limit=group.member_limit,
+            grace_period_days=group.grace_period_days,  # inherit the late policy across the round chain
             template_id=group.template_id,
             round_number=group.round_number + 1,
             previous_group_id=group.id,

@@ -817,8 +817,35 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: member stream (contributions + payout + ordering) on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_timeline.py::test_timeline_end_to_end_on_real_db -v'
     ;;
+  24)
+    section "Sol Stage 24 — late policy (grace period + organizer delinquency escalation)"
+
+    run_check "model: grace_period_days on group + template + 'member_delinquent' kind" \
+      python -c "from app.models.sol import SolGroup, SolCircleTemplate, NOTIFICATION_KINDS as K; assert 'grace_period_days' in SolGroup.__table__.c and 'grace_period_days' in SolCircleTemplate.__table__.c; assert 'member_delinquent' in K"
+    run_check "migration: 0020 revises 0019 and is additive (ADD COLUMN, no DROP COLUMN in upgrade)" \
+      bash -c "grep -qE 'down_revision.*0019_sol_dispute_resolution' backend/alembic/versions/0020_sol_late_policy.py && grep -qE 'ADD COLUMN IF NOT EXISTS grace_period_days' backend/alembic/versions/0020_sol_late_policy.py && ! sed -n '/def upgrade/,/def downgrade/p' backend/alembic/versions/0020_sol_late_policy.py | grep -qE 'DROP COLUMN'"
+    run_check "service: delinquency detect + escalate + pure classifiers present" \
+      python -c "from app.services.sol_v1 import delinquency as d; d.find_delinquencies; d.notify_organizer_delinquencies; d.is_delinquent; d.days_overdue"
+    run_check "pure: grace boundary (strictly past grace = delinquent)" \
+      python -c "from app.services.sol_v1 import delinquency as d; from datetime import date; t=date(2026,6,1); assert d.is_delinquent(due_date=date(2026,5,26),today=t,grace_days=5) is True; assert d.is_delinquent(due_date=date(2026,5,27),today=t,grace_days=5) is False"
+    run_check "authz: find_delinquencies is organizer-only" \
+      bash -c "grep -A16 'def find_delinquencies' backend/app/services/sol_v1/delinquency.py | grep -qE 'organizer_id != actor_id'"
+    run_check "endpoint: GET /sol/v1/groups/{id}/delinquencies registered" \
+      python -c "import app.main as m; assert '/sol/v1/groups/{group_id}/delinquencies' in {r.path for r in m.app.routes}"
+    run_check "loop: the daily scan escalates delinquents (fail-soft)" \
+      bash -c "grep -qE 'notify_organizer_delinquencies' backend/app/services/sol_v1/reminders.py"
+
+    run_check "non-custodial: no money/bank primitives in the late-policy code" \
+      bash -c "! grep -rnE 'routing_number|account_number|card_number|\\biban\\b|import +dwolla|from +dwolla|\\.charge\\(|\\.debit\\(|\\.transfer\\(' backend/app/services/sol_v1/delinquency.py"
+
+    run_check "tests: pytest test_sol_v1_delinquency (classifiers + validation)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_delinquency.py -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: grace-aware detection + authz + settle-drops-off + escalation on real DB (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_delinquency.py::test_delinquency_end_to_end_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24) exist so far)"
     exit 3
     ;;
 esac

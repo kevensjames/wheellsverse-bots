@@ -90,13 +90,16 @@ def test_create_spawn_and_owner_scoping():
         tpl = T.create_template(
             db, creator_id=creator, name="Rent $100/mo",
             contribution_amount=Decimal("100.00"), frequency="monthly", member_limit=5,
+            grace_period_days=7,
         )
         assert tpl.visibility == "invite_only" and tpl.active is True
+        assert tpl.grace_period_days == 7
 
         # spawn an instance → a group carrying template_id + round 1, organizer enrolled
         g1 = T.spawn_instance(db, template_id=tpl.id, actor_id=creator)
         assert g1.template_id == tpl.id and g1.round_number == 1 and g1.status == "open"
         assert g1.contribution_amount == Decimal("100.00") and g1.member_limit == 5
+        assert g1.grace_period_days == 7  # Stage 24: the instance inherits the template's grace
         g2 = T.spawn_instance(db, template_id=tpl.id, actor_id=creator, name="Rent — cohort 2")
         assert g2.name == "Rent — cohort 2"
 
@@ -138,7 +141,8 @@ def test_next_round_clones_the_cohort():
         _add_profiles(conn, organizer, alice, bob, stranger)
 
         g = LC.create_group(db, organizer_id=organizer, name="Round 1",
-            contribution_amount=Decimal("30.00"), frequency="weekly", member_limit=3)
+            contribution_amount=Decimal("30.00"), frequency="weekly", member_limit=3,
+            grace_period_days=7)
         LC.join_group(db, user_id=alice, invite_code=g.invite_code)
         LC.join_group(db, user_id=bob, invite_code=g.invite_code)
 
@@ -159,6 +163,7 @@ def test_next_round_clones_the_cohort():
         g2 = T.start_next_round(db, group_id=g.id, actor_id=organizer)
         assert g2.round_number == 2 and g2.previous_group_id == g.id and g2.status == "open"
         assert g2.contribution_amount == Decimal("30.00") and g2.member_limit == 3
+        assert g2.grace_period_days == 7  # Stage 24: the round chain inherits the late policy
         # the SAME cohort carried over (organizer + alice + bob)
         members = db.scalars(select_members(SolMembership, g2.id)).all()
         assert {m.user_id for m in members} == {organizer, alice, bob}

@@ -326,6 +326,22 @@ def content_payment_resolved(*, payment_id: UUID, amount, outcome: str) -> dict:
     }
 
 
+def content_member_delinquent(*, group_id: UUID, circle: str, overdue_count: int, total, days: int) -> dict:
+    """To the ORGANIZER: a member is unpaid past the grace period — act on it.
+    Generic ('a member') on purpose; the group screen shows exactly who."""
+    n = "s" if overdue_count != 1 else ""
+    dsfx = "s" if days != 1 else ""
+    return {
+        "kind": "member_delinquent",
+        "title": "A member is behind on payments",
+        "body": (
+            f"A member of {circle} is {days} day{dsfx} past due on {overdue_count} "
+            f"contribution{n} ({_fmt_amount(total)} total). Follow up — or waive it if it can't be resolved."
+        ),
+        "link": f"#/group/{group_id}",
+    }
+
+
 def content_cycle_started(*, payment_id: UUID, amount, due_date: date) -> dict:
     """To a PAYER: a new cycle began; here's what you owe and by when."""
     return {
@@ -424,6 +440,23 @@ def notify_dispute_resolved(payment, *, outcome: str) -> None:
             dedup_key=f"payment_resolved:{outcome}:{payment.id}:{disc}",
             content=content,
         )
+
+
+def notify_member_delinquent(
+    *, organizer_id: UUID, group_id: UUID, circle: str, member_id: UUID,
+    oldest_due, overdue_count: int, total, days: int,
+) -> None:
+    """Escalate a delinquent member to the circle organizer, once per episode.
+    dedup on (group, member, oldest unpaid due date) — a stable key while the
+    member stays behind on the same obligation, a fresh one for a new episode."""
+    content = content_member_delinquent(
+        group_id=group_id, circle=circle, overdue_count=overdue_count, total=total, days=days
+    )
+    _emit_event_soft(
+        user_id=organizer_id,
+        dedup_key=f"member_delinquent:{group_id}:{member_id}:{oldest_due.isoformat()}",
+        content=content,
+    )
 
 
 def notify_cycle_activated(*, cycle, payments, recipient_user_id: UUID, amount) -> None:

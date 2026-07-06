@@ -58,6 +58,7 @@ NOTIFICATION_KINDS = (
     "payout_incoming",
     "circle_opening",  # Stage 18: a template's waitlist gets a new open instance
     "payment_resolved",  # Stage 21: a disputed payment was waived or withdrawn
+    "member_delinquent",  # Stage 24: a member is past due + grace → organizer escalation
 )
 # Circle-template visibility (Stage 17).
 VISIBILITIES = ("public", "private", "invite_only")
@@ -75,6 +76,7 @@ class SolGroup(Base):
         CheckConstraint(_in("frequency", FREQUENCIES), name="sol_groups_frequency_check"),
         CheckConstraint(_in("status", GROUP_STATUSES), name="sol_groups_status_check"),
         CheckConstraint("member_limit >= 2", name="sol_groups_member_limit_check"),
+        CheckConstraint("grace_period_days >= 0", name="sol_groups_grace_check"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -89,6 +91,10 @@ class SolGroup(Base):
     contribution_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     frequency: Mapped[str] = mapped_column(Text, nullable=False)
     member_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Stage 24 — late policy. Days after a contribution's due date before the
+    # organizer is escalated about a delinquent member. 0 = escalate immediately.
+    # Records-only: it governs when a coordination alert fires, never money.
+    grace_period_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default="open")
     # Random token for "join via link"; set at create, used in Stage 2.
     invite_code: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
@@ -128,6 +134,7 @@ class SolCircleTemplate(Base):
         CheckConstraint(_in("frequency", FREQUENCIES), name="sol_circle_templates_frequency_check"),
         CheckConstraint(_in("visibility", VISIBILITIES), name="sol_circle_templates_visibility_check"),
         CheckConstraint("member_limit >= 2", name="sol_circle_templates_member_limit_check"),
+        CheckConstraint("grace_period_days >= 0", name="sol_circle_templates_grace_check"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -140,6 +147,8 @@ class SolCircleTemplate(Base):
     contribution_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     frequency: Mapped[str] = mapped_column(Text, nullable=False)
     member_limit: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Stage 24 — late policy inherited by spawned instances (see SolGroup).
+    grace_period_days: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
     visibility: Mapped[str] = mapped_column(Text, nullable=False, server_default="invite_only")
     active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(

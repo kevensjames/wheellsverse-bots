@@ -12,6 +12,7 @@ never touches money. `classify_due` and `build_operator_digest` are pure
 """
 from __future__ import annotations
 
+import logging
 from datetime import date
 from uuid import UUID
 
@@ -19,6 +20,8 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models.sol import SolCycle, SolPayment
+
+logger = logging.getLogger(__name__)
 
 # statuses that still represent an open obligation (not confirmed)
 OPEN_STATUSES = ("pending", "late", "marked", "disputed")
@@ -146,12 +149,24 @@ def member_reminders(
 
 
 def run_reminder_cycle(db: Session, today: date) -> dict:
-    """One scheduler pass: mark overdue as late, then summarize. Returns a dict
-    with the counts + the built digest text (caller decides whether to deliver)."""
+    """One scheduler pass: mark overdue as late, escalate delinquents to their
+    organizers (grace-aware, Stage 24), then summarize. Returns the counts + the
+    built digest text (caller decides whether to deliver)."""
     marked_late = mark_overdue_late(db, today)
+    # Late-policy escalation is fully fail-soft — it must never break the scan.
+    try:
+        from app.services.sol_v1 import delinquency
+        delinquent_alerts = delinquency.notify_organizer_delinquencies(db, today)
+    except Exception as e:  # noqa: BLE001 — a broken escalation can't stop reminders
+        # roll back so a failed read on the shared session can't leave it in a
+        # pending-rollback state and blow up the scan_summary() call right below.
+        db.rollback()
+        logger.warning("sol reminders: delinquency escalation failed: %s", e)
+        delinquent_alerts = 0
     summary = scan_summary(db, today)
     return {
         "marked_late": marked_late,
+        "delinquent_alerts": delinquent_alerts,
         "summary": summary,
         "digest": build_operator_digest(marked_late=marked_late, summary=summary),
     }

@@ -302,6 +302,7 @@
     var amount = el("input", { type: "number", required: true, min: "1", step: "0.01", placeholder: "100.00", inputmode: "decimal" });
     var freq = el("select", {}, el("option", { value: "weekly", text: "Weekly" }), el("option", { value: "biweekly", text: "Every 2 weeks" }), el("option", { value: "monthly", text: "Monthly" }));
     var limit = el("input", { type: "number", required: true, min: "2", max: "100", value: "5" });
+    var grace = el("input", { type: "number", min: "0", max: "90", value: "0" });
     var submit = el("button", { class: "btn btn--primary", type: "submit", text: "Create circle" });
     var form = el("form", { onsubmit: async function (ev) {
       ev.preventDefault(); err.style.display = "none"; submit.disabled = true;
@@ -309,6 +310,7 @@
         var g = await api("POST", "/sol/v1/groups", {
           name: name.value.trim(), contribution_amount: amount.value,
           frequency: freq.value, member_limit: parseInt(limit.value, 10),
+          grace_period_days: parseInt(grace.value, 10) || 0,
         });
         toast("Circle created");
         go("#/group/" + g.id);
@@ -318,6 +320,7 @@
       field("Contribution per member", amount, "Members pay each other this amount each cycle."),
       field("How often", freq),
       field("Member limit", limit, "2–100 members."),
+      field("Grace period (days)", grace, "Days a member can be late before you're alerted. 0 = alert right away."),
       submit);
     render(backBtn("#/groups", "Circles"), el("h1", { text: "New circle" }), ncNote(), err, form);
   }
@@ -355,6 +358,12 @@
       var g = d.group, me = STATE.me || {};
       var isOrganizer = g.organizer_id === me.id;
       var st = groupStatusMeta(g.status);
+      // Organizer late-policy escalation: who's behind past the grace period.
+      var delq = null;
+      if (isOrganizer && g.status === "locked") {
+        try { delq = await api("GET", "/sol/v1/groups/" + id + "/delinquencies"); } catch (e) { delq = null; }
+        if (stale(gen)) return;
+      }
 
       var nodes = [backBtn("#/groups", "Circles"),
         el("div", { class: "row between" }, el("h1", { text: g.name }), badge(st.label, st.cls)),
@@ -379,6 +388,17 @@
         }
       }
 
+      if (delq && delq.delinquents.length) {
+        nodes.push(el("div", { class: "section-title", text: "Needs attention" }));
+        nodes.push(el("p", { class: "muted small", text: "These members are past due beyond the " + delq.grace_period_days + "-day grace period. Follow up, or waive a payment that can't be resolved." }));
+        nodes.push(el("div", { class: "stack" }, delq.delinquents.map(function (dm) {
+          return el("div", { class: "card" },
+            el("div", { class: "row between" },
+              el("strong", { text: shortId(dm.user_id) }),
+              badge(dm.max_days_overdue + "d late", "badge--danger")),
+            el("p", { class: "muted small", style: "margin:var(--s-1) 0 0", text: dm.overdue_count + " unpaid · " + money(dm.total_owed) + " total · oldest due " + shortDate(dm.oldest_due_date) }));
+        })));
+      }
       nodes.push(el("div", { class: "section-title", text: "Members" }));
       nodes.push(el("div", { class: "stack" }, d.members.map(function (m) {
         var rep = repByUser[m.user_id];

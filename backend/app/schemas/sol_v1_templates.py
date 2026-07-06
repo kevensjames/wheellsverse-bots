@@ -20,6 +20,8 @@ class TemplateCreate(BaseModel):
     frequency: Literal["weekly", "biweekly", "monthly"]
     member_limit: int = Field(ge=2, le=100)
     visibility: Literal["public", "private", "invite_only"] = "invite_only"
+    # Stage 24 — late policy inherited by every instance spawned from this template.
+    grace_period_days: int = Field(default=0, ge=0, le=90)
 
 
 class SpawnRequest(BaseModel):
@@ -37,6 +39,7 @@ class TemplateOut(BaseModel):
     frequency: str
     member_limit: int
     visibility: str
+    grace_period_days: int = 0
     active: bool
     created_at: datetime
 

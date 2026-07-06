@@ -137,6 +137,7 @@ def create_group(
     contribution_amount,
     frequency: str,
     member_limit: int,
+    grace_period_days: int = 0,
     template_id: UUID | None = None,
     round_number: int = 1,
     previous_group_id: UUID | None = None,
@@ -155,6 +156,8 @@ def create_group(
         raise SolError(400, "member_limit must be at least 2")
     if contribution_amount is None or contribution_amount <= 0:
         raise SolError(400, "contribution_amount must be positive")
+    if grace_period_days < 0 or grace_period_days > 90:
+        raise SolError(400, "grace_period_days must be between 0 and 90")
 
     # Retry on the (astronomically unlikely) invite_code UNIQUE collision.
     for _ in range(5):
@@ -164,6 +167,7 @@ def create_group(
             contribution_amount=contribution_amount,
             frequency=frequency,
             member_limit=member_limit,
+            grace_period_days=grace_period_days,
             status="open",
             invite_code=generate_invite_code(),
             template_id=template_id,

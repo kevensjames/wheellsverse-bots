@@ -20,6 +20,8 @@ class GroupCreate(BaseModel):
     contribution_amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     frequency: Literal["weekly", "biweekly", "monthly"]
     member_limit: int = Field(ge=2, le=100)
+    # Stage 24 — days past a due date before the organizer is escalated (0 = now).
+    grace_period_days: int = Field(default=0, ge=0, le=90)
 
 
 class JoinRequest(BaseModel):
@@ -46,6 +48,7 @@ class GroupOut(BaseModel):
     contribution_amount: Decimal
     frequency: str
     member_limit: int
+    grace_period_days: int = 0
     status: str
     invite_code: str
     locked_at: datetime | None = None
@@ -77,3 +80,21 @@ class GroupDetail(BaseModel):
     group: GroupOut
     members: list[MembershipOut]
     cycles: list[CycleOut]
+
+
+# ── late policy (Stage 24) ─────────────────────────────────────────────────────
+
+
+class DelinquentMemberOut(BaseModel):
+    user_id: UUID
+    overdue_count: int
+    total_owed: Decimal
+    oldest_due_date: date
+    max_days_overdue: int
+
+
+class DelinquencyOut(BaseModel):
+    group_id: UUID
+    grace_period_days: int
+    as_of: date
+    delinquents: list[DelinquentMemberOut]
