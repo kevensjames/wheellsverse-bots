@@ -377,7 +377,9 @@
         nodes.push(el("div", { class: "card" },
           el("div", { class: "section-title", text: "Invite members" }),
           el("div", { class: "row", style: "justify-content:center;margin-bottom:var(--s-3)" }, el("span", { class: "pill-code", text: g.invite_code })),
-          el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: function () { copy(link, "Invite link copied"); }, text: "Copy invite link" })));
+          el("div", { class: "row", style: "gap:var(--s-2)" },
+            el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: function () { copy(link, "Invite link copied"); }, text: "Copy invite link" }),
+            isOrganizer ? el("button", { class: "btn btn--ghost btn--sm", type: "button", onclick: function () { rotateInvite(id); }, text: "Reset link" }) : null)));
         if (isOrganizer && d.members.length >= 2) {
           nodes.push(el("button", { class: "btn btn--primary", type: "button", style: "margin-bottom:var(--s-3)", onclick: function () { lockGroup(id); }, text: "Lock circle & set payout order" }));
         } else if (isOrganizer) {
@@ -436,6 +438,11 @@
     } catch (e) { if (stale(gen)) return; render(backBtn("#/groups", "Circles"), errorView(e, "#/group/" + id)); }
   }
 
+  async function rotateInvite(id) {
+    if (!confirm("Reset the invite link? The current link will stop working — you'll need to re-share the new one.")) return;
+    try { await api("POST", "/sol/v1/groups/" + id + "/invite-code/rotate"); toast("Invite link reset"); go("#/group/" + id); }
+    catch (e) { toast(e.detail, true); }
+  }
   async function lockGroup(id) {
     if (!confirm("Lock the circle and randomly set the payout order? No new members can join after this.")) return;
     try { await api("POST", "/sol/v1/groups/" + id + "/lock", { order_mode: "random" }); toast("Circle locked"); go("#/group/" + id); }

@@ -844,8 +844,29 @@ assert fk.ondelete=='SET NULL', fk.ondelete
       "e2e: grace-aware detection + authz + settle-drops-off + escalation on real DB (TEST_DATABASE_URL only)" \
       bash -c 'cd backend && python -m pytest tests/test_sol_v1_delinquency.py::test_delinquency_end_to_end_on_real_db -v'
     ;;
+  25)
+    section "Sol Stage 25 — invite-code rotation (organizer resets the invite link)"
+
+    run_check "service: rotate_invite_code present" \
+      python -c "from app.services.sol_v1 import lifecycle as l; l.rotate_invite_code"
+    run_check "authz: organizer-only + open-circle-only" \
+      bash -c "grep -A16 'def rotate_invite_code' backend/app/services/sol_v1/lifecycle.py | grep -qE 'organizer_id != actor_id' && grep -A16 'def rotate_invite_code' backend/app/services/sol_v1/lifecycle.py | grep -qE \"status != .open.\""
+    run_check "invalidation: rotation mints a fresh code (generate_invite_code) under the group-row lock" \
+      bash -c "grep -A16 'def rotate_invite_code' backend/app/services/sol_v1/lifecycle.py | grep -qE 'invite_code = generate_invite_code' && grep -A16 'def rotate_invite_code' backend/app/services/sol_v1/lifecycle.py | grep -qE 'with_for_update=True'"
+    run_check "endpoint: POST /sol/v1/groups/{id}/invite-code/rotate registered" \
+      python -c "import app.main as m; assert '/sol/v1/groups/{group_id}/invite-code/rotate' in {r.path for r in m.app.routes}"
+
+    run_check "non-custodial: no money/bank primitives touched by rotation" \
+      bash -c "! grep -A16 'def rotate_invite_code' backend/app/services/sol_v1/lifecycle.py | grep -qE 'routing_number|account_number|card_number|amount|\\.charge\\(|\\.transfer\\('"
+
+    run_check "tests: pytest test_sol_v1_invite_rotation (router wiring)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_invite_rotation.py::test_router_registers_rotate_route -v --tb=short'
+    run_or_defer '[ -n "${TEST_DATABASE_URL:-}" ]' \
+      "e2e: rotate invalidates old link + new link joins + authz + post-lock 409 (TEST_DATABASE_URL only)" \
+      bash -c 'cd backend && python -m pytest tests/test_sol_v1_invite_rotation.py::test_invite_rotation_end_to_end_on_real_db -v'
+    ;;
   *)
-    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24) exist so far)"
+    log "ERROR: no Sol checks defined for stage \$STAGE (stages 1-7, Connect A-D(8-11), notifications(12), admin(13), security(14), supervisor(15), observability(16), templates(17), waitlist(18), auto-spawn(19), email(20), dispute-resolution(21), membership-mgmt(22), timeline(23), late-policy(24), invite-rotation(25) exist so far)"
     exit 3
     ;;
 esac

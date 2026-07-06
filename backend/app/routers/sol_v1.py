@@ -175,6 +175,22 @@ def remove_member(
         _raise(e)
 
 
+@router.post("/groups/{group_id}/invite-code/rotate", response_model=GroupOut)
+@limiter.limit("10/minute")  # anti-abuse: cap how fast the invite link can be reset
+def rotate_invite_code(
+    group_id: UUID,
+    request: Request,
+    current: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> GroupOut:
+    """Organizer resets the circle's invite link (the old link stops working)."""
+    try:
+        group = lifecycle.rotate_invite_code(db, group_id=group_id, actor_id=current.id)
+    except SolError as e:
+        _raise(e)
+    return GroupOut.model_validate(group)
+
+
 @router.post("/groups/{group_id}/lock", response_model=GroupDetail)
 @limiter.limit("30/minute")
 def lock_group(

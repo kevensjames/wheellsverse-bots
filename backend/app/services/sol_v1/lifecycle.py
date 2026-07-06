@@ -18,6 +18,7 @@ from random import Random
 from uuid import UUID
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.sol import FREQUENCIES, SolCycle, SolGroup, SolMembership
@@ -360,6 +361,34 @@ def remove_member(db: Session, *, group_id: UUID, actor_id: UUID, target_user_id
         raise SolError(404, "that user is not a member of this circle")
     db.delete(membership)
     db.commit()
+
+
+def rotate_invite_code(db: Session, *, group_id: UUID, actor_id: UUID) -> SolGroup:
+    """Organizer regenerates the circle's invite code, IMMEDIATELY invalidating the
+    old link (e.g. it leaked or was shared too widely). Only meaningful while the
+    circle is open — after lock no one can join, so the link is moot.
+
+    Non-custodial: rotates a random token only; no money, no member data changes.
+    Serializes with join/lock/leave/remove via the group-row lock, so a rotation
+    can't race a join on the old code.
+    """
+    for _ in range(5):  # retry the astronomically-unlikely UNIQUE(invite_code) collision
+        group = db.get(SolGroup, group_id, with_for_update=True)
+        if group is None:
+            raise SolError(404, "group not found")
+        if group.organizer_id != actor_id:
+            raise SolError(403, "only the organizer can reset the invite link")
+        if group.status != "open":
+            raise SolError(409, "the circle is locked — the invite link is no longer used")
+        group.invite_code = generate_invite_code()
+        try:
+            db.commit()
+            db.refresh(group)
+            return group
+        except IntegrityError:
+            db.rollback()  # a concurrent code collided — re-fetch + retry
+            continue
+    raise SolError(500, "could not allocate a unique invite code, please retry")
 
 
 def list_groups_for_user(db: Session, *, user_id: UUID) -> list[SolGroup]:

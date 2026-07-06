@@ -146,6 +146,7 @@ def test_router_registers_expected_paths():
         "/sol/v1/groups/join",
         "/sol/v1/groups/{group_id}",
         "/sol/v1/groups/{group_id}/lock",
+        "/sol/v1/groups/{group_id}/invite-code/rotate",
         "/sol/v1/groups/{group_id}/delinquencies",
         "/sol/v1/groups/{group_id}/members/me",
         "/sol/v1/groups/{group_id}/members/{user_id}",
