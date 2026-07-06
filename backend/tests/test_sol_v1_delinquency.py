@@ -69,6 +69,7 @@ def test_delinquency_end_to_end_on_real_db(monkeypatch):
     from sqlalchemy import create_engine, select, text
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.orm import Session
+    from sqlalchemy.pool import NullPool
     from sqlalchemy.schema import CreateTable
 
     from app.models.sol import (
@@ -78,7 +79,10 @@ def test_delinquency_end_to_end_on_real_db(monkeypatch):
     from app.services.sol_v1 import ledger as LG
 
     url = os.environ["TEST_DATABASE_URL"].replace("+asyncpg", "").replace("+psycopg2", "")
-    engine = create_engine(url, future=True)
+    # NullPool: each connection is truly CLOSED on return (not pool-retained), so a
+    # read txn can't linger idle-in-transaction and deadlock the teardown DROP SCHEMA
+    # when the suite's pool is warm (this test passed standalone but hung in-suite).
+    engine = create_engine(url, future=True, poolclass=NullPool)
     schema = "sol_v1_delinquency_e2e"
     org, alice, bob = uuid4(), uuid4(), uuid4()
     all_models = (SolCircleTemplate, SolGroup, SolMembership, SolCycle, SolPayment, SolPaymentProfile, SolPaymentProof)
@@ -163,7 +167,15 @@ def test_delinquency_end_to_end_on_real_db(monkeypatch):
         conn.close()
     finally:
         engine.dispose()  # close pooled connections (release any lingering locks) BEFORE dropping
-        cleanup = create_engine(url, future=True)
+        cleanup = create_engine(url, future=True, poolclass=NullPool)
         with cleanup.begin() as c2:
+            # pytest runs serially, so at THIS teardown any idle-in-transaction backend
+            # is a stray connection holding this isolated schema — clear it so the DROP
+            # can't deadlock (this test passed standalone but hung in the warm-pool suite).
+            c2.execute(text(
+                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                "WHERE datname = current_database() AND pid <> pg_backend_pid() "
+                "AND state = 'idle in transaction'"
+            ))
             c2.execute(text(f"DROP SCHEMA IF EXISTS {schema} CASCADE"))
         cleanup.dispose()
