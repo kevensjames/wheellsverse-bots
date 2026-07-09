@@ -17,8 +17,12 @@
 
 # Sol — ROSCA savings platform
 /sol                        /sol/index.html             200
-/sol/app                    /sol/app.html               200
-/sol/admin                  /sol/admin.html             200
+# NOTE: do NOT re-add `/sol/app → /sol/app.html 200` or `/sol/admin → ...` here.
+# Cloudflare Pages serves app.html/admin.html at the clean URLs /sol/app and
+# /sol/admin natively. An explicit .html rewrite composes with CF's automatic
+# .html-stripping into an infinite 308 loop: /sol/app → (rewrite) /sol/app.html
+# → (CF strips .html) /sol/app → … — which took the member app + admin down.
+# Clean URLs resolve these with no rule needed.
 
 # TikTok Developer Portal file-verification routing (current Login Kit app)
 # Each URL TikTok verifies (the apex, /terms, /privacy) needs its own .txt
