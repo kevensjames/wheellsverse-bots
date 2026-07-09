@@ -130,12 +130,13 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 <section class="hero">
   <div>
     <h1>Save together.<br><span class="grad">Get paid in turn.</span></h1>
-    <p class="lede">Join a trusted circle of 20. Everyone contributes $200 a month — and each cycle, one member receives the whole pool. Like the sun, your turn always comes around.</p>
+    <p class="lede">The safe way to save in a circle. 20 bank-verified members each contribute $200 a month; every cycle, one receives the whole pool — and every payout is <strong>settlement-protected</strong>, so the pool only ever pays out money it truly holds. Like the sun, your turn always comes around.</p>
     <div class="hero-cta">
       <button class="btn btn-primary" style="padding:.8rem 1.8rem;font-size:1rem" onclick="openModal('register')">Start saving →</button>
       <a href="#how" class="btn btn-ghost" style="padding:.8rem 1.8rem;font-size:1rem">See how it works</a>
     </div>
     <div class="trust-strip">
+      <span>⏳ Settlement-protected payouts</span>
       <span>🔒 Bank-grade encryption</span>
       <span>🛡️ KYC-verified members</span>
       <span>🏦 Powered by Dwolla</span>
@@ -164,7 +165,7 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
     <div class="stepc"><div class="n">1</div><h3>Verify your identity</h3><p>A quick KYC check confirms every member is a real, verified person — so your circle is safe.</p></div>
     <div class="stepc"><div class="n">2</div><h3>Link your bank</h3><p>Securely connect your bank account. ACH contributions are handled automatically each cycle.</p></div>
     <div class="stepc"><div class="n">3</div><h3>Join a circle</h3><p>Browse open circles or start your own. When 20 members join, the circle activates.</p></div>
-    <div class="stepc"><div class="n">4</div><h3>Get your payout</h3><p>Each cycle, one member receives the full pool. Your turn is set by join order — and it always comes.</p></div>
+    <div class="stepc"><div class="n">4</div><h3>Get your payout</h3><p>Each cycle, one member receives the full pool — funded only by contributions that have actually cleared the bank. Your turn is set by join order, and it always comes.</p></div>
   </div>
 </section>
 
@@ -180,8 +181,20 @@ footer a{color:var(--ink-500)} footer a:hover{color:var(--sol-600)}
 </section>
 
 <section class="band">
+  <h2>Your money is protected at every step</h2>
+  <p class="sub">The pool only ever moves money it truly holds — here's how.</p>
+  <div class="cards4">
+    <div class="featc"><div class="ic">⏳</div><h3>Settlement-gated payouts</h3><p>A payout is funded only by contributions that have <strong>actually cleared the bank</strong> — never money that could still bounce. Sol never pays out funds it doesn't yet hold.</p></div>
+    <div class="featc"><div class="ic">🔁</div><h3>Automatic return protection</h3><p>If a contribution is reversed by the bank days later, Sol catches it, reverses it in the ledger, and flags it for review — a bounced payment can never silently short the pool.</p></div>
+    <div class="featc"><div class="ic">⚖️</div><h3>Reconciled every cycle</h3><p>Every transfer is checked against the bank on a schedule, so a dropped or delayed bank notification can never leave your money stuck in limbo.</p></div>
+    <div class="featc"><div class="ic">🔐</div><h3>Locked-down access</h3><p>Two-factor sign-in with backup codes, brute-force lockouts, and encrypted secrets keep your account — and your circle — yours alone.</p></div>
+  </div>
+</section>
+
+<section class="band">
   <h2>Common questions</h2>
   <div class="faq">
+    <details><summary>How do I know my money is safe?</summary><p>Sol only funds a payout from contributions that have <strong>actually settled</strong> at the bank — the pool never pays out money it doesn't truly hold. If a contribution is returned days later, Sol automatically reverses it in the double-entry ledger and flags it for review, so a bounced payment can't silently leave your circle short. Every transfer is also reconciled against the bank on a schedule, ACH runs through Dwolla (a licensed money transmitter), and account access is protected by two-factor sign-in.</p></details>
     <details><summary>What happens if someone in my circle stops paying?</summary><p>A member who fails to contribute after two automatic retries is marked delinquent and loses their payout position. The remaining members continue normally — Sol guarantees the pool advances as long as the majority pays. No one covers for a defaulter.</p></details>
     <details><summary>When do I receive my payout?</summary><p>Payouts rotate based on join order. If you're position 5 in a 20-member circle, you receive the pool on cycle 5 — 5 months after the circle activates. You'll see your exact position + expected payout date before you commit to joining.</p></details>
     <details><summary>Can I withdraw early?</summary><p>You can leave a circle while it's still forming (before it activates). Once a circle is active, you're committed until your payout cycle completes — this is how ROSCAs have worked for centuries and what makes them reliable for everyone involved.</p></details>
