@@ -125,6 +125,12 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   <a class="nav-item" data-page="notifications" onclick="nav('notifications')">
     <span class="nav-icon">◔</span> Alerts <span id="navUnread" class="badge badge-red" style="display:none;margin-left:.4rem"></span>
   </a>
+  <a class="nav-item" data-page="community" onclick="nav('community')">
+    <span class="nav-icon">✽</span> Community
+  </a>
+  <a class="nav-item" data-page="goals" onclick="nav('goals')">
+    <span class="nav-icon">⬖</span> Goals
+  </a>
   <button class="nav-item logout" onclick="logout()">
     <span class="nav-icon">→</span> Sign out
   </button>
@@ -290,6 +296,35 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
     <div id="notifList"><div class="spinner"></div></div>
   </div>
 
+  <!-- Community -->
+  <div class="page" id="page-community">
+    <h1>Community</h1>
+    <p class="sub">Share wins and encouragement across the Sol community</p>
+    <div class="form-box" style="margin-bottom:1.5rem">
+      <div class="field"><label>Post to the feed</label><textarea id="feedBody" rows="3" placeholder="Share something with the community…"></textarea></div>
+      <p class="err" id="feedErr" style="display:none"></p>
+      <button type="button" class="btn btn-primary" id="feedBtn" onclick="postFeed()">Post</button>
+    </div>
+    <div id="feedList"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Goals -->
+  <div class="page" id="page-goals">
+    <h1>Savings goals</h1>
+    <p class="sub">Set a target and track your progress</p>
+    <div class="form-box" style="margin-bottom:1.5rem">
+      <div style="font-weight:600;margin-bottom:.75rem">New goal</div>
+      <div class="field"><label>Goal type</label><select id="goalType">
+        <option value="EMERGENCY_FUND">Emergency fund</option><option value="VACATION">Vacation</option><option value="WEDDING">Wedding</option><option value="BUSINESS">Business</option><option value="EDUCATION">Education</option><option value="VEHICLE">Vehicle</option><option value="HOME">Home</option></select></div>
+      <div class="field"><label>Name</label><input type="text" id="goalName" placeholder="e.g. Rainy-day fund"></div>
+      <div class="field"><label>Target amount ($)</label><input type="number" id="goalTarget" min="1" value="1000"></div>
+      <div class="field"><label>Target date (optional)</label><input type="date" id="goalDate"></div>
+      <p class="err" id="goalErr" style="display:none"></p>
+      <button type="button" class="btn btn-primary" id="goalBtn" onclick="createGoal()">Create goal</button>
+    </div>
+    <div id="goalList"><div class="spinner"></div></div>
+  </div>
+
   <!-- Bank -->
   <div class="page" id="page-bank">
     <h1>Linked bank accounts</h1>
@@ -327,9 +362,16 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 </main>
 
 <!-- Mobile bottom nav (hidden on desktop via media query) -->
-<nav class="mobile-nav" id="mobileNav">
+<nav class="mobile-nav" id="mobileNav" style="overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch">
   <button type="button" class="mn" data-mpage="dashboard" onclick="nav('dashboard')"><span class="mni">◈</span>Home</button>
   <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><span class="mni">◎</span>Circles</button>
+  <button type="button" class="mn" data-mpage="discover" onclick="nav('discover')"><span class="mni">✧</span>Find</button>
+  <button type="button" class="mn" data-mpage="timeline" onclick="nav('timeline')"><span class="mni">◷</span>Time</button>
+  <button type="button" class="mn" data-mpage="trust" onclick="nav('trust')"><span class="mni">★</span>Score</button>
+  <button type="button" class="mn" data-mpage="premium" onclick="nav('premium')"><span class="mni">⬥</span>Plus</button>
+  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><span class="mni">◔</span>Alerts</button>
+  <button type="button" class="mn" data-mpage="community" onclick="nav('community')"><span class="mni">✽</span>Feed</button>
+  <button type="button" class="mn" data-mpage="goals" onclick="nav('goals')"><span class="mni">⬖</span>Goals</button>
   <button type="button" class="mn" data-mpage="kyc" onclick="nav('kyc')"><span class="mni">✦</span>ID</button>
   <button type="button" class="mn" data-mpage="bank" onclick="nav('bank')"><span class="mni">◇</span>Bank</button>
   <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><span class="mni">⟳</span>Pay</button>
@@ -359,6 +401,8 @@ function nav(page) {
   if (page === 'trust') loadTrust();
   if (page === 'premium') loadPremium();
   if (page === 'notifications') loadNotifications();
+  if (page === 'community') loadCommunity();
+  if (page === 'goals') loadGoals();
 }
 
 function logout() {
@@ -544,7 +588,7 @@ async function loadMoneyPanel() {
       return `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:.6rem .75rem;background:rgba(14,23,38,.04);border-radius:.5rem;gap:.5rem;flex-wrap:wrap">
           <div style="flex:1;min-width:140px">
-            <div style="font-weight:600;font-size:.9rem">${privIcon}${g.name}</div>
+            <div style="font-weight:600;font-size:.9rem">${privIcon}${esc(g.name)}</div>
             <div style="font-size:.72rem;color:var(--muted)">${g.member_count || 0} / ${g.max_members} members · ${fmt$(g.contribution_cents)} per cycle</div>
           </div>
           <div style="text-align:right">
@@ -692,7 +736,7 @@ async function loadDashGroups() {
 function groupCard(g) {
   return `<div class="group-card" onclick="showGroup('${g.id}')">
     <div style="display:flex;justify-content:space-between;align-items:start;gap:.5rem;margin-bottom:.5rem">
-      <div class="group-name">${g.name}</div>${badge(g.status)}
+      <div class="group-name">${esc(g.name)}</div>${badge(g.status)}
     </div>
     <div class="group-meta">Cycle ${g.current_cycle_number} · ${fmt$(g.contribution_cents)}/member · ${g.max_members} slots</div>
   </div>`;
@@ -848,7 +892,7 @@ async function showGroup(id) {
     el.innerHTML = `
       <div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:start;justify-content:space-between;gap:.5rem;margin-bottom:1rem">
-          <h2 style="font-size:1.25rem">${g.name} ${privacyBadge}</h2>${badge(g.status)}
+          <h2 style="font-size:1.25rem">${esc(g.name)} ${privacyBadge}</h2>${badge(g.status)}
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:${canJoin?'1.5rem':'0'}">
           <div><div style="font-size:.72rem;color:var(--muted)">Contribution</div><div style="font-weight:600">${fmt$(g.contribution_cents)}</div></div>
@@ -982,7 +1026,7 @@ async function loadBank() {
         <div class="card" style="display:flex;flex-direction:column;gap:.75rem">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
             <div>
-              <div style="font-weight:600">${a.institution_name || 'Bank'}</div>
+              <div style="font-weight:600">${esc(a.institution_name || 'Bank')}</div>
               <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
             </div>
             <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
@@ -1257,6 +1301,83 @@ function updateUnreadBadge(n) {
 }
 async function refreshUnread() {
   try { const r = await api('/notifications'); updateUnreadBadge(r.unread_count||0); } catch(_) {}
+}
+
+// ── Community (feed) ────────────────────────────────────────────────────────────
+async function loadCommunity() {
+  const el = document.getElementById('feedList');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const posts = await api('/feed');
+    el.innerHTML = posts.length ? posts.map(p=>`
+      <div class="card" style="margin-bottom:.6rem">
+        <div style="white-space:pre-wrap">${esc(p.body)}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.5rem">
+          <span style="font-size:.75rem;color:var(--muted)">${new Date(p.created_at).toLocaleString()}</span>
+          <button type="button" class="btn btn-ghost" onclick="likePost('${esc(p.id)}')">♥ Like${p.like_count?` (${p.like_count})`:''}</button>
+        </div></div>`).join('') : '<div class="empty">No posts yet — be the first to share.</div>';
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+async function postFeed() {
+  const btn=document.getElementById('feedBtn'), err=document.getElementById('feedErr'), ta=document.getElementById('feedBody');
+  const body = ta.value.trim(); err.style.display='none';
+  if (!body) { err.textContent='Write something first.'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Posting…';
+  try { await api('/feed', { method:'POST', body: JSON.stringify({ body }) }); ta.value=''; loadCommunity(); }
+  catch(e){ err.textContent=e.message; err.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Post'; }
+}
+async function likePost(id) {
+  try { await api(`/feed/${id}/like`, { method:'POST' }); loadCommunity(); } catch(e){ alert(e.message); }
+}
+
+// ── Goals ───────────────────────────────────────────────────────────────────────
+const GOAL_LABEL = { EMERGENCY_FUND:'Emergency fund', VACATION:'Vacation', WEDDING:'Wedding', BUSINESS:'Business', EDUCATION:'Education', VEHICLE:'Vehicle', HOME:'Home' };
+async function loadGoals() {
+  const el = document.getElementById('goalList');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const goals = await api('/goals');
+    el.innerHTML = goals.length ? goals.map(g=>{
+      const pct = Math.max(0, Math.min(100, g.progress_percent ?? 0));
+      const done = g.status==='ACHIEVED';
+      return `<div class="card" style="margin-bottom:.75rem">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:1rem">
+          <div><div style="font-weight:700">${esc(g.name)}</div><div style="font-size:.8rem;color:var(--muted)">${GOAL_LABEL[g.type]||esc(g.type)}${g.target_date?` · by ${new Date(g.target_date).toLocaleDateString()}`:''}</div></div>
+          <button type="button" class="btn btn-ghost" onclick="deleteGoal('${esc(g.id)}')">Delete</button>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem;margin:.6rem 0 .3rem"><span>${fmt$(g.saved_cents)} of ${fmt$(g.target_cents)}</span><span>${pct}%${done?' ✓':''}</span></div>
+        <div style="background:rgba(0,0,0,.08);border-radius:99px;height:8px;overflow:hidden"><div style="background:${done?'var(--green)':'var(--gold)'};height:100%;width:${pct}%"></div></div>
+        <div style="margin-top:.6rem;display:flex;gap:.4rem;align-items:center">
+          <input type="number" min="0" placeholder="Add $" id="add-${esc(g.id)}" style="max-width:120px">
+          <button type="button" class="btn btn-ghost" onclick="addToGoal('${esc(g.id)}', ${Number(g.saved_cents)||0})">Add savings</button>
+        </div></div>`;
+    }).join('') : '<div class="empty">No goals yet — create one above.</div>';
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+async function createGoal() {
+  const btn=document.getElementById('goalBtn'), err=document.getElementById('goalErr');
+  const type=document.getElementById('goalType').value, name=document.getElementById('goalName').value.trim();
+  const target=Math.round(parseFloat(document.getElementById('goalTarget').value)*100), dateV=document.getElementById('goalDate').value;
+  err.style.display='none';
+  if (!name || !target) { err.textContent='Name and target amount are required.'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Creating…';
+  const payload = { type, name, target_cents: target };
+  if (dateV) payload.target_date = dateV;
+  try { await api('/goals', { method:'POST', body: JSON.stringify(payload) }); document.getElementById('goalName').value=''; loadGoals(); }
+  catch(e){ err.textContent=e.message; err.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Create goal'; }
+}
+async function addToGoal(id, current) {
+  const inp = document.getElementById('add-'+id);
+  const add = Math.round(parseFloat(inp.value)*100);
+  if (!add || add<=0) return;
+  try { await api(`/goals/${id}`, { method:'PATCH', body: JSON.stringify({ saved_cents: current + add }) }); loadGoals(); }
+  catch(e){ alert(e.message); }
+}
+async function deleteGoal(id) {
+  if(!confirm('Delete this goal?')) return;
+  try { await api(`/goals/${id}`, { method:'DELETE' }); loadGoals(); } catch(e){ alert(e.message); }
 }
 
 init();
