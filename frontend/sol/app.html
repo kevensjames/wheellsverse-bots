@@ -110,6 +110,21 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   <a class="nav-item" data-page="payments" onclick="nav('payments')">
     <span class="nav-icon">⟳</span> Payments
   </a>
+  <a class="nav-item" data-page="discover" onclick="nav('discover')">
+    <span class="nav-icon">✧</span> Discover
+  </a>
+  <a class="nav-item" data-page="timeline" onclick="nav('timeline')">
+    <span class="nav-icon">◷</span> Timeline
+  </a>
+  <a class="nav-item" data-page="trust" onclick="nav('trust')">
+    <span class="nav-icon">★</span> SOL Score
+  </a>
+  <a class="nav-item" data-page="premium" onclick="nav('premium')">
+    <span class="nav-icon">⬥</span> Premium
+  </a>
+  <a class="nav-item" data-page="notifications" onclick="nav('notifications')">
+    <span class="nav-icon">◔</span> Alerts <span id="navUnread" class="badge badge-red" style="display:none;margin-left:.4rem"></span>
+  </a>
   <button class="nav-item logout" onclick="logout()">
     <span class="nav-icon">→</span> Sign out
   </button>
@@ -227,6 +242,54 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
     <div id="paymentsList"><div class="spinner"></div></div>
   </div>
 
+  <!-- Discover / SOL Match -->
+  <div class="page" id="page-discover">
+    <h1>Discover circles</h1>
+    <p class="sub">Browse circle plans, or let SOL Match™ find or start the right circle for you</p>
+    <div class="form-box" style="margin-bottom:1.5rem">
+      <div style="font-weight:600;margin-bottom:.75rem">✧ SOL Match™ — reserve your payout</div>
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:1rem">Tell us when you want your payout, how much, and how often. We'll match you to an open circle, start a new one, or hold your spot on the waitlist.</div>
+      <div class="field"><label>Preferred payout date</label><input type="date" id="mDate"></div>
+      <div class="field"><label>Contribution per cycle ($)</label><input type="number" id="mAmt" min="1" value="200"></div>
+      <div class="field"><label>Frequency</label>
+        <select id="mFreq"><option value="MONTHLY">Monthly</option><option value="BIWEEKLY">Bi-weekly</option><option value="WEEKLY">Weekly</option></select></div>
+      <p class="err" id="mErr" style="display:none"></p>
+      <button type="button" class="btn btn-primary" id="mBtn" onclick="reservePayout()">Find my circle</button>
+      <div id="mResult" style="margin-top:1rem"></div>
+    </div>
+    <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Circle plans</h2>
+    <div id="templateList"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="page" id="page-timeline">
+    <h1>Your timeline</h1>
+    <p class="sub">Next contribution, upcoming payout, and progress across your circles</p>
+    <div id="timelineContent"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Trust / SOL Score -->
+  <div class="page" id="page-trust">
+    <h1>Your SOL Score</h1>
+    <p class="sub">Trust you build by saving on time and showing up for your circles</p>
+    <div id="trustContent"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Premium -->
+  <div class="page" id="page-premium">
+    <h1>Sol Premium</h1>
+    <p class="sub">Smart matching, priority waitlist, and more</p>
+    <div id="premiumContent"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Notifications -->
+  <div class="page" id="page-notifications">
+    <h1>Notifications</h1>
+    <p class="sub">Everything happening across your circles</p>
+    <div style="margin-bottom:1rem"><button type="button" class="btn btn-ghost" onclick="markAllRead()">Mark all read</button></div>
+    <div id="notifList"><div class="spinner"></div></div>
+  </div>
+
   <!-- Bank -->
   <div class="page" id="page-bank">
     <h1>Linked bank accounts</h1>
@@ -291,6 +354,11 @@ function nav(page) {
   if (page === 'kyc') loadKYC();
   if (page === 'bank') loadBank();
   if (page === 'payments') loadMyPayments();
+  if (page === 'discover') loadDiscover();
+  if (page === 'timeline') loadTimeline();
+  if (page === 'trust') loadTrust();
+  if (page === 'premium') loadPremium();
+  if (page === 'notifications') loadNotifications();
 }
 
 function logout() {
@@ -1036,7 +1104,157 @@ async function handleAddBank(e) {
   } finally { btn.textContent = 'Connect account'; btn.disabled = false; }
 }
 
+// ── Discover / SOL Match ────────────────────────────────────────────────────────
+const FREQ_LABEL = { WEEKLY:'Weekly', BIWEEKLY:'Bi-weekly', MONTHLY:'Monthly' };
+async function loadDiscover() {
+  const el = document.getElementById('templateList');
+  el.innerHTML = '<div class="spinner"></div>';
+  const d = document.getElementById('mDate');
+  if (d && !d.value) d.value = new Date(Date.now()+30*864e5).toISOString().slice(0,10);
+  try {
+    const tpls = await api('/circles/templates');
+    el.innerHTML = tpls.length ? `<div class="cards">${tpls.map(t => `
+      <div class="card">
+        <div style="font-weight:700">${t.name}</div>
+        <div style="font-size:.8rem;color:var(--muted);margin:.25rem 0 .6rem">${t.description||''}</div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${FREQ_LABEL[t.frequency]||t.frequency}</span><span>${fmt$(t.contribution_cents)}/cycle</span></div>
+        <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">${t.capacity} members per circle</div>
+      </div>`).join('')}</div>` : '<div class="empty">No circle plans yet — use SOL Match above to start one.</div>';
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+async function reservePayout() {
+  const btn=document.getElementById('mBtn'), err=document.getElementById('mErr'), res=document.getElementById('mResult');
+  err.style.display='none'; res.innerHTML='';
+  const date=document.getElementById('mDate').value, amt=Math.round(parseFloat(document.getElementById('mAmt').value)*100), freq=document.getElementById('mFreq').value;
+  if (!date || !amt) { err.textContent='Pick a date and amount.'; err.style.display='block'; return; }
+  btn.disabled=true; btn.textContent='Matching…';
+  try {
+    const r = await api('/circles/reserve', { method:'POST', body: JSON.stringify({ preferred_payout_date:date, contribution_cents:amt, frequency:freq }) });
+    if (r.status==='MATCHED') res.innerHTML = `<div class="card" style="border-color:rgba(30,158,106,.35)">✓ Matched! You've been placed in a circle. <a onclick="nav('groups')" style="color:var(--sol-600);cursor:pointer">View your circles →</a></div>`;
+    else if (r.status==='WAITLISTED') res.innerHTML = `<div class="card" style="border-color:rgba(232,147,36,.35)">⏳ You're on the waitlist${r.waitlist_position?` (position ${r.waitlist_position})`:''}. We'll place you as soon as a compatible circle forms.</div>`;
+    else res.innerHTML = `<div class="card">Reservation created (${r.status}).</div>`;
+    loadDiscover();
+  } catch(e) { err.textContent=e.message; err.style.display='block'; }
+  finally { btn.disabled=false; btn.textContent='Find my circle'; }
+}
+
+// ── Timeline ────────────────────────────────────────────────────────────────────
+async function loadTimeline() {
+  const el = document.getElementById('timelineContent');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const t = await api('/timeline/me');
+    const nc=t.next_contribution, up=t.upcoming_payout;
+    const upAmt = up ? (up.amount_cents ?? up.net_cents) : null;
+    const upDate = up ? (up.date ?? up.payout_date ?? up.estimated_date) : null;
+    const out = [`<div class="cards">
+      <div class="card"><div class="card-label">Next contribution</div><div class="card-val">${nc?fmt$(nc.amount_cents):'—'}</div>${nc?`<div style="font-size:.8rem;color:var(--muted)">${nc.group_name} · due ${new Date(nc.due_date).toLocaleDateString()}</div>`:''}</div>
+      <div class="card"><div class="card-label">Payments remaining</div><div class="card-val">${t.remaining_payments??'—'}</div></div>
+      <div class="card"><div class="card-label">Upcoming payout</div><div class="card-val" style="color:var(--gold)">${upAmt!=null?fmt$(upAmt):'—'}</div>${upDate?`<div style="font-size:.8rem;color:var(--muted)">${new Date(upDate).toLocaleDateString()}</div>`:''}</div>
+    </div>`];
+    const cp=t.circle_progress||[];
+    if (cp.length) {
+      out.push(`<h2 style="font-size:1.1rem;margin:1.5rem 0 1rem;font-family:var(--font-display)">Circle progress</h2>`);
+      out.push(cp.map(c=>{ const pct=c.total_cycles?Math.round(c.current_cycle/c.total_cycles*100):0; return `<div class="card" style="margin-bottom:.75rem">
+        <div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><strong>${c.group_name}</strong><span style="font-size:.85rem;color:var(--muted)">Cycle ${c.current_cycle} of ${c.total_cycles}</span></div>
+        <div style="background:rgba(0,0,0,.08);border-radius:99px;height:8px;overflow:hidden"><div style="background:var(--green);height:100%;width:${pct}%"></div></div>
+        ${c.has_received_payout?'<div style="font-size:.8rem;color:var(--green);margin-top:.3rem">✓ Payout received</div>':''}</div>`; }).join(''));
+    }
+    const ph=t.payment_history||[];
+    if (ph.length) {
+      out.push(`<h2 style="font-size:1.1rem;margin:1.5rem 0 1rem;font-family:var(--font-display)">Recent payments</h2>`);
+      out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${new Date(p.created_at).toLocaleDateString()}</td><td>${fmt$(p.amount_cents)}</td><td>${badge(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
+    }
+    el.innerHTML = out.join('');
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+// ── Trust / SOL Score ───────────────────────────────────────────────────────────
+async function loadTrust() {
+  const el = document.getElementById('trustContent');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const t = await api('/trust/me');
+    const pct = t.max_score ? Math.round(t.sol_score/t.max_score*100) : 0;
+    const comps = t.components||{};
+    const compRows = Object.entries(comps).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:.85rem;padding:.3rem 0"><span style="text-transform:capitalize">${k.replace(/_/g,' ')}</span><strong>${Math.round(v)}</strong></div>`).join('');
+    const badges = t.badges||[];
+    const badgeGrid = badges.length ? `<div class="cards">${badges.map(b=>`<div class="card" style="text-align:center"><div style="font-size:1.5rem">🏅</div><div style="font-weight:700;font-size:.9rem">${b.title}</div><div style="font-size:.75rem;color:var(--muted)">${b.description||''}</div></div>`).join('')}</div>` : '<div class="empty">No badges yet — pay on time and complete circles to earn them.</div>';
+    el.innerHTML = `
+      <div class="card" style="text-align:center;margin-bottom:1.5rem;border-color:rgba(232,147,36,.3)">
+        <div style="font-size:3rem;font-weight:800;color:var(--gold);font-family:var(--font-display)">${t.sol_score}</div>
+        <div style="font-size:.85rem;color:var(--muted)">of ${t.max_score} · SOL Score</div>
+        <div style="background:rgba(0,0,0,.08);border-radius:99px;height:10px;overflow:hidden;margin-top:.75rem"><div style="background:linear-gradient(90deg,var(--gold),var(--green));height:100%;width:${pct}%"></div></div>
+      </div>
+      <h2 style="font-size:1.1rem;margin-bottom:.5rem;font-family:var(--font-display)">How it's built</h2>
+      <div class="card" style="margin-bottom:1.5rem">${compRows}</div>
+      <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Badges</h2>${badgeGrid}`;
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
+// ── Premium ─────────────────────────────────────────────────────────────────────
+async function loadPremium() {
+  const el = document.getElementById('premiumContent');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const s = await api('/subscriptions/me');
+    const price = fmt$(s.price_cents||999);
+    let card;
+    if (s.is_premium) card = `<div class="card" style="border-color:rgba(30,158,106,.35);margin-bottom:1.5rem">
+        <div style="font-weight:700;color:var(--green)">✓ Premium active</div>
+        <div style="font-size:.85rem;color:var(--muted);margin:.3rem 0">${s.cancel_at_period_end?'Cancels at the end of the current period.':'Renews automatically.'}${s.current_period_end?` · through ${new Date(s.current_period_end).toLocaleDateString()}`:''}</div>
+        ${s.cancel_at_period_end?'':'<button type="button" class="btn btn-ghost" onclick="cancelPremium()">Cancel subscription</button>'}</div>`;
+    else card = `<div class="card" style="border-color:rgba(232,147,36,.3);margin-bottom:1.5rem">
+        <div style="font-weight:700">Upgrade to Premium — ${price}/month</div>
+        <ul style="font-size:.85rem;color:var(--muted);margin:.6rem 0 1rem;padding-left:1.2rem"><li>SOL Match™ smart circle recommendations</li><li>Priority waitlist placement</li><li>Personal savings assistant</li></ul>
+        <button type="button" class="btn btn-primary" id="subBtn" onclick="subscribePremium()">Go Premium</button></div>`;
+    let invoices = [];
+    try { invoices = await api('/subscriptions/invoices'); } catch(_) {}
+    const invTable = invoices.length ? `<h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Billing history</h2>
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${invoices.map(i=>`<tr><td style="color:var(--muted)">${new Date(i.created_at).toLocaleDateString()}</td><td>${fmt$(i.amount_cents)}</td><td>${badge(i.status)}</td><td>${i.hosted_url?`<a href="${i.hosted_url}" target="_blank" style="color:var(--sol-600)">Receipt</a>`:''}</td></tr>`).join('')}</tbody></table></div>` : '';
+    el.innerHTML = card + invTable;
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+async function subscribePremium() {
+  const btn=document.getElementById('subBtn'); if(btn){btn.disabled=true;btn.textContent='Activating…';}
+  try { await api('/subscriptions/subscribe', { method:'POST' }); loadPremium(); }
+  catch(e){ alert(e.message); if(btn){btn.disabled=false;btn.textContent='Go Premium';} }
+}
+async function cancelPremium() {
+  if(!confirm('Cancel Premium at the end of the current period?')) return;
+  try { await api('/subscriptions/cancel', { method:'POST' }); loadPremium(); } catch(e){ alert(e.message); }
+}
+
+// ── Notifications ───────────────────────────────────────────────────────────────
+async function loadNotifications() {
+  const el = document.getElementById('notifList');
+  el.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await api('/notifications');
+    const items = r.notifications||[];
+    updateUnreadBadge(r.unread_count||0);
+    el.innerHTML = items.length ? items.map(n=>`
+      <div class="card" style="margin-bottom:.6rem;${n.read_at?'':'border-color:rgba(232,147,36,.4)'}">
+        <div style="display:flex;justify-content:space-between;gap:1rem">
+          <div><div style="font-weight:600">${n.title||n.type}</div><div style="font-size:.85rem;color:var(--muted)">${n.body||''}</div></div>
+          <div style="font-size:.75rem;color:var(--muted);white-space:nowrap">${new Date(n.created_at).toLocaleDateString()}</div>
+        </div></div>`).join('') : '<div class="empty">No notifications yet.</div>';
+  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+async function markAllRead() {
+  try { await api('/notifications/read-all', { method:'POST' }); loadNotifications(); } catch(e){ alert(e.message); }
+}
+function updateUnreadBadge(n) {
+  const b = document.getElementById('navUnread');
+  if (!b) return;
+  if (n>0){ b.textContent=n; b.style.display='inline-block'; } else { b.style.display='none'; }
+}
+async function refreshUnread() {
+  try { const r = await api('/notifications'); updateUnreadBadge(r.unread_count||0); } catch(_) {}
+}
+
 init();
+refreshUnread();
 </script>
 </body>
 </html>
