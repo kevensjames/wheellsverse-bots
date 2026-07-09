@@ -1248,7 +1248,7 @@ async function loadPremium() {
   el.innerHTML = '<div class="spinner"></div>';
   try {
     const s = await api('/subscriptions/me');
-    const price = fmt$(s.price_cents||999);
+    const price = fmt$(s.price_cents||1499);
     let card;
     if (s.is_premium) card = `<div class="card" style="border-color:rgba(30,158,106,.35);margin-bottom:1.5rem">
         <div style="font-weight:700;color:var(--green)">✓ Premium active</div>
