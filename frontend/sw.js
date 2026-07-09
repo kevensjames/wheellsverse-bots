@@ -1,70 +1,33 @@
-// WheellsVerse Admin Service Worker
+// WheellsVerse Service Worker — SELF-DESTRUCT / KILL SWITCH.
 //
-// Strategy:
-//   /admin, /admin/*       → network-only  (always get the freshest dashboard
-//                                           — the in-app version watcher
-//                                           handles update prompts)
-//   /api/*                 → network-only  (never cache live API data)
-//   /manifest.json,
-//   /favicon.svg, /favicon.ico,
-//   other static assets    → cache-first with network fallback + opportunistic
-//                                           refresh in background
+// The previous version cached pages cache-first (including /sol/*), which served
+// users STALE HTML after every deploy — new content only appeared on a second
+// visit. No page registers a service worker anymore, so any SW still active in a
+// browser is a leftover from that past deploy.
 //
-// Bump CACHE_VERSION on any SW change so old caches get evicted on next visit.
+// This replacement does nothing but clean up: on activate it deletes every
+// cache, unregisters itself, and reloads open tabs — so affected browsers get
+// fresh content and stop caching pages. Browsers pick this up automatically on
+// their next SW update check (navigation / ~24h). New visitors never register a
+// SW at all, so for them this file is simply never installed.
 
-const CACHE_VERSION = 'wv-admin-v1';
-const PRECACHE = [
-  '/manifest.json',
-  '/favicon.svg',
-  '/favicon.ico',
-];
-
-self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION)
-      .then((cache) => cache.addAll(PRECACHE))
-      .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting())
-  );
+self.addEventListener('install', () => {
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches.keys()
-      .then((keys) => Promise.all(
-        keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))
-      ))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    // Drop every cached response — the stale HTML lived here.
+    const keys = await caches.keys();
+    await Promise.all(keys.map((k) => caches.delete(k)));
+    // Remove this service worker entirely.
+    await self.registration.unregister();
+    // Reload any open tabs so they show the fresh, network-served content.
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const client of clients) {
+      client.navigate(client.url);
+    }
+  })());
 });
 
-self.addEventListener('fetch', (event) => {
-  const req = event.request;
-  if (req.method !== 'GET') return;
-
-  const url = new URL(req.url);
-  if (url.origin !== self.location.origin) return;
-
-  // Always-fresh paths — never cache
-  if (url.pathname === '/admin' ||
-      url.pathname.startsWith('/admin/') ||
-      url.pathname.startsWith('/api/')) {
-    return; // let the browser do its default network fetch
-  }
-
-  // Cache-first for static assets
-  event.respondWith(
-    caches.match(req).then((cached) => {
-      const networked = fetch(req)
-        .then((res) => {
-          if (res && res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy)).catch(() => {});
-          }
-          return res;
-        })
-        .catch(() => cached); // offline → cached if present
-      return cached || networked;
-    })
-  );
-});
+// No fetch handler → every request goes straight to the network (always fresh).
