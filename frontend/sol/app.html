@@ -452,6 +452,12 @@ function badge(status) {
   return `<span class="badge ${map[status]||'badge-gray'}">${status}</span>`;
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
+// Escape untrusted strings before interpolating into innerHTML — user-controlled
+// data (circle names, notification bodies, template names) must never be able to
+// inject markup/script that could read the session token from localStorage.
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// Only allow http(s) links; anything else (javascript:, data:) → empty.
+function safeUrl(u){ return /^https?:\/\//i.test(u||'') ? u : ''; }
 
 async function copyInvite(groupId) {
   const input = document.getElementById('inviteUrl-' + groupId);
@@ -1115,9 +1121,9 @@ async function loadDiscover() {
     const tpls = await api('/circles/templates');
     el.innerHTML = tpls.length ? `<div class="cards">${tpls.map(t => `
       <div class="card">
-        <div style="font-weight:700">${t.name}</div>
-        <div style="font-size:.8rem;color:var(--muted);margin:.25rem 0 .6rem">${t.description||''}</div>
-        <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${FREQ_LABEL[t.frequency]||t.frequency}</span><span>${fmt$(t.contribution_cents)}/cycle</span></div>
+        <div style="font-weight:700">${esc(t.name)}</div>
+        <div style="font-size:.8rem;color:var(--muted);margin:.25rem 0 .6rem">${esc(t.description||'')}</div>
+        <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${FREQ_LABEL[t.frequency]||esc(t.frequency)}</span><span>${fmt$(t.contribution_cents)}/cycle</span></div>
         <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">${t.capacity} members per circle</div>
       </div>`).join('')}</div>` : '<div class="empty">No circle plans yet — use SOL Match above to start one.</div>';
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
@@ -1148,7 +1154,7 @@ async function loadTimeline() {
     const upAmt = up ? (up.amount_cents ?? up.net_cents) : null;
     const upDate = up ? (up.date ?? up.payout_date ?? up.estimated_date) : null;
     const out = [`<div class="cards">
-      <div class="card"><div class="card-label">Next contribution</div><div class="card-val">${nc?fmt$(nc.amount_cents):'—'}</div>${nc?`<div style="font-size:.8rem;color:var(--muted)">${nc.group_name} · due ${new Date(nc.due_date).toLocaleDateString()}</div>`:''}</div>
+      <div class="card"><div class="card-label">Next contribution</div><div class="card-val">${nc?fmt$(nc.amount_cents):'—'}</div>${nc?`<div style="font-size:.8rem;color:var(--muted)">${esc(nc.group_name)} · due ${new Date(nc.due_date).toLocaleDateString()}</div>`:''}</div>
       <div class="card"><div class="card-label">Payments remaining</div><div class="card-val">${t.remaining_payments??'—'}</div></div>
       <div class="card"><div class="card-label">Upcoming payout</div><div class="card-val" style="color:var(--gold)">${upAmt!=null?fmt$(upAmt):'—'}</div>${upDate?`<div style="font-size:.8rem;color:var(--muted)">${new Date(upDate).toLocaleDateString()}</div>`:''}</div>
     </div>`];
@@ -1156,7 +1162,7 @@ async function loadTimeline() {
     if (cp.length) {
       out.push(`<h2 style="font-size:1.1rem;margin:1.5rem 0 1rem;font-family:var(--font-display)">Circle progress</h2>`);
       out.push(cp.map(c=>{ const pct=c.total_cycles?Math.round(c.current_cycle/c.total_cycles*100):0; return `<div class="card" style="margin-bottom:.75rem">
-        <div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><strong>${c.group_name}</strong><span style="font-size:.85rem;color:var(--muted)">Cycle ${c.current_cycle} of ${c.total_cycles}</span></div>
+        <div style="display:flex;justify-content:space-between;margin-bottom:.4rem"><strong>${esc(c.group_name)}</strong><span style="font-size:.85rem;color:var(--muted)">Cycle ${c.current_cycle} of ${c.total_cycles}</span></div>
         <div style="background:rgba(0,0,0,.08);border-radius:99px;height:8px;overflow:hidden"><div style="background:var(--green);height:100%;width:${pct}%"></div></div>
         ${c.has_received_payout?'<div style="font-size:.8rem;color:var(--green);margin-top:.3rem">✓ Payout received</div>':''}</div>`; }).join(''));
     }
@@ -1177,9 +1183,9 @@ async function loadTrust() {
     const t = await api('/trust/me');
     const pct = t.max_score ? Math.round(t.sol_score/t.max_score*100) : 0;
     const comps = t.components||{};
-    const compRows = Object.entries(comps).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:.85rem;padding:.3rem 0"><span style="text-transform:capitalize">${k.replace(/_/g,' ')}</span><strong>${Math.round(v)}</strong></div>`).join('');
+    const compRows = Object.entries(comps).map(([k,v])=>`<div style="display:flex;justify-content:space-between;font-size:.85rem;padding:.3rem 0"><span style="text-transform:capitalize">${esc(k.replace(/_/g,' '))}</span><strong>${Math.round(v)}</strong></div>`).join('');
     const badges = t.badges||[];
-    const badgeGrid = badges.length ? `<div class="cards">${badges.map(b=>`<div class="card" style="text-align:center"><div style="font-size:1.5rem">🏅</div><div style="font-weight:700;font-size:.9rem">${b.title}</div><div style="font-size:.75rem;color:var(--muted)">${b.description||''}</div></div>`).join('')}</div>` : '<div class="empty">No badges yet — pay on time and complete circles to earn them.</div>';
+    const badgeGrid = badges.length ? `<div class="cards">${badges.map(b=>`<div class="card" style="text-align:center"><div style="font-size:1.5rem">🏅</div><div style="font-weight:700;font-size:.9rem">${esc(b.title)}</div><div style="font-size:.75rem;color:var(--muted)">${esc(b.description||'')}</div></div>`).join('')}</div>` : '<div class="empty">No badges yet — pay on time and complete circles to earn them.</div>';
     el.innerHTML = `
       <div class="card" style="text-align:center;margin-bottom:1.5rem;border-color:rgba(232,147,36,.3)">
         <div style="font-size:3rem;font-weight:800;color:var(--gold);font-family:var(--font-display)">${t.sol_score}</div>
@@ -1211,7 +1217,7 @@ async function loadPremium() {
     let invoices = [];
     try { invoices = await api('/subscriptions/invoices'); } catch(_) {}
     const invTable = invoices.length ? `<h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Billing history</h2>
-      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${invoices.map(i=>`<tr><td style="color:var(--muted)">${new Date(i.created_at).toLocaleDateString()}</td><td>${fmt$(i.amount_cents)}</td><td>${badge(i.status)}</td><td>${i.hosted_url?`<a href="${i.hosted_url}" target="_blank" style="color:var(--sol-600)">Receipt</a>`:''}</td></tr>`).join('')}</tbody></table></div>` : '';
+      <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${invoices.map(i=>`<tr><td style="color:var(--muted)">${new Date(i.created_at).toLocaleDateString()}</td><td>${fmt$(i.amount_cents)}</td><td>${badge(i.status)}</td><td>${safeUrl(i.hosted_url)?`<a href="${esc(safeUrl(i.hosted_url))}" target="_blank" rel="noopener noreferrer" style="color:var(--sol-600)">Receipt</a>`:''}</td></tr>`).join('')}</tbody></table></div>` : '';
     el.innerHTML = card + invTable;
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
 }
@@ -1236,7 +1242,7 @@ async function loadNotifications() {
     el.innerHTML = items.length ? items.map(n=>`
       <div class="card" style="margin-bottom:.6rem;${n.read_at?'':'border-color:rgba(232,147,36,.4)'}">
         <div style="display:flex;justify-content:space-between;gap:1rem">
-          <div><div style="font-weight:600">${n.title||n.type}</div><div style="font-size:.85rem;color:var(--muted)">${n.body||''}</div></div>
+          <div><div style="font-weight:600">${esc(n.title||n.type)}</div><div style="font-size:.85rem;color:var(--muted)">${esc(n.body||'')}</div></div>
           <div style="font-size:.75rem;color:var(--muted);white-space:nowrap">${new Date(n.created_at).toLocaleDateString()}</div>
         </div></div>`).join('') : '<div class="empty">No notifications yet.</div>';
   } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
