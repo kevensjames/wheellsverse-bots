@@ -1,7 +1,15 @@
 from functools import lru_cache
 from typing import List
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Admin-token hardening (see dependencies/admin.py). In production the effective
+# admin token — ADMIN_TOKEN, or the legacy JWT_SECRET_KEY fallback — must be a
+# strong secret; the app refuses to boot otherwise.
+_MIN_ADMIN_TOKEN_LEN = 32
+_WEAK_ADMIN_TOKENS = frozenset({"", "change_me_to_a_long_random_string"})
+_NON_PROD_ENVS = frozenset({"development", "dev", "local", "test", "testing", "ci"})
 
 
 class Settings(BaseSettings):
@@ -95,6 +103,24 @@ class Settings(BaseSettings):
     @property
     def cors_origins(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    @model_validator(mode="after")
+    def _enforce_strong_admin_token_in_prod(self):
+        """Refuse to boot in production on a weak/absent admin token. The whole
+        admin surface (journals, persona, relationship data, Sol money admin) is
+        guarded by this single shared secret, so a short or example-default one
+        is a full-compromise risk. Dev/test/local are exempt to stay frictionless."""
+        env = (self.APP_ENV or "").strip().lower()
+        if env in _NON_PROD_ENVS:
+            return self
+        tok = self.ADMIN_TOKEN or self.JWT_SECRET_KEY
+        if tok in _WEAK_ADMIN_TOKENS or len(tok) < _MIN_ADMIN_TOKEN_LEN:
+            raise ValueError(
+                f"Refusing to boot in APP_ENV='{self.APP_ENV}': a strong ADMIN_TOKEN "
+                f"is required (>= {_MIN_ADMIN_TOKEN_LEN} chars, not the example default). "
+                'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        return self
 
 
 @lru_cache
