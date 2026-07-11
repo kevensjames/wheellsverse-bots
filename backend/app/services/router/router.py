@@ -7,6 +7,7 @@ import time
 import uuid
 from typing import TYPE_CHECKING, Iterator
 
+from app.services import alerts
 from app.services.router.adapters.base import Adapter, calculate_cost
 from app.services.router.intent import classify_intent
 from app.services.router.spend_tracker import SpendTracker
@@ -144,11 +145,16 @@ class Router:
             self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e))
             fb = self._runtime_fallback(adapter)
             if fb is None:
+                # Cloud adapter hard-failed with no runtime fallback (the common
+                # case — _runtime_fallback only rescues a failed local ollama).
+                # Alert before re-raising, same as stream() and chat().
+                alerts.provider_alert(provider=adapter.name, exc=e, active_fallback=None)
                 raise
             logger.warning(
                 "router: local adapter %s failed (%s) — retrying on %s",
                 adapter.name, e, fb.name,
             )
+            alerts.provider_alert(provider=adapter.name, exc=e, active_fallback=fb.name)
             adapter = fb
             try:
                 result = adapter.complete(
@@ -156,6 +162,7 @@ class Router:
                 )
             except Exception as e2:
                 self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e2))
+                alerts.provider_alert(provider=adapter.name, exc=e2, active_fallback=None)
                 raise
 
         self.spend.log_result(user_id, result)
@@ -202,6 +209,7 @@ class Router:
                 success=False,
                 error_message=str(e),
             )
+            alerts.provider_alert(provider=adapter.name, exc=e, active_fallback=None)
             raise
 
         total_text = "".join(collected)
@@ -306,6 +314,7 @@ class Router:
                         "chat: tool-brain %s failed (%s) — failing over to %s",
                         adapter.name, e, alt.name,
                     )
+                    alerts.provider_alert(provider=adapter.name, exc=e, active_fallback=alt.name)
                     tried_brains.add(alt.name)
                     adapter = alt
                     tool_schema = (
@@ -322,6 +331,7 @@ class Router:
                         "chat: %s failed (%s) — degrading to a plain local "
                         "answer (no tools)", adapter.name, e,
                     )
+                    alerts.provider_alert(provider=adapter.name, exc=e, active_fallback=local.name)
                     try:
                         result = local.complete(
                             msgs, max_tokens=max_tokens,
@@ -329,9 +339,11 @@ class Router:
                         )
                     except Exception as e2:
                         self._log_failure_safe(user_id=user_id, adapter=local, error=str(e2))
+                        alerts.provider_alert(provider=local.name, exc=e2, active_fallback=None)
                         raise
                     self.spend.log_result(user_id, result)
                     return result
+                alerts.provider_alert(provider=adapter.name, exc=e, active_fallback=None)
                 raise
 
             self.spend.log_result(user_id, result)
