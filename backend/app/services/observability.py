@@ -32,12 +32,22 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _send_sync(text: str) -> None:
-    """Blocking send. Called from a background thread by notify()."""
+def send_sync(text: str) -> bool:
+    """Blocking Telegram send that REPORTS the outcome.
+
+    Returns True only on a 2xx from Telegram; False if alerting is unconfigured
+    or on any error. Callers that need delivery *confirmation* — the daily
+    check-in, which must not mark itself delivered on a silent failure — use this
+    instead of the fire-and-forget ``notify()``.
+    """
     tok = settings.TELEGRAM_BOT_TOKEN
     chat = settings.TELEGRAM_CHAT_ID
     if not tok or not chat:
-        return
+        logger.warning(
+            "telegram not configured (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID) — "
+            "cannot deliver message"
+        )
+        return False
     body = json.dumps({
         "chat_id": chat,
         "text": text,
@@ -52,12 +62,23 @@ def _send_sync(text: str) -> None:
     )
     try:
         with urllib.request.urlopen(req, timeout=8) as r:
-            if r.status >= 300:
-                logger.warning("telegram alert non-2xx: %s", r.status)
+            if 200 <= r.status < 300:
+                return True
+            logger.warning("telegram send non-2xx: %s", r.status)
+            return False
     except urllib.error.HTTPError as e:
-        logger.warning("telegram alert HTTP %s: %s", e.code, e.read()[:200])
+        logger.warning("telegram send HTTP %s: %s", e.code, e.read()[:200])
+        return False
     except Exception as e:  # network failure, DNS, etc. — never crash caller
-        logger.warning("telegram alert failed: %s", e)
+        logger.warning("telegram send failed: %s", e)
+        return False
+
+
+def _send_sync(text: str) -> None:
+    """Blocking send for the fire-and-forget notify() path. Ignores the outcome
+    (an operator alert that fails to send must not crash the request that fired
+    it); callers needing confirmation use send_sync() directly."""
+    send_sync(text)
 
 
 def notify(text: str) -> None:
