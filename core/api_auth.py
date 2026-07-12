@@ -44,6 +44,8 @@ _LOCKED_EXACT = frozenset({
     "/api/sa/start", "/api/sa/stop", "/api/sa/trend-scan", "/api/sa/setup-boutique",
     # Bot runners / revenue writes
     "/api/narai/run_bot", "/api/narai/run", "/api/narai/revenue",
+    # Nexora beta-bot workers (anonymously spawn background content bots)
+    "/api/nexora/recruit", "/api/nexora/growth",
     # QC action
     "/api/qc/review",
 })
@@ -63,7 +65,11 @@ def is_locked_mutation(path: str, method: str) -> bool:
     allowlist entry. Reads (GET/HEAD/OPTIONS) are never locked here."""
     if (method or "").upper() in _SAFE_METHODS:
         return False
-    return path in _LOCKED_EXACT or any(path.startswith(p) for p in _LOCKED_PREFIXES)
+    # Normalize a single trailing slash so `/api/factory/reset/` can't dodge the
+    # exact match (Starlette redirects it to the locked path anyway, but don't rely
+    # on that if slash-redirects are ever disabled).
+    p = path[:-1] if len(path) > 1 and path.endswith("/") else path
+    return p in _LOCKED_EXACT or any(p.startswith(pre) for pre in _LOCKED_PREFIXES)
 
 
 def requires_api_key(path: str, method: str, is_public_by_existing_rules: bool) -> bool:

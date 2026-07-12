@@ -29,7 +29,10 @@ aa = importlib.import_module("core.api_auth")
     ("/api/sa/setup-boutique", "POST", True),
     ("/api/narai/run_bot", "POST", True),
     ("/api/narai/schedules/7/trigger", "POST", True),  # path-param prefix
+    ("/api/nexora/recruit", "POST", True),             # spawns a background bot
+    ("/api/nexora/growth", "POST", True),
     ("/api/qc/review", "POST", True),
+    ("/api/factory/reset/", "DELETE", True),           # trailing-slash must not dodge the lock
     # same routes via a READ method → NOT locked (reads unchanged)
     ("/api/factory/reset", "GET", False),
     ("/api/shopify/products", "GET", False),
