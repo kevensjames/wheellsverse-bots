@@ -115,3 +115,13 @@ def test_process_paid_event_activates_and_credits_once(db):
 def test_process_paid_event_requires_event_id(db):
     with pytest.raises(ValueError):
         nx.process_paid_event("", db, "fan@x.io", "Fan", 100.0, "cs_1")
+
+
+def test_process_paid_event_non_duplicate_error_propagates(db):
+    # A non-PK integrity failure (here: FK violation from a bogus creator_id) must
+    # RAISE, not be misreported as "duplicate" — otherwise Stripe stops retrying an
+    # uncredited payment. The event id must also NOT be left marked as processed.
+    bogus_creator = 999999
+    with pytest.raises(nx.sqlite3.IntegrityError):
+        nx.process_paid_event("evt_fk", bogus_creator, "fan@x.io", "Fan", 100.0, "cs_x")
+    assert nx.event_already_processed("evt_fk") is False  # rolled back

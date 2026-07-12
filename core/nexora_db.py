@@ -475,11 +475,19 @@ def process_paid_event(event_id: str, creator_id: int, fan_email: str,
     now = time.time()
     conn = get_conn()
     try:
-        # event id first: a replay raises IntegrityError here before any side-effect
-        conn.execute(
-            "INSERT INTO nx_processed_events (event_id,processed_at) VALUES (?,?)",
-            (event_id, now),
-        )
+        # Claim the event id first, in the same transaction. ONLY a collision here
+        # means "already processed" — scope the duplicate signal to this insert so an
+        # unrelated integrity error below can't be silently misreported as a duplicate
+        # (which would tell Stripe to stop retrying an uncredited payment).
+        try:
+            conn.execute(
+                "INSERT INTO nx_processed_events (event_id,processed_at) VALUES (?,?)",
+                (event_id, now),
+            )
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return "duplicate"
+
         conn.execute(
             """INSERT INTO nx_subscribers (creator_id,fan_email,fan_name,status,price_paid,stripe_cust,started_at)
                VALUES (?,?,?,'active',?,?,?)
@@ -496,10 +504,9 @@ def process_paid_event(event_id: str, creator_id: int, fan_email: str,
         )
         conn.commit()
         return "processed"
-    except sqlite3.IntegrityError:
-        conn.rollback()
-        return "duplicate"
     except Exception:
+        # any side-effect failure rolls back the whole txn (incl. the event mark) and
+        # propagates → the webhook 500s → Stripe retries → no lost credit
         conn.rollback()
         raise
     finally:
