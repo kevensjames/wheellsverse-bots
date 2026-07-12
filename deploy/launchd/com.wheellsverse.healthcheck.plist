@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+Health-check LaunchDaemon — runs deploy/health_check.sh every 5 minutes.
+
+The audit found the old health check was log-only AND was never actually wired
+into cron (setup_cron.sh installs bot jobs, not the health check). This daemon
+makes the check REAL and self-supervising: StartInterval fires it every 300s and
+it alerts to Telegram on failure (local API / tunnel / disk / restart-loop).
+
+Install (or run deploy/install_supervision.sh):
+    sudo cp deploy/launchd/com.wheellsverse.healthcheck.plist /Library/LaunchDaemons/
+    sudo chown root:wheel /Library/LaunchDaemons/com.wheellsverse.healthcheck.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.wheellsverse.healthcheck.plist
+
+TIP: also add an EXTERNAL uptime monitor (e.g. UptimeRobot on the public URL) —
+a check that runs on this same Mac mini can't tell you when the whole box is down.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wheellsverse.healthcheck</string>
+
+    <key>UserName</key>
+    <string>jhonwheeler</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jhonwheeler/wheellsverse_bots/deploy/health_check.sh</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/healthcheck.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/healthcheck.stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+</dict>
+</plist>

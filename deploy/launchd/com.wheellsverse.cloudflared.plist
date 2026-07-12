@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+Cloudflare tunnel LaunchDaemon.
+
+The tunnel is what makes KAI reachable at kai.wheellsverse.com; before this it
+had no supervisor in the repo at all, so a tunnel crash took KAI dark with no
+captured recovery. This keeps it always-on and boot-started, alongside the API.
+
+Install (or run deploy/install_supervision.sh):
+    sudo cp deploy/launchd/com.wheellsverse.cloudflared.plist /Library/LaunchDaemons/
+    sudo chown root:wheel /Library/LaunchDaemons/com.wheellsverse.cloudflared.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.wheellsverse.cloudflared.plist
+
+Adjust the cloudflared path (/opt/homebrew/bin on Apple-Silicon Homebrew) and the
+--config path to match this host.
+
+NOTE: use EITHER this plist OR `cloudflared service install` — not both, or you
+get two supervisors fighting over the tunnel.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wheellsverse.cloudflared</string>
+
+    <key>UserName</key>
+    <string>jhonwheeler</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/cloudflared</string>
+        <string>tunnel</string>
+        <string>--config</string>
+        <string>/Users/jhonwheeler/.cloudflared/config.yml</string>
+        <string>run</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/cloudflared.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/cloudflared.stderr.log</string>
+
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>

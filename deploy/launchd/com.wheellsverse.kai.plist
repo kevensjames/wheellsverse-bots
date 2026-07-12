@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+KAI LaunchDaemon (system-level, headless-resilient) — SUPERSEDES the legacy
+per-user LaunchAgent com.wheellsverse.nai.plist.
+
+Why a LaunchDaemon instead of a LaunchAgent:
+  - A LaunchDaemon starts at BOOT, before any GUI login. A headless Mac mini
+    that reboots (or auto-updates overnight) comes back WITHOUT anyone logging
+    in. The old LaunchAgent only started after console login — a real SPOF.
+  - It still runs AS the operator user (UserName) so it keeps access to the
+    external-SSD model symlinks and backend/.env.
+
+Install (or just run deploy/install_supervision.sh, which does all three):
+    sudo cp deploy/launchd/com.wheellsverse.kai.plist /Library/LaunchDaemons/
+    sudo chown root:wheel /Library/LaunchDaemons/com.wheellsverse.kai.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.wheellsverse.kai.plist
+
+Planned maintenance (KeepAlive is always-on, so `stop` would just relaunch it):
+    sudo launchctl bootout system/com.wheellsverse.kai
+
+NOTE: disable the old LaunchAgent first to avoid two processes binding :8001 —
+    launchctl bootout gui/$(id -u)/com.wheellsverse.nai 2>/dev/null || true
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.wheellsverse.kai</string>
+
+    <!-- Run as the operator, not root, so file/model/.env access is unchanged. -->
+    <key>UserName</key>
+    <string>jhonwheeler</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/jhonwheeler/wheellsverse_bots/deploy/start_nai.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/jhonwheeler/wheellsverse_bots</string>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!--
+        Always-on: restart on ANY exit, including a clean exit(0). This closes
+        the "an accidental clean shutdown stays down silently" SPOF the audit
+        flagged. ThrottleInterval below still prevents a tight crash loop.
+        For planned maintenance use `launchctl bootout` (see header), not `stop`.
+    -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/kai.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/Users/jhonwheeler/Library/Logs/wheellsverse/kai.stderr.log</string>
+
+    <!-- Foreground-class QoS so macOS power management doesn't deprioritise it. -->
+    <key>ProcessType</key>
+    <string>Interactive</string>
+</dict>
+</plist>
