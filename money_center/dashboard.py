@@ -3,15 +3,23 @@
 money_center/dashboard.py
 ─────────────────────────────────────────────────────────────────────────────
 Flask web dashboard for the Money Center.
-Runs on http://localhost:7777 by default.
+Runs on http://127.0.0.1:7777 by default (loopback only).
 
 Usage:
   python dashboard.py
   python dashboard.py --port 8888
+
+SECURITY: this dashboard can launch arbitrary shell commands, so it is:
+  • bound to loopback (127.0.0.1) by default — pass --host to expose it, which
+    then REQUIRES an operator token;
+  • gated by a session login when MONEY_CENTER_TOKEN / ADMIN_TOKEN is set;
+  • CSRF-protected on every state-changing (POST) route;
+  • HTML-escaped on all asset/user-derived output.
 ─────────────────────────────────────────────────────────────────────────────
 """
 
 import argparse
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -20,12 +28,19 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
-from flask import Flask, abort, redirect, render_template_string, request, url_for
+from flask import (Flask, abort, redirect, render_template_string, request,
+                   session, url_for)
+from markupsafe import Markup, escape as _e
 
 from money_center import registry as reg
+from money_center import security
 
 app = Flask(__name__)
-app.secret_key = "money_center_dev"
+app.secret_key = security.session_secret()
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Strict",
+)
 
 # ─── CSS ─────────────────────────────────────────────────────────────────────
 
@@ -103,10 +118,24 @@ _BASE = """<!DOCTYPE html>
 
 
 def _render(content: str, flash_msg: str = "", flash_cls: str = "flash-ok"):
+    # autoescape=True so request-derived flash_msg/flash_cls can't inject markup;
+    # `content` is HTML we assembled ourselves (with every dynamic value already
+    # escaped at the build site) so it is marked safe.
     from jinja2 import Environment
-    env = Environment()
+    env = Environment(autoescape=True)
     tmpl = env.from_string(_BASE)
-    return tmpl.render(content=content, flash_msg=flash_msg, flash_cls=flash_cls)
+    return tmpl.render(content=Markup(content), flash_msg=flash_msg, flash_cls=flash_cls)
+
+
+def _csrf() -> str:
+    """Ensure the session carries a CSRF token and return it (embed in every form)."""
+    if "csrf" not in session:
+        session["csrf"] = security.new_csrf_token()
+    return session["csrf"]
+
+
+def _csrf_field() -> str:
+    return f'<input type="hidden" name="csrf" value="{_e(_csrf())}">'
 
 
 def _dot(status: str) -> str:
@@ -140,9 +169,54 @@ def _ssd_error():
     return _render(
         f'<div class="card" style="border-color:#f44336">'
         f'<h1>⚠️ SSD Not Mounted</h1>'
-        f'<p style="color:#ef9a9a">The volume <code>{ssd}</code> is not accessible.<br>'
+        f'<p style="color:#ef9a9a">The volume <code>{_e(ssd)}</code> is not accessible.<br>'
         f'Connect the SSD and reload.</p></div>'
     )
+
+
+# ─── Auth / CSRF guard ─────────────────────────────────────────────────────────
+
+_LOGIN_HTML = """
+<h1>🔒 Money Center — Sign in</h1>
+<div class="card" style="max-width:360px">
+<form method="post" action="/login">
+  {csrf}
+  <div class="form-row"><label>Operator token</label>
+    <input type="password" name="token" autofocus autocomplete="current-password"></div>
+  <button class="btn btn-start" type="submit">Sign in</button>
+</form>
+</div>"""
+
+
+@app.before_request
+def _guard():
+    # CSRF on every state-changing request (covers /login too).
+    if request.method == "POST":
+        if not security.csrf_valid(request.form.get("csrf", ""), session.get("csrf", "")):
+            abort(400)
+    # The login page is always reachable; everything else needs a session when a
+    # token is configured.
+    if request.endpoint in ("login", "static"):
+        return
+    if security.admin_token() and not session.get("mc_authed"):
+        if request.method == "POST":
+            abort(403)
+        return redirect(url_for("login"))
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    token = security.admin_token()
+    if request.method == "POST":
+        if token and security.token_valid(request.form.get("token", ""), token):
+            session["mc_authed"] = True
+            return redirect(url_for("index"))
+        return _render(_LOGIN_HTML.format(csrf=_csrf_field()),
+                       "Invalid token.", "flash-err")
+    if not token:
+        # No token configured → nothing to sign in against (loopback-trusted mode).
+        return redirect(url_for("index"))
+    return _render(_LOGIN_HTML.format(csrf=_csrf_field()))
 
 
 # ─── Routes ──────────────────────────────────────────────────────────────────
@@ -158,6 +232,7 @@ def index():
 
     flash_msg = request.args.get("msg", "")
     flash_cls = request.args.get("cls", "flash-ok")
+    csrf = _csrf_field()
 
     rows = ""
     for a in assets:
@@ -165,20 +240,22 @@ def index():
         est = a.get("monthly_estimate_usd", {})
         mid = _fmt_usd(est.get("mid", 0))
         eta = a.get("time_to_first_revenue_days", 0)
-        aid = a["id"]
+        aid = _e(a["id"])
         rows += f"""
         <tr>
           <td>{_dot(st)}</td>
-          <td><a href="/asset/{aid}">{a['name']}</a></td>
-          <td>{a.get('category','')}</td>
+          <td><a href="/asset/{aid}">{_e(a['name'])}</a></td>
+          <td>{_e(a.get('category',''))}</td>
           <td>{mid}</td>
-          <td>{eta}d</td>
+          <td>{_e(eta)}d</td>
           <td>
             <form method="post" action="/start/{aid}" style="display:inline">
+              {csrf}
               <button class="btn btn-start">▶ Start</button>
             </form>
             <form method="post" action="/stop/{aid}" style="display:inline"
-                  onsubmit="return confirm('Stop {aid}?')">
+                  onsubmit="return confirm('Stop this asset?')">
+              {csrf}
               <button class="btn btn-stop">⏹ Stop</button>
             </form>
             <a href="/asset/{aid}" class="btn btn-edit">👁 View</a>
@@ -222,27 +299,28 @@ def asset_detail(asset_id):
 
     est = a.get("monthly_estimate_usd", {})
     st = a.get("status", "idle")
+    aid = _e(asset_id)
 
     def row(label, value):
         return f'<div class="field-row"><span class="field-label">{label}</span><span class="field-value">{value}</span></div>'
 
     fields = "".join([
-        row("ID", a["id"]),
-        row("Name", a["name"]),
-        row("Category", a.get("category", "")),
-        row("Status", f"{_dot(st)} {st}"),
-        row("Description", a.get("description", "")),
-        row("Revenue model", a.get("revenue_model", "")),
+        row("ID", _e(a["id"])),
+        row("Name", _e(a["name"])),
+        row("Category", _e(a.get("category", ""))),
+        row("Status", f"{_dot(st)} {_e(st)}"),
+        row("Description", _e(a.get("description", ""))),
+        row("Revenue model", _e(a.get("revenue_model", ""))),
         row("Monthly Low", _fmt_usd(est.get("low", 0))),
         row("Monthly Mid", _fmt_usd(est.get("mid", 0))),
         row("Monthly High", _fmt_usd(est.get("high", 0))),
         row("Total revenue", _fmt_usd(a.get("total_revenue_usd", 0))),
-        row("ETA first revenue", f"{a.get('time_to_first_revenue_days', 0)} days"),
-        row("Run command", f"<code>{a.get('run_command','')}</code>"),
-        row("Stop command", f"<code>{a.get('stop_command','')}</code>"),
-        row("Working dir", f"<code>{a.get('working_dir','')}</code>"),
-        row("Tags", ", ".join(a.get("tags", []))),
-        row("Notes", a.get("notes", "")),
+        row("ETA first revenue", f"{_e(a.get('time_to_first_revenue_days', 0))} days"),
+        row("Run command", f"<code>{_e(a.get('run_command',''))}</code>"),
+        row("Stop command", f"<code>{_e(a.get('stop_command',''))}</code>"),
+        row("Working dir", f"<code>{_e(a.get('working_dir',''))}</code>"),
+        row("Tags", _e(", ".join(a.get("tags", [])))),
+        row("Notes", _e(a.get("notes", ""))),
         row("Last run", _fmt_date(a.get("last_run"))),
         row("Last stop", _fmt_date(a.get("last_stop"))),
         row("Created", _fmt_date(a.get("created_at"))),
@@ -255,29 +333,33 @@ def asset_detail(asset_id):
         text = log_path.read_text(encoding="utf-8", errors="replace")
         log_tail = "\n".join(text.splitlines()[-50:])
 
+    csrf = _csrf_field()
     actions = f"""
     <div style="margin: 1rem 0; display: flex; gap: .75rem;">
-      <form method="post" action="/start/{asset_id}">
+      <form method="post" action="/start/{aid}">
+        {csrf}
         <button class="btn btn-start">▶ Start</button>
       </form>
-      <form method="post" action="/stop/{asset_id}"
-            onsubmit="return confirm('Stop {asset_id}?')">
+      <form method="post" action="/stop/{aid}"
+            onsubmit="return confirm('Stop this asset?')">
+        {csrf}
         <button class="btn btn-stop">⏹ Stop</button>
       </form>
-      <a href="/edit/{asset_id}" class="btn btn-edit">✏️ Edit</a>
-      <form method="post" action="/remove/{asset_id}"
-            onsubmit="return confirm('Permanently delete {asset_id}?')">
+      <a href="/edit/{aid}" class="btn btn-edit">✏️ Edit</a>
+      <form method="post" action="/remove/{aid}"
+            onsubmit="return confirm('Permanently delete this asset?')">
+        {csrf}
         <button class="btn btn-del">🗑 Delete</button>
       </form>
     </div>"""
 
     log_section = f"""
     <h2>📋 Recent Logs</h2>
-    <div class="log-box">{log_tail or '(no logs yet)'}</div>
-    """ if True else ""
+    <div class="log-box">{_e(log_tail) or '(no logs yet)'}</div>
+    """
 
     content = f"""
-    <h1>{a['name']}</h1>
+    <h1>{_e(a['name'])}</h1>
     {actions}
     <div class="card">{fields}</div>
     {log_section}"""
@@ -297,7 +379,7 @@ def report():
     rows = ""
     for cat, est in sorted(summary["by_category"].items()):
         rows += f"""<tr>
-          <td>{cat}</td>
+          <td>{_e(cat)}</td>
           <td>{_fmt_usd(est['low'])}</td>
           <td style="color:#4caf50;font-weight:bold">{_fmt_usd(est['mid'])}</td>
           <td>{_fmt_usd(est['high'])}</td>
@@ -364,11 +446,12 @@ def add_asset():
         return redirect(url_for("index", msg=f"Asset '{a['id']}' added.", cls="flash-ok"))
 
     # GET — render form
-    cats_opts = "".join(f'<option value="{c}">{c}</option>' for c in sorted(reg.VALID_CATEGORIES))
+    cats_opts = "".join(f'<option value="{_e(c)}">{_e(c)}</option>' for c in sorted(reg.VALID_CATEGORIES))
     content = f"""
     <h1>➕ Add Asset</h1>
     <div class="card">
     <form method="post">
+      {_csrf_field()}
       <div class="form-row"><label>ID (slug)</label><input name="id" required placeholder="my_product"></div>
       <div class="form-row"><label>Name</label><input name="name" required placeholder="My Product"></div>
       <div class="form-row"><label>Category</label><select name="category">{cats_opts}</select></div>
@@ -433,30 +516,31 @@ def edit_asset(asset_id):
 
     est = a.get("monthly_estimate_usd", {"low": 0, "mid": 0, "high": 0})
     cats_opts = "".join(
-        f'<option value="{c}" {"selected" if c == a.get("category") else ""}>{c}</option>'
+        f'<option value="{_e(c)}" {"selected" if c == a.get("category") else ""}>{_e(c)}</option>'
         for c in sorted(reg.VALID_CATEGORIES)
     )
     content = f"""
-    <h1>✏️ Edit: {a['name']}</h1>
+    <h1>✏️ Edit: {_e(a['name'])}</h1>
     <div class="card">
     <form method="post">
-      <div class="form-row"><label>Name</label><input name="name" value="{a['name']}" required></div>
+      {_csrf_field()}
+      <div class="form-row"><label>Name</label><input name="name" value="{_e(a['name'])}" required></div>
       <div class="form-row"><label>Category</label><select name="category">{cats_opts}</select></div>
-      <div class="form-row"><label>Description</label><input name="description" value="{a.get('description','')}"></div>
-      <div class="form-row"><label>Revenue model</label><input name="revenue_model" value="{a.get('revenue_model','')}"></div>
+      <div class="form-row"><label>Description</label><input name="description" value="{_e(a.get('description',''))}"></div>
+      <div class="form-row"><label>Revenue model</label><input name="revenue_model" value="{_e(a.get('revenue_model',''))}"></div>
       <div class="form-row-3">
-        <div><label>Monthly Low ($)</label><input name="est_low" type="number" step="0.01" value="{est.get('low',0)}"></div>
-        <div><label>Monthly Mid ($)</label><input name="est_mid" type="number" step="0.01" value="{est.get('mid',0)}"></div>
-        <div><label>Monthly High ($)</label><input name="est_high" type="number" step="0.01" value="{est.get('high',0)}"></div>
+        <div><label>Monthly Low ($)</label><input name="est_low" type="number" step="0.01" value="{_e(est.get('low',0))}"></div>
+        <div><label>Monthly Mid ($)</label><input name="est_mid" type="number" step="0.01" value="{_e(est.get('mid',0))}"></div>
+        <div><label>Monthly High ($)</label><input name="est_high" type="number" step="0.01" value="{_e(est.get('high',0))}"></div>
       </div>
-      <div class="form-row"><label>Days to first revenue</label><input name="eta_days" type="number" value="{a.get('time_to_first_revenue_days',30)}"></div>
-      <div class="form-row"><label>Run command</label><input name="run_command" value="{a.get('run_command','')}"></div>
-      <div class="form-row"><label>Stop command</label><input name="stop_command" value="{a.get('stop_command','')}"></div>
-      <div class="form-row"><label>Working directory</label><input name="working_dir" value="{a.get('working_dir','')}"></div>
-      <div class="form-row"><label>Tags (comma-separated)</label><input name="tags" value="{','.join(a.get('tags',[]))}"></div>
-      <div class="form-row"><label>Notes</label><textarea name="notes" rows="3">{a.get('notes','')}</textarea></div>
+      <div class="form-row"><label>Days to first revenue</label><input name="eta_days" type="number" value="{_e(a.get('time_to_first_revenue_days',30))}"></div>
+      <div class="form-row"><label>Run command</label><input name="run_command" value="{_e(a.get('run_command',''))}"></div>
+      <div class="form-row"><label>Stop command</label><input name="stop_command" value="{_e(a.get('stop_command',''))}"></div>
+      <div class="form-row"><label>Working directory</label><input name="working_dir" value="{_e(a.get('working_dir',''))}"></div>
+      <div class="form-row"><label>Tags (comma-separated)</label><input name="tags" value="{_e(','.join(a.get('tags',[])))}"></div>
+      <div class="form-row"><label>Notes</label><textarea name="notes" rows="3">{_e(a.get('notes',''))}</textarea></div>
       <button class="btn btn-start" type="submit">✓ Save</button>
-      <a href="/asset/{asset_id}" class="btn btn-del" style="margin-left:.5rem">Cancel</a>
+      <a href="/asset/{_e(asset_id)}" class="btn btn-del" style="margin-left:.5rem">Cancel</a>
     </form>
     </div>"""
     return _render(content)
@@ -480,7 +564,6 @@ def start_asset(asset_id):
     try:
         log_path = HERE / "logs" / f"{asset_id}.log"
         log_fd = open(log_path, "a", encoding="utf-8")
-        import os
         subprocess.Popen(
             cmd, shell=True, cwd=wdir,
             stdout=log_fd, stderr=log_fd,
@@ -538,9 +621,9 @@ def logs_page(asset_id):
         text = "\n".join(raw.splitlines()[-100:])
 
     content = f"""
-    <h1>📋 Logs: {asset_id}</h1>
-    <a href="/asset/{asset_id}" style="font-size:.85rem">← Back to asset</a>
-    <div class="log-box" style="margin-top:1rem">{text or '(no logs yet)'}</div>"""
+    <h1>📋 Logs: {_e(asset_id)}</h1>
+    <a href="/asset/{_e(asset_id)}" style="font-size:.85rem">← Back to asset</a>
+    <div class="log-box" style="margin-top:1rem">{_e(text) or '(no logs yet)'}</div>"""
     return _render(content)
 
 
@@ -549,16 +632,26 @@ def logs_page(asset_id):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--port", type=int, default=reg._cfg.get("dashboard_port", 7777))
-    parser.add_argument("--host", default="0.0.0.0")
+    parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
+
+    # Fail closed: a shell-executing dashboard must not be exposed to the network
+    # without an operator token.
+    if not security.network_bind_allowed(args.host, security.admin_token()):
+        print(f"✗ Refusing to bind {args.host} without an operator token. "
+              f"Set MONEY_CENTER_TOKEN (or ADMIN_TOKEN), or bind 127.0.0.1.")
+        sys.exit(1)
 
     if not reg.check_ssd():
         ssd = reg._cfg.get("ssd_volume", "/Volumes/Wheellsverse")
         print(f"✗ SSD not mounted: '{ssd}'. Connect the drive and retry.")
         sys.exit(1)
 
-    print(f"💰 Money Center dashboard → http://localhost:{args.port}")
+    if not security.admin_token():
+        print("⚠ No MONEY_CENTER_TOKEN set — running loopback-only with no login. "
+              "Set a token to require sign-in.")
+    print(f"💰 Money Center dashboard → http://{args.host}:{args.port}")
     app.run(host=args.host, port=args.port, debug=args.debug)
 
 
