@@ -28,8 +28,7 @@ from pathlib import Path
 HERE = Path(__file__).parent
 sys.path.insert(0, str(HERE.parent))
 
-from flask import (Flask, abort, redirect, render_template_string, request,
-                   session, url_for)
+from flask import Flask, abort, redirect, request, session, url_for
 from markupsafe import Markup, escape as _e
 
 from money_center import registry as reg
@@ -151,7 +150,7 @@ def _fmt_usd(n) -> str:
     try:
         return f"${float(n):,.0f}"
     except Exception:
-        return str(n)
+        return str(_e(n))  # escape: content is Markup-trusted, this value isn't numeric
 
 
 def _fmt_date(iso) -> str:
@@ -161,7 +160,7 @@ def _fmt_date(iso) -> str:
         dt = datetime.fromisoformat(str(iso).replace("Z", "+00:00"))
         return dt.strftime("%Y-%m-%d %H:%M")
     except Exception:
-        return str(iso)[:16]
+        return str(_e(str(iso)[:16]))  # escape tampered/registry-sourced timestamps
 
 
 def _ssd_error():
@@ -190,6 +189,10 @@ _LOGIN_HTML = """
 
 @app.before_request
 def _guard():
+    # Host allowlist: defeat DNS-rebinding that would reach the loopback dashboard
+    # with a foreign Host header (matters most in the no-token loopback posture).
+    if not security.host_allowed(request.host, app.config.get("ALLOWED_HOST", "127.0.0.1")):
+        abort(400)
     # CSRF on every state-changing request (covers /login too).
     if request.method == "POST":
         if not security.csrf_valid(request.form.get("csrf", ""), session.get("csrf", "")):
@@ -642,6 +645,14 @@ def main():
         print(f"✗ Refusing to bind {args.host} without an operator token. "
               f"Set MONEY_CENTER_TOKEN (or ADMIN_TOKEN), or bind 127.0.0.1.")
         sys.exit(1)
+
+    # Only requests whose Host matches the bind address (or loopback) are served.
+    app.config["ALLOWED_HOST"] = args.host
+    if not security.is_loopback(args.host):
+        # Network-exposed: the token + session cookie must not travel in cleartext.
+        app.config["SESSION_COOKIE_SECURE"] = True
+        print("⚠ Network-exposed bind — put this behind a TLS-terminating proxy; "
+              "session cookies are marked Secure.")
 
     if not reg.check_ssd():
         ssd = reg._cfg.get("ssd_volume", "/Volumes/Wheellsverse")

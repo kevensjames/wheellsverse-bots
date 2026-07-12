@@ -25,6 +25,26 @@ def is_loopback(host: str) -> bool:
     return h in _LOOPBACK_HOSTS or h.startswith("127.")
 
 
+def _hostname(host_header: str) -> str:
+    """Extract the bare hostname from a Host header value (strip port / IPv6 brackets)."""
+    h = (host_header or "").strip().lower()
+    if h.startswith("["):                      # [ipv6] or [ipv6]:port
+        return h[1:h.index("]")] if "]" in h else h.strip("[]")
+    if h.count(":") == 1 and h.rsplit(":", 1)[1].isdigit():
+        return h.rsplit(":", 1)[0]             # host:port
+    return h
+
+
+def host_allowed(host_header: str, bound_host: str) -> bool:
+    """Reject a request whose Host header is neither loopback nor the configured
+    bind host. This defeats DNS-rebinding, where a malicious page rebinds its own
+    domain to 127.0.0.1 to reach the loopback dashboard with a foreign Host."""
+    name = _hostname(host_header)
+    if is_loopback(name):
+        return True
+    return bool(name) and name == _hostname(bound_host)
+
+
 def admin_token() -> str:
     """The operator token required to sign in, from the environment ('' if unset)."""
     return (os.environ.get("MONEY_CENTER_TOKEN")

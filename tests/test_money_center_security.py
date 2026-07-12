@@ -56,6 +56,20 @@ def test_new_csrf_token_is_random_hex():
     assert a != b and len(a) >= 24 and all(c in "0123456789abcdef" for c in a)
 
 
+@pytest.mark.parametrize("host_header,bound,ok", [
+    ("127.0.0.1:7777", "127.0.0.1", True),
+    ("localhost:7777", "127.0.0.1", True),
+    ("[::1]:7777", "127.0.0.1", True),
+    ("evil.com", "127.0.0.1", False),          # DNS-rebinding attempt
+    ("evil.com:7777", "127.0.0.1", False),
+    ("10.0.0.5:7777", "10.0.0.5", True),        # matches the configured bind host
+    ("10.0.0.5:7777", "127.0.0.1", False),      # not loopback and not the bind host
+    ("attacker.internal", "10.0.0.5", False),
+])
+def test_host_allowed(host_header, bound, ok):
+    assert sec.host_allowed(host_header, bound) is ok
+
+
 def test_admin_token_reads_env(monkeypatch):
     monkeypatch.delenv("MONEY_CENTER_TOKEN", raising=False)
     monkeypatch.delenv("ADMIN_TOKEN", raising=False)
