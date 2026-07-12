@@ -191,7 +191,9 @@ _LOGIN_HTML = """
 def _guard():
     # Host allowlist: defeat DNS-rebinding that would reach the loopback dashboard
     # with a foreign Host header (matters most in the no-token loopback posture).
-    if not security.host_allowed(request.host, app.config.get("ALLOWED_HOST", "127.0.0.1")):
+    if not security.host_allowed(request.host,
+                                 app.config.get("ALLOWED_HOST", "127.0.0.1"),
+                                 app.config.get("EXTRA_HOSTS", ())):
         abort(400)
     # CSRF on every state-changing request (covers /login too).
     if request.method == "POST":
@@ -646,13 +648,21 @@ def main():
               f"Set MONEY_CENTER_TOKEN (or ADMIN_TOKEN), or bind 127.0.0.1.")
         sys.exit(1)
 
-    # Only requests whose Host matches the bind address (or loopback) are served.
+    # Only requests whose Host matches the bind address, loopback, or an operator-
+    # declared host (MONEY_CENTER_ALLOWED_HOSTS) are served.
     app.config["ALLOWED_HOST"] = args.host
+    app.config["EXTRA_HOSTS"] = security.allowed_hosts_config()
     if not security.is_loopback(args.host):
         # Network-exposed: the token + session cookie must not travel in cleartext.
         app.config["SESSION_COOKIE_SECURE"] = True
-        print("⚠ Network-exposed bind — put this behind a TLS-terminating proxy; "
-              "session cookies are marked Secure.")
+        print("⚠ Network-exposed bind — put this behind a TLS-terminating proxy "
+              "(session cookies are marked Secure and won't be sent over plain HTTP).")
+        # A wildcard bind never equals a client Host, so real-network requests are
+        # rejected unless the operator declares the hostnames clients will use.
+        if args.host in ("0.0.0.0", "::", "") and not app.config["EXTRA_HOSTS"]:
+            print("⚠ Wildcard bind with no MONEY_CENTER_ALLOWED_HOSTS set — only "
+                  "loopback Host headers will be accepted. Set MONEY_CENTER_ALLOWED_HOSTS "
+                  "to the hostname(s) clients use.")
 
     if not reg.check_ssd():
         ssd = reg._cfg.get("ssd_volume", "/Volumes/Wheellsverse")

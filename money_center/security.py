@@ -11,18 +11,22 @@ of any Flask import so they can be unit-tested without the web stack installed.
 """
 
 import hmac
+import ipaddress
 import os
 import secrets
 
-# Hosts that mean "this machine only". A non-loopback bind exposes the dashboard
-# (and therefore arbitrary command execution) to the network.
-_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1", "0:0:0:0:0:0:0:1"}
-
 
 def is_loopback(host: str) -> bool:
-    """True if `host` binds only the local machine."""
+    """True only if `host` is the 'localhost' name or a loopback IP LITERAL
+    (127.0.0.0/8 or ::1). Parsed with ipaddress so a DNS name that merely starts
+    with '127.' (e.g. an attacker's '127.evil.com') is NOT treated as loopback."""
     h = (host or "").strip().lower()
-    return h in _LOOPBACK_HOSTS or h.startswith("127.")
+    if h == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(h).is_loopback
+    except ValueError:
+        return False
 
 
 def _hostname(host_header: str) -> str:
@@ -35,14 +39,29 @@ def _hostname(host_header: str) -> str:
     return h
 
 
-def host_allowed(host_header: str, bound_host: str) -> bool:
-    """Reject a request whose Host header is neither loopback nor the configured
-    bind host. This defeats DNS-rebinding, where a malicious page rebinds its own
-    domain to 127.0.0.1 to reach the loopback dashboard with a foreign Host."""
+def allowed_hosts_config() -> list:
+    """Operator-declared hostnames for a network-exposed (wildcard/proxied) bind,
+    from MONEY_CENTER_ALLOWED_HOSTS (comma-separated)."""
+    raw = os.environ.get("MONEY_CENTER_ALLOWED_HOSTS", "")
+    return [h.strip().lower() for h in raw.split(",") if h.strip()]
+
+
+def host_allowed(host_header: str, bound_host: str, extra_hosts=()) -> bool:
+    """Reject a request whose Host header is neither loopback, the configured bind
+    host, nor an operator-declared host. Defeats DNS-rebinding, where a malicious
+    page rebinds its own domain to a loopback/bound address with a foreign Host.
+
+    A wildcard bind (0.0.0.0 / ::) can never equal a client Host, so exposed
+    deployments must declare their real hostnames via `extra_hosts`
+    (MONEY_CENTER_ALLOWED_HOSTS); loopback is always accepted."""
     name = _hostname(host_header)
+    if not name:
+        return False
     if is_loopback(name):
         return True
-    return bool(name) and name == _hostname(bound_host)
+    if name == _hostname(bound_host):
+        return True
+    return any(name == _hostname(h) for h in extra_hosts)
 
 
 def admin_token() -> str:

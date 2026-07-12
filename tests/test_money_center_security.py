@@ -20,6 +20,8 @@ sec = importlib.import_module("money_center.security")
     ("127.0.0.5", True), ("  LOCALHOST ", True),
     ("0.0.0.0", False), ("192.168.1.10", False), ("10.0.0.1", False),
     ("", False), ("example.com", False),
+    # DNS names that merely START with '127.' must NOT be treated as loopback
+    ("127.evil.com", False), ("127.0.0.1.evil.com", False),
 ])
 def test_is_loopback(host, expected):
     assert sec.is_loopback(host) is expected
@@ -62,12 +64,23 @@ def test_new_csrf_token_is_random_hex():
     ("[::1]:7777", "127.0.0.1", True),
     ("evil.com", "127.0.0.1", False),          # DNS-rebinding attempt
     ("evil.com:7777", "127.0.0.1", False),
+    ("127.evil.com:7777", "127.0.0.1", False), # '127.'-prefix DNS-rebind bypass — must fail
+    ("127.0.0.1.evil.com", "127.0.0.1", False),
     ("10.0.0.5:7777", "10.0.0.5", True),        # matches the configured bind host
     ("10.0.0.5:7777", "127.0.0.1", False),      # not loopback and not the bind host
     ("attacker.internal", "10.0.0.5", False),
 ])
 def test_host_allowed(host_header, bound, ok):
     assert sec.host_allowed(host_header, bound) is ok
+
+
+def test_host_allowed_wildcard_bind_needs_declared_hosts():
+    # A wildcard bind never equals a client Host, so only loopback passes by default...
+    assert sec.host_allowed("mc.internal:7777", "0.0.0.0") is False
+    assert sec.host_allowed("127.0.0.1:7777", "0.0.0.0") is True
+    # ...unless the operator declares the real hostnames (MONEY_CENTER_ALLOWED_HOSTS).
+    assert sec.host_allowed("mc.internal:7777", "0.0.0.0", ["mc.internal"]) is True
+    assert sec.host_allowed("other.host:7777", "0.0.0.0", ["mc.internal"]) is False
 
 
 def test_admin_token_reads_env(monkeypatch):
