@@ -456,6 +456,55 @@ def mark_event_processed(event_id: str) -> bool:
         conn.close()
     return inserted
 
+
+def process_paid_event(event_id: str, creator_id: int, fan_email: str,
+                       fan_name: str, amount: float, stripe_id: str = "") -> str:
+    """Atomically apply a verified paid Stripe event in ONE transaction: the
+    idempotency mark + subscriber activation + earnings transaction all commit
+    together, or none do.
+
+    Returns 'processed' on success, or 'duplicate' if this event id was already
+    handled (the unique insert on nx_processed_events is the race/replay guard).
+    Because the mark and the side-effects share a transaction, a failure anywhere
+    rolls back the mark too, so a Stripe retry can safely re-process — no lost
+    credit, and the unique guard still prevents double credit."""
+    if not event_id:
+        raise ValueError("event_id is required for idempotent processing")
+    platform_cut = round(amount * 0.10, 4)
+    creator_cut  = round(amount * 0.90, 4)
+    now = time.time()
+    conn = get_conn()
+    try:
+        # event id first: a replay raises IntegrityError here before any side-effect
+        conn.execute(
+            "INSERT INTO nx_processed_events (event_id,processed_at) VALUES (?,?)",
+            (event_id, now),
+        )
+        conn.execute(
+            """INSERT INTO nx_subscribers (creator_id,fan_email,fan_name,status,price_paid,stripe_cust,started_at)
+               VALUES (?,?,?,'active',?,?,?)
+               ON CONFLICT(creator_id,fan_email) DO UPDATE SET
+                 status='active', price_paid=excluded.price_paid,
+                 stripe_cust=excluded.stripe_cust, cancelled_at=NULL""",
+            (creator_id, fan_email, fan_name, amount, stripe_id, now),
+        )
+        conn.execute(
+            """INSERT INTO nx_transactions
+               (creator_id,fan_email,amount,platform_cut,creator_cut,type,stripe_id,status,created_at)
+               VALUES (?,?,?,?,?,'subscription',?,'succeeded',?)""",
+            (creator_id, fan_email, amount, platform_cut, creator_cut, stripe_id, now),
+        )
+        conn.commit()
+        return "processed"
+    except sqlite3.IntegrityError:
+        conn.rollback()
+        return "duplicate"
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
 # ── Messages ───────────────────────────────────────────────────────────────────
 
 

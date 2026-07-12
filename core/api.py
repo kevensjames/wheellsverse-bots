@@ -902,7 +902,7 @@ async def admin_login(request: Request):
     resp.set_cookie(
         "wv_admin", _ADMIN_COOKIE_TOKEN,
         httponly=True, samesite="strict",
-        secure=(request.url.scheme == "https"),
+        secure=True,  # prod is https end-to-end (browser side); local dev can use ?api_key=
         max_age=86400, path="/admin",
     )
     return resp
@@ -10961,43 +10961,44 @@ async def nx_stripe_webhook(request: Request):
     try:
         import stripe as _stripe_lib
         _stripe_lib.api_key = os.getenv("STRIPE_SECRET_KEY", "")
-        event = _stripe_lib.Webhook.construct_event(payload, sig, secret)
+        _stripe_lib.Webhook.construct_event(payload, sig, secret)  # verify signature; raises on tamper
     except Exception as e:
         _add_log(f"NEXORA: stripe-webhook signature rejected — {e}", "WARN")
         raise HTTPException(status_code=400, detail="Webhook signature invalid")
 
-    # dict-style access works whether construct_event returns a stripe.Event or a dict
+    # The raw payload is now signature-verified, so parse it as a plain dict.
+    # (A stripe.Event object is NOT a dict and has no .get() in modern stripe-python.)
+    event      = json.loads(payload)
     event_id   = event.get("id", "")
     event_type = event.get("type", "")
 
     if event_type in ("checkout.session.completed", "invoice.payment_succeeded"):
-        from core.nexora_db import (get_creator_by_handle, add_subscriber,
-                                     record_transaction, event_already_processed,
-                                     mark_event_processed)
+        from core.nexora_db import init_db, get_creator_by_handle, process_paid_event
+        init_db()  # ensure nexora tables (incl. nx_processed_events) exist under uvicorn
 
-        # Idempotency: a replayed event must not credit earnings twice.
-        if event_already_processed(event_id):
-            return {"received": True, "duplicate": True}
-
-        obj      = event.get("data", {}).get("object", {})
+        obj      = event.get("data", {}).get("object", {}) or {}
         meta     = obj.get("metadata", {}) or {}
         handle   = meta.get("creator_handle", "")
         fan_email = (
             meta.get("fan_email")
             or obj.get("customer_email")
-            or obj.get("customer_details", {}).get("email", "")
+            or (obj.get("customer_details") or {}).get("email", "")
         )
         fan_name  = meta.get("fan_name", "")
-        amount    = (obj.get("amount_total") or 0) / 100  # cents → dollars (trusted: from Stripe)
+        # invoices carry amount_paid, checkout sessions carry amount_total (cents → dollars)
+        amount    = (obj.get("amount_total") or obj.get("amount_paid") or 0) / 100
         stripe_id = obj.get("id", "")
 
-        if handle and fan_email:
+        if event_id and handle and fan_email:
             creator = get_creator_by_handle(handle)
-            if creator and mark_event_processed(event_id):
-                add_subscriber(creator["id"], fan_email, fan_name, amount, stripe_id)
-                record_transaction(creator["id"], amount, "subscription",
-                                   fan_email, stripe_id)
-                _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
+            if creator:
+                # atomic: idempotency mark + activate + record earnings in one txn
+                result = process_paid_event(event_id, creator["id"], fan_email,
+                                            fan_name, amount, stripe_id)
+                if result == "processed":
+                    _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
+                else:
+                    return {"received": True, "duplicate": True}
 
     return {"received": True}
 

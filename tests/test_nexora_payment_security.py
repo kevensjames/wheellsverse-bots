@@ -98,3 +98,20 @@ def test_event_processed_ledger_is_idempotent(db):
     assert nx.mark_event_processed("evt_1") is True     # first delivery wins
     assert nx.event_already_processed("evt_1") is True
     assert nx.mark_event_processed("evt_1") is False    # replay loses the race
+
+
+def test_process_paid_event_activates_and_credits_once(db):
+    # first delivery: activates the subscriber AND records earnings atomically
+    assert nx.process_paid_event("evt_pay_1", db, "fan@x.io", "Fan", 100.0, "cs_1") == "processed"
+    assert nx.get_active_subscriber_count(db) == 1
+    assert nx.get_earnings(db)["total"] == pytest.approx(90.0, abs=0.01)  # 90% creator cut
+
+    # replay of the SAME event id is a no-op — no double credit
+    assert nx.process_paid_event("evt_pay_1", db, "fan@x.io", "Fan", 100.0, "cs_1") == "duplicate"
+    assert nx.get_earnings(db)["total"] == pytest.approx(90.0, abs=0.01)
+    assert nx.get_active_subscriber_count(db) == 1
+
+
+def test_process_paid_event_requires_event_id(db):
+    with pytest.raises(ValueError):
+        nx.process_paid_event("", db, "fan@x.io", "Fan", 100.0, "cs_1")
