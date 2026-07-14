@@ -1,0 +1,121 @@
+name: Phase 0 Deploy Gate
+
+# Phase 0 of the platform-maturity roadmap: mandatory pre-merge checks so no
+# change reaches a deployable branch (main / istanbul) unless it passes.
+# Starts small and honest — it blocks the things that actually caused the
+# 2026-07-12 audit findings (missing tests, newly committed secrets), and
+# reports (not blocks) on pre-existing debt so it isn't red on day one.
+#
+# To make these BLOCK a merge (not just report), enable branch protection on
+# main + istanbul and require the "gate" check (see PR description).
+#
+# Security note (matches brain-feedback-ingest.yml): values from github.event.*
+# are passed through `env:` and never interpolated inline in `run:` blocks, so
+# attacker-controlled fields can't escape into shell parsing.
+
+on:
+  pull_request:
+    branches: [main, istanbul]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase0-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ── Gate 1: security tests (BLOCKING) ────────────────────────────────────
+  # Runs the dependency-light security suites. They are guarded by existence so
+  # this job is a green no-op on refs that don't carry them yet, and becomes
+  # enforced automatically once PRs #31 / #34 / #35 land the files on istanbul.
+  security-tests:
+    name: Security tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install test deps
+        run: python -m pip install --upgrade pip pytest
+      - name: Run security suites (present-guarded)
+        run: |
+          set -euo pipefail
+          targets=""
+          for f in \
+            tests/test_nexora_payment_security.py \
+            tests/test_money_center_security.py \
+            tests/test_api_auth.py ; do
+            [ -f "$f" ] && targets="$targets $f"
+          done
+          if [ -z "$targets" ]; then
+            echo "No security suites present on this ref yet (they arrive with the security PRs). Nothing to run."
+            exit 0
+          fi
+          echo "Running:$targets"
+          python -m pytest $targets -v
+
+  # ── Gate 2: secret scan (BLOCKING on NEW secrets) ────────────────────────
+  # gitleaks scans only the commits introduced by this PR, so it blocks newly
+  # committed credentials without going red on pre-existing history. The action
+  # needs a GITLEAKS_LICENSE only for GitHub Organizations; this is a user repo.
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so gitleaks can diff the PR range
+      - name: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Gate 3: dependency vulnerabilities (REPORT-ONLY for now) ─────────────
+  # pip-audit against the curated server requirements. Non-blocking until the
+  # dependency set is cleaned up (requirements.txt is currently unsatisfiable);
+  # flip `continue-on-error` to false to make it a hard gate.
+  dependency-scan:
+    name: Dependency scan (report-only)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install pip-audit
+        run: python -m pip install --upgrade pip pip-audit
+      - name: Audit server requirements
+        run: |
+          set -euo pipefail
+          req="requirements-server.txt"
+          if [ ! -f "$req" ]; then
+            echo "$req not found — skipping."
+            exit 0
+          fi
+          # --strict off: report vulns without failing the (report-only) job.
+          pip-audit -r "$req" || echo "::warning::pip-audit reported issues (report-only gate)."
+
+  # ── Aggregate gate: the single required check for branch protection ──────
+  gate:
+    name: gate
+    runs-on: ubuntu-latest
+    needs: [security-tests, secret-scan]
+    if: always()
+    steps:
+      - name: Verify blocking gates passed
+        env:
+          TESTS_RESULT: ${{ needs.security-tests.result }}
+          SECRETS_RESULT: ${{ needs.secret-scan.result }}
+        run: |
+          set -euo pipefail
+          echo "security-tests: $TESTS_RESULT"
+          echo "secret-scan:    $SECRETS_RESULT"
+          if [ "$TESTS_RESULT" != "success" ] || [ "$SECRETS_RESULT" != "success" ]; then
+            echo "::error::Phase 0 gate failed — a blocking check did not pass."
+            exit 1
+          fi
+          echo "Phase 0 gate passed."
