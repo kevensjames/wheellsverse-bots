@@ -493,7 +493,7 @@ function badge(status) {
     FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',COLLECTING:'badge-cyan',SETTLING:'badge-cyan',COMPLETED:'badge-gray',
     FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-red',
   };
-  return `<span class="badge ${map[status]||'badge-gray'}">${status}</span>`;
+  return `<span class="badge ${map[status]||'badge-gray'}">${esc(status)}</span>`;
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 // Escape untrusted strings before interpolating into innerHTML — user-controlled
@@ -1027,7 +1027,7 @@ async function loadBank() {
           <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
             <div>
               <div style="font-weight:600">${esc(a.institution_name || 'Bank')}</div>
-              <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
+              <div style="font-size:.8rem;color:var(--muted)">${esc(a.account_type || 'account')} ···· ${esc(a.account_last4)}</div>
             </div>
             <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
               ${a.verified
