@@ -12,11 +12,14 @@ name: Phase 0 Deploy Gate
 # Security note (matches brain-feedback-ingest.yml): values from github.event.*
 # are passed through `env:` and never interpolated inline in `run:` blocks, so
 # attacker-controlled fields can't escape into shell parsing.
+#
+# Only triggers on pull_request (not workflow_dispatch): the secret scan is
+# scoped to the PR's commit range, which only exists in PR context — a manual
+# run would fall back to a full-history scan and go red on pre-existing secrets.
 
 on:
   pull_request:
     branches: [main, istanbul]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,6 +36,7 @@ jobs:
   security-tests:
     name: Security tests
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -41,6 +45,10 @@ jobs:
       - name: Install test deps
         run: python -m pip install --upgrade pip pytest
       - name: Run security suites (present-guarded)
+        # POST-MERGE FOLLOW-UP: once PRs #31/#34/#35 land these files on istanbul,
+        # drop this guard (or assert the files exist) so a later refactor that
+        # renames/moves a suite fails loudly instead of silently passing with zero
+        # security tests.
         run: |
           set -euo pipefail
           targets=""
@@ -59,27 +67,36 @@ jobs:
 
   # ── Gate 2: secret scan (BLOCKING on NEW secrets) ────────────────────────
   # gitleaks scans only the commits introduced by this PR, so it blocks newly
-  # committed credentials without going red on pre-existing history. The action
-  # needs a GITLEAKS_LICENSE only for GitHub Organizations; this is a user repo.
+  # committed credentials without going red on pre-existing history.
   secret-scan:
     name: Secret scan
     runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write   # let gitleaks annotate the leak location on the PR
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0   # full history so gitleaks can diff the PR range
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v2
+        # SHA-pinned to the v2 tag commit so a repointed tag can't swap the action
+        # under us (supply-chain hardening for a security gate). No GITLEAKS_LICENSE
+        # is required for a personal (non-org) repo.
+        uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7  # v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Gate 3: dependency vulnerabilities (REPORT-ONLY for now) ─────────────
-  # pip-audit against the curated server requirements. Non-blocking until the
-  # dependency set is cleaned up (requirements.txt is currently unsatisfiable);
-  # flip `continue-on-error` to false to make it a hard gate.
+  # pip-audit against the curated server requirements. Non-blocking via the
+  # job-level continue-on-error until the dependency set is cleaned up
+  # (requirements.txt is currently unsatisfiable). The audit step itself exits
+  # non-zero on a finding, so to make this a HARD gate later: set
+  # continue-on-error: false AND add `dependency-scan` to the gate's `needs`.
   dependency-scan:
     name: Dependency scan (report-only)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     continue-on-error: true
     steps:
       - uses: actions/checkout@v4
@@ -96,13 +113,16 @@ jobs:
             echo "$req not found — skipping."
             exit 0
           fi
-          # --strict off: report vulns without failing the (report-only) job.
-          pip-audit -r "$req" || echo "::warning::pip-audit reported issues (report-only gate)."
+          # -r audits the pinned set without installing the (unsatisfiable) full
+          # stack. Exits non-zero on a vuln; job-level continue-on-error keeps that
+          # from blocking the gate (this job is intentionally not in gate.needs).
+          pip-audit -r "$req"
 
   # ── Aggregate gate: the single required check for branch protection ──────
   gate:
     name: gate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs: [security-tests, secret-scan]
     if: always()
     steps:
