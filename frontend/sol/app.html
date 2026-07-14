@@ -534,6 +534,9 @@ async function init() {
     loadOnboarding();  // fire-and-forget — renders checklist once banks arrive
     loadMoneyPanel(); // next contribution, next payout, total saved
     consumePendingInvite();  // if user arrived via ?invite=..., auto-join now
+    // Returning from Stripe Checkout (?premium=success|cancel) — open the Premium
+    // page so loadPremium() can show the return note and poll for activation.
+    if (new URLSearchParams(location.search).get('premium')) nav('premium');
   } catch {
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';
@@ -1245,7 +1248,21 @@ async function loadTrust() {
 // ── Premium ─────────────────────────────────────────────────────────────────────
 async function loadPremium() {
   const el = document.getElementById('premiumContent');
-  el.innerHTML = '<div class="spinner"></div>';
+  // Handle the return from Stripe Checkout (?premium=success|cancel).
+  const ret = new URLSearchParams(location.search).get('premium');
+  let note = '';
+  if (ret === 'success') note = `<div class="card" style="border-color:rgba(30,158,106,.35);margin-bottom:1rem"><div style="font-weight:600;color:var(--green)">Payment received — activating…</div></div>`;
+  else if (ret === 'cancel') note = `<div class="card" style="border-color:rgba(232,147,36,.3);margin-bottom:1rem"><div style="font-size:.9rem;color:var(--muted)">Checkout canceled — no charge was made.</div></div>`;
+  el.innerHTML = note + '<div class="spinner"></div>';
+  if (ret === 'success') {
+    // The real webhook may lag a second — poll /me until premium activates.
+    for (let i = 0; i < 3; i++) {
+      try { const s = await api('/subscriptions/me'); if (s.is_premium) break; } catch(_) {}
+      await new Promise(r => setTimeout(r, 1500));
+    }
+  }
+  // Strip the return param so a refresh doesn't re-trigger the note/poll.
+  if (ret) history.replaceState(null, '', location.pathname);
   try {
     const s = await api('/subscriptions/me');
     const price = fmt$(s.price_cents||1499);
@@ -1262,12 +1279,15 @@ async function loadPremium() {
     try { invoices = await api('/subscriptions/invoices'); } catch(_) {}
     const invTable = invoices.length ? `<h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Billing history</h2>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${invoices.map(i=>`<tr><td style="color:var(--muted)">${new Date(i.created_at).toLocaleDateString()}</td><td>${fmt$(i.amount_cents)}</td><td>${badge(i.status)}</td><td>${safeUrl(i.hosted_url)?`<a href="${esc(safeUrl(i.hosted_url))}" target="_blank" rel="noopener noreferrer" style="color:var(--sol-600)">Receipt</a>`:''}</td></tr>`).join('')}</tbody></table></div>` : '';
-    el.innerHTML = card + invTable;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+    el.innerHTML = note + card + invTable;
+  } catch(e) { el.innerHTML = note + `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function subscribePremium() {
-  const btn=document.getElementById('subBtn'); if(btn){btn.disabled=true;btn.textContent='Activating…';}
-  try { await api('/subscriptions/subscribe', { method:'POST' }); loadPremium(); }
+  const btn=document.getElementById('subBtn'); if(btn){btn.disabled=true;btn.textContent='Redirecting…';}
+  try {
+    const resp = await api('/subscriptions/checkout', { method:'POST' });
+    window.location.href = resp.checkout_url;  // hand off to Stripe-hosted Checkout
+  }
   catch(e){ alert(e.message); if(btn){btn.disabled=false;btn.textContent='Go Premium';} }
 }
 async function cancelPremium() {
