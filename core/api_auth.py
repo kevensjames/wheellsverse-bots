@@ -56,6 +56,7 @@ _LOCKED_PREFIXES = (
     "/api/shopify/media/generate/",  # POST /api/shopify/media/generate/{product_id}
     "/api/narai/schedules/",         # PATCH /{id}, POST /{id}/trigger
     "/api/narai-autopilot/queue/",   # POST /{idx}/mark_done
+    "/api/narai/leadgen/run/",       # POST /{slug} — fires real Google Places/Hunter/Instantly spend (H2)
 )
 
 
