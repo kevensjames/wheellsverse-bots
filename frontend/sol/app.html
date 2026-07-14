@@ -1286,7 +1286,9 @@ async function subscribePremium() {
   const btn=document.getElementById('subBtn'); if(btn){btn.disabled=true;btn.textContent='Redirecting…';}
   try {
     const resp = await api('/subscriptions/checkout', { method:'POST' });
-    window.location.href = resp.checkout_url;  // hand off to Stripe-hosted Checkout
+    const url = safeUrl(resp.checkout_url);  // http(s) only — never navigate to javascript:/data:
+    if (!url) throw new Error('Invalid checkout URL');
+    window.location.href = url;  // hand off to Stripe-hosted Checkout
   }
   catch(e){ alert(e.message); if(btn){btn.disabled=false;btn.textContent='Go Premium';} }
 }
