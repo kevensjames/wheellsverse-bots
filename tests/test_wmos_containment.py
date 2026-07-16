@@ -82,6 +82,13 @@ def test_auth_fails_closed_when_api_key_unset(monkeypatch, tmp_path):
     assert r.status_code == 503, f"protected mutation served with no key configured (got {r.status_code})"
 
 
+def test_protected_read_also_fails_closed_when_api_key_unset(monkeypatch, tmp_path):
+    """M6 (widened): protected READS — not only mutations — are denied (503) when the
+    server API_KEY is unconfigured. /api/narai/scoreboard is a non-public /api/ read."""
+    c = _client(monkeypatch, tmp_path, api_key="")
+    assert c.get("/api/narai/scoreboard").status_code == 503
+
+
 def test_public_route_stays_open_when_api_key_unset(monkeypatch, tmp_path):
     """M6 regression guard: failing closed must NOT block a genuinely public route."""
     c = _client(monkeypatch, tmp_path, api_key="")

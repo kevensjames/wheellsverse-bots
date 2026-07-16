@@ -4,6 +4,9 @@ def _client(monkeypatch, tmp_path):
     monkeypatch.setenv("WMOS_DATA_PATH", str(tmp_path)); monkeypatch.setenv("API_KEY", "test-key-123")
     from fastapi.testclient import TestClient
     from core.api import app
+    # Pin the module global: _API_KEY is frozen at first import, and deny-by-default now
+    # fails CLOSED (503) when it is unset — so pin it rather than rely on import order.
+    monkeypatch.setattr("core.api._API_KEY", "test-key-123")
     return TestClient(app, raise_server_exceptions=False)
 
 

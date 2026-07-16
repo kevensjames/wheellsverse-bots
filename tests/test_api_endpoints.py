@@ -11,11 +11,29 @@ from tests.conftest import (  # noqa: E402
 )
 
 
+_SAVED_API_KEY = None
+
+
+def setUpModule():
+    """Deny-by-default now enforces auth on non-public /api/ routes (and fails CLOSED
+    when unset). Pin a server key so these endpoint CONTRACT tests exercise the
+    handlers, not the auth layer; _get_client() sends the matching key by default."""
+    global _SAVED_API_KEY
+    import core.api
+    _SAVED_API_KEY = core.api._API_KEY
+    core.api._API_KEY = "test-key-123"
+
+
+def tearDownModule():
+    import core.api
+    core.api._API_KEY = _SAVED_API_KEY
+
+
 def _get_client():
-    """Import app and return TestClient — deferred so env vars can be set first."""
+    """Import app and return an authenticated TestClient (sends X-API-Key by default)."""
     from fastapi.testclient import TestClient
     from core.api import app
-    return TestClient(app, raise_server_exceptions=False)
+    return TestClient(app, headers={"X-API-Key": "test-key-123"}, raise_server_exceptions=False)
 
 
 class TestPublisherEngineEndpoints(unittest.TestCase):

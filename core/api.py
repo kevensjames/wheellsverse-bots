@@ -858,19 +858,11 @@ async def api_key_middleware(request: Request, call_next):
     default for mutations, so the ~40 unauthenticated operator routes the audit
     flagged (factory/reset, shopify/discount, product CRUD, autopilot start/stop,
     …) can no longer be driven anonymously. See core/api_auth."""
-    # SECURITY (M6): even with NO server key configured, a locked operator MUTATION
-    # must never be served anonymously — fail CLOSED for state-changing operator
-    # routes (was fail-open: an unset API_KEY disabled the guard entirely). Reads keep
-    # their prior behavior here; the full deny-by-default-for-reads extends in the
-    # hardening phase (it requires the test suite to authenticate). See core/api_auth.
-    if not _API_KEY:
-        from core import api_auth as _api_auth
-        if _api_auth.is_locked_mutation(request.url.path, request.method):
-            return JSONResponse(
-                {"error": "Auth not configured", "hint": "server API_KEY is unset"},
-                status_code=503,
-            )
-    if _API_KEY:
+    # SECURITY (M6): evaluate the auth policy on EVERY request (not only when a key is
+    # configured) so every protected route — mutations AND reads — fails CLOSED. A
+    # missing server API_KEY is "deny", never "allow-all": a deploy that forgets the
+    # key stays locked, matching the portfolio routers' 503-when-unset behavior.
+    if True:  # noqa: SIM103 — the key requirement is decided by requires_api_key below
         from core import api_auth as _api_auth
         path = request.url.path
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
@@ -886,6 +878,13 @@ async def api_key_middleware(request: Request, call_next):
         existing_public = (path in _PUBLIC_PATHS
                            or any(path.startswith(p) for p in _PUBLIC_PREFIXES))
         if _api_auth.requires_api_key(path, request.method, existing_public):
+            # M6: fail CLOSED — protected route reached with no server key configured
+            # is denied (503), never served. Missing key = deny.
+            if not _API_KEY:
+                return JSONResponse(
+                    {"error": "Auth not configured", "hint": "server API_KEY is unset"},
+                    status_code=503,
+                )
             key = (
                 request.headers.get("X-API-Key")
                 or request.headers.get("x-api-key")
