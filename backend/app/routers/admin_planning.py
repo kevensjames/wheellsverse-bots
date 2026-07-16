@@ -204,7 +204,7 @@ def _audited_execute_next(
 ) -> dict[str, Any]:
     rt = build_default_router(session)
     prof = _resolve_operator_profile(session)
-    registry = build_default_registry()
+    registry = build_default_registry(operator=True)  # operator chat (require_admin_token)
     ctx = ToolContext(user_id=prof.id, session=session)
     runner = ex.make_llm_runner(
         rt, prof.id, registry=registry, tool_context=ctx, prefer_local=prefer_local,

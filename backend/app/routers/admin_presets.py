@@ -81,7 +81,7 @@ def preview_preset(preset_id: str):
 
     # Build the default registry the SAME WAY admin_chat does, so the
     # tool count we report matches what the operator would actually see.
-    full_registry = build_default_registry()
+    full_registry = build_default_registry(operator=True)  # operator preset UI (require_admin_token)
     filtered = filter_registry(full_registry, preset)
     full_count = len(full_registry._tools)
     filtered_count = len(filtered._tools)

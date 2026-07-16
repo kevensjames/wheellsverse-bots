@@ -178,7 +178,7 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
     # Unknown preset_id is a 400 (not silent fallback) so a typo in the UI
     # surfaces as an error instead of degrading to bare KAI.
     persona_prompt = ""
-    registry = build_default_registry()
+    registry = build_default_registry(operator=True)  # operator chat (require_admin_token)
     rt = build_default_router(session)
     preset_id_used: str | None = None
     auto_routed = False

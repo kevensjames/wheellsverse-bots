@@ -299,7 +299,9 @@ class TestRegistryIntegration:
         self, mock_composio_cls
     ):
         from app.services.tools import build_default_registry
-        reg = build_default_registry(include_perplexity=False)
+        # Composio is operator-host now: registered for the operator chat, not the
+        # public one (confused-deputy fix).
+        reg = build_default_registry(operator=True, include_perplexity=False)
         names = reg.names()
         assert "notion" in names
         assert "composio" in names
