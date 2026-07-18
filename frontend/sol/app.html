@@ -245,6 +245,62 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .trust-row:first-of-type{border-top:none}
 @media(max-width:1024px){.dash-cols{grid-template-columns:1fr}.dash-side{flex-direction:row;flex-wrap:wrap}.dash-side>div{flex:1;min-width:240px}}
 @media(max-width:900px){.dash-summary{grid-template-columns:repeat(2,1fr)}}
+/* ── Bank & payment methods ─────────────────────────────────────────────── */
+.bank-cols{display:grid;grid-template-columns:1fr 320px;gap:1.5rem;align-items:start}
+.bank-main{min-width:0}
+.bank-side{display:flex;flex-direction:column;gap:1rem}
+#bankList{display:flex;flex-direction:column;gap:.85rem}
+.bank-acct{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1rem 1.1rem;box-shadow:var(--shadow-1)}
+.bank-acct--primary{border-color:var(--sol-300);box-shadow:0 0 0 1px var(--sol-200) inset,var(--shadow-1)}
+.bank-acct__head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+.bank-acct__inst{font-weight:600;font-size:1rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.bank-acct__pri{font-size:.66rem;font-weight:700;letter-spacing:.03em;text-transform:uppercase;color:var(--sol-700);background:var(--sol-50,#fff5ea);border:1px solid var(--sol-200);border-radius:999px;padding:.12rem .5rem}
+.bank-acct__meta{margin-top:.25rem;font-size:.85rem;color:var(--muted);display:flex;gap:.6rem;flex-wrap:wrap}
+.bank-acct__mask{font-variant-numeric:tabular-nums;letter-spacing:.06em}
+.bank-acct__desc{margin:.6rem 0 0;font-size:.85rem;color:var(--ink-600,var(--muted))}
+.bank-acct__linked{margin-top:.25rem;font-size:.78rem}
+.bank-acct__actions{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.85rem;justify-content:space-between}
+.bank-acct__actions-l{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;min-height:1px}
+.bank-acct__contrib{font-size:.82rem;color:var(--sol-700);font-weight:600}
+.bank-acct__remove{color:var(--danger-700)}
+.bank-micro{margin-top:.85rem;border-top:1px solid var(--line);padding-top:.75rem}
+.bank-micro>summary{font-size:.85rem;color:var(--sol-700);cursor:pointer;font-weight:600}
+.bank-micro__form{display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end;margin-top:.6rem}
+.bank-micro__form .field{flex:1;min-width:130px}
+.bank-empty{text-align:center;padding:2rem 1rem;border:1px dashed var(--line);border-radius:var(--r-lg);background:var(--surface)}
+.bank-empty--err{border-style:solid;border-color:var(--warn-300,var(--line))}
+.bank-empty__icon{width:44px;height:44px;margin:0 auto .75rem;color:var(--sol-500)}
+.bank-empty__icon .ic{width:44px;height:44px}
+.bank-empty__title{font-weight:600;margin-bottom:.25rem}
+.bank-empty .btn{margin-top:.75rem}
+.bank-add{margin-top:1.1rem}
+.bank-add>summary{display:inline-flex;width:auto;cursor:pointer;list-style:none}
+.bank-add>summary::-webkit-details-marker{display:none}
+.bank-add__box{margin-top:1rem;max-width:480px}
+#bankForm{display:flex;flex-direction:column;gap:.85rem}
+.bank-trust h3,.bank-side h3{font-size:.95rem;margin:0 0 .3rem}
+.bank-trust__list{list-style:none;padding:0;margin:.5rem 0 0;display:flex;flex-direction:column;gap:.55rem;font-size:.83rem;color:var(--ink-600,var(--muted))}
+.bank-trust__list li{padding-left:1.1rem;position:relative}
+.bank-trust__list li::before{content:"";position:absolute;left:0;top:.5em;width:.4rem;height:.4rem;border-radius:50%;background:var(--sol-400)}
+.bank-checklist{list-style:none;padding:0;margin:.6rem 0 0;display:flex;flex-direction:column;gap:.5rem}
+.bank-check{display:flex;gap:.55rem;align-items:flex-start;font-size:.85rem}
+.bank-check__mark{flex:none;width:1.2rem;height:1.2rem;border-radius:50%;display:grid;place-items:center;font-size:.72rem;font-weight:700;background:var(--surface-2,var(--line));color:var(--muted);border:1px solid var(--line)}
+.bank-check--done .bank-check__mark{background:var(--success-50,#e8f5ec);color:var(--success-700,#1a7d43);border-color:var(--success-300,#7fce9c)}
+.bank-ready-note{display:inline-flex;margin-top:.75rem}
+.bank-remove-list{margin:.5rem 0;padding-left:1.1rem;font-size:.85rem;color:var(--ink-600,var(--muted));display:flex;flex-direction:column;gap:.35rem}
+.ok-msg{color:var(--success-700,#1a7d43);font-size:.8rem;margin:.5rem 0}
+.bank-modal{position:fixed;inset:0;background:rgba(14,23,38,.55);display:none;place-items:center;padding:1rem;z-index:200}
+.bank-modal.is-open{display:grid}
+.bank-modal .modal{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.4rem 1.5rem;box-shadow:var(--shadow-2,0 12px 44px rgba(14,23,38,.28))}
+.bank-modal .modal h3{margin:0 0 .5rem}
+.btn.btn-danger{background:var(--danger-600,#c0392b);border:1px solid var(--danger-700,#a5281b);color:#fff}
+.btn.btn-danger:hover{background:var(--danger-700,#a5281b);color:#fff}
+.modal-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.1rem;flex-wrap:wrap}
+/* a11y: >=44px touch targets for bank action + modal controls (incl. destructive Remove) */
+#page-bank .bank-acct__actions .btn,#page-bank .bank-micro__form .btn,#page-bank .bank-empty .btn,#page-bank .bank-add>summary,.bank-modal .modal-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+/* a11y: darken pending chips on the bank page to reach AA (>=4.5:1) without touching the shared token */
+#page-bank .status.status--pending{color:#7a4600}
+@media(max-width:820px){.bank-cols{grid-template-columns:1fr}.bank-side{order:-1}}
 @media(max-width:640px){
   .dash-hero{grid-template-columns:1fr;text-align:center;padding:1.5rem 1.25rem}
   .hero-stats{justify-content:center;gap:1.25rem}
@@ -556,36 +612,55 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 
   <!-- Bank -->
   <div class="page" id="page-bank">
-    <h1>Linked bank accounts</h1>
-    <p class="sub">Connect your bank account to receive payouts and make contributions.</p>
-
-    <div id="bankList"><div class="spinner"></div></div>
-
-    <div style="margin-top:2rem;max-width:480px">
-      <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Add bank account</h2>
-      <form id="bankForm" onsubmit="handleAddBank(event)" style="display:flex;flex-direction:column;gap:.85rem">
-        <div>
-          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Bank name</label>
-          <input id="bankName" class="input" type="text" placeholder="e.g. Chase, Wells Fargo" required>
+    <div id="bankLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="circles-head">
+      <div><h1>Bank &amp; payment methods</h1><p class="sub">Manage the account used for contributions and payouts.</p></div>
+      <div class="circles-head__actions" id="bankHeadActions"></div>
+    </div>
+    <div class="dash-summary" id="bankSummary" aria-label="Bank summary"></div>
+    <div class="bank-cols">
+      <div class="bank-main">
+        <div class="dash-section-head"><h2 id="bankListHeading" tabindex="-1">Linked accounts</h2></div>
+        <div id="bankList"><div class="spinner"></div></div>
+        <details class="bank-add" id="bankAddSection">
+          <summary class="btn btn-ghost btn--sm">Add a bank account</summary>
+          <div class="form-box bank-add__box">
+            <p class="hint-muted">Link a US checking or savings account. After linking we show only the last 4 digits — never your full account or routing number.</p>
+            <form id="bankForm" onsubmit="handleAddBank(event)">
+              <div class="field"><label for="bankName">Bank name</label><input id="bankName" class="input" type="text" placeholder="e.g. Chase, Wells Fargo" required></div>
+              <div class="field"><label for="routingNumber">Routing number (9 digits)</label><input id="routingNumber" class="input" type="text" inputmode="numeric" maxlength="9" minlength="9" pattern="[0-9]{9}" placeholder="021000021" autocomplete="off" required></div>
+              <div class="field"><label for="accountNumber">Account number</label><input id="accountNumber" class="input" type="text" inputmode="numeric" placeholder="Your checking or savings account number" autocomplete="off" required></div>
+              <div class="field"><label for="accountType">Account type</label><select id="accountType" class="input"><option value="checking">Checking</option><option value="savings">Savings</option></select></div>
+              <p class="err" id="bankErr" style="display:none"></p>
+              <button id="bankBtn" class="btn btn-primary" type="submit">Connect account</button>
+            </form>
+          </div>
+        </details>
+      </div>
+      <aside class="bank-side">
+        <div class="side-card" id="bankReadiness"></div>
+        <div class="side-card bank-trust">
+          <h3>Your privacy</h3>
+          <ul class="bank-trust__list">
+            <li>We never show your full account or routing number — only the last 4 digits.</li>
+            <li>Your linked account is used only for circle contributions and payouts.</li>
+            <li>Removing an account doesn't erase transaction history we're required to keep.</li>
+            <li>See activity you don't recognize? <button type="button" class="link-btn" onclick="nav('notifications')">Get help</button>.</li>
+          </ul>
         </div>
-        <div>
-          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Routing number (9 digits)</label>
-          <input id="routingNumber" class="input" type="text" inputmode="numeric" maxlength="9" minlength="9" pattern="[0-9]{9}" placeholder="021000021" required>
+      </aside>
+    </div>
+    <!-- Remove-account confirmation dialog (focus-trapped, Escape-to-close) -->
+    <div class="bank-modal" id="bankRemoveDialog" role="dialog" aria-modal="true" aria-labelledby="bankRemoveTitle" aria-describedby="bankRemoveBody">
+      <div class="modal">
+        <h3 id="bankRemoveTitle">Remove bank account?</h3>
+        <div id="bankRemoveBody" class="bank-remove-body"></div>
+        <p class="err" id="bankRemoveErr" role="alert" style="display:none"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeRemoveDialog()">Keep account</button>
+          <button type="button" class="btn btn-danger" id="bankRemoveConfirm" onclick="confirmRemove()">Remove account</button>
         </div>
-        <div>
-          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Account number</label>
-          <input id="accountNumber" class="input" type="text" inputmode="numeric" placeholder="Your checking/savings account number" required>
-        </div>
-        <div>
-          <label style="font-size:.8rem;color:var(--muted);display:block;margin-bottom:.35rem">Account type</label>
-          <select id="accountType" class="input">
-            <option value="checking">Checking</option>
-            <option value="savings">Savings</option>
-          </select>
-        </div>
-        <div id="bankErr" style="color:var(--danger-600);font-size:.85rem;display:none"></div>
-        <button id="bankBtn" class="btn btn-primary" type="submit">Connect account</button>
-      </form>
+      </div>
     </div>
   </div>
 </main>
@@ -1651,54 +1726,238 @@ async function submitKyc() {
 }
 
 // ── Bank ──────────────────────────────────────────────────────────────────────
+// ═══ Bank & payment methods — high-trust linked-account center ════════════════
+// Canonical bank-state model. The backend BankAccount exposes ONLY: status
+// (ACTIVE | REMOVED) + a `verified` bool + is_primary. There is NO reconnect /
+// failed / blocked enum, so we never fabricate those controls — we map the REAL
+// states and fall to an honest "Status unavailable" for anything unrecognized.
+// A record existing is NEVER payment-ready: only ACTIVE + verified===true is READY.
+const BANK_STATE = {
+  VERIFIED:     { key:'VERIFIED',     label:'Verified',             cls:'verified',  ready:true,  desc:'Ready for contributions and payouts.' },
+  PENDING:      { key:'PENDING',      label:'Verification pending', cls:'pending',   ready:false, desc:'Confirm the two micro-deposits below to finish linking this account.' },
+  DISCONNECTED: { key:'DISCONNECTED', label:'Removed',              cls:'cancelled', ready:false, desc:'This account is no longer linked.' },
+  UNKNOWN:      { key:'UNKNOWN',      label:'Status unavailable',   cls:'pending',   ready:false, desc:"We can't confirm this account's status right now." },
+};
+function normalizeBank(a) {
+  if (!a || typeof a !== 'object') return BANK_STATE.UNKNOWN;
+  if (a.status === 'REMOVED') return BANK_STATE.DISCONNECTED;
+  if (a.status !== 'ACTIVE') return BANK_STATE.UNKNOWN;   // unrecognized status → honest unavailable
+  return a.verified === true ? BANK_STATE.VERIFIED : BANK_STATE.PENDING;
+}
+function bankDate(s) { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }); }
+function bankMask(a) { const l4 = (a && typeof a.account_last4 === 'string' && /^\d{2,4}$/.test(a.account_last4)) ? a.account_last4 : null; return l4 ? ('•••• ' + l4) : 'Account ending unavailable'; }
+// Announce into a persistent page-level live region that survives loadBank()'s re-render.
+function bankAnnounce(msg) { const el = document.getElementById('bankLiveStatus'); if (el) { el.textContent = ''; el.textContent = msg; } }
+
+let bankState = { accounts: [], ok: false, me: null, meOk: false };
+
 async function loadBank() {
-  const el = document.getElementById('bankList');
-  el.innerHTML = '<div class="spinner"></div>';
+  const list = document.getElementById('bankList');
+  if (!list) return;
+  list.innerHTML = '<div class="spinner"></div>';
+  const [accRes, meRes] = await Promise.allSettled([ api('/bank/list'), api('/auth/me') ]);
+  bankState.ok = accRes.status === 'fulfilled' && Array.isArray(accRes.value);
+  bankState.accounts = bankState.ok ? accRes.value : [];
+  bankState.meOk = meRes.status === 'fulfilled' && meRes.value && typeof meRes.value === 'object';
+  bankState.me = bankState.meOk ? meRes.value : null;
+
+  if (!bankState.ok) {
+    list.innerHTML = `<div class="bank-empty bank-empty--err">
+      <div class="bank-empty__title">We couldn't load your accounts</div>
+      <p class="hint-muted">Your linked accounts are safe. Please try again in a moment.</p>
+      <button type="button" class="btn btn-ghost btn--sm" onclick="loadBank()">Retry</button></div>`;
+  } else if (!bankState.accounts.length) {
+    list.innerHTML = `<div class="bank-empty">
+      <div class="bank-empty__icon" aria-hidden="true"><svg class="ic"><use href="#ic-bank"/></svg></div>
+      <div class="bank-empty__title">No account linked yet</div>
+      <p class="hint-muted">Link a US checking or savings account to make contributions and receive payouts.</p>
+      <button type="button" class="btn btn-primary btn--sm" onclick="openBankAdd()">Connect a bank account</button></div>`;
+  } else {
+    list.innerHTML = bankState.accounts.map(bankCard).join('');
+  }
+  renderBankSummary();
+  renderBankReadiness();
+  renderBankHeadAction();
+}
+
+function bankCard(a) {
+  const st = normalizeBank(a);
+  const masked = bankMask(a);
+  const inst = esc((a && a.institution_name) || 'Bank account');
+  const type = (a && a.account_type) ? esc(String(a.account_type)) : 'Account';
+  const primary = !!(a && a.is_primary === true);
+  const id = esc(String((a && a.id) || ''));
+  const linked = bankDate(a && a.created_at);
+  return `<div class="bank-acct${primary ? ' bank-acct--primary' : ''}">
+    <div class="bank-acct__head">
+      <div class="bank-acct__id">
+        <div class="bank-acct__inst">${inst}${primary ? ' <span class="bank-acct__pri">Primary</span>' : ''}</div>
+        <div class="bank-acct__meta"><span class="bank-acct__type">${type}</span><span class="bank-acct__mask">${masked}</span></div>
+      </div>
+      <span class="status status--${st.cls}">${st.label}</span>
+    </div>
+    <p class="bank-acct__desc">${esc(st.desc)}</p>
+    ${linked ? `<div class="bank-acct__linked hint-muted">Linked ${linked}</div>` : ''}
+    <div class="bank-acct__actions">
+      <div class="bank-acct__actions-l">${primary
+        ? '<span class="bank-acct__contrib">Contribution account</span>'
+        : (st.key === 'VERIFIED' ? `<button type="button" class="btn btn-ghost btn--sm" onclick="setPrimary('${id}')">Use as primary</button>` : '')}</div>
+      <button type="button" class="btn btn-ghost btn--sm bank-acct__remove" aria-label="Remove ${inst}, ${masked}" onclick="openRemoveDialog('${id}')">Remove</button>
+    </div>
+    ${st.key === 'PENDING' ? microDepositForm(id) : ''}
+  </div>`;
+}
+
+function microDepositForm(id) {
+  return `<details class="bank-micro" open>
+    <summary>Verify micro-deposits</summary>
+    <p class="hint-muted">Within 1–3 business days, SOLCIRCLE sends two small deposits (each under $1) to this account. Enter the amounts in cents to verify.</p>
+    <form onsubmit="handleVerifyMicro(event, '${id}')" class="bank-micro__form">
+      <div class="field"><label for="a1-${id}">Amount 1 (cents)</label><input id="a1-${id}" name="a1" class="input" type="number" min="1" max="99" required placeholder="e.g. 3"></div>
+      <div class="field"><label for="a2-${id}">Amount 2 (cents)</label><input id="a2-${id}" name="a2" class="input" type="number" min="1" max="99" required placeholder="e.g. 9"></div>
+      <button class="btn btn-primary btn--sm" type="submit">Verify</button>
+    </form>
+    <p class="err" id="vErr-${id}" style="display:none" role="alert"></p>
+    <p class="ok-msg" id="vOk-${id}" style="display:none" aria-live="polite"></p>
+  </details>`;
+}
+
+function bankSumCard(label, val, cls) {
+  return `<div class="sum-card"><div class="sum-label">${esc(label)}</div><div class="sum-val"><span class="status status--${cls}">${esc(val)}</span></div></div>`;
+}
+function renderBankSummary() {
+  const el = document.getElementById('bankSummary'); if (!el) return;
+  if (!bankState.ok) {
+    el.innerHTML = bankSumCard('Connection status','Unavailable','pending')
+      + bankSumCard('Verification','Unavailable','pending')
+      + bankSumCard('Payment readiness','Unavailable','pending')
+      + bankSumCard('Connected accounts','—','pending');
+    return;
+  }
+  const active = bankState.accounts.filter(a => a && a.status === 'ACTIVE');
+  const verified = active.filter(a => a.verified === true);
+  const conn = active.length ? ['Connected','active'] : ['Not connected','pending'];
+  const ver = verified.length ? ['Verified','verified'] : (active.length ? ['Pending','pending'] : ['None','pending']);
+  let ready;
+  if (!bankState.meOk) ready = ['Status unavailable','pending'];
+  else {
+    const idOk = String((bankState.me && bankState.me.kyc_status) || '').toUpperCase() === 'VERIFIED';
+    ready = (verified.length && idOk) ? ['Ready','verified'] : ['Action needed','pending'];
+  }
+  el.innerHTML = bankSumCard('Connection status', conn[0], conn[1])
+    + bankSumCard('Verification', ver[0], ver[1])
+    + bankSumCard('Payment readiness', ready[0], ready[1])
+    + bankSumCard('Connected accounts', String(active.length), active.length ? 'verified' : 'pending');
+}
+
+function renderBankReadiness() {
+  const el = document.getElementById('bankReadiness'); if (!el) return;
+  const active = bankState.ok ? bankState.accounts.filter(a => a && a.status === 'ACTIVE') : [];
+  const verified = active.filter(a => a.verified === true);
+  const idState = !bankState.meOk ? 'unknown' : (String((bankState.me.kyc_status) || '').toUpperCase() === 'VERIFIED' ? 'done' : 'todo');
+  const connState = !bankState.ok ? 'unknown' : (active.length ? 'done' : 'todo');
+  const verState = !bankState.ok ? 'unknown' : (verified.length ? 'done' : 'todo');
+  const anyUnknown = [idState, connState, verState].includes('unknown');
+  const allDone = idState === 'done' && connState === 'done' && verState === 'done';
+  const item = (state, text) => {
+    const mark = state === 'done' ? '✓' : (state === 'unknown' ? '?' : '○');
+    return `<li class="bank-check bank-check--${state}"><span class="bank-check__mark" aria-hidden="true">${mark}</span><span>${esc(text)}</span></li>`;
+  };
+  const payLabel = anyUnknown ? 'Status unavailable' : (allDone ? 'Payments enabled' : 'Finish the steps above to enable payments');
+  const payCls = anyUnknown ? 'pending' : (allDone ? 'verified' : 'pending');
+  el.innerHTML = `<h3>Payment readiness</h3>
+    <ul class="bank-checklist">
+      ${item(idState, idState === 'done' ? 'Identity verified' : (idState === 'unknown' ? 'Identity status unavailable' : 'Verify your identity'))}
+      ${item(connState, connState === 'done' ? 'Bank account connected' : (connState === 'unknown' ? 'Connection status unavailable' : 'Connect a bank account'))}
+      ${item(verState, verState === 'done' ? 'Bank account verified' : (verState === 'unknown' ? 'Verification status unavailable' : 'Verify your bank account'))}
+    </ul>
+    <div class="bank-ready-note status status--${payCls}">${esc(payLabel)}</div>
+    ${idState === 'todo' ? `<button type="button" class="btn btn-ghost btn--sm" style="margin-top:.7rem" onclick="nav('kyc')">Verify identity</button>` : ''}`;
+}
+
+function renderBankHeadAction() {
+  const el = document.getElementById('bankHeadActions'); if (!el) return;
+  const active = bankState.ok ? bankState.accounts.filter(a => a && a.status === 'ACTIVE') : [];
+  let primary = '';
+  if (bankState.ok && !active.length) primary = `<button type="button" class="btn btn-primary" onclick="openBankAdd()">Connect a bank account</button>`;
+  else if (bankState.ok) primary = `<button type="button" class="btn btn-ghost" onclick="openBankAdd()">Add another account</button>`;
+  el.innerHTML = `${primary}<button type="button" class="btn btn-ghost" onclick="nav('payments')">View payment activity</button>`;
+}
+
+function openBankAdd() {
+  const d = document.getElementById('bankAddSection');
+  if (!d) return;
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const inp = document.getElementById('bankName');
+  if (inp) setTimeout(() => inp.focus(), 200);
+}
+
+// ── Remove-account confirmation dialog (accessible: focus-trap, Escape, restore) ─
+let _bankRemove = { id: null, trigger: null };
+let _bankRemoveInFlight = false;
+function openRemoveDialog(id) {
+  const a = (bankState.accounts || []).find(x => x && String(x.id) === String(id));
+  if (!a) return;
+  _bankRemove = { id: String(id), trigger: document.activeElement };
+  const masked = bankMask(a);
+  const inst = esc(a.institution_name || 'Bank account');
+  const primary = a.is_primary === true;
+  const others = (bankState.accounts || []).filter(x => x && x.status === 'ACTIVE' && String(x.id) !== String(id)).length;
+  const body = document.getElementById('bankRemoveBody');
+  body.innerHTML = `<p>You're about to remove <strong>${inst} ${esc(masked)}</strong>.</p>
+    <ul class="bank-remove-list">
+      <li>Future contributions and payouts will need a connected, verified account.</li>
+      ${primary && others ? '<li>Another linked account will automatically become your contribution account — check which one is primary afterward.</li>' : ''}
+      ${primary && !others ? "<li>This is your only linked account — you'll need to connect a new one before you can contribute.</li>" : ''}
+      <li>Your past payment history is kept — removing an account doesn't erase records.</li>
+      <li>This can't be undone from here.</li>
+    </ul>
+    <p class="hint-muted">If a payment is in progress, removal may be declined to protect it.</p>`;
+  document.getElementById('bankRemoveErr').style.display = 'none';
+  const btn = document.getElementById('bankRemoveConfirm'); btn.disabled = false; btn.textContent = 'Remove account';
+  document.getElementById('bankRemoveDialog').classList.add('is-open');
+  document.addEventListener('keydown', _bankDialogKey, true);
+  setTimeout(() => { const k = document.querySelector('#bankRemoveDialog .btn-ghost'); if (k) k.focus(); }, 0);
+}
+function closeRemoveDialog(skipRestore) {
+  const dlg = document.getElementById('bankRemoveDialog');
+  if (dlg) dlg.classList.remove('is-open');
+  document.removeEventListener('keydown', _bankDialogKey, true);
+  const t = _bankRemove.trigger; _bankRemove = { id: null, trigger: null };
+  // On success we skip restore because loadBank() destroys the trigger; caller lands focus itself.
+  if (!skipRestore && t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
+}
+function _bankDialogKey(e) {
+  if (e.key === 'Escape') { e.preventDefault(); closeRemoveDialog(); return; }
+  if (e.key === 'Tab') {
+    const dlg = document.getElementById('bankRemoveDialog');
+    const f = dlg.querySelectorAll('button:not([disabled])');
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (!dlg.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }  // trap: pull escaped focus back
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
+}
+async function confirmRemove() {
+  if (_bankRemoveInFlight || !_bankRemove.id) return;
+  _bankRemoveInFlight = true;
+  const id = _bankRemove.id;
+  const btn = document.getElementById('bankRemoveConfirm'); btn.disabled = true; btn.textContent = 'Removing…';
   try {
-    const accounts = await api('/bank/list');
-    if (!accounts.length) {
-      el.innerHTML = '<div class="empty" style="margin-bottom:1.5rem">No bank accounts linked yet. Add one below.</div>';
-      return;
-    }
-    el.innerHTML = `<div style="display:flex;flex-direction:column;gap:.75rem;max-width:600px;margin-bottom:1.5rem">
-      ${accounts.map(a => `
-        <div class="card" style="display:flex;flex-direction:column;gap:.75rem">
-          <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
-            <div>
-              <div style="font-weight:600">${esc(a.institution_name || 'Bank')}</div>
-              <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
-            </div>
-            <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
-              ${a.verified
-                ? '<span class="badge badge-green">✓ Verified</span>'
-                : '<span class="badge badge-yellow">⏳ Pending verification</span>'}
-              ${a.is_primary ? '<span style="color:var(--gold);font-size:.8rem">★ Primary</span>' :
-                `<button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem" onclick="setPrimary('${a.id}')">Set primary</button>`}
-              <button class="btn btn-ghost" style="font-size:.8rem;padding:.35rem .75rem;color:var(--danger-600)" onclick="removeBank('${a.id}')">Remove</button>
-            </div>
-          </div>
-          ${a.verified ? '' : `
-          <details open style="border-top:1px solid var(--line);padding-top:.6rem">
-            <summary style="font-size:.8rem;color:var(--sol-600);cursor:pointer">Verify micro-deposits</summary>
-            <div style="padding:.75rem 0;font-size:.8rem;color:var(--muted)">
-              Within 1–3 business days, Sol sends two small deposits (each under $1) to this account. Enter the amounts in cents below.
-            </div>
-            <form onsubmit="handleVerifyMicro(event, '${a.id}')" style="display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-end">
-              <div style="flex:1;min-width:120px"><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Amount 1 (cents)</label>
-                <input name="a1" type="number" min="1" max="99" required placeholder="e.g. 3" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900)">
-              </div>
-              <div style="flex:1;min-width:120px"><label style="font-size:.75rem;color:var(--muted);display:block;margin-bottom:.3rem">Amount 2 (cents)</label>
-                <input name="a2" type="number" min="1" max="99" required placeholder="e.g. 9" style="width:100%;background:var(--surface);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900)">
-              </div>
-              <button class="btn btn-primary" type="submit" style="font-size:.8rem;padding:.45rem 1rem">Verify</button>
-            </form>
-            <div id="vErr-${a.id}" style="color:var(--danger-600);font-size:.75rem;margin-top:.4rem;display:none"></div>
-            <div id="vOk-${a.id}" style="color:var(--green);font-size:.75rem;margin-top:.4rem;display:none"></div>
-          </details>
-          `}
-        </div>`).join('')}
-    </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    await api(`/bank/${id}`, { method: 'DELETE' });
+    closeRemoveDialog(true);            // skip focus-restore: loadBank() destroys the trigger
+    await loadBank();                   // re-fetch backend truth — never optimistically hide
+    bankAnnounce('Account removed.');
+    const h = document.getElementById('bankListHeading'); if (h) h.focus();   // land focus on a stable element
+  } catch (e) {
+    const err = document.getElementById('bankRemoveErr');
+    err.textContent = (e && e.message) ? e.message : "We couldn't remove this account. Please try again.";
+    err.style.display = 'block';
+    btn.disabled = false; btn.textContent = 'Remove account';
+    loadBank();                         // reconcile list with server truth (e.g. 404/409 already-removed)
+  } finally { _bankRemoveInFlight = false; }
 }
 
 // ── Payments page ─────────────────────────────────────────────────────────────
@@ -1869,13 +2128,8 @@ async function setPrimary(id) {
   } catch(e) { alert(e.message); }
 }
 
-async function removeBank(id) {
-  if (!confirm('Remove this bank account?')) return;
-  try {
-    await api(`/bank/${id}`, { method:'DELETE' });
-    loadBank();
-  } catch(e) { alert(e.message); }
-}
+// Legacy alias → routes any old caller through the accessible confirmation dialog.
+function removeBank(id) { openRemoveDialog(id); }
 
 async function handleVerifyMicro(e, accountId) {
   e.preventDefault();
@@ -1892,6 +2146,7 @@ async function handleVerifyMicro(e, accountId) {
     });
     okEl.textContent = '✓ Verified — you can now contribute to circles.';
     okEl.style.display = 'block';
+    bankAnnounce('Account verified. You can now contribute to circles.');  // persists past the loadBank re-render
     form.reset();
     loadBank();       // refresh badges on the bank page
     loadOnboarding(); // refresh dashboard checklist
