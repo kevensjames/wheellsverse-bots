@@ -519,6 +519,73 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   #page-discover .circles-head__actions{width:100%}#page-discover .circles-head__actions .btn{width:100%}
   .disc-detail-modal .modal-actions{flex-direction:column-reverse}.disc-detail-modal .modal-actions .btn{width:100%}
 }
+/* ── Community ────────────────────────────────────────────────────────────── */
+.comm-guidelines{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:.85rem 1.15rem;margin:.25rem 0 1.1rem}
+.comm-guidelines>summary{font-weight:600;font-size:.9rem;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:.5rem;min-height:44px}
+.comm-guidelines>summary::-webkit-details-marker{display:none}
+.comm-guidelines>summary::after{content:'\25be';color:var(--muted);transition:transform .2s}
+.comm-guidelines[open]>summary::after{transform:rotate(180deg)}
+.comm-guidelines ul{margin:.5rem 0 .2rem;padding-left:1.1rem;font-size:.82rem;color:var(--ink-600,var(--muted));display:flex;flex-direction:column;gap:.35rem}
+.comm-guidelines a{color:var(--sol-700,#8a4d0e);text-decoration:underline;cursor:pointer}
+.comm-composer{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.05rem 1.15rem;margin-bottom:1.1rem}
+.comm-composer label{font-weight:600;font-size:.9rem;display:block;margin-bottom:.4rem}
+.comm-composer textarea{width:100%;resize:vertical;min-height:82px}
+.comm-composer__foot{display:flex;justify-content:space-between;align-items:center;gap:.75rem;margin-top:.55rem;flex-wrap:wrap}
+.comm-counter{font-size:.76rem;color:var(--muted);font-variant-numeric:tabular-nums}
+.comm-counter.is-over{color:var(--danger-600,#c0392b);font-weight:600}
+.comm-note{font-size:.75rem;color:var(--muted);margin:.5rem 0 0}
+.comm-filters{display:flex;gap:.5rem;flex-wrap:wrap;margin:.25rem 0 1rem}
+.comm-filter{border:1px solid var(--line);background:var(--surface);color:var(--ink-700,var(--ink-900));border-radius:999px;padding:.4rem .95rem;font-size:.82rem;cursor:pointer;min-height:38px}
+.comm-filter[aria-pressed="true"]{background:var(--sol-600,#b96a12);color:#fff;border-color:transparent;font-weight:600}
+.comm-feed{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.85rem}
+.comm-post{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1rem 1.15rem;box-shadow:var(--shadow-1);animation:comm-in .2s ease both}
+@keyframes comm-in{from{opacity:0}to{opacity:1}}
+.comm-post__head{display:flex;justify-content:space-between;gap:.75rem;align-items:baseline;flex-wrap:wrap}
+.comm-post__who{font-weight:600;font-size:.88rem}
+.comm-post__who .comm-you{color:var(--sol-600,#b96a12)}
+.comm-post__meta{display:flex;gap:.45rem;align-items:center;font-size:.74rem;color:var(--muted);flex-wrap:wrap}
+.comm-chip{font-size:.66rem;text-transform:uppercase;letter-spacing:.03em;border:1px solid var(--line);border-radius:999px;padding:.08rem .5rem;color:var(--muted)}
+.comm-chip--circle{color:var(--sol-700,#8a4d0e);border-color:var(--sol-200,#f0d6a8)}
+.comm-post__body{margin:.55rem 0 0;font-size:.9rem;line-height:1.5;color:var(--ink-800,var(--ink-900));white-space:pre-wrap;overflow-wrap:anywhere}
+.comm-post__acts{display:flex;gap:.3rem;flex-wrap:wrap;margin-top:.7rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.comm-act{background:none;border:0;color:var(--muted);font-size:.8rem;cursor:pointer;padding:.4rem .55rem;border-radius:var(--r-sm);min-height:38px;display:inline-flex;align-items:center;gap:.3rem}
+.comm-act:hover{background:var(--surface-2)}
+.comm-act.is-on{color:var(--sol-600,#b96a12);font-weight:600}
+.comm-act[disabled]{opacity:.55;cursor:default}
+.comm-comments{margin-top:.7rem;padding-top:.7rem;border-top:1px dashed var(--line)}
+.comm-comments__list{list-style:none;padding:0;margin:0 0 .6rem;display:flex;flex-direction:column;gap:.55rem}
+.comm-comments__empty{font-size:.8rem;color:var(--muted);margin:0 0 .6rem}
+.comm-comment__who{font-weight:600;font-size:.78rem;color:var(--ink-700,var(--ink-900))}
+.comm-comment__who .comm-you{color:var(--sol-600,#b96a12)}
+.comm-comment__meta{font-size:.7rem;color:var(--muted);margin-left:.4rem}
+.comm-comment__body{margin:.15rem 0 0;font-size:.84rem;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-700,var(--muted))}
+.comm-comment__report{background:none;border:0;color:var(--muted);font-size:.72rem;cursor:pointer;padding:.2rem .1rem;text-decoration:underline}
+.comm-cbox{display:flex;flex-direction:column;gap:.4rem}
+.comm-cbox textarea{width:100%;resize:vertical;min-height:52px}
+.comm-cbox__foot{display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap}
+.comm-boundary{background:var(--sol-50,#fff5ea);border:1px solid var(--sol-200,#f0d6a8);border-radius:var(--r-lg);padding:.9rem 1.1rem;margin-top:1.25rem;font-size:.82rem;color:var(--ink-700,var(--ink-900))}
+.comm-boundary strong{color:var(--sol-700,#8a4d0e)}
+.comm-boundary a{color:var(--sol-700,#8a4d0e);text-decoration:underline;cursor:pointer}
+.comm-loadmore{display:flex;justify-content:center;margin-top:1rem}
+.comm-report__field{margin:.3rem 0 .6rem}
+.comm-report__field>label{display:block;font-weight:600;font-size:.82rem;margin-bottom:.25rem}
+.comm-report__field textarea{width:100%;resize:vertical}
+.comm-report__field[role="radiogroup"] label{display:flex;align-items:center;gap:.5rem;font-weight:400;font-size:.85rem;padding:.3rem 0;min-height:38px;cursor:pointer;margin:0}
+.comm-report__field[role="radiogroup"] input{width:auto;margin:0}
+.comm-report__note{font-size:.78rem;color:var(--muted);margin:.2rem 0 .6rem}
+#page-community .comm-composer .btn,#page-community .comm-loadmore .btn,#page-community .comm-cbox .btn,#page-community .circles-head__actions .btn,.bank-modal #commReportForm .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
+@media(max-width:560px){
+  .comm-filters{overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;padding-bottom:.2rem}
+  .comm-filter{flex:0 0 auto;min-height:44px}
+  .comm-post__acts .comm-act{flex:1;justify-content:center;min-height:44px}
+  .comm-comment__report{min-height:44px;padding:.5rem 0}
+  .comm-report__field[role="radiogroup"] label{min-height:44px}
+  #page-community .circles-head{flex-direction:column;align-items:stretch}
+  #page-community .circles-head__actions{width:100%}#page-community .circles-head__actions .btn{flex:1}
+  #page-community .comm-composer__foot .btn{width:100%}
+  #page-community .comm-cbox__foot .btn{width:100%}
+}
+@media(prefers-reduced-motion:reduce){.comm-post{animation:none}.comm-guidelines>summary::after{transition:none}}
 @media(max-width:640px){
   .dash-hero{grid-template-columns:1fr;text-align:center;padding:1.5rem 1.25rem}
   .hero-stats{justify-content:center;gap:1.25rem}
@@ -872,14 +939,79 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 
   <!-- Community -->
   <div class="page" id="page-community">
-    <h1>Community</h1>
-    <p class="sub">Share wins and encouragement across the Sol community</p>
-    <div class="form-box" style="margin-bottom:1.5rem">
-      <div class="field"><label>Post to the feed</label><textarea id="feedBody" rows="3" placeholder="Share something with the community…"></textarea></div>
-      <p class="err" id="feedErr" style="display:none"></p>
-      <button type="button" class="btn btn-primary" id="feedBtn" onclick="postFeed()">Post</button>
+    <div id="commLive" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="circles-head">
+      <div>
+        <h1>Community</h1>
+        <p class="sub">Share progress, ask general questions, and connect with other SOL members.</p>
+      </div>
+      <div class="circles-head__actions">
+        <button type="button" class="btn btn-ghost btn--sm" onclick="commFocusComposer()">New post</button>
+        <button type="button" class="btn btn-ghost btn--sm" onclick="loadCommunity(true)">Refresh</button>
+      </div>
     </div>
-    <div id="feedList"><div class="spinner"></div></div>
+
+    <details class="comm-guidelines">
+      <summary>Community guidelines &amp; safety</summary>
+      <ul>
+        <li><strong>Never share</strong> bank, card, account, or routing numbers, identity or verification details, passwords, one-time codes, payment credentials, or government ID numbers.</li>
+        <li>Community posts are <strong>not</strong> official account-status updates, and member opinions are <strong>not</strong> financial, credit, or investment advice.</li>
+        <li>For anything about your account, use <a role="button" tabindex="0" onclick="nav('payments')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('payments')}">Payments</a>, <a role="button" tabindex="0" onclick="nav('bank')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('bank')}">Bank</a>, <a role="button" tabindex="0" onclick="nav('kyc')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('kyc')}">Verify ID</a>, <a role="button" tabindex="0" onclick="nav('premium')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('premium')}">Membership</a>, or <a role="button" tabindex="0" onclick="nav('notifications')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('notifications')}">Notifications</a>.</li>
+        <li>See something unsafe, misleading, or abusive? Use <strong>Report</strong> on a post or comment to send it for review — reporting isn't an instant judgment.</li>
+        <li>Posts can't be edited or deleted after posting yet, so please write with care.</li>
+      </ul>
+    </details>
+
+    <div class="comm-composer">
+      <label for="feedBody">Share with the community</label>
+      <textarea id="feedBody" rows="3" maxlength="4000" placeholder="Share a win, ask a general question, or encourage another member…" oninput="commCount()" aria-describedby="feedCount commComposerNote"></textarea>
+      <p class="err" id="feedErr" role="alert" style="display:none"></p>
+      <div class="comm-composer__foot">
+        <span class="comm-counter" id="feedCount">0 / 4000</span>
+        <button type="button" class="btn btn-primary" id="feedBtn" onclick="postFeed()">Post</button>
+      </div>
+      <p class="comm-note" id="commComposerNote">Posts are visible to other SOL members. Don't share sensitive account or payment information.</p>
+    </div>
+
+    <div class="comm-filters" role="group" aria-label="Filter community posts">
+      <button type="button" class="comm-filter" id="commF-all" aria-pressed="true" onclick="commSetFilter('all')">Latest</button>
+      <button type="button" class="comm-filter" id="commF-circles" aria-pressed="false" onclick="commSetFilter('circles')">My circles</button>
+      <button type="button" class="comm-filter" id="commF-mine" aria-pressed="false" onclick="commSetFilter('mine')">My posts</button>
+    </div>
+
+    <ul class="comm-feed" id="feedList" aria-label="Community posts"></ul>
+    <div class="comm-loadmore" id="commLoadMore" style="display:none"><button type="button" class="btn btn-ghost" id="commLoadMoreBtn" onclick="commLoadMore()">Load more posts</button></div>
+
+    <div class="comm-boundary">
+      <strong>Official status lives on your account pages.</strong> Community posts reflect member experiences and opinions — not official payment, bank, verification, or membership status. Check your account pages for anything official, and see <a role="button" tabindex="0" onclick="nav('notifications')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();nav('notifications')}">Notifications</a> for official updates.
+    </div>
+
+    <!-- Report content dialog (focus-trapped, Escape-to-close). Lives INSIDE
+         #page-community so it is never a descendant of a display:none page. -->
+    <div class="bank-modal" id="commReportDialog" role="dialog" aria-modal="true" aria-labelledby="commReportTitle" aria-describedby="commReportNote">
+      <div class="modal">
+        <h3 id="commReportTitle">Report this content</h3>
+        <p id="commReportNote" class="comm-report__note">Reporting sends this to our team for review. It won't remove the content immediately, and your identity isn't shown to other members.</p>
+        <form id="commReportForm" onsubmit="return false">
+          <div class="comm-report__field" role="radiogroup" aria-label="Reason for report">
+            <label><input type="radio" name="commReason" value="Spam or scam" checked> Spam or scam</label>
+            <label><input type="radio" name="commReason" value="Harassment or abusive behavior"> Harassment or abusive behavior</label>
+            <label><input type="radio" name="commReason" value="Sharing sensitive or financial info"> Sharing sensitive or financial info</label>
+            <label><input type="radio" name="commReason" value="Misleading financial claim"> Misleading financial claim</label>
+            <label><input type="radio" name="commReason" value="Something else"> Something else</label>
+          </div>
+          <div class="comm-report__field">
+            <label for="commReportDetail">Add detail (optional)</label>
+            <textarea id="commReportDetail" rows="2" maxlength="800" placeholder="What's wrong with this content?"></textarea>
+          </div>
+        </form>
+        <p class="err" id="commReportErr" role="alert" style="display:none"></p>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" onclick="closeReportDialog()">Cancel</button>
+          <button type="button" class="btn btn-primary" id="commReportSubmit" onclick="submitReport()">Submit report</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Goals -->
@@ -1946,23 +2078,24 @@ async function showGroup(id) {
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:${canJoin?'1.5rem':'0'}">
           <div><div style="font-size:.72rem;color:var(--muted)">Contribution</div><div style="font-weight:600">${fmt$(g.contribution_cents)}</div></div>
-          <div><div style="font-size:.72rem;color:var(--muted)">Payout pool</div><div style="font-weight:600">${fmt$(g.contribution_cents * g.max_members)}</div></div>
+          <div><div style="font-size:.72rem;color:var(--muted)">Payout to recipient</div><div style="font-weight:600">${fmt$(Math.round(g.contribution_cents * g.max_members * (1 - (g.fee_bps || 0) / 10000)))}</div><div style="font-size:.68rem;color:var(--muted)">after ${(g.fee_bps || 0) / 100}% platform fee</div></div>
           <div><div style="font-size:.72rem;color:var(--muted)">Members</div><div style="font-weight:600">${members.length} / ${g.max_members}</div></div>
           <div><div style="font-size:.72rem;color:var(--muted)">Cycle</div><div style="font-weight:600">${g.current_cycle_number}</div></div>
           <div><div style="font-size:.72rem;color:var(--muted)">Fee</div><div style="font-weight:600">${g.fee_bps/100}%</div></div>
         </div>
         ${canJoin ? (() => {
           // Payout preview: if user joins now, they'd be position (members.length + 1).
-          // With 10% fee, net payout per member = pool * 0.9.
+          // Net payout = pool minus the platform fee (fee_bps, disclosed dynamically below).
           const yourPosition = members.length + 1;
-          const netPayout = Math.round(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000));
+          const feePct = (g.fee_bps || 0) / 100;
+          const netPayout = Math.round(g.contribution_cents * g.max_members * (1 - (g.fee_bps || 0) / 10000));
           const totalContributions = g.contribution_cents * g.max_members;
           const moneyOverTime = '<strong>$' + (netPayout/100).toLocaleString('en-US',{minimumFractionDigits:2}) + '</strong>';
           return `
             <div style="background:rgba(232,147,36,.07);border:1px solid rgba(232,147,36,.25);border-radius:.6rem;padding:.9rem 1rem;margin-bottom:1rem;font-size:.85rem">
               <div style="color:var(--sol-600);font-weight:600;margin-bottom:.3rem">Join preview</div>
               <div style="color:var(--ink-900);margin-bottom:.2rem">You'd be position <strong style="color:var(--sol-600)">${yourPosition}</strong> of ${g.max_members} in the payout rotation.</div>
-              <div style="color:var(--muted);font-size:.8rem">You'll contribute ${fmt$(g.contribution_cents)} each cycle for ${g.max_members} cycles (total ${fmt$(totalContributions)}) and receive ${moneyOverTime} on cycle ${yourPosition} (10% platform fee applied).</div>
+              <div style="color:var(--muted);font-size:.8rem">You'll contribute ${fmt$(g.contribution_cents)} each cycle for ${g.max_members} cycles (total ${fmt$(totalContributions)}) and receive ${moneyOverTime} on cycle ${yourPosition} (${feePct}% platform fee applied).</div>
             </div>
             <button class="btn btn-primary" id="joinBtn" onclick="joinGroup('${g.id}')">Join this circle</button>
             <p class="err" id="joinErr" style="display:none"></p>
@@ -1974,12 +2107,12 @@ async function showGroup(id) {
       <h3 style="margin-bottom:.75rem">Members</h3>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Position</th><th>User</th><th>Status</th><th>Payout received</th></tr></thead>
+          <thead><tr><th>Position</th><th>Member</th><th>Status</th><th>Payout received</th></tr></thead>
           <tbody>
             ${members.length ? members.map(m => `
               <tr style="${m.user_id===me.id?'background:rgba(232,147,36,.06)':''}">
                 <td>${m.position ?? '—'}</td>
-                <td>${m.user_id===me.id?'<span style="color:var(--sol-600)">You</span>':m.user_id.slice(0,8)+'…'}</td>
+                <td>${m.user_id===me.id?'<span style="color:var(--sol-600)">You</span>':'<span style="color:var(--muted)">SOL member</span>'}</td>
                 <td>${badge(m.status)}</td>
                 <td style="color:${m.has_received_payout?'var(--green)':'var(--muted)'}">${m.has_received_payout?'✓ Yes':'—'}</td>
               </tr>`).join('') : '<tr><td colspan="4" class="empty">No members yet</td></tr>'}
@@ -3709,32 +3842,417 @@ async function refreshUnread() {
   try { const r = await api('/notifications'); const c = (r && typeof r.unread_count === 'number') ? r.unread_count : 0; notifState.unread = c; updateUnreadBadge(c); } catch(_) {}
 }
 
-// ── Community (feed) ────────────────────────────────────────────────────────────
-async function loadCommunity() {
+// ═══ Community feed ═══════════════════════════════════════════════════════════
+// Backend truth (app/{api,services}/community.py):
+//   GET  /feed?limit&offset → [{id, author_id, group_id, body, created_at}].
+//        list_feed = global posts (group_id NULL) + posts from circles I'm an
+//        ACTIVE member of, newest-first, hidden excluded. Access is enforced
+//        server-side, so any circle post I receive is one I'm entitled to see —
+//        but the payload carries NO circle name and NO author name (only UUIDs).
+//   POST /feed {body}              → create a GLOBAL post (group_id omitted).
+//   GET/POST /feed/{id}/comments   → list / add comments ({id,post_id,user_id,body,created_at}).
+//   POST/DELETE /feed/{id}/like    → idempotent like → {liked, like_count}.
+//   POST /community/report {target_type,target_id,reason} → review request.
+// NOT supported (never faked): editing a post; member delete (hide is owner/admin
+//   only — a regular member's delete would 403); an "official" flag on feed posts;
+//   member-visible global announcements; multi-emoji reactions; profiles/DMs/follows.
+// Author identity is ONLY "You" (author_id === me.id) or "SOL member" — the raw
+// user_id is used solely for the self-comparison and is NEVER rendered. All post
+// and comment bodies are escaped + rendered as plain text (white-space:pre-wrap).
+const COMM_PAGE = 30;
+const commState = { posts: [], filter: 'all', offset: 0, loading: false, more: false, likes: {}, open: {} };
+let _commPostBusy = false; const _commLikeBusy = {}, _commCommentBusy = {};
+
+function commAnnounce(msg) { const l = document.getElementById('commLive'); if (l) l.textContent = msg; }
+function _commReduce() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
+
+function commWhen(d) {
+  const diff = Math.max(0, Date.now() - d.getTime()), min = 60000, hr = 3600000, day = 86400000;
+  if (diff < min) return 'just now';
+  if (diff < hr) return `${Math.floor(diff / min)}m ago`;
+  if (diff < day) return `${Math.floor(diff / hr)}h ago`;
+  if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+// Map one raw post → a safe view model. Returns null for a malformed item so the
+// feed skips it rather than failing entirely.
+function normalizeCommunityPost(p) {
+  if (!p || typeof p !== 'object') return null;
+  const ref = _isUuid(p.id) ? p.id : null;                    // uuid-validated action ref
+  const body = typeof p.body === 'string' ? p.body : '';
+  if (!ref || !body.trim()) return null;
+  const myId = me && me.id;
+  const mine = !!myId && p.author_id === myId;                // self-compare only; never rendered
+  const created = p.created_at ? new Date(p.created_at) : null;
+  const validDate = created && !isNaN(created.getTime());
+  return {
+    ref, body, mine,
+    authorLabel: mine ? 'You' : 'SOL member',
+    scope: p.group_id ? 'CIRCLE' : 'GENERAL',                 // only grounded category — no backend category field
+    createdISO: validDate ? created.toISOString() : null,
+    createdText: validDate ? commWhen(created) : null,
+  };
+}
+
+function normalizeComment(c) {
+  if (!c || typeof c !== 'object') return null;
+  const ref = _isUuid(c.id) ? c.id : null;
+  const body = typeof c.body === 'string' ? c.body : '';
+  if (!ref || !body.trim()) return null;
+  const myId = me && me.id;
+  const mine = !!myId && c.user_id === myId;
+  const created = c.created_at ? new Date(c.created_at) : null;
+  const validDate = created && !isNaN(created.getTime());
+  return { ref, body, mine, authorLabel: mine ? 'You' : 'SOL member',
+    createdISO: validDate ? created.toISOString() : null, createdText: validDate ? commWhen(created) : null };
+}
+
+// Map any thrown api() error to a safe, generic member-facing message — never
+// surface raw provider/moderation detail.
+function commErr(e) {
+  const m = String((e && e.message) || '').toLowerCase();
+  if (m.includes('429') || m.includes('rate') || m.includes('too many') || m.includes('slow down')) return "You're doing that a lot — please wait a moment and try again.";
+  if (m.includes('expired') || m.includes('session') || m.includes('sign in')) return 'Your session expired. Please sign in again.';
+  if (m.includes('forbidden') || m.includes('permission') || m.includes('not a member') || m.includes('access')) return "You don't have access to do that.";
+  if (m.includes('not found')) return 'That content is no longer available.';
+  if (m.includes('4000') || m.includes('too long') || m.includes('at most')) return 'That message is too long.';
+  return 'Something went wrong. Please try again.';
+}
+
+function commSkeleton() {
+  return Array.from({ length: 3 }).map(() =>
+    `<li class="comm-post"><span class="sk sk-line" style="width:28%"></span><span class="sk sk-block" style="margin-top:.6rem"></span></li>`).join('');
+}
+
+async function loadCommunity(reset) {
   const el = document.getElementById('feedList');
-  el.innerHTML = '<div class="spinner"></div>';
+  if (!el) return;
+  commState.offset = 0; commState.loading = true; commState.open = {}; commState.likes = {};
+  el.innerHTML = commSkeleton();
+  const lm = document.getElementById('commLoadMore'); if (lm) lm.style.display = 'none';
+  // Best-effort refresh of `me` so "You"/"My posts" is accurate — never blocks the feed.
+  if (!me || !me.id) { try { const m = await api('/auth/me'); if (m && m.id) me = m; } catch (_) {} }
   try {
-    const posts = await api('/feed');
-    el.innerHTML = posts.length ? posts.map(p=>`
-      <div class="card" style="margin-bottom:.6rem">
-        <div style="white-space:pre-wrap">${esc(p.body)}</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.5rem">
-          <span style="font-size:.75rem;color:var(--muted)">${new Date(p.created_at).toLocaleString()}</span>
-          <button type="button" class="btn btn-ghost" onclick="likePost('${esc(p.id)}')">♥ Like${p.like_count?` (${p.like_count})`:''}</button>
-        </div></div>`).join('') : '<div class="empty">No posts yet — be the first to share.</div>';
-  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    const raw = await api(`/feed?limit=${COMM_PAGE}&offset=0`);
+    const list = Array.isArray(raw) ? raw : [];
+    commState.posts = list.map(normalizeCommunityPost).filter(Boolean);
+    commState.more = list.length >= COMM_PAGE;
+    commState.offset = list.length;
+    renderCommunity();
+    if (reset) commAnnounce('Community feed refreshed.');
+  } catch (e) {
+    commState.posts = [];
+    el.innerHTML = `<li class="notif-empty"><div class="notif-empty__title">Community is temporarily unavailable.</div><div class="goal-empty-acts"><button type="button" class="btn btn-ghost btn--sm" onclick="loadCommunity(true)">Retry</button></div></li>`;
+  } finally { commState.loading = false; }
 }
+
+async function commLoadMore() {
+  if (commState.loading || !commState.more) return;
+  const btn = document.getElementById('commLoadMoreBtn');
+  commState.loading = true; if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+  try {
+    const raw = await api(`/feed?limit=${COMM_PAGE}&offset=${commState.offset}`);
+    const list = Array.isArray(raw) ? raw : [];
+    const seen = new Set(commState.posts.map(p => p.ref));
+    const fresh = list.map(normalizeCommunityPost).filter(p => p && !seen.has(p.ref));
+    commState.posts.push(...fresh);
+    commState.more = list.length >= COMM_PAGE;
+    commState.offset += list.length;
+    commState.open = {};                                   // collapse threads before the full re-render (no open-but-empty mismatch)
+    renderCommunity();
+    commAnnounce(fresh.length ? `${fresh.length} more ${fresh.length === 1 ? 'post' : 'posts'} loaded.` : (commState.more ? 'No new posts on this page.' : 'You’re all caught up.'));
+  } catch (e) { commAnnounce('Could not load more posts.'); }
+  finally { commState.loading = false; if (btn) { btn.disabled = false; btn.textContent = 'Load more posts'; } }
+}
+
+function commVisible() {
+  const f = commState.filter;
+  return commState.posts.filter(p => f === 'all' ? true : f === 'circles' ? p.scope === 'CIRCLE' : p.mine);
+}
+
+function renderCommunity() {
+  const el = document.getElementById('feedList');
+  if (!el) return;
+  const items = commVisible();
+  const lm = document.getElementById('commLoadMore');
+  const showMore = !!commState.more;                       // page under ANY filter — GET /feed has no server filter, so
+                                                           // filtered views must keep paging the raw feed and re-filtering
+  if (!items.length) {
+    let msg, cta;
+    if (commState.filter !== 'all') {
+      // Never assert absence we can't prove: more posts may be deeper in the feed.
+      msg = showMore ? 'No matching posts loaded yet — load more to keep looking.' : 'No posts match this view.';
+      cta = `<button type="button" class="btn btn-ghost btn--sm" onclick="commSetFilter('all')">Show all posts</button>`;
+    } else {
+      msg = showMore ? 'No posts loaded yet — load more to keep looking.' : 'No community posts yet.';
+      cta = `<button type="button" class="btn btn-ghost btn--sm" onclick="commFocusComposer()">Write the first post</button>`;
+    }
+    el.innerHTML = `<li class="notif-empty"><div class="notif-empty__title">${msg}</div><div class="goal-empty-acts">${cta}</div></li>`;
+    if (lm) lm.style.display = showMore ? 'flex' : 'none';  // keep paging reachable even on an empty view
+    return;
+  }
+  el.innerHTML = items.map(commCard).join('');
+  if (lm) lm.style.display = showMore ? 'flex' : 'none';
+}
+
+function commLikeLabel(ref) {
+  const like = commState.likes[ref], liked = like && like.liked;
+  if (like && typeof like.count === 'number') return liked ? `Appreciated · ${like.count}` : `Appreciate · ${like.count}`;
+  return 'Appreciate';
+}
+
+function commCard(p) {
+  const like = commState.likes[p.ref], liked = like && like.liked;
+  const chip = p.scope === 'CIRCLE'
+    ? '<span class="comm-chip comm-chip--circle">Circle</span>'
+    : '<span class="comm-chip">Community</span>';
+  const time = p.createdISO ? `<time datetime="${esc(p.createdISO)}">${esc(p.createdText)}</time>` : '';
+  const open = commState.open[p.ref];
+  const who = p.mine ? '<span class="comm-you">You</span>' : esc(p.authorLabel);
+  return `<li class="comm-post"><article aria-label="Post by ${esc(p.authorLabel)}">
+    <div class="comm-post__head">
+      <span class="comm-post__who">${who}</span>
+      <span class="comm-post__meta">${chip}${time}</span>
+    </div>
+    <div class="comm-post__body">${esc(p.body)}</div>
+    <div class="comm-post__acts">
+      <button type="button" class="comm-act${liked ? ' is-on' : ''}" id="comm-like-${esc(p.ref)}" onclick="commToggleLike('${esc(p.ref)}')" aria-pressed="${liked ? 'true' : 'false'}"><span aria-hidden="true">♥</span> ${esc(commLikeLabel(p.ref))}</button>
+      <button type="button" class="comm-act" onclick="commToggleComments('${esc(p.ref)}',this)" aria-expanded="${open ? 'true' : 'false'}" aria-controls="comm-c-${esc(p.ref)}"><span aria-hidden="true">💬</span> Comments</button>
+      <button type="button" class="comm-act" onclick="openReportDialog('POST','${esc(p.ref)}',this)"><span aria-hidden="true">⚑</span> Report</button>
+    </div>
+    <div class="comm-comments" id="comm-c-${esc(p.ref)}" style="display:${open ? 'block' : 'none'}"></div>
+  </article></li>`;
+}
+
+// Appreciate (single generic like) — backend-authoritative. The feed payload
+// carries no like state, so the count is shown ONLY from the like/unlike response
+// (never optimistically inflated); before any interaction the count is unknown.
+async function commToggleLike(id) {
+  if (!_isUuid(id) || _commLikeBusy[id]) return;
+  _commLikeBusy[id] = true;
+  const btn = document.getElementById('comm-like-' + id);
+  const wasLiked = commState.likes[id] && commState.likes[id].liked;
+  if (btn) btn.disabled = true;
+  try {
+    const r = wasLiked
+      ? await api(`/feed/${id}/like`, { method: 'DELETE' })
+      : await api(`/feed/${id}/like`, { method: 'POST' });
+    commState.likes[id] = { liked: !!r.liked, count: typeof r.like_count === 'number' ? r.like_count : (commState.likes[id] ? commState.likes[id].count : 0) };
+    commRenderLikeBtn(id);
+    commAnnounce(commState.likes[id].liked ? `Appreciated. ${commState.likes[id].count} in total.` : 'Appreciation removed.');
+  } catch (e) {
+    commAnnounce(commErr(e));
+    if (btn) btn.disabled = false;
+  } finally { _commLikeBusy[id] = false; }
+}
+function commRenderLikeBtn(id) {
+  const btn = document.getElementById('comm-like-' + id);
+  if (!btn) return;
+  const liked = commState.likes[id] && commState.likes[id].liked;
+  btn.classList.toggle('is-on', !!liked);
+  btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+  btn.innerHTML = `<span aria-hidden="true">♥</span> ${esc(commLikeLabel(id))}`;
+  btn.disabled = false;
+}
+
+async function commToggleComments(id, trigger) {
+  if (!_isUuid(id)) return;
+  const box = document.getElementById('comm-c-' + id);
+  if (!box) return;
+  if (commState.open[id]) {
+    commState.open[id] = false; box.style.display = 'none'; box.innerHTML = '';
+    if (trigger) trigger.setAttribute('aria-expanded', 'false');
+    return;
+  }
+  commState.open[id] = true; box.style.display = 'block';
+  if (trigger) trigger.setAttribute('aria-expanded', 'true');
+  box.innerHTML = '<span class="sk sk-line" style="width:55%"></span>';
+  await commLoadComments(id);
+}
+
+async function commLoadComments(id) {
+  const box = document.getElementById('comm-c-' + id);
+  if (!box) return;
+  try {
+    const raw = await api(`/feed/${id}/comments`);
+    if (!commState.open[id]) return;                       // thread was collapsed while the fetch was in flight — don't populate/announce a hidden box
+    const list = (Array.isArray(raw) ? raw : []).map(normalizeComment).filter(Boolean);
+    box.innerHTML = commCommentsHtml(id, list);
+    commAnnounce(`${list.length} ${list.length === 1 ? 'comment' : 'comments'}.`);
+  } catch (e) {
+    if (!commState.open[id]) return;
+    box.innerHTML = `<p class="comm-comments__empty">Comments are unavailable right now.</p>`;
+  }
+}
+
+function commCommentsHtml(postId, list) {
+  const rows = list.length
+    ? `<ul class="comm-comments__list">${list.map(c => `
+        <li class="comm-comment">
+          <span class="comm-comment__who">${c.mine ? '<span class="comm-you">You</span>' : esc(c.authorLabel)}</span>${c.createdISO ? `<time class="comm-comment__meta" datetime="${esc(c.createdISO)}">${esc(c.createdText)}</time>` : ''}
+          <div class="comm-comment__body">${esc(c.body)}</div>
+          <button type="button" class="comm-comment__report" onclick="openReportDialog('COMMENT','${esc(c.ref)}',this)">Report</button>
+        </li>`).join('')}</ul>`
+    : `<p class="comm-comments__empty">No comments yet — be the first to reply.</p>`;
+  return `${rows}
+    <div class="comm-cbox">
+      <label class="sr-only" for="comm-cbox-${esc(postId)}">Write a comment</label>
+      <textarea id="comm-cbox-${esc(postId)}" rows="2" maxlength="4000" placeholder="Write a comment…"></textarea>
+      <p class="err" id="comm-cerr-${esc(postId)}" role="alert" style="display:none"></p>
+      <div class="comm-cbox__foot">
+        <span class="comm-note">Comments are visible to other members. No account or payment details.</span>
+        <button type="button" class="btn btn-primary btn--sm" onclick="postComment('${esc(postId)}',this)">Comment</button>
+      </div>
+    </div>`;
+}
+
+// Backend-authoritative comment — no optimistic insert; re-fetch after success.
+async function postComment(postId, btn) {
+  if (!_isUuid(postId) || _commCommentBusy[postId]) return;
+  const ta = document.getElementById('comm-cbox-' + postId), err = document.getElementById('comm-cerr-' + postId);
+  if (!ta) return;
+  const body = ta.value.trim();
+  if (err) err.style.display = 'none';
+  if (!body) { if (err) { err.textContent = 'Write a comment first.'; err.style.display = 'block'; } ta.focus(); return; }
+  if (body.length > 4000) { if (err) { err.textContent = 'Comments are limited to 4000 characters.'; err.style.display = 'block'; } return; }
+  _commCommentBusy[postId] = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+  try {
+    await api(`/feed/${postId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
+    await commLoadComments(postId);                   // re-fetch; textarea is replaced (draft cleared only on success)
+    commAnnounce('Comment posted.');
+  } catch (e) {
+    if (err) { err.textContent = commErr(e); err.style.display = 'block'; }   // draft preserved on failure
+    _commCommentBusy[postId] = false;
+    if (btn) { btn.disabled = false; btn.textContent = 'Comment'; }
+    return;
+  }
+  _commCommentBusy[postId] = false;
+}
+
+function commCount() {
+  const ta = document.getElementById('feedBody'), c = document.getElementById('feedCount');
+  if (!ta || !c) return;
+  const n = ta.value.length;
+  c.textContent = `${n} / 4000`;
+  c.classList.toggle('is-over', n >= 4000);
+}
+
+function commFocusComposer() {
+  const ta = document.getElementById('feedBody');
+  if (!ta) return;
+  try { ta.scrollIntoView({ block: 'center', behavior: _commReduce() ? 'auto' : 'smooth' }); } catch (_) {}
+  ta.focus();
+}
+
+// Backend-authoritative post — group_id omitted → GLOBAL post. No optimistic
+// render; the feed is re-fetched and the newest post takes focus.
 async function postFeed() {
-  const btn=document.getElementById('feedBtn'), err=document.getElementById('feedErr'), ta=document.getElementById('feedBody');
-  const body = ta.value.trim(); err.style.display='none';
-  if (!body) { err.textContent='Write something first.'; err.style.display='block'; return; }
-  btn.disabled=true; btn.textContent='Posting…';
-  try { await api('/feed', { method:'POST', body: JSON.stringify({ body }) }); ta.value=''; loadCommunity(); }
-  catch(e){ err.textContent=e.message; err.style.display='block'; }
-  finally { btn.disabled=false; btn.textContent='Post'; }
+  if (_commPostBusy) return;
+  const btn = document.getElementById('feedBtn'), err = document.getElementById('feedErr'), ta = document.getElementById('feedBody');
+  if (!ta) return;
+  const body = ta.value.trim();
+  if (err) err.style.display = 'none';
+  if (!body) { if (err) { err.textContent = 'Write something to share first.'; err.style.display = 'block'; } ta.focus(); return; }
+  if (body.length > 4000) { if (err) { err.textContent = 'Posts are limited to 4000 characters.'; err.style.display = 'block'; } return; }
+  _commPostBusy = true;
+  if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+  try {
+    await api('/feed', { method: 'POST', body: JSON.stringify({ body }) });
+    ta.value = ''; commCount();                        // clear draft only after confirmed success
+    commState.filter = 'all'; commSyncFilterButtons();
+    await loadCommunity();
+    commAnnounce('Your post was shared with the community.');
+    const first = document.querySelector('#feedList .comm-post');
+    if (first) { first.setAttribute('tabindex', '-1'); first.focus(); }
+  } catch (e) {
+    if (err) { err.textContent = commErr(e); err.style.display = 'block'; }   // draft preserved (ta not cleared)
+  } finally { _commPostBusy = false; btn.disabled = false; btn.textContent = 'Post'; }
 }
-async function likePost(id) {
-  try { await api(`/feed/${id}/like`, { method:'POST' }); loadCommunity(); } catch(e){ alert(e.message); }
+
+function commSetFilter(f) {
+  if (!['all', 'circles', 'mine'].includes(f)) f = 'all';
+  commState.filter = f; commState.open = {};           // close expanded comments on filter switch
+  commSyncFilterButtons();
+  renderCommunity();
+  const labels = { all: 'Latest', circles: 'My circles', mine: 'My posts' };
+  commAnnounce(`Showing ${labels[f]}.`);
+}
+function commSyncFilterButtons() {
+  ['all', 'circles', 'mine'].forEach(f => { const b = document.getElementById('commF-' + f); if (b) b.setAttribute('aria-pressed', commState.filter === f ? 'true' : 'false'); });
+}
+
+// ── Report dialog (accessible; focus-trapped; Escape-to-close) ────────────────
+let _commReportTarget = null, _commReportTrigger = null, _commReportBusy = false;
+function openReportDialog(type, id, trigger) {
+  if (!['POST', 'COMMENT'].includes(type) || !_isUuid(id)) return;
+  _commReportTarget = { type, id }; _commReportTrigger = trigger || document.activeElement;
+  const dlg = document.getElementById('commReportDialog');
+  const err = document.getElementById('commReportErr'); if (err) err.style.display = 'none';
+  const detail = document.getElementById('commReportDetail'); if (detail) detail.value = '';
+  const first = document.querySelector('#commReportForm input[name="commReason"]'); if (first) first.checked = true;
+  const submit = document.getElementById('commReportSubmit'); if (submit) { submit.disabled = false; submit.textContent = 'Submit report'; }
+  dlg.dataset.busy = '0'; dlg.classList.add('is-open');
+  document.addEventListener('keydown', _commReportTrapKey, true);
+  setTimeout(() => { if (first) first.focus(); }, 0);
+}
+function closeReportDialog() {
+  const dlg = document.getElementById('commReportDialog'); if (dlg) dlg.classList.remove('is-open');
+  document.removeEventListener('keydown', _commReportTrapKey, true);
+  const t = _commReportTrigger; _commReportTarget = null; _commReportTrigger = null;
+  if (t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
+}
+function _commReportTrapKey(e) {
+  const d = document.getElementById('commReportDialog'); if (!d) return;
+  if (e.key === 'Escape') { e.preventDefault(); if (d.dataset.busy === '1') return; closeReportDialog(); return; }
+  if (e.key === 'Tab') {
+    const els = [...d.querySelectorAll('input,select,button,textarea,a[href]')].filter(x => !x.disabled && x.offsetParent !== null);
+    // Collapse each radio group to a SINGLE tab stop (its checked member, else the
+    // first) so first/last match native tab order and Shift+Tab can't slip past it.
+    const handled = new Set(); const f = [];
+    for (const x of els) {
+      if (x.type === 'radio' && x.name) {
+        if (handled.has(x.name)) continue;
+        handled.add(x.name);
+        const group = els.filter(y => y.type === 'radio' && y.name === x.name);
+        f.push(group.find(y => y.checked) || group[0]);
+      } else { f.push(x); }
+    }
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    const active = document.activeElement;
+    if (!d.contains(active)) { e.preventDefault(); first.focus(); return; }
+    let cur = active;
+    if (active.type === 'radio' && active.name) cur = f.find(el => el.type === 'radio' && el.name === active.name) || active;
+    if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
+  }
+}
+async function submitReport() {
+  if (_commReportBusy || !_commReportTarget) return;
+  const { type, id } = _commReportTarget;
+  if (!_isUuid(id)) { closeReportDialog(); return; }
+  const dlg = document.getElementById('commReportDialog'); dlg.dataset.busy = '1';
+  const err = document.getElementById('commReportErr'); if (err) err.style.display = 'none';
+  const submit = document.getElementById('commReportSubmit');
+  const sel = document.querySelector('#commReportForm input[name="commReason"]:checked');
+  const detail = (document.getElementById('commReportDetail') || {}).value || '';
+  let reason = sel ? sel.value : 'Something else';
+  if (detail.trim()) reason += ` — ${detail.trim()}`;
+  reason = reason.slice(0, 1000);                      // backend max 1000
+  _commReportBusy = true;
+  if (submit) { submit.disabled = true; submit.textContent = 'Submitting…'; }
+  try {
+    await api('/community/report', { method: 'POST', body: JSON.stringify({ target_type: type, target_id: id, reason }) });   // no optimistic removal — content stays visible
+    dlg.dataset.busy = '0'; _commReportBusy = false;
+    closeReportDialog();
+    commAnnounce('Thanks — your report was submitted for review.');
+  } catch (e) {
+    dlg.dataset.busy = '0'; _commReportBusy = false;
+    if (err) { err.textContent = commErr(e); err.style.display = 'block'; }
+    if (submit) { submit.disabled = false; submit.textContent = 'Submit report'; }
+  }
 }
 
 // ── Goals ───────────────────────────────────────────────────────────────────────
