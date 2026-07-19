@@ -17,7 +17,8 @@
   --surface:#FFFFFF; --surface-2:#F4F2EC; --line:#E7E2D7;
 
   /* Sol warm accent — sunrise */
-  --sol-600:#C9781F; --sol-500:#E89324; --sol-400:#F4A93C; --sol-200:#FBD9A2;
+  --sol-700:#8A4D0E; --sol-600:#C9781F; --sol-500:#E89324; --sol-400:#F4A93C;
+  --sol-300:#F4C88A; --sol-200:#FBD9A2; --sol-100:#FCE9CE; --sol-50:#FFF5EA;
   --coral-500:#E5654B;
 
   /* Semantic — money states */
@@ -136,15 +137,18 @@ a{color:var(--brand-strong); text-decoration:none} a:hover{text-decoration:under
    pairs a tinted chip with a leading dot AND its text label, so it reads for
    colour-blind users and screen readers alike. Add an aria-label at call site. */
 :root{
+  /* Chip text darkened to meet WCAG AA (>=4.5:1) for 13px bold on the tinted bg:
+     pending #B4700F->2.95, forming/warning #9A6A0F->4.14 both failed; the new
+     values clear AA (pending #7A4600->5.75, forming/warning #7A5309->5.99). */
   --st-active:#1E7A54;    --st-active-bg:#DCF3E8;
-  --st-forming:#9A6A0F;   --st-forming-bg:#FBEFD2;
+  --st-forming:#7A5309;   --st-forming-bg:#FBEFD2;
   --st-completed:#3B4A66; --st-completed-bg:#E5E9F0;
   --st-failed:#B02525;    --st-failed-bg:#FBE3E1;
   --st-cancelled:#5E6B85; --st-cancelled-bg:#EDEBE4;
-  --st-pending:#B4700F;   --st-pending-bg:#FBD9A2;
+  --st-pending:#7A4600;   --st-pending-bg:#FBD9A2;
   --st-overdue:#B02525;   --st-overdue-bg:#FBE3E1;
   --st-verified:#1E7A54;  --st-verified-bg:#DCF3E8;
-  --st-warning:#9A6A0F;   --st-warning-bg:#FBEFD2;
+  --st-warning:#7A5309;   --st-warning-bg:#FBEFD2;
   --st-blocked:#8A1C1C;   --st-blocked-bg:#FBE3E1;
 }
 .status{display:inline-flex; align-items:center; gap:.4em; font-size:var(--step--1); font-weight:600;

@@ -63,8 +63,8 @@ h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .
 .form-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.5rem;max-width:480px;box-shadow:var(--shadow-1)}
 .field{margin-bottom:1rem}
 .field label{display:block;font-size:.8rem;color:var(--ink-700);margin-bottom:.35rem}
-.field input,.field select,.input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:.6rem .85rem;color:var(--ink-900);font-size:.9rem;font-family:inherit;outline:none}
-.field input:focus,.field select:focus,.input:focus{border-color:var(--sol-500);box-shadow:0 0 0 3px var(--sol-200)}
+.field input,.field select,.field textarea,.input{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);padding:.6rem .85rem;color:var(--ink-900);font-size:.9rem;font-family:inherit;outline:none}
+.field input:focus,.field select:focus,.field textarea:focus,.input:focus{border-color:var(--sol-500);box-shadow:0 0 0 3px var(--sol-200)}
 .btn{display:inline-flex;align-items:center;gap:.5rem;padding:.55rem 1.25rem;border-radius:var(--r-md);font-size:.875rem;font-weight:600;cursor:pointer;border:none;font-family:var(--font-display);transition:.15s}
 .btn-primary{background:var(--sol-500);color:var(--ink-900)}
 .btn-primary:hover{background:var(--sol-400);box-shadow:var(--shadow-glow)}
@@ -298,8 +298,6 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .modal-actions{display:flex;gap:.6rem;justify-content:flex-end;margin-top:1.1rem;flex-wrap:wrap}
 /* a11y: >=44px touch targets for bank action + modal controls (incl. destructive Remove) */
 #page-bank .bank-acct__actions .btn,#page-bank .bank-micro__form .btn,#page-bank .bank-empty .btn,#page-bank .bank-add>summary,.bank-modal .modal-actions .btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center}
-/* a11y: darken pending chips on the bank page to reach AA (>=4.5:1) without touching the shared token */
-#page-bank .status.status--pending{color:#7a4600}
 @media(max-width:820px){.bank-cols{grid-template-columns:1fr}.bank-side{order:-1}}
 /* ── Verify ID / KYC ─────────────────────────────────────────────────────── */
 .kyc-head{margin-bottom:1.25rem}
@@ -661,28 +659,28 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   <div class="user-info"><div class="user-email" id="userEmail">Loading…</div></div>
   <nav class="nav-groups" aria-label="Primary">
     <div class="nav-section">Overview</div>
-    <a class="nav-item active" data-page="dashboard" onclick="nav('dashboard')" role="button" aria-current="page"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-dashboard"/></svg> Dashboard</a>
-    <a class="nav-item" data-page="timeline" onclick="nav('timeline')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-timeline"/></svg> Timeline</a>
-    <a class="nav-item" data-page="notifications" onclick="nav('notifications')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-alerts"/></svg> Alerts <span id="navUnread" class="badge badge-red" style="display:none;margin-left:auto"></span></a>
+    <button type="button" class="nav-item active" data-page="dashboard" onclick="nav('dashboard')" aria-current="page"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-dashboard"/></svg> Dashboard</button>
+    <button type="button" class="nav-item" data-page="timeline" onclick="nav('timeline')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-timeline"/></svg> Timeline</button>
+    <button type="button" class="nav-item" data-page="notifications" onclick="nav('notifications')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-alerts"/></svg> Alerts <span id="navUnread" class="badge badge-red" style="display:none;margin-left:auto"></span></button>
 
     <div class="nav-section">Savings</div>
-    <a class="nav-item" data-page="groups" onclick="nav('groups')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circles</a>
-    <a class="nav-item" data-page="discover" onclick="nav('discover')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-discover"/></svg> Discover</a>
-    <a class="nav-item" data-page="goals" onclick="nav('goals')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-goals"/></svg> Goals</a>
+    <button type="button" class="nav-item" data-page="groups" onclick="nav('groups')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circles</button>
+    <button type="button" class="nav-item" data-page="discover" onclick="nav('discover')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-discover"/></svg> Discover</button>
+    <button type="button" class="nav-item" data-page="goals" onclick="nav('goals')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-goals"/></svg> Goals</button>
 
     <div class="nav-section">Money</div>
-    <a class="nav-item" data-page="bank" onclick="nav('bank')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-bank"/></svg> Bank</a>
-    <a class="nav-item" data-page="payments" onclick="nav('payments')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-payments"/></svg> Payments</a>
+    <button type="button" class="nav-item" data-page="bank" onclick="nav('bank')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-bank"/></svg> Bank</button>
+    <button type="button" class="nav-item" data-page="payments" onclick="nav('payments')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-payments"/></svg> Payments</button>
 
     <div class="nav-section">Trust</div>
-    <a class="nav-item" data-page="kyc" onclick="nav('kyc')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-verify"/></svg> Verify ID</a>
-    <a class="nav-item" data-page="trust" onclick="nav('trust')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-score"/></svg> SOL Score</a>
+    <button type="button" class="nav-item" data-page="kyc" onclick="nav('kyc')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-verify"/></svg> Verify ID</button>
+    <button type="button" class="nav-item" data-page="trust" onclick="nav('trust')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-score"/></svg> SOL Score</button>
 
     <div class="nav-section">Community</div>
-    <a class="nav-item" data-page="community" onclick="nav('community')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-community"/></svg> Community</a>
+    <button type="button" class="nav-item" data-page="community" onclick="nav('community')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-community"/></svg> Community</button>
 
     <div class="nav-section">Account</div>
-    <a class="nav-item" data-page="premium" onclick="nav('premium')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-premium"/></svg> Premium</a>
+    <button type="button" class="nav-item" data-page="premium" onclick="nav('premium')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-premium"/></svg> Premium</button>
     <button type="button" class="nav-item logout" onclick="logout()"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-signout"/></svg> Sign out</button>
   </nav>
 </aside>
@@ -790,6 +788,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 
   <!-- Group Detail (injected dynamically) -->
   <div class="page" id="page-group-detail">
+    <h1 class="sr-only">Circle detail</h1>
     <button class="btn btn-ghost" style="margin-bottom:1.5rem" onclick="nav('groups')">← Back</button>
     <div id="groupDetail"></div>
   </div>
@@ -873,14 +872,14 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   <!-- Timeline -->
   <div class="page" id="page-timeline">
     <h1>Your timeline</h1>
-    <p class="sub">Next contribution, upcoming payout, and progress across your circles</p>
+    <p class="sub">Next contribution, upcoming payout, and progress across your circles.</p>
     <div id="timelineContent"><div class="spinner"></div></div>
   </div>
 
   <!-- Trust / SOL Score -->
   <div class="page" id="page-trust">
     <h1>Your SOL Score</h1>
-    <p class="sub">Trust you build by saving on time and showing up for your circles</p>
+    <p class="sub">Trust you build by saving on time and showing up for your circles.</p>
     <div id="trustContent"><div class="spinner"></div></div>
   </div>
 
@@ -921,7 +920,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
         <div id="notifCount" class="circles-count" aria-live="polite"></div>
         <div id="notifList" role="tabpanel" tabindex="0"><div class="spinner"></div></div>
       </div>
-      <aside class="notif-side">
+      <aside class="notif-side" aria-label="Get help">
         <div class="side-card notif-help">
           <h3>Get help</h3>
           <p class="hint-muted">Jump to the section that can resolve your issue.</p>
@@ -1106,7 +1105,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
           </div>
         </details>
       </div>
-      <aside class="bank-side">
+      <aside class="bank-side" aria-label="Payment readiness">
         <div class="side-card" id="bankReadiness"></div>
         <div class="side-card bank-trust">
           <h3>Your privacy</h3>
@@ -1187,6 +1186,7 @@ function nav(page) {
   if (page === 'notifications') loadNotifications();
   if (page === 'community') loadCommunity();
   if (page === 'goals') loadGoals();
+  if (page === 'dashboard') loadDashboard();   // revalidate summary cards on return (they change after money/goal mutations elsewhere)
   try { if (typeof SolOrb !== 'undefined') { page === 'dashboard' ? SolOrb.resume() : SolOrb.stop(); } } catch (e) {}
 }
 
@@ -1196,16 +1196,40 @@ function logout() {
 }
 
 // Mobile "More" sheet
+let _moreTrigger = null;
 function openMore() {
   const s = document.getElementById('moreSheet');
-  if (s) { s.classList.add('open'); s.setAttribute('aria-hidden', 'false'); }
+  if (!s) return;
+  _moreTrigger = document.activeElement;
+  s.classList.add('open'); s.setAttribute('aria-hidden', 'false');
+  document.addEventListener('keydown', _moreTrapKey, true);   // aria-modal now backed by a real trap
+  // Focus after the sheet's slide-in transition settles (unlike the display-toggle
+  // .bank-modal dialogs, this sheet animates in, so a 0ms focus lands too early).
+  // The trap also pulls focus in on the first Tab, so this is best-effort.
+  const first = s.querySelector('.more-item');
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (first && s.classList.contains('open')) first.focus(); }));
 }
 function closeMore() {
   const s = document.getElementById('moreSheet');
-  if (s) { s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); }
+  if (!s) return;
+  const wasOpen = s.classList.contains('open');
+  s.classList.remove('open'); s.setAttribute('aria-hidden', 'true');
+  document.removeEventListener('keydown', _moreTrapKey, true);
+  if (wasOpen) { const t = _moreTrigger; _moreTrigger = null; if (t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} } }
+}
+function _moreTrapKey(e) {
+  const d = document.getElementById('moreSheet'); if (!d || !d.classList.contains('open')) return;
+  if (e.key === 'Escape') { e.preventDefault(); closeMore(); return; }
+  if (e.key === 'Tab') {
+    const f = [...d.querySelectorAll('button:not([disabled])')].filter(x => x.offsetParent !== null);
+    if (!f.length) { e.preventDefault(); return; }
+    const first = f[0], last = f[f.length - 1];
+    if (!d.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 }
 function navMore(page) { closeMore(); nav(page); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore(); });
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -1285,14 +1309,37 @@ function formatApiError(d, fallback) {
 }
 
 function badge(status) {
-  const map = {
+  const color = {
     ACTIVE:'badge-green',VERIFIED:'badge-green',SUCCESS:'badge-green',
-    FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',COLLECTING:'badge-cyan',SETTLING:'badge-cyan',COMPLETED:'badge-gray',
-    FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-red',
+    FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',INITIATED:'badge-yellow',
+    COLLECTING:'badge-cyan',SETTLING:'badge-cyan',PROCESSING:'badge-cyan',COMPLETED:'badge-gray',
+    FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-red',RETURNED:'badge-red',
   };
-  return `<span class="badge ${map[status]||'badge-gray'}">${status}</span>`;
+  // Member-facing labels — never render the raw backend enum (COLLECTING,
+  // DELINQUENT, SUCCESS, …). Payment states mirror PAY_STATE severity so a
+  // RETURNED contribution reads as a failure (red), not a neutral chip; badge()
+  // is generic (circle/cycle/member/payment) so PENDING stays neutral "Pending"
+  // rather than the payment-specific "Due" (the Payments page uses PAY_STATE).
+  const label = {
+    ACTIVE:'Active',VERIFIED:'Verified',SUCCESS:'Settled',
+    FORMING:'Forming',PENDING:'Pending',SUBMITTED:'Under review',INITIATED:'Submitted',
+    COLLECTING:'Active',SETTLING:'Active',PROCESSING:'Processing',COMPLETED:'Completed',
+    FAILED:'Failed',DELINQUENT:'Action required',SUSPENDED:'Suspended',CLOSED:'Closed',RETURNED:'Returned',
+  };
+  const key = String(status || '').toUpperCase();
+  const text = label[key] || (key ? key.charAt(0) + key.slice(1).toLowerCase() : '—');
+  return `<span class="badge ${color[key]||'badge-gray'}">${esc(text)}</span>`;
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
+// Canonical member-facing date — "Mon D, YYYY" in the user's locale. One helper
+// so every surface formats a date identically (see docs/sol DATE-01). Returns ''
+// for a null/invalid date so callers can guard.
+function fmtDate(d, opts) {
+  if (!d) return '';
+  const x = new Date(d);
+  if (isNaN(x.getTime())) return '';
+  return x.toLocaleDateString(undefined, opts || { year: 'numeric', month: 'short', day: 'numeric' });
+}
 // Escape untrusted strings before interpolating into innerHTML — user-controlled
 // data (circle names, notification bodies, template names) must never be able to
 // inject markup/script that could read the session token from localStorage.
@@ -1498,11 +1545,11 @@ function renderDashScore(D) {
 function renderDashPremium(D) {
   const el = document.getElementById('dashPremium'); if (!el) return;
   if (!D.ok.sub) { el.innerHTML = dashCardError('Premium'); return; }
-  const s = D.sub || {}, renew = s.current_period_end ? new Date(s.current_period_end).toLocaleDateString() : null;
+  const s = D.sub || {}, renew = s.current_period_end ? fmtDate(s.current_period_end) : null;
   let body;
-  if (s.is_premium && s.cancel_at_period_end) body = `<span class="status status--warning">Cancels soon</span><p class="hint-muted">Active through ${renew || 'the current period'}.</p><button type="button" class="btn btn-ghost btn--sm" onclick="nav('premium')">Manage</button>`;
+  if (s.is_premium && s.cancel_at_period_end) body = `<span class="status status--warning">Cancellation scheduled</span><p class="hint-muted">Active through ${renew || 'the current period'}.</p><button type="button" class="btn btn-ghost btn--sm" onclick="nav('premium')">Manage</button>`;
   else if (s.is_premium) body = `<span class="status status--active">Active</span><p class="hint-muted">Renews ${renew || 'monthly'}.</p><button type="button" class="btn btn-ghost btn--sm" onclick="nav('premium')">Manage subscription</button>`;
-  else body = `<div class="premium-price"><span class="tnum">${s.price_cents != null ? fmt$(s.price_cents) : '$14.99'}</span><span class="premium-per">/month</span></div><ul class="premium-benefits"><li>Enhanced circle recommendations</li><li>Advanced insights</li><li>Priority support</li></ul><button type="button" class="btn btn-primary btn--sm" onclick="nav('premium')">Go Premium</button>`;
+  else body = `<div class="premium-price">${s.price_cents != null ? `<span class="tnum">${fmt$(s.price_cents)}</span><span class="premium-per">/month</span>` : `<span class="hint-muted">Price unavailable</span>`}</div><ul class="premium-benefits"><li>Enhanced circle recommendations</li><li>Advanced insights</li><li>Priority support</li></ul><button type="button" class="btn btn-primary btn--sm" onclick="nav('premium')">Go Premium</button>`;
   el.innerHTML = `<div class="side-card premium-card" role="group" aria-label="SOL Premium"><div class="premium-card__sheen" aria-hidden="true"></div><h3>SOL Premium</h3>${body}</div>`;
 }
 
@@ -1609,7 +1656,7 @@ async function consumePendingInvite() {
     warn.innerHTML = `<div style="font-weight:600;color:var(--gold);margin-bottom:.25rem">Invite pending</div>
       <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${esc((e.message || '').slice(0,80))}). Your invite code:
       <code style="color:var(--sol-600);background:var(--surface-2);padding:.15rem .4rem;border-radius:.3rem">${esc(code)}</code>.
-      Finish verifying ID + linking a bank, then paste it into <a href="javascript:nav('groups')" style="color:var(--sol-600)">Circles → Join with invite code</a>.</div>`;
+      Finish verifying ID + linking a bank, then paste it into <button type="button" onclick="nav('groups')" style="background:none;border:0;padding:0;color:var(--sol-600);text-decoration:underline;cursor:pointer;font:inherit">Circles → Join with invite code</button>.</div>`;
     document.getElementById('dashAttention')?.after(warn);
   }
 }
@@ -1680,39 +1727,6 @@ async function loadOnboarding() {
       </div>
     `;
   }
-}
-
-// ── Dashboard groups ──────────────────────────────────────────────────────────
-// Statuses that mean a circle is over — kept out of the main grid so a pile of
-// old/failed/cancelled circles never buries the ones the member is active in.
-const ENDED_GROUP_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
-
-async function loadDashGroups() {
-  const el = document.getElementById('dashGroups');
-  try {
-    const gs = (await api('/groups') || []).filter(g => !isTestCircle(g));
-    if (!gs.length) {
-      el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
-      return;
-    }
-
-    const active = gs.filter(g => !ENDED_GROUP_STATUSES.has(g.status));
-    const ended = gs.filter(g => ENDED_GROUP_STATUSES.has(g.status));
-
-    const activeHtml = active.length
-      ? `<div class="group-grid">${active.map(circleCardV2).join('')}</div>`
-      : `<div class="empty">No active circles right now. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
-
-    // Ended circles collapse into a single toggle instead of flooding the page.
-    const endedHtml = ended.length
-      ? `<details style="margin-top:1rem">
-           <summary style="cursor:pointer;color:var(--muted);font-size:.85rem;user-select:none">Show ${ended.length} ended circle${ended.length === 1 ? '' : 's'}</summary>
-           <div class="group-grid" style="margin-top:.75rem;opacity:.65">${ended.map(circleCardV2).join('')}</div>
-         </details>`
-      : '';
-
-    el.innerHTML = activeHtml + endedHtml;
-  } catch { el.innerHTML = '<div class="empty">Could not load circles</div>'; }
 }
 
 // ── Circles (savings groups) ──────────────────────────────────────────────────
@@ -2036,7 +2050,7 @@ async function showGroup(id) {
           </div>`
         : '';
       const recipientBanner = isRecipient
-        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(232,147,36,.08);border:1px solid rgba(232,147,36,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You are this cycle's payout recipient — ${fmt$(g.contribution_cents * g.max_members * (1 - g.fee_bps / 10000))} net will be sent to your bank.</div>`
+        ? `<div style="margin-top:1rem;padding:.75rem 1rem;background:rgba(232,147,36,.08);border:1px solid rgba(232,147,36,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem">★ You are this cycle's payout recipient — ${fmt$(Math.round(g.contribution_cents * g.max_members * (1 - (g.fee_bps || 0) / 10000)))} net will be sent to your bank.</div>`
         : '';
       cycleSection = `<div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
@@ -2119,7 +2133,7 @@ async function showGroup(id) {
           </tbody>
         </table>
       </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  } catch (e) { el.innerHTML = `<div class="empty"><p>Couldn't load this circle.</p><button type="button" class="btn btn-ghost btn--sm" onclick="nav('groups')">Back to circles</button></div>`; }
 }
 
 async function joinGroup(id) {
@@ -2134,16 +2148,19 @@ async function joinGroup(id) {
     // Translate backend error messages to actionable guidance + deep-link
     let msg = e.message || 'Failed to join';
     let cta = '';
+    const linkStyle = 'background:none;border:0;padding:0;color:var(--sol-600);text-decoration:underline;cursor:pointer;font:inherit';
     if (/no active bank/i.test(msg) || /bank account/i.test(msg)) {
       msg = 'You need a verified bank account before joining a circle.';
-      cta = ' <a href="javascript:nav(\'bank\')" style="color:var(--sol-600);text-decoration:underline">Go to Bank →</a>';
+      cta = ` <button type="button" onclick="nav('bank')" style="${linkStyle}">Go to Bank →</button>`;
     } else if (/kyc/i.test(msg)) {
       msg = 'Complete identity verification first.';
-      cta = ' <a href="javascript:nav(\'kyc\')" style="color:var(--sol-600);text-decoration:underline">Verify ID →</a>';
+      cta = ` <button type="button" onclick="nav('kyc')" style="${linkStyle}">Verify ID →</button>`;
     } else if (/account status/i.test(msg)) {
       msg = 'Your account is not active. Please contact support.';
     }
-    err.innerHTML = msg + cta;
+    // esc(msg): matched branches are static, but the fall-through path carries the
+    // raw backend message — escape it. cta is controlled static HTML (kept raw).
+    err.innerHTML = esc(msg) + cta;
     err.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Join this circle';
   }
@@ -2589,9 +2606,10 @@ function openBankAdd() {
   const d = document.getElementById('bankAddSection');
   if (!d) return;
   d.open = true;
-  d.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  d.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
   const inp = document.getElementById('bankName');
-  if (inp) setTimeout(() => inp.focus(), 200);
+  if (inp) setTimeout(() => inp.focus(), reduce ? 0 : 200);
 }
 
 // ── Remove-account confirmation dialog (accessible: focus-trap, Escape, restore) ─
@@ -2622,6 +2640,9 @@ function openRemoveDialog(id) {
   setTimeout(() => { const k = document.querySelector('#bankRemoveDialog .btn-ghost'); if (k) k.focus(); }, 0);
 }
 function closeRemoveDialog(skipRestore) {
+  // Block user-initiated close (Escape key OR the "Keep account" button) while a
+  // removal is in flight; the success path passes skipRestore=true so it still closes.
+  if (_bankRemoveInFlight && !skipRestore) return;
   const dlg = document.getElementById('bankRemoveDialog');
   if (dlg) dlg.classList.remove('is-open');
   document.removeEventListener('keydown', _bankDialogKey, true);
@@ -2630,7 +2651,7 @@ function closeRemoveDialog(skipRestore) {
   if (!skipRestore && t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
 }
 function _bankDialogKey(e) {
-  if (e.key === 'Escape') { e.preventDefault(); closeRemoveDialog(); return; }
+  if (e.key === 'Escape') { e.preventDefault(); if (_bankRemoveInFlight) return; closeRemoveDialog(); return; }
   if (e.key === 'Tab') {
     const dlg = document.getElementById('bankRemoveDialog');
     const f = dlg.querySelectorAll('button:not([disabled])');
@@ -3210,10 +3231,10 @@ async function loadTimeline() {
     const ph=t.payment_history||[];
     if (ph.length) {
       out.push(`<h2 style="font-size:1.1rem;margin:1.5rem 0 1rem;font-family:var(--font-display)">Recent payments</h2>`);
-      out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${new Date(p.created_at).toLocaleDateString()}</td><td>${fmt$(p.amount_cents)}</td><td>${badge(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
+      out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${esc(fmtDate(p.created_at))}</td><td>${fmt$(p.amount_cents)}</td><td>${badge(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
     }
     el.innerHTML = out.join('');
-  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  } catch (e) { el.innerHTML = `<div class="empty"><p>Couldn't load your timeline.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTimeline()">Retry</button></div>`; }
 }
 
 // ── Trust / SOL Score ───────────────────────────────────────────────────────────
@@ -3236,7 +3257,7 @@ async function loadTrust() {
       <h2 style="font-size:1.1rem;margin-bottom:.5rem;font-family:var(--font-display)">How it's built</h2>
       <div class="card" style="margin-bottom:1.5rem">${compRows}</div>
       <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Badges</h2>${badgeGrid}`;
-  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  } catch (e) { el.innerHTML = `<div class="empty"><p>Couldn't load your SOL Score.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTrust()">Retry</button></div>`; }
 }
 
 // ── Premium ─────────────────────────────────────────────────────────────────────
