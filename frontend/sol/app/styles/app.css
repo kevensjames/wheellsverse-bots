@@ -117,8 +117,8 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .circle-card__name{font-family:var(--font-display);font-size:1rem;font-weight:600;margin:0;line-height:1.3}
 .circle-card__role{font-size:.72rem;color:var(--ink-500);margin-top:-.4rem}
 .circle-card__figs{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
-.circle-card__figs .fig-label,.cdetail__figs .fig-label{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-500)}
-.circle-card__figs .fig-val,.cdetail__figs .fig-val{display:block;font-size:.85rem;font-weight:600;margin-top:.1rem}
+.circle-card__figs .fig-label,.cdetail__figs .fig-label,.catalog-card__figs .fig-label{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-500)}
+.circle-card__figs .fig-val,.cdetail__figs .fig-val,.catalog-card__figs .fig-val{display:block;font-size:.85rem;font-weight:600;margin-top:.1rem}
 .pbar-row{display:flex;justify-content:space-between;font-size:.72rem;color:var(--ink-500);margin-bottom:.3rem}
 .pbar{height:7px;background:var(--surface-2);border-radius:var(--r-pill);overflow:hidden}
 .pbar__fill{height:100%;background:linear-gradient(90deg,var(--sol-400),var(--success-600));border-radius:var(--r-pill);transition:width .5s var(--ease)}
@@ -653,3 +653,23 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .cdetail__member-me{color:var(--sol-600)}
 .cdetail__member-other{color:var(--muted)}
 .cdetail__payout-yes{color:var(--green)}
+
+/* Circle Catalog (Phase 3 Increment 1 — browse). Matches the design system;
+   the participation gate is disclosed but never grants access (backend truth).
+   .catalog-card__figs reuses the shared .fig-label/.fig-val treatment above. */
+.catalog-gate{background:linear-gradient(135deg,rgba(232,147,36,.06),rgba(201,120,31,.04));border:1px solid rgba(232,147,36,.28);border-radius:var(--r-lg);padding:1.15rem 1.25rem;margin-bottom:1.5rem}
+.catalog-gate__head{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:.5rem}
+.catalog-gate__title{font-family:var(--font-display);font-size:1.05rem;font-weight:600;margin:0}
+.catalog-gate__price{font-weight:700;font-size:1.15rem;color:var(--sol-600);white-space:nowrap}
+.catalog-gate__per{font-size:.72rem;font-weight:500;color:var(--muted)}
+.catalog-gate__body{font-size:.85rem;color:var(--ink-700);margin:0 0 .5rem;line-height:1.5}
+.catalog-gate__state{font-size:.85rem;margin:0;font-weight:500}
+.catalog-gate__state--ok{color:var(--green)}
+.catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:1rem}
+.catalog-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.15rem;box-shadow:var(--shadow-1);display:flex;flex-direction:column;gap:.7rem}
+.catalog-card__top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
+.catalog-card__name{font-family:var(--font-display);font-size:1rem;font-weight:600;margin:0;line-height:1.3}
+.catalog-card__desc{font-size:.82rem;color:var(--muted);margin:0;line-height:1.45}
+.catalog-card__figs{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.catalog-card__fee{font-size:.8rem;color:var(--ink-700)}
+.catalog-note{margin-top:1.25rem;font-size:.78rem;line-height:1.5;max-width:62ch}

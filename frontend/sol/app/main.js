@@ -6,3 +6,4 @@
 
 init();
 refreshUnread();
+applyFeatureFlags();   // reveal any flag-gated nav/UI (Phase 3 catalog is OFF by default)

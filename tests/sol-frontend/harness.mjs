@@ -83,6 +83,13 @@ function seed() {
     payments: [{ id: 'p1', group_id: G_ACT, amount_cents: 20000, status: 'COMPLETED', created_at: '2026-06-15T00:00:00Z' }],
     feed: [{ id: POST, ref: POST, author: 'SOL member', author_id: 'u2', user_id: 'u2', body: 'Just completed my first circle! Grateful for this community.', text: 'Just completed my first circle!', created_at: '2026-07-12T09:00:00Z', created: '2026-07-12T09:00:00Z', scope: 'CIRCLE', group_id: G_ACT, mine: false }],
     comments: [{ id: 'c1', ref: 'c1', author: 'You', body: 'Congratulations!', created_at: '2026-07-12T10:00:00Z', mine: true, user_id: IDS.U }],
+    // Phase 3 — Circle Catalog (admin-defined offerings) + participation gate.
+    catalog: [
+      { id: 'a1a1a1a1-1111-4111-8111-a1a1a1a1a1a1', name: 'Weekly Starter Circle', description: 'A small weekly circle to build the saving habit.', status: 'OPEN', contribution_cents: 5000, cadence: 'WEEKLY', entry_fee_cents: 500, fee_bps: 1000, member_count: 3, max_members: 8, payout_day_of_month: null, is_private: false, tier: 'STANDARD' },
+      { id: 'b2b2b2b2-2222-4222-8222-b2b2b2b2b2b2', name: 'Monthly Family Circle', description: 'Monthly contributions toward bigger goals.', status: 'FORMING', contribution_cents: 20000, cadence: 'MONTHLY', entry_fee_cents: 0, fee_bps: 1000, member_count: 5, max_members: 6, payout_day_of_month: 15, is_private: false, tier: 'STANDARD' },
+      { id: 'c3c3c3c3-3333-4333-8333-c3c3c3c3c3c3', name: 'Private Biweekly Circle', description: 'Invite-only, every two weeks.', status: 'FULL', contribution_cents: 10000, cadence: 'BIWEEKLY', entry_fee_cents: 1000, fee_bps: 1000, member_count: 8, max_members: 8, payout_day_of_month: null, is_private: true, tier: 'PREMIUM' },
+    ],
+    participation: { can_join: true, status: 'TRIALING', trial_end: '2026-08-15T00:00:00Z', current_period_end: '2026-08-15T00:00:00Z', price_cents: 999 },
   };
 }
 
@@ -127,6 +134,9 @@ function _mockResolve(rawUrl, opts) {
   if (path === '/feed') return /offset=0/.test(query) || !/offset=/.test(query) ? SEED.feed : [];
   if (/^\\/feed\\/[^/]+\\/comments$/.test(path)) return SEED.comments;
   if (path === '/kyc/submit') return { kyc_status: 'VERIFIED' };
+  if (path === '/catalog') return SEED.catalog;
+  if (/^\\/catalog\\/[^/]+$/.test(path)) { const cid = path.split('/')[2]; return SEED.catalog.find(c => c.id === cid) || SEED.catalog[0]; }
+  if (path === '/participation/me') return SEED.participation;
   return [];
 }
 window.fetch = async (u, o) => {

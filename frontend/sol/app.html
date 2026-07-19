@@ -42,6 +42,7 @@
     <div class="nav-section">Savings</div>
     <button type="button" class="nav-item" data-page="groups" onclick="nav('groups')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circles</button>
     <button type="button" class="nav-item" data-page="discover" onclick="nav('discover')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-discover"/></svg> Discover</button>
+    <button type="button" class="nav-item" data-page="catalog" data-feature="catalog" hidden onclick="nav('catalog')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circle Catalog</button>
     <button type="button" class="nav-item" data-page="goals" onclick="nav('goals')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-goals"/></svg> Goals</button>
 
     <div class="nav-section">Money</div>
@@ -160,6 +161,15 @@
     </div>
     <div id="circlesCount" class="circles-count" aria-live="polite"></div>
     <div id="groupList" role="tabpanel" aria-labelledby="ctab-mine" tabindex="0"><div class="spinner"></div></div>
+  </div>
+
+  <!-- Circle Catalog (Phase 3 — browse only; flag-gated behind SOL_FEATURES.catalog) -->
+  <div class="page" id="page-catalog">
+    <div id="catalogLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="circles-head">
+      <div><h1>Circle Catalog</h1><p class="sub">Browse SOL Circle offerings — browsing is open to everyone.</p></div>
+    </div>
+    <div id="catalogList"></div>
   </div>
 
   <!-- Group Detail (injected dynamically) -->
@@ -524,6 +534,7 @@
     <h3>More</h3>
     <div class="more-grid">
       <button type="button" class="more-item" onclick="navMore('discover')"><svg class="ic" aria-hidden="true"><use href="#ic-discover"/></svg>Discover</button>
+      <button type="button" class="more-item" data-feature="catalog" hidden onclick="navMore('catalog')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circle Catalog</button>
       <button type="button" class="more-item" onclick="navMore('goals')"><svg class="ic" aria-hidden="true"><use href="#ic-goals"/></svg>Goals</button>
       <button type="button" class="more-item" onclick="navMore('timeline')"><svg class="ic" aria-hidden="true"><use href="#ic-timeline"/></svg>Timeline</button>
       <button type="button" class="more-item" onclick="navMore('bank')"><svg class="ic" aria-hidden="true"><use href="#ic-bank"/></svg>Bank</button>
@@ -535,6 +546,7 @@
   </div>
 </div>
 
+<script src="/sol/app/core/features.js"></script>
 <script src="/sol/app/core/state.js"></script>
 <script src="/sol/app/core/router.js"></script>
 <script src="/sol/app/core/api.js"></script>
@@ -547,6 +559,7 @@
 <script src="/sol/app/pages/bank.js"></script>
 <script src="/sol/app/pages/payments.js"></script>
 <script src="/sol/app/pages/discover.js"></script>
+<script src="/sol/app/pages/catalog.js"></script>
 <script src="/sol/app/pages/timeline.js"></script>
 <script src="/sol/app/pages/trust.js"></script>
 <script src="/sol/app/pages/premium.js"></script>
