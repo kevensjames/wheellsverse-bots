@@ -196,36 +196,19 @@ function goalsSkeleton() { return `<ul class="goal-grid">${Array.from({ length: 
 let _goalDlg = { id: null, trigger: null };
 function openGoalDialog(dialogId, focusSel) {
   _goalDlg = { id: dialogId, trigger: document.activeElement };
-  const d = document.getElementById(dialogId); if (!d) return;
-  d.dataset.busy = '0'; d.classList.add('is-open');
-  document.addEventListener('keydown', _goalTrapKey, true);
-  setTimeout(() => { const f = (focusSel && d.querySelector(focusSel)) || d.querySelector('input,select,button'); if (f) f.focus(); }, 0);
+  // default canClose (dataset.busy) matches the goal dialogs' busy-guard.
+  SolDialog.open(dialogId, { opener: _goalDlg.trigger, initialFocus: focusSel || 'input,select,button', onClose: () => { _goalDlg = { id: null, trigger: null }; } });
 }
 function closeGoalDialog(dialogId, skipRestore) {
-  const which = dialogId || _goalDlg.id;
-  const d = document.getElementById(which); if (d) d.classList.remove('is-open');
-  document.removeEventListener('keydown', _goalTrapKey, true);
-  const t = _goalDlg.trigger; _goalDlg = { id: null, trigger: null };
   // On success we skip restore (loadGoals re-renders the trigger away); caller lands focus on #goalList.
-  if (!skipRestore && t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
+  SolDialog.close(dialogId || _goalDlg.id, { restoreFocus: !skipRestore });
+  _goalDlg = { id: null, trigger: null };
 }
 function goalLandFocus() { const lp = document.getElementById('goalList'); if (lp && lp.focus) { try { lp.focus(); } catch (e) {} } }
-function _goalTrapKey(e) {
-  const d = document.getElementById(_goalDlg.id); if (!d) return;
-  if (e.key === 'Escape') { e.preventDefault(); if (d.dataset.busy === '1') return; closeGoalDialog(_goalDlg.id); return; }
-  if (e.key === 'Tab') {
-    const f = [...d.querySelectorAll('input,select,button,textarea')].filter(x => !x.disabled && x.offsetParent !== null);   // visible only (hidden gfType excluded in edit mode)
-    if (!f.length) { e.preventDefault(); return; }
-    const first = f[0], last = f[f.length - 1];
-    if (!d.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }
-}
 function _goalSafeErr(ex, fallback) { const m = (ex && ex.message) ? String(ex.message) : ''; if (/already|exists/i.test(m)) return 'A goal like this already exists.'; return fallback; }
 
 // ── Create / edit ─────────────────────────────────────────────────────────────
-let _goalFormMode = 'create', _goalFormId = null, _goalFormBusy = false;
+let _goalFormMode = 'create', _goalFormId = null;
 function openGoalForm(mode, id) {
   _goalFormMode = mode; _goalFormId = (mode === 'edit' && _goalUuid(id)) ? id : null;
   const title = document.getElementById('goalFormTitle'), submit = document.getElementById('goalFormSubmit');
@@ -251,7 +234,7 @@ function openGoalForm(mode, id) {
 }
 async function submitGoalForm(e) {
   if (e && e.preventDefault) e.preventDefault();
-  if (_goalFormBusy) return;
+  if (SolGuard.isLocked('goal:save')) return;
   const nameF = document.getElementById('gfName'), targetF = document.getElementById('gfTarget'), dateF = document.getElementById('gfDate');
   const typeF = document.getElementById('gfType'), err = document.getElementById('goalFormErr'), submit = document.getElementById('goalFormSubmit'), dlg = document.getElementById('goalFormDialog');
   err.style.display = 'none';
@@ -261,7 +244,7 @@ async function submitGoalForm(e) {
   if (targetCents == null || targetCents < 100) { err.textContent = 'Enter a target amount of at least $1.'; err.style.display = 'block'; targetF.focus(); return; }
   const dateV = dateF.value || null;
   if (dateV && !goalDate(dateV)) { err.textContent = 'Enter a valid target date.'; err.style.display = 'block'; dateF.focus(); return; }
-  _goalFormBusy = true; dlg.dataset.busy = '1';
+  SolGuard.acquire('goal:save'); dlg.dataset.busy = '1';
   submit.disabled = true; submit.textContent = _goalFormMode === 'edit' ? 'Saving…' : 'Creating…';
   try {
     if (_goalFormMode === 'edit') {
@@ -281,11 +264,11 @@ async function submitGoalForm(e) {
     err.style.display = 'block';
     submit.disabled = false; submit.textContent = _goalFormMode === 'edit' ? 'Save changes' : 'Create goal';
     dlg.dataset.busy = '0';
-  } finally { _goalFormBusy = false; }
+  } finally { SolGuard.release('goal:save'); }
 }
 
 // ── Update tracked progress (a planning value — never moves money) ────────────
-let _goalProgId = null, _goalProgBusy = false;
+let _goalProgId = null;
 function openGoalProgress(id) {
   if (!_goalUuid(id)) return;
   _goalProgId = id;
@@ -297,12 +280,12 @@ function openGoalProgress(id) {
 }
 async function submitGoalProgress(e) {
   if (e && e.preventDefault) e.preventDefault();
-  if (_goalProgBusy || !_goalProgId) return;
+  if (!_goalProgId || SolGuard.isLocked('goal:progress')) return;
   const amt = document.getElementById('gpAmount'), err = document.getElementById('goalProgErr'), submit = document.getElementById('goalProgSubmit'), dlg = document.getElementById('goalProgressDialog');
   err.style.display = 'none';
   const cents = dollarsToCents(amt.value);
   if (cents == null) { err.textContent = 'Enter a tracked amount of $0 or more.'; err.style.display = 'block'; amt.focus(); return; }
-  _goalProgBusy = true; dlg.dataset.busy = '1';
+  SolGuard.acquire('goal:progress'); dlg.dataset.busy = '1';
   submit.disabled = true; submit.textContent = 'Saving…';
   try {
     await api(`/goals/${_goalProgId}`, { method: 'PATCH', body: JSON.stringify({ saved_cents: cents }) });
@@ -313,11 +296,11 @@ async function submitGoalProgress(e) {
   } catch (ex) {
     err.textContent = _goalSafeErr(ex, "We couldn't update your progress. Please try again.");
     err.style.display = 'block'; submit.disabled = false; submit.textContent = 'Save progress'; dlg.dataset.busy = '0';
-  } finally { _goalProgBusy = false; }
+  } finally { SolGuard.release('goal:progress'); }
 }
 
 // ── Archive / delete / restore ───────────────────────────────────────────────
-let _goalConfirm = { action: null, id: null }, _goalConfirmBusy = false;
+let _goalConfirm = { action: null, id: null };
 function openGoalConfirm(action, id) {
   if (!_goalUuid(id)) return;
   _goalConfirm = { action, id };
@@ -335,8 +318,8 @@ function openGoalConfirm(action, id) {
   openGoalDialog('goalConfirmDialog', '.btn-ghost');
 }
 async function confirmGoalAction() {
-  if (_goalConfirmBusy || !_goalConfirm.id) return;
-  _goalConfirmBusy = true; const dlg = document.getElementById('goalConfirmDialog'); dlg.dataset.busy = '1';
+  if (!_goalConfirm.id || SolGuard.isLocked('goal:confirm')) return;
+  SolGuard.acquire('goal:confirm'); const dlg = document.getElementById('goalConfirmDialog'); dlg.dataset.busy = '1';
   const ok = document.getElementById('goalConfirmOk'); ok.disabled = true; ok.textContent = _goalConfirm.action === 'delete' ? 'Deleting…' : 'Archiving…';
   const { action, id } = _goalConfirm;
   try {
@@ -349,15 +332,13 @@ async function confirmGoalAction() {
   } catch (ex) {
     const err = document.getElementById('goalConfirmErr'); err.textContent = _goalSafeErr(ex, "We couldn't complete that. Please try again."); err.style.display = 'block';
     ok.disabled = false; ok.textContent = action === 'delete' ? 'Delete goal' : 'Archive goal'; dlg.dataset.busy = '0';
-  } finally { _goalConfirmBusy = false; }
+  } finally { SolGuard.release('goal:confirm'); }
 }
-let _goalRestoreBusy = false;
 async function restoreGoal(id, ev) {
-  if (!_goalUuid(id) || _goalRestoreBusy) return;
-  _goalRestoreBusy = true;
+  if (!_goalUuid(id) || !SolGuard.acquire('goal:restore:' + id)) return;
   const btn = (ev && ev.currentTarget) ? ev.currentTarget : null;
   if (btn) { btn.disabled = true; btn.textContent = 'Restoring…'; }
   try { await api(`/goals/${id}`, { method: 'PATCH', body: JSON.stringify({ status: 'ACTIVE' }) }); goalsAnnounce('Goal restored.'); await loadGoals(); goalLandFocus(); }
   catch (e) { if (btn) { btn.disabled = false; btn.textContent = 'Restore'; } goalsAnnounce("Couldn't restore the goal."); }
-  finally { _goalRestoreBusy = false; }
+  finally { SolGuard.release('goal:restore:' + id); }
 }

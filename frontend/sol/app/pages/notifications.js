@@ -236,8 +236,7 @@ function notifGo(dest, gid) {
 }
 
 async function markOneRead(id) {
-  if (!id || notifState.busy[id]) return;
-  notifState.busy[id] = true;
+  if (!id || !SolGuard.acquire('notification:read:' + id)) return;   // per-notification: reading A never blocks B
   const btn = document.getElementById('nmr-' + id);
   if (btn) { btn.disabled = true; btn.textContent = 'Marking…'; }
   try {
@@ -252,11 +251,10 @@ async function markOneRead(id) {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Mark read'; }   // keep it unread — no silent change
     notifAnnounce("Couldn't mark as read. Please try again.");
-  } finally { notifState.busy[id] = false; }
+  } finally { SolGuard.release('notification:read:' + id); }
 }
 async function markAllRead() {
-  if (notifState.busy.__all) return;
-  notifState.busy.__all = true;
+  if (!SolGuard.acquire('notification:read-all')) return;
   const btn = document.getElementById('notifMarkAll');
   if (btn) { btn.disabled = true; btn.textContent = 'Marking…'; }
   try {
@@ -267,7 +265,7 @@ async function markAllRead() {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Mark all as read'; }
     notifAnnounce("Couldn't mark all as read. Please try again.");
-  } finally { notifState.busy.__all = false; }
+  } finally { SolGuard.release('notification:read-all'); }
 }
 function notifSkeleton() {
   return `<ul class="notif-feed">${Array.from({ length: 4 }).map(() => `<li class="notif-item"><span class="notif-item__ic"></span><div class="notif-item__main" style="flex:1"><span class="sk sk-line" style="width:45%"></span><span class="sk sk-line" style="width:75%;margin-top:.4rem"></span></div></li>`).join('')}</ul>`;

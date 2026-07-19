@@ -32,37 +32,11 @@ function logout() {
 }
 
 // Mobile "More" sheet
-let _moreTrigger = null;
+// Mobile "More" bottom sheet — a sliding sheet (openClass 'open', aria-hidden
+// toggled), so SolDialog focuses the first item after the slide-in transition
+// (mobileSheet). The backdrop's inline onclick still calls closeMore().
 function openMore() {
-  const s = document.getElementById('moreSheet');
-  if (!s) return;
-  _moreTrigger = document.activeElement;
-  s.classList.add('open'); s.setAttribute('aria-hidden', 'false');
-  document.addEventListener('keydown', _moreTrapKey, true);   // aria-modal now backed by a real trap
-  // Focus after the sheet's slide-in transition settles (unlike the display-toggle
-  // .bank-modal dialogs, this sheet animates in, so a 0ms focus lands too early).
-  // The trap also pulls focus in on the first Tab, so this is best-effort.
-  const first = s.querySelector('.more-item');
-  requestAnimationFrame(() => requestAnimationFrame(() => { if (first && s.classList.contains('open')) first.focus(); }));
+  SolDialog.open('moreSheet', { openClass: 'open', ariaHidden: true, mobileSheet: true, initialFocus: '.more-item' });
 }
-function closeMore() {
-  const s = document.getElementById('moreSheet');
-  if (!s) return;
-  const wasOpen = s.classList.contains('open');
-  s.classList.remove('open'); s.setAttribute('aria-hidden', 'true');
-  document.removeEventListener('keydown', _moreTrapKey, true);
-  if (wasOpen) { const t = _moreTrigger; _moreTrigger = null; if (t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} } }
-}
-function _moreTrapKey(e) {
-  const d = document.getElementById('moreSheet'); if (!d || !d.classList.contains('open')) return;
-  if (e.key === 'Escape') { e.preventDefault(); closeMore(); return; }
-  if (e.key === 'Tab') {
-    const f = [...d.querySelectorAll('button:not([disabled])')].filter(x => x.offsetParent !== null);
-    if (!f.length) { e.preventDefault(); return; }
-    const first = f[0], last = f[f.length - 1];
-    if (!d.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }
-}
+function closeMore() { SolDialog.close('moreSheet'); }
 function navMore(page) { closeMore(); nav(page); }

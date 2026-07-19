@@ -173,7 +173,6 @@ function openBankAdd() {
 
 // ── Remove-account confirmation dialog (accessible: focus-trap, Escape, restore) ─
 let _bankRemove = { id: null, trigger: null };
-let _bankRemoveInFlight = false;
 function openRemoveDialog(id) {
   const a = (bankState.accounts || []).find(x => x && String(x.id) === String(id));
   if (!a) return;
@@ -194,37 +193,20 @@ function openRemoveDialog(id) {
     <p class="hint-muted">If a payment is in progress, removal may be declined to protect it.</p>`;
   document.getElementById('bankRemoveErr').style.display = 'none';
   const btn = document.getElementById('bankRemoveConfirm'); btn.disabled = false; btn.textContent = 'Remove account';
-  document.getElementById('bankRemoveDialog').classList.add('is-open');
-  document.addEventListener('keydown', _bankDialogKey, true);
-  setTimeout(() => { const k = document.querySelector('#bankRemoveDialog .btn-ghost'); if (k) k.focus(); }, 0);
+  // canClose blocks Escape mid-delete; closeRemoveDialog() blocks the cancel button too.
+  SolDialog.open('bankRemoveDialog', { opener: _bankRemove.trigger, initialFocus: '.btn-ghost', canClose: () => !SolGuard.isLocked('bank:remove:' + (_bankRemove.id || '')), onClose: () => { _bankRemove = { id: null, trigger: null }; } });
 }
 function closeRemoveDialog(skipRestore) {
   // Block user-initiated close (Escape key OR the "Keep account" button) while a
   // removal is in flight; the success path passes skipRestore=true so it still closes.
-  if (_bankRemoveInFlight && !skipRestore) return;
-  const dlg = document.getElementById('bankRemoveDialog');
-  if (dlg) dlg.classList.remove('is-open');
-  document.removeEventListener('keydown', _bankDialogKey, true);
-  const t = _bankRemove.trigger; _bankRemove = { id: null, trigger: null };
+  if (SolGuard.isLocked('bank:remove:' + (_bankRemove.id || '')) && !skipRestore) return;
   // On success we skip restore because loadBank() destroys the trigger; caller lands focus itself.
-  if (!skipRestore && t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
-}
-function _bankDialogKey(e) {
-  if (e.key === 'Escape') { e.preventDefault(); if (_bankRemoveInFlight) return; closeRemoveDialog(); return; }
-  if (e.key === 'Tab') {
-    const dlg = document.getElementById('bankRemoveDialog');
-    const f = dlg.querySelectorAll('button:not([disabled])');
-    if (!f.length) { e.preventDefault(); return; }
-    const first = f[0], last = f[f.length - 1];
-    if (!dlg.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }  // trap: pull escaped focus back
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }
+  SolDialog.close('bankRemoveDialog', { restoreFocus: !skipRestore });
+  _bankRemove = { id: null, trigger: null };
 }
 async function confirmRemove() {
-  if (_bankRemoveInFlight || !_bankRemove.id) return;
-  _bankRemoveInFlight = true;
   const id = _bankRemove.id;
+  if (!id || !SolGuard.acquire('bank:remove:' + id)) return;
   const btn = document.getElementById('bankRemoveConfirm'); btn.disabled = true; btn.textContent = 'Removing…';
   try {
     await api(`/bank/${id}`, { method: 'DELETE' });
@@ -238,5 +220,5 @@ async function confirmRemove() {
     err.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Remove account';
     loadBank();                         // reconcile list with server truth (e.g. 404/409 already-removed)
-  } finally { _bankRemoveInFlight = false; }
+  } finally { SolGuard.release('bank:remove:' + id); }
 }

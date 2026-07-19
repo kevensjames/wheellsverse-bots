@@ -217,10 +217,9 @@ function kycSafeError(ex) {
   return "We couldn't submit your verification. Please check your details and try again, or contact support.";
 }
 
-let _kycInFlight = false;
 async function submitKyc(e) {
   if (e && e.preventDefault) e.preventDefault();
-  if (_kycInFlight) return;
+  if (SolGuard.isLocked('kyc:submit')) return;
   const dobEl = document.getElementById('kDob');
   const dobErr = document.getElementById('kDobErr');
   const errSum = document.getElementById('kycErr');
@@ -229,7 +228,7 @@ async function submitKyc(e) {
   const dob = dobEl ? dobEl.value : '';
   const invalid = validateDob(dob);
   if (invalid) { if (dobErr) { dobErr.textContent = invalid; dobErr.style.display = 'block'; } if (dobEl) dobEl.focus(); return; }
-  _kycInFlight = true;
+  SolGuard.acquire('kyc:submit');   // sync validation above returned already if in-flight; acquire after it (no stuck lock on invalid DOB)
   const btn = document.getElementById('kBtn');
   const label = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
@@ -243,7 +242,7 @@ async function submitKyc(e) {
       // POST accepted but status unreadable — try one refresh, else honest fallback.
       try { const m = await api('/auth/me'); if (m && m.kyc_status) { me = m; status = m.kyc_status; } } catch (_) {}
     }
-    _kycInFlight = false;
+    SolGuard.release('kyc:submit');
     if (status) {
       // Render the exact status the backend returned for THIS submission — not an
       // optimistic guess and not a second /auth/me fetch that could lag or fail.
@@ -256,10 +255,10 @@ async function submitKyc(e) {
     }
   } catch (ex) {
     const msg = kycSafeError(ex);
-    if (/already verified/i.test((ex && ex.message) || '')) { _kycInFlight = false; loadKYC(); return; }
+    if (/already verified/i.test((ex && ex.message) || '')) { SolGuard.release('kyc:submit'); loadKYC(); return; }
     if (errSum) { errSum.textContent = msg; errSum.style.display = 'block'; if (errSum.focus) errSum.focus(); }
     if (btn) { btn.disabled = false; btn.textContent = label || 'Submit for verification'; }   // DOB preserved for retry
-    _kycInFlight = false;
+    SolGuard.release('kyc:submit');
   }
 }
 

@@ -162,14 +162,16 @@ function discResetFilters() { discState.search = ''; discState.hideFull = false;
 function discSkeleton() { return `<ul class="disc-grid">${Array.from({ length: 3 }).map(() => `<li class="disc-card"><span class="sk sk-line" style="width:50%"></span><span class="sk sk-line" style="width:75%;margin-top:.4rem"></span><span class="sk sk-block" style="margin-top:.6rem"></span></li>`).join('')}</ul>`; }
 
 // ── Circle detail / pre-join review dialog ───────────────────────────────────
-let _discDetailId = null, _discJoinBusy = false, _discDlgTrigger = null;
+let _discDetailId = null, _discDlgTrigger = null;
 async function openCircleDetail(id) {
   if (!_goalUuid(id)) return;
   _discDetailId = id; _discDlgTrigger = document.activeElement;
   const dlg = document.getElementById('circleDetailDialog'); const content = document.getElementById('circleDetailContent');
-  dlg.dataset.busy = '0'; content.innerHTML = '<div class="spinner"></div>'; dlg.classList.add('is-open');
-  document.addEventListener('keydown', _discTrapKey, true);
-  const modal = dlg.querySelector('.modal'); if (modal) { modal.setAttribute('tabindex', '-1'); modal.focus(); }   // move focus into the dialog during the async load
+  content.innerHTML = '<div class="spinner"></div>';
+  // initialFocus:false — we move focus into .modal ourselves during the async load;
+  // renderCircleDetail() then lands focus on the real controls. default canClose (dataset.busy).
+  SolDialog.open('circleDetailDialog', { opener: _discDlgTrigger, initialFocus: false, onClose: () => { _discDlgTrigger = null; _discDetailId = null; } });
+  const modal = dlg.querySelector('.modal'); if (modal) { modal.setAttribute('tabindex', '-1'); modal.focus(); }
   try { const g = await api(`/groups/${id}`); renderCircleDetail(g); }
   catch (e) {
     content.innerHTML = `<h3 id="cdTitle">Circle unavailable</h3><p id="cdBody" class="hint-muted">We couldn't load this circle right now. Please try again.</p><div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="closeCircleDetail()">Close</button></div>`;
@@ -226,26 +228,11 @@ function renderCircleDetail(g) {
   setTimeout(() => { const f = document.querySelector('#circleDetailDialog .btn-ghost'); if (f) f.focus(); }, 0);
 }
 function closeCircleDetail() {
-  const dlg = document.getElementById('circleDetailDialog'); if (dlg) dlg.classList.remove('is-open');
-  document.removeEventListener('keydown', _discTrapKey, true);
-  const t = _discDlgTrigger; _discDlgTrigger = null; _discDetailId = null;
-  if (t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
-}
-function _discTrapKey(e) {
-  const d = document.getElementById('circleDetailDialog'); if (!d) return;
-  if (e.key === 'Escape') { e.preventDefault(); if (d.dataset.busy === '1') return; closeCircleDetail(); return; }
-  if (e.key === 'Tab') {
-    const f = [...d.querySelectorAll('input,select,button,textarea,a[href]')].filter(x => !x.disabled && x.offsetParent !== null);
-    if (!f.length) { e.preventDefault(); return; }
-    const first = f[0], last = f[f.length - 1];
-    if (!d.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }
+  SolDialog.close('circleDetailDialog');
+  _discDlgTrigger = null; _discDetailId = null;
 }
 async function confirmJoinCircle(id, btn) {
-  if (_discJoinBusy || !_goalUuid(id)) return;
-  _discJoinBusy = true;
+  if (!_goalUuid(id) || !SolGuard.acquire('circle:join:' + id)) return;   // per-circle: joining A never blocks B
   const dlg = document.getElementById('circleDetailDialog'); dlg.dataset.busy = '1';
   const err = document.getElementById('cdErr'); if (err) err.style.display = 'none';
   if (btn) { btn.disabled = true; btn.textContent = 'Joining…'; }
@@ -262,7 +249,7 @@ async function confirmJoinCircle(id, btn) {
     if (err) { err.textContent = discJoinError(ex); err.style.display = 'block'; }
     if (btn) { btn.disabled = false; btn.textContent = 'Confirm & join this circle'; }
     dlg.dataset.busy = '0';
-  } finally { _discJoinBusy = false; }
+  } finally { SolGuard.release('circle:join:' + id); }
 }
 function discJoinError(ex) {
   const m = (ex && ex.message) ? String(ex.message) : '';
@@ -277,9 +264,8 @@ function discJoinError(ex) {
 }
 
 // ── SOL Match — reserve a payout spot (matched into a circle or waitlisted) ───
-let _reserveBusy = false;
 async function reservePayout() {
-  if (_reserveBusy) return;
+  if (SolGuard.isLocked('circle:reserve')) return;
   const btn = document.getElementById('mBtn'), err = document.getElementById('mErr'), res = document.getElementById('mResult');
   err.style.display = 'none';
   const dateV = document.getElementById('mDate').value;
@@ -287,7 +273,7 @@ async function reservePayout() {
   const freq = document.getElementById('mFreq').value;
   if (!dateV || !goalDate(dateV)) { err.textContent = 'Pick a valid payout date.'; err.style.display = 'block'; return; }
   if (amt == null || amt < 100) { err.textContent = 'Enter a contribution of at least $1.'; err.style.display = 'block'; return; }
-  _reserveBusy = true; btn.disabled = true; btn.textContent = 'Matching…';
+  SolGuard.acquire('circle:reserve'); btn.disabled = true; btn.textContent = 'Matching…';
   try {
     const r = await api('/circles/reserve', { method: 'POST', body: JSON.stringify({ preferred_payout_date: dateV, contribution_cents: amt, frequency: freq }) });
     const st = String(r && r.status || '').toUpperCase();
@@ -297,7 +283,7 @@ async function reservePayout() {
     discAnnounce(st === 'MATCHED' ? 'Matched into a circle.' : (st === 'WAITLISTED' ? 'Added to the waitlist.' : 'Reservation received.'));
     await loadDiscover();
   } catch (e) { err.textContent = discReserveError(e); err.style.display = 'block'; }
-  finally { _reserveBusy = false; btn.disabled = false; btn.textContent = 'Find my circle'; }
+  finally { SolGuard.release('circle:reserve'); btn.disabled = false; btn.textContent = 'Find my circle'; }
 }
 function discReserveError(ex) {
   const m = (ex && ex.message) ? String(ex.message) : '';

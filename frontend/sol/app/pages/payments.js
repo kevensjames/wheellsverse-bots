@@ -22,7 +22,6 @@ function normalizePayment(raw) { return PAY_STATE[raw] || { key: 'UNKNOWN', labe
 const PAY_TABS = ['upcoming', 'processing', 'completed', 'failed'];
 
 let payments = { all: [], gmap: {}, tab: 'upcoming', ok: true };
-const _payInFlight = {};
 
 async function loadMyPayments() {
   const el = document.getElementById('paymentsList'); if (!el) return;
@@ -125,8 +124,7 @@ function renderPayments() {
 // and — critically — NEVER optimistically marks the payment paid; it re-fetches
 // the backend truth so the record shows its real (submitted/processing) state.
 async function payContribution(groupId, btn) {
-  if (_payInFlight[groupId]) return;
-  _payInFlight[groupId] = true;
+  if (!SolGuard.acquire('payment:initiate:' + groupId)) return;   // per-circle: paying circle A never blocks circle B
   if (btn) { btn.disabled = true; btn.classList.add('btn--loading'); btn.dataset.orig = btn.textContent; btn.textContent = 'Submitting…'; }
   try {
     await api('/payments/initiate', { method: 'POST', body: JSON.stringify({ group_id: groupId }) });
@@ -137,7 +135,7 @@ async function payContribution(groupId, btn) {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.classList.remove('btn--loading'); btn.textContent = btn.dataset.orig || 'Pay now'; }
     alert(safeError(e));   // safe generic — never surface a raw backend/provider message on a money flow
-  } finally { delete _payInFlight[groupId]; }
+  } finally { SolGuard.release('payment:initiate:' + groupId); }
 }
 
 function paySetTab(tab) {

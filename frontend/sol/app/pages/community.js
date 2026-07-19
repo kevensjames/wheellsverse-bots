@@ -21,7 +21,6 @@
 // and comment bodies are escaped + rendered as plain text (white-space:pre-wrap).
 const COMM_PAGE = 30;
 const commState = { posts: [], filter: 'all', offset: 0, loading: false, more: false, likes: {}, open: {} };
-let _commPostBusy = false; const _commLikeBusy = {}, _commCommentBusy = {};
 
 function commAnnounce(msg) { const l = document.getElementById('commLive'); if (l) l.textContent = msg; }
 function _commReduce() { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); }
@@ -193,8 +192,7 @@ function commCard(p) {
 // carries no like state, so the count is shown ONLY from the like/unlike response
 // (never optimistically inflated); before any interaction the count is unknown.
 async function commToggleLike(id) {
-  if (!_isUuid(id) || _commLikeBusy[id]) return;
-  _commLikeBusy[id] = true;
+  if (!_isUuid(id) || !SolGuard.acquire('community:like:' + id)) return;   // per-post
   const btn = document.getElementById('comm-like-' + id);
   const wasLiked = commState.likes[id] && commState.likes[id].liked;
   if (btn) btn.disabled = true;
@@ -208,7 +206,7 @@ async function commToggleLike(id) {
   } catch (e) {
     commAnnounce(safeError(e));
     if (btn) btn.disabled = false;
-  } finally { _commLikeBusy[id] = false; }
+  } finally { SolGuard.release('community:like:' + id); }
 }
 function commRenderLikeBtn(id) {
   const btn = document.getElementById('comm-like-' + id);
@@ -273,14 +271,14 @@ function commCommentsHtml(postId, list) {
 
 // Backend-authoritative comment — no optimistic insert; re-fetch after success.
 async function postComment(postId, btn) {
-  if (!_isUuid(postId) || _commCommentBusy[postId]) return;
+  if (!_isUuid(postId) || SolGuard.isLocked('community:comment:' + postId)) return;   // per-post
   const ta = document.getElementById('comm-cbox-' + postId), err = document.getElementById('comm-cerr-' + postId);
   if (!ta) return;
   const body = ta.value.trim();
   if (err) err.style.display = 'none';
   if (!body) { if (err) { err.textContent = 'Write a comment first.'; err.style.display = 'block'; } ta.focus(); return; }
   if (body.length > 4000) { if (err) { err.textContent = 'Comments are limited to 4000 characters.'; err.style.display = 'block'; } return; }
-  _commCommentBusy[postId] = true;
+  SolGuard.acquire('community:comment:' + postId);   // acquired after sync validation (no stuck lock on empty/too-long)
   if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
   try {
     await api(`/feed/${postId}/comments`, { method: 'POST', body: JSON.stringify({ body }) });
@@ -288,11 +286,11 @@ async function postComment(postId, btn) {
     commAnnounce('Comment posted.');
   } catch (e) {
     if (err) { err.textContent = safeError(e); err.style.display = 'block'; }   // draft preserved on failure
-    _commCommentBusy[postId] = false;
+    SolGuard.release('community:comment:' + postId);
     if (btn) { btn.disabled = false; btn.textContent = 'Comment'; }
     return;
   }
-  _commCommentBusy[postId] = false;
+  SolGuard.release('community:comment:' + postId);
 }
 
 function commCount() {
@@ -313,14 +311,14 @@ function commFocusComposer() {
 // Backend-authoritative post — group_id omitted → GLOBAL post. No optimistic
 // render; the feed is re-fetched and the newest post takes focus.
 async function postFeed() {
-  if (_commPostBusy) return;
+  if (SolGuard.isLocked('community:post')) return;
   const btn = document.getElementById('feedBtn'), err = document.getElementById('feedErr'), ta = document.getElementById('feedBody');
   if (!ta) return;
   const body = ta.value.trim();
   if (err) err.style.display = 'none';
   if (!body) { if (err) { err.textContent = 'Write something to share first.'; err.style.display = 'block'; } ta.focus(); return; }
   if (body.length > 4000) { if (err) { err.textContent = 'Posts are limited to 4000 characters.'; err.style.display = 'block'; } return; }
-  _commPostBusy = true;
+  SolGuard.acquire('community:post');   // after sync validation
   if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
   try {
     await api('/feed', { method: 'POST', body: JSON.stringify({ body }) });
@@ -332,7 +330,7 @@ async function postFeed() {
     if (first) { first.setAttribute('tabindex', '-1'); first.focus(); }
   } catch (e) {
     if (err) { err.textContent = safeError(e); err.style.display = 'block'; }   // draft preserved (ta not cleared)
-  } finally { _commPostBusy = false; btn.disabled = false; btn.textContent = 'Post'; }
+  } finally { SolGuard.release('community:post'); btn.disabled = false; btn.textContent = 'Post'; }
 }
 
 function commSetFilter(f) {
@@ -348,7 +346,7 @@ function commSyncFilterButtons() {
 }
 
 // ── Report dialog (accessible; focus-trapped; Escape-to-close) ────────────────
-let _commReportTarget = null, _commReportTrigger = null, _commReportBusy = false;
+let _commReportTarget = null, _commReportTrigger = null;
 function openReportDialog(type, id, trigger) {
   if (!['POST', 'COMMENT'].includes(type) || !_isUuid(id)) return;
   _commReportTarget = { type, id }; _commReportTrigger = trigger || document.activeElement;
@@ -357,44 +355,15 @@ function openReportDialog(type, id, trigger) {
   const detail = document.getElementById('commReportDetail'); if (detail) detail.value = '';
   const first = document.querySelector('#commReportForm input[name="commReason"]'); if (first) first.checked = true;
   const submit = document.getElementById('commReportSubmit'); if (submit) { submit.disabled = false; submit.textContent = 'Submit report'; }
-  dlg.dataset.busy = '0'; dlg.classList.add('is-open');
-  document.addEventListener('keydown', _commReportTrapKey, true);
-  setTimeout(() => { if (first) first.focus(); }, 0);
+  // default canClose (dataset.busy); SolDialog collapses the reason radio-group to one tab stop.
+  SolDialog.open('commReportDialog', { opener: _commReportTrigger, initialFocus: 'input[name="commReason"]', onClose: () => { _commReportTarget = null; _commReportTrigger = null; } });
 }
 function closeReportDialog() {
-  const dlg = document.getElementById('commReportDialog'); if (dlg) dlg.classList.remove('is-open');
-  document.removeEventListener('keydown', _commReportTrapKey, true);
-  const t = _commReportTrigger; _commReportTarget = null; _commReportTrigger = null;
-  if (t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
-}
-function _commReportTrapKey(e) {
-  const d = document.getElementById('commReportDialog'); if (!d) return;
-  if (e.key === 'Escape') { e.preventDefault(); if (d.dataset.busy === '1') return; closeReportDialog(); return; }
-  if (e.key === 'Tab') {
-    const els = [...d.querySelectorAll('input,select,button,textarea,a[href]')].filter(x => !x.disabled && x.offsetParent !== null);
-    // Collapse each radio group to a SINGLE tab stop (its checked member, else the
-    // first) so first/last match native tab order and Shift+Tab can't slip past it.
-    const handled = new Set(); const f = [];
-    for (const x of els) {
-      if (x.type === 'radio' && x.name) {
-        if (handled.has(x.name)) continue;
-        handled.add(x.name);
-        const group = els.filter(y => y.type === 'radio' && y.name === x.name);
-        f.push(group.find(y => y.checked) || group[0]);
-      } else { f.push(x); }
-    }
-    if (!f.length) { e.preventDefault(); return; }
-    const first = f[0], last = f[f.length - 1];
-    const active = document.activeElement;
-    if (!d.contains(active)) { e.preventDefault(); first.focus(); return; }
-    let cur = active;
-    if (active.type === 'radio' && active.name) cur = f.find(el => el.type === 'radio' && el.name === active.name) || active;
-    if (e.shiftKey && cur === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && cur === last) { e.preventDefault(); first.focus(); }
-  }
+  SolDialog.close('commReportDialog');
+  _commReportTarget = null; _commReportTrigger = null;
 }
 async function submitReport() {
-  if (_commReportBusy || !_commReportTarget) return;
+  if (SolGuard.isLocked('community:report') || !_commReportTarget) return;
   const { type, id } = _commReportTarget;
   if (!_isUuid(id)) { closeReportDialog(); return; }
   const dlg = document.getElementById('commReportDialog'); dlg.dataset.busy = '1';
@@ -405,15 +374,15 @@ async function submitReport() {
   let reason = sel ? sel.value : 'Something else';
   if (detail.trim()) reason += ` — ${detail.trim()}`;
   reason = reason.slice(0, 1000);                      // backend max 1000
-  _commReportBusy = true;
+  SolGuard.acquire('community:report');
   if (submit) { submit.disabled = true; submit.textContent = 'Submitting…'; }
   try {
     await api('/community/report', { method: 'POST', body: JSON.stringify({ target_type: type, target_id: id, reason }) });   // no optimistic removal — content stays visible
-    dlg.dataset.busy = '0'; _commReportBusy = false;
+    dlg.dataset.busy = '0'; SolGuard.release('community:report');
     closeReportDialog();
     commAnnounce('Thanks — your report was submitted for review.');
   } catch (e) {
-    dlg.dataset.busy = '0'; _commReportBusy = false;
+    dlg.dataset.busy = '0'; SolGuard.release('community:report');
     if (err) { err.textContent = safeError(e); err.style.display = 'block'; }
     if (submit) { submit.disabled = false; submit.textContent = 'Submit report'; }
   }

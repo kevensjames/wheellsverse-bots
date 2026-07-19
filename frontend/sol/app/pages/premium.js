@@ -240,10 +240,8 @@ function premiumSkeleton() {
 }
 
 // ── Checkout — one centralized starter. Backend-authoritative; NEVER activates Premium. ──
-let _checkoutInFlight = false;
 async function startCheckout() {
-  if (_checkoutInFlight) return;
-  _checkoutInFlight = true;
+  if (!SolGuard.acquire('checkout')) return;
   const errEl = document.getElementById('premActionErr'); if (errEl) errEl.style.display = 'none';
   const btn = document.getElementById('subBtn');
   const label = btn ? btn.textContent : '';
@@ -253,12 +251,12 @@ async function startCheckout() {
     const url = safeUrl(resp && resp.checkout_url);   // http(s) only — never javascript:/data:; never a client-supplied URL
     if (!url) throw new Error('unsafe_or_missing_url');
     window.location.href = url;   // hand off to Stripe-hosted Checkout (this is NOT premium activation)
-    // Intentionally leave the guard set — the page is navigating away.
+    // Intentionally leave the lock HELD — the page is navigating away.
   } catch (e) {
     premiumAnnounce('Checkout could not be started.');
     premShowInlineError("We couldn't start checkout. Please try again in a moment, or contact support.");
     if (btn) { btn.disabled = false; btn.textContent = label || 'Upgrade to Premium'; }
-    _checkoutInFlight = false;
+    SolGuard.release('checkout');
   }
 }
 // Legacy alias — any old caller routes through the centralized starter.
@@ -266,7 +264,6 @@ function subscribePremium() { startCheckout(); }
 
 // ── Cancel membership — accessible dialog, backend-authoritative, no optimistic change ──
 let _premCancel = { trigger: null };
-let _premCancelInFlight = false;
 function openCancelDialog() {
   _premCancel = { trigger: document.activeElement };
   const s = premiumState.sub || {};
@@ -282,31 +279,15 @@ function openCancelDialog() {
     </ul>`;
   document.getElementById('premCancelErr').style.display = 'none';
   const btn = document.getElementById('premCancelConfirm'); btn.disabled = false; btn.textContent = 'Cancel membership';
-  document.getElementById('premCancelDialog').classList.add('is-open');
-  document.addEventListener('keydown', _premDialogKey, true);
-  setTimeout(() => { const k = document.querySelector('#premCancelDialog .btn-ghost'); if (k) k.focus(); }, 0);
+  // canClose blocks Escape while the cancel request is in flight (preserved).
+  SolDialog.open('premCancelDialog', { opener: _premCancel.trigger, initialFocus: '.btn-ghost', canClose: () => !SolGuard.isLocked('subscription:cancel'), onClose: () => { _premCancel = { trigger: null }; } });
 }
 function closeCancelDialog(skipRestore) {
-  const d = document.getElementById('premCancelDialog'); if (d) d.classList.remove('is-open');
-  document.removeEventListener('keydown', _premDialogKey, true);
-  const t = _premCancel.trigger; _premCancel = { trigger: null };
-  if (!skipRestore && t && typeof t.focus === 'function') { try { t.focus(); } catch (e) {} }
-}
-function _premDialogKey(e) {
-  if (e.key === 'Escape') { e.preventDefault(); if (_premCancelInFlight) return; closeCancelDialog(); return; }
-  if (e.key === 'Tab') {
-    const d = document.getElementById('premCancelDialog');
-    const f = d.querySelectorAll('button:not([disabled])');
-    if (!f.length) { e.preventDefault(); return; }
-    const first = f[0], last = f[f.length - 1];
-    if (!d.contains(document.activeElement)) { e.preventDefault(); first.focus(); return; }
-    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
-    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
-  }
+  SolDialog.close('premCancelDialog', { restoreFocus: !skipRestore });
+  _premCancel = { trigger: null };
 }
 async function confirmCancelPremium() {
-  if (_premCancelInFlight) return;
-  _premCancelInFlight = true;
+  if (!SolGuard.acquire('subscription:cancel')) return;
   const btn = document.getElementById('premCancelConfirm'); btn.disabled = true; btn.textContent = 'Cancelling…';
   const keep = document.querySelector('#premCancelDialog .btn-ghost'); if (keep) keep.disabled = true;   // commit-until-resolved: no dismiss mid-flight
   try {
@@ -321,7 +302,7 @@ async function confirmCancelPremium() {
     err.style.display = 'block';
     btn.disabled = false; btn.textContent = 'Cancel membership';
     if (keep) keep.disabled = false;   // restore the dismiss path only after a failed attempt
-  } finally { _premCancelInFlight = false; }
+  } finally { SolGuard.release('subscription:cancel'); }
 }
 // Legacy alias → accessible dialog.
 function cancelPremium() { openCancelDialog(); }
