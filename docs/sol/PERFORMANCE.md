@@ -26,17 +26,17 @@ was not performed in this environment (see *Measurements*).
 
 ## Measurements
 
-Values below are the **Increment-10 source** (post-fix); the gzip transfer figure
-is the pre-Increment-10 production measurement and will shrink slightly (dead
-code removed) — re-confirm after the Increment-10 deploy.
+Values below are measured on the **deployed Increment-10 build** (commit
+`185262a`), production `/sol/app`. All sizes are bytes (`wc -c` /
+`curl size_download`).
 
 | Metric | Value | How |
 |--------|-------|-----|
-| HTML transfer (gzip) | **~77 KB** (77,882 B pre-Inc10) | `curl -H "Accept-Encoding: gzip"` prod |
-| HTML source (uncompressed) | **322,074 bytes** (~315 KB; was 324,238 pre-Inc10) | source parse |
+| HTML transfer (gzip) | **78,647 bytes** (~77 KB) | `curl -H "Accept-Encoding: gzip"` prod |
+| HTML uncompressed | **326,646 bytes** (~319 KB) | prod `size_download` = `wc -c app.html` |
 | Compression ratio | ~76% | derived |
-| Inline JS | **228,536 bytes** | source parse |
-| Inline CSS | **54,784 bytes** | source parse |
+| Inline JS | **231,918 bytes** | byte-accurate source parse |
+| Inline CSS | **55,936 bytes** | byte-accurate source parse |
 | `sol-design-system.css` | 14,332 bytes (separate request, cacheable) | `wc -c` |
 | Static DOM elements | **~563** across all 13 hidden pages | HTML start-tag parse |
 | `<style>` blocks | 1 | parse |
@@ -81,8 +81,8 @@ redirect, not the app. A future measured run should authenticate first.
 
 Ranked by likelihood × cost:
 
-1. **`app.html` monolith growth (~324 KB / 226 KB JS).** Every increment adds
-   to one file that must be parsed on first load. Still gzips to ~76 KB and
+1. **`app.html` monolith growth (~327 KB / 232 KB JS).** Every increment adds
+   to one file that must be parsed on first load. Still gzips to ~77 KB and
    parses fast on modern devices, but the file has grown ~1.5× across the
    transformation and has no code-splitting. *Medium risk, high inertia.*
 2. **CSS duplication.** `sol-design-system.css` and the inline `<style>` both

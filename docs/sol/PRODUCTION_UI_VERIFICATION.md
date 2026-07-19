@@ -9,7 +9,7 @@ Final release evidence for the SOL member application UI transformation
   (note: the clean route serves the app; `/sol/app.html` returns empty — always
   verify `/sol/app`).
 - **Commit before Increment 10:** `6cd3d00`
-- **Increment 10 commit:** `<filled after commit + deploy — see §Final deployed state>`
+- **Increment 10 commit:** `185262a` (deployed + verified — see §Final deployed state)
 - **Verification date:** 2026-07-19
 - **Browsers/viewports:** Chromium (Playwright) at 320 / 375 / 768 / 1024 / 1440;
   production markers verified via cache-busted `curl`.
@@ -136,7 +136,25 @@ verified as complete and must gate the final release sign-off.
 
 ## Final deployed state
 
-_To be filled after the Increment-10 commit is pushed and Cloudflare serves it —
-records the deployed commit hash and the re-run production marker checks
-(nav = buttons, 0 `javascript:` links, badge canonical labels, chip AA tokens,
-prior increments intact, no console errors)._
+**Deployed commit `185262a`, live at `https://wheellsverse.com/sol/app`
+(Cloudflare Pages, built ~18 s after push).** Production marker verification
+(cache-busted `curl` on the clean route):
+
+| Check | Expected | Prod result |
+|-------|----------|-------------|
+| Sidebar nav = `<button class="nav-item">` | 13 buttons | ✓ 13 (0 `<a class="nav-item">`) |
+| `javascript:` action paths | 0 | ✓ 0 |
+| `badge()` RETURNED severity | `RETURNED:'badge-red'` + `'Returned'` | ✓ present |
+| `fmtDate()` helper | present | ✓ |
+| Dead `loadDashGroups` | removed | ✓ 0 |
+| Dashboard "Cancellation scheduled" | present | ✓ (×3) |
+| Hardcoded `$14.99` | removed | ✓ 0 |
+| group-detail sr-only `<h1>` | present | ✓ |
+| More-sheet trap (`_moreTrapKey`) | present | ✓ |
+| chip token `--st-pending` | `#7A4600` (AA) | ✓ (old `#B4700F` gone) |
+| chip token `--st-forming` | `#7A5309` (AA) | ✓ |
+| `--sol-700` token | `#8A4D0E` | ✓ |
+| Prior increments (`safeUrl`, `normalizeCommunityPost`, `normalizeBank`, `normalizeKycState`, `normalizeSubscriptionState`, `normalizeNotification`, `normalizeGoal`, `discNetPayout`, `SolOrb`, `PAY_STATE`) | intact | ✓ all present |
+
+Deployed sizes: app.html 326,646 B (gzip 78,647 B), `sol-design-system.css`
+14,332 B. Prod bytes match the committed source. No old-version markers remain.
