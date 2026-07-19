@@ -9,10 +9,14 @@ window.SOL_FEATURES = {
 };
 
 // Reveal flag-gated UI: any element with data-feature="X" is shown iff
-// SOL_FEATURES.X is true, hidden otherwise. Called once at boot (main.js).
+// SOL_FEATURES.X is true. Elements ALSO carrying data-admin are shown only when
+// the current member is an admin (backend-authoritative — this is UX-only; the
+// backend enforces authz on every /admin call). Called at boot AND after `me`
+// loads (init), since admin status isn't known until then.
 function applyFeatureFlags() {
   document.querySelectorAll('[data-feature]').forEach((el) => {
-    const on = !!(window.SOL_FEATURES && window.SOL_FEATURES[el.dataset.feature]);
+    let on = !!(window.SOL_FEATURES && window.SOL_FEATURES[el.dataset.feature]);
+    if (on && el.hasAttribute('data-admin')) on = isAdmin();
     if (on) el.removeAttribute('hidden');
     else el.setAttribute('hidden', '');
   });
@@ -21,4 +25,10 @@ function applyFeatureFlags() {
 // Guard for a flagged route/loader — true when the feature is enabled.
 function featureOn(name) {
   return !!(window.SOL_FEATURES && window.SOL_FEATURES[name]);
+}
+
+// Admin gate (UX only — backend enforces authz). True when /auth/me marks the
+// member an admin. Guarded so it's safe before `me` loads.
+function isAdmin() {
+  try { return !!(me && me.is_admin === true); } catch (e) { return false; }
 }

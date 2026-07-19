@@ -11,6 +11,7 @@
 let _routeAbort = null;
 function nav(page) {
   if (page === 'catalog' && !featureOn('catalog')) return;   // route gated behind SOL_FEATURES.catalog (defense-in-depth; nav entries are also hidden)
+  if (page === 'admin' && (!featureOn('catalog') || !isAdmin())) return;   // role-gated /admin route (UX; backend enforces authz)
   try { if (_routeAbort) _routeAbort.abort(); } catch (e) {}
   _routeAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -26,6 +27,7 @@ function nav(page) {
   if (page === 'payments') loadMyPayments();
   if (page === 'discover') loadDiscover();
   if (page === 'catalog') loadCatalog();   // Phase 3 — flag-gated inside loadCatalog()
+  if (page === 'admin') loadAdmin();       // Phase 3 — flag + role gated inside loadAdmin()
   if (page === 'timeline') loadTimeline();
   if (page === 'trust') loadTrust();
   if (page === 'premium') loadPremium();

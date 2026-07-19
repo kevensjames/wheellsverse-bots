@@ -58,6 +58,7 @@
 
     <div class="nav-section">Account</div>
     <button type="button" class="nav-item" data-page="premium" onclick="nav('premium')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-premium"/></svg> Premium</button>
+    <button type="button" class="nav-item" data-page="admin" data-feature="catalog" data-admin hidden onclick="nav('admin')"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circle admin</button>
     <button type="button" class="nav-item logout" onclick="logout()"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-signout"/></svg> Sign out</button>
   </nav>
 </aside>
@@ -182,6 +183,26 @@
       <div class="modal">
         <div id="participationCancelContent"><div class="spinner"></div></div>
       </div>
+    </div>
+  </div>
+
+  <!-- Circle Catalog ADMIN console (Phase 3 Inc 4 — role-gated: SOL_FEATURES.catalog + me.is_admin) -->
+  <div class="page" id="page-admin">
+    <div id="adminLiveStatus" class="sr-only" role="status" aria-live="polite"></div>
+    <div class="circles-head">
+      <div><h1>Circle admin</h1><p class="sub">Create and manage admin-defined catalog circles.</p></div>
+      <div class="circles-head__actions"><button type="button" class="btn btn-primary" onclick="openAdminForm('create',null,event)">Create a circle</button></div>
+    </div>
+    <div id="adminList" tabindex="-1"></div>
+    <!-- Admin dialogs live in #page-admin so they show when the admin page is active -->
+    <div class="bank-modal" id="adminFormDialog" role="dialog" aria-modal="true" aria-labelledby="adminFormTitle">
+      <div class="modal"><div id="adminFormContent"><div class="spinner"></div></div></div>
+    </div>
+    <div class="bank-modal" id="adminCloseDialog" role="dialog" aria-modal="true" aria-labelledby="adminCloseTitle" aria-describedby="adminCloseBody">
+      <div class="modal"><div id="adminCloseContent"><div class="spinner"></div></div></div>
+    </div>
+    <div class="bank-modal" id="adminParticipantsDialog" role="dialog" aria-modal="true" aria-labelledby="adminPartTitle" aria-describedby="adminPartBody">
+      <div class="modal disc-detail-modal"><div id="adminPartContent"><div class="spinner"></div></div></div>
     </div>
   </div>
 
@@ -548,6 +569,7 @@
     <div class="more-grid">
       <button type="button" class="more-item" onclick="navMore('discover')"><svg class="ic" aria-hidden="true"><use href="#ic-discover"/></svg>Discover</button>
       <button type="button" class="more-item" data-feature="catalog" hidden onclick="navMore('catalog')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circle Catalog</button>
+      <button type="button" class="more-item" data-feature="catalog" data-admin hidden onclick="navMore('admin')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circle admin</button>
       <button type="button" class="more-item" onclick="navMore('goals')"><svg class="ic" aria-hidden="true"><use href="#ic-goals"/></svg>Goals</button>
       <button type="button" class="more-item" onclick="navMore('timeline')"><svg class="ic" aria-hidden="true"><use href="#ic-timeline"/></svg>Timeline</button>
       <button type="button" class="more-item" onclick="navMore('bank')"><svg class="ic" aria-hidden="true"><use href="#ic-bank"/></svg>Bank</button>
@@ -573,6 +595,7 @@
 <script src="/sol/app/pages/payments.js"></script>
 <script src="/sol/app/pages/discover.js"></script>
 <script src="/sol/app/pages/catalog.js"></script>
+<script src="/sol/app/pages/admin.js"></script>
 <script src="/sol/app/pages/timeline.js"></script>
 <script src="/sol/app/pages/trust.js"></script>
 <script src="/sol/app/pages/premium.js"></script>

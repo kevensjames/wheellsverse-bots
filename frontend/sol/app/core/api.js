@@ -155,6 +155,7 @@ async function init() {
   try {
     me = await api('/auth/me');
     document.getElementById('userEmail').textContent = me.email;
+    applyFeatureFlags();   // re-reveal role-gated UI (e.g. /admin) now that me.is_admin is known
     loadDashboard();  // one consolidated, partial-failure-safe load feeds every card
     consumePendingInvite();  // if user arrived via ?invite=..., auto-join now
     // Returning from Stripe Checkout (?premium=success|cancel) — open the Premium

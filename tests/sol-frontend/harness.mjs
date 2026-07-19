@@ -32,7 +32,7 @@ export const IDS = {
 function seed() {
   const { U, G_ACT, G_FORM, GOAL, BANK, POST } = IDS;
   return {
-    user: { id: U, email: 'test@sol.app', full_name: 'Test User', kyc_status: 'VERIFIED', account_status: 'ACTIVE' },
+    user: { id: U, email: 'test@sol.app', full_name: 'Test User', kyc_status: 'VERIFIED', account_status: 'ACTIVE', is_admin: true },
     groupsActive: [{
       id: G_ACT, name: 'Family Savings Circle', status: 'ACTIVE',
       contribution_cents: 20000, fee_bps: 1000, member_count: 6, max_members: 6,
@@ -91,6 +91,12 @@ function seed() {
     ],
     participation: { can_join: true, status: 'TRIALING', trial_end: '2026-08-15T00:00:00Z', current_period_end: '2026-08-15T00:00:00Z', price_cents: 999 },
     eligibility: { can_join: true, checks: { subscription: 'ok', kyc: 'ok', bank: 'ok', account: 'ok' }, your_position: 4, entry_fee_cents: 500, entry_fee_refundable_until: 'FORMING_END' },
+    adminCircles: [
+      { id: 'a1a1a1a1-1111-4111-8111-a1a1a1a1a1a1', name: 'Weekly Starter Circle', status: 'OPEN', contribution_cents: 5000, entry_fee_cents: 500, cadence: 'WEEKLY', member_count: 3, max_members: 8, is_private: false },
+      { id: 'd4d4d4d4-4444-4444-8444-d4d4d4d4d4d4', name: 'Draft Autumn Circle', status: 'DRAFT', contribution_cents: 25000, entry_fee_cents: 0, cadence: 'MONTHLY', member_count: 0, max_members: 10, is_private: false },
+      { id: 'c3c3c3c3-3333-4333-8333-c3c3c3c3c3c3', name: 'Private Biweekly Circle', status: 'CLOSED', contribution_cents: 10000, entry_fee_cents: 1000, cadence: 'BIWEEKLY', member_count: 8, max_members: 8, is_private: true },
+    ],
+    adminParticipants: [{ position: 1, status: 'ACTIVE' }, { position: 2, status: 'COMPLETED' }, { position: 3, status: 'PENDING' }],
   };
 }
 
@@ -120,6 +126,9 @@ function _mockResolve(rawUrl, opts) {
     if (/^\\/catalog\\/[^/]+\\/join$/.test(path)) return { id: path.split('/')[2], members: [{ user_id: SEED.user.id, position: 5, status: 'ACTIVE' }] };
     if (path === '/participation/checkout') return { checkout_url: 'about:blank#mock-participation-checkout' };
     if (path === '/participation/cancel') return {};
+    if (path === '/admin/circles' && method === 'POST') return { id: 'e5e5e5e5-5555-4555-8555-e5e5e5e5e5e5', name: 'New circle', status: 'DRAFT' };
+    if (/^\\/admin\\/circles\\/[^/]+\\/close$/.test(path)) return {};
+    if (/^\\/admin\\/circles\\/[^/]+$/.test(path) && method === 'PATCH') return { id: path.split('/')[3] };
     return {};
   }
   if (path === '/auth/me') return SEED.user;
@@ -142,6 +151,8 @@ function _mockResolve(rawUrl, opts) {
   if (/^\\/catalog\\/[^/]+\\/eligibility$/.test(path)) return SEED.eligibility;
   if (/^\\/catalog\\/[^/]+$/.test(path)) { const cid = path.split('/')[2]; return SEED.catalog.find(c => c.id === cid) || SEED.catalog[0]; }
   if (path === '/participation/me') return SEED.participation;
+  if (path === '/admin/circles') return SEED.adminCircles;
+  if (/^\\/admin\\/circles\\/[^/]+\\/participants$/.test(path)) return SEED.adminParticipants;
   return [];
 }
 window.fetch = async (u, o) => {

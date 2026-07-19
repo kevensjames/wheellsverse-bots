@@ -676,3 +676,12 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .catalog-card__act{margin-top:.15rem}
 .catalog-note{margin-top:1.25rem;font-size:.78rem;line-height:1.5;max-width:62ch}
 .catalog-cta-note{font-size:.85rem;color:var(--ink-700);line-height:1.5;margin:0}
+
+/* Circle admin console (Phase 3 Inc 4). */
+.admin-row__acts{display:flex;gap:.35rem;flex-wrap:wrap}
+.admin-fld{display:block;margin-bottom:.7rem}
+.admin-fld>span{display:block;font-size:.78rem;color:var(--muted);margin-bottom:.25rem}
+.admin-fld input[type=text],.admin-fld input[type=number],.admin-fld select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900);font:inherit;font-size:.9rem}
+.admin-fld--check{display:flex;align-items:center;gap:.5rem}
+.admin-fld--check input{width:auto}
+.admin-fld--check>span{margin:0;font-size:.85rem;color:var(--ink-900)}
