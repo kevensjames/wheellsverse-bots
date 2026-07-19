@@ -7,3 +7,7 @@
 
 /blog/*.html
   Cache-Control: public, max-age=0, must-revalidate
+
+# Split JS/CSS modules — always revalidate after deploy (same policy as *.html)
+/sol/app/*
+  Cache-Control: public, max-age=0, must-revalidate
