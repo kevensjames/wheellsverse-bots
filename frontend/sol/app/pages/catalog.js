@@ -1,18 +1,20 @@
 // SOL member app — pages/catalog.js
-// Phase 3 Increment 1 — Circle Catalog BROWSE (read-only, mock-backed, flag-gated
-// SOL_FEATURES.catalog). Lists admin-defined circle offerings and discloses the
-// $9.99/mo SOL Circle participation subscription that gates JOINING (browsing is
-// open to everyone). See docs/sol/PHASE3_API_CONTRACT.md.
+// Phase 3 Increments 1–2 — Circle Catalog (mock-backed, flag-gated SOL_FEATURES
+// .catalog). Inc 1: BROWSE admin-defined offerings + disclose the $9.99/mo SOL
+// Circle participation subscription that gates JOINING (browsing is open to all).
+// Inc 2: circle DETAIL + eligibility-driven, guarded JOIN. See docs/sol/PHASE3_API_CONTRACT.md.
 //
 // MONEY-SAFETY (this file renders money-adjacent info; it must not overstep):
-//   • Backend-authoritative: joining access comes from /participation/me
-//     (can_join); NEVER computed client-side, NEVER optimistically granted.
-//   • Browsing / selecting / opening a card RESERVES NOTHING — stated in copy.
+//   • Backend-authoritative: joining access comes from /participation/me and
+//     /catalog/{id}/eligibility (can_join); NEVER computed/optimistically granted.
+//   • Joining never treats HTTP 200 alone as joined — membership is confirmed from
+//     the response; no catalog/membership state is optimistically promoted.
+//   • Browsing / opening a card RESERVES NOTHING; the entry fee + refund rule are
+//     disclosed BEFORE any join action.
 //   • NO guaranteed payout date or payout position is shown or implied.
 //   • The $9.99 participation subscription is DISTINCT from circle contributions,
 //     from the entry fee, and from the $14.99 Premium plan — never conflated.
-//   • Entry fee disclosed as "refundable until the circle starts".
-//   • READ-ONLY increment: no join, checkout, refund, or admin action here.
+//   • Still no checkout / refund / admin action here (later increments).
 
 const CATALOG_STATUS = {
   OPEN:    { label: 'Open',    cls: 'active' },
@@ -147,6 +149,7 @@ function offeringCard(o) {
       <div><span class="fig-label">Members</span><span class="fig-val tnum">${members}</span></div>
     </div>
     <div class="catalog-card__fee">${fee}</div>
+    <div class="catalog-card__act"><button type="button" class="btn btn-ghost btn--sm" aria-label="View details for ${esc(o.name)}" onclick="openCatalogDetail('${esc(o.id)}')">View details</button></div>
   </article>`;
 }
 
@@ -161,5 +164,138 @@ function renderCatalog() {
     ? `<div class="catalog-grid">${catalogState.items.map(offeringCard).join('')}</div>`
     : '<div class="empty"><p>No circles are open to browse right now. Check back soon.</p></div>';
   el.innerHTML = `${catalogGateBanner()}${cards}
-    <p class="catalog-note hint-muted">Browsing is read-only — opening or selecting a circle doesn't reserve a place or a payout position. Payout order and timing depend on each circle's rules and completing your contributions; no date or position is guaranteed. Joining opens in a later update.</p>`;
+    <p class="catalog-note hint-muted">Opening a circle shows its full details and, if you're eligible, lets you join. Browsing itself reserves nothing. Payout order and timing depend on each circle's rules and completing your contributions; no date or position is guaranteed.</p>`;
+}
+
+// ── Circle detail + join (Increment 2) ────────────────────────────────────────
+// Read eligibility → guarded join, all backend-authoritative. Eligibility
+// (/catalog/{id}/eligibility: can_join + checks) drives the CTA; the client only
+// REFLECTS it. The entry fee + refund rule are disclosed in the body BEFORE the
+// join. Joining never treats HTTP 200 alone as joined — membership is confirmed
+// from the response — and no catalog/membership state is optimistically promoted.
+const _catId = (s) => typeof s === 'string' && /^[0-9a-f-]{8,}$/i.test(s);
+let catalogDetail = { id: null, offering: null, elig: null, trigger: null };
+
+function normalizeCatalogEligibility(e) {
+  if (!e || typeof e !== 'object') return null;
+  const c = (e.checks && typeof e.checks === 'object') ? e.checks : {};
+  return {
+    canJoin: e.can_join === true,   // backend-authoritative; default false
+    subscription: c.subscription === 'ok' ? 'ok' : 'todo',
+    kyc: c.kyc === 'ok' ? 'ok' : 'todo',
+    bank: c.bank === 'ok' ? 'ok' : 'todo',
+    account: c.account === 'blocked' ? 'blocked' : 'ok',
+    entryFee: Number.isFinite(e.entry_fee_cents) && e.entry_fee_cents >= 0 ? e.entry_fee_cents : null,
+  };
+}
+
+async function openCatalogDetail(id) {
+  if (!featureOn('catalog') || !_catId(id)) return;
+  catalogDetail = { id, offering: null, elig: null, trigger: document.activeElement };
+  document.getElementById('catalogDetailContent').innerHTML = '<div class="spinner"></div>';
+  SolDialog.open('catalogDetailDialog', { opener: catalogDetail.trigger, initialFocus: false, onClose: () => { catalogDetail = { id: null, offering: null, elig: null, trigger: null }; } });
+  // Move focus into the dialog during the async load so the trap engages and focus
+  // isn't stranded on the background trigger while the spinner shows (mirror discover).
+  const _m = document.querySelector('#catalogDetailDialog .modal');
+  if (_m) { _m.setAttribute('tabindex', '-1'); try { _m.focus(); } catch (e) {} }
+  const [oRes, eRes] = await Promise.allSettled([api(`/catalog/${id}`), api(`/catalog/${id}/eligibility`)]);
+  if (catalogDetail.id !== id) return;   // dialog closed/replaced while loading — drop stale result
+  catalogDetail.offering = oRes.status === 'fulfilled' ? normalizeOffering(oRes.value) : null;
+  catalogDetail.elig = eRes.status === 'fulfilled' ? normalizeCatalogEligibility(eRes.value) : null;
+  renderCatalogDetail();
+}
+
+function closeCatalogDetail() { SolDialog.close('catalogDetailDialog'); }
+
+// Eligibility-driven CTA — REFLECTS the backend decision; never computes access.
+// `fee` is the disclosable entry fee (eligibility-authoritative, else listing; null = unknown).
+function catalogDetailCTA(o, el, id, fee) {
+  if (!el) return '<button type="button" class="btn btn-ghost" disabled>Eligibility unavailable — try again shortly</button>';
+  if (el.account === 'blocked') return `<button type="button" class="btn btn-ghost" onclick="closeCatalogDetail();nav('notifications')">Account inactive — get help</button>`;
+  if (el.canJoin) {
+    // NEVER offer a charge-triggering join action when the entry fee can't be
+    // disclosed (invariant #3: fee disclosed BEFORE the join).
+    if (fee == null) return '<button type="button" class="btn btn-ghost" disabled>Entry fee unavailable — try again shortly</button>';
+    return `<button type="button" class="btn btn-primary" id="catJoinBtn" onclick="doCatalogJoin('${esc(id)}',this)">Confirm &amp; join this circle</button>`;
+  }
+  if (el.subscription === 'todo') return '<p class="catalog-cta-note">SOL Circle participation ($9.99/mo, or a free trial) is required to join. You can browse now — subscribing opens in a later update.</p>';
+  if (el.kyc === 'todo') return `<button type="button" class="btn btn-primary" onclick="closeCatalogDetail();nav('kyc')">Verify your identity to join</button>`;
+  if (el.bank === 'todo') return `<button type="button" class="btn btn-primary" onclick="closeCatalogDetail();nav('bank')">Connect a bank to join</button>`;
+  return '<button type="button" class="btn btn-ghost" disabled>Joining unavailable</button>';
+}
+
+function renderCatalogDetail() {
+  const content = document.getElementById('catalogDetailContent');
+  const o = catalogDetail.offering, el = catalogDetail.elig, id = catalogDetail.id;
+  if (!o) {
+    content.innerHTML = '<h3 id="catDetailTitle">Circle unavailable</h3><p id="catDetailBody" class="hint-muted">We couldn\'t load this circle right now. Please try again.</p><div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="closeCatalogDetail()">Close</button></div>';
+    setTimeout(() => { const f = content.querySelector('button'); if (f) f.focus(); }, 0);
+    return;
+  }
+  const contribution = o.contribution != null ? fmt$(o.contribution) : '—';
+  const cadence = catalogCadence(o).toLowerCase();
+  // Entry fee: the eligibility value is authoritative for THIS join; fall back to the listing.
+  const fee = (el && el.entryFee != null) ? el.entryFee : o.entryFee;
+  const feeLine = fee == null ? '<span class="hint-muted">unavailable</span>'
+    : fee > 0 ? `${fmt$(fee)} <span class="hint-muted">· refundable until the circle starts</span>` : 'None';
+  const members = (o.count != null && o.cap != null) ? `${esc(o.count)} / ${esc(o.cap)}` : '—';
+  const priv = o.isPrivate ? ' <span title="Private" aria-label="Private">🔒</span>' : '';
+  content.innerHTML = `
+    <div class="disc-detail__head"><h3 id="catDetailTitle">${esc(o.name)}${priv}</h3><span class="status status--${o.status.cls}">${esc(o.status.label)}</span></div>
+    ${o.description ? `<p class="disc-detail__desc">${esc(o.description)}</p>` : ''}
+    <div id="catDetailBody">
+      <dl class="disc-detail__facts">
+        <div><dt>Contribution</dt><dd class="tnum">${contribution} <span class="hint-muted">${esc(cadence)}</span></dd></div>
+        <div><dt>Members</dt><dd class="tnum">${members}</dd></div>
+        <div><dt>Entry fee</dt><dd>${feeLine}</dd></div>
+      </dl>
+      <div class="disc-detail__rules"><h4>Before you join</h4><ul>
+        <li>Joining creates a recurring contribution obligation of ${contribution} ${esc(cadence)} until the circle completes.</li>
+        <li>SOL Circle participation ($9.99/mo, or a free trial) is required to join — separate from your contributions, the entry fee, and the SOL Premium plan.</li>
+        ${fee != null && fee > 0 ? `<li>The ${fmt$(fee)} entry fee is refundable until the circle starts; once it activates it is non-refundable.</li>` : ''}
+        <li>A circle is a savings arrangement, not an investment — no profit or guaranteed return. Payout order and timing depend on the circle's rules and completing your contributions; no date or position is guaranteed.</li>
+      </ul></div>
+      <div class="disc-detail__elig"><h4>Your eligibility</h4><ul class="disc-elig__list">
+        ${discEligItem(el && el.subscription, 'SOL Circle participation', 'Participation required to join')}
+        ${discEligItem(el && el.kyc, 'Identity verified', 'Verify your identity')}
+        ${discEligItem(el && el.bank, 'Bank account connected', 'Connect a bank account')}
+      </ul></div>
+    </div>
+    <p class="err" id="catDetailErr" role="alert" style="display:none"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="closeCatalogDetail()">Close</button>${catalogDetailCTA(o, el, id, fee)}</div>`;
+  setTimeout(() => { const f = content.querySelector('.btn-ghost'); if (f) f.focus(); }, 0);
+}
+
+// Guarded join — mirrors discover confirmJoinCircle. Backend charges the entry fee,
+// creates membership, and re-checks eligibility/capacity; HTTP 200 alone is NOT
+// treated as joined, and no catalog/membership state is optimistically promoted.
+async function doCatalogJoin(id, btn) {
+  if (!featureOn('catalog') || !_catId(id) || !SolGuard.acquire('catalog:join:' + id)) return;   // flag-gated + per-circle guard (joining A never blocks B)
+  const dlg = document.getElementById('catalogDetailDialog'); if (dlg) dlg.dataset.busy = '1';
+  const err = document.getElementById('catDetailErr'); if (err) err.style.display = 'none';
+  if (btn) { btn.disabled = true; btn.textContent = 'Joining…'; }
+  try {
+    const r = await api(`/catalog/${id}/join`, { method: 'POST' });   // mutation — never cancelled by navigation
+    const joined = r && Array.isArray(r.members) && !!(me && me.id) && r.members.some(m => m && m.user_id === me.id);
+    catalogAnnounce(joined ? 'You joined the circle.' : 'Your join request was received.');
+    if (dlg) dlg.dataset.busy = '0';
+    closeCatalogDetail();
+    nav('groups');   // show the member their circles from backend truth — no optimistic catalog mutation
+  } catch (ex) {
+    if (err) { err.textContent = catalogJoinError(ex); err.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = 'Confirm &amp; join this circle'; }
+    if (dlg) dlg.dataset.busy = '0';
+  } finally { SolGuard.release('catalog:join:' + id); }
+}
+
+// Map a join failure to safe, actionable guidance — never surface raw provider detail.
+function catalogJoinError(ex) {
+  const m = (ex && ex.message) ? String(ex.message) : '';
+  if (/already a member|already joined/i.test(m)) return "You're already a member of this circle.";
+  if (/full|capacity/i.test(m)) return 'This circle just filled up. Try another open circle.';
+  if (/participation|subscription/i.test(m)) return 'SOL Circle participation is required to join.';
+  if (/kyc|identity/i.test(m)) return 'Complete identity verification first.';
+  if (/bank/i.test(m)) return 'You need a verified bank account before joining.';
+  if (/account status|inactive|not active/i.test(m)) return 'Your account is not active. Please contact support.';
+  return safeError(ex);
 }

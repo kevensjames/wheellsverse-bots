@@ -90,6 +90,7 @@ function seed() {
       { id: 'c3c3c3c3-3333-4333-8333-c3c3c3c3c3c3', name: 'Private Biweekly Circle', description: 'Invite-only, every two weeks.', status: 'FULL', contribution_cents: 10000, cadence: 'BIWEEKLY', entry_fee_cents: 1000, fee_bps: 1000, member_count: 8, max_members: 8, payout_day_of_month: null, is_private: true, tier: 'PREMIUM' },
     ],
     participation: { can_join: true, status: 'TRIALING', trial_end: '2026-08-15T00:00:00Z', current_period_end: '2026-08-15T00:00:00Z', price_cents: 999 },
+    eligibility: { can_join: true, checks: { subscription: 'ok', kyc: 'ok', bank: 'ok', account: 'ok' }, your_position: 4, entry_fee_cents: 500, entry_fee_refundable_until: 'FORMING_END' },
   };
 }
 
@@ -116,6 +117,7 @@ function _mockResolve(rawUrl, opts) {
     if (path === '/subscriptions/checkout') return { checkout_url: 'about:blank#mock-checkout' };
     if (path === '/payments/initiate') return { checkout_url: 'about:blank#mock-pay', status: 'PENDING' };
     if (path === '/goals' && method === 'POST') return SEED.goals[0];
+    if (/^\\/catalog\\/[^/]+\\/join$/.test(path)) return { id: path.split('/')[2], members: [{ user_id: SEED.user.id, position: 5, status: 'ACTIVE' }] };
     return {};
   }
   if (path === '/auth/me') return SEED.user;
@@ -135,6 +137,7 @@ function _mockResolve(rawUrl, opts) {
   if (/^\\/feed\\/[^/]+\\/comments$/.test(path)) return SEED.comments;
   if (path === '/kyc/submit') return { kyc_status: 'VERIFIED' };
   if (path === '/catalog') return SEED.catalog;
+  if (/^\\/catalog\\/[^/]+\\/eligibility$/.test(path)) return SEED.eligibility;
   if (/^\\/catalog\\/[^/]+$/.test(path)) { const cid = path.split('/')[2]; return SEED.catalog.find(c => c.id === cid) || SEED.catalog[0]; }
   if (path === '/participation/me') return SEED.participation;
   return [];

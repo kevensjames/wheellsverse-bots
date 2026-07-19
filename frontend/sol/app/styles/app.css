@@ -672,4 +672,6 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .catalog-card__desc{font-size:.82rem;color:var(--muted);margin:0;line-height:1.45}
 .catalog-card__figs{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
 .catalog-card__fee{font-size:.8rem;color:var(--ink-700)}
+.catalog-card__act{margin-top:.15rem}
 .catalog-note{margin-top:1.25rem;font-size:.78rem;line-height:1.5;max-width:62ch}
+.catalog-cta-note{font-size:.85rem;color:var(--ink-700);line-height:1.5;margin:0}
