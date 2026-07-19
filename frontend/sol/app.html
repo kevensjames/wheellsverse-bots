@@ -46,12 +46,11 @@ h1{font-family:var(--font-display);font-size:1.5rem;font-weight:700;margin:0 0 .
 .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.25rem;box-shadow:var(--shadow-1)}
 .card-label{font-size:.72rem;color:var(--ink-500);margin-bottom:.4rem;display:flex;align-items:center;gap:.4rem;text-transform:uppercase;letter-spacing:.03em}
 .card-val{font-size:1.5rem;font-weight:700;font-family:var(--font-display);font-variant-numeric:tabular-nums}
+/* .badge = the count bubble (unread) + the "Private" label pill only. Status
+   lifecycle chips use the canonical .status--* system via statusChip(); the old
+   .badge-green/yellow/cyan/gray status colours were removed with badge(). */
 .badge{display:inline-block;padding:.2rem .6rem;border-radius:9999px;font-size:.72rem;font-weight:600}
-.badge-green{background:var(--success-100);color:var(--success-600)}
-.badge-yellow{background:var(--warn-100);color:var(--warn-600)}
-.badge-cyan{background:var(--sol-200);color:var(--sol-600)}
 .badge-red{background:var(--danger-100);color:var(--danger-700)}
-.badge-gray{background:var(--ink-100);color:var(--ink-700)}
 .badge-gold{background:var(--sol-200);color:var(--sol-600)}
 /* Groups */
 .group-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:1rem}
@@ -1308,27 +1307,31 @@ function formatApiError(d, fallback) {
   return d.detail.msg || JSON.stringify(d.detail);
 }
 
-function badge(status) {
-  const color = {
-    ACTIVE:'badge-green',VERIFIED:'badge-green',SUCCESS:'badge-green',
-    FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',INITIATED:'badge-yellow',
-    COLLECTING:'badge-cyan',SETTLING:'badge-cyan',PROCESSING:'badge-cyan',COMPLETED:'badge-gray',
-    FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-red',RETURNED:'badge-red',
+// Canonical status chip — the ONE way to render a backend lifecycle enum as a
+// member-facing chip. Replaces the legacy badge()/.badge-* system: maps the raw
+// enum to a canonical label + a semantic .status--* variant (tinted pill + dot +
+// text, never colour-only — see DESIGN_SYSTEM.md). Payment states mirror
+// PAY_STATE severity (RETURNED reads as a failure). Generic across
+// circle/cycle/member/payment, so PENDING stays neutral "Pending" (the Payments
+// page's richer PAY_STATE uses the payment-specific "Due").
+function statusChip(status) {
+  const variant = {
+    ACTIVE:'active', VERIFIED:'verified', SUCCESS:'active',
+    FORMING:'forming', PENDING:'pending', SUBMITTED:'pending', INITIATED:'pending',
+    COLLECTING:'active', SETTLING:'active', PROCESSING:'pending', COMPLETED:'completed',
+    FAILED:'failed', DELINQUENT:'failed', SUSPENDED:'blocked', CLOSED:'cancelled', RETURNED:'failed',
+    CANCELLED:'cancelled', PAUSED:'warning',
   };
-  // Member-facing labels — never render the raw backend enum (COLLECTING,
-  // DELINQUENT, SUCCESS, …). Payment states mirror PAY_STATE severity so a
-  // RETURNED contribution reads as a failure (red), not a neutral chip; badge()
-  // is generic (circle/cycle/member/payment) so PENDING stays neutral "Pending"
-  // rather than the payment-specific "Due" (the Payments page uses PAY_STATE).
   const label = {
-    ACTIVE:'Active',VERIFIED:'Verified',SUCCESS:'Settled',
-    FORMING:'Forming',PENDING:'Pending',SUBMITTED:'Under review',INITIATED:'Submitted',
-    COLLECTING:'Active',SETTLING:'Active',PROCESSING:'Processing',COMPLETED:'Completed',
-    FAILED:'Failed',DELINQUENT:'Action required',SUSPENDED:'Suspended',CLOSED:'Closed',RETURNED:'Returned',
+    ACTIVE:'Active', VERIFIED:'Verified', SUCCESS:'Settled',
+    FORMING:'Forming', PENDING:'Pending', SUBMITTED:'Under review', INITIATED:'Submitted',
+    COLLECTING:'Active', SETTLING:'Active', PROCESSING:'Processing', COMPLETED:'Completed',
+    FAILED:'Failed', DELINQUENT:'Action required', SUSPENDED:'Suspended', CLOSED:'Closed', RETURNED:'Returned',
   };
   const key = String(status || '').toUpperCase();
   const text = label[key] || (key ? key.charAt(0) + key.slice(1).toLowerCase() : '—');
-  return `<span class="badge ${color[key]||'badge-gray'}">${esc(text)}</span>`;
+  const v = variant[key] || 'completed';   // unknown enum → neutral grey (matches the old badge-gray default), never amber "in-progress"
+  return `<span class="status status--${v}" aria-label="Status: ${esc(text)}">${esc(text)}</span>`;
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 // Canonical member-facing date — "Mon D, YYYY" in the user's locale. One helper
@@ -1408,7 +1411,7 @@ function dashGreeting() { const h = new Date().getHours(); return h < 12 ? 'Good
 function dashFirstName() { const n = (me && (me.full_name || me.email)) || ''; return esc(n.split('@')[0].split(' ')[0] || 'there'); }
 function dashActive(D) { return D.groups.filter(g => DASH_ACTIVE.includes(g.status)); }
 function dashForming(D) { return D.groups.filter(g => g.status === 'FORMING'); }
-function _dashDate(d) { return d ? new Date(d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : null; }
+function _dashDate(d) { return fmtDate(d, { month: 'short', day: 'numeric' }) || null; }   // compact "Jul 19" (year implied in context)
 function dashIdVerified() { const k = ((me && me.kyc_status) || '').toUpperCase(); return k === 'APPROVED' || k === 'VERIFIED'; }
 
 // Next contribution — prefer the timeline's authoritative value; else derive from
@@ -1481,7 +1484,7 @@ function renderDashAttention(D) {
   if (D.ok.banks && !(D.banks || []).length) items.push({ pr: 2, cls: 'warning', title: 'Connect a bank account', reason: 'Needed to make and receive circle payments.', label: 'Connect bank', action: "nav('bank')" });
   if ((me && me.failed_payments) > 0) items.push({ pr: 0, cls: 'failed', title: 'A payment needs attention', reason: `${esc(me.failed_payments)} failed payment${me.failed_payments === 1 ? '' : 's'} on record.`, label: 'Review payments', action: "nav('payments')" });
   const nc = D.tl && D.tl.next_contribution;
-  if (nc && nc.due_date) { const days = Math.ceil((new Date(nc.due_date) - new Date()) / 86400000); if (days <= 5) items.push({ pr: 0, cls: 'pending', title: 'Contribution coming up', reason: `${nc.amount_cents != null ? fmt$(nc.amount_cents) + ' ' : ''}for ${esc(nc.group_name || 'your circle')} due ${new Date(nc.due_date).toLocaleDateString()}.`, label: 'View circles', action: "nav('groups')" }); }
+  if (nc && nc.due_date) { const days = Math.ceil((new Date(nc.due_date) - new Date()) / 86400000); if (days <= 5) items.push({ pr: 0, cls: 'pending', title: 'Contribution coming up', reason: `${nc.amount_cents != null ? fmt$(nc.amount_cents) + ' ' : ''}for ${esc(nc.group_name || 'your circle')} due ${fmtDate(nc.due_date)}.`, label: 'View circles', action: "nav('groups')" }); }
   const unread = (D.notes || []).filter(n => !n.read_at).length;
   if (D.ok.notes && unread) items.push({ pr: 3, cls: 'active', title: `${unread} unread alert${unread === 1 ? '' : 's'}`, reason: 'Updates about your circles and payments.', label: 'View alerts', action: "nav('notifications')" });
   items.sort((a, b) => a.pr - b.pr);
@@ -1523,7 +1526,7 @@ function renderDashTimeline(D) {
   events.sort((a, b) => new Date(a.date) - new Date(b.date));
   const items = events.slice(0, 5);
   if (!items.length) { el.innerHTML = head + `<div class="empty"><p>Nothing scheduled yet.</p><div class="hint-muted">Contributions and payouts appear here once you're in an active circle.</div></div>`; return; }
-  el.innerHTML = head + `<ol class="tl">${items.map(e => `<li class="tl-item"><span class="tl-dot status--${e.state === 'estimate' ? 'pending' : e.state}" aria-hidden="true"></span><div class="tl-body"><div class="tl-label">${e.label}</div><div class="tl-sub tnum">${e.sub}</div></div><time class="tl-date">${e.state === 'estimate' ? 'est. ' : ''}${_dashDate(e.date)}</time></li>`).join('')}</ol>`;
+  el.innerHTML = head + `<ol class="tl">${items.map(e => `<li class="tl-item"><span class="tl-dot status--${e.state === 'estimate' ? 'pending' : e.state}" aria-hidden="true"></span><div class="tl-body"><div class="tl-label">${e.label}</div><div class="tl-sub tnum">${e.sub}</div></div><time class="tl-date">${e.state === 'estimate' ? 'est. ' : ''}${_dashDate(e.date) || ''}</time></li>`).join('')}</ol>`;
 }
 
 function renderDashScore(D) {
@@ -1559,7 +1562,7 @@ function renderDashGoals(D) {
   const active = (D.goals || []).filter(g => !['COMPLETED', 'CANCELLED', 'ACHIEVED'].includes(g.status))[0];
   if (!active) { el.innerHTML = `<div class="side-card"><h3>Savings goals</h3><p class="hint-muted">Set a target and track your progress toward it.</p><button type="button" class="btn btn-ghost btn--sm" onclick="nav('goals')">Create a goal</button></div>`; return; }
   const pct = active.progress_percent != null ? Math.round(active.progress_percent) : (active.target_cents ? Math.round((active.saved_cents || 0) / active.target_cents * 100) : 0);
-  el.innerHTML = `<div class="side-card"><h3>Savings goal</h3><div class="goal-name">${esc(active.name)}</div><div class="pbar-row"><span class="tnum">${fmt$(active.saved_cents || 0)} of ${fmt$(active.target_cents || 0)}</span><span class="tnum">${Math.min(100, pct)}%</span></div><div class="pbar" role="progressbar" aria-valuenow="${Math.min(100, pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(active.name)} savings progress"><div class="pbar__fill" style="width:${Math.min(100, pct)}%"></div></div>${active.target_date ? `<div class="hint-muted" style="margin-top:.4rem">Target ${new Date(active.target_date).toLocaleDateString()}</div>` : ''}<button type="button" class="btn btn-ghost btn--sm" style="margin-top:.75rem" onclick="nav('goals')">View goals</button></div>`;
+  el.innerHTML = `<div class="side-card"><h3>Savings goal</h3><div class="goal-name">${esc(active.name)}</div><div class="pbar-row"><span class="tnum">${fmt$(active.saved_cents || 0)} of ${fmt$(active.target_cents || 0)}</span><span class="tnum">${Math.min(100, pct)}%</span></div><div class="pbar" role="progressbar" aria-valuenow="${Math.min(100, pct)}" aria-valuemin="0" aria-valuemax="100" aria-label="${esc(active.name)} savings progress"><div class="pbar__fill" style="width:${Math.min(100, pct)}%"></div></div>${active.target_date ? `<div class="hint-muted" style="margin-top:.4rem">Target ${fmtDate(active.target_date)}</div>` : ''}<button type="button" class="btn btn-ghost btn--sm" style="margin-top:.75rem" onclick="nav('goals')">View goals</button></div>`;
 }
 
 function renderDashTrust(D) {
@@ -1767,7 +1770,7 @@ function circleNextDateStr(g) {
   try {
     const d = _nextDayOfMonth(new Date(), g.payout_day_of_month);
     if (isNaN(d.getTime())) return null;
-    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    return fmtDate(d, { month: 'short', day: 'numeric' });
   } catch { return null; }
 }
 function circleAvatars(g) {
@@ -1821,7 +1824,7 @@ function renderCirclesSummary(all) {
   const soonest = all.filter(g => ['ACTIVE', 'COLLECTING', 'SETTLING'].includes(g.status) && g.payout_day_of_month != null)
     .map(g => { try { const d = _nextDayOfMonth(new Date(), g.payout_day_of_month); return isNaN(d.getTime()) ? null : d; } catch { return null; } })
     .filter(Boolean).sort((a, b) => a - b)[0];
-  if (soonest) nextC = soonest.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (soonest) nextC = fmtDate(soonest, { month: 'short', day: 'numeric' });
   el.innerHTML = summaryCard('Active circles', active) + summaryCard('Forming circles', forming)
     + summaryCard('Next contribution', nextC) + summaryCard('Next payout', 'See circle', 'per-circle');
 }
@@ -2045,7 +2048,7 @@ async function showGroup(id) {
       const myPaymentHtml = myLatestPayment
         ? `<div style="margin-top:.75rem;display:flex;align-items:center;gap:.75rem">
             <span style="font-size:.8rem;color:var(--muted)">My contribution:</span>
-            ${badge(myLatestPayment.status)} <span style="font-size:.8rem">${fmt$(myLatestPayment.amount_cents)}</span>
+            ${statusChip(myLatestPayment.status)} <span style="font-size:.8rem">${fmt$(myLatestPayment.amount_cents)}</span>
             ${myLatestPayment.next_retry_at ? `<span style="font-size:.75rem;color:var(--gold)">retry ${new Date(myLatestPayment.next_retry_at).toLocaleString()}</span>` : ''}
           </div>`
         : '';
@@ -2054,7 +2057,7 @@ async function showGroup(id) {
         : '';
       cycleSection = `<div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem">
-          <div style="font-weight:600">Cycle ${cycle.cycle_number}</div>${badge(cycle.status)}
+          <div style="font-weight:600">Cycle ${cycle.cycle_number}</div>${statusChip(cycle.status)}
         </div>
         <div style="background:var(--surface-2);border-radius:.5rem;height:8px;overflow:hidden;margin-bottom:.4rem">
           <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--sol-400),var(--success-600));transition:.4s"></div>
@@ -2088,7 +2091,7 @@ async function showGroup(id) {
     el.innerHTML = `
       <div class="card" style="max-width:none;margin-bottom:1.5rem">
         <div style="display:flex;align-items:start;justify-content:space-between;gap:.5rem;margin-bottom:1rem">
-          <h2 style="font-size:1.25rem">${esc(g.name)} ${privacyBadge}</h2>${badge(g.status)}
+          <h2 style="font-size:1.25rem">${esc(g.name)} ${privacyBadge}</h2>${statusChip(g.status)}
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:${canJoin?'1.5rem':'0'}">
           <div><div style="font-size:.72rem;color:var(--muted)">Contribution</div><div style="font-weight:600">${fmt$(g.contribution_cents)}</div></div>
@@ -2127,7 +2130,7 @@ async function showGroup(id) {
               <tr style="${m.user_id===me.id?'background:rgba(232,147,36,.06)':''}">
                 <td>${m.position ?? '—'}</td>
                 <td>${m.user_id===me.id?'<span style="color:var(--sol-600)">You</span>':'<span style="color:var(--muted)">SOL member</span>'}</td>
-                <td>${badge(m.status)}</td>
+                <td>${statusChip(m.status)}</td>
                 <td style="color:${m.has_received_payout?'var(--green)':'var(--muted)'}">${m.has_received_payout?'✓ Yes':'—'}</td>
               </tr>`).join('') : '<tr><td colspan="4" class="empty">No members yet</td></tr>'}
           </tbody>
@@ -2462,7 +2465,7 @@ function normalizeBank(a) {
   if (a.status !== 'ACTIVE') return BANK_STATE.UNKNOWN;   // unrecognized status → honest unavailable
   return a.verified === true ? BANK_STATE.VERIFIED : BANK_STATE.PENDING;
 }
-function bankDate(s) { if (!s) return null; const d = new Date(s); return isNaN(d) ? null : d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }); }
+function bankDate(s) { return fmtDate(s) || null; }   // canonical "Jul 19, 2026" via the shared formatter
 function bankMask(a) { const l4 = (a && typeof a.account_last4 === 'string' && /^\d{2,4}$/.test(a.account_last4)) ? a.account_last4 : null; return l4 ? ('•••• ' + l4) : 'Account ending unavailable'; }
 // Announce into a persistent page-level live region that survives loadBank()'s re-render.
 function bankAnnounce(msg) { const el = document.getElementById('bankLiveStatus'); if (el) { el.textContent = ''; el.textContent = msg; } }
@@ -2764,7 +2767,7 @@ function payDetail(p, st, gname, dateLabel, dateStr) {
 }
 function payCard(p) {
   const st = normalizePayment(p.status), gname = payCircleName(p);
-  const dateStr = p.created_at ? new Date(p.created_at).toLocaleDateString() : '—';
+  const dateStr = p.created_at ? fmtDate(p.created_at) : '—';
   const dateLabel = st.key === 'DUE' ? 'Created' : 'Submitted';
   const detailId = 'paydet-' + esc(p.id);
   const action = st.key === 'DUE' ? `<button type="button" class="btn btn-primary btn--sm" aria-label="Pay ${fmt$(p.amount_cents)} to ${esc(gname)}" onclick="payContribution('${esc(p.group_id)}',this)">Pay now</button>` : '';
@@ -2816,7 +2819,7 @@ async function payContribution(groupId, btn) {
     const live = document.getElementById('payCount'); if (live) live.textContent = 'Payment submitted.';
   } catch (e) {
     if (btn) { btn.disabled = false; btn.classList.remove('btn--loading'); btn.textContent = btn.dataset.orig || 'Pay now'; }
-    alert(e && e.message ? e.message : "Couldn't submit the payment. Please try again.");
+    alert(safeError(e));   // safe generic — never surface a raw backend/provider message on a money flow
   } finally { delete _payInFlight[groupId]; }
 }
 
@@ -2847,7 +2850,7 @@ async function setPrimary(id) {
   try {
     await api(`/bank/${id}/primary`, { method:'PATCH' });
     loadBank();
-  } catch(e) { alert(e.message); }
+  } catch(e) { alert(safeError(e)); }
 }
 
 // Legacy alias → routes any old caller through the accessible confirmation dialog.
@@ -3216,9 +3219,9 @@ async function loadTimeline() {
     const upAmt = up ? (up.amount_cents ?? up.net_cents) : null;
     const upDate = up ? (up.date ?? up.payout_date ?? up.estimated_date) : null;
     const out = [`<div class="cards">
-      <div class="card"><div class="card-label">Next contribution</div><div class="card-val">${nc?fmt$(nc.amount_cents):'—'}</div>${nc?`<div style="font-size:.8rem;color:var(--muted)">${esc(nc.group_name)} · due ${new Date(nc.due_date).toLocaleDateString()}</div>`:''}</div>
+      <div class="card"><div class="card-label">Next contribution</div><div class="card-val">${nc?fmt$(nc.amount_cents):'—'}</div>${nc?`<div style="font-size:.8rem;color:var(--muted)">${esc(nc.group_name)} · due ${fmtDate(nc.due_date)}</div>`:''}</div>
       <div class="card"><div class="card-label">Payments remaining</div><div class="card-val">${t.remaining_payments??'—'}</div></div>
-      <div class="card"><div class="card-label">Upcoming payout</div><div class="card-val" style="color:var(--gold)">${upAmt!=null?fmt$(upAmt):'—'}</div>${upDate?`<div style="font-size:.8rem;color:var(--muted)">${new Date(upDate).toLocaleDateString()}</div>`:''}</div>
+      <div class="card"><div class="card-label">Upcoming payout</div><div class="card-val" style="color:var(--gold)">${upAmt!=null?fmt$(upAmt):'—'}</div>${upDate?`<div style="font-size:.8rem;color:var(--muted)">${fmtDate(upDate)}</div>`:''}</div>
     </div>`];
     const cp=t.circle_progress||[];
     if (cp.length) {
@@ -3231,7 +3234,7 @@ async function loadTimeline() {
     const ph=t.payment_history||[];
     if (ph.length) {
       out.push(`<h2 style="font-size:1.1rem;margin:1.5rem 0 1rem;font-family:var(--font-display)">Recent payments</h2>`);
-      out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${esc(fmtDate(p.created_at))}</td><td>${fmt$(p.amount_cents)}</td><td>${badge(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
+      out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${esc(fmtDate(p.created_at))}</td><td>${fmt$(p.amount_cents)}</td><td>${statusChip(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
     }
     el.innerHTML = out.join('');
   } catch (e) { el.innerHTML = `<div class="empty"><p>Couldn't load your timeline.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTimeline()">Retry</button></div>`; }
@@ -3292,7 +3295,7 @@ const INV_STATUS = { PAID: { label:'Paid', chip:'verified' }, OPEN: { label:'Pen
 function normalizeInvoiceStatus(raw) { return INV_STATUS[String(raw || '').toUpperCase()] || { label:'Status unavailable', chip:'pending' }; }
 
 function premiumAnnounce(msg) { const el = document.getElementById('premiumLiveStatus'); if (el) { el.textContent = ''; el.textContent = msg; } }
-function premDate(s) { if (!s) return null; const d = new Date(s); return isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' }); }
+function premDate(s) { return fmtDate(s) || null; }   // canonical "Jul 19, 2026" via the shared formatter
 function premPrice(cents) { return (typeof cents === 'number' && isFinite(cents)) ? fmt$(cents) : null; }
 function premShowInlineError(msg) { const e = document.getElementById('premActionErr'); if (e) { e.textContent = msg; e.style.display = 'block'; } }
 
@@ -3674,7 +3677,7 @@ function notifRelTime(iso) {
   else if (diff < 3600) rel = `${Math.floor(diff / 60)}m ago`;
   else if (diff < 86400) rel = `${Math.floor(diff / 3600)}h ago`;
   else if (diff < 604800) rel = `${Math.floor(diff / 86400)}d ago`;
-  else rel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  else rel = fmtDate(d, { month: 'short', day: 'numeric' });
   return { rel, exact };
 }
 function notifAnnounce(msg) { const el = document.getElementById('notifLiveStatus'); if (el) { el.textContent = ''; el.textContent = msg; } }
@@ -3893,7 +3896,7 @@ function commWhen(d) {
   if (diff < hr) return `${Math.floor(diff / min)}m ago`;
   if (diff < day) return `${Math.floor(diff / hr)}h ago`;
   if (diff < 7 * day) return `${Math.floor(diff / day)}d ago`;
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return fmtDate(d);
 }
 
 // Map one raw post → a safe view model. Returns null for a malformed item so the
@@ -3931,7 +3934,11 @@ function normalizeComment(c) {
 
 // Map any thrown api() error to a safe, generic member-facing message — never
 // surface raw provider/moderation detail.
-function commErr(e) {
+// safeError — the ONE app-wide mapper from a thrown api() error to a safe,
+// generic member-facing message. Never surfaces a raw provider/technical string.
+// Use for generic failure paths; pages with genuinely domain-specific guidance
+// (e.g. join eligibility) may still map their own known cases first.
+function safeError(e) {
   const m = String((e && e.message) || '').toLowerCase();
   if (m.includes('429') || m.includes('rate') || m.includes('too many') || m.includes('slow down')) return "You're doing that a lot — please wait a moment and try again.";
   if (m.includes('expired') || m.includes('session') || m.includes('sign in')) return 'Your session expired. Please sign in again.';
@@ -4063,7 +4070,7 @@ async function commToggleLike(id) {
     commRenderLikeBtn(id);
     commAnnounce(commState.likes[id].liked ? `Appreciated. ${commState.likes[id].count} in total.` : 'Appreciation removed.');
   } catch (e) {
-    commAnnounce(commErr(e));
+    commAnnounce(safeError(e));
     if (btn) btn.disabled = false;
   } finally { _commLikeBusy[id] = false; }
 }
@@ -4144,7 +4151,7 @@ async function postComment(postId, btn) {
     await commLoadComments(postId);                   // re-fetch; textarea is replaced (draft cleared only on success)
     commAnnounce('Comment posted.');
   } catch (e) {
-    if (err) { err.textContent = commErr(e); err.style.display = 'block'; }   // draft preserved on failure
+    if (err) { err.textContent = safeError(e); err.style.display = 'block'; }   // draft preserved on failure
     _commCommentBusy[postId] = false;
     if (btn) { btn.disabled = false; btn.textContent = 'Comment'; }
     return;
@@ -4188,7 +4195,7 @@ async function postFeed() {
     const first = document.querySelector('#feedList .comm-post');
     if (first) { first.setAttribute('tabindex', '-1'); first.focus(); }
   } catch (e) {
-    if (err) { err.textContent = commErr(e); err.style.display = 'block'; }   // draft preserved (ta not cleared)
+    if (err) { err.textContent = safeError(e); err.style.display = 'block'; }   // draft preserved (ta not cleared)
   } finally { _commPostBusy = false; btn.disabled = false; btn.textContent = 'Post'; }
 }
 
@@ -4271,7 +4278,7 @@ async function submitReport() {
     commAnnounce('Thanks — your report was submitted for review.');
   } catch (e) {
     dlg.dataset.busy = '0'; _commReportBusy = false;
-    if (err) { err.textContent = commErr(e); err.style.display = 'block'; }
+    if (err) { err.textContent = safeError(e); err.style.display = 'block'; }
     if (submit) { submit.disabled = false; submit.textContent = 'Submit report'; }
   }
 }
@@ -4406,7 +4413,7 @@ function goalPace(g) {
   const months = Math.max(1, Math.round(days / 30));
   const perMonth = Math.ceil(remaining / months / 100) * 100;   // cents, rounded up to the dollar
   if (!Number.isFinite(perMonth) || perMonth <= 0) return null;
-  return { perMonth, dateStr: g.targetDate.toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) };
+  return { perMonth, dateStr: fmtDate(g.targetDate, { month: 'short', year: 'numeric' }) };
 }
 
 function goalCard(g) {
@@ -4416,7 +4423,7 @@ function goalCard(g) {
   const barPct = pctKnown ? g.pct : 0;
   const savedStr = g.saved != null ? fmt$(g.saved) : '—';
   const targetStr = g.targetValid ? fmt$(g.target) : '—';
-  const dateStr = g.targetDate ? g.targetDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+  const dateStr = g.targetDate ? fmtDate(g.targetDate) : null;
   const pace = goalPace(g);
   const pctLabel = pctKnown ? `${g.pct}%` : 'Progress unavailable';
   const nm = esc(g.name);
