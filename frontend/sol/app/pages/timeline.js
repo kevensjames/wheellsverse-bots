@@ -30,5 +30,5 @@ async function loadTimeline() {
       out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${esc(fmtDate(p.created_at))}</td><td>${fmt$(p.amount_cents)}</td><td>${statusChip(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
     }
     el.innerHTML = out.join('');
-  } catch (e) { el.innerHTML = `<div class="empty"><p>Couldn't load your timeline.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTimeline()">Retry</button></div>`; }
+  } catch (e) { if (_aborted(e)) return; el.innerHTML = `<div class="empty"><p>Couldn't load your timeline.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTimeline()">Retry</button></div>`; }
 }

@@ -22,5 +22,5 @@ async function loadTrust() {
       <h2 style="font-size:1.1rem;margin-bottom:.5rem;font-family:var(--font-display)">How it's built</h2>
       <div class="card" style="margin-bottom:1.5rem">${compRows}</div>
       <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Badges</h2>${badgeGrid}`;
-  } catch (e) { el.innerHTML = `<div class="empty"><p>Couldn't load your SOL Score.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTrust()">Retry</button></div>`; }
+  } catch (e) { if (_aborted(e)) return; el.innerHTML = `<div class="empty"><p>Couldn't load your SOL Score.</p><button type="button" class="btn btn-ghost btn--sm" onclick="loadTrust()">Retry</button></div>`; }
 }

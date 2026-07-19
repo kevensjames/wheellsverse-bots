@@ -220,7 +220,7 @@ async function loadGroups() {
     circles.all = clean;
     syncCirclesFromURL();
     renderCircles();
-  } catch (e) {
+  } catch (e) { if (_aborted(e)) return; 
     el.innerHTML = `<div class="empty"><p>Couldn't load your circles.</p><div class="hint-muted" style="margin-bottom:1rem">${esc(e.message || 'Network error')}</div><button type="button" class="btn btn-primary" onclick="loadGroups()">Retry</button></div>`;
   }
 }

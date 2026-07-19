@@ -67,7 +67,7 @@ async function loadGoals(userInitiated) {
   list.innerHTML = goalsSkeleton();
   let ok = false, items = [];
   try { const r = await api('/goals'); if (Array.isArray(r)) { items = r.map(normalizeGoal).filter(Boolean); ok = true; } }
-  catch (e) { ok = false; }
+  catch (e) { if (_aborted(e)) return; ok = false; }
   goalsState.items = items; goalsState.ok = ok;
   renderGoalsSummary(); renderGoalsTabs(); renderGoalsHeadActions(); renderGoalsFeed();
   if (userInitiated) goalsAnnounce(ok ? 'Goals refreshed.' : 'Goals unavailable.');

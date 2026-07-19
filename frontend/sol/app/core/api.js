@@ -3,9 +3,21 @@
 // buildless multi-file split (Phase 2). See docs / sol-refactor memory.
 
 // ── API helpers ───────────────────────────────────────────────────────────────
+// True when an error is an aborted request (navigation cancelled a stale load) —
+// callers can use this to bail silently instead of showing an error.
+function _aborted(e) { return !!(e && (e.name === 'AbortError' || e.aborted)); }
+
 async function api(path, opts = {}) {
+  // P3 — GET route-loads carry the current route's AbortSignal so navigating away
+  // cancels them. Mutations (any non-GET method) never get it and always run to
+  // completion; a caller can opt a GET out with { noAbort: true } (e.g. the
+  // background unread-badge refresh). An explicit opts.signal always wins.
+  const _method = (opts.method || 'GET').toUpperCase();
+  const _signal = opts.signal
+    || (_method === 'GET' && !opts.noAbort && _routeAbort ? _routeAbort.signal : undefined);
   const r = await fetch(API + path, {
     ...opts,
+    signal: _signal,
     headers: {
       'Content-Type': 'application/json',
       'Authorization': 'Bearer ' + token,

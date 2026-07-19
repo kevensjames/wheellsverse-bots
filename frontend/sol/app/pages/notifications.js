@@ -111,7 +111,7 @@ async function loadNotifications(userInitiated) {
       unread = (typeof r.unread_count === 'number') ? r.unread_count : items.filter(n => !n.read).length;
       ok = true;
     }
-  } catch (e) { ok = false; }
+  } catch (e) { if (_aborted(e)) return; ok = false; }
   notifState.items = items; notifState.ok = ok;
   if (ok) notifState.unread = unread;   // preserve the last-known count on failure — never silently zero
   updateUnreadBadge(ok ? unread : (notifState.unread || 0));
@@ -276,5 +276,5 @@ function updateUnreadBadge(n) {
   if (n>0){ b.textContent=n; b.style.display='inline-block'; } else { b.style.display='none'; }
 }
 async function refreshUnread() {
-  try { const r = await api('/notifications'); const c = (r && typeof r.unread_count === 'number') ? r.unread_count : 0; notifState.unread = c; updateUnreadBadge(c); } catch(_) {}
+  try { const r = await api('/notifications', { noAbort: true }); const c = (r && typeof r.unread_count === 'number') ? r.unread_count : 0; notifState.unread = c; updateUnreadBadge(c); } catch(_) {}
 }

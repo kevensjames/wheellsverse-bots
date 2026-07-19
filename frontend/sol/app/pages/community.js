@@ -104,7 +104,7 @@ async function loadCommunity(reset) {
     commState.offset = list.length;
     renderCommunity();
     if (reset) commAnnounce('Community feed refreshed.');
-  } catch (e) {
+  } catch (e) { if (_aborted(e)) return; 
     commState.posts = [];
     el.innerHTML = `<li class="notif-empty"><div class="notif-empty__title">Community is temporarily unavailable.</div><div class="goal-empty-acts"><button type="button" class="btn btn-ghost btn--sm" onclick="loadCommunity(true)">Retry</button></div></li>`;
   } finally { commState.loading = false; }

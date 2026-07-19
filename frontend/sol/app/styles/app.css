@@ -117,8 +117,8 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .circle-card__name{font-family:var(--font-display);font-size:1rem;font-weight:600;margin:0;line-height:1.3}
 .circle-card__role{font-size:.72rem;color:var(--ink-500);margin-top:-.4rem}
 .circle-card__figs{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
-.circle-card__figs .fig-label{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-500)}
-.circle-card__figs .fig-val{display:block;font-size:.85rem;font-weight:600;margin-top:.1rem}
+.circle-card__figs .fig-label,.cdetail__figs .fig-label{display:block;font-size:.64rem;text-transform:uppercase;letter-spacing:.03em;color:var(--ink-500)}
+.circle-card__figs .fig-val,.cdetail__figs .fig-val{display:block;font-size:.85rem;font-weight:600;margin-top:.1rem}
 .pbar-row{display:flex;justify-content:space-between;font-size:.72rem;color:var(--ink-500);margin-bottom:.3rem}
 .pbar{height:7px;background:var(--surface-2);border-radius:var(--r-pill);overflow:hidden}
 .pbar__fill{height:100%;background:linear-gradient(90deg,var(--sol-400),var(--success-600));border-radius:var(--r-pill);transition:width .5s var(--ease)}
@@ -620,3 +620,36 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
   .pay-card__end{width:100%;justify-content:space-between}
   .pay-card__acts .btn,.ptab,.circles-head__actions .btn{min-height:44px}
 }
+
+/* Circle detail (member view) — P4: replaces the legacy inline-styled showGroup
+   with the design-system architecture. Each rule maps a former inline style, so
+   the visual result is unchanged; the markup now carries semantic classes and
+   the legacy .badge-gold Private label is gone (a plain 🔒 like circleCardV2). */
+.cdetail__back{margin-bottom:1.5rem}
+.cdetail__head{display:flex;align-items:flex-start;justify-content:space-between;gap:.5rem;margin-bottom:1rem}
+.cdetail__title{font-size:1.25rem;font-weight:700}
+.cdetail__figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1rem;margin-bottom:0}
+.cdetail__figs--join{margin-bottom:1.5rem}
+.cdetail__callout{background:rgba(232,147,36,.07);border:1px solid rgba(232,147,36,.25);border-radius:.6rem;padding:.9rem 1rem;margin-bottom:1rem;font-size:.85rem}
+.cdetail__callout-title{color:var(--sol-600);font-weight:600;margin-bottom:.3rem}
+.cdetail__callout-sub{color:var(--muted);font-size:.8rem}
+.cdetail__pos{color:var(--sol-600)}
+.cdetail__recipient{margin-top:1rem;padding:.75rem 1rem;background:rgba(232,147,36,.08);border:1px solid rgba(232,147,36,.3);border-radius:.5rem;color:var(--gold);font-size:.875rem}
+.cdetail__cycle{max-width:none;margin-bottom:1.5rem}
+.cdetail__cycle-head{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.75rem}
+.cdetail__cycle-title{font-weight:600}
+.cdetail__cycle-meta{font-size:.75rem;color:var(--muted);margin-top:.4rem}
+.cdetail__mypay{margin-top:.75rem;display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;font-size:.8rem}
+.cdetail__retry{font-size:.75rem;color:var(--gold)}
+.cdetail__invite{max-width:none;margin-bottom:1.5rem;border-color:rgba(232,147,36,.25);background:linear-gradient(135deg,rgba(232,147,36,.05),rgba(201,120,31,.04))}
+.cdetail__invite-title{font-weight:600;margin-bottom:.25rem}
+.cdetail__invite-sub{font-size:.8rem;color:var(--muted);margin-bottom:.75rem}
+.cdetail__invite-row{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.cdetail__invite-input{flex:1;min-width:200px;background:var(--surface-2);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900);font-size:.8rem;font-family:monospace}
+.cdetail__invite-code{font-size:.7rem;color:var(--muted);margin-top:.5rem}
+.cdetail__invite-code code{color:var(--sol-600)}
+.cdetail__members-title{margin-bottom:.75rem}
+.cdetail__member-you{background:rgba(232,147,36,.06)}
+.cdetail__member-me{color:var(--sol-600)}
+.cdetail__member-other{color:var(--muted)}
+.cdetail__payout-yes{color:var(--green)}

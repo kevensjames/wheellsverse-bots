@@ -3,7 +3,15 @@
 // buildless multi-file split (Phase 2). See docs / sol-refactor memory.
 
 // ── Nav ───────────────────────────────────────────────────────────────────────
+// P3 — request cancellation: each navigation owns an AbortController. Switching
+// routes aborts the previous route's in-flight GET loads so a slow response can't
+// render into (or clobber) a page the user already left. api() attaches this
+// signal to GETs only, so in-flight mutations (payments, cancels, joins) are
+// NEVER cancelled by navigation. See core/api.js.
+let _routeAbort = null;
 function nav(page) {
+  try { if (_routeAbort) _routeAbort.abort(); } catch (e) {}
+  _routeAbort = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.removeAttribute('aria-current'); });
   document.querySelectorAll('.mn').forEach(n => n.classList.remove('active'));

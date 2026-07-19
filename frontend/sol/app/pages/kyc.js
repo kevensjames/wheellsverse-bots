@@ -38,7 +38,7 @@ async function loadKYC(userInitiated) {
   el.innerHTML = kycSkeleton();
   let raw = null, ok = false;
   try { const m = await api('/auth/me'); if (m && typeof m === 'object') { me = m; raw = m.kyc_status; ok = true; } }
-  catch (e) { ok = false; }
+  catch (e) { if (_aborted(e)) return; ok = false; }
   const st = ok ? normalizeKycState(raw) : KYC_STATE.UNKNOWN;
   el.innerHTML = renderKyc(st);
   if (userInitiated) {   // a Refresh/Retry — announce the resulting state and land focus (the clicked button is gone)
