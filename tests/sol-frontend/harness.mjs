@@ -118,6 +118,8 @@ function _mockResolve(rawUrl, opts) {
     if (path === '/payments/initiate') return { checkout_url: 'about:blank#mock-pay', status: 'PENDING' };
     if (path === '/goals' && method === 'POST') return SEED.goals[0];
     if (/^\\/catalog\\/[^/]+\\/join$/.test(path)) return { id: path.split('/')[2], members: [{ user_id: SEED.user.id, position: 5, status: 'ACTIVE' }] };
+    if (path === '/participation/checkout') return { checkout_url: 'about:blank#mock-participation-checkout' };
+    if (path === '/participation/cancel') return {};
     return {};
   }
   if (path === '/auth/me') return SEED.user;

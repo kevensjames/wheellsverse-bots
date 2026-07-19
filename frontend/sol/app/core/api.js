@@ -160,6 +160,8 @@ async function init() {
     // Returning from Stripe Checkout (?premium=success|cancel) — open the Premium
     // page so loadPremium() can show the return note and poll for activation.
     if (new URLSearchParams(location.search).get('premium')) nav('premium');
+    // Return from participation checkout (?participation=success) — flag-gated; loadCatalog polls backend truth.
+    if (featureOn('catalog') && new URLSearchParams(location.search).get('participation')) nav('catalog');
   } catch {
     localStorage.removeItem('sol_token');
     window.location.href = '/sol/';

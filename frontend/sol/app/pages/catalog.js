@@ -2,7 +2,8 @@
 // Phase 3 Increments 1–2 — Circle Catalog (mock-backed, flag-gated SOL_FEATURES
 // .catalog). Inc 1: BROWSE admin-defined offerings + disclose the $9.99/mo SOL
 // Circle participation subscription that gates JOINING (browsing is open to all).
-// Inc 2: circle DETAIL + eligibility-driven, guarded JOIN. See docs/sol/PHASE3_API_CONTRACT.md.
+// Inc 2: circle DETAIL + eligibility-driven, guarded JOIN. Inc 3: participation
+// SUBSCRIBE/CANCEL (Stripe = source of truth). See docs/sol/PHASE3_API_CONTRACT.md.
 //
 // MONEY-SAFETY (this file renders money-adjacent info; it must not overstep):
 //   • Backend-authoritative: joining access comes from /participation/me and
@@ -14,7 +15,9 @@
 //   • NO guaranteed payout date or payout position is shown or implied.
 //   • The $9.99 participation subscription is DISTINCT from circle contributions,
 //     from the entry fee, and from the $14.99 Premium plan — never conflated.
-//   • Still no checkout / refund / admin action here (later increments).
+//   • Participation checkout is Stripe-hosted + safeUrl-gated; checkout is NEVER
+//     activation (return polls backend truth); cancel re-fetches (no optimistic
+//     flip). No refund or admin action here (later increments).
 
 const CATALOG_STATUS = {
   OPEN:    { label: 'Open',    cls: 'active' },
@@ -90,6 +93,20 @@ async function loadCatalog(userInitiated) {
   catalogState.part = pRes.status === 'fulfilled' ? normalizeParticipation(pRes.value) : { ok: false };
   renderCatalog();
   if (userInitiated) catalogAnnounce(catalogState.ok ? 'Catalog refreshed.' : 'Catalog unavailable.');
+  // Returning from Stripe checkout (?participation=success): NEVER assume subscribed —
+  // poll /participation/me until access reflects backend/Stripe truth.
+  const ret = new URLSearchParams(location.search).get('participation');
+  if (ret) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}   // consume the param — don't re-trigger on refresh / after cancel (mirror premium)
+    if (ret === 'success' && !catalogState.part.canJoin) {   // poll regardless of the first load's part.ok
+      catalogAnnounce('Confirming your subscription…');
+      for (let i = 0; i < 3 && !catalogState.part.canJoin; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        try { const p = await api('/participation/me', { noAbort: true }); catalogState.part = normalizeParticipation(p); } catch (_) {}
+      }
+      renderCatalog();
+    }
+  }
 }
 
 function catalogAnnounce(msg) { const el = document.getElementById('catalogLiveStatus'); if (el) { el.textContent = ''; el.textContent = msg; } }
@@ -118,13 +135,28 @@ function catalogGateBanner() {
     // never claim access, and never contradict the reported subscription status.
     state = "<p class=\"catalog-gate__state\">Joining isn't available on your current participation status — you can still browse everything below.</p>";
   }
+  // Action reflects backend state: subscribed → cancel; not subscribed → subscribe;
+  // past-due → update payment. Checkout is Stripe-hosted; NEVER activation here.
+  let action = '';
+  if (p && p.ok) {
+    if (p.canJoin) {
+      action = '<div class="catalog-gate__actions"><button type="button" class="btn btn-ghost btn--sm" onclick="openParticipationCancel(event)">Cancel participation</button></div>';
+    } else if (p.status === 'NONE' || p.status === 'CANCELED' || p.status === 'CANCELLED') {
+      action = `<div class="catalog-gate__actions"><button type="button" class="btn btn-primary btn--sm" onclick="startParticipationCheckout(this)">Start participation (${esc(price)}/mo)</button></div>`;
+    } else if (p.status === 'PAST_DUE') {
+      // A PAST_DUE member ALREADY has a subscription — never route them through the
+      // NEW-subscription checkout (risks a duplicate/second subscription). Send to
+      // billing help instead (mirrors premium.js's PAST_DUE handling).
+      action = '<div class="catalog-gate__actions"><button type="button" class="btn btn-ghost btn--sm" onclick="nav(\'notifications\')">Get billing help</button></div>';
+    }
+  }
   return `<section class="catalog-gate" aria-label="SOL Circle participation">
     <div class="catalog-gate__head">
       <h2 class="catalog-gate__title">Browsing is open — joining needs participation</h2>
       <span class="catalog-gate__price">${esc(price)}<span class="catalog-gate__per">/month</span></span>
     </div>
     <p class="catalog-gate__body">Anyone can browse the SOL Circle catalog. To <strong>join</strong> a circle you need an active <strong>SOL Circle participation</strong> subscription (or a free trial). Participation is separate from your circle contributions, from any entry fee, and from the SOL Premium plan.</p>
-    ${state}
+    ${state}${action}
   </section>`;
 }
 
@@ -218,7 +250,7 @@ function catalogDetailCTA(o, el, id, fee) {
     if (fee == null) return '<button type="button" class="btn btn-ghost" disabled>Entry fee unavailable — try again shortly</button>';
     return `<button type="button" class="btn btn-primary" id="catJoinBtn" onclick="doCatalogJoin('${esc(id)}',this)">Confirm &amp; join this circle</button>`;
   }
-  if (el.subscription === 'todo') return '<p class="catalog-cta-note">SOL Circle participation ($9.99/mo, or a free trial) is required to join. You can browse now — subscribing opens in a later update.</p>';
+  if (el.subscription === 'todo') return '<button type="button" class="btn btn-primary" onclick="startParticipationCheckout(this)">Start participation to join</button>';
   if (el.kyc === 'todo') return `<button type="button" class="btn btn-primary" onclick="closeCatalogDetail();nav('kyc')">Verify your identity to join</button>`;
   if (el.bank === 'todo') return `<button type="button" class="btn btn-primary" onclick="closeCatalogDetail();nav('bank')">Connect a bank to join</button>`;
   return '<button type="button" class="btn btn-ghost" disabled>Joining unavailable</button>';
@@ -298,4 +330,67 @@ function catalogJoinError(ex) {
   if (/bank/i.test(m)) return 'You need a verified bank account before joining.';
   if (/account status|inactive|not active/i.test(m)) return 'Your account is not active. Please contact support.';
   return safeError(ex);
+}
+
+// ── Participation subscribe / cancel (Increment 3) ────────────────────────────
+// The $9.99/mo SOL Circle participation subscription. STRIPE IS THE SOURCE OF
+// TRUTH: checkout is NEVER treated as activation; returning from checkout POLLS
+// /participation/me (never assumes subscribed); cancel re-fetches backend truth
+// (no optimistic flip). Mirrors the audited premium.js checkout/cancel.
+let _partCancelTrigger = null;
+
+// Hand off to Stripe-hosted checkout. NOT activation — the page navigates away.
+async function startParticipationCheckout(btn) {
+  if (!featureOn('catalog') || !SolGuard.acquire('participation:checkout')) return;
+  const label = btn ? btn.textContent : '';   // preserve the invoking button's real label for the error path
+  if (btn) { btn.disabled = true; btn.textContent = 'Starting checkout…'; }
+  try {
+    const resp = await api('/participation/checkout', { method: 'POST' });
+    const url = safeUrl(resp && resp.checkout_url);   // http(s) only — never javascript:/data:; never a client-supplied URL
+    if (!url) throw new Error('unsafe_or_missing_url');
+    window.location.href = url;   // hand off to Stripe — this is NOT participation activation
+    // lock intentionally HELD — the page is navigating away
+  } catch (e) {
+    catalogAnnounce('Checkout could not be started.');
+    if (btn) { btn.disabled = false; btn.textContent = label || 'Start participation'; }
+    SolGuard.release('participation:checkout');   // released only on the error (non-navigate) path
+  }
+}
+
+function openParticipationCancel(ev) {
+  if (!featureOn('catalog')) return;
+  _partCancelTrigger = (ev && ev.currentTarget) || document.activeElement;
+  const content = document.getElementById('participationCancelContent');
+  content.innerHTML = `
+    <h3 id="partCancelTitle">Cancel SOL Circle participation?</h3>
+    <div id="partCancelBody">
+      <p>Participation lets you join circles. Cancelling turns off renewal — you keep access through the end of your current period, and you stay in any circles you've already joined.</p>
+      <p class="hint-muted">This doesn't affect your circle contributions, any entry fee you've already paid, or the SOL Premium plan.</p>
+    </div>
+    <p class="err" id="partCancelErr" role="alert" style="display:none"></p>
+    <div class="modal-actions"><button type="button" class="btn btn-ghost" onclick="closeParticipationCancel()">Keep participation</button><button type="button" class="btn btn-primary" id="partCancelConfirm" onclick="confirmCancelParticipation()">Cancel participation</button></div>`;
+  SolDialog.open('participationCancelDialog', { opener: _partCancelTrigger, initialFocus: '.btn-ghost', canClose: () => !SolGuard.isLocked('participation:cancel'), onClose: () => { _partCancelTrigger = null; } });
+}
+
+function closeParticipationCancel(skipRestore) {
+  if (SolGuard.isLocked('participation:cancel') && !skipRestore) return;   // commit-until-resolved: no dismiss mid-flight
+  SolDialog.close('participationCancelDialog', { restoreFocus: !skipRestore });
+}
+
+async function confirmCancelParticipation() {
+  if (!SolGuard.acquire('participation:cancel')) return;
+  const btn = document.getElementById('partCancelConfirm'); if (btn) { btn.disabled = true; btn.textContent = 'Cancelling…'; }
+  const keep = document.querySelector('#participationCancelDialog .btn-ghost'); if (keep) keep.disabled = true;
+  try {
+    await api('/participation/cancel', { method: 'POST' });   // backend-authoritative; renewal off at period end
+    closeParticipationCancel(true);
+    catalogAnnounce('Participation renewal turned off. You keep access through the end of the current period.');
+    await loadCatalog();   // re-fetch /participation/me — NEVER optimistically flip to canceled
+    const h = document.querySelector('#catalogList .catalog-gate__title'); if (h) { h.setAttribute('tabindex', '-1'); try { h.focus(); } catch (e) {} }   // re-land focus after the opener is destroyed
+  } catch (e) {
+    const err = document.getElementById('partCancelErr');
+    if (err) { err.textContent = "We couldn't cancel participation. Please try again, or contact support."; err.style.display = 'block'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Cancel participation'; }
+    if (keep) keep.disabled = false;   // restore the dismiss path only after a failed attempt
+  } finally { SolGuard.release('participation:cancel'); }
 }

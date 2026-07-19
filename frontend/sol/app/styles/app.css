@@ -665,6 +665,7 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .catalog-gate__body{font-size:.85rem;color:var(--ink-700);margin:0 0 .5rem;line-height:1.5}
 .catalog-gate__state{font-size:.85rem;margin:0;font-weight:500}
 .catalog-gate__state--ok{color:var(--green)}
+.catalog-gate__actions{margin-top:.85rem}
 .catalog-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:1rem}
 .catalog-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:1.15rem;box-shadow:var(--shadow-1);display:flex;flex-direction:column;gap:.7rem}
 .catalog-card__top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem}
