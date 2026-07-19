@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
-const CORE = join(dirname(fileURLToPath(import.meta.url)), '..', 'core');
+const CORE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'sol', 'app', 'core');
 const noop = () => {};
 const stubEl = { classList: { add: noop, remove: noop, contains: () => false }, setAttribute: noop, removeAttribute: noop, focus: noop };
 

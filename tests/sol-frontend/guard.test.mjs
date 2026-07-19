@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const src = readFileSync(join(HERE, '..', 'core', 'guard.js'), 'utf8');
+const src = readFileSync(join(HERE, '..', '..', 'frontend', 'sol', 'app', 'core', 'guard.js'), 'utf8');
 const sandbox = { window: {} };
 vm.createContext(sandbox);
 vm.runInContext(src, sandbox);

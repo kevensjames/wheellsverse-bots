@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SOL = join(HERE, '..', '..');                 // frontend/sol
+const SOL = join(HERE, '..', '..', 'frontend', 'sol');   // repo/frontend/sol
 export const HARNESS_PATH = join(SOL, 'boot-test.html');
 export const HARNESS_URL_PATH = '/sol/boot-test.html';
 

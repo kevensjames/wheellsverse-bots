@@ -18,7 +18,7 @@ import { dirname, join, normalize } from 'node:path';
 import { generateHarness, HARNESS_URL_PATH, IDS } from './harness.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const FRONTEND = join(HERE, '..', '..', '..');   // repo/frontend
+const FRONTEND = join(HERE, '..', '..', 'frontend');   // repo/frontend
 const PORT = 8891;
 const MIME = { '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 

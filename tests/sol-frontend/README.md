@@ -7,12 +7,13 @@ Two run with **zero dependencies**; the browser journeys need Playwright.
 
 ```bash
 # Pure Node — no install, run these on every change:
-node frontend/sol/app/tests/static-checks.mjs   # syntax + global-scope collisions
-node frontend/sol/app/tests/guard.test.mjs       # SolGuard unit + concurrency
+node tests/sol-frontend/static-checks.mjs   # syntax + global-scope collisions
+node tests/sol-frontend/guard.test.mjs       # SolGuard unit + concurrency
+node tests/sol-frontend/route-abort.test.mjs # P3 money-safety: mutations never cancelled
 
 # Browser journeys — needs Playwright (a dev-only tool; the app stays buildless):
 npm i -D playwright && npx playwright install chromium
-node frontend/sol/app/tests/journeys.mjs
+node tests/sol-frontend/journeys.mjs
 ```
 
 ## What each covers

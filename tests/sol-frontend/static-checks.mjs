@@ -12,8 +12,8 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const APP = join(HERE, '..');                 // frontend/sol/app
-const HTML = join(APP, '..', 'app.html');     // frontend/sol/app.html
+const APP = join(HERE, '..', '..', 'frontend', 'sol', 'app');   // repo/frontend/sol/app
+const HTML = join(APP, '..', 'app.html');                       // frontend/sol/app.html
 
 let fails = 0;
 const fail = (m) => { fails++; console.log('  ✗', m); };
