@@ -49,6 +49,7 @@ _ACTION_SLUG_MAP: dict[str, str] = {
 
 class NotionTool:
     name = "notion"
+    writes = True  # reads AND writes Notion (create/update pages) — side-effecting
     description = (
         "Read or write the user's Notion workspace. Use this whenever the user "
         "asks about their Notion content (notes, databases, project pages, "

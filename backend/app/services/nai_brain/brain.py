@@ -176,6 +176,7 @@ class Brain:
         prefer_local: bool = False,
         max_tokens: int = 1024,
         persona_prompt: str = "",
+        allow_writes: bool = False,
     ) -> tuple[Conversation, Message, float]:
         """Non-streaming chat. Returns (conversation, assistant_message, total_cost).
 
@@ -199,7 +200,7 @@ class Brain:
         )
 
         if use_tools:
-            ctx = ToolContext(user_id=user_id, session=self.session)
+            ctx = ToolContext(user_id=user_id, session=self.session, allow_writes=allow_writes)
             result = self.router.chat(
                 user_id=user_id,
                 messages=history,

@@ -61,6 +61,7 @@ _UA = "KAI-CRM/1.0 (+https://wheellsverse.com)"
 
 class TwentyCrmTool:
     name = "twenty_crm"
+    writes = True  # can CREATE people/companies in the CRM — side-effecting
     description = (
         "Read/write a Twenty CRM: list or search people, companies, and "
         "opportunities (deals), fetch one by id, or create a record. Use when "
