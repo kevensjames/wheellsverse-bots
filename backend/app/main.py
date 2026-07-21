@@ -183,7 +183,21 @@ app.include_router(billing.router)
 app.include_router(admin_data.router)
 app.include_router(admin_chat.router)
 app.include_router(admin_supreme.router)
-app.include_router(admin_swe.router)
+# ── SWE runtime admin surface — mounted ONLY on a non-production runner.
+# The disposable-container code-execution (#41) and autonomous-agent (#42)
+# endpoints must never be reachable on the prod daemon. swe_admin_enabled()
+# allow-lists explicitly non-prod APP_ENV values; 'staging'/'production'/unknown
+# are refused. Defense-in-depth on top of KAI_SWE_RUNTIME_ENABLED (also off by
+# default): the flag stops execution, this stops the routes from existing.
+from app.services.swe_runtime.config import swe_admin_enabled  # noqa: E402
+if swe_admin_enabled():
+    app.include_router(admin_swe.router)
+    # admin_swe_tasks (autonomous agent) mounts here too once it lands (Inc 2).
+else:
+    logging.getLogger(__name__).warning(
+        "SWE admin surface NOT mounted: APP_ENV=%s is not a non-prod runner",
+        settings.APP_ENV,
+    )
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)
 app.include_router(admin_kg.router)
