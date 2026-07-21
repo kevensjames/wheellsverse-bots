@@ -49,6 +49,12 @@ piper-tts==1.4.2
 # in mcp_config.json; loader gracefully no-ops when config is absent.
 mcp==1.27.2
 
+# code intelligence — AST-aware chunking for semantic code search.
+# Both MIT; tree-sitter-language-pack bundles permissive grammars only
+# (copyleft explicitly rejected) and ships an abi3 wheel (no compiler needed).
+tree-sitter>=0.25,<0.27
+tree-sitter-language-pack>=1.13,<2
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0
