@@ -16,6 +16,7 @@ from app.services.tools.clinicaltrials_search import ClinicalTrialsSearchTool
 from app.services.tools.composio_generic import ComposioTool
 from app.services.tools.composio_notion import NotionTool
 from app.services.tools.courtlistener_search import CourtListenerSearchTool
+from app.services.tools.code_search import CodeSearchTool
 from app.services.tools.document_search import DocumentSearchTool
 from app.services.tools.dwolla_tool import DwollaTool
 from app.services.tools.failure_lookup import FailureLookupTool
@@ -86,6 +87,8 @@ def build_default_registry(
     # via pgvector. Ships always; degrades gracefully to "no results" when the
     # knowledge base is empty or embeddings are unavailable.
     reg.register(DocumentSearchTool())
+    # Read-only semantic code search over the operator-indexed codebases.
+    reg.register(CodeSearchTool())
     # Claim verification (RAG-grounded fact-check) — checks a claim against the
     # user's indexed documents + returns a confidence + citations. Ships always.
     reg.register(VerifyClaimTool())
