@@ -13,8 +13,13 @@ Endpoints
 - POST /auth/logout    clear cookies
 - GET  /auth/me        return profile-backed UserResponse
 """
-from __future__ import annotations
-
+# NOTE: deliberately NO `from __future__ import annotations` here.
+# slowapi's @limiter.limit wrapper resolves this module's annotations against
+# ITS OWN namespace, where SignupRequest/LoginRequest don't exist. With PEP-563
+# string annotations that breaks the body parameter: pydantic 2.9 raises
+# PydanticUndefinedAnnotation at route definition, and pydantic 2.13 silently
+# demotes the body to a QUERY param so every valid signup/login 422s
+# ("loc": ["query","body"]). Keeping annotations eager makes both work.
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
