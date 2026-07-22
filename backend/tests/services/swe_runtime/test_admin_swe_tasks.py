@@ -164,3 +164,84 @@ def test_reject_unsticks_stranded_executing(client, swe_env, db_session):
                           from_status="awaiting_plan_approval", to_status="executing")
     r = client.post("/admin/swe/tasks/t1/reject", json={"approved": False, "approver": "op"})
     assert r.status_code == 200 and r.json()["status"] == "rejected"
+
+
+# ── Gate 2 (push/approve) — governance only; push.apply_and_push is stubbed ───
+def _to_push_ready(client, swe_env):
+    _install(_fake_success())
+    _create(client, swe_env["src"])
+    client.post("/admin/swe/tasks/t1/plan/approve", json={"approved": True, "approver": "op"})
+    # task is now awaiting_push_approval with a real patch + patch_sha256
+
+
+def _stub_push(monkeypatch, sink=None):
+    def fake(**k):
+        if sink is not None:
+            sink.append(k)
+        return {"review_branch": "kai/swe/t1", "remote": "example", "commit": "abc123"}
+    monkeypatch.setattr("app.routers.admin_swe_tasks.push.apply_and_push", fake)
+
+
+def test_gate2_unapproved_does_not_push(client, swe_env, monkeypatch):
+    _to_push_ready(client, swe_env)
+    calls = []
+    _stub_push(monkeypatch, calls)
+    # scope ON so the approval gate (not the scope gate) is what refuses.
+    monkeypatch.setenv("KAI_SCOPE_SWEPUSH_EXECUTE", "1")
+    r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": False, "approver": "op"})
+    assert r.status_code == 409                              # PendingApproval
+    assert calls == []                                       # no push without approval
+    assert client.get("/admin/swe/tasks/t1").json()["status"] == "awaiting_push_approval"
+
+
+def test_gate2_requires_swepush_scope(client, swe_env, monkeypatch):
+    _to_push_ready(client, swe_env)
+    _stub_push(monkeypatch)
+    # swe_env grants swe.plan + swe.brain.execute, NOT swepush.execute
+    r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True, "approver": "op"})
+    assert r.status_code == 403
+
+
+def test_gate2_swe_wildcard_does_not_grant_push(client, swe_env, monkeypatch):
+    _to_push_ready(client, swe_env)
+    _stub_push(monkeypatch)
+    monkeypatch.setenv("KAI_SCOPE_SWE", "1")                 # module wildcard
+    r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True, "approver": "op"})
+    assert r.status_code == 403                              # SWEPUSH root is disjoint
+
+
+def test_gate2_approved_pushes(client, swe_env, monkeypatch):
+    _to_push_ready(client, swe_env)
+    monkeypatch.setenv("KAI_SCOPE_SWEPUSH_EXECUTE", "1")
+    seen = []
+    _stub_push(monkeypatch, seen)
+    r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True, "approver": "op@kai"})
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["status"] == "pushed"
+    assert body["push_approved_by"] == "op@kai" and body["review_branch"] == "kai/swe/t1"
+    assert len(seen) == 1 and seen[0]["task_id"] == "t1"
+
+
+def test_gate2_patch_sha_mismatch_blocks_push(client, swe_env, monkeypatch, db_session):
+    _to_push_ready(client, swe_env)
+    monkeypatch.setenv("KAI_SCOPE_SWEPUSH_EXECUTE", "1")
+    calls = []
+    _stub_push(monkeypatch, calls)
+    # tamper the patch after Gate-1 review → stored sha256 no longer matches
+    from sqlalchemy import text
+    db_session.execute(text("UPDATE kai_swe_tasks SET patch='TAMPERED' WHERE task_id='t1'"))
+    db_session.commit()
+    r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True, "approver": "op"})
+    assert r.status_code == 400                              # sha256 mismatch
+    assert calls == []                                       # never pushed the swapped patch
+
+
+def test_reject_unsticks_stranded_pushing(client, swe_env, db_session):
+    # A hard kill mid-push leaves the row 'pushing'; reject() is the un-stick.
+    from app.services.swe_runtime import task_store
+    _to_push_ready(client, swe_env)
+    task_store.transition(db_session, task_id="t1",
+                          from_status="awaiting_push_approval", to_status="pushing")
+    r = client.post("/admin/swe/tasks/t1/reject", json={"approved": False, "approver": "op"})
+    assert r.status_code == 200 and r.json()["status"] == "rejected"

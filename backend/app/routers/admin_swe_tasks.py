@@ -29,7 +29,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.services.governance import PendingApproval, ScopeDenied, audited
-from app.services.swe_runtime import task_store
+from app.services.swe_runtime import push, task_store
 from app.services.swe_runtime.brain import (AgentBrain, DefaultBrain, Mission,
                                             Step)
 from app.services.swe_runtime.budget import Budget
@@ -268,6 +268,72 @@ def approve_plan(task_id: str, body: ApproveRequest, db: Session = Depends(get_d
     return _public(task_store.get_task(db, task_id=task_id))
 
 
+# ── Gate 2: approve the patch -> apply + push to a review branch (destructive) ─
+@audited(scope="swepush.execute", destructive=True)
+def _do_push(*, db: Session, task_row: dict, approver: str):
+    task_id = task_row["task_id"]
+    # Bind this approval to the EXACT reviewed patch — a post-approval swap
+    # (patch changed after Gate-1 review) invalidates the approval.
+    patch = task_row.get("patch") or ""
+    if task_row.get("patch_sha256") != hashlib.sha256(patch.encode()).hexdigest():
+        raise PolicyDenied("patch changed since it was produced (sha256 mismatch)")
+    task_store.transition(
+        db, task_id=task_id, from_status="awaiting_push_approval", to_status="pushing",
+        touch=("push_approved_at",), push_approved_by=approver,
+    )
+    try:
+        info = push.apply_and_push(source_dir=task_row["source_dir"], task_id=task_id,
+                                   patch=patch, actor=approver)
+        task_store.transition(db, task_id=task_id, from_status="pushing", to_status="pushed",
+                              review_branch=info["review_branch"])
+        return info
+    except Exception as e:
+        # Never strand in transient 'pushing'; move to terminal failed (best-effort).
+        try:
+            task_store.transition(db, task_id=task_id, from_status="pushing", to_status="failed",
+                                  error=f"push failed: {type(e).__name__}: {e}")
+        except Exception:
+            logger.exception("could not mark push-failed")
+        raise
+
+
+@router.post("/tasks/{task_id}/push/approve")
+def approve_push(task_id: str, body: ApproveRequest, db: Session = Depends(get_db)):
+    if not body.approver.strip():
+        raise HTTPException(400, "approver is required (no anonymous approvals)")
+    task = task_store.get_task(db, task_id=task_id)
+    if task is None:
+        raise HTTPException(404, "task not found")
+    if task["status"] != "awaiting_push_approval":
+        raise HTTPException(409, f"task is {task['status']}, not awaiting_push_approval")
+    if _is_expired(task):
+        try:
+            task_store.transition(db, task_id=task_id, from_status="awaiting_push_approval",
+                                  to_status="expired", error="approval window expired")
+        except IllegalTransition:
+            pass
+        raise HTTPException(409, "approval window expired")
+    try:
+        _do_push(db=db, task_row=task, approver=body.approver,
+                 approved=body.approved, actor=body.approver)
+    except ScopeDenied as e:
+        raise HTTPException(403, str(e))
+    except PendingApproval as e:
+        raise HTTPException(409, str(e))
+    except PolicyDenied as e:
+        raise HTTPException(400, f"policy denied: {e}")
+    except push.PushError as e:
+        raise HTTPException(503, str(e))
+    except IllegalTransition as e:
+        raise HTTPException(409, str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("swe push failed")
+        raise HTTPException(503, "swe push failed")
+    return _public(task_store.get_task(db, task_id=task_id))
+
+
 # ── Reject at either gate (non-destructive, scope swe.plan) ───────────────────
 @audited(scope="swe.plan")
 def _do_reject(*, db: Session, task_id: str, from_status: str):
@@ -283,11 +349,12 @@ def reject(task_id: str, body: ApproveRequest, db: Session = Depends(get_db)):
     if task is None:
         raise HTTPException(404, "task not found")
     st = task["status"]
-    # 'executing' is included as the operator un-stick for a task stranded by a
-    # hard process kill mid-run (execution is synchronous-in-request, so a live
-    # run and a crash-stranded row are indistinguishable to the DB — the
-    # single-operator caller knows which they have).
-    if st not in ("awaiting_plan_approval", "awaiting_push_approval", "executing"):
+    # 'executing' and 'pushing' are included as the operator un-stick for a task
+    # stranded by a hard process kill mid-run (both are synchronous-in-request, so
+    # a live run and a crash-stranded row are indistinguishable to the DB — the
+    # single-operator caller knows which they have; a still-live op wins the
+    # race via the conditional transition and the reject 409s).
+    if st not in ("awaiting_plan_approval", "awaiting_push_approval", "executing", "pushing"):
         raise HTTPException(409, f"cannot reject a task in {st}")
     try:
         _do_reject(db=db, task_id=task_id, from_status=st, actor=body.approver)

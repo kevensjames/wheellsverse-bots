@@ -172,8 +172,9 @@ def _unified_diff(source_dir: str, artifacts: dict[str, str]) -> str:
         target = os.path.realpath(os.path.join(source_dir, rel))
         if target != real_src and not target.startswith(real_src + os.sep):
             continue  # crafted key escaping source_dir — skip
+        existed = os.path.isfile(target)
         old_content = ""
-        if os.path.isfile(target):
+        if existed:
             try:
                 with open(target, "r", encoding="utf-8", errors="replace") as f:
                     old_content = f.read()
@@ -181,9 +182,12 @@ def _unified_diff(source_dir: str, artifacts: dict[str, str]) -> str:
                 continue
         if old_content == new_content:
             continue
+        # New files use /dev/null as the source so `git apply` treats them as
+        # additions rather than expecting an existing a/<rel>.
+        fromfile = f"a/{rel}" if existed else "/dev/null"
         chunks.append("".join(difflib.unified_diff(
             old_content.splitlines(keepends=True),
             new_content.splitlines(keepends=True),
-            fromfile=f"a/{rel}", tofile=f"b/{rel}",
+            fromfile=fromfile, tofile=f"b/{rel}",
         )))
     return "\n".join(chunks)

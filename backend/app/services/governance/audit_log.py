@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import time
 import uuid
 from datetime import datetime, timezone
@@ -89,6 +90,17 @@ _SECRET_KEY_PATTERNS = (
     "password", "secret", "token", "api_key", "apikey", "auth",
     "x-admin-token", "cookie", "bearer",
 )
+# Value-level scrub: a secret can land in a STRING value (a positional arg, a URL,
+# an "Authorization: Bearer ..." header) whose KEY isn't secret-looking. Catch the
+# common token shapes in the value itself, before truncation.
+_SECRET_VALUE_RE = re.compile(
+    r"(bearer\s+\S+"
+    r"|gh[posur]_[A-Za-z0-9]{20,}"
+    r"|github_pat_[A-Za-z0-9_]{20,}"
+    r"|x-access-token:[^@\s/]+"
+    r"|sk-[A-Za-z0-9]{20,})",
+    re.IGNORECASE,
+)
 _MAX_VALUE_LEN = 500
 
 
@@ -115,8 +127,10 @@ def _truncate(d: dict[str, Any]) -> dict[str, Any]:
 
 def _truncate_value(v: Any) -> Any:
     s = str(v) if not isinstance(v, (dict, list, type(None), bool, int, float)) else v
-    if isinstance(s, str) and len(s) > _MAX_VALUE_LEN:
-        return s[:_MAX_VALUE_LEN] + f"… ({len(s)} chars)"
+    if isinstance(s, str):
+        s = _SECRET_VALUE_RE.sub("<redacted>", s)   # scrub secrets embedded in the value
+        if len(s) > _MAX_VALUE_LEN:
+            return s[:_MAX_VALUE_LEN] + f"… ({len(s)} chars)"
     return s
 
 
