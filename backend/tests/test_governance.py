@@ -50,6 +50,33 @@ def test_scope_enabled_via_wildcard_parent(monkeypatch):
     assert is_scope_enabled("test.other") is True
 
 
+def test_wildcard_does_not_reach_destructive_scopes(monkeypatch):
+    """A module wildcard must never transitively authorize an irreversible
+    action. KAI_SCOPE_SOL=1 is required by the Sol reminder scheduler; it must
+    NOT also satisfy the gate for sol.transfer (live ACH)."""
+    monkeypatch.delenv("KAI_SCOPE_SOL_TRANSFER", raising=False)
+    monkeypatch.setenv("KAI_SCOPE_SOL", "1")
+    # non-destructive still inherits the wildcard (no regression)
+    assert is_scope_enabled("sol.manage") is True
+    # destructive callers opt out of the wildcard
+    assert is_scope_enabled("sol.transfer", allow_wildcard=False) is False
+
+    calls = []
+
+    @audited(scope="sol.transfer", destructive=True)
+    def _transfer():
+        calls.append(1)
+        return "moved"
+
+    with pytest.raises(ScopeDenied):
+        _transfer(approved=True)
+    assert calls == []          # the wildcard did not authorize live money
+
+    # naming the scope exactly is the only way in
+    monkeypatch.setenv("KAI_SCOPE_SOL_TRANSFER", "1")
+    assert _transfer(approved=True) == "moved"
+
+
 def test_scope_truthy_variants(monkeypatch):
     for v in ("1", "true", "yes", "ON", "True"):
         monkeypatch.setenv("KAI_SCOPE_X", v)
