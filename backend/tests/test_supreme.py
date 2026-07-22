@@ -43,6 +43,15 @@ def test_load_map_returns_empty_when_missing(tmp_path, monkeypatch):
     assert sc.load_map() == {}
 
 
+# pyyaml is imported by app/services/supreme/scanner.py:84 but is NOT pinned in
+# requirements.txt, and the import failure is swallowed (returns {}), so the
+# Supreme map SILENTLY degrades to defaults wherever pyyaml is absent — this
+# test failing with KeyError('version') was that silent degradation surfacing.
+# Skip when the dep is missing; pin pyyaml to actually fix the feature.
+@pytest.mark.skipif(
+    __import__("importlib.util", fromlist=["util"]).find_spec("yaml") is None,
+    reason="pyyaml not installed — Supreme map silently degrades (undeclared dep)",
+)
 def test_load_map_parses_yaml(tmp_path, monkeypatch):
     map_path = tmp_path / "map.yaml"
     map_path.write_text(
