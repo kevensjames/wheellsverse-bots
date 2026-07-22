@@ -19,6 +19,27 @@ def runtime_enabled() -> bool:
     return _truthy("KAI_SWE_RUNTIME_ENABLED")
 
 
+# Non-production APP_ENV values (mirrors app.config._NON_PROD_ENVS). The SWE
+# admin surface — disposable-container exec (#41) and the autonomous agent —
+# mounts ONLY on an explicitly non-prod runner. This is an ALLOW-LIST: an
+# unknown env or 'staging' (the mislabeled-prod workaround) is refused just like
+# 'production'. Defense-in-depth ON TOP OF KAI_SWE_RUNTIME_ENABLED (also off by
+# default): the flag stops execution; this stops the routes from existing at all.
+_NON_PROD_ENVS = frozenset({"development", "dev", "local", "test", "testing", "ci"})
+_PROD_ENV_MARKERS = frozenset({"production", "prod"})
+
+
+def swe_admin_enabled() -> bool:
+    """True only on a non-prod runner. Allow-lists a known non-prod APP_ENV; an
+    explicit ENV=production/prod marker vetoes even a non-prod APP_ENV."""
+    from app.config import settings  # local import: avoid an import cycle at load
+    app_env = (settings.APP_ENV or "").strip().lower()
+    raw_env = (os.environ.get("ENV") or "").strip().lower()
+    if raw_env in _PROD_ENV_MARKERS:
+        return False
+    return app_env in _NON_PROD_ENVS
+
+
 # Images the sandbox may run (comma-separated env override). Deny-by-default:
 # only allowlisted images can be used.
 def _image_allowlist() -> tuple[str, ...]:
