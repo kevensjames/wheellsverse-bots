@@ -27,6 +27,7 @@ def _run_runway(prompt: str, duration: int, ratio: str) -> dict:
 
 class VideoGenTool:
     name = "video_gen"
+    writes = True  # calls a paid external API (Runway credits) — gated as side-effecting spend
     description = (
         "Generate a short (~5s) video from a text prompt via Runway ML; returns "
         "the local file path. SLOW (takes minutes) and costs credits — use only "

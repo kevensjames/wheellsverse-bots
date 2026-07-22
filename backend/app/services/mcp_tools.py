@@ -166,6 +166,11 @@ class MCPTool:
     KAI tools (web_fetch, memory, etc.).
     """
 
+    # MCP servers can expose file/git writes and we can't reliably tell read
+    # from write per tool, so treat ALL MCP tools as side-effecting (default
+    # deny in the LLM loop unless the operator authorizes writes).
+    writes = True
+
     def __init__(self, spec: MCPServerSpec, tool_meta: dict[str, Any]):
         self._spec = spec
         self._upstream_name = tool_meta["name"]

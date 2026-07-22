@@ -150,6 +150,10 @@ class AdminChatRequest(BaseModel):
     # grounded verdict + confidence (vs the agent's self-rated tag). One extra
     # LLM call; off by default.
     verify: bool = False
+    # Operator authorization for side-effecting tools (Composio/CRM/MCP/paid gen).
+    # Default OFF: the chat tool loop cannot make external changes unless the
+    # operator explicitly opts in for this turn. User-facing chat never sets it.
+    allow_writes: bool = False
 
 
 # Appended to a GROUNDED expert agent's persona (one that can search the
@@ -237,6 +241,7 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
             prefer_local=req.prefer_local,
             max_tokens=req.max_tokens,
             persona_prompt=persona_prompt,
+            allow_writes=req.allow_writes,  # operator-authorized side-effecting tools
         )
     except ValueError as e:
         # Brain raises ValueError for unknown conversation_id etc.

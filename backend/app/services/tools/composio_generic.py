@@ -42,6 +42,7 @@ _RESULT_TEXT_BUDGET = 4000
 
 class ComposioTool:
     name = "composio"
+    writes = True  # executes external SaaS actions (email/Slack/Stripe/etc.) — side-effecting
     description = (
         "Catch-all SaaS tool for any third-party service NOT covered by a "
         "dedicated tool (Notion has its own tool — prefer that for Notion). "
