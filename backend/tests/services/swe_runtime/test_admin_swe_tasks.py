@@ -146,6 +146,17 @@ def test_require_approver_resolves_token_to_admin_user(db_session):
             _dep(x_approver_token=bad, db=db_session)
         assert ei.value.status_code == 403
 
+    # A non-approver row with the SAME hash must NOT be accepted (role filter).
+    other = f"b-{_uuid.uuid4().hex[:8]}@kai"
+    db_session.execute(
+        _text("INSERT INTO admin_users (email, password_hash, role) VALUES (:e, :h, 'admin')"),
+        {"e": other, "h": hashlib.sha256(b"admin-only-token").hexdigest()},
+    )
+    db_session.commit()
+    with pytest.raises(HTTPException) as ei:
+        _dep(x_approver_token="admin-only-token", db=db_session)
+    assert ei.value.status_code == 403
+
 
 def test_gate1_approved_runs_and_produces_patch(client, swe_env):
     fake = _fake_success(); _install(fake)

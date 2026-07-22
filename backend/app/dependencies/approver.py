@@ -45,8 +45,11 @@ def require_approver(
     if not x_approver_token:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "X-Approver-Token required")
     digest = hashlib.sha256(x_approver_token.encode("utf-8")).hexdigest()
+    # role filter is load-bearing: without it ANY admin_users row whose
+    # password_hash happens to be a raw sha256 hex would be an approver.
     row = db.execute(
-        text("SELECT email FROM admin_users WHERE password_hash = :h"), {"h": digest}
+        text("SELECT email FROM admin_users WHERE password_hash = :h AND role = 'approver'"),
+        {"h": digest},
     ).first()
     if row is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "unknown approver token")
