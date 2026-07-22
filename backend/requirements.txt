@@ -49,6 +49,19 @@ piper-tts==1.4.2
 # in mcp_config.json; loader gracefully no-ops when config is absent.
 mcp==1.27.2
 
+# KAI Supreme reads SUPPREMA_MAP.yaml via app/services/supreme/scanner.py.
+# REQUIRED (not optional): shipped code imports it. Previously undeclared, so a
+# deploy without it made scanner.load_map() silently return {} and run Supreme
+# with fabricated defaults, ignoring the operator's map. Now load_map() raises
+# when the map exists but PyYAML is absent — so pinning it is mandatory.
+PyYAML==6.0.2
+
+# ── OPTIONAL runtime extras (feature-gated; NOT auto-installed) ────────────────
+# composio: SaaS tool integrations (Notion, Gmail, ~200 apps). Registered only
+# when COMPOSIO_API_KEY is set (app/services/tools/__init__.py); a missing lib
+# with the key set now logs an ERROR rather than a quiet warning. Install and
+# PIN the version you certify before enabling:  pip install 'composio==<pin>'
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0

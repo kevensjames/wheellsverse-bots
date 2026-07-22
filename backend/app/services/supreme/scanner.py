@@ -74,28 +74,45 @@ class Finding:
 
 # ─── map loader ──────────────────────────────────────────────────────
 
+class SupremeConfigError(RuntimeError):
+    """The operator's SUPPREMA_MAP.yaml exists but cannot be honored. We raise
+    instead of running with fabricated defaults — a config that is silently
+    ignored is worse than one that fails loudly."""
+
+
 def load_map() -> dict[str, Any]:
-    """Read SUPPREMA_MAP.yaml. Returns {} if missing — scanners then run with
-    safe defaults rather than crashing the daemon."""
+    """Read SUPPREMA_MAP.yaml.
+
+    No map file  -> {} (a legitimate default: nothing to configure).
+    Map present but PyYAML missing -> raise SupremeConfigError. PyYAML is a
+      REQUIRED, pinned dependency (requirements.txt); its absence is a broken
+      deploy, and silently discarding the operator's map hides that.
+    Map present but unparseable -> raise SupremeConfigError. A typo in the
+      operator's config must not silently degrade to defaults either.
+    """
     if not MAP_PATH.exists():
         logger.warning("KAI Supreme map not found at %s — running with defaults", MAP_PATH)
         return {}
     try:
         import yaml
-    except ImportError:
-        logger.error("pyyaml not installed — KAI Supreme map disabled")
-        return {}
+    except ImportError as e:
+        raise SupremeConfigError(
+            f"{MAP_PATH} exists but PyYAML is not installed. Refusing to run "
+            "Supreme with fabricated defaults — pin/install PyYAML (it is a "
+            "required dependency)."
+        ) from e
     try:
         with MAP_PATH.open() as fp:
             m = yaml.safe_load(fp) or {}
-        logger.info(
-            "supreme: map loaded v%s last_updated=%s",
-            m.get("version"), m.get("last_updated"),
-        )
-        return m
     except Exception as e:
-        logger.exception("supreme: could not parse map: %s", e)
-        return {}
+        raise SupremeConfigError(f"could not parse {MAP_PATH}: {e}") from e
+    if m and "version" not in m:
+        logger.warning("supreme: map at %s has no 'version' field", MAP_PATH)
+    logger.info(
+        "supreme: map loaded v%s last_updated=%s",
+        m.get("version"), m.get("last_updated"),
+    )
+    return m
 
 
 # ─── scanners ────────────────────────────────────────────────────────

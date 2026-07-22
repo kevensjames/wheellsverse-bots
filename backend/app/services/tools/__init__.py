@@ -169,7 +169,12 @@ def build_default_registry(
             reg.register(NotionTool())
             reg.register(ComposioTool())
         except RuntimeError as e:
-            logger.warning("tools: skipping composio tools — %s", e)
+            # COMPOSIO_API_KEY is SET but the tools could not initialize (usually
+            # the optional `composio` lib is not installed). That is a
+            # misconfiguration, not a routine skip — the operator asked for these
+            # tools and won't get them. ERROR, not warning.
+            logger.error("tools: composio requested (COMPOSIO_API_KEY set) but "
+                         "unavailable — %s", e)
     else:
         logger.info("tools: composio skipped (COMPOSIO_API_KEY not set)")
 
