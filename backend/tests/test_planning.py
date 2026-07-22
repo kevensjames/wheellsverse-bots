@@ -688,6 +688,11 @@ def test_admin_create_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_create_requires_approval_409(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     r = client.post(
         "/admin/planning/create", headers=ADMIN_HEADERS,
         json={"goal": "x", "approved": False},
@@ -697,6 +702,11 @@ def test_admin_create_requires_approval_409(client, monkeypatch, _isolated_audit
 
 def test_admin_create_approved_generates_plan(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     _patch_llm(monkeypatch, '{"steps":[{"action":"one"},{"action":"two"}]}')
     r = client.post(
         "/admin/planning/create", headers=ADMIN_HEADERS,
@@ -724,6 +734,11 @@ def test_admin_approve_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_approve_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     p = pl.create_plan("a", "g")
     pl.add_step(p.id, "one")
     # no approval → 409
@@ -743,6 +758,11 @@ def test_admin_approve_flow(client, monkeypatch, _isolated_audit):
 
 def test_admin_approve_rejects_done_plan_400(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     p = pl.create_plan("a", "g")
     pl.update_plan_status(p.id, "done")
     r = client.post(
@@ -757,6 +777,11 @@ def test_admin_approve_rejects_done_plan_400(client, monkeypatch, _isolated_audi
 
 def test_admin_edit_steps(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     p = pl.create_plan("a", "g")
     pl.add_step(p.id, "old")
     r = client.post(
@@ -789,6 +814,11 @@ def test_admin_execute_next_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_execute_next_runs_step(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     _patch_llm(monkeypatch, "step output here")
     p = pl.create_plan("a", "g")
     pl.add_step(p.id, "do it")
@@ -808,6 +838,11 @@ def test_admin_execute_next_runs_step(client, monkeypatch, _isolated_audit):
 
 def test_admin_revise_proposes(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     _patch_llm(monkeypatch, '{"diagnosis":"needs outline","steps":[{"action":"outline"}]}')
     p, _ = _blocked_with_failure()
     r = client.post(
@@ -880,6 +915,11 @@ def test_admin_remediate_scope_off_403(client, monkeypatch, _isolated_audit):
 def test_admin_remediate_propose_only_no_approval(client, monkeypatch, _isolated_audit):
     # destructive=False → works WITHOUT approved=true (drafts are inert)
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     monkeypatch.setattr(prem, "_gather_issues", lambda *a, **k: [
         {"kind": "audit", "weight": 2, "detail": "X: scope off"}])
     _patch_llm(monkeypatch, '{"steps":[{"action":"flip the flag","kind":"chat"}]}')
@@ -978,6 +1018,11 @@ def test_admin_scout_integrate_scope_off_403(client, monkeypatch, _isolated_audi
 def test_admin_scout_integrate_propose_only_no_approval(client, monkeypatch, _isolated_audit):
     # destructive=False → works WITHOUT approved=true (discovery read-only, draft inert)
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     monkeypatch.setattr(pint, "_scout", lambda *a, **k: [_candidate()])
     _patch_llm(monkeypatch, '{"steps":[{"action":"read router.py","kind":"chat"}]}')
     r = client.post(
@@ -1050,6 +1095,11 @@ def test_admin_draft_adapter_scope_off_403(client, monkeypatch, _isolated_audit)
 def test_admin_draft_adapter_writes_reviewable_draft(client, monkeypatch, tmp_path, _isolated_audit):
     # destructive=False → no approval needed; returns code, never executes it
     monkeypatch.setenv("KAI_SCOPE_PLANNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_CREATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_APPROVE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EDIT", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_EXECUTE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_PLANNING_REVISE", "1")  # destructive: exact scope required
     monkeypatch.setattr(acg, "_DRAFTS", tmp_path)
     _patch_llm(monkeypatch, _GOOD_DRAFT)
     p = pl.create_plan(

@@ -309,3 +309,108 @@ def test_audit_write_failure_does_not_break_action(monkeypatch, _isolated_audit_
 
     # No raise — the action succeeds even though audit write fails
     assert f() == "still works"
+
+
+# ─── destructive-scope invariant (central policy) ────────────────────
+#
+# THE INVARIANT: a module wildcard grants NON-destructive operations only.
+# Every destructive scope must be named EXACTLY. Without this,
+# KAI_SCOPE_SOL=1 — which the Sol reminder scheduler requires — also
+# authorized sol.transfer (live ACH). 23 destructive scopes were reachable
+# that way, including stripe.refund, dwolla.transfer and browser.execute.
+
+
+def _discover_destructive_scopes() -> set[str]:
+    """Read the source for `audited(scope="x", destructive=True)`.
+
+    Static discovery (not a hand-maintained registry) so the inventory cannot
+    drift: a new destructive scope is covered the moment it is written.
+    """
+    import pathlib
+    import re
+
+    app_dir = pathlib.Path(__file__).resolve().parent.parent / "app"
+    pat = re.compile(r'audited\(\s*scope\s*=\s*"([a-z_.]+)"\s*,\s*destructive\s*=\s*True')
+    found: set[str] = set()
+    for py in app_dir.rglob("*.py"):
+        found.update(pat.findall(py.read_text(encoding="utf-8", errors="replace")))
+    return found
+
+
+def test_destructive_scope_inventory_is_non_empty():
+    """Guards the guard — if discovery silently returned nothing, the
+    invariant test below would vacuously pass."""
+    scopes = _discover_destructive_scopes()
+    assert len(scopes) >= 15, f"suspiciously few destructive scopes found: {scopes}"
+    assert "sol.transfer" in scopes
+
+
+def test_no_destructive_scope_is_granted_by_a_module_wildcard(monkeypatch):
+    """The core PR #43 regression, applied to EVERY destructive scope."""
+    for scope in sorted(_discover_destructive_scopes()):
+        norm = scope.replace(".", "_").replace("-", "_").upper()
+        parent = norm.split("_")[0]
+        monkeypatch.delenv(f"KAI_SCOPE_{norm}", raising=False)
+        monkeypatch.setenv(f"KAI_SCOPE_{parent}", "1")      # module wildcard ON
+        assert is_scope_enabled(scope, allow_wildcard=False) is False, (
+            f"{scope} was granted by the KAI_SCOPE_{parent} wildcard"
+        )
+        monkeypatch.delenv(f"KAI_SCOPE_{parent}", raising=False)
+
+
+@pytest.mark.parametrize("scope", ["sol.transfer", "stripe.refund", "dwolla.transfer",
+                                   "planning.execute", "browser.execute"])
+def test_destructive_scope_matrix(scope, monkeypatch):
+    """wildcard-only → denied; exact → allowed; both → allowed;
+    unrelated / missing → denied; approval remains independent."""
+    norm = scope.replace(".", "_").upper()
+    parent = norm.split("_")[0]
+
+    def clear():
+        for v in (f"KAI_SCOPE_{norm}", f"KAI_SCOPE_{parent}", "KAI_SCOPE_UNRELATED_THING"):
+            monkeypatch.delenv(v, raising=False)
+
+    calls = []
+
+    @audited(scope=scope, destructive=True)
+    def act():
+        calls.append(1)
+        return "done"
+
+    clear()                                                   # 1. missing → denied
+    with pytest.raises(ScopeDenied):
+        act(approved=True)
+
+    clear()                                                   # 2. wildcard only → denied
+    monkeypatch.setenv(f"KAI_SCOPE_{parent}", "1")
+    with pytest.raises(ScopeDenied):
+        act(approved=True)
+
+    clear()                                                   # 3. unrelated scope → denied
+    monkeypatch.setenv("KAI_SCOPE_UNRELATED_THING", "1")
+    with pytest.raises(ScopeDenied):
+        act(approved=True)
+
+    assert calls == [], "no side effect may run under any denied configuration"
+
+    clear()                                                   # 4. exact only → allowed
+    monkeypatch.setenv(f"KAI_SCOPE_{norm}", "1")
+    assert act(approved=True) == "done"
+
+    clear()                                                   # 5. wildcard + exact → allowed
+    monkeypatch.setenv(f"KAI_SCOPE_{parent}", "1")
+    monkeypatch.setenv(f"KAI_SCOPE_{norm}", "1")
+    assert act(approved=True) == "done"
+
+    clear()                                                   # 6. exact but unapproved → blocked
+    monkeypatch.setenv(f"KAI_SCOPE_{norm}", "1")
+    with pytest.raises(PendingApproval):
+        act()
+
+
+def test_non_destructive_still_inherits_wildcard(monkeypatch):
+    """The fix must not over-tighten: convenience wildcards still work for
+    non-destructive operations (sol.manage under KAI_SCOPE_SOL)."""
+    monkeypatch.delenv("KAI_SCOPE_SOL_MANAGE", raising=False)
+    monkeypatch.setenv("KAI_SCOPE_SOL", "1")
+    assert is_scope_enabled("sol.manage") is True

@@ -127,12 +127,14 @@ def test_admin_run_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_run_no_approval_409(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_DIGEST", "1")
+    monkeypatch.setenv("KAI_SCOPE_DIGEST_RUN", "1")  # destructive: exact scope required
     r = client.post("/admin/digest/run", headers=ADMIN_HEADERS, json={"deliver": False, "approved": False})
     assert r.status_code == 409
 
 
 def test_admin_run_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_DIGEST", "1")
+    monkeypatch.setenv("KAI_SCOPE_DIGEST_RUN", "1")  # destructive: exact scope required
     _patch(monkeypatch, content="Today: all green.")
     r = client.post("/admin/digest/run", headers=ADMIN_HEADERS, json={"deliver": True, "approved": True})
     assert r.status_code == 200
@@ -165,6 +167,7 @@ def test_scheduler_status_reflects_env(monkeypatch):
     monkeypatch.setenv("KAI_DIGEST_SCHEDULER_ENABLED", "1")
     monkeypatch.setenv("KAI_DIGEST_HOUR_UTC", "9")
     monkeypatch.setenv("KAI_SCOPE_DIGEST", "1")
+    monkeypatch.setenv("KAI_SCOPE_DIGEST_RUN", "1")  # destructive: exact scope required
     st = dsched.status()
     assert st["enabled"] is True and st["hour_utc"] == 9 and st["scope_on"] is True
     assert st["running"] is False  # not started here

@@ -284,6 +284,8 @@ def test_injection_scope_off_returns_empty(monkeypatch):
 
 def test_injection_scope_on_includes_active_lessons(monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     a = ls.add_lesson("Be concise"); ls.set_lesson_status(a.id, "active")
     ls.add_lesson("Proposed not active")  # stays proposed → excluded
     pre = linj.active_lessons_preamble()
@@ -293,6 +295,8 @@ def test_injection_scope_on_includes_active_lessons(monkeypatch):
 
 def test_injection_scope_on_no_active_returns_empty(monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     ls.add_lesson("just proposed")  # not active
     assert linj.active_lessons_preamble() == ""
 
@@ -303,6 +307,8 @@ def test_injection_scope_on_no_active_returns_empty(monkeypatch):
 def test_system_prompt_injects_active_lesson_when_scope_on(monkeypatch):
     from app.services.nai_brain.system_prompt import build_system_prompt
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     a = ls.add_lesson("Always lead with the answer"); ls.set_lesson_status(a.id, "active")
     prompt = build_system_prompt(memory_preamble="", persona_prompt="")
     assert "Always lead with the answer" in prompt
@@ -319,6 +325,8 @@ def test_system_prompt_no_lessons_when_scope_off(monkeypatch):
 def test_system_prompt_explicit_empty_lessons_disables(monkeypatch):
     from app.services.nai_brain.system_prompt import build_system_prompt
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     a = ls.add_lesson("x"); ls.set_lesson_status(a.id, "active")
     # explicit "" overrides the auto-pull (used by callers that don't want lessons)
     prompt = build_system_prompt(memory_preamble="", persona_prompt="", lessons_preamble="")
@@ -430,6 +438,8 @@ def test_admin_synthesize_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_synthesize_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     ls.record_feedback(rating="down", note="answers too long")
     _patch_llm(monkeypatch, '{"lessons":[{"text":"Be concise"}]}')
     r = client.post("/admin/learning/synthesize", headers=ADMIN_HEADERS,
@@ -449,6 +459,8 @@ def test_admin_activate_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_activate_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     lesson = ls.add_lesson("Be concise")
     # no approval → 409
     r1 = client.post(f"/admin/learning/lessons/{lesson.id}/activate",
@@ -463,6 +475,8 @@ def test_admin_activate_flow(client, monkeypatch, _isolated_audit):
 
 def test_admin_dismiss_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_LEARNING", "1")
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_LEARNING_DISMISS", "1")  # destructive: exact scope required
     lesson = ls.add_lesson("Be concise")
     ls.set_lesson_status(lesson.id, "active")
     r = client.post(f"/admin/learning/lessons/{lesson.id}/dismiss",
