@@ -6,10 +6,20 @@ because the existing User fixture covers the FK shape we need).
 """
 from __future__ import annotations
 
+import os
 import time
 import uuid
 
 import pytest
+
+# These exercise the real embedding path (app/services/memory/embeddings.py
+# raises RuntimeError("OPENAI_API_KEY not set")), so they need a live key. Skip
+# rather than fail when one isn't configured — an unrunnable test is not a
+# regression, and 7 permanent reds train people to ignore the suite.
+pytestmark = pytest.mark.skipif(
+    not os.environ.get("OPENAI_API_KEY"),
+    reason="needs a live OPENAI_API_KEY (real embedding calls)",
+)
 
 from app.services.memory.retrieval import format_for_prompt, search_memories
 from app.services.memory.store import (
