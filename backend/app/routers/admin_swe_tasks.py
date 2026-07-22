@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies.admin import require_admin_token
+from app.dependencies.approver import require_approver, two_person_required
 from app.services.governance import PendingApproval, ScopeDenied, audited
 from app.services.swe_runtime import push, task_store
 from app.services.swe_runtime.brain import (AgentBrain, DefaultBrain, Mission,
@@ -66,8 +67,9 @@ class CreateTaskRequest(BaseModel):
 
 
 class ApproveRequest(BaseModel):
+    # Identity is NOT taken from the body — it comes from require_approver
+    # (X-Approver-Token -> admin_users), so an approval can't be self-declared.
     approved: bool = False
-    approver: str
 
 
 def _is_expired(task: dict) -> bool:
@@ -228,9 +230,8 @@ def _do_execute(*, db: Session, task_row: dict, approver: str,
 @router.post("/tasks/{task_id}/plan/approve")
 def approve_plan(task_id: str, body: ApproveRequest, db: Session = Depends(get_db),
                  brain: AgentBrain = Depends(get_brain),
-                 runtime: AgentRuntime = Depends(get_swe_runtime)):
-    if not body.approver.strip():
-        raise HTTPException(400, "approver is required (no anonymous approvals)")
+                 runtime: AgentRuntime = Depends(get_swe_runtime),
+                 approver: str = Depends(require_approver)):
     if not runtime_enabled():
         raise HTTPException(409, "SWE runtime disabled")
     task = task_store.get_task(db, task_id=task_id)
@@ -250,8 +251,8 @@ def approve_plan(task_id: str, body: ApproveRequest, db: Session = Depends(get_d
             pass
         raise HTTPException(409, "approval window expired")
     try:
-        _do_execute(db=db, task_row=task, approver=body.approver, brain=brain,
-                    runtime=runtime, approved=body.approved, actor=body.approver)
+        _do_execute(db=db, task_row=task, approver=approver, brain=brain,
+                    runtime=runtime, approved=body.approved, actor=approver)
     except ScopeDenied as e:
         raise HTTPException(403, str(e))
     except PendingApproval as e:
@@ -298,14 +299,17 @@ def _do_push(*, db: Session, task_row: dict, approver: str):
 
 
 @router.post("/tasks/{task_id}/push/approve")
-def approve_push(task_id: str, body: ApproveRequest, db: Session = Depends(get_db)):
-    if not body.approver.strip():
-        raise HTTPException(400, "approver is required (no anonymous approvals)")
+def approve_push(task_id: str, body: ApproveRequest, db: Session = Depends(get_db),
+                 approver: str = Depends(require_approver)):
     task = task_store.get_task(db, task_id=task_id)
     if task is None:
         raise HTTPException(404, "task not found")
     if task["status"] != "awaiting_push_approval":
         raise HTTPException(409, f"task is {task['status']}, not awaiting_push_approval")
+    # Two-person control: whoever authorized EXECUTION can't also authorize the
+    # push. Off by default (meaningless with one operator).
+    if two_person_required() and approver == task.get("plan_approved_by"):
+        raise HTTPException(403, "two-person control: the plan approver cannot approve the push")
     if _is_expired(task):
         try:
             task_store.transition(db, task_id=task_id, from_status="awaiting_push_approval",
@@ -314,8 +318,8 @@ def approve_push(task_id: str, body: ApproveRequest, db: Session = Depends(get_d
             pass
         raise HTTPException(409, "approval window expired")
     try:
-        _do_push(db=db, task_row=task, approver=body.approver,
-                 approved=body.approved, actor=body.approver)
+        _do_push(db=db, task_row=task, approver=approver,
+                 approved=body.approved, actor=approver)
     except ScopeDenied as e:
         raise HTTPException(403, str(e))
     except PendingApproval as e:
@@ -342,9 +346,8 @@ def _do_reject(*, db: Session, task_id: str, from_status: str):
 
 
 @router.post("/tasks/{task_id}/reject")
-def reject(task_id: str, body: ApproveRequest, db: Session = Depends(get_db)):
-    if not body.approver.strip():
-        raise HTTPException(400, "approver is required")
+def reject(task_id: str, body: ApproveRequest, db: Session = Depends(get_db),
+           approver: str = Depends(require_approver)):
     task = task_store.get_task(db, task_id=task_id)
     if task is None:
         raise HTTPException(404, "task not found")
@@ -357,7 +360,7 @@ def reject(task_id: str, body: ApproveRequest, db: Session = Depends(get_db)):
     if st not in ("awaiting_plan_approval", "awaiting_push_approval", "executing", "pushing"):
         raise HTTPException(409, f"cannot reject a task in {st}")
     try:
-        _do_reject(db=db, task_id=task_id, from_status=st, actor=body.approver)
+        _do_reject(db=db, task_id=task_id, from_status=st, actor=approver)
     except ScopeDenied as e:
         raise HTTPException(403, str(e))
     except IllegalTransition as e:

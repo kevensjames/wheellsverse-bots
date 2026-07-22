@@ -5,6 +5,7 @@ Admin auth and the sandbox runtime are overridden so these test SWE GOVERNANCE
 import pytest
 
 from app.dependencies.admin import require_admin_token
+from app.dependencies.approver import require_approver
 from app.main import app
 from app.routers.admin_swe_tasks import get_swe_runtime
 from app.services.swe_runtime.sandbox import SandboxResult
@@ -39,8 +40,10 @@ def swe_env(monkeypatch, tmp_path):
     monkeypatch.setenv("KAI_SCOPE_SWE_PLAN", "1")
     monkeypatch.setenv("KAI_SCOPE_SWE_BRAIN_EXECUTE", "1")
     app.dependency_overrides[require_admin_token] = lambda: None
+    app.dependency_overrides[require_approver] = lambda: "op@kai"
     yield {"src": str(src)}
     app.dependency_overrides.pop(require_admin_token, None)
+    app.dependency_overrides.pop(require_approver, None)
 
 
 def _create(client, src, commands=("sed -i 's/a - b/a + b/' lib.py",), task_id="t1"):
@@ -101,12 +104,47 @@ def test_gate1_requires_execute_scope(client, swe_env, monkeypatch):
     assert fake.calls == []
 
 
-def test_gate1_missing_approver(client, swe_env):
+def test_gate1_requires_approver_token(client, swe_env):
+    # Identity comes from X-Approver-Token, not the body — no token, no approval.
+    fake = _fake_success(); _install(fake)
+    _create(client, swe_env["src"])
+    app.dependency_overrides.pop(require_approver, None)
+    r = client.post("/admin/swe/tasks/t1/plan/approve", json={"approved": True})
+    assert r.status_code == 403
+    assert fake.calls == []
+
+
+def test_approver_identity_is_not_self_declared(client, swe_env):
+    # A body-supplied "approver" must be ignored; the audit records the token's
+    # identity (op@kai from the fixture override), not the caller's claim.
     fake = _fake_success(); _install(fake)
     _create(client, swe_env["src"])
     r = client.post("/admin/swe/tasks/t1/plan/approve",
-                    json={"approved": True, "approver": "  "})
-    assert r.status_code == 400
+                    json={"approved": True, "approver": "somebody-else"})
+    assert r.status_code == 200
+    assert r.json()["plan_approved_by"] == "op@kai"
+
+
+def test_require_approver_resolves_token_to_admin_user(db_session):
+    import hashlib
+    import uuid as _uuid
+    from fastapi import HTTPException
+    from sqlalchemy import text as _text
+    from app.dependencies.approver import require_approver as _dep
+
+    tok = "s3cret-approver-token"
+    email = f"a-{_uuid.uuid4().hex[:8]}@kai"
+    db_session.execute(
+        _text("INSERT INTO admin_users (email, password_hash, role) "
+              "VALUES (:e, :h, 'approver')"),
+        {"e": email, "h": hashlib.sha256(tok.encode()).hexdigest()},
+    )
+    db_session.commit()
+    assert _dep(x_approver_token=tok, db=db_session) == email
+    for bad in (None, "wrong-token"):
+        with pytest.raises(HTTPException) as ei:
+            _dep(x_approver_token=bad, db=db_session)
+        assert ei.value.status_code == 403
 
 
 def test_gate1_approved_runs_and_produces_patch(client, swe_env):
@@ -235,6 +273,22 @@ def test_gate2_patch_sha_mismatch_blocks_push(client, swe_env, monkeypatch, db_s
     r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True, "approver": "op"})
     assert r.status_code == 400                              # sha256 mismatch
     assert calls == []                                       # never pushed the swapped patch
+
+
+def test_two_person_control_blocks_same_approver(client, swe_env, monkeypatch):
+    _to_push_ready(client, swe_env)          # plan approved by op@kai
+    monkeypatch.setenv("KAI_SCOPE_SWEPUSH_EXECUTE", "1")
+    monkeypatch.setenv("KAI_SWE_REQUIRE_TWO_PERSON", "1")
+    calls = []
+    _stub_push(monkeypatch, calls)
+    # same identity approving the push → refused
+    r = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True})
+    assert r.status_code == 403 and calls == []
+    # a DIFFERENT approver → allowed
+    app.dependency_overrides[require_approver] = lambda: "second@kai"
+    r2 = client.post("/admin/swe/tasks/t1/push/approve", json={"approved": True})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["push_approved_by"] == "second@kai" and len(calls) == 1
 
 
 def test_reject_unsticks_stranded_pushing(client, swe_env, db_session):
