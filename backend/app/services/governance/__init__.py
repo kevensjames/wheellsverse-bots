@@ -24,16 +24,20 @@ from app.services.governance.actions import (
 )
 from app.services.governance.audit_log import (
     AUDIT_LOG_PATH,
+    AuditWriteError,
     list_actions,
     record_action,
+    verify_chain,
 )
 
 __all__ = [
     "AUDIT_LOG_PATH",
+    "AuditWriteError",
     "PendingApproval",
     "ScopeDenied",
     "audited",
     "is_scope_enabled",
     "list_actions",
     "record_action",
+    "verify_chain",
 ]

@@ -289,6 +289,71 @@ def test_decorator_attaches_metadata():
     assert f.__kai_action__["name"] == "f"
 
 
+# ─── tamper-evidence (hash chain) ────────────────────────────────────
+
+
+def test_chain_verifies_and_detects_edit(monkeypatch, _isolated_audit_log):
+    """The log is hash-chained: editing a record must be detectable."""
+    monkeypatch.setenv("KAI_SCOPE_TEST_C", "1")
+
+    @audited(scope="test.c")
+    def f(n):
+        return n
+
+    for i in range(3):
+        f(i)
+    ok = governance.verify_chain()
+    assert ok["ok"] is True and ok["records"] == 3
+
+    lines = _isolated_audit_log.read_text().splitlines()
+    rec = json.loads(lines[1])
+    rec["actor"] = "mallory"                       # edit in place
+    lines[1] = json.dumps(rec)
+    _isolated_audit_log.write_text("\n".join(lines) + "\n")
+
+    broken = governance.verify_chain()
+    assert broken["ok"] is False and broken["broken_at"] == 2
+    assert "hash mismatch" in broken["reason"]
+
+
+def test_chain_detects_deleted_record(monkeypatch, _isolated_audit_log):
+    monkeypatch.setenv("KAI_SCOPE_TEST_D", "1")
+
+    @audited(scope="test.d")
+    def f():
+        return 1
+
+    f(); f(); f()
+    lines = _isolated_audit_log.read_text().splitlines()
+    del lines[1]                                   # excise a middle record
+    _isolated_audit_log.write_text("\n".join(lines) + "\n")
+
+    broken = governance.verify_chain()
+    assert broken["ok"] is False and "prev_hash" in broken["reason"]
+
+
+def test_destructive_blocked_when_audit_cannot_be_written(
+    monkeypatch, _isolated_audit_log, tmp_path
+):
+    """Fail-CLOSED: if the intent record cannot be persisted, the destructive
+    action must not run at all."""
+    monkeypatch.setenv("KAI_SCOPE_TEST_M", "1")
+    ran = []
+
+    @audited(scope="test.m", destructive=True)
+    def move_money():
+        ran.append(1)
+        return "moved"
+
+    bad = tmp_path / "unwritable_dir"              # a directory can't be appended to
+    bad.mkdir()
+    monkeypatch.setattr(al, "AUDIT_LOG_PATH", bad)
+
+    with pytest.raises(al.AuditWriteError):
+        move_money(approved=True)
+    assert ran == []                               # the side effect never happened
+
+
 # ─── audit-log resilience ───────────────────────────────────────────
 
 
