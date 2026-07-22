@@ -119,6 +119,19 @@ def audited(
                     f"approved=True. Surface a confirm prompt and retry."
                 )
 
+            # A destructive action gets a fail-CLOSED intent record BEFORE the
+            # side effect: if we cannot durably record what we are about to do,
+            # we do not do it. (Pattern proven in swe_runtime/push.py.) Routine
+            # outcome logging below stays fail-soft — a full disk must not brick
+            # ordinary operation, but it must never silently hide money movement.
+            if destructive:
+                record_action(
+                    action=fn.__name__, scope=scope, actor=actor,
+                    destructive=True, approved=approved,
+                    inputs={"_args": _safe_repr(args), "_kwargs": _safe_repr(kwargs)},
+                    success=None, event="intent", fail_closed=True,
+                )
+
             t0 = time.time()
             try:
                 result = fn(*args, **kwargs)
