@@ -411,7 +411,19 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 </div>
 
 <script>
-const API = 'https://sol-api-production.up.railway.app';
+// API origin is resolved from the page's OWN host (deployments are per-environment),
+// never from a query param or user input. An unrecognized origin FAILS CLOSED — it
+// does NOT fall back to production, so a staging/preview page can never send money
+// calls to prod. Add the real staging host below once the staging env exists.
+const _API_BY_HOST = {
+  'localhost': 'http://localhost:8000',
+  '127.0.0.1': 'http://localhost:8000',
+  'app.wheellsverse.com': 'https://sol-api-production.up.railway.app',
+  // staging (confirm/adjust to the real staging frontend host when created):
+  'staging.wheellsverse.com': 'https://staging-api.wheellsverse.com',
+  'staging-app.wheellsverse.com': 'https://staging-api.wheellsverse.com',
+};
+const API = _API_BY_HOST[location.hostname] || null;
 let token = localStorage.getItem('sol_token');
 let me = null;
 
@@ -458,6 +470,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore();
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
+  if (!API) throw new Error('Sol is not configured for its current address (' + location.hostname + '). No API origin — refusing to guess.');
   const r = await fetch(API + path, {
     ...opts,
     headers: {

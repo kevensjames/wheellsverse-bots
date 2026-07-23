@@ -141,6 +141,8 @@ tr:hover td{background:var(--surface-2)}
 
   <div class="section-title">Tools</div>
   <button type="button" class="nav-item" data-page="reconcile" onclick="nav('reconcile')">⚡ Reconcile</button>
+  <button type="button" class="nav-item" data-page="moneyops" onclick="nav('moneyops')">🧮 Money Ops</button>
+  <button type="button" class="nav-item" data-page="providerevents" onclick="nav('providerevents')">🛰 Provider Events</button>
   <button type="button" class="nav-item" data-page="audit" onclick="nav('audit')">📋 Audit log</button>
   <button type="button" class="nav-item" data-page="emailpreview" onclick="nav('emailpreview')">✉ Email templates</button>
   <button type="button" class="nav-item" data-page="security" onclick="nav('security')">🔐 Security</button>
@@ -333,11 +335,84 @@ tr:hover td{background:var(--surface-2)}
     <p class="sub">Two-factor authentication for your admin account.</p>
     <div id="securityCard" class="card" style="max-width:640px"><div class="spinner"></div></div>
   </div>
+
+  <!-- Money Ops — operator dashboard -->
+  <div class="page" id="page-moneyops">
+    <h1>Money Ops</h1><p class="sub">What needs a human right now. Backend is authoritative.</p>
+    <div class="alert alert-ok" id="moneyOpsMsg" style="display:none"></div>
+    <div class="alert alert-err" id="moneyOpsErr" style="display:none"></div>
+    <div style="display:flex;gap:.75rem;align-items:center;margin-bottom:1rem;flex-wrap:wrap">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadMoneyOps()">↺ Refresh</button>
+      <span id="moneyOpsUpdated" style="font-size:.72rem;color:var(--muted)"></span>
+    </div>
+    <div id="moneyOpsSummary"><div class="spinner" style="margin:1rem auto"></div></div>
+
+    <h2 style="font-size:1.05rem;margin:1.5rem 0 .5rem">Worker health</h2>
+    <div id="workerHealth"><div class="spinner" style="margin:1rem auto"></div></div>
+
+    <h2 style="font-size:1.05rem;margin:1.5rem 0 .5rem">Open reconciliation exceptions</h2>
+    <p style="color:var(--muted);font-size:.8rem;margin-bottom:.75rem">An open exception blocks the circle's payouts until resolved. Return exposures can be written off or recovered.</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Kind</th><th>Circle</th><th>Amount</th><th>Detail</th><th>Actions</th></tr></thead>
+        <tbody id="reconExcTable"><tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+
+    <h2 style="font-size:1.05rem;margin:1.5rem 0 .5rem">Circle ledger</h2>
+    <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.75rem">
+      <input id="circleLedgerId" type="text" placeholder="circle id (uuid)" aria-label="Circle id"
+        style="background:var(--surface-2);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.8rem;min-width:280px;font-family:monospace">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="viewCircleLedger()">View ledger</button>
+    </div>
+    <div id="circleLedgerOut"></div>
+  </div>
+
+  <!-- Provider Events -->
+  <div class="page" id="page-providerevents">
+    <h1>Provider Events</h1><p class="sub">Webhook lifecycle — what arrived, what it touched, what failed. Metadata only, never raw payloads.</p>
+    <div class="alert alert-ok" id="peMsg" style="display:none"></div>
+    <div class="alert alert-err" id="peErr" style="display:none"></div>
+    <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:.75rem;flex-wrap:wrap">
+      <select id="peStatus" onchange="loadProviderEvents()" aria-label="Filter by status"
+        style="background:var(--surface-2);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.85rem">
+        <option value="">All statuses</option>
+        <option value="UNROUTED">Unrouted</option>
+        <option value="FAILED">Failed</option>
+        <option value="QUARANTINED">Quarantined</option>
+        <option value="PROCESSED">Processed</option>
+        <option value="RECEIVED">Received</option>
+      </select>
+      <input id="peType" type="text" placeholder="event type" aria-label="Filter by event type"
+        onkeydown="if(event.key==='Enter')loadProviderEvents()"
+        style="background:var(--surface-2);border:1px solid var(--border);border-radius:.5rem;padding:.5rem .75rem;color:var(--text);font-size:.85rem">
+      <button type="button" class="btn btn-ghost btn-sm" onclick="loadProviderEvents()">↺ Refresh</button>
+      <span id="peAttention" style="font-size:.8rem;color:var(--muted)"></span>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>When</th><th>Type</th><th>Status</th><th>Attempts</th><th>Target</th><th>Note</th><th>Actions</th></tr></thead>
+        <tbody id="peTable"><tr><td colspan="7" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </main>
 </div>
 
 <script>
-const API = 'https://sol-api-production.up.railway.app';
+// API origin is resolved from the page's OWN host (deployments are per-environment),
+// never from a query param or user input. An unrecognized origin FAILS CLOSED — it
+// does NOT fall back to production, so a staging/preview page can never send money
+// calls to prod. Add the real staging host below once the staging env exists.
+const _API_BY_HOST = {
+  'localhost': 'http://localhost:8000',
+  '127.0.0.1': 'http://localhost:8000',
+  'app.wheellsverse.com': 'https://sol-api-production.up.railway.app',
+  // staging (confirm/adjust to the real staging frontend host when created):
+  'staging.wheellsverse.com': 'https://staging-api.wheellsverse.com',
+  'staging-app.wheellsverse.com': 'https://staging-api.wheellsverse.com',
+};
+const API = _API_BY_HOST[location.hostname] || null;
 let adminToken = sessionStorage.getItem('sol_admin_token');
 let allUsers = [], allGroups = [];
 
@@ -484,6 +559,8 @@ function nav(page) {
   if (page === 'payouts') loadPayoutsData();
   if (page === 'audit') loadAuditLog();
   if (page === 'security') loadSecurity();
+  if (page === 'moneyops') loadMoneyOps();
+  if (page === 'providerevents') loadProviderEvents();
 }
 
 // Escape untrusted strings before interpolating into innerHTML. Circle names,
@@ -804,6 +881,7 @@ async function loadEmailPreview(template) {
 
 // ── API ───────────────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
+  if (!API) throw new Error('This admin console is not configured for its current address (' + location.hostname + '). No API origin — refusing to guess.');
   const r = await fetch(API + path, {
     ...opts,
     headers: {
@@ -1159,6 +1237,206 @@ async function retryPayout(payoutId) {
   } catch (e) {
     err.textContent = e.message; err.style.display = 'block';
   }
+}
+
+// ── Money Ops — operator dashboard ─────────────────────────────────────────────
+function _statCard(label, value, danger) {
+  const color = danger ? 'var(--red)' : 'var(--text)';
+  return `<div class="card" style="text-align:center;padding:.85rem">
+    <div style="font-size:1.6rem;font-weight:700;color:${color}">${esc(String(value))}</div>
+    <div style="font-size:.72rem;color:var(--muted);margin-top:.2rem">${esc(label)}</div></div>`;
+}
+
+async function loadMoneyOps() {
+  loadMoneyOpsSummary();
+  loadWorkerHealth();
+  loadReconExceptions();
+}
+
+async function loadMoneyOpsSummary() {
+  const el = document.getElementById('moneyOpsSummary');
+  el.innerHTML = '<div class="spinner" style="margin:1rem auto"></div>';
+  try {
+    const s = await api('/admin/money-ops/summary');
+    document.getElementById('moneyOpsUpdated').textContent =
+      s.generated_at ? 'Updated ' + new Date(s.generated_at).toLocaleTimeString() : '';
+    const bal = s.ledger && s.ledger.balanced;
+    el.innerHTML = `<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:.6rem">
+      ${_statCard('Needs attention', s.needs_attention ?? 0, (s.needs_attention||0) > 0)}
+      ${_statCard('Open exceptions', s.reconciliation?.open_exceptions ?? 0, (s.reconciliation?.open_exceptions||0) > 0)}
+      ${_statCard('Blocked cycles', s.payouts?.blocked_settling_cycles ?? 0, (s.payouts?.blocked_settling_cycles||0) > 0)}
+      ${_statCard('Stale payouts', s.payouts?.stale_pending ?? 0, (s.payouts?.stale_pending||0) > 0)}
+      ${_statCard('Failed payouts', s.payouts?.failed ?? 0, (s.payouts?.failed||0) > 0)}
+      ${_statCard('Stale contributions', s.contributions?.stale_pending ?? 0, (s.contributions?.stale_pending||0) > 0)}
+      ${_statCard('Returned contributions', s.contributions?.returned ?? 0, (s.contributions?.returned||0) > 0)}
+      ${_statCard('Frozen circles', s.circles?.frozen ?? 0, (s.circles?.frozen||0) > 0)}
+      ${_statCard('Ledger', bal ? 'Balanced' : 'IMBALANCED', !bal)}
+    </div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+async function loadWorkerHealth() {
+  const el = document.getElementById('workerHealth');
+  el.innerHTML = '<div class="spinner" style="margin:1rem auto"></div>';
+  try {
+    const w = await api('/admin/worker-health');
+    if (!w.redis_reachable) {
+      el.innerHTML = `<div class="alert alert-err" style="display:block">Worker Redis unreachable (queue <code>${esc(w.queue||'?')}</code>)${w.error ? ' — ' + esc(w.error) : ''}</div>`;
+      return;
+    }
+    el.innerHTML = `<div class="cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:.6rem">
+      <div class="card" style="text-align:center;padding:.85rem"><div style="font-size:.9rem;font-weight:600;font-family:monospace">${esc(w.queue)}</div><div style="font-size:.72rem;color:var(--muted)">queue</div></div>
+      ${_statCard('Queued', w.queued ?? 0)}
+      ${_statCard('Started', w.started ?? 0)}
+      ${_statCard('Failed (dead-letter)', w.failed ?? 0, (w.failed||0) > 0)}
+      ${_statCard('Deferred', w.deferred ?? 0)}
+      ${_statCard('Scheduled', w.scheduled ?? 0)}
+    </div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+async function loadReconExceptions() {
+  const tb = document.getElementById('reconExcTable');
+  tb.innerHTML = '<tr><td colspan="6" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr>';
+  try {
+    const rows = await api('/admin/reconciliation/exceptions') || [];
+    if (!rows.length) { tb.innerHTML = '<tr><td colspan="6" class="empty">No open exceptions — nothing blocking money.</td></tr>'; return; }
+    tb.innerHTML = rows.map(x => {
+      const circle = x.circle_id ? esc(x.circle_id.slice(0, 8)) : '—';
+      const amt = x.amount_cents != null ? fmt$(x.amount_cents) : '—';
+      let actions = `<button class="btn btn-sm btn-ghost" onclick="resolveException('${esc(x.id)}')">Resolve</button>`;
+      if (x.kind === 'CONTRIBUTION_RETURN_EXPOSURE' && x.payment_id) {
+        actions += ` <button class="btn btn-sm btn-ghost" onclick="recoverReturn('${esc(x.payment_id)}')">Recover</button>`
+          + ` <button class="btn btn-sm btn-ghost" onclick="writeOffReturn('${esc(x.payment_id)}')">Write off</button>`;
+      }
+      return `<tr>
+        <td style="color:var(--muted);font-size:.72rem">${fmtDate(x.created_at)}</td>
+        <td>${badge(x.kind)}</td>
+        <td style="font-family:monospace;font-size:.72rem">${circle}</td>
+        <td>${amt}</td>
+        <td style="font-size:.75rem;color:var(--muted);max-width:320px">${esc(x.detail || '')}</td>
+        <td style="white-space:nowrap">${actions}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { tb.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`; }
+}
+
+function _moneyOpsResult(ok, msg) {
+  const o = document.getElementById('moneyOpsMsg'), e = document.getElementById('moneyOpsErr');
+  o.style.display = 'none'; e.style.display = 'none';
+  const t = ok ? o : e; t.textContent = msg; t.style.display = 'block';
+}
+
+async function resolveException(id) {
+  const note = prompt('Resolution note (optional):');
+  if (note === null) return;  // cancelled
+  try {
+    await api(`/admin/reconciliation/exceptions/${id}/resolve`, { method: 'POST', body: JSON.stringify({ note }) });
+    _moneyOpsResult(true, '✓ Exception resolved.');
+    loadReconExceptions(); loadMoneyOpsSummary();
+  } catch (e) { _moneyOpsResult(false, e.message); }
+}
+
+async function writeOffReturn(paymentId) {
+  if (!confirm('Write this return exposure off to ACH_RETURN_LOSS? Use only when the member funds are unrecoverable. This is idempotent — a recovered exposure will not be double-booked.')) return;
+  const note = prompt('Write-off note (optional):'); if (note === null) return;
+  try {
+    const r = await api(`/admin/returns/${paymentId}/write-off`, { method: 'POST', body: JSON.stringify({ note }) });
+    _moneyOpsResult(true, `✓ Written off ${fmt$(r.loss_cents || 0)}${(r.loss_cents||0) === 0 ? ' (no-op — nothing outstanding)' : ''}.`);
+    loadReconExceptions(); loadMoneyOpsSummary();
+  } catch (e) { _moneyOpsResult(false, e.message); }
+}
+
+async function recoverReturn(paymentId) {
+  if (!confirm('Record that the member repaid this returned contribution? Clears the receivable (or reverses a prior write-off). Idempotent.')) return;
+  const note = prompt('Recovery note (optional):'); if (note === null) return;
+  try {
+    const r = await api(`/admin/returns/${paymentId}/recover`, { method: 'POST', body: JSON.stringify({ note }) });
+    _moneyOpsResult(true, `✓ Recovered ${fmt$(r.recovered_cents || 0)}${(r.recovered_cents||0) === 0 ? ' (no-op — nothing outstanding)' : ''}.`);
+    loadReconExceptions(); loadMoneyOpsSummary();
+  } catch (e) { _moneyOpsResult(false, e.message); }
+}
+
+async function viewCircleLedger() {
+  const id = document.getElementById('circleLedgerId').value.trim();
+  const out = document.getElementById('circleLedgerOut');
+  if (!id) { out.innerHTML = '<div class="empty">Enter a circle id.</div>'; return; }
+  out.innerHTML = '<div class="spinner" style="margin:1rem auto"></div>';
+  try {
+    const d = await api(`/admin/ledger/circles/${encodeURIComponent(id)}`);
+    const warn = (d.warnings || []).length
+      ? `<div class="alert alert-err" style="display:block">⚠ ${esc(d.warnings.join(', '))}</div>` : '';
+    const rows = (d.accounts || []).map(a => `<tr>
+      <td style="font-family:monospace;font-size:.72rem">${esc(a.account)}</td>
+      <td style="color:var(--muted);font-size:.72rem">${esc(a.category)}</td>
+      <td style="text-align:right">${fmt$(a.debit_cents)}</td>
+      <td style="text-align:right">${fmt$(a.credit_cents)}</td>
+      <td style="text-align:right;font-weight:600">${fmt$(a.balance_cents)}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="empty">No ledger entries for this circle.</td></tr>';
+    out.innerHTML = `${warn}
+      <div style="font-size:.8rem;color:var(--muted);margin-bottom:.5rem">Status ${esc(d.circle_status)}${d.frozen ? ' · 🧊 frozen' : ''} · pool ${fmt$(d.pool_balance_cents||0)} · escrow ${fmt$(d.entry_fee_escrow_cents||0)}</div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Account</th><th>Category</th><th style="text-align:right">Debit</th><th style="text-align:right">Credit</th><th style="text-align:right">Balance</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>`;
+  } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+// ── Provider Events ─────────────────────────────────────────────────────────────
+async function loadProviderEvents() {
+  const tb = document.getElementById('peTable');
+  tb.innerHTML = '<tr><td colspan="7" class="empty"><div class="spinner" style="margin:1rem auto"></div></td></tr>';
+  const st = document.getElementById('peStatus')?.value || '';
+  const ty = document.getElementById('peType')?.value.trim() || '';
+  const qs = new URLSearchParams();
+  if (st) qs.set('status', st);
+  if (ty) qs.set('event_type', ty);
+  try {
+    const d = await api('/admin/provider-events' + (qs.toString() ? '?' + qs : ''));
+    document.getElementById('peAttention').textContent = `${d.needs_attention ?? 0} need attention`;
+    const events = d.events || [];
+    if (!events.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">No matching events.</td></tr>'; return; }
+    tb.innerHTML = events.map(e => {
+      const target = e.target_type ? `${esc(e.target_type)}:${esc((e.target_id||'').slice(0,8))}` : '—';
+      // Replay only for the states where it makes sense (backend refuses PROCESSED).
+      const canReplay = e.status === 'UNROUTED' || e.status === 'FAILED';
+      let actions = `<button class="btn btn-sm btn-ghost" onclick="peAction('${esc(e.id)}','note')">Note</button>`
+        + ` <button class="btn btn-sm btn-ghost" onclick="peAction('${esc(e.id)}','resolve')">Resolve</button>`
+        + ` <button class="btn btn-sm btn-ghost" onclick="peAction('${esc(e.id)}','escalate')">Escalate</button>`;
+      if (canReplay) actions += ` <button class="btn btn-sm btn-primary" onclick="peAction('${esc(e.id)}','replay')">Replay</button>`;
+      const stateTag = e.operator_state ? ` <span class="badge badge-gray">${esc(e.operator_state)}</span>` : '';
+      return `<tr>
+        <td style="color:var(--muted);font-size:.72rem">${fmtDate(e.received_at)}</td>
+        <td style="font-family:monospace;font-size:.72rem">${esc(e.event_type)}</td>
+        <td>${badge(e.status)}${e.needs_attention ? ' <span class="badge badge-red">!</span>' : ''}${stateTag}</td>
+        <td style="text-align:center">${e.attempt_count ?? 0}</td>
+        <td style="font-family:monospace;font-size:.72rem">${target}</td>
+        <td style="font-size:.72rem;color:var(--muted);max-width:180px">${esc(e.operator_note || '')}</td>
+        <td style="white-space:nowrap">${actions}</td>
+      </tr>`;
+    }).join('');
+  } catch (e) { tb.innerHTML = `<tr><td colspan="7" class="empty">${esc(e.message)}</td></tr>`; }
+}
+
+function _peResult(ok, msg) {
+  const o = document.getElementById('peMsg'), e = document.getElementById('peErr');
+  o.style.display = 'none'; e.style.display = 'none';
+  const t = ok ? o : e; t.textContent = msg; t.style.display = 'block';
+}
+
+async function peAction(id, action) {
+  let body = {};
+  if (action === 'note') {
+    const note = prompt('Operational note:'); if (!note) return; body = { note };
+  } else if (action === 'replay') {
+    if (!confirm('Replay this event? It re-runs the stored event\'s routing server-side (never a client payload) and is refused if the effect is already applied. Safe to repeat.')) return;
+  } else {
+    const note = prompt(`${action} note (optional):`); if (note === null) return; body = { note };
+  }
+  try {
+    const r = await api(`/admin/provider-events/${id}/${action}`, { method: 'POST', body: JSON.stringify(body) });
+    _peResult(true, `✓ ${action}${r.status ? ' → ' + esc(r.status) : ''}${r.operator_state ? ' (' + esc(r.operator_state) + ')' : ''}`);
+    loadProviderEvents();
+  } catch (e) { _peResult(false, e.message); }
 }
 
 // ── Group detail modal ────────────────────────────────────────────────────────
