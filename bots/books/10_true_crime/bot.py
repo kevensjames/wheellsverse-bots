@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from bots.books.base_book_bot import BaseBookBot  # noqa: E402
+from bots.books.base_book_bot import BaseBookBot, run_book_cli  # noqa: E402
 
 SYSTEM = """You are a narrative non-fiction author specializing in true crime and
 investigative journalism, in the tradition of Ann Rule, Erik Larson, and
@@ -42,12 +42,4 @@ class TrueCrimeBot(BaseBookBot):
 
 
 if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser()
-    p.add_argument("--action", default="write", choices=["write", "outline", "chapter", "cover", "listing", "promote", "series"])
-    p.add_argument("--title")
-    p.add_argument("--chapter", type=int, default=1)
-    args = p.parse_args()
-    bot = TrueCrimeBot()
-    r = bot.execute(action=args.action, title=args.title, chapter=args.chapter)
-    print(f"\n✅ True Crime: {r.get('file', '')}")
+    run_book_cli(TrueCrimeBot, "True Crime")

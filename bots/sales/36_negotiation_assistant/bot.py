@@ -131,7 +131,7 @@ If you must concede on price, here's how:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_ctx = "".join(c if c.isalnum() else "_" for c in negotiation_context[:25])
+        safe_ctx = self.slugify(negotiation_context, 25)
 
         output = f"""# Negotiation Strategy
 **Situation:** {negotiation_context}

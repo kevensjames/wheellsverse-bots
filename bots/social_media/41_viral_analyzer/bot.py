@@ -183,7 +183,7 @@ Top 5 reasons content in {niche} fails to spread:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_niche = "".join(c if c.isalnum() else "_" for c in niche[:20])
+        safe_niche = self.slugify(niche, 20)
 
         output = f"""# Viral Content Formulas: {niche}
 **Platforms:** {platform}

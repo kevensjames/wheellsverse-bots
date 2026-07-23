@@ -130,7 +130,7 @@ For each platform in [{', '.join(platform_list)}]:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_type = "".join(c if c.isalnum() else "_" for c in comment_type[:25])
+        safe_type = self.slugify(comment_type, 25)
 
         output = f"""# Engagement Reply Templates
 **Comment Type:** {comment_type}

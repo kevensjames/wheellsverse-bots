@@ -193,7 +193,7 @@ class ViralPostCampaignBot(BaseBot):
         platform_list = [p.strip().lower() for p in platforms.split(",")]
 
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_niche = "".join(c if c.isalnum() else "_" for c in niche[:25])
+        safe_niche = self.slugify(niche, 25)
         timestamp_readable = _dt.now().strftime("%Y-%m-%d %H:%M")
 
         self.logger.info(f"Generating {posts_per_platform} viral posts for: {platform_list}")

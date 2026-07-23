@@ -11,25 +11,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.base_bot import BaseBot  # noqa: E402
+from core.affiliate import make_utm, AMAZON_TAG  # noqa: E402
 
-# OLD constants block read AFFILIATE_<X>_URL from .env with /go/{partner}
-# OLD fallbacks. Per affiliate_swap_pass2_2026_06_02 every CTA now
-# OLD routes to the owned digital product / blog with UTM tagging.
-_BOT = "76_crypto_affiliate_booster"
-_CAMP = "affiliate_swap_pass2_2026_06_02"
-_DIGITAL = "https://stan.store/Wheellsverse"
-_BLOG = "https://wheellsverse.com/blog/"
-
-
-def _utm(content: str, medium: str = "content", base: str = _DIGITAL) -> str:
-    return f"{base}?utm_source={_BOT}&utm_medium={medium}&utm_campaign={_CAMP}&utm_content={content}"
+_utm = make_utm("76_crypto_affiliate_booster")
 
 
 # OLD: COINBASE_URL = os.getenv("AFFILIATE_COINBASE_URL", "https://app.wheellsverse.com/go/coinbase")
 COINBASE_URL = _utm("coinbase")
 # OLD: ROBINHOOD_URL = os.getenv("AFFILIATE_WEBULL_URL", "https://app.wheellsverse.com/go/webull")
 WEBULL_URL = _utm("webull")
-AMAZON_TAG = os.getenv("AFFILIATE_AMAZON_TAG", "wheellsverse-20")
 
 CRYPTO_ANGLES = [
     "Coinbase vs Kraken vs Binance: which exchange should you use?",
@@ -111,7 +101,7 @@ Make it feel like trusted advice, not a sales pitch."""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_topic = "".join(c if c.isalnum() else "_" for c in topic[:40])
+        safe_topic = self.slugify(topic, 40)
 
         output = f"""# {topic}
 *Platform Focus: {platform_focus.title()} | Generated: {_dt.now().strftime('%Y-%m-%d %H:%M')}*

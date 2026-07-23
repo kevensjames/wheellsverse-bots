@@ -186,7 +186,7 @@ In code similar to this, these related bugs commonly appear:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_error = "".join(c if c.isalnum() else "_" for c in error_message[:25])
+        safe_error = self.slugify(error_message, 25)
 
         output = f"""# Debug Report: {error_message[:60]}
 **Language:** {language}

@@ -175,7 +175,7 @@ How to reuse this content batch over the next 30 days:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_content = "".join(c if c.isalnum() else "_" for c in core_content[:25])
+        safe_content = self.slugify(core_content, 25)
 
         output = f"""# Multi-Platform Content Adaptation
 **Core Content:** {core_content}

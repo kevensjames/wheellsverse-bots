@@ -120,7 +120,7 @@ Fill-in offer letter including:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_role = "".join(c if c.isalnum() else "_" for c in role[:25])
+        safe_role = self.slugify(role, 25)
 
         output = f"""# Hiring Package: {role}
 **Type:** {employment_type}

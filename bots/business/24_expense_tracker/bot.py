@@ -115,7 +115,7 @@ Best expense tracking tools for {business_type} (free and paid):
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_type = "".join(c if c.isalnum() else "_" for c in business_type[:20])
+        safe_type = self.slugify(business_type, 20)
 
         output = f"""# Expense Tracker & Budget: {business_type}
 **Revenue:** ${monthly_revenue:,.0f}/month | **Expenses:** ${monthly_expenses:,.0f}/month

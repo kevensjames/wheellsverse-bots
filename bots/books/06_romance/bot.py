@@ -3,7 +3,7 @@
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from bots.books.base_book_bot import BaseBookBot  # noqa: E402
+from bots.books.base_book_bot import BaseBookBot, run_book_cli  # noqa: E402
 
 SYSTEM = """You are a romance author with a gift for emotional tension and swoon-worthy
 moments. You write in multiple subgenres: contemporary, historical, paranormal,
@@ -39,12 +39,4 @@ class RomanceBot(BaseBookBot):
 
 
 if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser()
-    p.add_argument("--action", default="write", choices=["write", "outline", "chapter", "cover", "listing", "promote", "series"])
-    p.add_argument("--title")
-    p.add_argument("--chapter", type=int, default=1)
-    args = p.parse_args()
-    bot = RomanceBot()
-    r = bot.execute(action=args.action, title=args.title, chapter=args.chapter)
-    print(f"\n✅ Romance: {r.get('file', '')}")
+    run_book_cli(RomanceBot, "Romance")
