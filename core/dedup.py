@@ -33,12 +33,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import time
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Optional
+
+logger = logging.getLogger("dedup")
 
 # ─── Redis init (graceful) ───────────────────────────────────────────────────
 _redis_client = None
@@ -57,9 +60,11 @@ try:
         # ping once at import so we fail fast to fs fallback if misconfigured
         try:
             _redis_client.ping()
-        except Exception:
+        except Exception as e:
+            logger.warning("Redis configured but ping failed (%s) — using filesystem dedup fallback", e)
             _redis_client = None
-except Exception:
+except Exception as e:
+    logger.debug("Redis unavailable (%s) — using filesystem dedup fallback", e)
     _redis_client = None
 
 _FALLBACK_DIR = Path(os.getenv("DEDUP_CACHE_DIR", "/tmp/wv_dedup"))
@@ -115,8 +120,12 @@ def is_duplicate(agent: str, payload: Any, ttl_seconds: int = 3600) -> bool:
             inserted = _redis_mark(key, ttl_seconds)
             # `inserted` True means we claimed the slot → not a duplicate
             return not inserted
-        except Exception:
-            pass  # fall through to filesystem
+        except Exception as e:
+            # A transient Redis outage silently weakens dedup and can let a
+            # double-triggered run through (wasted API credits — the exact
+            # thing this module exists to prevent). Surface it, then fall
+            # through to the filesystem marker.
+            logger.warning("Redis dedup check failed for %s (%s) — falling back to filesystem", key, e)
     inserted = _file_mark(key, ttl_seconds)
     return not inserted
 
