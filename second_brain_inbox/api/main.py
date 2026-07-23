@@ -23,10 +23,24 @@ app = FastAPI(
     version="1.0.0",
 )
 
+# CORS — origins come from SECOND_BRAIN_CORS_ORIGINS (comma-separated). A
+# wildcard "*" combined with allow_credentials=True is insecure (Starlette
+# reflects the caller's Origin and returns Access-Control-Allow-Credentials:
+# true, letting any site make credentialed cross-origin requests), so we only
+# enable credentials when the origin list is explicit.
+_cors_origins = [
+    o.strip()
+    for o in os.getenv(
+        "SECOND_BRAIN_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
+    ).split(",")
+    if o.strip()
+]
+_allow_credentials = "*" not in _cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=_cors_origins,
+    allow_credentials=_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

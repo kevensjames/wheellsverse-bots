@@ -54,10 +54,25 @@ app = FastAPI(
     docs_url="/docs" if os.getenv("NARAI_ENV", "dev") == "dev" else None,
 )
 
+# CORS — origins come from NARAI_CORS_ORIGINS (comma-separated). Default to
+# localhost dev origins instead of "*": a wildcard combined with
+# allow_credentials=True is insecure (Starlette reflects the caller's Origin
+# and returns Access-Control-Allow-Credentials: true, letting any site make
+# credentialed cross-origin requests). Credentials are only enabled when the
+# origin list is explicit.
+_narai_cors_origins = [
+    o.strip()
+    for o in os.getenv(
+        "NARAI_CORS_ORIGINS", "http://localhost:3000,http://localhost:5173"
+    ).split(",")
+    if o.strip()
+]
+_narai_allow_credentials = "*" not in _narai_cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("NARAI_CORS_ORIGINS", "*").split(","),
-    allow_credentials=True,
+    allow_origins=_narai_cors_origins,
+    allow_credentials=_narai_allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
