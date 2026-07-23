@@ -1185,7 +1185,7 @@ function renderGroupDetail(d) {
     <table style="width:100%;font-size:.8rem"><thead><tr><th>Pos</th><th>Email</th><th>Status</th><th>Payments</th><th>Payout</th></tr></thead><tbody>
     ${d.members.map(m => `<tr>
       <td>${m.position ?? '—'}</td>
-      <td>${m.user_email}</td>
+      <td>${esc(m.user_email)}</td>
       <td>${badge(m.status)}</td>
       <td>${m.successful_payments_in_group}</td>
       <td>${m.has_received_payout ? '<span style="color:var(--green)">✓</span>' : '—'}</td>

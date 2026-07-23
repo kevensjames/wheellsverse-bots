@@ -1284,6 +1284,7 @@ async function loadTrust() {
         <div style="font-size:3rem;font-weight:800;color:var(--gold);font-family:var(--font-display)">${t.sol_score}</div>
         <div style="font-size:.85rem;color:var(--muted)">of ${t.max_score} · SOL Score</div>
         <div style="background:rgba(0,0,0,.08);border-radius:99px;height:10px;overflow:hidden;margin-top:.75rem"><div style="background:linear-gradient(90deg,var(--gold),var(--green));height:100%;width:${pct}%"></div></div>
+        <div class="muted" style="font-size:.72rem;color:var(--muted);margin-top:.85rem;line-height:1.4">${esc(t.disclaimer || 'SOL Score is an informational trust signal based on your Sol activity — not a credit score, and never used for lending decisions.')}</div>
       </div>
       <h2 style="font-size:1.1rem;margin-bottom:.5rem;font-family:var(--font-display)">How it's built</h2>
       <div class="card" style="margin-bottom:1.5rem">${compRows}</div>
