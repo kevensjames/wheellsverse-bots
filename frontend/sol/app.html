@@ -28,8 +28,14 @@ body{background:var(--paper);color:var(--ink-900);font-family:var(--font-body);d
 .nav-item{display:flex;align-items:center;gap:.65rem;padding:.6rem .75rem;border-radius:var(--r-md);cursor:pointer;font-size:.9rem;font-family:var(--font-display);font-weight:500;color:var(--ink-500);border:none;background:none;width:100%;text-align:left;text-decoration:none;transition:.15s}
 .nav-item:hover{background:var(--surface-2);color:var(--ink-900)}
 .nav-item.active{background:var(--sol-200);color:var(--ink-900);font-weight:600}
-.nav-icon{width:16px;text-align:center}
-.logout{margin-top:auto;color:var(--ink-500)}
+.nav-icon{width:18px;height:18px;flex-shrink:0}
+.nav-groups{display:flex;flex-direction:column;gap:.1rem}
+.nav-section{font-size:.65rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink-300);font-weight:600;padding:.8rem .75rem .28rem;font-family:var(--font-display)}
+.nav-section:first-child{padding-top:.2rem}
+.nav-item{position:relative}
+.nav-item.active::before{content:"";position:absolute;left:-.4rem;top:.45rem;bottom:.45rem;width:3px;border-radius:0 3px 3px 0;background:var(--sol-500)}
+.nav-item.logout{margin-top:.5rem;border-top:1px solid var(--line);border-radius:0;padding-top:.8rem;color:var(--ink-500)}
+.nav-item.logout.active::before{display:none}
 /* Main */
 .main{flex:1;padding:2rem;overflow-y:auto;min-width:0}
 .page{display:none}.page.active{display:block}
@@ -80,6 +86,18 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 .mobile-nav .mn{flex:1;text-align:center;padding:.4rem .3rem;color:var(--ink-500);font-size:.65rem;text-decoration:none;cursor:pointer;border:none;background:none;font-family:var(--font-display)}
 .mobile-nav .mn .mni{font-size:1rem;display:block;margin-bottom:.15rem}
 .mobile-nav .mn.active{color:var(--sol-600)}
+.mobile-nav .mn{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:48px}
+.mobile-nav .mn .ic{width:20px;height:20px;margin-bottom:.12rem}
+/* Mobile "More" bottom sheet */
+.more-sheet-backdrop{position:fixed;inset:0;background:rgba(14,23,38,.5);z-index:110;opacity:0;visibility:hidden;transition:opacity .2s var(--ease),visibility .2s}
+.more-sheet-backdrop.open{opacity:1;visibility:visible}
+.more-sheet{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-radius:1rem 1rem 0 0;padding:1.1rem 1rem calc(1rem + env(safe-area-inset-bottom));z-index:111;box-shadow:0 -8px 32px rgba(14,23,38,.18);transform:translateY(100%);transition:transform .24s var(--ease)}
+.more-sheet-backdrop.open .more-sheet{transform:translateY(0)}
+.more-sheet h3{font-family:var(--font-display);font-size:1rem;margin:.1rem .2rem 1rem}
+.more-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.5rem}
+.more-item{display:flex;flex-direction:column;align-items:center;gap:.3rem;padding:.7rem .3rem;border-radius:var(--r-md);background:var(--surface-2);border:none;color:var(--ink-700);font-size:.68rem;font-family:var(--font-display);cursor:pointer;min-height:66px;justify-content:center}
+.more-item:active{background:var(--sol-200)}
+.more-item .ic{width:20px;height:20px}
 @media(max-width:640px){
   .sidebar{display:none}
   .main{padding:1rem;padding-bottom:5rem}
@@ -92,48 +110,53 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 </head>
 <body>
 
+<!-- Icon sprite: one stroke-based line-icon set, referenced via <use>. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+  <symbol id="ic-dashboard" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2h-4v-7H9v7H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="ic-timeline" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+  <symbol id="ic-alerts" viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></symbol>
+  <symbol id="ic-circles" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.5"/></symbol>
+  <symbol id="ic-discover" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+  <symbol id="ic-goals" viewBox="0 0 24 24"><path d="M5 22V3"/><path d="M5 4h12l-2 4 2 4H5"/></symbol>
+  <symbol id="ic-bank" viewBox="0 0 24 24"><path d="M3 21h18M5 21V10m4 11V10m6 11V10m4 11V10M12 3l8 4H4z"/></symbol>
+  <symbol id="ic-payments" viewBox="0 0 24 24"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19"/></symbol>
+  <symbol id="ic-verify" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6z"/><path d="M9 12l2 2 4-4"/></symbol>
+  <symbol id="ic-score" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z"/></symbol>
+  <symbol id="ic-community" viewBox="0 0 24 24"><path d="M20 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="ic-premium" viewBox="0 0 24 24"><path d="M5 8l3-4h8l3 4-7 12z"/><path d="M5 8h14M9.5 4l-1.5 4 4 12 4-12-1.5-4"/></symbol>
+  <symbol id="ic-signout" viewBox="0 0 24 24"><path d="M15 17l5-5-5-5M20 12H9M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/></symbol>
+  <symbol id="ic-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+</defs></svg>
+
 <aside class="sidebar">
   <div class="logo-wrap"><img src="/sol/assets/sol-logo.svg" alt="Sol"></div>
   <div class="user-info"><div class="user-email" id="userEmail">Loading…</div></div>
-  <a class="nav-item active" data-page="dashboard" onclick="nav('dashboard')">
-    <span class="nav-icon">◈</span> Dashboard
-  </a>
-  <a class="nav-item" data-page="groups" onclick="nav('groups')">
-    <span class="nav-icon">◎</span> Circles
-  </a>
-  <a class="nav-item" data-page="kyc" onclick="nav('kyc')">
-    <span class="nav-icon">✦</span> Verify ID
-  </a>
-  <a class="nav-item" data-page="bank" onclick="nav('bank')">
-    <span class="nav-icon">◇</span> Bank
-  </a>
-  <a class="nav-item" data-page="payments" onclick="nav('payments')">
-    <span class="nav-icon">⟳</span> Payments
-  </a>
-  <a class="nav-item" data-page="discover" onclick="nav('discover')">
-    <span class="nav-icon">✧</span> Discover
-  </a>
-  <a class="nav-item" data-page="timeline" onclick="nav('timeline')">
-    <span class="nav-icon">◷</span> Timeline
-  </a>
-  <a class="nav-item" data-page="trust" onclick="nav('trust')">
-    <span class="nav-icon">★</span> SOL Score
-  </a>
-  <a class="nav-item" data-page="premium" onclick="nav('premium')">
-    <span class="nav-icon">⬥</span> Premium
-  </a>
-  <a class="nav-item" data-page="notifications" onclick="nav('notifications')">
-    <span class="nav-icon">◔</span> Alerts <span id="navUnread" class="badge badge-red" style="display:none;margin-left:.4rem"></span>
-  </a>
-  <a class="nav-item" data-page="community" onclick="nav('community')">
-    <span class="nav-icon">✽</span> Community
-  </a>
-  <a class="nav-item" data-page="goals" onclick="nav('goals')">
-    <span class="nav-icon">⬖</span> Goals
-  </a>
-  <button class="nav-item logout" onclick="logout()">
-    <span class="nav-icon">→</span> Sign out
-  </button>
+  <nav class="nav-groups" aria-label="Primary">
+    <div class="nav-section">Overview</div>
+    <a class="nav-item active" data-page="dashboard" onclick="nav('dashboard')" role="button" aria-current="page"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-dashboard"/></svg> Dashboard</a>
+    <a class="nav-item" data-page="timeline" onclick="nav('timeline')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-timeline"/></svg> Timeline</a>
+    <a class="nav-item" data-page="notifications" onclick="nav('notifications')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-alerts"/></svg> Alerts <span id="navUnread" class="badge badge-red" style="display:none;margin-left:auto"></span></a>
+
+    <div class="nav-section">Savings</div>
+    <a class="nav-item" data-page="groups" onclick="nav('groups')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-circles"/></svg> Circles</a>
+    <a class="nav-item" data-page="discover" onclick="nav('discover')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-discover"/></svg> Discover</a>
+    <a class="nav-item" data-page="goals" onclick="nav('goals')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-goals"/></svg> Goals</a>
+
+    <div class="nav-section">Money</div>
+    <a class="nav-item" data-page="bank" onclick="nav('bank')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-bank"/></svg> Bank</a>
+    <a class="nav-item" data-page="payments" onclick="nav('payments')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-payments"/></svg> Payments</a>
+
+    <div class="nav-section">Trust</div>
+    <a class="nav-item" data-page="kyc" onclick="nav('kyc')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-verify"/></svg> Verify ID</a>
+    <a class="nav-item" data-page="trust" onclick="nav('trust')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-score"/></svg> SOL Score</a>
+
+    <div class="nav-section">Community</div>
+    <a class="nav-item" data-page="community" onclick="nav('community')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-community"/></svg> Community</a>
+
+    <div class="nav-section">Account</div>
+    <a class="nav-item" data-page="premium" onclick="nav('premium')" role="button"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-premium"/></svg> Premium</a>
+    <button type="button" class="nav-item logout" onclick="logout()"><svg class="ic nav-icon" aria-hidden="true"><use href="#ic-signout"/></svg> Sign out</button>
+  </nav>
 </aside>
 
 <main class="main">
@@ -362,20 +385,30 @@ td{padding:.75rem 1rem;border-top:1px solid var(--line)}
 </main>
 
 <!-- Mobile bottom nav (hidden on desktop via media query) -->
-<nav class="mobile-nav" id="mobileNav" style="overflow-x:auto;justify-content:flex-start;-webkit-overflow-scrolling:touch">
-  <button type="button" class="mn" data-mpage="dashboard" onclick="nav('dashboard')"><span class="mni">◈</span>Home</button>
-  <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><span class="mni">◎</span>Circles</button>
-  <button type="button" class="mn" data-mpage="discover" onclick="nav('discover')"><span class="mni">✧</span>Find</button>
-  <button type="button" class="mn" data-mpage="timeline" onclick="nav('timeline')"><span class="mni">◷</span>Time</button>
-  <button type="button" class="mn" data-mpage="trust" onclick="nav('trust')"><span class="mni">★</span>Score</button>
-  <button type="button" class="mn" data-mpage="premium" onclick="nav('premium')"><span class="mni">⬥</span>Plus</button>
-  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><span class="mni">◔</span>Alerts</button>
-  <button type="button" class="mn" data-mpage="community" onclick="nav('community')"><span class="mni">✽</span>Feed</button>
-  <button type="button" class="mn" data-mpage="goals" onclick="nav('goals')"><span class="mni">⬖</span>Goals</button>
-  <button type="button" class="mn" data-mpage="kyc" onclick="nav('kyc')"><span class="mni">✦</span>ID</button>
-  <button type="button" class="mn" data-mpage="bank" onclick="nav('bank')"><span class="mni">◇</span>Bank</button>
-  <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><span class="mni">⟳</span>Pay</button>
+<nav class="mobile-nav" id="mobileNav" aria-label="Primary mobile">
+  <button type="button" class="mn active" data-mpage="dashboard" onclick="nav('dashboard')"><svg class="ic" aria-hidden="true"><use href="#ic-dashboard"/></svg>Home</button>
+  <button type="button" class="mn" data-mpage="groups" onclick="nav('groups')"><svg class="ic" aria-hidden="true"><use href="#ic-circles"/></svg>Circles</button>
+  <button type="button" class="mn" data-mpage="payments" onclick="nav('payments')"><svg class="ic" aria-hidden="true"><use href="#ic-payments"/></svg>Pay</button>
+  <button type="button" class="mn" data-mpage="notifications" onclick="nav('notifications')"><svg class="ic" aria-hidden="true"><use href="#ic-alerts"/></svg>Alerts</button>
+  <button type="button" class="mn" onclick="openMore()" aria-haspopup="dialog" aria-controls="moreSheet"><svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>More</button>
 </nav>
+
+<!-- Mobile "More" sheet: secondary destinations -->
+<div class="more-sheet-backdrop" id="moreSheet" role="dialog" aria-modal="true" aria-label="More destinations" aria-hidden="true" onclick="if(event.target===this)closeMore()">
+  <div class="more-sheet">
+    <h3>More</h3>
+    <div class="more-grid">
+      <button type="button" class="more-item" onclick="navMore('discover')"><svg class="ic" aria-hidden="true"><use href="#ic-discover"/></svg>Discover</button>
+      <button type="button" class="more-item" onclick="navMore('goals')"><svg class="ic" aria-hidden="true"><use href="#ic-goals"/></svg>Goals</button>
+      <button type="button" class="more-item" onclick="navMore('timeline')"><svg class="ic" aria-hidden="true"><use href="#ic-timeline"/></svg>Timeline</button>
+      <button type="button" class="more-item" onclick="navMore('bank')"><svg class="ic" aria-hidden="true"><use href="#ic-bank"/></svg>Bank</button>
+      <button type="button" class="more-item" onclick="navMore('kyc')"><svg class="ic" aria-hidden="true"><use href="#ic-verify"/></svg>Verify ID</button>
+      <button type="button" class="more-item" onclick="navMore('trust')"><svg class="ic" aria-hidden="true"><use href="#ic-score"/></svg>SOL Score</button>
+      <button type="button" class="more-item" onclick="navMore('community')"><svg class="ic" aria-hidden="true"><use href="#ic-community"/></svg>Community</button>
+      <button type="button" class="more-item" onclick="navMore('premium')"><svg class="ic" aria-hidden="true"><use href="#ic-premium"/></svg>Premium</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const API = 'https://sol-api-production.up.railway.app';
@@ -387,10 +420,11 @@ if (!token) { window.location.href = '/sol/'; }
 // ── Nav ───────────────────────────────────────────────────────────────────────
 function nav(page) {
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => { n.classList.remove('active'); n.removeAttribute('aria-current'); });
   document.querySelectorAll('.mn').forEach(n => n.classList.remove('active'));
   document.getElementById('page-' + page)?.classList.add('active');
-  document.querySelector(`[data-page="${page}"]`)?.classList.add('active');
+  const _side = document.querySelector(`[data-page="${page}"]`);
+  if (_side) { _side.classList.add('active'); _side.setAttribute('aria-current', 'page'); }
   document.querySelector(`[data-mpage="${page}"]`)?.classList.add('active');
   if (page === 'groups') loadGroups();
   if (page === 'kyc') loadKYC();
@@ -409,6 +443,18 @@ function logout() {
   localStorage.removeItem('sol_token');
   window.location.href = '/sol/';
 }
+
+// Mobile "More" sheet
+function openMore() {
+  const s = document.getElementById('moreSheet');
+  if (s) { s.classList.add('open'); s.setAttribute('aria-hidden', 'false'); }
+}
+function closeMore() {
+  const s = document.getElementById('moreSheet');
+  if (s) { s.classList.remove('open'); s.setAttribute('aria-hidden', 'true'); }
+}
+function navMore(page) { closeMore(); nav(page); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeMore(); });
 
 // ── API helpers ───────────────────────────────────────────────────────────────
 async function api(path, opts = {}) {
@@ -632,8 +678,8 @@ async function consumePendingInvite() {
     warn.className = 'card';
     warn.style.cssText = 'max-width:none;margin-bottom:1rem;border-color:rgba(232,147,36,.3);background:rgba(232,147,36,.05)';
     warn.innerHTML = `<div style="font-weight:600;color:var(--gold);margin-bottom:.25rem">Invite pending</div>
-      <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${(e.message || '').slice(0,80)}). Your invite code:
-      <code style="color:var(--sol-600);background:var(--surface-2);padding:.15rem .4rem;border-radius:.3rem">${code}</code>.
+      <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${esc((e.message || '').slice(0,80))}). Your invite code:
+      <code style="color:var(--sol-600);background:var(--surface-2);padding:.15rem .4rem;border-radius:.3rem">${esc(code)}</code>.
       Finish verifying ID + linking a bank, then paste it into <a href="javascript:nav('groups')" style="color:var(--sol-600)">Circles → Join with invite code</a>.</div>`;
     document.getElementById('onboardingCard')?.after(warn);
   }
@@ -756,7 +802,7 @@ async function loadGroups() {
       return;
     }
     el.innerHTML = `<div class="group-grid">${gs.map(groupCard).join('')}</div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 function toggleCreateForm() {
@@ -888,7 +934,7 @@ async function showGroup(id) {
           <input readonly value="${inviteUrl}" id="inviteUrl-${g.id}" style="flex:1;min-width:200px;background:var(--surface-2);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900);font-size:.8rem;font-family:monospace">
           <button type="button" class="btn btn-primary" style="font-size:.8rem;padding:.45rem 1rem" onclick="copyInvite('${g.id}')">Copy</button>
         </div>
-        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--sol-600)">${g.invite_code}</code></div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--sol-600)">${esc(g.invite_code)}</code></div>
       </div>
     ` : '';
 
@@ -939,7 +985,7 @@ async function showGroup(id) {
           </tbody>
         </table>
       </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function joinGroup(id) {
@@ -1062,7 +1108,7 @@ async function loadBank() {
           `}
         </div>`).join('')}
     </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 // ── Payments page ─────────────────────────────────────────────────────────────
@@ -1091,7 +1137,7 @@ async function loadMyPayments() {
         </tr>`).join('')}
       </tbody>
     </table></div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function setPrimary(id) {
@@ -1173,7 +1219,7 @@ async function loadDiscover() {
         <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${FREQ_LABEL[t.frequency]||esc(t.frequency)}</span><span>${fmt$(t.contribution_cents)}/cycle</span></div>
         <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">${t.capacity} members per circle</div>
       </div>`).join('')}</div>` : '<div class="empty">No circle plans yet — use SOL Match above to start one.</div>';
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function reservePayout() {
   const btn=document.getElementById('mBtn'), err=document.getElementById('mErr'), res=document.getElementById('mResult');
@@ -1219,7 +1265,7 @@ async function loadTimeline() {
       out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${new Date(p.created_at).toLocaleDateString()}</td><td>${fmt$(p.amount_cents)}</td><td>${badge(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
     }
     el.innerHTML = out.join('');
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 // ── Trust / SOL Score ───────────────────────────────────────────────────────────
@@ -1242,7 +1288,7 @@ async function loadTrust() {
       <h2 style="font-size:1.1rem;margin-bottom:.5rem;font-family:var(--font-display)">How it's built</h2>
       <div class="card" style="margin-bottom:1.5rem">${compRows}</div>
       <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Badges</h2>${badgeGrid}`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 // ── Premium ─────────────────────────────────────────────────────────────────────
@@ -1309,7 +1355,7 @@ async function loadNotifications() {
           <div><div style="font-weight:600">${esc(n.title||n.type)}</div><div style="font-size:.85rem;color:var(--muted)">${esc(n.body||'')}</div></div>
           <div style="font-size:.75rem;color:var(--muted);white-space:nowrap">${new Date(n.created_at).toLocaleDateString()}</div>
         </div></div>`).join('') : '<div class="empty">No notifications yet.</div>';
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function markAllRead() {
   try { await api('/notifications/read-all', { method:'POST' }); loadNotifications(); } catch(e){ alert(e.message); }

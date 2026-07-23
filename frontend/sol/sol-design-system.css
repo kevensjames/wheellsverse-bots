@@ -131,6 +131,45 @@ a{color:var(--brand-strong); text-decoration:none} a:hover{text-decoration:under
 .badge--danger{background:var(--danger-100); color:var(--danger-700)}
 .badge--neutral{background:var(--ink-100); color:var(--ink-700)}
 
+/* ── Semantic status system ───────────────────────────────────────────────────
+   Money/lifecycle states. NEVER communicated by colour alone — every .status
+   pairs a tinted chip with a leading dot AND its text label, so it reads for
+   colour-blind users and screen readers alike. Add an aria-label at call site. */
+:root{
+  --st-active:#1E7A54;    --st-active-bg:#DCF3E8;
+  --st-forming:#9A6A0F;   --st-forming-bg:#FBEFD2;
+  --st-completed:#3B4A66; --st-completed-bg:#E5E9F0;
+  --st-failed:#B02525;    --st-failed-bg:#FBE3E1;
+  --st-cancelled:#5E6B85; --st-cancelled-bg:#EDEBE4;
+  --st-pending:#B4700F;   --st-pending-bg:#FBD9A2;
+  --st-overdue:#B02525;   --st-overdue-bg:#FBE3E1;
+  --st-verified:#1E7A54;  --st-verified-bg:#DCF3E8;
+  --st-warning:#9A6A0F;   --st-warning-bg:#FBEFD2;
+  --st-blocked:#8A1C1C;   --st-blocked-bg:#FBE3E1;
+}
+.status{display:inline-flex; align-items:center; gap:.4em; font-size:var(--step--1); font-weight:600;
+  padding:.2rem .55rem .2rem .5rem; border-radius:var(--r-pill); line-height:1.4; white-space:nowrap}
+.status::before{content:""; width:.5em; height:.5em; border-radius:50%; background:currentColor; flex-shrink:0}
+.status--active{color:var(--st-active); background:var(--st-active-bg)}
+.status--forming{color:var(--st-forming); background:var(--st-forming-bg)}
+.status--completed{color:var(--st-completed); background:var(--st-completed-bg)}
+.status--failed{color:var(--st-failed); background:var(--st-failed-bg)}
+.status--cancelled{color:var(--st-cancelled); background:var(--st-cancelled-bg)}
+.status--pending{color:var(--st-pending); background:var(--st-pending-bg)}
+.status--overdue{color:var(--st-overdue); background:var(--st-overdue-bg)}
+.status--verified{color:var(--st-verified); background:var(--st-verified-bg)}
+.status--warning{color:var(--st-warning); background:var(--st-warning-bg)}
+.status--blocked{color:var(--st-blocked); background:var(--st-blocked-bg)}
+/* Gentle breathe on the one live/active payout slot — opacity only (GPU-cheap,
+   composite-only) and calm, not alarming. reduced-motion disables it globally. */
+.status--active.is-live::before{animation:sol-breathe 2.4s var(--ease) infinite}
+@keyframes sol-breathe{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* ── Icon system (inline SVG, stroke = currentColor) ──────────────────────── */
+.ic{width:18px; height:18px; flex-shrink:0; stroke:currentColor; fill:none;
+  stroke-width:2; stroke-linecap:round; stroke-linejoin:round}
+.ic--sm{width:15px; height:15px} .ic--lg{width:22px; height:22px}
+
 /* ── Modal ────────────────────────────────────────────────────────────────── */
 .modal__backdrop{position:fixed; inset:0; background:rgba(14,23,38,.55); display:grid; place-items:center; padding:var(--s-4); z-index:50}
 .modal{background:var(--surface); border-radius:var(--r-lg); padding:var(--s-8); width:min(100%,32rem); box-shadow:var(--shadow-2)}
