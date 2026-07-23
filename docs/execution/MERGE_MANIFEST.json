@@ -1,0 +1,58 @@
+{
+  "$comment": "Immutable record of the verified 10-PR integration. All hashes read from git, never invented. The verified_integration_commit is a fast-forward of base_commit and contains every pr_heads commit as an ancestor.",
+  "generated_for": "GOD KAI external merge gate handoff",
+  "base_branch": "istanbul",
+  "base_commit": "2fe6e46e23aa3167c52b126da07acb990291c42e",
+  "verified_integration_commit": "40fdf90662900f7a56dc0d39eae372014c20186f",
+  "fast_forward_clean": true,
+  "merge_order": [43, 46, 44, 45, 47, 48, 39, 41, 40, 42],
+  "pr_heads": {
+    "43": "4a917ea6f44eab594bc80137b35c07ccdd897a17",
+    "46": "e26d153ba12d3edac404cc5557dac22ea72f05b8",
+    "44": "52dd279c7611150a91f402edef0e22b2759fe498",
+    "45": "2c101489c2fac814afd2620844c4c6687bc93ae6",
+    "47": "caec7c96c5aa4f4363f7e6d4bd3af251788ff279",
+    "48": "38e1506a1fd6a84fe654ccff4bf9f85c524a7108",
+    "39": "4c6f95681e4696a69f272869ed1badad137b7295",
+    "41": "0e72db23c02689b48f0b52b184b631e3493701d5",
+    "40": "728c33425b5df0859ee7ede85f210588301553bd",
+    "42": "d4355e8fd13e2b69ce7a90b8d5e15bda31168d4d"
+  },
+  "pr_meta": {
+    "43": {"branch": "fix/kai-destructive-scope-wildcard", "summary": "destructive scopes cannot inherit a module wildcard"},
+    "46": {"branch": "fix/kai-auth-body-annotations", "summary": "signup/login 422 (PEP-563 + rate limiter)"},
+    "44": {"branch": "feat/kai-tamper-evident-audit", "summary": "hash-chained audit log + fail-closed intent"},
+    "45": {"branch": "fix/kai-test-admin-token", "summary": "admin token in tests (135->30 failures)"},
+    "47": {"branch": "fix/kai-env-dependent-tests", "summary": "skip on missing optional deps/creds"},
+    "48": {"branch": "fix/kai-declare-runtime-deps", "summary": "pin PyYAML; stop silent Supreme degradation"},
+    "39": {"branch": "fix/kai-governed-tool-loop", "summary": "govern the LLM tool loop"},
+    "41": {"branch": "fix/kai-swe-sandbox", "summary": "disposable-container SWE sandbox"},
+    "40": {"branch": "fix/kai-code-intelligence", "summary": "native pgvector code search"},
+    "42": {"branch": "feat/kai-swe-agent", "summary": "autonomous SWE agent (two gates, branch-only push)"}
+  },
+  "expected_migration_head": "0008_add_kai_swe_tasks",
+  "migration_chain_length": 8,
+  "expected_tests": {
+    "passed": 1020,
+    "failed": 0,
+    "skipped": 18,
+    "command": "pytest tests/ -q",
+    "env": {
+      "DATABASE_URL": "postgresql://localhost:5432/wheellsverse_test",
+      "TEST_DATABASE_URL": "postgresql://localhost:5432/wheellsverse_test",
+      "note": "DATABASE_URL and TEST_DATABASE_URL must be set on SEPARATE export lines; PyYAML + alembic must be installed in the venv"
+    }
+  },
+  "conflict_resolutions": {
+    "backend/app/main.py": "additive union of the `from app.routers import ...` line (admin_code_intel + admin_swe + admin_swe_tasks all present)",
+    "backend/.env.example": "additive: both PR blocks kept",
+    "backend/requirements.txt": "additive: tree-sitter block (#40) AND PyYAML block (#48) both kept",
+    "migration_renumber": "0007_add_kai_swe_tasks (#42) renamed to 0008_add_kai_swe_tasks, down_revision 0006 -> 0007_add_kai_code_chunks, resolving the #40/#42 double-0007 collision"
+  },
+  "ci_status": "DEGRADED",
+  "ci_pre_existing_non_regression": {
+    "workers_builds": "issue #49",
+    "brain_feedback_ingest": "issue #50"
+  },
+  "deployment": "BLOCKED_BY_EXTERNAL_CREDENTIAL_GATE (see DEPLOYMENT_GATE.md)"
+}
