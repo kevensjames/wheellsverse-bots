@@ -109,7 +109,7 @@ Top 5 things currently killing your growth (before you add more tactics)"""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_metric = "".join(c if c.isalnum() else "_" for c in metric_to_grow[:20])
+        safe_metric = self.slugify(metric_to_grow, 20)
 
         output = f"""# Growth Hacking Playbook: {metric_to_grow}
 **Business:** {business_type}

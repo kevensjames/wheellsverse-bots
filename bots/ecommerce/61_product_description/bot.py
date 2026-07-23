@@ -197,7 +197,7 @@ A: [Answer]
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_name = "".join(c if c.isalnum() else "_" for c in product_name[:25])
+        safe_name = self.slugify(product_name, 25)
 
         output = f"""# Product Description: {product_name}
 **Category:** {product_category}

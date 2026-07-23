@@ -165,7 +165,7 @@ Rate this copy on:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_product = "".join(c if c.isalnum() else "_" for c in product[:20])
+        safe_product = self.slugify(product, 20)
 
         output = f"""# Copy: {copy_type} for {product[:40]}
 **Format:** {copy_type}

@@ -215,7 +215,7 @@ Include [PAUSE] markers, transition phrases, and engagement hooks throughout.]
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_topic = "".join(c if c.isalnum() else "_" for c in topic[:25])
+        safe_topic = self.slugify(topic, 25)
 
         output = f"""# Podcast Episode #{episode_number}: {topic}
 **Show:** {show_name}

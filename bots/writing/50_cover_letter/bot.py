@@ -148,8 +148,8 @@ One week after submitting — if no response:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_role = "".join(c if c.isalnum() else "_" for c in role[:20])
-        safe_co = "".join(c if c.isalnum() else "_" for c in company[:15])
+        safe_role = self.slugify(role, 20)
+        safe_co = self.slugify(company, 15)
 
         output = f"""# Cover Letter: {role} at {company}
 **Style:** {letter_style}

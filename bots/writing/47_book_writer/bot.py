@@ -141,7 +141,7 @@ BRAND VOICE: WheellsVerse -- practical, direct, entrepreneurial, optimistic abou
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_chapter = "".join(c if c.isalnum() else "_" for c in chapter_title[:25])
+        safe_chapter = self.slugify(chapter_title, 25)
 
         output = f"""# Book Writing: {chapter_title}
 **Book:** {book_title}

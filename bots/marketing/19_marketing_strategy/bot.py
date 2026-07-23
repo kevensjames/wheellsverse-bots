@@ -134,7 +134,7 @@ Top 3 things that could derail this strategy + mitigation plans
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_product = "".join(c if c.isalnum() else "_" for c in product[:25])
+        safe_product = self.slugify(product, 25)
 
         output = f"""# Marketing Strategy: {product}
 **Stage:** {stage} | **Budget:** {budget} | **Goal:** {goal}

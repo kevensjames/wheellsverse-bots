@@ -131,7 +131,7 @@ Target pipeline multiple: [X]x monthly revenue goal"""
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_tool = "".join(c if c.isalnum() else "_" for c in crm_tool[:20])
+        safe_tool = self.slugify(crm_tool, 20)
 
         output = f"""# CRM Pipeline System: {crm_tool}
 **Deal Type:** {deal_type}

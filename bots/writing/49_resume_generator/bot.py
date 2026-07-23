@@ -181,7 +181,7 @@ First paragraph of a cover letter for {target_role}:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_role = "".join(c if c.isalnum() else "_" for c in target_role[:25])
+        safe_role = self.slugify(target_role, 25)
 
         output = f"""# Resume: {target_role}
 **Experience Level:** {experience_level}

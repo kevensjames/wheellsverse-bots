@@ -211,7 +211,7 @@ One-page brand guide for {brand_name}:
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_brand = "".join(c if c.isalnum() else "_" for c in brand_name[:20])
+        safe_brand = self.slugify(brand_name, 20)
 
         output = f"""# Design Brief: {design_type} for {brand_name}
 **Style:** {style}

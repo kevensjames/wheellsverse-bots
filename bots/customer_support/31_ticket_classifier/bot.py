@@ -150,7 +150,7 @@ For each high-volume category, how to deflect tickets with self-serve resources"
 
         from datetime import datetime as _dt
         ts = _dt.now().strftime("%Y%m%d_%H%M%S")
-        safe_product = "".join(c if c.isalnum() else "_" for c in product[:25])
+        safe_product = self.slugify(product, 25)
 
         output = f"""# Ticket Classification System: {product}
 **Categories:** {ticket_categories}
