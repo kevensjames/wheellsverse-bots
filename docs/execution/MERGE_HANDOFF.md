@@ -60,5 +60,23 @@ export ADMIN_TOKEN=<any non-empty >=32-char test token>
 python ../scripts/verify_post_merge.py --ref origin/istanbul --suite
 ```
 
-Expect `RESULT: PASS`. Then proceed to the deployment gate — **do not deploy** until
-[`DEPLOYMENT_GATE.md`](./DEPLOYMENT_GATE.md) is fully satisfied.
+Expect `RESULT: PASS`.
+
+## Tag the verified foundation (immediately after PASS, before deploy)
+
+Once the verifier passes on `origin/istanbul`, cut an immutable recovery point — a
+known-good baseline for regression, benchmarking, and rollback before Dark KAI expands:
+
+```bash
+git tag -a v1.0.0-foundation <merged istanbul commit> \
+  -m "Verified KAI foundation: 10 PRs, 1020 tests, migration head 0008"
+git push origin v1.0.0-foundation
+```
+
+Use the exact merged `istanbul` commit (not a moving branch name). This tag is the
+rollback target referenced in [`ROLLBACK_RUNBOOK.md`](./ROLLBACK_RUNBOOK.md).
+
+## Then: deployment gate
+
+Proceed to [`DEPLOYMENT_GATE.md`](./DEPLOYMENT_GATE.md) — **do not deploy** until every
+`UNVERIFIED` prerequisite (Railway/Cloudflare/backup/rollback/money-mode) is resolved.
