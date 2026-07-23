@@ -37,6 +37,12 @@ data/intelligence.json
 data/strategy.json
 outputs/reports/platform_analytics.json
 
+# Secrets / credentials — must never be committed (rotate any that were)
+data/canva_backup_codes.txt
+data/tiktok_pkce.txt
+data/*_backup_codes.txt
+data/*pkce*.txt
+
 # Runtime data — regenerated on server, too large to upload
 data/*.db
 data/*.db-shm
