@@ -345,6 +345,7 @@ tr:hover td{background:var(--surface-2)}
       <button type="button" class="btn btn-ghost btn-sm" onclick="loadMoneyOps()">↺ Refresh</button>
       <span id="moneyOpsUpdated" style="font-size:.72rem;color:var(--muted)"></span>
     </div>
+    <div id="financialHealth" style="margin-bottom:1rem"><div class="spinner" style="margin:1rem auto"></div></div>
     <div id="moneyOpsSummary"><div class="spinner" style="margin:1rem auto"></div></div>
 
     <h2 style="font-size:1.05rem;margin:1.5rem 0 .5rem">Worker health</h2>
@@ -1248,9 +1249,30 @@ function _statCard(label, value, danger) {
 }
 
 async function loadMoneyOps() {
+  loadFinancialHealth();
   loadMoneyOpsSummary();
   loadWorkerHealth();
   loadReconExceptions();
+}
+
+async function loadFinancialHealth() {
+  const el = document.getElementById('financialHealth');
+  el.innerHTML = '<div class="spinner" style="margin:1rem auto"></div>';
+  try {
+    const h = await api('/admin/financial-health');
+    const ok = h.healthy;
+    const cls = ok ? 'alert-ok' : 'alert-err';
+    const anomalies = (h.anomalies || []).map(a => esc(a)).join(', ') || 'none';
+    el.innerHTML = `<div class="alert ${cls}" style="display:block">
+      <strong>${ok ? '✓ Financial health OK' : '⚠ Financial health: ' + anomalies}</strong>
+      <div style="font-size:.75rem;margin-top:.35rem;color:var(--muted)">
+        ledger ${h.ledger?.balanced ? 'balanced' : 'IMBALANCED'} ·
+        ${h.ledger?.entry_count ?? 0} entries ·
+        orphans: ${h.orphans?.stuck_payments ?? 0} payments / ${h.orphans?.stuck_payouts ?? 0} payouts ·
+        guarded negatives: ${(h.guarded_account_negatives || []).length} ·
+        checked ${h.checked_at ? new Date(h.checked_at).toLocaleTimeString() : '—'}
+      </div></div>`;
+  } catch (e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function loadMoneyOpsSummary() {
