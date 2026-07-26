@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -314,7 +314,41 @@ def version():
 
 @app.get("/health")
 def health():
+    # LIVENESS only — the process is up. Cheap, no dependencies. Do NOT add DB
+    # checks here or a Postgres blip would make the supervisor kill a healthy box.
     return {"status": "ok", "env": settings.APP_ENV}
+
+
+@app.get("/readyz")
+def readyz(response: Response):
+    """READINESS — can the app actually serve? Checks the hard dependencies so an
+    off-box probe (and rollout gates) see a real 503 when Postgres/Redis are down,
+    instead of the always-200 /health that hides an outage while every request 500s."""
+    checks: dict[str, str] = {}
+    ok = True
+
+    try:
+        from sqlalchemy import text as _text
+        from app.database import engine as _engine
+        with _engine.connect() as conn:
+            conn.execute(_text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {type(e).__name__}"
+        ok = False
+
+    try:
+        import redis as _redis
+        _r = _redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        _r.ping()
+        checks["redis"] = "ok"
+    except Exception as e:
+        # Redis is used for rate limiting + caches; degraded, not fatal on its own.
+        checks["redis"] = f"error: {type(e).__name__}"
+
+    if not ok:
+        response.status_code = 503
+    return {"status": "ready" if ok else "not_ready", "checks": checks}
 
 
 # Catch-all for unmatched GETs: if the client looks like a browser (Accept

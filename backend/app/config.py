@@ -122,6 +122,36 @@ class Settings(BaseSettings):
             )
         return self
 
+    @model_validator(mode="after")
+    def _enforce_stripe_money_mode(self):
+        """Bind the Stripe key mode to APP_ENV so a mismatch can't silently move
+        (or fail to move) real money. Nothing else in the codebase ties the
+        sk_test_/sk_live_ prefix to the environment — a live key on a staging box
+        would charge real cards, and a test key in production would hand everyone
+        $0 upgrades. (Mirrors the Dwolla sandbox latch.) Empty key = billing off,
+        allowed anywhere. The DECISION to use a live key in production is the
+        operator's; this only refuses the dangerous mismatches."""
+        key = (self.STRIPE_SECRET_KEY or "").strip()
+        if not key:
+            return self
+        env = (self.APP_ENV or "").strip().lower()
+        is_prod = env not in _NON_PROD_ENVS
+        if key.startswith("sk_live_") and not is_prod:
+            raise ValueError(
+                f"Refusing to boot: a LIVE Stripe key (sk_live_) in APP_ENV='{self.APP_ENV}' "
+                "would charge real cards off production. Use a test key (sk_test_) here."
+            )
+        if key.startswith("sk_test_") and is_prod:
+            raise ValueError(
+                f"Refusing to boot in APP_ENV='{self.APP_ENV}': a TEST Stripe key gives "
+                "everyone $0 upgrades. Set a live key (sk_live_) or run staging/mock money."
+            )
+        if not key.startswith(("sk_test_", "sk_live_")):
+            raise ValueError(
+                "STRIPE_SECRET_KEY set but not a recognized mode (sk_test_/sk_live_)."
+            )
+        return self
+
 
 @lru_cache
 def get_settings() -> Settings:

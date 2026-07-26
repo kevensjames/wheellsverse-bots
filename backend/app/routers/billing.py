@@ -325,6 +325,8 @@ async def stripe_webhook(
             _handle_sub_deleted(db, data)
         elif event_type == "invoice.payment_failed":
             _handle_payment_failed(db, data)
+        elif event_type in ("charge.refunded", "charge.dispute.created"):
+            _handle_refund_or_dispute(db, data, event_type)
         else:
             logger.info("webhook: ignoring unhandled event type %s", event_type)
     except Exception:
@@ -488,6 +490,29 @@ def _handle_sub_deleted(db: Session, data: dict[str, Any]) -> None:
     logger.info("sub canceled: %s", stripe_sub_id)
     from app.services import observability
     observability.alert_canceled(profile.email if profile else "?", stripe_sub_id)
+
+
+def _handle_refund_or_dispute(db: Session, data: dict[str, Any], kind: str) -> None:
+    """A refund or chargeback revokes paid access — drop the user to free so they
+    cannot keep a paid tier after clawing the money back. Best-effort profile
+    resolution (metadata.user_id or customer); logs for manual review if it can't
+    be resolved (e.g. a dispute payload with no customer) rather than crashing."""
+    profile = _resolve_profile(db, data)
+    if profile is None:
+        logger.warning("webhook %s: could not resolve profile (customer=%r) — manual review",
+                       kind, data.get("customer"))
+        return
+    if profile.tier != "free":
+        profile.tier = "free"
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == profile.id, Subscription.status == "active")
+        .first()
+    )
+    if sub:
+        sub.status = "canceled"
+    db.commit()
+    logger.info("webhook %s: downgraded %s to free", kind, profile.email)
 
 
 def _handle_payment_failed(db: Session, data: dict[str, Any]) -> None:

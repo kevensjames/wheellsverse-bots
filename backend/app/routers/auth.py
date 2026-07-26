@@ -33,6 +33,7 @@ from app.dependencies.cookie_auth import (
 )
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     LoginRequest,
     RefreshRequest,
     SignupRequest,
@@ -41,6 +42,10 @@ from app.schemas.auth import (
 )
 from app.services import supabase_auth
 from app.services.supabase_auth import AuthError
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -103,6 +108,23 @@ def login(
     except AuthError as e:
         raise _http_from_auth(e)
     return _emit_tokens(tokens, response)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("5/minute")
+def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+) -> dict:
+    """Trigger a password-reset email. Always returns the same neutral 202
+    regardless of whether the email exists (anti-enumeration). Actual delivery
+    requires Supabase SMTP configured (operator); a missing config is swallowed
+    so this endpoint can't be used to probe which emails are registered."""
+    try:
+        supabase_auth.request_password_reset(body.email.strip().lower())
+    except Exception as e:  # config/network — never leak to the caller
+        logger.warning("forgot-password suppressed error: %s", e)
+    return {"message": "If an account exists for that email, a reset link has been sent."}
 
 
 @router.post("/refresh", response_model=TokenResponse)
