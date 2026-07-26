@@ -30,6 +30,20 @@ DEFAULT_MAX_TOOL_ITERS = 5
 TOOL_INCAPABLE_ADAPTERS = frozenset({"cloudflare", "perplexity", "ollama"})
 
 
+class SpendCapExceeded(Exception):
+    """The user is over their spend cap and there is no free local adapter to
+    absorb the request. Raised instead of silently routing to a paid provider —
+    a cap that still bills is not a cap. Callers translate this to a friendly
+    402 (non-streaming) or an SSE error event (streaming)."""
+
+    def __init__(self, cap: str = "daily"):
+        self.cap = cap
+        super().__init__(
+            f"You've reached your {cap} usage limit. It resets at the start of the "
+            f"next {cap} period."
+        )
+
+
 class Router:
     def __init__(
         self,
@@ -103,9 +117,18 @@ class Router:
             logger.info("routing to ollama (prefer_local)")
             return self._get("ollama", reason="prefer_local")
 
-        if self.spend.over_daily_cap(user_id):
-            logger.warning("user %s over daily cap — routing to ollama", user_id)
-            return self._get("ollama", reason="over_daily_cap")
+        # Spend caps. Route an over-cap user to the free local model if one
+        # exists; otherwise REFUSE — do not fall back to paid openai (which
+        # _get would do), or the cap never actually stops spending. Both the
+        # daily and monthly caps are enforced (monthly was previously unchecked).
+        over_monthly = self.spend.over_monthly_cap(user_id)
+        if self.spend.over_daily_cap(user_id) or over_monthly:
+            which = "monthly" if over_monthly else "daily"
+            if "ollama" in self.adapters:
+                logger.warning("user %s over %s cap — routing to local ollama", user_id, which)
+                return self.adapters["ollama"]
+            logger.warning("user %s over %s cap, no local adapter — refusing", user_id, which)
+            raise SpendCapExceeded(which)
 
         if intent == Intent.CODE:
             return self._get("anthropic", reason="intent=code")

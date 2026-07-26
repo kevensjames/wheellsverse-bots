@@ -46,6 +46,7 @@ def adapters():
 def fake_tracker():
     tracker = MagicMock()
     tracker.over_daily_cap.return_value = False
+    tracker.over_monthly_cap.return_value = False
     return tracker
 
 

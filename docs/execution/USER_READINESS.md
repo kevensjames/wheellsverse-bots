@@ -93,8 +93,8 @@ Branch `feat/kai-user-readiness` (based on the merged state). Full suite after t
 | 4. `POST /auth/forgot-password` | ✅ done (delivery needs operator SMTP) | `test_forgot_password.py` (3) |
 | 5. `DELETE /me` + export | ✅ done | `test_account_deletion.py` (4) — profile delete cascades all user-owned tables; export returns own data |
 | — sidecar tenancy (#10) | ✅ done (guarded) | `test_companion_mode.py` (2) — companion sidecars refuse to write untenanted PII in multi-user mode; **this unblocked #5** |
-| 6. Per-user spend ceiling | ⏳ remaining | touches `router.py` select path; moderate regression risk — dedicated care + a router test needed. |
-| 7. Streaming failover | ⏳ remaining | **highest-risk** change to the core paid streaming path; must be done carefully with a forced-provider-failure test, not rushed. |
+| 6. Per-user spend ceiling | ✅ done | `test_spend_cap.py` (6) — over daily OR monthly cap with no free local model raises `SpendCapExceeded` → 402 (was silently served paid openai; monthly cap was never checked) |
+| 7. Streaming resilience | ◑ partial | `_sse_format` now catches spend-cap + provider errors and emits a clean SSE error event instead of crashing the connection. **Remaining:** full mid-stream provider *failover* (retry a fallback model before erroring) — a larger brain.stream re-architecture, its own increment. |
 | 8. exception→alert middleware, chat rate-limit, per-IP signup limiter, adapter timeouts, logout revoke, DEBUG default, log-rotation | ⏳ remaining | the HIGH/MED cluster. |
 | 9. privacy/crisis-terms drafts | ⏳ remaining (OPERATOR adopts) | legal text — I draft, a human adopts. |
 
