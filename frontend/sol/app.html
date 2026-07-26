@@ -770,9 +770,11 @@ const ENDED_GROUP_STATUSES = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
 async function loadDashGroups() {
   const el = document.getElementById('dashGroups');
   try {
-    const gs = await api('/groups');
+    // The Dashboard shows circles the member actually JOINED — not every browsable
+    // public circle. GET /groups returns both; is_member distinguishes them.
+    const gs = (await api('/groups')).filter(g => g.is_member);
     if (!gs.length) {
-      el.innerHTML = `<div class="empty">No circles yet. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
+      el.innerHTML = `<div class="empty">You haven't joined any circles yet. <a href="javascript:nav('groups')" style="color:var(--sol-600)">Browse circles →</a></div>`;
       return;
     }
 
