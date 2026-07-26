@@ -596,9 +596,13 @@ async function init() {
     // Returning from Stripe Checkout (?premium=success|cancel) — open the Premium
     // page so loadPremium() can show the return note and poll for activation.
     if (new URLSearchParams(location.search).get('premium')) nav('premium');
-  } catch {
-    localStorage.removeItem('sol_token');
-    window.location.href = '/sol/';
+  } catch (e) {
+    // api() already clears the token and redirects on a hard 401 (expired session),
+    // so anything reaching here is transient (network / 5xx). Do NOT log the user
+    // out over a blip — keep the session and offer a retry.
+    if (String(e && e.message) === 'Session expired') return;  // api() is redirecting
+    const w = document.getElementById('welcomeMsg');
+    if (w) w.innerHTML = `Couldn't reach Sol — <a href="javascript:init()" style="color:var(--sol-600)">retry</a>`;
   }
 }
 
