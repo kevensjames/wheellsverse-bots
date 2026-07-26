@@ -91,10 +91,13 @@ Branch `feat/kai-user-readiness` (based on the merged state). Full suite after t
 | 2. Deep `/readyz` | ✅ done | `test_health_readyz.py` (3) |
 | 3. Refund/chargeback → free | ✅ done | `test_refund_downgrade.py` (3) |
 | 4. `POST /auth/forgot-password` | ✅ done (delivery needs operator SMTP) | `test_forgot_password.py` (3) |
-| 5. `DELETE /me` + export | ⏳ remaining | **entangled with #10 sidecar tenancy** — untenanted sidecars (eq/relationship/twin) have no `user_id`, so per-user deletion there is impossible until tenancy lands; a truthful `DELETE /me` must either tenant them first or delete only Postgres + declare the gap. Do NOT ship a "GDPR-complete" delete that silently leaves sidecar PII. |
+| 5. `DELETE /me` + export | ✅ done | `test_account_deletion.py` (4) — profile delete cascades all user-owned tables; export returns own data |
+| — sidecar tenancy (#10) | ✅ done (guarded) | `test_companion_mode.py` (2) — companion sidecars refuse to write untenanted PII in multi-user mode; **this unblocked #5** |
 | 6. Per-user spend ceiling | ⏳ remaining | touches `router.py` select path; moderate regression risk — dedicated care + a router test needed. |
 | 7. Streaming failover | ⏳ remaining | **highest-risk** change to the core paid streaming path; must be done carefully with a forced-provider-failure test, not rushed. |
-| 8. exception→alert middleware, chat rate-limit, per-IP signup limiter, adapter timeouts, logout revoke, DEBUG default, log-rotation, sidecar tenancy | ⏳ remaining | the HIGH/MED cluster; #10 (sidecar tenancy) gates #5. |
+| 8. exception→alert middleware, chat rate-limit, per-IP signup limiter, adapter timeouts, logout revoke, DEBUG default, log-rotation | ⏳ remaining | the HIGH/MED cluster. |
 | 9. privacy/crisis-terms drafts | ⏳ remaining (OPERATOR adopts) | legal text — I draft, a human adopts. |
 
-**Why I stopped at 4 and did not rush the rest:** items 5–7 either depend on the sidecar-tenancy fix (#5) or carry real regression risk in the core paid path (#6, #7). Shipping them hastily would undermine "make it perfect," not serve it. They are the clear next increment, each with a defined approach above.
+**Sidecar decision (finding #10):** the eq/relationship/twin/persona companion features are single-operator by design (`_eq_analyze_and_record` has no `user_id`; they persist to global untenanted SQLite). Rather than retrofit tenancy across 4 subsystems, they now activate only under `KAI_SINGLE_OPERATOR_MODE=1` — off in the default multi-user SaaS, so no per-user PII lands in an untenanted store and account deletion is complete. Full per-user tenancy remains the eventual path if these features are ever wanted multi-user.
+
+**Remaining (6, 7):** the per-user spend ceiling and streaming failover both touch the core paid `router.py` path and get dedicated, carefully-tested changes — not hasty edits to the thing users pay for.
