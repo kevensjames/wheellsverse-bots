@@ -13,7 +13,11 @@ storage_uri="redis://..." so all workers see the same counters.
 from __future__ import annotations
 
 from slowapi import Limiter
-from slowapi.util import get_remote_address
+
+from app.core.client_ip import client_ip
 
 
-limiter = Limiter(key_func=get_remote_address, default_limits=[])
+# Default key = the REAL client IP (CF-Connecting-IP when the socket peer is the
+# trusted local tunnel, else the socket address). slowapi's get_remote_address
+# keys on the loopback tunnel peer, collapsing every user into one bucket.
+limiter = Limiter(key_func=client_ip, default_limits=[])

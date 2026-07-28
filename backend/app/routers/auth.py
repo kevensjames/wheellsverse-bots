@@ -206,7 +206,20 @@ def refresh(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response) -> Response:
+def logout(request: Request, response: Response) -> Response:
+    """Revoke the Supabase session (invalidates the refresh token so it can't be
+    replayed) and clear cookies. Idempotent: a missing/expired token is a no-op.
+    The access token remains valid until expiry — see supabase_auth.sign_out."""
+    from app.dependencies.cookie_auth import ACCESS_COOKIE
+    token = request.cookies.get(ACCESS_COOKIE) or ""
+    if not token:
+        auth = request.headers.get("authorization", "")
+        if auth.lower().startswith("bearer "):
+            token = auth[7:].strip()
+    try:
+        supabase_auth.sign_out(token)
+    except Exception as e:  # never let revocation failure block logout
+        logger.warning("logout: sign_out suppressed error: %s", e)
     clear_auth_cookies(response)
     response.status_code = status.HTTP_204_NO_CONTENT
     return response

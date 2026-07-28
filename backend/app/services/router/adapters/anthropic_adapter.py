@@ -23,7 +23,10 @@ class AnthropicAdapter:
         key = api_key or os.environ.get("ANTHROPIC_API_KEY")
         if not key:
             raise RuntimeError("ANTHROPIC_API_KEY not set")
-        self._client = Anthropic(api_key=key)
+        from app.services.router.adapters._timeout import provider_timeout
+        # Bound per-request time (SDK default ~600s) so a stalled provider can't
+        # pin a worker; low max_retries keeps total time bounded.
+        self._client = Anthropic(api_key=key, timeout=provider_timeout(), max_retries=1)
 
     @staticmethod
     def _split_system(

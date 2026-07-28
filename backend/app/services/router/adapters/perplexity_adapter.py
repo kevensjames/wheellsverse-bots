@@ -23,7 +23,9 @@ class PerplexityAdapter:
         key = api_key or os.environ.get("PERPLEXITY_API_KEY")
         if not key:
             raise RuntimeError("PERPLEXITY_API_KEY not set")
-        self._client = OpenAI(api_key=key, base_url="https://api.perplexity.ai")
+        from app.services.router.adapters._timeout import provider_timeout
+        self._client = OpenAI(api_key=key, base_url="https://api.perplexity.ai",
+                              timeout=provider_timeout(), max_retries=1)
 
     def complete(
         self,

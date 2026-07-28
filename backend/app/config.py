@@ -22,7 +22,10 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "Wheellsverse"
     APP_ENV: str = "development"
-    DEBUG: bool = True
+    # Safe-by-default: DEBUG must be opted INTO, never left on by omission. A
+    # debug-mode app leaks tracebacks (Starlette's ServerErrorMiddleware) and is
+    # refused in production by the validator below.
+    DEBUG: bool = False
 
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -119,6 +122,18 @@ class Settings(BaseSettings):
                 f"Refusing to boot in APP_ENV='{self.APP_ENV}': a strong ADMIN_TOKEN "
                 f"is required (>= {_MIN_ADMIN_TOKEN_LEN} chars, not the example default). "
                 'Generate one with: python -c "import secrets; print(secrets.token_urlsafe(32))"'
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _enforce_debug_off_in_prod(self):
+        """DEBUG in production leaks stack traces + disables the generic-500
+        handler. Refuse to boot debug-on outside a non-prod env."""
+        env = (self.APP_ENV or "").strip().lower()
+        if env not in _NON_PROD_ENVS and self.DEBUG:
+            raise ValueError(
+                f"Refusing to boot in APP_ENV='{self.APP_ENV}' with DEBUG=True "
+                "(leaks tracebacks). Set DEBUG=false in production."
             )
         return self
 
