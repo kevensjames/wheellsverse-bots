@@ -56,15 +56,27 @@ def client_ip(request: Request | None) -> str:
 
 
 def _token_from(request: Request) -> str:
-    """The caller's credential, from wherever this deployment carries it:
-    Authorization bearer (API/JSON clients), the `token` query param, or the
-    access cookie (EventSource streaming can't set headers)."""
+    """The caller's credential, read in the SAME precedence the guarded endpoints
+    AUTHENTICATE with, so the rate-limit bucket tracks the real principal and
+    can't be rotated out from under the limit.
+
+    `get_current_user` (POST /chat) is cookie-first with an Authorization-bearer
+    fallback; `get_user_for_stream` (GET /chat/stream) reads ONLY the cookie or
+    the `?token` query param and never the bearer header. This function is
+    cookie -> query-token -> bearer to match: a caller authenticated by cookie
+    keys on the (stable) cookie, so rotating an *unvalidated* bearer header can't
+    mint fresh buckets and slip the per-user cap. Bearer is the key only when it
+    is actually the credential (pure API clients with no cookie/query token)."""
+    tok = request.cookies.get(ACCESS_COOKIE)
+    if tok:
+        return tok
+    tok = request.query_params.get("token")
+    if tok:
+        return tok
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         return auth[7:].strip()
-    return (request.query_params.get("token")
-            or request.cookies.get(ACCESS_COOKIE)
-            or "")
+    return ""
 
 
 def user_or_ip_key(request: Request) -> str:

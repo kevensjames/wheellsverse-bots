@@ -65,6 +65,22 @@ def test_anonymous_falls_back_to_ip():
     assert k == "ip:9.9.9.9"
 
 
+# ── HIGH fix: a valid cookie holder can't mint new buckets by rotating bearer ─
+def test_cookie_key_immune_to_bearer_rotation():
+    """The limiter key must track the authenticated principal (cookie-first, like
+    the endpoints) — rotating an unvalidated Authorization header must NOT change
+    the bucket, or the per-user cap is trivially bypassed on the streaming path."""
+    base = user_or_ip_key(_req(cookies={"nai_access": "cookieval"}))
+    b1 = user_or_ip_key(_req(cookies={"nai_access": "cookieval"}, auth="Bearer rot-1"))
+    b2 = user_or_ip_key(_req(cookies={"nai_access": "cookieval"}, auth="Bearer rot-2"))
+    assert base == b1 == b2  # cookie wins; bearer rotation has no effect
+
+
+def test_pure_bearer_client_still_keyed_by_bearer():
+    # no cookie/query token -> bearer IS the credential, so it keys the bucket
+    assert user_or_ip_key(_req(auth="Bearer only-cred")).startswith("u:")
+
+
 # ── DEBUG safe default ───────────────────────────────────────────────────────
 _STRONG = "a-strong-admin-token-of-at-least-32-chars-xxx"
 
@@ -102,3 +118,105 @@ def test_logout_revokes_session(client, monkeypatch):
 def test_logout_idempotent_without_token(client, monkeypatch):
     monkeypatch.setattr("app.services.supabase_auth.sign_out", lambda tok: None)
     assert client.post("/auth/logout").status_code == 204  # no token → still succeeds
+
+
+def test_logout_revokes_via_refresh_when_access_cookie_absent(client, monkeypatch):
+    """The routine >60-min case: access cookie expired, refresh cookie still
+    present. Logout must exchange the refresh token and revoke — not no-op."""
+    calls = {}
+    def _fake_refresh(r):
+        calls["refreshed"] = r
+        return {"access_token": "exchanged-tok"}
+    monkeypatch.setattr("app.services.supabase_auth.refresh_session", _fake_refresh)
+    monkeypatch.setattr("app.services.supabase_auth.sign_out",
+                        lambda tok: calls.__setitem__("signed_out", tok))
+    r = client.post("/auth/logout", cookies={"nai_refresh": "refresh-tok-xyz"})
+    assert r.status_code == 204
+    assert calls["refreshed"] == "refresh-tok-xyz"       # refresh token exchanged (and thereby rotated/invalidated)
+    assert calls["signed_out"] == "exchanged-tok"        # session actually revoked
+
+
+# ── Stripe money-mode latch accepts restricted (rk_) keys ────────────────────
+def _prod(**kw):
+    return Settings(DATABASE_URL="postgresql://x", ADMIN_TOKEN=_STRONG, APP_ENV="production", **kw)
+
+
+def test_stripe_restricted_live_key_boots_in_prod():
+    # rk_live_ is a valid Stripe secret (least-privilege) — must not crash boot.
+    assert _prod(STRIPE_SECRET_KEY="rk_live_abc123restricted").STRIPE_SECRET_KEY.startswith("rk_live_")
+
+
+def test_stripe_restricted_test_key_refused_in_prod():
+    with pytest.raises(ValueError, match="TEST Stripe key"):
+        _prod(STRIPE_SECRET_KEY="rk_test_abc123restricted")
+
+
+def test_stripe_restricted_live_key_refused_in_nonprod():
+    with pytest.raises(ValueError, match="LIVE Stripe key"):
+        Settings(DATABASE_URL="postgresql://x", ADMIN_TOKEN=_STRONG,
+                 APP_ENV="development", STRIPE_SECRET_KEY="rk_live_abc123restricted")
+
+
+# ── 429 carries Retry-After (directive requirement) ──────────────────────────
+@pytest.fixture
+def _rate_limiter_on():
+    from app.core.rate_limit import limiter
+    limiter.reset(); limiter.enabled = True
+    try:
+        yield
+    finally:
+        limiter.enabled = False; limiter.reset()
+
+
+def test_signup_429_carries_retry_after(client, faker_fixture, _rate_limiter_on):
+    for _ in range(5):
+        client.post("/auth/signup", json={"email": faker_fixture.unique.email().lower(),
+                                           "password": "testpass123", "full_name": "T U"})
+    r = client.post("/auth/signup", json={"email": faker_fixture.unique.email().lower(),
+                                          "password": "testpass123", "full_name": "T U"})
+    assert r.status_code == 429
+    assert "retry-after" in {k.lower() for k in r.headers}  # client can back off
+
+
+# ── hosted adapters do not blindly retry a non-idempotent completion ─────────
+def test_hosted_adapters_disable_blind_retry():
+    from app.services.router.adapters.openai_adapter import OpenAIAdapter
+    from app.services.router.adapters.anthropic_adapter import AnthropicAdapter
+    from app.services.router.adapters.perplexity_adapter import PerplexityAdapter
+    assert OpenAIAdapter(api_key="sk-test-x")._client.max_retries == 0
+    assert AnthropicAdapter(api_key="sk-test-x")._client.max_retries == 0
+    assert PerplexityAdapter(api_key="sk-test-x")._client.max_retries == 0
+
+
+# ── brain.stream redacts unexpected errors, preserves the spend-cap signal ───
+def _brain(db_session, router):
+    from app.services.nai_brain import Brain
+    from app.services.tools.registry import ToolRegistry
+    return Brain(session=db_session, router=router, registry=ToolRegistry())
+
+
+def _stream_errors(brain, user_id):
+    events = list(brain.stream(user_id=user_id, conversation_id=None, user_message="hi"))
+    return [e for e in events if e.get("type") == "error"]
+
+
+def test_stream_redacts_raw_provider_error(db_session, free_user):
+    class _Boom:
+        def stream(self, **kw):
+            raise RuntimeError("PROVIDER-500 secret-internal-detail-xyz")
+            yield  # noqa — makes this a generator so the raise fires on iteration
+    errs = _stream_errors(_brain(db_session, _Boom()), free_user.id)
+    assert errs and errs[0]["error"] == "The assistant hit an error. Please try again."
+    assert "secret-internal-detail" not in errs[0]["error"]  # raw detail not leaked to client
+
+
+def test_stream_preserves_spend_cap_signal(db_session, free_user):
+    from app.services.router.router import SpendCapExceeded
+    class _Capped:
+        def stream(self, **kw):
+            raise SpendCapExceeded("daily")
+            yield
+    errs = _stream_errors(_brain(db_session, _Capped()), free_user.id)
+    # the actionable spend-cap message is surfaced verbatim, NOT redacted to the generic one
+    assert errs and "daily usage limit" in errs[0]["error"]
+    assert errs[0]["error"] != "The assistant hit an error. Please try again."

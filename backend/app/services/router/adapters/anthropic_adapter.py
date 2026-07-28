@@ -25,8 +25,10 @@ class AnthropicAdapter:
             raise RuntimeError("ANTHROPIC_API_KEY not set")
         from app.services.router.adapters._timeout import provider_timeout
         # Bound per-request time (SDK default ~600s) so a stalled provider can't
-        # pin a worker; low max_retries keeps total time bounded.
-        self._client = Anthropic(api_key=key, timeout=provider_timeout(), max_retries=1)
+        # pin a worker. max_retries=0: a message completion is non-idempotent and
+        # the SDK sends no Idempotency-Key, so an auto-retry on a read timeout
+        # would double-generate (and double-bill). The caller retries instead.
+        self._client = Anthropic(api_key=key, timeout=provider_timeout(), max_retries=0)
 
     @staticmethod
     def _split_system(

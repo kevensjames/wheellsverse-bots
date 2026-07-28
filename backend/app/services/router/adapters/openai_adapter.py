@@ -25,8 +25,10 @@ class OpenAIAdapter:
             raise RuntimeError("OPENAI_API_KEY not set")
         from app.services.router.adapters._timeout import provider_timeout
         # Bound the per-request time (SDK default ~600s) so a stalled provider
-        # can't pin a worker; low max_retries keeps total time bounded.
-        self._client = OpenAI(api_key=key, timeout=provider_timeout(), max_retries=1)
+        # can't pin a worker. max_retries=0: a chat completion is non-idempotent
+        # and the SDK sends no Idempotency-Key, so an auto-retry on a read timeout
+        # would double-generate (and double-bill). The caller retries instead.
+        self._client = OpenAI(api_key=key, timeout=provider_timeout(), max_retries=0)
 
     @staticmethod
     def _build_messages(messages: list[dict], system: str | None) -> list[dict]:

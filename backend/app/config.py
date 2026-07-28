@@ -151,19 +151,26 @@ class Settings(BaseSettings):
             return self
         env = (self.APP_ENV or "").strip().lower()
         is_prod = env not in _NON_PROD_ENVS
-        if key.startswith("sk_live_") and not is_prod:
+        # Stripe secret keys are sk_ (standard) or rk_ (restricted — Stripe's
+        # recommended least-privilege server credential, and the format the
+        # operator runbooks actually use). Both encode mode in the _live_/_test_
+        # infix, so key off that, not just the sk_ prefix.
+        is_live = key.startswith(("sk_live_", "rk_live_"))
+        is_test = key.startswith(("sk_test_", "rk_test_"))
+        if is_live and not is_prod:
             raise ValueError(
-                f"Refusing to boot: a LIVE Stripe key (sk_live_) in APP_ENV='{self.APP_ENV}' "
-                "would charge real cards off production. Use a test key (sk_test_) here."
+                f"Refusing to boot: a LIVE Stripe key in APP_ENV='{self.APP_ENV}' "
+                "would charge real cards off production. Use a test key here."
             )
-        if key.startswith("sk_test_") and is_prod:
+        if is_test and is_prod:
             raise ValueError(
                 f"Refusing to boot in APP_ENV='{self.APP_ENV}': a TEST Stripe key gives "
-                "everyone $0 upgrades. Set a live key (sk_live_) or run staging/mock money."
+                "everyone $0 upgrades. Set a live key or run staging/mock money."
             )
-        if not key.startswith(("sk_test_", "sk_live_")):
+        if not (is_live or is_test):
             raise ValueError(
-                "STRIPE_SECRET_KEY set but not a recognized mode (sk_test_/sk_live_)."
+                "STRIPE_SECRET_KEY set but not a recognized Stripe secret key "
+                "(expected sk_/rk_ with a _live_ or _test_ mode)."
             )
         return self
 
