@@ -178,6 +178,43 @@ def test_signup_429_carries_retry_after(client, faker_fixture, _rate_limiter_on)
     assert "retry-after" in {k.lower() for k in r.headers}  # client can back off
 
 
+def test_stream_rate_limit_survives_bearer_rotation_e2e(client, monkeypatch, _rate_limiter_on):
+    """RELEASE GATE for the HIGH finding. With the LIVE limiter enabled, a
+    cookie-authenticated caller who rotates the Authorization bearer on every
+    request must still be throttled at the 30/minute cap — proving the bucket
+    tracks the cookie principal, not the attacker-chosen header.
+
+    This is the exact bypass the APP_ENV=test / limiter-disabled suite could not
+    see (original probe: 60/60 opened, 0×429). Keep it end-to-end so the whole
+    class of key-vs-auth precedence bypass cannot quietly return."""
+    import uuid as _uuid
+    from app.main import app
+    from app.dependencies.stream_auth import get_user_for_stream
+
+    class _Principal:
+        id = _uuid.uuid4()
+
+    class _StubBrain:  # no providers/DB — the limiter fires before this runs on #31
+        def stream(self, **kw):
+            yield {"type": "done", "assistant_message_id": "x"}
+
+    app.dependency_overrides[get_user_for_stream] = lambda: _Principal()
+    monkeypatch.setattr("app.routers.nai._build_brain", lambda session: _StubBrain())
+    try:
+        codes = [
+            client.get("/kai/chat/stream", params={"message": "hi"},
+                       headers={"Authorization": f"Bearer rot-{n}"},
+                       cookies={"nai_access": "stable-session-cookie"}).status_code
+            for n in range(40)
+        ]
+    finally:
+        app.dependency_overrides.pop(get_user_for_stream, None)
+
+    assert all(c == 200 for c in codes[:30]), f"first 30 should pass: {codes[:30]}"
+    assert codes[30] == 429, f"31st (rotated bearer) must be throttled, got {codes[30]}"
+    assert codes.count(200) == 30  # rotating the bearer did NOT mint fresh buckets
+
+
 # ── hosted adapters do not blindly retry a non-idempotent completion ─────────
 def test_hosted_adapters_disable_blind_retry():
     from app.services.router.adapters.openai_adapter import OpenAIAdapter
