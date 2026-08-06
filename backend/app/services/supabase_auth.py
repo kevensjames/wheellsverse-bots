@@ -243,6 +243,35 @@ def refresh_session(refresh: str) -> dict[str, Any]:
     }
 
 
+def sign_out(access_token: str) -> None:
+    """Revoke the user's Supabase session (invalidates the REFRESH token) so a
+    stolen refresh token can't be replayed after logout. Best-effort + neutral:
+    a bad/expired token or a network error is swallowed so logout still clears
+    cookies and stays idempotent.
+
+    LIMITATION (documented, by design): the stateless access JWT is validated via
+    JWKS and is NOT checked against a denylist per request, so it remains usable
+    until it expires (<= 60 min, cookie_auth._ACCESS_COOKIE_SECONDS). Immediate
+    access-token revocation would require a per-request denylist / token-version
+    check — out of scope for this pass. Refresh (the long-lived credential) IS
+    revoked here, which is the material protection."""
+    _config_or_raise()
+    if not access_token:
+        return
+    try:
+        httpx.post(
+            f"{settings.SUPABASE_URL}/auth/v1/logout",
+            headers={
+                "apikey": settings.SUPABASE_PUBLISHABLE_KEY or settings.SUPABASE_SECRET_KEY,
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=15.0,
+        )
+    except httpx.HTTPError as e:
+        logger.warning("Supabase logout network error: %s", e)
+
+
 def request_password_reset(email: str) -> None:
     """Ask Supabase to email a reset link (/auth/v1/recover). Delivery needs
     Supabase SMTP configured (operator). This never reveals whether the email
