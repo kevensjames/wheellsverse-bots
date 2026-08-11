@@ -13,8 +13,13 @@ Endpoints
 - POST /auth/logout    clear cookies
 - GET  /auth/me        return profile-backed UserResponse
 """
-from __future__ import annotations
-
+# NOTE: deliberately NO `from __future__ import annotations` here.
+# slowapi's @limiter.limit wrapper resolves this module's annotations against
+# ITS OWN namespace, where SignupRequest/LoginRequest don't exist. With PEP-563
+# string annotations that breaks the body parameter: pydantic 2.9 raises
+# PydanticUndefinedAnnotation at route definition, and pydantic 2.13 silently
+# demotes the body to a QUERY param so every valid signup/login 422s
+# ("loc": ["query","body"]). Keeping annotations eager makes both work.
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -28,6 +33,7 @@ from app.dependencies.cookie_auth import (
 )
 from app.dependencies.supabase_jwt import UserPrincipal, get_current_user
 from app.schemas.auth import (
+    ForgotPasswordRequest,
     LoginRequest,
     RefreshRequest,
     SignupRequest,
@@ -36,6 +42,10 @@ from app.schemas.auth import (
 )
 from app.services import supabase_auth
 from app.services.supabase_auth import AuthError
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -98,6 +108,82 @@ def login(
     except AuthError as e:
         raise _http_from_auth(e)
     return _emit_tokens(tokens, response)
+
+
+@router.post("/forgot-password", status_code=status.HTTP_202_ACCEPTED)
+@limiter.limit("5/minute")
+def forgot_password(
+    request: Request,
+    body: ForgotPasswordRequest,
+) -> dict:
+    """Trigger a password-reset email. Always returns the same neutral 202
+    regardless of whether the email exists (anti-enumeration). Actual delivery
+    requires Supabase SMTP configured (operator); a missing config is swallowed
+    so this endpoint can't be used to probe which emails are registered."""
+    try:
+        supabase_auth.request_password_reset(body.email.strip().lower())
+    except Exception as e:  # config/network — never leak to the caller
+        logger.warning("forgot-password suppressed error: %s", e)
+    return {"message": "If an account exists for that email, a reset link has been sent."}
+
+
+@router.get("/me/export")
+def export_my_data(
+    current_user: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """GDPR Art. 20 — the caller's own data as JSON (profile + conversations +
+    messages + memories). All tenanted by user_id; in multi-user mode the
+    companion sidecars write nothing (companion_mode), so this is complete."""
+    from app.models.conversation import Conversation, Message
+    from app.models.memory import Memory
+
+    uid = current_user.id
+    prof = db.execute(
+        text("SELECT id, email, name, tier, created_at FROM public.profiles WHERE id = :id"),
+        {"id": str(uid)},
+    ).mappings().first()
+    convs = db.query(Conversation).filter(Conversation.user_id == uid).order_by(Conversation.created_at).all()
+    msgs = db.query(Message).filter(Message.user_id == uid).order_by(Message.created_at).all()
+    mems = db.query(Memory).filter(Memory.user_id == uid).order_by(Memory.created_at).all()
+    return {
+        "profile": dict(prof) if prof else None,
+        "conversations": [
+            {"id": str(c.id), "title": c.title, "created_at": c.created_at, "updated_at": c.updated_at}
+            for c in convs
+        ],
+        "messages": [
+            {"id": str(m.id), "conversation_id": str(m.conversation_id), "role": m.role,
+             "content": m.content, "created_at": m.created_at}
+            for m in msgs
+        ],
+        "memories": [
+            {"id": str(m.id), "content": m.content, "type": m.memory_type, "created_at": m.created_at}
+            for m in mems
+        ],
+    }
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_my_account(
+    response: Response,
+    current_user: UserPrincipal = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """GDPR Art. 17 — self-serve account deletion. Deleting the profiles row
+    cascades (ON DELETE CASCADE) to conversations, messages, memories,
+    subscriptions, api_keys, and every other user-owned table. The Supabase auth
+    identity is removed too (best-effort). In multi-user mode no untenanted
+    sidecar PII exists, so this is a COMPLETE erasure."""
+    uid = str(current_user.id)
+    try:
+        supabase_auth.delete_user(uid)
+    except Exception as e:  # Supabase unconfigured/unreachable — still purge our DB
+        logger.warning("delete /me: supabase delete_user failed (continuing): %s", e)
+    db.execute(text("DELETE FROM public.profiles WHERE id = :id"), {"id": uid})
+    db.commit()
+    response.status_code = status.HTTP_204_NO_CONTENT
+    return response
 
 
 @router.post("/refresh", response_model=TokenResponse)

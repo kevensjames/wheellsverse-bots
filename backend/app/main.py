@@ -2,7 +2,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -13,7 +13,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from app.config import settings
 from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
-from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
+from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_code_intel, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_swe, admin_swe_tasks, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
@@ -183,6 +183,21 @@ app.include_router(billing.router)
 app.include_router(admin_data.router)
 app.include_router(admin_chat.router)
 app.include_router(admin_supreme.router)
+# ── SWE runtime admin surface — mounted ONLY on a non-production runner.
+# The disposable-container code-execution (#41) and autonomous-agent (#42)
+# endpoints must never be reachable on the prod daemon. swe_admin_enabled()
+# allow-lists explicitly non-prod APP_ENV values; 'staging'/'production'/unknown
+# are refused. Defense-in-depth on top of KAI_SWE_RUNTIME_ENABLED (also off by
+# default): the flag stops execution, this stops the routes from existing.
+from app.services.swe_runtime.config import swe_admin_enabled  # noqa: E402
+if swe_admin_enabled():
+    app.include_router(admin_swe.router)
+    app.include_router(admin_swe_tasks.router)  # autonomous agent (Inc 2+)
+else:
+    logging.getLogger(__name__).warning(
+        "SWE admin surface NOT mounted: APP_ENV=%s is not a non-prod runner",
+        settings.APP_ENV,
+    )
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)
 app.include_router(admin_kg.router)
@@ -201,6 +216,7 @@ app.include_router(admin_eq.router)
 # Companion relationship + proactive check-in + journal.
 app.include_router(admin_relationship.router)
 app.include_router(admin_checkin.router)
+app.include_router(admin_code_intel.router)
 app.include_router(admin_journal.router)
 app.include_router(admin_audit.router)
 app.include_router(admin_digest.router)
@@ -298,7 +314,41 @@ def version():
 
 @app.get("/health")
 def health():
+    # LIVENESS only — the process is up. Cheap, no dependencies. Do NOT add DB
+    # checks here or a Postgres blip would make the supervisor kill a healthy box.
     return {"status": "ok", "env": settings.APP_ENV}
+
+
+@app.get("/readyz")
+def readyz(response: Response):
+    """READINESS — can the app actually serve? Checks the hard dependencies so an
+    off-box probe (and rollout gates) see a real 503 when Postgres/Redis are down,
+    instead of the always-200 /health that hides an outage while every request 500s."""
+    checks: dict[str, str] = {}
+    ok = True
+
+    try:
+        from sqlalchemy import text as _text
+        from app.database import engine as _engine
+        with _engine.connect() as conn:
+            conn.execute(_text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception as e:
+        checks["database"] = f"error: {type(e).__name__}"
+        ok = False
+
+    try:
+        import redis as _redis
+        _r = _redis.Redis.from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        _r.ping()
+        checks["redis"] = "ok"
+    except Exception as e:
+        # Redis is used for rate limiting + caches; degraded, not fatal on its own.
+        checks["redis"] = f"error: {type(e).__name__}"
+
+    if not ok:
+        response.status_code = 503
+    return {"status": "ready" if ok else "not_ready", "checks": checks}
 
 
 # Catch-all for unmatched GETs: if the client looks like a browser (Accept

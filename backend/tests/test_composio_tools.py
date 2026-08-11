@@ -15,6 +15,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# `composio` is an OPTIONAL, UNDECLARED dependency: app/services/tools/
+# composio_generic.py imports it, but it is not pinned in requirements.txt.
+# Without it these tests ERROR at collection and drown the suite's signal.
+# Skip honestly instead — a red suite you learn to ignore is worse than a skip
+# you can count. Pin the dep if these tools are meant to ship, and this marker
+# stops skipping on its own.
+pytest.importorskip("composio", reason="composio not installed (undeclared optional dep)")
+
 
 # ── shared fixtures ──────────────────────────────────────────────────────
 

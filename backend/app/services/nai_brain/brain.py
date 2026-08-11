@@ -25,7 +25,15 @@ def _eq_analyze_and_record(user_message: str) -> str:
     """Per-message companion hook: detect mood (persist a non-neutral sample) and
     bump the relationship interaction counter. Returns the tone-adaptation
     preamble for the system prompt. Fully fail-open: any error (or scopes off)
-    yields '' so the chat path is never affected."""
+    yields '' so the chat path is never affected.
+
+    SINGLE-OPERATOR ONLY: these sidecars persist to global untenanted SQLite with
+    no user_id, so they must not run multi-user (see companion_mode.py). In the
+    default multi-user mode this returns '' immediately — no per-user PII is
+    written to an admin-readable store, and account deletion stays complete."""
+    from app.services.companion_mode import single_operator_mode
+    if not single_operator_mode():
+        return ""
     # Relationship: count this turn toward the shared-history bond (fail-open).
     try:
         from app.services.governance import is_scope_enabled
@@ -176,6 +184,7 @@ class Brain:
         prefer_local: bool = False,
         max_tokens: int = 1024,
         persona_prompt: str = "",
+        allow_writes: bool = False,
     ) -> tuple[Conversation, Message, float]:
         """Non-streaming chat. Returns (conversation, assistant_message, total_cost).
 
@@ -199,7 +208,7 @@ class Brain:
         )
 
         if use_tools:
-            ctx = ToolContext(user_id=user_id, session=self.session)
+            ctx = ToolContext(user_id=user_id, session=self.session, allow_writes=allow_writes)
             result = self.router.chat(
                 user_id=user_id,
                 messages=history,

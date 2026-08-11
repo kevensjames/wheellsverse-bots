@@ -223,6 +223,8 @@ def test_injection_scope_off(monkeypatch):
 
 def test_injection_scope_on_includes_active(monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     ts.add_entry("identity", "Founder of WheellsVerse")
     ts.add_entry("voice", "Proposed voice", status="proposed")  # excluded
     pre = tinj.twin_preamble()
@@ -233,6 +235,8 @@ def test_injection_scope_on_includes_active(monkeypatch):
 
 def test_injection_scope_on_no_active(monkeypatch):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     ts.add_entry("identity", "p", status="proposed")
     assert tinj.twin_preamble() == ""
 
@@ -243,6 +247,8 @@ def test_injection_scope_on_no_active(monkeypatch):
 def test_system_prompt_injects_twin_when_scope_on(monkeypatch):
     from app.services.nai_brain.system_prompt import build_system_prompt
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     ts.add_entry("identity", "Founder of WheellsVerse")
     prompt = build_system_prompt(memory_preamble="", persona_prompt="", lessons_preamble="")
     assert "Operator profile" in prompt
@@ -344,6 +350,8 @@ def test_admin_suggest_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_suggest_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     monkeypatch.setattr(tcomp, "_gather_operator_facts", lambda *a, **k: ["Jhon owns KAI"])
     _patch_llm(monkeypatch, '{"entries":[{"section":"identity","text":"Founder"}]}')
     r = client.post("/admin/twin/suggest", headers=ADMIN_HEADERS, json={"max_entries": 3})
@@ -353,6 +361,8 @@ def test_admin_suggest_success(client, monkeypatch, _isolated_audit):
 
 def test_admin_activate_flow(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     e = ts.add_entry("identity", "Founder", status="proposed")
     r1 = client.post(f"/admin/twin/entries/{e.id}/activate",
                      headers=ADMIN_HEADERS, json={"approved": False})
@@ -372,6 +382,8 @@ def test_admin_draft_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_draft_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     ts.add_entry("voice", "Direct, concise")
     _patch_llm(monkeypatch, "Hey team — shipping today.")
     r = client.post("/admin/twin/draft", headers=ADMIN_HEADERS,
@@ -389,6 +401,8 @@ def test_admin_decide_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_decide_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     ts.add_entry("values", "Bias to action")
     _patch_llm(monkeypatch, '{"decision":"Ship now","confidence":"high","rationale":"r"}')
     r = client.post("/admin/twin/decide", headers=ADMIN_HEADERS,
@@ -400,6 +414,8 @@ def test_admin_decide_success(client, monkeypatch, _isolated_audit):
 
 def test_admin_decisions_list(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_TWIN", "1")
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ACTIVATE", "1")  # destructive: exact scope required
+    monkeypatch.setenv("KAI_SCOPE_TWIN_ARCHIVE", "1")  # destructive: exact scope required
     _patch_llm(monkeypatch, '{"decision":"yes","confidence":"low"}')
     client.post("/admin/twin/decide", headers=ADMIN_HEADERS, json={"question": "q?"})
     r = client.get("/admin/twin/decisions", headers=ADMIN_HEADERS)

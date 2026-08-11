@@ -31,6 +31,7 @@ from app.schemas.nai import (
 )
 from app.services.nai_brain import Brain
 from app.services.router import build_default_router
+from app.services.router.router import SpendCapExceeded
 from app.services.tools import build_default_registry
 
 logger = logging.getLogger(__name__)
@@ -80,6 +81,10 @@ def chat(
             max_tokens=request.max_tokens,
             persona_prompt=persona_prompt,
         )
+    except SpendCapExceeded as e:
+        # 402 Payment Required — the user hit their spend cap and there's no free
+        # local model to absorb it. A clear, non-crashing signal.
+        raise HTTPException(status_code=402, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     return ChatResponse(
@@ -92,9 +97,22 @@ def chat(
 
 
 def _sse_format(events: Iterator[dict]) -> Iterator[bytes]:
-    for event in events:
-        line = f"data: {json.dumps(event)}\n\n"
-        yield line.encode("utf-8")
+    """Serialize brain events to SSE. Fail-SOFT: if the event generator raises
+    (spend cap, or a provider error before/after first token), emit a clean
+    error event and close the stream instead of dropping the connection with a
+    raw traceback. (Full mid-stream provider FAILOVER — retrying a fallback
+    model — is a separate, larger change; this stops the crash.)"""
+    try:
+        for event in events:
+            line = f"data: {json.dumps(event)}\n\n"
+            yield line.encode("utf-8")
+    except SpendCapExceeded as e:
+        err = {"type": "error", "code": "spend_cap", "message": str(e)}
+        yield f"data: {json.dumps(err)}\n\n".encode("utf-8")
+    except Exception as e:  # noqa: BLE001 — never let a stream die with a raw 500
+        logger.warning("chat stream errored: %s", e)
+        err = {"type": "error", "message": "The assistant hit an error. Please try again."}
+        yield f"data: {json.dumps(err)}\n\n".encode("utf-8")
 
 
 @router.get("/chat/stream")

@@ -290,6 +290,7 @@ def test_admin_navigate_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_navigate_success_stubbed(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER_EXECUTE", "1")  # destructive: exact scope required
     monkeypatch.setattr(bsession, "read_page", lambda u: {
         "url": u, "title": "Example Domain", "text": "hi", "links": []})
     r = client.post("/admin/browser/navigate", headers=ADMIN_HEADERS,
@@ -301,6 +302,7 @@ def test_admin_navigate_success_stubbed(client, monkeypatch, _isolated_audit):
 
 def test_admin_navigate_non_allowlisted_400(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER_EXECUTE", "1")  # destructive: exact scope required
     r = client.post("/admin/browser/navigate", headers=ADMIN_HEADERS,
                     json={"url": "https://evil.com"})
     assert r.status_code == 400
@@ -317,6 +319,7 @@ def test_admin_propose_scope_off_403(client, monkeypatch, _isolated_audit):
 
 def test_admin_propose_success(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER_EXECUTE", "1")  # destructive: exact scope required
     r = client.post("/admin/browser/propose", headers=ADMIN_HEADERS,
                     json={"action_type": "type", "selector": "#q", "value": "kai",
                           "description": "search"})
@@ -363,6 +366,7 @@ def test_execute_actions_empty(monkeypatch):
 
 def test_admin_execute_write_disabled_403(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER_EXECUTE", "1")  # destructive: exact scope required
     monkeypatch.delenv("KAI_BROWSER_WRITE_ENABLED", raising=False)
     r = client.post("/admin/browser/execute", headers=ADMIN_HEADERS,
                     json={"url": "https://example.com",
@@ -386,6 +390,7 @@ def test_admin_execute_scope_off_403(client, monkeypatch, _isolated_audit):
 def test_admin_execute_no_approval_409(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER_EXECUTE", "1")  # destructive: exact scope required
     r = client.post("/admin/browser/execute", headers=ADMIN_HEADERS,
                     json={"url": "https://example.com",
                           "actions": [{"type": "click", "selector": "#x"}],
@@ -423,6 +428,7 @@ def test_request_blocked_reason_offallowlist_subresource_allowed():
 def test_admin_execute_success_stubbed(client, monkeypatch, _isolated_audit):
     monkeypatch.setenv("KAI_BROWSER_WRITE_ENABLED", "1")
     monkeypatch.setenv("KAI_SCOPE_BROWSER", "1")
+    monkeypatch.setenv("KAI_SCOPE_BROWSER_EXECUTE", "1")  # destructive: exact scope required
     monkeypatch.setattr(bsession, "execute_actions", lambda url, actions: {
         "results": [{"type": "click", "selector": "#more", "ok": True}],
         "final": {"url": "https://example.com/more", "title": "More", "text": "ok"},

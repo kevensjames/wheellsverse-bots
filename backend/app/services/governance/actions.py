@@ -43,19 +43,29 @@ class PendingApproval(PermissionError):
     surface a confirm prompt to the operator and retry with approved=True."""
 
 
-def is_scope_enabled(scope: str) -> bool:
+def is_scope_enabled(scope: str, *, allow_wildcard: bool = True) -> bool:
     """Check KAI_SCOPE_<NORMALIZED>. Scope 'briefing.generate' →
     KAI_SCOPE_BRIEFING_GENERATE. Truthy = '1', 'true', 'yes' (case-insensitive).
 
     A scope is enabled if either:
       - the specific scope env (e.g. KAI_SCOPE_BRIEFING_GENERATE), or
-      - the wildcard parent (KAI_SCOPE_BRIEFING) is set.
+      - the wildcard parent (KAI_SCOPE_BRIEFING) is set — UNLESS
+        ``allow_wildcard`` is False.
     Wildcards let the operator opt-in to a whole module without listing
     each action individually.
+
+    DESTRUCTIVE actions are called with allow_wildcard=False (see ``audited``):
+    a convenience wildcard must never transitively authorize an irreversible
+    action. Without this, ``KAI_SCOPE_SOL=1`` — which the Sol reminder
+    scheduler requires (services/sol/scheduler.py) — also satisfied the gate
+    for ``sol.transfer`` (live ACH). The same held for dwolla.transfer,
+    stripe.refund, browser.execute and planning.execute.
     """
     norm = scope.replace(".", "_").replace("-", "_").upper()
     if _is_env_truthy(f"KAI_SCOPE_{norm}"):
         return True
+    if not allow_wildcard:
+        return False
     # Wildcard parent — KAI_SCOPE_BRIEFING enables every BRIEFING.* scope
     parent = norm.split("_")[0]
     if parent and _is_env_truthy(f"KAI_SCOPE_{parent}"):
@@ -93,7 +103,8 @@ def audited(
 
             # Scope check FIRST — if the scope isn't enabled, we don't even
             # consider the destructive-without-approval case.
-            if not is_scope_enabled(scope):
+            # Destructive actions must be named exactly — no wildcard inherit.
+            if not is_scope_enabled(scope, allow_wildcard=not destructive):
                 record_action(
                     action=fn.__name__, scope=scope, actor=actor,
                     destructive=destructive, approved=approved,
@@ -117,6 +128,19 @@ def audited(
                 raise PendingApproval(
                     f"Action '{fn.__name__}' is destructive and requires "
                     f"approved=True. Surface a confirm prompt and retry."
+                )
+
+            # A destructive action gets a fail-CLOSED intent record BEFORE the
+            # side effect: if we cannot durably record what we are about to do,
+            # we do not do it. (Pattern proven in swe_runtime/push.py.) Routine
+            # outcome logging below stays fail-soft — a full disk must not brick
+            # ordinary operation, but it must never silently hide money movement.
+            if destructive:
+                record_action(
+                    action=fn.__name__, scope=scope, actor=actor,
+                    destructive=True, approved=approved,
+                    inputs={"_args": _safe_repr(args), "_kwargs": _safe_repr(kwargs)},
+                    success=None, event="intent", fail_closed=True,
                 )
 
             t0 = time.time()

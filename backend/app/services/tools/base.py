@@ -15,6 +15,12 @@ class ToolContext:
     user_id: uuid.UUID
     session: Session
     request_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
+    # Per-request authorization for side-effecting (writes=True) tools. Default
+    # deny: the LLM tool loop cannot make external changes (SaaS writes, CRM
+    # creates, paid generation, MCP fs/git) unless the OPERATOR set this True for
+    # the request. User-facing chat never sets it, so users can't trigger writes
+    # on the operator's shared third-party accounts. See ToolRegistry.execute.
+    allow_writes: bool = False
 
 
 @dataclass(slots=True)

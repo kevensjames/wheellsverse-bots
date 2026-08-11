@@ -47,6 +47,7 @@ class FakeTool:
 def tracker():
     t = MagicMock()
     t.over_daily_cap.return_value = False
+    t.over_monthly_cap.return_value = False
     return t
 
 

@@ -26,6 +26,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
 class UserResponse(BaseModel):
     """Path X: maps to public.profiles. is_verified/is_active/phone were
     SQLAlchemy User fields and have no clean equivalent on profiles —

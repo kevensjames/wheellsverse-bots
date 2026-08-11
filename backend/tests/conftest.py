@@ -34,6 +34,15 @@ import pytest
 # `from app.config import settings` cache fires.
 os.environ["APP_ENV"] = "test"
 
+# ── Give the admin surface a real token under test.
+# Tests build their header as {"X-Admin-Token": settings.admin_token}. With no
+# .env present, ADMIN_TOKEN and JWT_SECRET_KEY are both "", and
+# require_admin_token correctly refuses an empty token on BOTH sides
+# (dependencies/admin.py: `bool(x_admin_token) and bool(expected)`), so every
+# admin route 403s and ~100 tests fail for a reason that has nothing to do with
+# the code under test. setdefault so a real environment still wins.
+os.environ.setdefault("ADMIN_TOKEN", "test-admin-token-do-not-use-in-prod-0123456789")
+
 
 # ── Layer-1 safety gate: refuse to run pytest if DATABASE_URL points at prod.
 # Same idea as the Stage 3 tools-smoke safety gate. The monkeypatch fixture

@@ -43,6 +43,15 @@ def test_load_map_returns_empty_when_missing(tmp_path, monkeypatch):
     assert sc.load_map() == {}
 
 
+# pyyaml is imported by app/services/supreme/scanner.py:84 but is NOT pinned in
+# requirements.txt, and the import failure is swallowed (returns {}), so the
+# Supreme map SILENTLY degrades to defaults wherever pyyaml is absent — this
+# test failing with KeyError('version') was that silent degradation surfacing.
+# Skip when the dep is missing; pin pyyaml to actually fix the feature.
+@pytest.mark.skipif(
+    __import__("importlib.util", fromlist=["util"]).find_spec("yaml") is None,
+    reason="pyyaml not installed — Supreme map silently degrades (undeclared dep)",
+)
 def test_load_map_parses_yaml(tmp_path, monkeypatch):
     map_path = tmp_path / "map.yaml"
     map_path.write_text(
@@ -56,6 +65,43 @@ def test_load_map_parses_yaml(tmp_path, monkeypatch):
     m = sc.load_map()
     assert m["version"] == 99
     assert m["supreme"]["scan_interval_seconds"] == 60
+
+
+def test_load_map_raises_when_map_present_but_pyyaml_missing(tmp_path, monkeypatch):
+    """The silent-degradation fix: an operator's map must NOT be discarded to
+    fabricated defaults just because PyYAML is absent."""
+    import sys
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("version: 1\nsupreme:\n  scans: [process_health]\n")
+    monkeypatch.setattr(sc, "MAP_PATH", map_path)
+    monkeypatch.setitem(sys.modules, "yaml", None)  # make `import yaml` raise ImportError
+    with pytest.raises(sc.SupremeConfigError, match="PyYAML"):
+        sc.load_map()
+
+
+def test_load_map_raises_on_unparseable_map(tmp_path, monkeypatch):
+    """A typo in the operator's config must fail loudly, not degrade silently."""
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("{ this: is: not: valid yaml")
+    monkeypatch.setattr(sc, "MAP_PATH", map_path)
+    with pytest.raises(sc.SupremeConfigError):
+        sc.load_map()
+
+
+def test_load_map_missing_file_still_returns_empty(tmp_path, monkeypatch):
+    """No map is a LEGITIMATE default (nothing to configure) — must not raise."""
+    monkeypatch.setattr(sc, "MAP_PATH", tmp_path / "nope.yaml")
+    assert sc.load_map() == {}
+
+
+def test_load_map_warns_on_missing_version(tmp_path, monkeypatch, caplog):
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("supreme:\n  scans: [process_health]\n")  # no version:
+    monkeypatch.setattr(sc, "MAP_PATH", map_path)
+    with caplog.at_level("WARNING"):
+        m = sc.load_map()
+    assert "version" not in m and m["supreme"]["scans"] == ["process_health"]
+    assert any("version" in r.message for r in caplog.records)
 
 
 # ─── scan_once orchestration ─────────────────────────────────────────

@@ -243,6 +243,29 @@ def refresh_session(refresh: str) -> dict[str, Any]:
     }
 
 
+def request_password_reset(email: str) -> None:
+    """Ask Supabase to email a reset link (/auth/v1/recover). Delivery needs
+    Supabase SMTP configured (operator). This never reveals whether the email
+    exists — the caller returns the same neutral response either way
+    (anti-enumeration). Network/config failures are swallowed for the same
+    reason (still return neutral), and logged."""
+    _config_or_raise()
+    if not settings.SUPABASE_PUBLISHABLE_KEY:
+        raise RuntimeError("SUPABASE_PUBLISHABLE_KEY missing")
+    try:
+        httpx.post(
+            f"{settings.SUPABASE_URL}/auth/v1/recover",
+            headers={
+                "apikey": settings.SUPABASE_PUBLISHABLE_KEY,
+                "Content-Type": "application/json",
+            },
+            json={"email": email},
+            timeout=15.0,
+        )
+    except httpx.HTTPError as e:
+        logger.warning("Supabase recover network error: %s", e)
+
+
 def delete_user(user_id: str) -> None:
     """Admin-only. Cascades through profiles + chat tables via FK ON DELETE."""
     try:

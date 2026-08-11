@@ -237,3 +237,7 @@ wheellsverse1/
 
 # Lead-gen output contains real business PII — never commit to the repo
 data/launches/portfolio/leadgen/
+
+# Third-party intake lab: cloned vendor repos are NEVER committed into KAI.
+# Reviews (third_party_lab/reviews/) ARE tracked.
+third_party_lab/repositories/

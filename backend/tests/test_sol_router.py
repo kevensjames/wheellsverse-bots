@@ -43,7 +43,12 @@ class _FakeDwolla:
 
 
 def _make_active_circle(client, monkeypatch, n=3):
-    monkeypatch.setenv("KAI_SCOPE_SOL", "1")  # wildcard → manage + transfer
+    # The wildcard grants sol.manage (non-destructive) only. sol.transfer is
+    # destructive and must be named EXACTLY — a module opt-in must never
+    # transitively authorize live ACH. Callers of this helper go on to collect/
+    # payout, so grant both.
+    monkeypatch.setenv("KAI_SCOPE_SOL", "1")
+    monkeypatch.setenv("KAI_SCOPE_SOL_TRANSFER", "1")
     r = client.post("/admin/sol/circles", headers=ADMIN,
                     json={"name": "C", "contribution_cents": 20000, "member_target": n})
     assert r.status_code == 200, r.text
@@ -86,6 +91,7 @@ def test_collect_requires_transfer_scope(client, monkeypatch):
     cid, cycle_id = _make_active_circle(client, monkeypatch)
     # turn OFF transfer scope but keep manage so activate worked
     monkeypatch.delenv("KAI_SCOPE_SOL", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_SOL_TRANSFER", raising=False)  # granted by the helper
     monkeypatch.setenv("KAI_SCOPE_SOL_MANAGE", "1")
     r = client.post(f"/admin/sol/cycles/{cycle_id}/collect", headers=ADMIN, json={"approved": True})
     assert r.status_code == 403  # sol.transfer not enabled
@@ -276,6 +282,7 @@ def test_retry_ladder_to_delinquency_via_endpoint(client, monkeypatch):
 def test_retry_requires_transfer_scope(client, monkeypatch):
     cid, cycle_id = _make_active_circle(client, monkeypatch, n=3)
     monkeypatch.delenv("KAI_SCOPE_SOL", raising=False)
+    monkeypatch.delenv("KAI_SCOPE_SOL_TRANSFER", raising=False)  # granted by the helper
     monkeypatch.setenv("KAI_SCOPE_SOL_MANAGE", "1")  # manage on, transfer off
     r = client.post(f"/admin/sol/cycles/{cycle_id}/retry-failed", headers=ADMIN, json={"approved": True})
     assert r.status_code == 403
