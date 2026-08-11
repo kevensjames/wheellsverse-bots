@@ -890,6 +890,21 @@ async def security_headers_middleware(request: Request, call_next):
 # _API_KEY). No-op while OPERATOR_SESSION_ENABLED is off.
 _install_operator_session(app, _OPERATOR_SESSION_CFG)
 
+# ── KAI bridge (merge Phase P3): same-origin reverse proxy /admin/kai/* → App B
+#    (the governed KAI brain). Default OFF (fails closed with 404). Fixed
+#    upstream from env only — no host from the request, no SSRF. ──────────────
+from core.kai_bridge import (  # noqa: E402
+    BridgeConfig as _BridgeConfig,
+    install_kai_bridge as _install_kai_bridge,
+)
+
+_install_kai_bridge(app, _BridgeConfig(
+    enabled=os.getenv("KAI_BRIDGE_ENABLED", "false").strip().lower()
+    in ("1", "true", "yes", "on"),
+    upstream=os.getenv("KAI_UPSTREAM_URL", "").strip(),
+    session=_OPERATOR_SESSION_CFG,
+))
+
 
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
