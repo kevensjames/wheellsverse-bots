@@ -36,7 +36,7 @@ function parseColor(str) {
 const IRIS_BLUE = [46, 92, 168];
 const IRIS_EDGE = [18, 34, 74];
 const ENERGY    = [120, 214, 255];
-const SKIN      = [150, 168, 205];   // cool synthetic skin midtone
+const SKIN      = [172, 176, 196];   // synthetic skin midtone (cool, a touch of life)
 
 // halo sectors → KAI subsystems (labels shown dim, brighten when lit)
 const SECTORS = ['REASONING', 'MEMORY', 'RESEARCH', 'TOOLS', 'AGENTS', 'SECURITY', 'MARKETS', 'INFRA'];
@@ -190,91 +190,135 @@ export function mountAvatar(canvas) {
     ctx.stroke();
   }
 
-  // ---- face + figure -------------------------------------------------------
+  // ---- face + figure — adult synthetic human (§2) --------------------------
+  // Head silhouette path (adult oval: cheekbones + tapered jaw + defined chin).
+  function headPath(s) {
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 1.0);
+    ctx.bezierCurveTo(s * .6, -s * .98, s * .74, -s * .15, s * .7, s * .15);   // R forehead → cheekbone (widest)
+    ctx.bezierCurveTo(s * .66, s * .5, s * .4, s * .82, s * .18, s * .98);      // R cheek → jaw
+    ctx.quadraticCurveTo(0, s * 1.08, -s * .18, s * .98);                       // chin
+    ctx.bezierCurveTo(-s * .4, s * .82, -s * .66, s * .5, -s * .7, s * .15);    // L jaw → cheek
+    ctx.bezierCurveTo(-s * .74, -s * .15, -s * .6, -s * .98, 0, -s * 1.0);      // L cheekbone → forehead
+    ctx.closePath();
+  }
+
   function drawFigure(cx, cy, s) {
     const skin = mix(SKIN, m.accent, .05);
+    const suit = [10, 14, 26];
     ctx.save(); ctx.translate(cx, cy); ctx.rotate(m.tilt);
 
-    // shoulders + neck (dissolve into particles below)
-    const shY = s * 1.35, shW = s * 2.1;
-    const shg = ctx.createLinearGradient(0, s * .7, 0, s * 2.2);
-    shg.addColorStop(0, rgba(mix(skin, [10, 15, 30], .3), .9 * m.bright));
-    shg.addColorStop(1, rgba([8, 12, 26], 0));
+    // — neural suit + broad shoulders (behind, dissolving below) ---------------
+    const shW = s * 2.15;
+    const shg = ctx.createLinearGradient(0, s * .8, 0, s * 2.3);
+    shg.addColorStop(0, rgba(mix(suit, m.accent, .06), .95 * m.bright));
+    shg.addColorStop(.7, rgba(suit, .8 * m.bright)); shg.addColorStop(1, rgba([6, 9, 20], 0));
     ctx.beginPath();
-    ctx.moveTo(-s * .34, s * .6); ctx.quadraticCurveTo(-shW * .5, shY * .82, -shW * .5, s * 2.2);
-    ctx.lineTo(shW * .5, s * 2.2); ctx.quadraticCurveTo(shW * .5, shY * .82, s * .34, s * .6);
+    ctx.moveTo(-s * .3, s * .78); ctx.quadraticCurveTo(-s * .9, s * .92, -shW * .5, s * 1.5);
+    ctx.lineTo(-shW * .5, s * 2.3); ctx.lineTo(shW * .5, s * 2.3);
+    ctx.lineTo(shW * .5, s * 1.5); ctx.quadraticCurveTo(s * .9, s * .92, s * .3, s * .78);
     ctx.closePath(); ctx.fillStyle = shg; ctx.fill();
-    // neck
-    const ng = ctx.createLinearGradient(0, s * .4, 0, s * 1); ng.addColorStop(0, rgba(mix(skin, [0, 0, 0], .35), m.bright)); ng.addColorStop(1, rgba(skin, .9 * m.bright));
-    ctx.beginPath(); ctx.moveTo(-s * .28, s * .5); ctx.lineTo(-s * .3, s * .95); ctx.lineTo(s * .3, s * .95); ctx.lineTo(s * .28, s * .5); ctx.closePath(); ctx.fillStyle = ng; ctx.fill();
-    // jaw/chin shadow under neck
-    ctx.beginPath(); ctx.ellipse(0, s * .52, s * .34, s * .12, 0, 0, TAU); ctx.fillStyle = 'rgba(6,10,22,.5)'; ctx.fill();
+    // circuit lines on the suit
+    ctx.strokeStyle = rgba(m.accent, .16 * m.bright); ctx.lineWidth = 1;
+    for (const d of [-1, 1]) { ctx.beginPath();
+      ctx.moveTo(d * s * .3, s * 1.05); ctx.lineTo(d * s * .55, s * 1.3); ctx.lineTo(d * s * .55, s * 1.7);
+      ctx.moveTo(d * s * .9, s * 1.2); ctx.lineTo(d * s * 1.2, s * 1.5); ctx.stroke(); }
+    // high collar
+    ctx.beginPath(); ctx.moveTo(-s * .32, s * .82); ctx.quadraticCurveTo(0, s * 1.02, s * .32, s * .82);
+    ctx.lineTo(s * .4, s * 1.02); ctx.quadraticCurveTo(0, s * 1.2, -s * .4, s * 1.02); ctx.closePath();
+    ctx.fillStyle = rgba(mix(suit, m.accent, .12), .9 * m.bright); ctx.fill();
+    // illuminated chest core (pulses with breath + state)
+    const corePulse = .6 + .4 * Math.sin(m.breath * 1.2) * (lowMotion() ? 0 : 1) + m.illum * .3;
+    const coreY = s * 1.62, coreR = s * .12;
+    const cg = ctx.createRadialGradient(0, coreY, 0, 0, coreY, coreR * 3.2);
+    cg.addColorStop(0, rgba(mix(m.accent, ENERGY, .4), .8 * corePulse * m.bright)); cg.addColorStop(1, rgba(m.accent, 0));
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, coreY, coreR * 3.2, 0, TAU); ctx.fill();
+    ctx.save(); ctx.translate(0, coreY); ctx.rotate(Math.PI / 4);   // hex/diamond emblem
+    ctx.beginPath(); ctx.rect(-coreR * .6, -coreR * .6, coreR * 1.2, coreR * 1.2);
+    ctx.strokeStyle = rgba(ENERGY, .9 * corePulse); ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = rgba(mix(m.accent, ENERGY, .5), .5 * corePulse); ctx.fill(); ctx.restore();
 
-    // head — shaded form
-    const hg = ctx.createRadialGradient(-s * .3, -s * .5, s * .1, 0, 0, s * 1.25);
-    hg.addColorStop(0, rgba(mix(skin, [255, 255, 255], .12), m.bright));
-    hg.addColorStop(.5, rgba(skin, m.bright));
-    hg.addColorStop(1, rgba(mix(skin, [6, 10, 22], .55), m.bright));
+    // — neck (with sterno hint) -----------------------------------------------
+    const ng = ctx.createLinearGradient(0, s * .5, 0, s * 1);
+    ng.addColorStop(0, rgba(mix(skin, [0, 0, 0], .42), m.bright)); ng.addColorStop(1, rgba(mix(skin, [0, 0, 0], .2), .9 * m.bright));
+    ctx.beginPath(); ctx.moveTo(-s * .24, s * .6); ctx.lineTo(-s * .28, s * .92); ctx.lineTo(s * .28, s * .92); ctx.lineTo(s * .24, s * .6); ctx.closePath();
+    ctx.fillStyle = ng; ctx.fill();
+    ctx.beginPath(); ctx.ellipse(0, s * .62, s * .3, s * .1, 0, 0, TAU); ctx.fillStyle = 'rgba(6,10,22,.55)'; ctx.fill(); // jaw shadow
+
+    // — head: shaded adult form ------------------------------------------------
+    const hg = ctx.createRadialGradient(-s * .28, -s * .45, s * .1, s * .1, s * .1, s * 1.15);
+    hg.addColorStop(0, rgba(mix(skin, [255, 255, 255], .14), m.bright));
+    hg.addColorStop(.55, rgba(skin, m.bright));
+    hg.addColorStop(1, rgba(mix(skin, [5, 9, 20], .6), m.bright));
+    headPath(s); ctx.fillStyle = hg; ctx.fill();
+
+    // sleek synthetic scalp/crown (so KAI reads adult, not a bald doll)
+    const scg = ctx.createLinearGradient(0, -s * 1.3, 0, -s * .2);
+    scg.addColorStop(0, rgba(mix(suit, m.accent, .1), .96 * m.bright)); scg.addColorStop(1, rgba([8, 12, 24], .9 * m.bright));
     ctx.beginPath();
-    ctx.moveTo(0, -s * 1.02);
-    ctx.bezierCurveTo(s * .8, -s * .98, s * .74, s * .05, s * .46, s * .5);
-    ctx.bezierCurveTo(s * .3, s * .82, -s * .3, s * .82, -s * .46, s * .5);
-    ctx.bezierCurveTo(-s * .74, s * .05, -s * .8, -s * .98, 0, -s * 1.02);
-    ctx.closePath(); ctx.fillStyle = hg; ctx.fill();
+    ctx.moveTo(-s * .7, -s * .1);
+    ctx.bezierCurveTo(-s * .78, -s * .8, -s * .5, -s * 1.28, 0, -s * 1.26);
+    ctx.bezierCurveTo(s * .5, -s * 1.28, s * .78, -s * .8, s * .7, -s * .1);
+    ctx.bezierCurveTo(s * .5, -s * .62, s * .3, -s * .74, 0, -s * .74);        // hairline dip (forehead V)
+    ctx.bezierCurveTo(-s * .3, -s * .74, -s * .5, -s * .62, -s * .7, -s * .1);
+    ctx.closePath(); ctx.fillStyle = scg; ctx.fill();
+    ctx.strokeStyle = rgba(m.accent, .14 * m.bright); ctx.lineWidth = 1;   // crown neural lines
+    for (let i = -2; i <= 2; i++) { ctx.beginPath(); ctx.moveTo(i * s * .16, -s * .78);
+      ctx.quadraticCurveTo(i * s * .22, -s * 1.05, i * s * .12, -s * 1.24); ctx.stroke(); }
 
-    // volume: cheekbone highlights, brow-ridge & nose shadow, jaw
+    // volume: cheekbones, brow ridge, temples, jaw definition
     const hi = (x, y, rx, ry, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
-      g.addColorStop(0, rgba(mix(skin, [255, 255, 255], .5), a * m.bright)); g.addColorStop(1, rgba(skin, 0));
+      g.addColorStop(0, rgba(mix(skin, [255, 255, 255], .55), a * m.bright)); g.addColorStop(1, rgba(skin, 0));
       ctx.save(); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore(); };
-    hi(-s * .42, s * .12, s * .3, s * .24, .5); hi(s * .42, s * .12, s * .3, s * .24, .5);  // cheeks
-    hi(0, -s * .55, s * .35, s * .22, .4);                                                  // forehead
+    hi(-s * .46, s * .08, s * .26, s * .2, .55); hi(s * .46, s * .08, s * .26, s * .2, .55);   // cheekbones (high)
+    hi(0, -s * .4, s * .3, s * .16, .4);                                                        // brow ridge sheen
     const sh = (x, y, rx, ry, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
-      g.addColorStop(0, rgba([6, 10, 22], a)); g.addColorStop(1, rgba([6, 10, 22], 0));
+      g.addColorStop(0, rgba([5, 9, 20], a)); g.addColorStop(1, rgba([5, 9, 20], 0));
       ctx.save(); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore(); };
-    sh(0, s * .02, s * .1, s * .24, .28);              // nose bridge shadow (kept off the glabella → no frown)
-    sh(-s * .1, s * .12, s * .09, s * .12, .3);         // nostril hint
-    sh(s * .1, s * .12, s * .09, s * .12, .3);
-    // nose highlight
-    ctx.strokeStyle = rgba(mix(skin, [255, 255, 255], .4), .35 * m.bright); ctx.lineWidth = s * .04; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(0, -s * .28); ctx.lineTo(-s * .02, s * .1); ctx.stroke();
+    sh(-s * .62, s * .46, s * .12, s * .22, .2); sh(s * .62, s * .46, s * .12, s * .22, .2);     // jaw edge (subtle, lateral)
+    sh(-s * .09, s * .16, s * .045, s * .16, .12); sh(s * .09, s * .16, s * .045, s * .16, .12); // nose sides (soft, close to bridge)
+    sh(-s * .085, s * .3, s * .045, s * .05, .18); sh(s * .085, s * .3, s * .045, s * .05, .18); // nostrils (tiny)
+    sh(0, s * .74, s * .11, s * .06, .16);                                                        // under-lip crease (light)
 
-    // lips (jaw opens on speaking)
-    const mo = m.jaw * s * .14;
-    ctx.strokeStyle = rgba(mix(skin, [120, 70, 90], .35), .6 * m.bright); ctx.lineWidth = s * .035;
-    ctx.beginPath(); ctx.moveTo(-s * .16, s * .32); ctx.quadraticCurveTo(0, s * .3, s * .16, s * .32); ctx.stroke();
-    if (mo > .3) { ctx.fillStyle = 'rgba(20,10,18,.55)'; ctx.beginPath(); ctx.ellipse(0, s * .34 + mo * .4, s * .12, mo, 0, 0, TAU); ctx.fill(); }
-    ctx.beginPath(); ctx.moveTo(-s * .14, s * .36 + mo); ctx.quadraticCurveTo(0, s * .42 + mo * 1.2, s * .14, s * .36 + mo); ctx.stroke();
+    // nose ridge highlight + tip
+    ctx.strokeStyle = rgba(mix(skin, [255, 255, 255], .45), .4 * m.bright); ctx.lineWidth = s * .035; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -s * .34); ctx.lineTo(-s * .015, s * .22); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, s * .26, s * .05, 0, TAU); ctx.fillStyle = rgba(mix(skin, [255, 255, 255], .3), .3 * m.bright); ctx.fill();
 
-    // subtle synthetic under-skin traces
-    ctx.strokeStyle = rgba(m.accent, .05 * m.bright); ctx.lineWidth = 1;
-    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-s * .5, -s * .2 + i * s * .28);
-      ctx.quadraticCurveTo(0, -s * .05 + i * s * .28, s * .5, -s * .2 + i * s * .28); ctx.stroke(); }
+    // lips (defined upper/lower + philtrum; jaw opens on speaking)
+    const mo = m.jaw * s * .16;
+    ctx.strokeStyle = rgba(mix(skin, [110, 66, 84], .4), .55 * m.bright); ctx.lineWidth = s * .02;
+    ctx.beginPath(); ctx.moveTo(-s * .04, s * .4); ctx.lineTo(-s * .02, s * .5); ctx.stroke();   // philtrum
+    ctx.strokeStyle = rgba(mix(skin, [120, 70, 90], .4), .6 * m.bright); ctx.lineWidth = s * .03;
+    ctx.beginPath(); ctx.moveTo(-s * .17, s * .55); ctx.quadraticCurveTo(-s * .06, s * .5, 0, s * .53);
+    ctx.quadraticCurveTo(s * .06, s * .5, s * .17, s * .55); ctx.stroke();                        // upper lip
+    if (mo > .25) { ctx.fillStyle = 'rgba(16,8,14,.6)'; ctx.beginPath(); ctx.ellipse(0, s * .58 + mo * .4, s * .13, mo, 0, 0, TAU); ctx.fill(); }
+    ctx.beginPath(); ctx.moveTo(-s * .15, s * .58 + mo); ctx.quadraticCurveTo(0, s * .66 + mo * 1.3, s * .15, s * .58 + mo); ctx.stroke(); // lower lip
 
-    // brows + eyes on the face midline (smaller, calmer, human spacing)
-    const er = s * .14, ey = -s * .04, ex = s * .32;
-    drawBrow(-ex, ey - s * .22, er, -1); drawBrow(ex, ey - s * .22, er, 1);
+    // brows + eyes on the adult vertical midline
+    const er = s * .135, ey = -s * .02, ex = s * .3;
+    drawBrow(-ex, ey - s * .21, er, -1); drawBrow(ex, ey - s * .21, er, 1);
     drawEye(-ex, ey, er, -1); drawEye(ex, ey, er, 1);
 
-    // environmental rim light on the active side
+    // — cinematic key rim (cool light, upper-left) + env rim (active side) -----
+    ctx.save(); headPath(s); ctx.clip();
+    const keyRim = ctx.createLinearGradient(-s * .8, -s, -s * .2, 0);
+    keyRim.addColorStop(0, rgba(mix(m.accent, [255, 255, 255], .3), .22 * m.bright)); keyRim.addColorStop(1, rgba(m.accent, 0));
+    ctx.fillStyle = keyRim; ctx.fillRect(-s, -s * 1.1, s * 2, s * 2.2);
     if (m.env.on > .01) {
-      ctx.save(); ctx.beginPath();
-      ctx.moveTo(0, -s * 1.02);
-      ctx.bezierCurveTo(s * .8, -s * .98, s * .74, s * .05, s * .46, s * .5);
-      ctx.bezierCurveTo(s * .3, s * .82, -s * .3, s * .82, -s * .46, s * .5);
-      ctx.bezierCurveTo(-s * .74, s * .05, -s * .8, -s * .98, 0, -s * 1.02);
-      ctx.closePath(); ctx.clip();
       const rl = ctx.createLinearGradient(-s * m.env.side, 0, s * m.env.side, 0);
-      rl.addColorStop(0, rgba(m.env.c, 0)); rl.addColorStop(1, rgba(m.env.c, .3 * m.env.on));
-      ctx.fillStyle = rl; ctx.fillRect(-s, -s * 1.1, s * 2, s * 2); ctx.restore();
+      rl.addColorStop(0, rgba(m.env.c, 0)); rl.addColorStop(1, rgba(m.env.c, .32 * m.env.on));
+      ctx.fillStyle = rl; ctx.fillRect(-s, -s * 1.1, s * 2, s * 2.2);
     }
     ctx.restore();
+    ctx.restore();
 
-    // chest dissolve particles (figure → OS)
+    // chest/shoulder dissolve into the OS
     ctx.save(); ctx.translate(cx, cy);
     for (const p of chest) {
-      const px = p.a * shW * .5 * (1 - p.t * .3), py = s * (1.6 + p.t * .8);
+      const px = p.a * shW * .5 * (1 - p.t * .25), py = s * (1.9 + p.t * .7);
       ctx.beginPath(); ctx.arc(px, py, p.r * (1 - p.t) * DPR * .8, 0, TAU);
-      ctx.fillStyle = rgba(mix(skin, m.accent, .5), (1 - p.t) * .5 * m.bright); ctx.fill();
+      ctx.fillStyle = rgba(mix(suit, m.accent, .5), (1 - p.t) * .5 * m.bright); ctx.fill();
     }
     ctx.restore();
   }
