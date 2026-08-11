@@ -303,6 +303,36 @@ def test_admin_supreme_status_returns_shape(client):
     assert body["scheduler_running"] is False
 
 
+def test_admin_supreme_status_reports_unusable_map_instead_of_500(
+    client, tmp_path, monkeypatch
+):
+    """An unusable map must be diagnosable here, not a 500: load_map() raises
+    SupremeConfigError, and this is the endpoint the operator reads to find out."""
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("{ this: is: not: valid yaml")
+    monkeypatch.setattr(sc, "MAP_PATH", map_path)
+    r = client.get("/admin/supreme/status", headers=ADMIN_HEADERS)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["map_loaded"] is False
+    assert str(map_path) in body["map_error"]
+    # Falls back to documented defaults rather than half-applying the bad map
+    assert body["scan_interval_seconds"] == 900
+    assert body["active_scans"] == []
+
+
+def test_admin_supreme_status_map_error_is_none_when_map_is_fine(
+    client, tmp_path, monkeypatch
+):
+    map_path = tmp_path / "map.yaml"
+    map_path.write_text("version: 7\nsupreme:\n  scan_interval_seconds: 60\n")
+    monkeypatch.setattr(sc, "MAP_PATH", map_path)
+    body = client.get("/admin/supreme/status", headers=ADMIN_HEADERS).json()
+    assert body["map_error"] is None
+    assert body["map_loaded"] is True
+    assert body["map_version"] == 7
+
+
 def test_admin_supreme_latest_empty(client, tmp_path, monkeypatch):
     """No proposals on disk → returns {proposal: null} not a 404."""
     monkeypatch.setattr(sc, "PROPOSALS_DIR", tmp_path)
