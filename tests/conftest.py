@@ -14,6 +14,23 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
+# ── KAI⇄Admin merge test env ─────────────────────────────────────────────────
+# Set BEFORE any test module imports app.config / app.main / core.api, so the
+# unified-session Settings singleton + both apps' session routers install
+# consistently regardless of test collection order. All values are stubs; these
+# are merge-only vars (nothing else in the suite reads them) and DATABASE_URL is
+# setdefault so it never overrides a real one.
+import os as _os  # noqa: E402
+for _k, _v in {
+    "DATABASE_URL": "postgresql://stub/stub", "APP_ENV": "test",
+    "API_KEY": "ownerkey", "ADMIN_TOKEN": "optok", "JWT_SECRET_KEY": "jwt",
+    "SESSION_SIGNING_SECRET": "surrogate-shared-secret",
+    "OPERATOR_SESSION_ENABLED": "true", "KAI_BRIDGE_ENABLED": "true",
+    "KAI_UPSTREAM_URL": "http://kai-upstream.local",
+    "KAI_COMMAND_BAR_GOVERNED": "true",
+}.items():
+    _os.environ.setdefault(_k, _v)
+
 
 # ── Sample manuscripts ────────────────────────────────────────────────────────
 
