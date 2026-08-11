@@ -1,6 +1,40 @@
 # KAI ⇄ Admin Merge — Surgical Migration Ledger (§34)
 
-> 2026-08-11. One row per capability that needs migration decision. Status vocabulary: DISCOVERED · MAPPED · INTEGRATING · VERIFIED · DUPLICATE_REMOVED · EXTERNAL_BLOCKED. **No capability may disappear silently.** All rows start at DISCOVERED/MAPPED — nothing is INTEGRATING yet (the identity-before-presence bridge is a pending human decision).
+> 2026-08-11. One row per capability that needs migration decision. Status vocabulary: DISCOVERED · MAPPED · INTEGRATING · VERIFIED · DUPLICATE_REMOVED · EXTERNAL_BLOCKED. **No capability may disappear silently.**
+
+## Execution status — identity-first bridge (branch `feat/kai-admin-merge`)
+
+All code below is committed **behind default-OFF flags**; nothing deployed. "VERIFIED (unit)"
+means covered by tests that run without booting the production apps; full-app verification is
+staging-gated (see `KAI_ADMIN_MERGE_STAGING_RUNBOOK.md`).
+
+| Phase | Item | Status | Evidence |
+|---|---|---|---|
+| P2 | Unified operator session core (`core/operator_session.py`) | VERIFIED (unit) | 20 tests |
+| P2 | FastAPI adapter + `/admin/session/{login,logout,whoami}` (`operator_session_web.py`) | VERIFIED (unit) | 17 tests |
+| P2 | Wired into App A (`core/api.py`) + App B (`main.py`, `dependencies/admin.py`), flag `OPERATOR_SESSION_ENABLED` | INTEGRATING | App B dep: 10 tests; App A: import-clean, staging-gated |
+| P1 | C1 `?api_key=` gated to sessions-off; adaptive cookie-first EventSource (`dashboard/index.html`) | INTEGRATING | regression tests; frontend staging-gated |
+| P3 | Same-origin bridge `/admin/kai/*` → App B (`core/kai_bridge.py`), flag `KAI_BRIDGE_ENABLED` | VERIFIED (unit) | 22 tests (fail-closed, allowlist, no-SSRF, scope/ultra, SSE, audit) |
+| P6 | Governed command bar (`ceo.html`) + `/admin/ui-config`, flag `KAI_COMMAND_BAR_GOVERNED` | INTEGRATING | staging-gated |
+| P7 | Context envelope `buildKaiContext()` (descriptive-only) | INTEGRATING | staging-gated |
+| P8 | Bridge audit events (actor/scope/route/status/corr-id, no secrets) | VERIFIED (unit) | 3 tests |
+
+**Total: 69 unit tests green. RBAC preserved; `SCOPE_KAI_ULTRA` owner-only verified. Flags all OFF.**
+
+## Branch tangle → consolidation task (do NOT auto-merge)
+
+- **`fix/wmos-critical-containment`** — has the C1 code fix (`d52a975`, 0× `%%API_KEY%%`), the CEO Command Center + apex proxy (`5d1057f`), and is the **base** of `feat/kai-admin-merge`. Query-param `?api_key=` still present here (now gated by this branch's session work).
+- **`istanbul`** — carries the C1 regression test `tests/test_wmos_containment.py` **uncommitted** (stranded from its own fix) + WMOS docs.
+- **`feat/wmos-safety-kernel`** — H1 kill-switch work (separate).
+- **`main`** — has none of the above (still C1-vulnerable).
+
+**Consolidation task (after staging verification, human-sequenced):** land `fix/wmos-critical-containment`
+(with the stranded `test_wmos_containment.py` committed) and `feat/wmos-safety-kernel` to `main` first,
+then rebase `feat/kai-admin-merge` onto the updated `main`. Do not merge unrelated WIP as part of this work.
+
+---
+
+> All rows below start at DISCOVERED/MAPPED. Identity-first bridge code is INTEGRATING (flag-gated); presence/consolidation phases remain DISCOVERED.
 
 ## Canonical implementations (source of truth per domain)
 
