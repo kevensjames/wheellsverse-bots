@@ -905,6 +905,24 @@ _install_kai_bridge(app, _BridgeConfig(
     session=_OPERATOR_SESSION_CFG,
 ))
 
+# Merge Phase P6: the admin command bar routes to the governed KAI brain (via the
+# bridge) instead of App A NarAI when this flag is on. Default OFF.
+_KAI_COMMAND_BAR_GOVERNED = os.getenv("KAI_COMMAND_BAR_GOVERNED", "false").strip().lower() \
+    in ("1", "true", "yes", "on")
+
+
+@app.get("/admin/ui-config", include_in_schema=False)
+async def admin_ui_config():
+    """Non-secret UI feature flags the admin frontend reads to pick behavior
+    (e.g. whether the KAI command bar posts to the governed brain). Booleans
+    only — never secrets, tokens, or upstream URLs."""
+    return {
+        "operator_session_enabled": _OPERATOR_SESSION_CFG.enabled,
+        "kai_bridge_enabled": os.getenv("KAI_BRIDGE_ENABLED", "false").strip().lower()
+        in ("1", "true", "yes", "on"),
+        "kai_command_bar_governed": _KAI_COMMAND_BAR_GOVERNED,
+    }
+
 
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):

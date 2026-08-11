@@ -451,11 +451,52 @@ async function runBot(b){
     toast('✓ queued '+name,'ok'); addLog({level:'info',message:'▸ run '+name}); }
   catch(e){ toast('✗ '+name+' '+e.message,'bad'); }
 }
+// Non-secret UI flags (loaded once). Default OFF → legacy behavior.
+let UI_FLAGS = { kai_command_bar_governed:false, operator_session_enabled:false, kai_bridge_enabled:false };
+async function loadUiFlags(){
+  try{ const r=await fetch('/admin/ui-config',{credentials:'include'}); if(r.ok) UI_FLAGS=await r.json(); }catch(e){}
+}
+// P7 context bridge: a DESCRIPTIVE-ONLY envelope. Never DOM dumps, hidden fields,
+// or secrets. Authorization always happens server-side; this only scopes intent.
+function buildKaiContext(){
+  return {
+    route: location.pathname,
+    module: 'ceo',
+    surface: 'command-center',
+    entity_type: null,       // per-page adapters set these (finding/circle/deployment id)
+    entity_id: null,
+    environment: /localhost|127\.0\.0\.1/.test(location.hostname) ? 'dev' : 'production'
+  };
+}
+// P6 governed path: post to the same-origin bridge → governed KAI brain, cookie
+// auth only (the bridge strips raw secrets and enforces scope/ultra server-side).
+async function sendCommandGoverned(text){
+  const res = await fetch('/admin/kai/kai-chat', {
+    method:'POST', credentials:'include',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ message: text, context: buildKaiContext() })
+  });
+  if(!res.ok){ throw new Error('HTTP '+res.status+(res.status===403?' (insufficient scope)':'')); }
+  const ct = res.headers.get('content-type')||'';
+  if(ct.includes('event-stream') && res.body && res.body.getReader){
+    const reader=res.body.getReader(), dec=new TextDecoder(); let out='';
+    const line=document.createElement('div'); line.className='kai'; line.innerHTML='<b>KAI</b> '; $('cmd-log').appendChild(line);
+    for(;;){ const {done,value}=await reader.read(); if(done) break;
+      dec.decode(value,{stream:true}).split('\n').forEach(l=>{ if(l.startsWith('data: ')){ const d=l.slice(6); if(d && d!=='[DONE]'){ try{ const o=JSON.parse(d); out+=(o.delta||o.content||o.text||''); }catch{ out+=d; } } } });
+      line.innerHTML='<b>KAI</b> '+out.replace(/</g,'&lt;'); $('cmd-log').scrollTop=$('cmd-log').scrollHeight;
+    }
+    return;
+  }
+  const data = await res.json().catch(()=>({}));
+  cmdEcho('<b>KAI</b> '+String(data.response||data.reply||data.content||JSON.stringify(data)).replace(/</g,'&lt;'),'kai');
+}
 async function sendCommand(text){
   if(!text.trim()) return;
   cmdEcho('▸ '+text.replace(/</g,'&lt;'),'you');
-  try{ const r=await api('/api/narai/command', {method:'POST', json:{text}});
-    cmdEcho('<b>KAI</b> '+String(r.response||r.reply||JSON.stringify(r)).replace(/</g,'&lt;'),'kai');
+  try{
+    if(UI_FLAGS.kai_command_bar_governed){ await sendCommandGoverned(text); }
+    else { const r=await api('/api/narai/command', {method:'POST', json:{text}});
+      cmdEcho('<b>KAI</b> '+String(r.response||r.reply||JSON.stringify(r)).replace(/</g,'&lt;'),'kai'); }
   }catch(e){ cmdEcho('<b>KAI</b> command link error: '+e.message,'kai'); }
 }
 async function control(act){
@@ -487,6 +528,7 @@ $('kill-btn').onclick=()=>{
 /* ---------- boot ---------- */
 function refresh(){ pollOverview(); pollHealth(); pollMoney(); pollKai(); pollBots(); pollWmos(); }
 function boot(){
+  loadUiFlags();   // non-secret feature flags (governed command bar, etc.)
   initCore(); refresh(); startLogStream();
   setInterval(()=>{ pollOverview(); pollHealth(); }, 5000);
   setInterval(()=>{ pollBots(); pollKai(); }, 8000);

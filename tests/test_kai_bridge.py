@@ -16,6 +16,7 @@ SECRET = "bridge-secret"
 OWNER_KEY = "owner-key"
 ADMIN_TOKEN = "admin-token"
 captured = {}
+audit_events = []
 
 
 def _handler(request: httpx.Request) -> httpx.Response:
@@ -39,6 +40,7 @@ def _handler(request: httpx.Request) -> httpx.Response:
 
 def _client(enabled=True, methods=frozenset({"GET", "POST"})):
     captured.clear()
+    audit_events.clear()
     app = FastAPI()
     sess = SessionConfig(enabled=True, owner_key=OWNER_KEY, admin_token=ADMIN_TOKEN,
                          session_secret=SECRET)
@@ -48,6 +50,7 @@ def _client(enabled=True, methods=frozenset({"GET", "POST"})):
         client_factory=lambda: httpx.AsyncClient(
             base_url="http://kai-upstream.internal",
             transport=httpx.MockTransport(_handler)),
+        audit_sink=audit_events.append,
     )
     install_kai_bridge(app, cfg)
     return TestClient(app)
@@ -188,3 +191,34 @@ def test_upstream_down_maps_502():
     c = _client()
     r = c.get("/admin/kai/kg/down", cookies=_cookie("owner"))
     assert r.status_code == 502
+
+
+# ── audit (P8) ───────────────────────────────────────────────────────────────
+def test_audit_emitted_on_dispatch_with_actor_and_no_secret():
+    c = _client()
+    c.get("/admin/kai/kai-chat", cookies=_cookie("owner"),
+          headers={"x-api-key": "SUPER-SECRET-KEY"})
+    assert len(audit_events) == 1
+    ev = audit_events[0]
+    assert ev["actor_role"] == "owner" and ev["module"] == "kai-chat"
+    assert ev["action"] == "GET" and ev["status"] == 200
+    assert ev["correlation_id"]
+    # No secret anywhere in the event.
+    blob = str(ev)
+    assert "SUPER-SECRET-KEY" not in blob and "wv_session" not in blob
+    assert "cookie" not in {k.lower() for k in ev}
+
+
+def test_audit_emitted_on_denied_scope():
+    c = _client()
+    c.post("/admin/kai/kai-chat/ultra", json={}, cookies=_cookie("operator"))
+    assert len(audit_events) == 1
+    ev = audit_events[0]
+    assert ev["status"] == 403 and ev["actor_role"] == "operator"
+
+
+def test_audit_emitted_on_anonymous_denied():
+    c = _client()
+    c.get("/admin/kai/kai-chat")
+    assert audit_events and audit_events[-1]["status"] == 401
+    assert audit_events[-1]["actor_role"] == "anonymous"

@@ -20,6 +20,9 @@ injectable, so the whole thing is testable against a mock App B with no network.
 """
 from __future__ import annotations
 
+import json
+import logging
+import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Callable, Optional
@@ -30,6 +33,8 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from core.operator_session import Principal, SCOPE_KAI_CHAT, SCOPE_KAI_ULTRA
 from core.operator_session_web import SessionConfig, principal_for_request
+
+_AUDIT_LOG = logging.getLogger("kai.bridge.audit")
 
 # Hop-by-hop headers (RFC 7230 §6.1) plus ones we must not tunnel verbatim.
 _HOP_BY_HOP = frozenset({
@@ -54,6 +59,9 @@ class BridgeConfig:
     timeout: float = 30.0
     # Test seam: returns an httpx.AsyncClient (default targets the real upstream).
     client_factory: Optional[Callable[[], httpx.AsyncClient]] = field(default=None)
+    # Merge Phase P8: every bridged action emits an auditable event here. Default
+    # logs structured JSON; tests inject a capturing sink. NEVER receives secrets.
+    audit_sink: Optional[Callable[[dict], None]] = field(default=None)
 
     def make_client(self) -> httpx.AsyncClient:
         if self.client_factory is not None:
@@ -92,6 +100,32 @@ def _filter_response_headers(resp: httpx.Response) -> dict:
             if k.lower() not in _HOP_BY_HOP}
 
 
+def _emit_audit(cfg: BridgeConfig, *, path: str, method: str, status,
+                principal: Optional[Principal], corr_id: str,
+                context: Optional[dict] = None) -> None:
+    """Emit one auditable event for a bridged KAI action. Contains actor role +
+    scopes, route/module/action, status, correlation id, timestamp — and NEVER a
+    token, key, cookie, or secret."""
+    event = {
+        "event": "kai.bridge",
+        "ts": time.time(),
+        "actor_role": principal.role if principal else "anonymous",
+        "actor_source": principal.source if principal else None,
+        "actor_scopes": sorted(principal.scopes) if principal else [],
+        "module": _first_segment(path) or "unknown",
+        "route": "/admin/kai/" + path,
+        "action": method,
+        "status": status,
+        "correlation_id": corr_id,
+    }
+    if context:
+        event["context"] = context  # already-sanitized envelope (see P7)
+    try:
+        (cfg.audit_sink or (lambda e: _AUDIT_LOG.info(json.dumps(e, default=str))))(event)
+    except Exception:  # auditing must never break the request path
+        pass
+
+
 def install_kai_bridge(app: FastAPI, cfg: BridgeConfig) -> None:
     """Register the bridge routes. The proxy route is ALWAYS registered but
     returns 404 when disabled (fail-closed); the health route is always live."""
@@ -111,25 +145,32 @@ def install_kai_bridge(app: FastAPI, cfg: BridgeConfig) -> None:
     @router.api_route("/admin/kai/{path:path}",
                       methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
     async def proxy(path: str, request: Request):
+        corr_id = request.headers.get(_CORR_HEADER) or uuid.uuid4().hex
+
+        def _deny(status, payload, principal=None):
+            _emit_audit(cfg, path=path, method=request.method, status=status,
+                        principal=principal, corr_id=corr_id)
+            return JSONResponse(payload, status_code=status,
+                                headers={_CORR_HEADER: corr_id})
+
         # 1) Fail closed when disabled.
         if not cfg.enabled:
-            return JSONResponse({"error": "kai_bridge_disabled"}, status_code=404)
+            return _deny(404, {"error": "kai_bridge_disabled"})
         # 2) Method allowlist.
         if request.method not in cfg.allow_methods:
-            return JSONResponse({"error": "method_not_allowed"}, status_code=405)
+            return _deny(405, {"error": "method_not_allowed"})
         # 3) Path prefix allowlist (blocks arbitrary upstream paths / traversal).
         if ".." in path or _first_segment(path) not in cfg.allow_prefixes:
-            return JSONResponse({"error": "path_not_allowed"}, status_code=404)
+            return _deny(404, {"error": "path_not_allowed"})
         # 4) AuthN: a valid unified principal is required.
         principal: Optional[Principal] = principal_for_request(request, cfg.session)
         if principal is None:
-            return JSONResponse({"error": "unauthenticated"}, status_code=401)
+            return _deny(401, {"error": "unauthenticated"})
         # 5) AuthZ: scope gate (ultra path is owner-only).
         need = _required_scope(path, request, cfg)
         if not principal.has(need):
-            return JSONResponse({"error": "forbidden", "need": need}, status_code=403)
+            return _deny(403, {"error": "forbidden", "need": need}, principal)
 
-        corr_id = request.headers.get(_CORR_HEADER) or uuid.uuid4().hex
         body = await request.body()
         headers = _forward_request_headers(request, corr_id)
 
@@ -142,12 +183,17 @@ def install_kai_bridge(app: FastAPI, cfg: BridgeConfig) -> None:
             upstream_resp = await client.send(upstream_req, stream=True)
         except httpx.TimeoutException:
             await client.aclose()
-            return JSONResponse({"error": "upstream_timeout", "correlation_id": corr_id},
-                                status_code=504)
+            return _deny(504, {"error": "upstream_timeout", "correlation_id": corr_id},
+                        principal)
         except httpx.HTTPError:
             await client.aclose()
-            return JSONResponse({"error": "upstream_unreachable", "correlation_id": corr_id},
-                                status_code=502)
+            return _deny(502, {"error": "upstream_unreachable", "correlation_id": corr_id},
+                        principal)
+
+        # Authorized + dispatched — audit with the real upstream status.
+        _emit_audit(cfg, path=path, method=request.method,
+                    status=upstream_resp.status_code, principal=principal,
+                    corr_id=corr_id)
 
         async def _stream():
             try:
