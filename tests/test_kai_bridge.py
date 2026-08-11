@@ -87,7 +87,15 @@ def test_owner_allowed():
     c = _client()
     r = c.get("/admin/kai/kai-chat", cookies=_cookie("owner"))
     assert r.status_code == 200 and r.json()["ok"] is True
-    assert captured["path"] == "/kai-chat"
+    # Maps to App B's real route /admin/kai-chat (NOT /kai-chat).
+    assert captured["path"] == "/admin/kai-chat"
+
+
+def test_upstream_path_prefix_mapping():
+    # /admin/kai/kg/nodes → <upstream>/admin/kg/nodes (App B's real KG path).
+    c = _client()
+    c.get("/admin/kai/kg/nodes", cookies=_cookie("owner"))
+    assert captured["path"] == "/admin/kg/nodes"
 
 
 def test_operator_allowed_on_chat():

@@ -52,6 +52,11 @@ class BridgeConfig:
     enabled: bool
     upstream: str                                  # fixed base URL, e.g. https://kai.wheellsverse.com
     session: SessionConfig
+    # App B's governed routes live under /admin/* (admin_chat prefix="/admin" →
+    # /admin/kai-chat; admin_kg prefix="/admin/kg"). So /admin/kai/{path} maps to
+    # upstream + upstream_prefix + "/" + path, i.e. /admin/kai/kai-chat →
+    # <upstream>/admin/kai-chat. Configurable in case App B remounts.
+    upstream_prefix: str = "/admin"
     allow_prefixes: tuple = ("kai-chat", "kg", "twin", "persona", "briefing",
                              "research", "memory")
     allow_methods: frozenset = frozenset({"GET", "POST"})
@@ -175,8 +180,10 @@ def install_kai_bridge(app: FastAPI, cfg: BridgeConfig) -> None:
         headers = _forward_request_headers(request, corr_id)
 
         client = cfg.make_client()
+        _pfx = cfg.upstream_prefix.strip("/")
+        fwd_path = f"/{_pfx}/{path}" if _pfx else f"/{path}"
         upstream_req = client.build_request(
-            request.method, "/" + path,
+            request.method, fwd_path,
             params=dict(request.query_params), content=body, headers=headers,
         )
         try:
