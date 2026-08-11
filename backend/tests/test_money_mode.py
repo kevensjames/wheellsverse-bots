@@ -37,5 +37,8 @@ def test_empty_key_allowed_anywhere():
 
 
 def test_unrecognized_key_mode_refused():
-    with pytest.raises(ValueError, match="recognized mode"):
+    # a publishable key (pk_) is not a secret key — still refused. (sk_/rk_ secret
+    # keys with a _live_/_test_ mode are the accepted formats; rk_ coverage lives
+    # in test_lane_a_polish.py.)
+    with pytest.raises(ValueError, match="not a recognized Stripe secret key"):
         _settings(APP_ENV="development", STRIPE_SECRET_KEY="pk_live_wrongtype")

@@ -11,7 +11,7 @@ from sqlalchemy.sql import func
 from app.models.conversation import Conversation, Message
 from app.services.nai_brain.memory_injection import build_memory_preamble
 from app.services.nai_brain.system_prompt import build_system_prompt
-from app.services.router.router import Router
+from app.services.router.router import Router, SpendCapExceeded
 from app.services.tools.base import ToolContext
 from app.services.tools.registry import ToolRegistry
 
@@ -294,9 +294,16 @@ class Brain:
             ):
                 collected.append(delta)
                 yield {"type": "delta", "content": delta}
-        except Exception as e:
-            logger.exception("stream failure")
+        except SpendCapExceeded as e:
+            # Actionable, non-sensitive ("daily"/"monthly") — surface it verbatim.
             yield {"type": "error", "error": str(e)}
+            return
+        except Exception:
+            # Redact: a raw provider/adapter error string is internal detail. Log
+            # the real cause; give the client the same generic message the outer
+            # SSE handler uses for unexpected errors.
+            logger.exception("stream failure")
+            yield {"type": "error", "error": "The assistant hit an error. Please try again."}
             return
 
         full_content = "".join(collected)

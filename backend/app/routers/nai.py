@@ -13,7 +13,7 @@ import logging
 import uuid
 from typing import Iterator
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 
@@ -29,6 +29,8 @@ from app.schemas.nai import (
     ConversationOut,
     MessageOut,
 )
+from app.core.rate_limit import limiter
+from app.core.client_ip import user_or_ip_key
 from app.services.nai_brain import Brain
 from app.services.router import build_default_router
 from app.services.router.router import SpendCapExceeded
@@ -48,8 +50,10 @@ def _build_brain(session: Session) -> Brain:
 
 
 @router.post("/chat", response_model=ChatResponse)
+@limiter.limit("30/minute", key_func=user_or_ip_key)
 def chat(
-    request: ChatRequest,
+    request: Request,          # Starlette request — required by the limiter
+    body: ChatRequest,
     current_user: User = Depends(get_current_user),
     session: Session = Depends(get_db),
 ) -> ChatResponse:
@@ -59,9 +63,9 @@ def chat(
     preset_id_used: str | None = None
     auto_routed = False
     # Opt-in super-router: pick + apply the best domain expert for this message.
-    if request.auto_route:
+    if body.auto_route:
         from app.services.agent_router import classify_domain
-        routed = classify_domain(router=rt, user_id=current_user.id, question=request.message)
+        routed = classify_domain(router=rt, user_id=current_user.id, question=body.message)
         if routed.get("preset_id"):
             from app.services.presets import filter_registry, get_preset
             preset = get_preset(routed["preset_id"])
@@ -74,11 +78,11 @@ def chat(
     try:
         conv, msg, cost = brain.chat(
             user_id=current_user.id,
-            conversation_id=request.conversation_id,
-            user_message=request.message,
-            use_tools=request.use_tools,
-            prefer_local=request.prefer_local,
-            max_tokens=request.max_tokens,
+            conversation_id=body.conversation_id,
+            user_message=body.message,
+            use_tools=body.use_tools,
+            prefer_local=body.prefer_local,
+            max_tokens=body.max_tokens,
             persona_prompt=persona_prompt,
         )
     except SpendCapExceeded as e:
@@ -116,7 +120,9 @@ def _sse_format(events: Iterator[dict]) -> Iterator[bytes]:
 
 
 @router.get("/chat/stream")
+@limiter.limit("30/minute", key_func=user_or_ip_key)
 def chat_stream(
+    request: Request,          # Starlette request — required by the limiter
     message: str = Query(..., min_length=1, max_length=10_000),
     conversation_id: uuid.UUID | None = Query(None),
     prefer_local: bool = Query(False),
@@ -124,7 +130,8 @@ def chat_stream(
     current_user: User = Depends(get_user_for_stream),
     session: Session = Depends(get_db),
 ):
-    """SSE streaming endpoint. Tools are disabled in streaming mode."""
+    """SSE streaming endpoint. Tools are disabled in streaming mode. The limit is
+    on connection ESTABLISHMENT (one unit per opened stream), not tokens."""
     brain = _build_brain(session)
     events = brain.stream(
         user_id=current_user.id,

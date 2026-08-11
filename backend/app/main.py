@@ -1,10 +1,11 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -162,6 +163,78 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+
+# ── Unhandled-exception observability ──────────────────────────────────────
+# A genuinely uncaught exception used to fail SILENTLY in production: the client
+# got a bare 500 and no one was paged. This handler logs it with a correlation
+# id, fires ONE deduplicated + redacted operator alert (prod only), and returns
+# a generic 500 that leaks nothing.
+#
+# What it deliberately does NOT touch (verified against the codebase):
+#   - HTTPException / RequestValidationError / RateLimitExceeded — each has a
+#     more-specific handler, so Starlette routes there, never here. Expected
+#     4xx/429 keep their status, headers, and bodies, and are not alerted.
+#   - DEBUG mode — Starlette's ServerErrorMiddleware shows a traceback and does
+#     NOT invoke this handler, so local dev is unchanged.
+#   - Cancellation / disconnect — asyncio.CancelledError is a BaseException, not
+#     Exception, so it never reaches an Exception handler; cancellation is never
+#     consumed (the isinstance guard is belt-and-suspenders).
+#   - Streaming bodies — Starlette only invokes this before the response starts;
+#     a mid-stream failure (after headers are sent) can't be replaced here (see
+#     nai._sse_format, which frames its own error event).
+_UNHANDLED_ALERT_WINDOW_S = 300.0
+_last_unhandled_alert: dict[str, float] = {}
+
+
+def _is_prod_env() -> bool:
+    return (settings.APP_ENV or "").strip().lower() not in (
+        "development", "dev", "local", "test", "testing", "ci")
+
+
+def _scrub_secrets(text: str) -> str:
+    """Redact tokens that may appear inside an exception message (e.g. a DSN or
+    Authorization header) before it goes to logs/alerts. Reuses the audit-log
+    value patterns so there's one source of truth."""
+    try:
+        from app.services.governance.audit_log import _SECRET_VALUE_RE
+        return _SECRET_VALUE_RE.sub("<redacted>", text)
+    except Exception:
+        return text
+
+
+async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    if isinstance(exc, asyncio.CancelledError):  # never consume cancellation
+        raise exc
+    import time
+    import uuid
+
+    _log = logging.getLogger("app.unhandled")
+    correlation_id = uuid.uuid4().hex[:12]
+    _log.exception("unhandled [%s] %s %s", correlation_id, request.method, request.url.path)
+
+    if _is_prod_env():
+        sig = f"{type(exc).__name__}:{request.url.path}"
+        now = time.monotonic()
+        if now - _last_unhandled_alert.get(sig, 0.0) > _UNHANDLED_ALERT_WINDOW_S:
+            _last_unhandled_alert[sig] = now
+            try:
+                from app.services import observability
+                detail = observability._html_escape(
+                    f"{request.method} {request.url.path}\n"
+                    f"[{correlation_id}] {type(exc).__name__}: {_scrub_secrets(str(exc))[:200]}"
+                )
+                observability.notify(f"\U0001f6a8 <b>KAI unhandled error</b>\n{detail}")
+            except Exception:  # alerting must never mask the original failure
+                _log.warning("unhandled-alert delivery failed for %s", correlation_id)
+
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "correlation_id": correlation_id},
+    )
+
+
+app.add_exception_handler(Exception, unhandled_exception_handler)
 
 app.add_middleware(
     CORSMiddleware,
