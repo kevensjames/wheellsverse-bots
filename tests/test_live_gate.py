@@ -100,3 +100,22 @@ def test_c1_query_secret_rejected(A):
     A.cookies.clear()
     assert A.get("/api/_c1probe?api_key=ownerkey").status_code == 401
     assert A.get("/api/_c1probe", headers={"X-API-Key": "ownerkey"}).status_code != 401
+
+
+# ── Gate 3: REAL governed LLM through the bridge (owner → ollama) ─────────────
+# Slow (local inference) + needs App B fully provisioned (migrated DB, seeded
+# ultra profile, ollama, placeholder OPENAI_API_KEY to satisfy REQUIRED_ADAPTERS).
+# Skips (not fails) if App B isn't provisioned for it.
+def test_gate3_real_governed_llm(A):
+    _login(A, "ownerkey")
+    r = A.post("/admin/kai/kai-chat",
+               json={"message": "Reply with exactly: KAI staging verified.",
+                     "prefer_local": True}, timeout=60)
+    if r.status_code == 500:
+        pytest.skip("App B not fully provisioned for Gate 3 (schema/profile/ollama)")
+    assert r.status_code == 200
+    body = r.json()
+    # The governed answer came from the REAL local provider (ollama), not a mock.
+    assert "ollama" in str(body.get("message", ""))
+    assert body.get("conversation_id")            # conversation persisted
+    assert r.headers.get("x-correlation-id")

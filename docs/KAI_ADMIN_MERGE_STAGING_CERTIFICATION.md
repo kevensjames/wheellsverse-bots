@@ -44,14 +44,66 @@ zero cost and zero production risk.
    extension). The bridged chat 500'd on a missing `profiles` table — App B DB
    provisioning, exactly what an operator-provisioned staging supplies.
 
-## What real (operator-provisioned) staging still adds
-- App B full schema + LLM/provider keys → **Gate 3 real incremental SSE streaming
-  + cancellation** end-to-end (the one gate not certifiable locally).
-- HTTPS `Secure`-cookie behavior + Cloudflare same-origin topology.
+## Gate 3 — real governed LLM (CONDITIONAL)  [2026-08-11 update]
+
+App B fully provisioned locally: DB `kai_gate3` (create_all bootstrap — the alembic
+chain assumes a Supabase-provisioned base, so the documented local mechanism is
+`Base.metadata.create_all` + the `llm_call_log` shadow, exactly as App B's own
+conftest does), `vector`+`pgcrypto` extensions, seeded tier=ultra operator profile
+(`KAI_OPERATOR_USER_ID`), `DEBUG=false`, and **local ollama (llama3.1:8b)** as the
+real provider (`prefer_local` default). A placeholder `OPENAI_API_KEY` satisfies
+App B's `REQUIRED_ADAPTERS={'openai'}` router-construction check; real inference
+goes to ollama (no real openai call, no cost, no prod credential).
+
+| Check | Result | Evidence |
+|---|---|---|
+| App B schema | ✅ PASS | 18 tables via canonical create_all bootstrap |
+| App B ready | ✅ PASS | `/health` 200 |
+| **Real provider** | ✅ PASS | owner chat → 200 (12.1s), `adapter:'ollama'`, coherent answer, `conversation_id` persisted (`conversations=2, messages=4`) |
+| Owner-only chat | ✅ PASS | operator → `/admin/kai/kai-chat` → **403** (escalation closed) |
+| Correlation id | ✅ PASS | propagated end-to-end |
+| Audit | ✅ PASS | one secret-free bridge event per action |
+| Spend ceiling | ✅ PASS (mechanism) | `SpendTracker` in-path, `llm_call_log` rows written, `NAI_MAX_DAILY_SPEND_USD=$2` cap (ollama=$0, not exhausted) |
+| Error redaction | ✅ PASS | `DEBUG=false` → redacted `Internal Server Error`, no traceback |
+| **Real incremental streaming** | ⚠️ N/A (by design) | `/admin/kai-chat` is **synchronous/buffered JSON, not SSE** |
+| SSE framing / cancellation | ⚠️ N/A | no stream on the operator endpoint to frame/cancel |
+| Rate limit | ⚠️ N/A | no request-rate limiter on the operator chat; the **spend ceiling is the control** |
+| Context receipt | ⚠️ PARTIAL | bridge carries the envelope; App B `AdminChatRequest` has **no `context` field** yet (P7 App B follow-up) |
+
+**GATE 3 = CONDITIONAL** (not silently PASS): the governed LLM works end-to-end
+through the bridge — owner-only, real local provider, persisted, spend-tracked,
+redacted, audited — but **real SSE streaming + cancellation are N/A because the
+governed operator endpoint is buffered by design** (App B's SSE lives on the
+user endpoint `/kai/chat/stream`, which is Supabase-JWT auth, not the operator
+session). This is a precisely-documented transport boundary, not a merge defect.
+
+## Findings ledger (Gate 3)
+1. **Operator→ultra escalation — FIXED** (merge security defect): `/admin/kai-chat`
+   always runs tier=ultra + App B auth is binary, so an operator could reach it.
+   Bridge now gates the whole `kai-chat` prefix to owner-only `kai.ultra`
+   (`17cce12`, regression tests).
+2. **Governed streaming gap** (App B/architecture): the operator chat is buffered.
+   To get streaming subtitles in the drawer/command bar, App B needs a governed
+   **streaming** operator endpoint (or the bridge points at a streaming path with
+   operator auth). Decision required before the presence drawer's streaming UX.
+3. **`AdminChatRequest` has no `context` field** (P7): App B can't consume the
+   envelope yet — small App B change to accept + use it.
+4. **`DEBUG` defaults `True`** (`config.py:17`): tracked separately; before prod,
+   flip the safe default to `False` with explicit local opt-in.
+5. **`REQUIRED_ADAPTERS={'openai'}`**: even local-only runs need the openai adapter
+   to construct (placeholder key). Consider making ollama a valid sole adapter.
+6. **Schema bootstrap** (documented, not a defect): alembic assumes the Supabase
+   base; local/staging uses `create_all` (App B's own conftest mechanism).
+
+## What still needs hosted-edge certification (blocks PRODUCTION only)
+HTTPS `Secure`-cookie behavior, Cloudflare same-origin proxying, SSE-through-edge,
+disconnect propagation, header filtering. Tracked as `HOSTED_EDGE_CERTIFICATION`.
 
 ## Verdict
-The merge **spine is certified over real HTTP** (identity, cross-app, bridge
-transport + security + redaction, C1, RBAC). Gate 3 real-streaming is blocked on
-App B provisioning (schema + LLM key), which is operator-owned. Per the directive,
-**presence wiring (P11–P15) remains gated** until Gate 3 is green in a fully
-provisioned staging.
+Gate 1, Gate 2, and C1 are **certified over real HTTP**; **Gate 3 is CONDITIONAL**
+— the governed LLM path is fully proven end-to-end with a real local provider, but
+streaming/cancellation are N/A on the buffered operator endpoint (documented
+boundary). The merge spine is sound. Presence (P11–P15) may proceed in **local
+development** per the directive, but the drawer's streaming UX depends on resolving
+the governed-streaming-endpoint decision, and **production stays blocked** on
+hosted-edge certification.
