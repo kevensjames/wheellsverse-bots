@@ -23,7 +23,7 @@ from app.services.supreme import (
     load_map,
     read_proposal,
 )
-from app.services.supreme.scanner import run_full_cycle
+from app.services.supreme.scanner import SupremeConfigError, run_full_cycle
 from app.services.supreme.scheduler import is_running
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,20 @@ router = APIRouter(
 
 @router.get("/status")
 def supreme_status():
-    smap = load_map()
+    """Report scheduler + map state.
+
+    ``load_map()`` raises ``SupremeConfigError`` when the map exists but cannot be
+    honored (unparseable YAML, PyYAML absent). This endpoint is precisely where an
+    operator goes to diagnose that, so it reports the condition as
+    ``map_loaded=false`` + ``map_error`` rather than returning a 500.
+    """
+    map_error: str | None = None
+    try:
+        smap = load_map()
+    except SupremeConfigError as e:
+        logger.error("supreme: map present but unusable — %s", e)
+        smap = {}
+        map_error = str(e)
     supr = smap.get("supreme", {}) if smap else {}
     return {
         "scheduler_running": is_running(),
@@ -46,6 +59,7 @@ def supreme_status():
         "active_scans": supr.get("scans", []),
         "map_loaded": bool(smap),
         "map_version": smap.get("version") if smap else None,
+        "map_error": map_error,
     }
 
 
