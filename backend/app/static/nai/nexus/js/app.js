@@ -15,7 +15,7 @@ import { speak } from './voice/speech.js';
 
 quality.init();                                   // resolve render tier before mounting
 const $ = s => document.querySelector(s);
-const avatar   = mountKai($('#avatar'));
+const avatar   = mountKai($('#kai-stage'));
 // §36 data honesty: everything is simulated until a real feed proves otherwise
 ['system', 'security', 'agents', 'memory', 'costs', 'market', 'infra', 'mission', 'news', 'world', 'activity', 'thinking']
   .forEach(d => dataFreshness.set(d, FRESH.DEMO));

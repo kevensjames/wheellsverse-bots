@@ -89,9 +89,20 @@ h1,h2,h3,p { margin: 0; }
 /* ---- Avatar stage (center) -------------------------------------------- */
 .stage {
   position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  min-height: 0; padding: var(--s4);
+  min-height: 0; padding: var(--s2) var(--s4);
 }
-.stage canvas { display:block; width: min(440px, 78%); height: auto; aspect-ratio: 1 / 1; }
+/* KAI hero — dominates the center; portrait + halo(behind) + fx(front) */
+.kai { position: relative; width: min(520px, 92%); aspect-ratio: 3 / 4; max-height: 72vh; margin: 0 auto; }
+.kai > canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+#kai-halo { z-index: 0; } #kai-fx { z-index: 2; }
+#kai-portrait {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+  will-change: transform; filter: saturate(1.06) contrast(1.03);
+  -webkit-mask-image: radial-gradient(132% 100% at 50% 36%, #000 56%, transparent 84%), linear-gradient(to bottom, #000 58%, transparent 97%);
+  -webkit-mask-composite: source-in;
+  mask-image: radial-gradient(132% 100% at 50% 36%, #000 56%, transparent 84%), linear-gradient(to bottom, #000 58%, transparent 97%);
+  mask-composite: intersect;
+}
 .stage .greet { margin-top: var(--s4); font-size: var(--fs-lg); color: var(--ink-dim); text-align:center; min-height: 1.4em;
   transition: color var(--t-med); }
 .stage .statechip {
@@ -105,10 +116,13 @@ h1,h2,h3,p { margin: 0; }
 /* ---- Command dock ----------------------------------------------------- */
 .dock {
   grid-area: dock; display: flex; align-items: center; gap: var(--s3);
-  margin: 0 var(--s5) var(--s3); padding: var(--s2) var(--s3);
-  background: var(--glass-bg); border: 1px solid var(--glass-stroke);
-  border-radius: var(--r-pill); backdrop-filter: blur(var(--glass-blur)); box-shadow: var(--shadow-2);
+  margin: 0 var(--s5) var(--s3); padding: var(--s3) var(--s4); min-height: 56px;
+  background: var(--glass-bg); border: 1px solid var(--accent-soft);
+  border-radius: var(--r-pill); -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  box-shadow: var(--shadow-2), 0 0 34px -14px var(--accent-glow);
+  transition: border-color var(--t-med), box-shadow var(--t-med);
 }
+.dock input { font-size: var(--fs-lg); }
 .dock.hot { border-color: var(--accent-soft); box-shadow: var(--shadow-2), var(--glow-accent); }
 .dock .mode { display:flex; align-items:center; gap: var(--s2); padding-left: var(--s2); color: var(--accent-ink);
   font-size: var(--fs-micro); letter-spacing: var(--tracking-wide); text-transform: uppercase; white-space: nowrap; }
