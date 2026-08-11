@@ -21,9 +21,33 @@ const VISEME = {
 };
 function visemeFor(ch) { return VISEME[ch] || (/[a-z]/.test(ch) ? ['C', .3] : ['rest', 0]); }
 
+// ── Voice selection (§6 — KAI is MALE; never fall back to the female default) ──
+const MALE_PRIORITY = [
+  'Google UK English Male', 'Microsoft Guy', 'Microsoft David', 'Microsoft Mark',
+  'Daniel', 'Arthur', 'Oliver', 'Alex', 'Aaron', 'Rishi', 'Google US English',
+];
+const FEMALE = /samantha|victoria|karen|moira|tessa|fiona|susan|zira|serena|allison|ava|kathy|vicki|nicky|catherine|zoe|amelie|anna|paulina|female|woman/i;
+let VOICES = [], CHOSEN = null;
+function chooseVoice() {
+  const saved = localStorage.getItem('kai.voice');
+  if (saved) { const v = VOICES.find(x => x.name === saved); if (v) return v; }
+  for (const name of MALE_PRIORITY) { const v = VOICES.find(x => x.name.includes(name)); if (v) return v; }
+  const en = VOICES.filter(v => /^en/i.test(v.lang));
+  return en.find(v => !FEMALE.test(v.name)) || VOICES.find(v => !FEMALE.test(v.name)) || en[0] || VOICES[0] || null;
+}
+function refreshVoices() {
+  if (!('speechSynthesis' in window)) return;
+  VOICES = speechSynthesis.getVoices() || []; CHOSEN = chooseVoice();
+  bus.emit('voices', { list: VOICES.map(v => ({ name: v.name, lang: v.lang })), chosen: CHOSEN && CHOSEN.name });
+}
+if ('speechSynthesis' in window) { refreshVoices(); speechSynthesis.addEventListener('voiceschanged', refreshVoices); }
+export function listVoices() { return VOICES.map(v => ({ name: v.name, lang: v.lang })); }
+export function currentVoice() { return CHOSEN ? CHOSEN.name : null; }
+export function setVoice(name) { localStorage.setItem('kai.voice', name); CHOSEN = chooseVoice(); return currentVoice(); }
+
 let active = null;
 
-export function speak(text, { rate = 1, pitch = 1 } = {}) {
+export function speak(text, { rate = .98, pitch = .96 } = {}) {   // masculine, warm — not deep-narrator
   cancel();
   const clean = (text || '').trim();
   if (!clean) return { cancel };
@@ -45,9 +69,7 @@ export function speak(text, { rate = 1, pitch = 1 } = {}) {
 
   if ('speechSynthesis' in window) {
     const u = new SpeechSynthesisUtterance(clean); u.rate = rate; u.pitch = pitch;
-    // slightly cooler, steadier voice if one is available
-    const vs = speechSynthesis.getVoices();
-    u.voice = vs.find(v => /Daniel|Google UK English|Samantha|Alex/.test(v.name)) || vs[0] || null;
+    u.voice = CHOSEN || chooseVoice();   // masculine voice, never the female default
     u.onboundary = e => { if (e.name === 'word' || e.charIndex != null) driveWord(clean.slice(e.charIndex).split(/\s+/)[0] || ''); };
     u.onend = () => { rest(); active = null; };
     u.onerror = () => { rest(); active = null; };

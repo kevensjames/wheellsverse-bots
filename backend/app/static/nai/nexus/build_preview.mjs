@@ -3,10 +3,15 @@ const rd = p => fs.readFileSync(p, 'utf8');
 const html = rd('index.html');
 const css = rd('css/tokens.css') + '\n' + rd('css/nexus.css');
 const js = rd('/tmp/nexus.bundle.js');
-// inline the KAI portrait as a data URI so the single-file build has no external assets
+// inline the KAI portrait + living-avatar videos as data URIs (single-file build)
 const kaiB64 = fs.readFileSync('assets/kai.jpg').toString('base64');
+const idleB64 = fs.readFileSync('assets/kai-idle.mp4').toString('base64');
+const speakB64 = fs.readFileSync('assets/kai-speak.mp4').toString('base64');
 const bodyInner = html.split('<body>')[1].split('</body>')[0]
   .replace(/<script type="module" src="js\/app\.js"><\/script>/, '')
+  .replace(/src="assets\/kai-idle\.mp4"/, `src="data:video/mp4;base64,${idleB64}"`)
+  .replace(/src="assets\/kai-speak\.mp4"/, `src="data:video/mp4;base64,${speakB64}"`)
+  .replace(/poster="assets\/kai\.jpg"/, `poster="data:image/jpeg;base64,${kaiB64}"`)
   .replace(/src="assets\/kai\.jpg"/, `src="data:image/jpeg;base64,${kaiB64}"`);
 
 // (a) standalone self-contained file (keeps <html data-*> for the repo demo)

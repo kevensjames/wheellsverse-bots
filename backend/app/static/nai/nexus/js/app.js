@@ -11,7 +11,8 @@ import { mountVoice } from './voice.js';
 import { mountWorkspace } from './transitions.js';
 import { quality } from './shared/quality.js';
 import { dataFreshness, FRESH } from './shared/dataFreshness.js';
-import { speak } from './voice/speech.js';
+import { speak, cancel as cancelSpeech, listVoices, setVoice, currentVoice } from './voice/speech.js';
+import { mountAvatarLab } from './dev/avatarLab.js';
 
 quality.init();                                   // resolve render tier before mounting
 const $ = s => document.querySelector(s);
@@ -86,7 +87,10 @@ bus.on('workspace:close', () => document.querySelectorAll('.tab').forEach(t => t
 const cmd = $('#cmd'), greet = $('#greet'), chip = $('#statechip-label'), dockMode = $('#dock-mode'), dock = $('#dock');
 cmd.addEventListener('focus', () => { bus.emit('gaze', 'input'); dock.classList.add('hot'); });
 cmd.addEventListener('blur',  () => { bus.emit('gaze', 'camera'); dock.classList.remove('hot'); });
-cmd.addEventListener('input', () => bus.emit('gaze', cmd.value ? 'input' : 'camera'));
+cmd.addEventListener('input', () => {
+  bus.emit('gaze', cmd.value ? 'input' : 'camera');
+  if (KAI.state === 'speaking') { cancelSpeech(); KAI.set('listening'); dockMode.textContent = 'Listening'; }  // barge-in (§19)
+});
 
 function submit(text) {
   text = (text || '').trim(); if (!text) return;
@@ -111,8 +115,9 @@ function submit(text) {
     [3000, () => { steps[3].state='done'; steps[4].state='active'; KAI.set('executing'); avatar.litHalo('tools'); dockMode.textContent='Executing'; emit(); }],
     [3800, () => { steps[4].state='done'; emit(); KAI.transient('success', 1500); toast('Response ready'); }],
     [4100, () => { const r = reply(text); KAI.set('speaking'); greet.textContent = r; dockMode.textContent='Speaking';
-                   if (sound.mode !== 'silent') speak(r);          // real browser TTS + viseme lip-sync
-                   setTimeout(() => { KAI.settle(); dockMode.textContent='Ready'; bus.emit('data:thinking', { mode:'idle', steps:[] }); }, 2600); }],
+                   const sub = $('#kai-subtitle'); sub.textContent = r; sub.classList.add('on');   // streaming transcript (§21)
+                   if (sound.mode !== 'silent') speak(r);          // real masculine TTS
+                   setTimeout(() => { KAI.settle(); dockMode.textContent='Ready'; sub.classList.remove('on'); bus.emit('data:thinking', { mode:'idle', steps:[] }); }, 2600); }],
   ];
   seq.forEach(([t, fn]) => setTimeout(fn, t));
 }
@@ -223,6 +228,9 @@ let lastTouch = performance.now();
 function touch() { lastTouch = performance.now(); if (KAI.state === 'sleep') { KAI.set('idle'); bus.emit('sound:cue', 'wake'); } }
 ['pointerdown', 'keydown', 'focusin'].forEach(e => addEventListener(e, touch, { passive: true }));
 setInterval(() => { if (KAI.state === 'idle' && performance.now() - lastTouch > 60000) KAI.set('sleep'); }, 5000);
+
+// ---- dev avatar lab (Alt+L or #lab) ----------------------------------------
+mountAvatarLab({ bus, KAI, avatar, speak, cancelSpeech, listVoices, setVoice, currentVoice });
 
 // ---- go --------------------------------------------------------------------
 data.start();

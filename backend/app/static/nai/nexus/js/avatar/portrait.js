@@ -28,6 +28,20 @@ const EYE_L = P(.43, .315), EYE_R = P(.565, .315), CORE = P(.5, .76);
 
 export function mountPortrait({ stage, halo, fx, img }) {
   const hctx = halo.getContext('2d'), fctx = fx.getContext('2d');
+
+  // ── living video layer: idle + speaking loops (real blink/breath/head) ─────
+  const vIdle = stage.querySelector('#kai-idle'), vSpeak = stage.querySelector('#kai-speak');
+  const media = [img, vIdle, vSpeak].filter(Boolean);
+  [vIdle, vSpeak].forEach(v => { if (!v) return;
+    v.addEventListener('loadeddata', () => v.classList.add('ready'), { once: true });   // fade in once real motion is ready
+    v.addEventListener('error', () => v.classList.remove('ready'));                      // 404/decode → poster fallback (§26)
+    const kick = () => { const p = v.play && v.play(); if (p) p.catch(() => {}); };
+    kick(); addEventListener('pointerdown', kick, { once: true });                       // resume if autoplay was blocked
+  });
+  bus.on('state', ({ state }) => {
+    if (state === 'speaking') { stage.setAttribute('data-speaking', ''); const p = vSpeak && vSpeak.play && vSpeak.play(); if (p) p.catch(() => {}); }
+    else stage.removeAttribute('data-speaking');
+  });
   let W = 0, H = 0, DPR = 1;
   const lowMotion = () => document.documentElement.dataset.motion === 'off' || matchMedia('(prefers-reduced-motion: reduce)').matches;
   const lowQ = () => document.documentElement.dataset.q === 'low';
@@ -154,9 +168,10 @@ export function mountPortrait({ stage, halo, fx, img }) {
     for (let i = flows.length - 1; i >= 0; i--) { flows[i].t += dt * flows[i].sp; if (flows[i].t >= 1) flows.splice(i, 1); }
     gaze(dt, still);
 
-    // breathing + gaze on the portrait itself
-    const bs = still ? 0 : Math.sin(m.breath) * .006;
-    img.style.transform = `scale(${1.02 + bs}) translate(${m.gaze.x * 1.2}%, ${m.gaze.y * 1 + (still ? 0 : Math.sin(m.breath) * .3)}%)`;
+    // gaze parallax (+ a touch of breath for the static poster) on all media layers
+    const bs = still ? 0 : Math.sin(m.breath) * .004;
+    const tf = `scale(${1.02 + bs}) translate(${m.gaze.x * 1.2}%, ${m.gaze.y * 1}%)`;
+    for (const el of media) el.style.transform = tf;
 
     drawHalo(); drawFx(still);
     raf = requestAnimationFrame(frame);

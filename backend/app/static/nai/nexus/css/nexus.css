@@ -100,16 +100,22 @@ h1,h2,h3,p { margin: 0; }
 /* canvases overflow the portrait box so the halo frames head + shoulders */
 .kai > canvas { position: absolute; inset: -12%; width: 124%; height: 124%; pointer-events: none; }
 #kai-halo { z-index: 0; } #kai-fx { z-index: 2; }
-#kai-portrait {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; will-change: transform;
-  /* the portrait's dark navy background SCREENS into the near-black UI → it
-     vanishes, while the lit face + cyan rim show. No visible portrait rectangle,
-     independent of the asset. */
+/* the avatar media (idle video · speaking video · poster image) all share the
+   same compositing: SCREEN the dark navy background into the near-black UI so it
+   vanishes (no visible rectangle), leaving the lit face + cyan rim. */
+.kai-media {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; will-change: transform, opacity;
   mix-blend-mode: screen;
   filter: saturate(1.08) contrast(1.05) brightness(1.03);
   -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 92%);
   mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 92%);
+  transition: opacity var(--t-slow) var(--ease);
 }
+#kai-portrait { opacity: 1; }                          /* base poster + fallback */
+#kai-idle, #kai-speak { opacity: 0; }
+#kai-idle.ready { opacity: 1; }                        /* idle loop covers the poster once playable */
+.kai[data-speaking] #kai-speak.ready { opacity: 1; }   /* swap to the talking loop while speaking */
+.kai[data-speaking] #kai-idle.ready  { opacity: 0; }
 .stage .greet { margin-top: var(--s4); font-size: var(--fs-lg); color: var(--ink-dim); text-align:center; min-height: 1.4em;
   transition: color var(--t-med); }
 .stage .statechip {
@@ -227,6 +233,34 @@ h1,h2,h3,p { margin: 0; }
 .fresh-stale       { color:var(--warn); border-color:rgba(242,184,75,.34);  background:rgba(242,184,75,.10); }
 .fresh-demo        { color:var(--warn); border-color:rgba(242,184,75,.3);   background:rgba(242,184,75,.08); }
 .fresh-unavailable { color:var(--crit); border-color:rgba(240,93,114,.34);  background:rgba(240,93,114,.10); }
+
+/* dev avatar lab (§22) */
+.avatar-lab { position: fixed; left: 12px; bottom: 12px; z-index: var(--z-toast); width: 320px; max-height: 70vh; overflow:auto;
+  background: rgba(6,10,20,.94); border: 1px solid var(--accent-soft); border-radius: var(--r-md);
+  padding: 10px 12px; font-size: 11px; color: var(--ink-dim); -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); }
+.avatar-lab[hidden] { display: none; }
+.avatar-lab .lab-h { display:flex; align-items:center; font-family:var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--accent-ink); font-size:10px; margin-bottom:8px; }
+.avatar-lab .lab-x { margin-left:auto; color:var(--ink-mute); }
+.avatar-lab .lab-t { font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-mute); margin:8px 0 4px; }
+.avatar-lab .lab-row { display:flex; flex-wrap:wrap; gap:4px; }
+.avatar-lab .lab-b { padding:4px 8px; border:1px solid var(--stroke); border-radius:6px; background:var(--bg-raised); color:var(--ink-dim); font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
+.avatar-lab .lab-b:hover { color:var(--ink); border-color:var(--accent); }
+.avatar-lab .lab-sel { width:100%; margin-bottom:6px; background:var(--bg-raised); color:var(--ink); border:1px solid var(--stroke); border-radius:6px; padding:4px; font-size:10px; }
+.avatar-lab .lab-read { margin-top:10px; font-family:var(--mono); font-size:10px; color:var(--accent-ink); }
+
+/* streaming speech subtitle (§21) — restrained, above the command bar */
+.subtitle {
+  position: absolute; left: 0; right: 0; margin: 0 auto; width: fit-content;
+  max-width: min(72%, 780px); text-align: center; line-height: 1.4;
+  bottom: calc(var(--nav-h) + var(--command-h) + 8px);
+  padding: 8px 18px; border-radius: var(--r-pill);
+  background: rgba(8,15,29,.66); border: 1px solid var(--accent-soft);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  color: var(--accent-ink); font-size: var(--fz-body);
+  opacity: 0; transform: translateY(6px); transition: opacity var(--t-med), transform var(--t-med);
+  pointer-events: none; z-index: var(--z-overlay);
+}
+.subtitle.on { opacity: 1; transform: none; }
 
 /* global "Demo Data" header flag — the whole board is simulated until real feeds land */
 .demoflag { font-family:var(--mono); font-size:var(--fs-micro); letter-spacing:var(--tracking-wide);

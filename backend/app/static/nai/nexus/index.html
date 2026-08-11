@@ -45,7 +45,10 @@
       <section class="stage" aria-label="KAI">
         <div class="kai" id="kai-stage">
           <canvas id="kai-halo" aria-hidden="true"></canvas>
-          <img id="kai-portrait" src="assets/kai.jpg" alt="" aria-hidden="true" decoding="async">
+          <!-- living avatar: idle + speaking loops; the portrait is poster + fallback -->
+          <video id="kai-idle"  class="kai-media" src="assets/kai-idle.mp4"  poster="assets/kai.jpg" loop muted playsinline autoplay preload="auto" aria-hidden="true"></video>
+          <video id="kai-speak" class="kai-media" src="assets/kai-speak.mp4" loop muted playsinline preload="auto" aria-hidden="true"></video>
+          <img id="kai-portrait" class="kai-media" src="assets/kai.jpg" alt="" aria-hidden="true" decoding="async">
           <canvas id="kai-fx" aria-hidden="true"></canvas>
         </div>
         <div class="greet" id="greet">What can I do for you?</div>
@@ -57,6 +60,9 @@
 
     <!-- mobile KPI cards (Increment 25) -->
     <div class="mobile-cards" id="mobile-cards"></div>
+
+    <!-- streaming speech transcript (§21) -->
+    <div class="subtitle" id="kai-subtitle" role="status" aria-live="polite"></div>
 
     <!-- command dock -->
     <div class="dock" id="dock">
