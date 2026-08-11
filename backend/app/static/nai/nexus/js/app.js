@@ -51,9 +51,21 @@ const TITLES = { thinking:'Live Thinking', agents:'Agent Constellation', mission
   memory:'KAI Memory', tools:'Capabilities', infrastructure:'Infrastructure',
   security:'Security Command Center', market:'Market Intelligence', world:'World Pulse' };
 
+// each view casts a coloured rim-light on KAI + pulls his gaze toward it
+const ENVLIGHT = { security:'#ffb020', critical:'#ff4d4d', market:'#46e6ff', infrastructure:'#35d0a8',
+  memory:'#7a6bff', agents:'#35d0a8', world:'#4aa3ff', mission:'#3f8cff', thinking:'#7a6bff', tools:'#3f8cff' };
+function lookAtEl(el) { if (!el) return; const r = el.getBoundingClientRect(); avatar.lookAt(r.left + r.width / 2, r.top + r.height / 2); }
+
 function openView(view) {
+  const opening = workspace.current !== view;
   workspace.open(view, TITLES[view] || view, host => makePanel(view, host));
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view && workspace.current === view));
+  if (opening) {
+    bus.emit('env:light', { color: ENVLIGHT[view] || '#3f8cff', side: 1 });   // KAI catches the panel's colour
+    requestAnimationFrame(() => lookAtEl(document.querySelector('.workspace .frame')));  // and looks at it
+    setTimeout(() => bus.emit('gaze', 'camera'), 1400);                        // then back to the user
+  }
+  touch();
 }
 $('#tabs').addEventListener('click', e => {
   const t = e.target.closest('.tab'); if (!t) return;
@@ -83,7 +95,8 @@ function submit(text) {
     { label: 'Preparing response', state: 'pending' },
   ];
   const emit = () => bus.emit('data:thinking', { mode: 'working', title: text, steps: steps.map(s => ({ ...s })) });
-  KAI.set('thinking'); dockMode.textContent = 'Thinking'; emit(); avatar.litHalo('reasoning');
+  KAI.set('understanding'); dockMode.textContent = 'Understanding';
+  setTimeout(() => { KAI.set('thinking'); dockMode.textContent = 'Thinking'; emit(); avatar.litHalo('reasoning'); }, 380);
   const seq = [
     [650,  () => { steps[0].state='done'; steps[1].state='active'; avatar.litHalo('memory'); emit(); }],
     [1300, () => { steps[1].state='done'; steps[2].state='active'; KAI.set('researching'); avatar.litHalo('research'); emit(); }],
@@ -134,6 +147,10 @@ function toast(text, kind) {
   const t = document.createElement('div'); t.className = 'toast'; t.textContent = text;
   if (kind === 'warn') t.style.borderColor = 'var(--warn)';
   $('#toasts').appendChild(t);
+  // KAI notices the notification, then returns to the user
+  requestAnimationFrame(() => lookAtEl(t));
+  if (kind === 'warn') bus.emit('env:light', { color: 'var(--warn)', side: 1 });
+  setTimeout(() => bus.emit('gaze', 'camera'), 1600);
   setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3600);
 }
 bus.on('toast', ({ text, kind }) => toast(text, kind));
@@ -181,6 +198,12 @@ bus.on('data:costs', c => $('#mc-spend') && ($('#mc-spend').textContent = '$' + 
   }
   requestAnimationFrame(tick);
 })();
+
+// ---- sleep / wake cycle: KAI dozes after inactivity, wakes on interaction --
+let lastTouch = performance.now();
+function touch() { lastTouch = performance.now(); if (KAI.state === 'sleep') { KAI.set('idle'); bus.emit('sound:cue', 'wake'); } }
+['pointerdown', 'keydown', 'focusin'].forEach(e => addEventListener(e, touch, { passive: true }));
+setInterval(() => { if (KAI.state === 'idle' && performance.now() - lastTouch > 60000) KAI.set('sleep'); }, 5000);
 
 // ---- go --------------------------------------------------------------------
 data.start();

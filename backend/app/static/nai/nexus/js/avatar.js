@@ -1,12 +1,15 @@
 // ============================================================================
-// KAI avatar  (Increments 2·3·5·6·7·26)
-// A 2.5D canvas presence: humanoid head, the signature layered luminous eyes,
-// a neural halo, particle "wings", and continuous micro-motion (breathing,
-// blinking, saccades, gaze, head-tilt) + idle presence behaviours.
+// KAI Presence Engine  (Phase 1)
+// A persistent digital person at the center of the Nexus: upper-body figure
+// (head · neck · shoulders) dissolving into particles at the chest so KAI reads
+// as embedded in the OS — with anatomical eyes, procedural facial life, spatial
+// gaze that looks at real panels/events, a meaningful Intelligence Halo with
+// particle flows, barely-visible particle wings, and environmental rim-light.
 //
-// SEAM (Increment 2, full photoreal): swap this canvas presence for a rigged
-// GLB/VRM head in WebGL and drive the SAME controller API (setGaze/state/etc.).
-// The eyes read --accent from the design system, so state colour is automatic.
+// Balance target ≈ 75% human · 10% celestial · 10% synthetic · 5% machine.
+// Rendered procedurally in canvas 2.5D. SEAM (#2): swap the figure/face render
+// for a rigged GLB/VRM head in WebGL and keep this exact controller API
+// (state, gaze point, halo, env light) — nothing else in the app needs to change.
 // ============================================================================
 import { bus, KAI } from './state.js';
 
@@ -14,9 +17,11 @@ const TAU = Math.PI * 2;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
 const rand = (a, b) => a + Math.random() * (b - a);
+const mix = (c1, c2, t) => [lerp(c1[0], c2[0], t), lerp(c1[1], c2[1], t), lerp(c1[2], c2[2], t)];
+const rgba = (c, a) => `rgba(${c[0] | 0},${c[1] | 0},${c[2] | 0},${a})`;
 
 function parseColor(str) {
-  str = str.trim();
+  str = (str || '').trim();
   if (str[0] === '#') {
     const h = str.slice(1);
     const n = parseInt(h.length === 3 ? h.replace(/./g, c => c + c) : h, 16);
@@ -25,260 +30,370 @@ function parseColor(str) {
   const m = str.match(/[\d.]+/g);
   return m ? [+m[0], +m[1], +m[2]] : [63, 140, 255];
 }
-const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
-// halo sectors — each maps to a KAI subsystem (Increment 7)
-const SECTORS = ['reasoning', 'memory', 'tools', 'agents', 'research', 'security', 'market', 'infra'];
+// Natural iris blue + the restrained "inner energy" cyan — kept distinct from
+// the state accent so eyes read human until KAI actually engages.
+const IRIS_BLUE = [46, 92, 168];
+const IRIS_EDGE = [18, 34, 74];
+const ENERGY    = [120, 214, 255];
+const SKIN      = [150, 168, 205];   // cool synthetic skin midtone
+
+// halo sectors → KAI subsystems (labels shown dim, brighten when lit)
+const SECTORS = ['REASONING', 'MEMORY', 'RESEARCH', 'TOOLS', 'AGENTS', 'SECURITY', 'MARKETS', 'INFRA'];
+const SECTOR_KEY = { reasoning: 0, memory: 1, research: 2, tools: 3, agents: 4, security: 5, market: 6, markets: 6, infra: 7 };
 
 export function mountAvatar(canvas) {
   const ctx = canvas.getContext('2d');
-  let W = 0, H = 0, DPR = 1;
+  let W = 0, H = 0, DPR = 1, rect = canvas.getBoundingClientRect();
   const lowMotion = () => document.documentElement.dataset.motion === 'off'
     || matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const lowQ = () => document.documentElement.dataset.q === 'low';
 
   function resize() {
-    DPR = Math.min(devicePixelRatio || 1, document.documentElement.dataset.q === 'low' ? 1 : 2);
-    const size = canvas.clientWidth || 420;
+    DPR = Math.min(devicePixelRatio || 1, lowQ() ? 1 : 2);
+    const size = canvas.clientWidth || 440;
     W = canvas.width = size * DPR; H = canvas.height = size * DPR;
+    rect = canvas.getBoundingClientRect();
   }
   new ResizeObserver(resize).observe(canvas); resize();
+  addEventListener('scroll', () => (rect = canvas.getBoundingClientRect()), { passive: true });
 
   // ---- animated model ------------------------------------------------------
   const m = {
     accent: [63, 140, 255],
-    illum: 0.5, illumT: 0.5,       // iris illumination (state-driven)
-    tilt: 0, tiltT: 0,             // head tilt (rad)
-    breath: 0,
-    blink: 0, nextBlink: 1200,     // 0 open → 1 closed
-    gaze: { x: 0, y: 0 }, gazeT: { x: 0, y: 0 },
-    sacc: 0,
-    exec: 0, execT: 0,             // concentric iris pattern intensity
-    wings: 0, wingsT: 0,           // particle wings opacity
-    haloLit: new Map(),            // sector -> decaying intensity
+    illum: .35, illumT: .35,          // iris inner-energy intensity
+    eyeShift: 0, eyeShiftT: 0,        // 0 = natural blue, 1 = fully accent (warning/critical)
+    bright: 1, brightT: 1,            // overall presence brightness (sleep dims)
+    tilt: 0, tiltT: 0,               // head roll
+    turn: 0,                         // head yaw toward gaze (rad, small)
+    breath: 0, shoulder: 0,
+    blink: 0, nextBlink: 1400,
+    pupil: 0, pupilT: 0,             // extra contraction (thinking)
+    brow: 0, browT: 0,               // eyebrow raise
+    jaw: 0,                          // mouth open (speaking)
+    exec: 0, execT: 0,
+    wings: 0, wingsT: 0,
+    gaze: { x: 0, y: .02 }, gazeT: { x: 0, y: .02 },
+    sacc: 0, micro: 0, microT: 0,
+    haloLit: new Array(8).fill(0),
     haloSpin: 0,
+    env: { c: [63, 140, 255], side: 0, on: 0 },   // environmental rim light
     presenceAt: 0,
   };
 
-  // gaze targets, in normalized head space (-1..1). App sets these via bus.
-  let gazeTarget = 'camera';
-  const GAZE = { camera: [0, 0.02], input: [0, 0.5], up: [0, -0.42], left: [-0.6, 0], right: [0.6, 0] };
+  // gaze: named presets in head space (-1..1) OR a live screen point
+  let gazeMode = 'camera';                 // 'camera'|'input'|'up'|'point'
+  let gazePoint = null;                    // {x,y} client coords when mode='point'
+  const GAZE = { camera: [0, .04], input: [0, .5], up: [0, -.42] };
 
-  function pickAccent() { m.accent = parseColor(getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#3f8cff'); }
+  function pickAccent() { m.accent = parseColor(getComputedStyle(document.documentElement).getPropertyValue('--accent')); }
   pickAccent();
 
-  // react to state
   bus.on('state', ({ state }) => {
     pickAccent();
-    m.illumT = { idle: .42, listening: .6, thinking: .82, speaking: .7, executing: .9, researching: .78, warning: .7, critical: .95, success: 1 }[state] ?? .5;
-    m.tiltT  = { thinking: -0.05, researching: 0.04, critical: 0.02 }[state] ?? 0;
-    m.execT  = (state === 'executing' || state === 'thinking') ? 1 : 0;
-    gazeTarget = { listening: 'camera', speaking: 'camera', thinking: 'up', researching: 'up', idle: 'camera' }[state] ?? 'camera';
-    if (state === 'success') { m.wingsT = 1; setTimeout(() => (m.wingsT = 0), 1700); }
+    m.illumT     = { idle:.32, sleep:.12, listening:.5, understanding:.62, thinking:.85, researching:.72, speaking:.62, executing:.9, warning:.7, critical:1, success:1 }[state] ?? .35;
+    m.eyeShiftT  = { warning:.6, critical:.92 }[state] ?? 0;
+    m.brightT    = state === 'sleep' ? .4 : 1;
+    m.tiltT      = { thinking:-.05, researching:.04, understanding:-.03, critical:.02 }[state] ?? 0;
+    m.pupilT     = { thinking:.35, executing:.3, critical:.4 }[state] ?? 0;
+    m.browT      = { listening:.7, understanding:.9, warning:.6, critical:.5, speaking:.3 }[state] ?? 0;
+    m.execT      = (state === 'executing' || state === 'thinking') ? 1 : 0;
+    gazeMode     = { listening:'camera', understanding:'camera', speaking:'camera', thinking:'up', researching:'up', idle:'camera', sleep:'up' }[state] ?? 'camera';
+    if (state === 'success') { m.wingsT = 1; setTimeout(() => (m.wingsT = 0), 1600); }
   });
-  bus.on('gaze', t => { if (GAZE[t]) gazeTarget = t; });
-  bus.on('halo', sector => { if (SECTORS.includes(sector)) m.haloLit.set(sector, 1); });
+  bus.on('gaze', t => { if (GAZE[t]) { gazeMode = t; gazePoint = null; } });
+  bus.on('gaze:point', p => { if (p && typeof p.x === 'number') { gazeMode = 'point'; gazePoint = p; } });
+  bus.on('halo', sec => { const i = SECTOR_KEY[sec]; if (i != null) { m.haloLit[i] = 1; flows.push(makeFlow(i)); } });
+  bus.on('env:light', ({ color, side }) => { m.env.c = parseColor(color || '#3f8cff'); m.env.side = side ?? 0; m.env.on = 1; });
 
-  // ---- eye (the signature) -------------------------------------------------
-  function drawEye(cx, cy, r, blink, side) {
-    const c = m.accent;
-    const gx = m.gaze.x * r * 0.36 + m.sacc * side, gy = m.gaze.y * r * 0.34;
+  // ---- particle systems ----------------------------------------------------
+  let chest = [], flows = [];
+  function seedChest() {
+    const n = lowQ() ? 26 : 64;
+    chest = Array.from({ length: n }, () => ({ a: rand(-1, 1), t: Math.random(), sp: rand(.06, .2), r: rand(.5, 1.8) }));
+  }
+  seedChest();
+  function makeFlow(sectorIdx) {
+    return { s: sectorIdx, t: 0, sp: rand(.5, .9), r: rand(1, 2.2) };
+  }
 
-    // socket shadow
-    ctx.save();
-    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.5, r * 1.15, 0, 0, TAU);
-    ctx.fillStyle = 'rgba(3,6,14,.6)'; ctx.filter = `blur(${r * .18}px)`; ctx.fill(); ctx.restore();
-
-    // volumetric bloom
-    const bloom = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 2.4);
-    bloom.addColorStop(0, rgba(c, .35 * (0.4 + m.illum))); bloom.addColorStop(1, rgba(c, 0));
-    ctx.fillStyle = bloom; ctx.beginPath(); ctx.arc(cx, cy, r * 2.4, 0, TAU); ctx.fill();
-
-    // sclera hint
-    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.18, r * 0.92, 0, 0, TAU);
-    ctx.fillStyle = 'rgba(210,225,255,.06)'; ctx.fill();
-
-    // iris — radial blue→cyan with fibers
+  // ---- anatomical eye (more sclera, smaller iris → calm & human) -----------
+  function drawEye(cx, cy, r, side) {
+    const ir = r * .58;                                // iris radius, leaves visible whites
+    const gx = m.gaze.x * r * .3 + m.sacc * side, gy = m.gaze.y * r * .28;
     const ix = cx + gx, iy = cy + gy;
-    const iris = ctx.createRadialGradient(ix, iy, r * .1, ix, iy, r);
-    iris.addColorStop(0, rgba([c[0] + 40, c[1] + 40, 255], .95));
-    iris.addColorStop(.55, rgba(c, .9));
-    iris.addColorStop(1, rgba([c[0] * .4, c[1] * .5, c[2] * .8], .95));
-    ctx.beginPath(); ctx.arc(ix, iy, r, 0, TAU); ctx.fillStyle = iris; ctx.fill();
+    const irisC = mix(IRIS_BLUE, m.accent, m.eyeShift * .85);
+    const edgeC = mix(IRIS_EDGE, [m.accent[0] * .4, m.accent[1] * .4, m.accent[2] * .5], m.eyeShift);
 
-    // cyan internal fibers
-    ctx.save(); ctx.beginPath(); ctx.arc(ix, iy, r, 0, TAU); ctx.clip();
-    ctx.strokeStyle = rgba([140, 243, 255], .35 * (0.5 + m.illum)); ctx.lineWidth = Math.max(1, r * .02);
-    for (let i = 0; i < 26; i++) {
-      const a = (i / 26) * TAU;
-      ctx.beginPath(); ctx.moveTo(ix + Math.cos(a) * r * .28, iy + Math.sin(a) * r * .28);
-      ctx.lineTo(ix + Math.cos(a) * r * .96, iy + Math.sin(a) * r * .96); ctx.stroke();
-    }
-    // concentric rotating pattern when executing/thinking
-    if (m.exec > .02) {
-      ctx.strokeStyle = rgba([180, 245, 255], .5 * m.exec);
-      for (let k = 1; k <= 3; k++) {
-        ctx.beginPath();
-        for (let a = 0; a <= TAU + .1; a += .3) {
-          const rr = r * (.3 + k * .2) + Math.sin(a * 6 + m.haloSpin * 3 * k) * r * .03;
-          const px = ix + Math.cos(a) * rr, py = iy + Math.sin(a) * rr;
-          a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-        }
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
+    ctx.save();
+    // soft socket shadow
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.3, r * .82, 0, 0, TAU);
+    ctx.fillStyle = 'rgba(4,7,16,.32)'; ctx.filter = `blur(${r * .1}px)`; ctx.fill(); ctx.filter = 'none';
 
-    // luminous pupil + ring
-    ctx.beginPath(); ctx.arc(ix, iy, r * .34, 0, TAU); ctx.fillStyle = '#03060e'; ctx.fill();
-    ctx.beginPath(); ctx.arc(ix, iy, r * .34, 0, TAU);
-    ctx.strokeStyle = rgba([200, 245, 255], .8 * (.5 + m.illum)); ctx.lineWidth = Math.max(1.2, r * .04); ctx.stroke();
-    ctx.beginPath(); ctx.arc(ix, iy, r * .1, 0, TAU); ctx.fillStyle = rgba([220, 250, 255], .9); ctx.fill();
+    // sclera almond (clipped)
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(cx, cy, r * 1.12, r * .66, 0, 0, TAU); ctx.clip();
+    const sc = ctx.createLinearGradient(cx, cy - r, cx, cy + r);
+    sc.addColorStop(0, 'rgba(212,224,242,.95)'); sc.addColorStop(1, 'rgba(160,178,208,.9)');
+    ctx.fillStyle = sc; ctx.fillRect(cx - r * 1.3, cy - r, r * 2.6, r * 2);
+    ctx.fillStyle = 'rgba(20,30,55,.14)';
+    ctx.fillRect(cx - r * 1.3, cy - r, r * .4, r * 2); ctx.fillRect(cx + r * .9, cy - r, r * .4, r * 2);
 
-    // physically-placed specular reflection
-    ctx.beginPath(); ctx.arc(ix - r * .3, iy - r * .34, r * .12, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fill();
-    ctx.beginPath(); ctx.arc(ix + r * .18, iy + r * .28, r * .05, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fill();
-
-    // eyelids (blink) — cover from top & bottom
-    if (blink > .01) {
-      ctx.fillStyle = '#080b16';
-      const cover = blink * r * 1.15;
-      ctx.beginPath(); ctx.ellipse(cx, cy - r * 1.15 + cover, r * 1.3, cover, 0, 0, TAU); ctx.fill();
-      ctx.beginPath(); ctx.ellipse(cx, cy + r * 1.15 - cover, r * 1.3, cover, 0, 0, TAU); ctx.fill();
-    }
-  }
-
-  // ---- head presence -------------------------------------------------------
-  function drawHead(cx, cy, s) {
-    const c = m.accent;
-    // volumetric glow behind head
-    const g = ctx.createRadialGradient(cx, cy, s * .2, cx, cy, s * 1.7);
-    g.addColorStop(0, rgba(c, .12 * (.6 + m.illum))); g.addColorStop(1, rgba(c, 0));
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, s * 1.7, 0, TAU); ctx.fill();
-
-    // head silhouette (soft synthetic) — bezier oval, narrower jaw
-    ctx.save(); ctx.translate(cx, cy); ctx.rotate(m.tilt);
-    const hg = ctx.createLinearGradient(0, -s, 0, s);
-    hg.addColorStop(0, 'rgba(24,34,60,.92)'); hg.addColorStop(.5, 'rgba(15,22,42,.94)'); hg.addColorStop(1, 'rgba(9,13,26,.96)');
-    ctx.beginPath();
-    ctx.moveTo(0, -s * .98);
-    ctx.bezierCurveTo(s * .82, -s * .95, s * .78, s * .1, s * .5, s * .62);
-    ctx.bezierCurveTo(s * .3, s * .98, -s * .3, s * .98, -s * .5, s * .62);
-    ctx.bezierCurveTo(-s * .78, s * .1, -s * .82, -s * .95, 0, -s * .98);
-    ctx.closePath(); ctx.fillStyle = hg; ctx.fill();
-    ctx.strokeStyle = rgba(c, .18); ctx.lineWidth = 1.4; ctx.stroke();
-
-    // subtle under-skin patterns (synthetic hint)
-    ctx.strokeStyle = rgba(c, .07); ctx.lineWidth = 1;
-    for (let i = 0; i < 5; i++) {
+    // iris
+    const iris = ctx.createRadialGradient(ix, iy, ir * .08, ix, iy, ir);
+    iris.addColorStop(0, rgba(mix(irisC, ENERGY, .2 + m.illum * .28), 1));
+    iris.addColorStop(.6, rgba(irisC, 1));
+    iris.addColorStop(1, rgba(edgeC, 1));
+    ctx.beginPath(); ctx.arc(ix, iy, ir, 0, TAU); ctx.fillStyle = iris; ctx.fill();
+    ctx.strokeStyle = rgba(mix(irisC, ENERGY, .5), .18 + m.illum * .2); ctx.lineWidth = Math.max(.5, r * .012);
+    for (let i = 0; i < 26; i++) { const a = (i / 26) * TAU + Math.sin(i) * .1;
+      ctx.beginPath(); ctx.moveTo(ix + Math.cos(a) * ir * .3, iy + Math.sin(a) * ir * .3);
+      ctx.lineTo(ix + Math.cos(a) * ir * .92, iy + Math.sin(a) * ir * .92); ctx.stroke(); }
+    ctx.beginPath(); ctx.arc(ix, iy, ir, 0, TAU); ctx.strokeStyle = rgba(edgeC, .85); ctx.lineWidth = ir * .1; ctx.stroke();
+    if (m.exec > .02) { ctx.strokeStyle = rgba(ENERGY, .4 * m.exec); ctx.lineWidth = Math.max(1, ir * .06);
       ctx.beginPath();
-      ctx.moveTo(-s * .5, -s * .3 + i * s * .18);
-      ctx.quadraticCurveTo(0, -s * .1 + i * s * .18, s * .5, -s * .3 + i * s * .18);
-      ctx.stroke();
+      for (let a = 0; a <= TAU + .1; a += .35) { const rr = ir * (.45 + Math.sin(a * 5 + m.haloSpin * 4) * .06);
+        const px = ix + Math.cos(a) * rr, py = iy + Math.sin(a) * rr; a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+      ctx.stroke(); }
+    const pr = ir * (.42 - m.pupil * .12);
+    const eg = ctx.createRadialGradient(ix, iy, 0, ix, iy, pr * 2.2);
+    eg.addColorStop(0, rgba(ENERGY, .45 * m.illum)); eg.addColorStop(1, rgba(ENERGY, 0));
+    ctx.fillStyle = eg; ctx.beginPath(); ctx.arc(ix, iy, pr * 2.2, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(ix, iy, pr, 0, TAU); ctx.fillStyle = '#050810'; ctx.fill();
+    ctx.beginPath(); ctx.arc(ix, iy, pr * .5, 0, TAU); ctx.fillStyle = rgba(ENERGY, .3 + m.illum * .4); ctx.fill();
+    ctx.restore();
+
+    // cornea reflections (sharp specular)
+    ctx.beginPath(); ctx.arc(ix - ir * .32, iy - ir * .36, ir * .18, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,.9)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(ix + ir * .24, iy + ir * .26, ir * .08, 0, TAU); ctx.fillStyle = 'rgba(255,255,255,.4)'; ctx.fill();
+
+    // eyelids (skin) — blink + resting upper-lid line
+    const lidTop = -r * .66 + m.blink * r * 1.34, lidBot = r * .66 - m.blink * r * .8;
+    ctx.fillStyle = rgba(mix(SKIN, m.accent, .04 * m.bright), 1);
+    ctx.beginPath(); ctx.moveTo(cx - r * 1.3, cy - r); ctx.lineTo(cx + r * 1.3, cy - r);
+    ctx.lineTo(cx + r * 1.3, cy + lidTop); ctx.quadraticCurveTo(cx, cy + lidTop - r * .12, cx - r * 1.3, cy + lidTop); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(cx - r * 1.3, cy + r); ctx.lineTo(cx + r * 1.3, cy + r);
+    ctx.lineTo(cx + r * 1.3, cy + lidBot); ctx.quadraticCurveTo(cx, cy + lidBot + r * .1, cx - r * 1.3, cy + lidBot); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(10,16,30,.42)'; ctx.lineWidth = Math.max(1, r * .04);
+    ctx.beginPath(); ctx.moveTo(cx - r * 1.05, cy + lidTop); ctx.quadraticCurveTo(cx, cy + lidTop - r * .11, cx + r * 1.05, cy + lidTop); ctx.stroke();
+    ctx.restore();
+  }
+
+  // ---- eyebrow (thin, higher, gentle natural arch — never "angry") --------
+  function drawBrow(cx, cy, r, side) {
+    const lift = m.brow * r * .4 + (side < 0 ? m.micro : -m.micro) * r * .2;
+    ctx.strokeStyle = rgba(mix(SKIN, [42, 54, 82], .5), .45); ctx.lineWidth = r * .09; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(cx - r * 1.0 * side, cy - r * .1 - lift * .3);                            // inner (raised → not a frown)
+    ctx.quadraticCurveTo(cx + r * .15 * side, cy - r * .3 - lift, cx + r * 1.18 * side, cy - r * .12 - lift * .5); // arch → outer
+    ctx.stroke();
+  }
+
+  // ---- face + figure -------------------------------------------------------
+  function drawFigure(cx, cy, s) {
+    const skin = mix(SKIN, m.accent, .05);
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(m.tilt);
+
+    // shoulders + neck (dissolve into particles below)
+    const shY = s * 1.35, shW = s * 2.1;
+    const shg = ctx.createLinearGradient(0, s * .7, 0, s * 2.2);
+    shg.addColorStop(0, rgba(mix(skin, [10, 15, 30], .3), .9 * m.bright));
+    shg.addColorStop(1, rgba([8, 12, 26], 0));
+    ctx.beginPath();
+    ctx.moveTo(-s * .34, s * .6); ctx.quadraticCurveTo(-shW * .5, shY * .82, -shW * .5, s * 2.2);
+    ctx.lineTo(shW * .5, s * 2.2); ctx.quadraticCurveTo(shW * .5, shY * .82, s * .34, s * .6);
+    ctx.closePath(); ctx.fillStyle = shg; ctx.fill();
+    // neck
+    const ng = ctx.createLinearGradient(0, s * .4, 0, s * 1); ng.addColorStop(0, rgba(mix(skin, [0, 0, 0], .35), m.bright)); ng.addColorStop(1, rgba(skin, .9 * m.bright));
+    ctx.beginPath(); ctx.moveTo(-s * .28, s * .5); ctx.lineTo(-s * .3, s * .95); ctx.lineTo(s * .3, s * .95); ctx.lineTo(s * .28, s * .5); ctx.closePath(); ctx.fillStyle = ng; ctx.fill();
+    // jaw/chin shadow under neck
+    ctx.beginPath(); ctx.ellipse(0, s * .52, s * .34, s * .12, 0, 0, TAU); ctx.fillStyle = 'rgba(6,10,22,.5)'; ctx.fill();
+
+    // head — shaded form
+    const hg = ctx.createRadialGradient(-s * .3, -s * .5, s * .1, 0, 0, s * 1.25);
+    hg.addColorStop(0, rgba(mix(skin, [255, 255, 255], .12), m.bright));
+    hg.addColorStop(.5, rgba(skin, m.bright));
+    hg.addColorStop(1, rgba(mix(skin, [6, 10, 22], .55), m.bright));
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 1.02);
+    ctx.bezierCurveTo(s * .8, -s * .98, s * .74, s * .05, s * .46, s * .5);
+    ctx.bezierCurveTo(s * .3, s * .82, -s * .3, s * .82, -s * .46, s * .5);
+    ctx.bezierCurveTo(-s * .74, s * .05, -s * .8, -s * .98, 0, -s * 1.02);
+    ctx.closePath(); ctx.fillStyle = hg; ctx.fill();
+
+    // volume: cheekbone highlights, brow-ridge & nose shadow, jaw
+    const hi = (x, y, rx, ry, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
+      g.addColorStop(0, rgba(mix(skin, [255, 255, 255], .5), a * m.bright)); g.addColorStop(1, rgba(skin, 0));
+      ctx.save(); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore(); };
+    hi(-s * .42, s * .12, s * .3, s * .24, .5); hi(s * .42, s * .12, s * .3, s * .24, .5);  // cheeks
+    hi(0, -s * .55, s * .35, s * .22, .4);                                                  // forehead
+    const sh = (x, y, rx, ry, a) => { const g = ctx.createRadialGradient(x, y, 0, x, y, rx);
+      g.addColorStop(0, rgba([6, 10, 22], a)); g.addColorStop(1, rgba([6, 10, 22], 0));
+      ctx.save(); ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fillStyle = g; ctx.fill(); ctx.restore(); };
+    sh(0, s * .02, s * .1, s * .24, .28);              // nose bridge shadow (kept off the glabella → no frown)
+    sh(-s * .1, s * .12, s * .09, s * .12, .3);         // nostril hint
+    sh(s * .1, s * .12, s * .09, s * .12, .3);
+    // nose highlight
+    ctx.strokeStyle = rgba(mix(skin, [255, 255, 255], .4), .35 * m.bright); ctx.lineWidth = s * .04; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(0, -s * .28); ctx.lineTo(-s * .02, s * .1); ctx.stroke();
+
+    // lips (jaw opens on speaking)
+    const mo = m.jaw * s * .14;
+    ctx.strokeStyle = rgba(mix(skin, [120, 70, 90], .35), .6 * m.bright); ctx.lineWidth = s * .035;
+    ctx.beginPath(); ctx.moveTo(-s * .16, s * .32); ctx.quadraticCurveTo(0, s * .3, s * .16, s * .32); ctx.stroke();
+    if (mo > .3) { ctx.fillStyle = 'rgba(20,10,18,.55)'; ctx.beginPath(); ctx.ellipse(0, s * .34 + mo * .4, s * .12, mo, 0, 0, TAU); ctx.fill(); }
+    ctx.beginPath(); ctx.moveTo(-s * .14, s * .36 + mo); ctx.quadraticCurveTo(0, s * .42 + mo * 1.2, s * .14, s * .36 + mo); ctx.stroke();
+
+    // subtle synthetic under-skin traces
+    ctx.strokeStyle = rgba(m.accent, .05 * m.bright); ctx.lineWidth = 1;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.moveTo(-s * .5, -s * .2 + i * s * .28);
+      ctx.quadraticCurveTo(0, -s * .05 + i * s * .28, s * .5, -s * .2 + i * s * .28); ctx.stroke(); }
+
+    // brows + eyes on the face midline (smaller, calmer, human spacing)
+    const er = s * .14, ey = -s * .04, ex = s * .32;
+    drawBrow(-ex, ey - s * .22, er, -1); drawBrow(ex, ey - s * .22, er, 1);
+    drawEye(-ex, ey, er, -1); drawEye(ex, ey, er, 1);
+
+    // environmental rim light on the active side
+    if (m.env.on > .01) {
+      ctx.save(); ctx.beginPath();
+      ctx.moveTo(0, -s * 1.02);
+      ctx.bezierCurveTo(s * .8, -s * .98, s * .74, s * .05, s * .46, s * .5);
+      ctx.bezierCurveTo(s * .3, s * .82, -s * .3, s * .82, -s * .46, s * .5);
+      ctx.bezierCurveTo(-s * .74, s * .05, -s * .8, -s * .98, 0, -s * 1.02);
+      ctx.closePath(); ctx.clip();
+      const rl = ctx.createLinearGradient(-s * m.env.side, 0, s * m.env.side, 0);
+      rl.addColorStop(0, rgba(m.env.c, 0)); rl.addColorStop(1, rgba(m.env.c, .3 * m.env.on));
+      ctx.fillStyle = rl; ctx.fillRect(-s, -s * 1.1, s * 2, s * 2); ctx.restore();
     }
-    // brow + nose bridge suggestion
-    ctx.strokeStyle = rgba(c, .22); ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(-s * .42, -s * .18); ctx.quadraticCurveTo(-s * .18, -s * .26, -s * .04, -s * .16); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(s * .42, -s * .18); ctx.quadraticCurveTo(s * .18, -s * .26, s * .04, -s * .16); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, -s * .12); ctx.lineTo(0, s * .18); ctx.strokeStyle = rgba(c, .12); ctx.stroke();
-    // lips hint
-    ctx.beginPath(); ctx.moveTo(-s * .16, s * .34); ctx.quadraticCurveTo(0, s * .4 + Math.sin(m.breath) * 1, s * .16, s * .34); ctx.strokeStyle = rgba(c, .2); ctx.stroke();
     ctx.restore();
 
-    // eyes — human proportions: ~one eye-width apart, set on the face midline
-    const er = s * .16;
-    drawEye(cx - s * .28, cy - s * .04, er, m.blink, -1);
-    drawEye(cx + s * .28, cy - s * .04, er, m.blink, 1);
-  }
-
-  // ---- neural halo (Increment 7) ------------------------------------------
-  function drawHalo(cx, cy, R) {
-    const c = m.accent;
+    // chest dissolve particles (figure → OS)
     ctx.save(); ctx.translate(cx, cy);
-    // base ring
-    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.strokeStyle = rgba(c, .12); ctx.lineWidth = 1.2; ctx.stroke();
-    SECTORS.forEach((sec, i) => {
-      const a0 = (i / SECTORS.length) * TAU + m.haloSpin, a1 = a0 + TAU / SECTORS.length * .82;
-      const lit = m.haloLit.get(sec) || 0;
-      ctx.beginPath(); ctx.arc(0, 0, R, a0, a1);
-      ctx.strokeStyle = rgba(c, .16 + lit * .8); ctx.lineWidth = 2 + lit * 4; ctx.stroke();
-      // node
-      const mid = (a0 + a1) / 2, nx = Math.cos(mid) * R, ny = Math.sin(mid) * R;
-      ctx.beginPath(); ctx.arc(nx, ny, 2.4 + lit * 3, 0, TAU);
-      ctx.fillStyle = rgba([lerp(c[0], 180, lit), lerp(c[1], 245, lit), 255], .5 + lit * .5); ctx.fill();
-    });
+    for (const p of chest) {
+      const px = p.a * shW * .5 * (1 - p.t * .3), py = s * (1.6 + p.t * .8);
+      ctx.beginPath(); ctx.arc(px, py, p.r * (1 - p.t) * DPR * .8, 0, TAU);
+      ctx.fillStyle = rgba(mix(skin, m.accent, .5), (1 - p.t) * .5 * m.bright); ctx.fill();
+    }
     ctx.restore();
   }
 
-  // ---- particle wings (Increment 6) ---------------------------------------
+  // ---- Intelligence Halo (labeled, event-driven) --------------------------
+  function drawHalo(cx, cy, R) {
+    ctx.save(); ctx.translate(cx, cy);
+    ctx.beginPath(); ctx.arc(0, 0, R, 0, TAU); ctx.strokeStyle = rgba(m.accent, .08); ctx.lineWidth = 1; ctx.stroke();
+    ctx.font = `${Math.max(7, R * .028)}px var(--mono, monospace)`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i / 8) * TAU - Math.PI / 2 + m.haloSpin, a1 = a0 + TAU / 8 * .8;
+      const lit = m.haloLit[i];
+      ctx.beginPath(); ctx.arc(0, 0, R, a0, a1);
+      ctx.strokeStyle = rgba(m.accent, .1 + lit * .8); ctx.lineWidth = 1.5 + lit * 4; ctx.stroke();
+      const mid = (a0 + a1) / 2, nx = Math.cos(mid) * R, ny = Math.sin(mid) * R;
+      ctx.beginPath(); ctx.arc(nx, ny, 1.8 + lit * 3.5, 0, TAU);
+      ctx.fillStyle = rgba(mix(m.accent, ENERGY, lit), .4 + lit * .6); ctx.fill();
+      // label just outside, dim unless lit
+      ctx.fillStyle = rgba(mix(m.accent, ENERGY, lit), .12 + lit * .7);
+      ctx.fillText(SECTORS[i], Math.cos(mid) * (R + R * .09), Math.sin(mid) * (R + R * .09));
+    }
+    // particle flows outward from lit sectors
+    for (const f of flows) {
+      const a = (f.s / 8) * TAU - Math.PI / 2 + m.haloSpin + TAU / 16 * .8;
+      const rr = R * f.t, px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      ctx.beginPath(); ctx.arc(px, py, f.r * (1 - f.t * .5), 0, TAU);
+      ctx.fillStyle = rgba(ENERGY, (1 - f.t) * .7); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ---- particle wings (barely visible) ------------------------------------
   function drawWings(cx, cy, s) {
     if (m.wings < .01) return;
-    const c = m.accent;
-    ctx.save(); ctx.translate(cx, cy + s * .4);
-    for (const dir of [-1, 1]) {
-      for (let i = 0; i < 40; i++) {
-        const t = i / 40, spread = t * s * 1.9 * dir;
-        const droop = Math.sin(t * Math.PI) * s * .8;
-        const x = spread, y = -droop + Math.sin(t * 10 + m.haloSpin * 4) * 4;
-        ctx.beginPath(); ctx.arc(x, y, 1.6 * (1 - t * .5), 0, TAU);
-        ctx.fillStyle = rgba([lerp(c[0], 200, .3), lerp(c[1], 245, .3), 255], m.wings * (.6 - t * .5)); ctx.fill();
-        if (i % 4 === 0 && i > 0) { // faint neural connections
-          ctx.beginPath(); ctx.moveTo(x, y);
-          ctx.lineTo(spread * .7, -droop * .6); ctx.strokeStyle = rgba(c, m.wings * .12); ctx.stroke();
-        }
-      }
+    ctx.save(); ctx.translate(cx, cy + s * .3);
+    const N = lowQ() ? 26 : 52;
+    for (const dir of [-1, 1]) for (let i = 0; i < N; i++) {
+      const t = i / N, x = t * s * 2.1 * dir, y = -Math.sin(t * Math.PI) * s * .95 + Math.sin(t * 12 + m.haloSpin * 4) * 3;
+      ctx.beginPath(); ctx.arc(x, y, 1.5 * (1 - t * .5), 0, TAU);
+      ctx.fillStyle = rgba(mix(m.accent, ENERGY, .4), m.wings * (.5 - t * .4)); ctx.fill();
     }
     ctx.restore();
+  }
+
+  // ---- spatial gaze: resolve a screen point into head-space vector ---------
+  function resolveGaze(dt, still) {
+    let tx, ty;
+    if (gazeMode === 'point' && gazePoint) {
+      const hx = rect.left + rect.width / 2, hy = rect.top + rect.height * .44;
+      tx = clamp((gazePoint.x - hx) / (innerWidth * .5), -1, 1);
+      ty = clamp((gazePoint.y - hy) / (innerHeight * .5), -1, 1);
+    } else { const g = GAZE[gazeMode] || GAZE.camera; tx = g[0]; ty = g[1]; }
+    m.gaze.x = lerp(m.gaze.x, tx, still ? 1 : dt * 3.5);
+    m.gaze.y = lerp(m.gaze.y, ty, still ? 1 : dt * 3.5);
+    m.turn = lerp(m.turn, tx * .09, still ? 1 : dt * 2.5);   // head follows gaze a touch
   }
 
   // ---- frame ---------------------------------------------------------------
-  let raf = 0, last = performance.now(), blinkT = 0, saccT = 0;
+  let raf = 0, last = performance.now(), blinkT = 0, saccT = 0, microT = 0;
   function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
     const still = lowMotion();
 
-    // ease model toward targets
-    m.illum = lerp(m.illum, m.illumT, still ? 1 : dt * 3);
-    m.tilt = lerp(m.tilt, m.tiltT, still ? 1 : dt * 2);
+    m.illum = lerp(m.illum, m.illumT, dt * 3);
+    m.eyeShift = lerp(m.eyeShift, m.eyeShiftT, dt * 2.5);
+    m.bright = lerp(m.bright, m.brightT, dt * 2);
+    m.tilt = lerp(m.tilt, m.tiltT + m.turn, still ? 1 : dt * 2);
+    m.pupil = lerp(m.pupil, m.pupilT, dt * 3);
+    m.brow = lerp(m.brow, m.browT, dt * 4);
     m.exec = lerp(m.exec, m.execT, dt * 3);
     m.wings = lerp(m.wings, m.wingsT, dt * 4);
-    m.haloSpin += still ? 0 : dt * 0.08;
+    m.micro = lerp(m.micro, m.microT, dt * 5);
+    m.env.on = lerp(m.env.on, m.env.on > 0 ? Math.max(0, m.env.on - dt * .12) : 0, 1);  // env light slowly fades
+    m.haloSpin += still ? 0 : dt * .06;
+
+    // jaw for speaking (placeholder prosody until viseme stream — SEAM #21)
+    const speaking = KAI.state === 'speaking';
+    m.jaw = lerp(m.jaw, speaking && !still ? (Math.sin(now * .018) * .5 + .5) * (Math.random() * .6 + .4) : 0, dt * 12);
 
     if (!still) {
-      m.breath += dt * 1.4;
-      // blink scheduling (+ occasional double blink)
+      m.breath += dt * (KAI.state === 'sleep' ? .7 : 1.3);
+      m.shoulder = Math.sin(m.breath * .5) * 1;
       blinkT += dt * 1000;
-      if (blinkT > m.nextBlink) { m.blink = Math.min(1, m.blink + dt * 14); if (m.blink >= 1) { blinkT = 0; m.nextBlink = rand(2200, 5200); if (Math.random() < .12) m.nextBlink = 180; } }
-      else if (m.blink > 0) m.blink = Math.max(0, m.blink - dt * 16);
-      // saccades
-      saccT += dt;
-      if (saccT > rand(0.8, 2.2)) { saccT = 0; m.sacc = rand(-2, 2); }
+      const closeSpeed = KAI.state === 'sleep' ? 6 : 15;
+      if (blinkT > m.nextBlink) { m.blink = Math.min(1, m.blink + dt * closeSpeed);
+        if (m.blink >= 1) { blinkT = 0; m.nextBlink = KAI.state === 'sleep' ? rand(600, 1400) : rand(3000, 8000); if (Math.random() < .14) m.nextBlink = 170; } }
+      else if (m.blink > 0) m.blink = Math.max(KAI.state === 'sleep' ? .5 : 0, m.blink - dt * (closeSpeed + 2));
+      saccT += dt; if (saccT > rand(.7, 2.4)) { saccT = 0; m.sacc = rand(-2.2, 2.2); }
       m.sacc = lerp(m.sacc, 0, dt * 3);
-      // presence mode: idle wandering gaze (Increment 26)
+      microT += dt; if (microT > rand(3, 7)) { microT = 0; m.microT = rand(-1, 1); setTimeout(() => (m.microT = 0), 500); }
+      // idle head drift + presence wandering
       m.presenceAt += dt;
-      if (KAI.state === 'idle' && m.presenceAt > 6) {
-        m.presenceAt = 0; bus.emit('gaze', ['left', 'right', 'up', 'camera'][Math.floor(rand(0, 4))]);
-        setTimeout(() => KAI.state === 'idle' && bus.emit('gaze', 'camera'), 1800);
+      if (KAI.state === 'idle') {
+        m.tiltT = Math.sin(m.breath * .2) * .02;
+        if (m.presenceAt > 7) { m.presenceAt = 0; bus.emit('gaze', ['up', 'camera', 'camera'][Math.floor(rand(0, 3))]);
+          setTimeout(() => KAI.state === 'idle' && bus.emit('gaze', 'camera'), 1700); }
       }
-    } else { m.blink = 0; m.breath = 0; }
+    } else { m.blink = 0; m.jaw = 0; }
 
-    // gaze easing toward target
-    const g = GAZE[gazeTarget] || GAZE.camera;
-    m.gaze.x = lerp(m.gaze.x, g[0], still ? 1 : dt * 4);
-    m.gaze.y = lerp(m.gaze.y, g[1], still ? 1 : dt * 4);
+    resolveGaze(dt, still);
 
-    // decay halo sectors
-    for (const [k, v] of m.haloLit) { const nv = v - dt * 0.6; nv <= 0 ? m.haloLit.delete(k) : m.haloLit.set(k, nv); }
+    // advance particles
+    for (const p of chest) { if (!still) { p.t += dt * p.sp; if (p.t > 1) { p.t = 0; p.a = rand(-1, 1); } } }
+    for (let i = flows.length - 1; i >= 0; i--) { flows[i].t += dt * flows[i].sp; if (flows[i].t >= 1) flows.splice(i, 1); }
+    for (let i = 0; i < 8; i++) m.haloLit[i] = Math.max(0, m.haloLit[i] - dt * .55);
 
     // ---- render ----
     ctx.clearRect(0, 0, W, H);
     ctx.save(); ctx.scale(DPR, DPR);
     const cw = W / DPR, ch = H / DPR, cx = cw / 2;
-    const bob = still ? 0 : Math.sin(m.breath) * ch * .006;
-    const cy = ch * .46 + bob;
-    const s = cw * .2;
-    drawHalo(cx, cy, s * 1.85);
+    const bob = still ? 0 : Math.sin(m.breath) * ch * .004 + m.shoulder * .3;
+    const cy = ch * .4 + bob;
+    const s = cw * .19;
+    // presence glow
+    const pg = ctx.createRadialGradient(cx, cy, s * .2, cx, cy, s * 2.2);
+    pg.addColorStop(0, rgba(m.accent, .1 * (.5 + m.illum) * m.bright)); pg.addColorStop(1, rgba(m.accent, 0));
+    ctx.fillStyle = pg; ctx.fillRect(0, 0, cw, ch);
+    drawHalo(cx, cy - s * .1, s * 1.75);
     drawWings(cx, cy, s);
-    drawHead(cx, cy, s);
+    drawFigure(cx, cy, s);
     ctx.restore();
 
     raf = requestAnimationFrame(frame);
@@ -287,6 +402,7 @@ export function mountAvatar(canvas) {
 
   return {
     litHalo: sec => bus.emit('halo', sec),
+    lookAt: (x, y) => bus.emit('gaze:point', { x, y }),
     destroy: () => cancelAnimationFrame(raf),
   };
 }

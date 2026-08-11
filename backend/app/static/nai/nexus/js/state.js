@@ -5,24 +5,28 @@
 // avatar, panels, sound and transitions all subscribe to.
 // ============================================================================
 
+// Canonical KAI states. 'idle' is the resting PRESENCE state; 'sleep' is a
+// deeper dormant state; 'understanding' bridges listening → thinking.
 export const STATES = [
-  'idle', 'listening', 'thinking', 'speaking',
-  'executing', 'researching', 'warning', 'critical', 'success',
+  'idle', 'listening', 'understanding', 'thinking', 'researching',
+  'executing', 'speaking', 'success', 'warning', 'critical', 'sleep',
 ];
 
 // States that KAI settles back into; transient states auto-revert to these.
-const STABLE = new Set(['idle', 'listening', 'warning', 'critical']);
+const STABLE = new Set(['idle', 'listening', 'warning', 'critical', 'sleep']);
 
 const GREET = {
-  idle:        'What can I do for you?',
-  listening:   'Listening…',
-  thinking:    'Thinking it through…',
-  speaking:    '',                       // greeting is replaced by the reply
-  executing:   'On it — executing.',
-  researching: 'Researching across sources…',
-  warning:     'Something needs your attention.',
-  critical:    'Critical condition detected.',
-  success:     'Done.',
+  idle:         'What can I do for you?',
+  listening:    'Listening…',
+  understanding:'Understanding…',
+  thinking:     'Thinking it through…',
+  speaking:     '',                       // greeting is replaced by the reply
+  executing:    'On it — executing.',
+  researching:  'Researching across sources…',
+  warning:      'Something needs your attention.',
+  critical:     'Critical condition detected.',
+  success:      'Done.',
+  sleep:        '',
 };
 
 // ---- event bus -------------------------------------------------------------
