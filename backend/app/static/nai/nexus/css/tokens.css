@@ -1,0 +1,116 @@
+/* ============================================================================
+   KAI NEXUS — Design System (Increment 1)
+   Tokens: color · type · space · glass · depth · motion · state
+   One source of truth. Every module consumes these vars — no hard-coded colors.
+   The --accent-* group is STATE-DRIVEN: js/state.js flips it on the <html data-kai>
+   attribute so the whole interface (not just the avatar) reflects KAI's state.
+   ========================================================================== */
+
+:root {
+  /* — Base surfaces: near-black with a cold blue undertone ("expensive, not busy") */
+  --bg-void:      #04060d;   /* deepest background */
+  --bg-abyss:     #070a14;
+  --bg-panel:     #0b1020;
+  --bg-raised:    #111830;
+  --bg-hover:     #17203c;
+  --stroke:       #1c2745;   /* hairline borders */
+  --stroke-soft:  #141c33;
+
+  /* — Glass (panels float above the ambient field) */
+  --glass-bg:     rgba(12, 18, 36, 0.62);
+  --glass-stroke: rgba(120, 160, 255, 0.10);
+  --glass-blur:   14px;
+  --glass-hi:     rgba(150, 190, 255, 0.06);  /* top inner highlight */
+
+  /* — Ink */
+  --ink:          #eaf1ff;
+  --ink-dim:      #9fb0d4;
+  --ink-mute:     #5f6f96;
+  --ink-faint:    #38445f;
+
+  /* — KAI signature: celestial blue → cyan */
+  --kai-500:  #3f8cff;
+  --kai-400:  #5aa0ff;
+  --kai-300:  #86bcff;
+  --cyan-400: #46e6ff;
+  --cyan-300: #8af3ff;
+  --halo:     #4aa3ff;
+
+  /* — State palette (each KAI state maps here) */
+  --st-idle:      #3f8cff;
+  --st-listen:    #46e6ff;
+  --st-think:     #7a6bff;
+  --st-speak:     #58c8ff;
+  --st-exec:      #35d0a8;
+  --st-research:  #4ab6ff;
+  --st-warning:   #ffb020;
+  --st-critical:  #ff4d4d;
+  --st-success:   #3ff0b0;
+
+  /* — Semantic status */
+  --ok:    #35d0a8;
+  --warn:  #ffb020;
+  --crit:  #ff4d4d;
+  --info:  #4aa3ff;
+
+  /* — STATE-DRIVEN accent (default = idle). state.js overrides via [data-kai] below. */
+  --accent:       var(--st-idle);
+  --accent-soft:  rgba(63, 140, 255, 0.16);
+  --accent-glow:  rgba(63, 140, 255, 0.45);
+  --accent-ink:   #bcd6ff;
+
+  /* — Typography */
+  --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --fs-micro: 10.5px;
+  --fs-tiny:  11.5px;
+  --fs-sm:    13px;
+  --fs-base:  14.5px;
+  --fs-lg:    17px;
+  --fs-xl:    22px;
+  --fs-2xl:   30px;
+  --fs-display: 44px;
+  --tracking-wide: 0.14em;   /* label caps */
+  --tracking-mega: 0.42em;   /* the "K A I" title */
+
+  /* — Space scale (4pt) */
+  --s1: 4px;  --s2: 8px;  --s3: 12px; --s4: 16px;
+  --s5: 20px; --s6: 24px; --s8: 32px; --s10: 40px; --s12: 48px;
+
+  /* — Radius */
+  --r-sm: 8px; --r-md: 12px; --r-lg: 18px; --r-xl: 24px; --r-pill: 999px;
+
+  /* — Depth (elevation + blue glow) */
+  --shadow-1: 0 1px 2px rgba(0,0,0,.5);
+  --shadow-2: 0 8px 24px rgba(0,0,0,.45);
+  --shadow-3: 0 24px 60px rgba(0,0,0,.55);
+  --glow-accent: 0 0 0 1px var(--accent-soft), 0 0 34px -6px var(--accent-glow);
+
+  /* — Motion (calibrated: slow = premium) */
+  --ease:       cubic-bezier(.22,.61,.36,1);
+  --ease-out:   cubic-bezier(.16,1,.3,1);
+  --ease-inout: cubic-bezier(.65,0,.35,1);
+  --t-fast: 140ms;
+  --t-med:  280ms;
+  --t-slow: 560ms;
+  --t-cine: 900ms;   /* cinematic panel transitions */
+
+  --z-bg: 0; --z-content: 10; --z-dock: 40; --z-overlay: 80; --z-toast: 100;
+}
+
+/* — State-driven theming. state.js sets <html data-kai="thinking"> etc. — */
+[data-kai="idle"]      { --accent: var(--st-idle);     --accent-glow: rgba(63,140,255,.45);  --accent-soft: rgba(63,140,255,.16);  --accent-ink:#bcd6ff; }
+[data-kai="listening"] { --accent: var(--st-listen);   --accent-glow: rgba(70,230,255,.5);   --accent-soft: rgba(70,230,255,.18);  --accent-ink:#c6f6ff; }
+[data-kai="thinking"]  { --accent: var(--st-think);    --accent-glow: rgba(122,107,255,.5);  --accent-soft: rgba(122,107,255,.18); --accent-ink:#d3ccff; }
+[data-kai="speaking"]  { --accent: var(--st-speak);    --accent-glow: rgba(88,200,255,.5);   --accent-soft: rgba(88,200,255,.18);  --accent-ink:#c8ecff; }
+[data-kai="executing"] { --accent: var(--st-exec);     --accent-glow: rgba(53,208,168,.5);   --accent-soft: rgba(53,208,168,.18);  --accent-ink:#b6f2e2; }
+[data-kai="researching"]{--accent: var(--st-research); --accent-glow: rgba(74,182,255,.5);   --accent-soft: rgba(74,182,255,.18);  --accent-ink:#c2e6ff; }
+[data-kai="warning"]   { --accent: var(--st-warning);  --accent-glow: rgba(255,176,32,.5);   --accent-soft: rgba(255,176,32,.18);  --accent-ink:#ffe0a6; }
+[data-kai="critical"]  { --accent: var(--st-critical); --accent-glow: rgba(255,77,77,.55);   --accent-soft: rgba(255,77,77,.20);   --accent-ink:#ffc4c4; }
+[data-kai="success"]   { --accent: var(--st-success);  --accent-glow: rgba(63,240,176,.55);  --accent-soft: rgba(63,240,176,.20);  --accent-ink:#c2ffe8; }
+
+/* Reduced-motion + adaptive-quality flags (set on <html>) collapse durations. */
+@media (prefers-reduced-motion: reduce) {
+  :root { --t-fast:0ms; --t-med:0ms; --t-slow:0ms; --t-cine:0ms; }
+}
+[data-motion="off"] { --t-fast:0ms; --t-med:0ms; --t-slow:0ms; --t-cine:0ms; }

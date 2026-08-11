@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-kai="idle" data-q="high">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#04060d">
+  <title>KAI · Command Nexus</title>
+  <link rel="stylesheet" href="css/tokens.css">
+  <link rel="stylesheet" href="css/nexus.css">
+</head>
+<body>
+  <canvas id="bg-particles"></canvas>
+
+  <div class="nexus">
+    <!-- top bar -->
+    <header class="topbar">
+      <div class="brand"><span class="dot"></span>KAI <small id="kai-status">online</small></div>
+      <div class="title">Command Nexus</div>
+      <div class="settings">
+        <div class="seg" id="seg-motion" title="Motion">
+          <button data-motion="on" class="on">Motion</button>
+          <button data-motion="off">Still</button>
+        </div>
+        <div class="seg" id="seg-sound" title="Sound">
+          <button data-sound="silent">Silent</button>
+          <button data-sound="ambient" class="on">Ambient</button>
+          <button data-sound="cinematic">Cinematic</button>
+        </div>
+      </div>
+      <div class="clock" id="clock">00:00:00</div>
+      <div class="secure"><span class="ring"></span><span id="secure-label">Secure</span></div>
+    </header>
+
+    <!-- main: SYSTEM | KAI | LIVE INTELLIGENCE -->
+    <main class="main">
+      <section class="col left" id="col-left" aria-label="System"></section>
+
+      <section class="stage" aria-label="KAI">
+        <canvas id="avatar" aria-hidden="true"></canvas>
+        <div class="greet" id="greet">What can I do for you?</div>
+        <div class="statechip"><b></b><span id="statechip-label">Idle</span></div>
+      </section>
+
+      <section class="col right" id="col-right" aria-label="Live intelligence"></section>
+    </main>
+
+    <!-- mobile KPI cards (Increment 25) -->
+    <div class="mobile-cards" id="mobile-cards"></div>
+
+    <!-- command dock -->
+    <div class="dock" id="dock">
+      <div class="mode"><b></b><span id="dock-mode">Ready</span></div>
+      <input id="cmd" type="text" autocomplete="off" placeholder="Ask KAI anything…" aria-label="Ask KAI">
+      <button class="iconbtn mic" id="mic" title="Speak" aria-label="Voice">🎙</button>
+      <button class="iconbtn send" id="send" title="Send" aria-label="Send">↑</button>
+    </div>
+
+    <!-- tab bar → transforming workspace -->
+    <nav class="tabs" id="tabs">
+      <button class="tab" data-view="thinking">Thinking Graph</button>
+      <button class="tab" data-view="agents">Agents</button>
+      <button class="tab" data-view="mission">Tasks</button>
+      <button class="tab" data-view="memory">Memory</button>
+      <button class="tab" data-view="tools">Tools</button>
+      <button class="tab" data-view="infrastructure">Infrastructure</button>
+    </nav>
+  </div>
+
+  <div class="toasts" id="toasts"></div>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
