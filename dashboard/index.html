@@ -18050,7 +18050,16 @@ async function agentRun() {
 }
 
 function _agentStream(runId) {
-  _agentEsSource = new EventSource(`/api/agent/stream/${runId}?api_key=${_apiKey()}`);
+  // SSE auth (C1): EventSource can't set headers. When a unified operator
+  // session is active (the JS-readable wv_session_active hint is present), the
+  // HttpOnly wv_session cookie authenticates the stream same-origin — no secret
+  // in the URL. Only before sessions exist do we fall back to the legacy
+  // ?api_key= param (which the server accepts only while sessions are off).
+  const _sessionActive = /(?:^|;\s*)wv_session_active=1(?:;|$)/.test(document.cookie);
+  const _streamUrl = _sessionActive
+    ? `/api/agent/stream/${runId}`
+    : `/api/agent/stream/${runId}?api_key=${_apiKey()}`;
+  _agentEsSource = new EventSource(_streamUrl, { withCredentials: true });
 
   _agentEsSource.onmessage = (e) => {
     const step = JSON.parse(e.data);

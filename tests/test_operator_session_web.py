@@ -5,11 +5,44 @@ login/logout/whoami surface, cookie attributes, fail-closed on tamper/expiry,
 role→scope correctness, and that two apps sharing one secret validate the same
 cookie (the cross-app guarantee).
 """
+from types import SimpleNamespace
+
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from core.operator_session_web import resolve_api_key
+
+
+def _fake_req(header=None, query=None):
+    return SimpleNamespace(
+        headers={"x-api-key": header} if header else {},
+        query_params={"api_key": query} if query else {},
+    )
+
+
+# ── C1 regression: ?api_key= accepted only while sessions are OFF ─────────────
+def test_query_api_key_allowed_only_when_sessions_off():
+    off = SessionConfig(enabled=False, owner_key="k", admin_token=None, session_secret="s")
+    on = SessionConfig(enabled=True, owner_key="k", admin_token=None, session_secret="s")
+    # header always works, both states
+    assert resolve_api_key(_fake_req(header="K"), off) == "K"
+    assert resolve_api_key(_fake_req(header="K"), on) == "K"
+    # query param: accepted when OFF, IGNORED (rejected) when ON
+    assert resolve_api_key(_fake_req(query="K"), off) == "K"
+    assert resolve_api_key(_fake_req(query="K"), on) is None
+    # header wins over query
+    assert resolve_api_key(_fake_req(header="H", query="Q"), off) == "H"
+
 from core import operator_session as osess
-from core.operator_session_web import SessionConfig, install_operator_session, COOKIE_NAME
+from core.operator_session_web import SessionConfig, install_operator_session, COOKIE_NAME, HINT_COOKIE
+
+
+def _cookie_line(resp, name):
+    """The specific Set-Cookie header line for `name` (login sets two cookies)."""
+    for line in resp.headers.get_list("set-cookie"):
+        if line.lower().startswith(name.lower() + "="):
+            return line.lower()
+    return ""
 
 OWNER_KEY = "owner-key"
 ADMIN_TOKEN = "admin-token"
@@ -130,7 +163,7 @@ def test_logout_clears_cookie():
 def test_cookie_attributes_secure_and_httponly():
     client, _ = _app(secure=True)
     r = client.post("/admin/session/login", json={"secret": OWNER_KEY})
-    sc = r.headers.get("set-cookie", "").lower()
+    sc = _cookie_line(r, COOKIE_NAME)
     assert "httponly" in sc
     assert "samesite=lax" in sc
     assert "secure" in sc
@@ -140,8 +173,17 @@ def test_cookie_attributes_secure_and_httponly():
 def test_cookie_not_secure_in_dev():
     client, _ = _app(secure=False)
     r = client.post("/admin/session/login", json={"secret": OWNER_KEY})
-    sc = r.headers.get("set-cookie", "").lower()
+    sc = _cookie_line(r, COOKIE_NAME)
     assert "httponly" in sc and "secure" not in sc
+
+
+def test_session_hint_cookie_is_js_readable_and_no_secret():
+    client, _ = _app(secure=True)
+    r = client.post("/admin/session/login", json={"secret": OWNER_KEY})
+    hint = _cookie_line(r, HINT_COOKIE)
+    assert hint and "httponly" not in hint         # JS-readable
+    token = r.cookies.get(COOKIE_NAME)
+    assert token and token not in hint             # hint carries no session token
 
 
 # ── cross-app: two apps, one secret, same cookie validates in both ───────────

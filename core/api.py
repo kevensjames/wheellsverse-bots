@@ -125,6 +125,42 @@ logger = logging.getLogger("api")
 
 _API_KEY = os.getenv("API_KEY", "").strip()
 
+# ── Unified operator session (merge Phase P2). Default OFF. Defined here so both
+#    verify_api_key and api_key_middleware below can reference it. When the flag
+#    is off, _session_ok() is always False and query-param api_key is still
+#    accepted (legacy) — so /api auth is byte-identical to before. When ON, a
+#    valid signed wv_session cookie authenticates, and ?api_key= is REJECTED
+#    (cookie auth replaces the C1 URL-secret-leak vector). App A + App B share
+#    SESSION_SIGNING_SECRET so one login authenticates both. Router install
+#    happens after `app` is created (see below). ──────────────────────────────
+from core.operator_session_web import (  # noqa: E402
+    SessionConfig as _SessionConfig,
+    install_operator_session as _install_operator_session,
+    principal_for_request as _principal_for_request,
+    resolve_api_key as _resolve_api_key,
+)
+
+_OPERATOR_SESSION_CFG = _SessionConfig(
+    enabled=os.getenv("OPERATOR_SESSION_ENABLED", "false").strip().lower()
+    in ("1", "true", "yes", "on"),
+    owner_key=(_API_KEY or None),
+    admin_token=(os.getenv("ADMIN_TOKEN", "").strip() or None),
+    session_secret=(os.getenv("SESSION_SIGNING_SECRET", "").strip() or None),
+    secure_cookies=(os.getenv("APP_ENV", "production").strip().lower()
+                    not in ("dev", "development", "local", "test")),
+)
+
+
+def _session_ok(request) -> bool:
+    """True iff the unified session is enabled AND the request carries a valid
+    principal (cookie or legacy header). Fail-closed on any error."""
+    if not _OPERATOR_SESSION_CFG.enabled:
+        return False
+    try:
+        return _principal_for_request(request, _OPERATOR_SESSION_CFG) is not None
+    except Exception:
+        return False
+
 # Public paths that never require auth
 _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "/favicon.ico",
                   # Legal pages — publicly accessible, no auth required
@@ -197,13 +233,12 @@ async def verify_api_key(request: Request):
     if path in _PUBLIC_PATHS or not path.startswith("/api/") or path.startswith("/api/nx/"):
         return  # Public route
 
-    key = (
-        request.headers.get("X-API-Key")
-        or request.headers.get("x-api-key")
-        or request.query_params.get("api_key")
-    )
+    key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
     if not key or not hmac.compare_digest(key, _API_KEY):
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+        # Flag-gated: a valid unified session cookie authenticates too. Inert
+        # (always False) while OPERATOR_SESSION_ENABLED is off.
+        if not _session_ok(request):
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
 # ─── Global state ─────────────────────────────────────────────────────────────
@@ -851,40 +886,8 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
-# ── Unified operator session (merge Phase P2). Default OFF: when the flag is
-#    unset the block below installs nothing and _session_ok() always returns
-#    False, so /api/ auth behaves byte-for-byte as before. When ON, a valid
-#    signed wv_session cookie authenticates in place of the legacy X-API-Key,
-#    and /admin/session/{login,logout,whoami} exist. App A + App B share
-#    SESSION_SIGNING_SECRET so one login authenticates both. ─────────────────
-from core.operator_session_web import (
-    SessionConfig as _SessionConfig,
-    install_operator_session as _install_operator_session,
-    principal_for_request as _principal_for_request,
-)
-
-_OPERATOR_SESSION_CFG = _SessionConfig(
-    enabled=os.getenv("OPERATOR_SESSION_ENABLED", "false").strip().lower()
-    in ("1", "true", "yes", "on"),
-    owner_key=(_API_KEY or None),
-    admin_token=(os.getenv("ADMIN_TOKEN", "").strip() or None),
-    session_secret=(os.getenv("SESSION_SIGNING_SECRET", "").strip() or None),
-    secure_cookies=(os.getenv("APP_ENV", "production").strip().lower()
-                    not in ("dev", "development", "local", "test")),
-)
-
-
-def _session_ok(request: Request) -> bool:
-    """True iff the unified session is enabled AND the request carries a valid
-    principal (cookie or legacy header). Fail-closed on any error."""
-    if not _OPERATOR_SESSION_CFG.enabled:
-        return False
-    try:
-        return _principal_for_request(request, _OPERATOR_SESSION_CFG) is not None
-    except Exception:
-        return False
-
-
+# Install the unified operator-session routes (config + helpers defined up near
+# _API_KEY). No-op while OPERATOR_SESSION_ENABLED is off.
 _install_operator_session(app, _OPERATOR_SESSION_CFG)
 
 
@@ -904,11 +907,7 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/store/download/",  # uses its own signed-token auth
                              "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
         if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
-            key = (
-                request.headers.get("X-API-Key")
-                or request.headers.get("x-api-key")
-                or request.query_params.get("api_key")
-            )
+            key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
             if not key or not hmac.compare_digest(key, _API_KEY):
                 # Flag-gated fallback: accept a valid unified session cookie in
                 # place of the legacy key. _session_ok() is always False while

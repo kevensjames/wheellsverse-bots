@@ -26,6 +26,10 @@ from core import operator_session as osess
 from core.operator_session import Principal
 
 COOKIE_NAME = "wv_session"
+# Non-secret, JS-readable companion so the frontend can tell a session is active
+# (the real cookie is HttpOnly and invisible to document.cookie). Carries no
+# credential — just presence — so pages can drop the legacy ?api_key= from URLs.
+HINT_COOKIE = "wv_session_active"
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,18 @@ class SessionConfig:
     secure_cookies: bool = True          # False only in local dev (http)
     ttl_seconds: int = 43200             # 12h
     cookie_name: str = COOKIE_NAME
+
+
+def resolve_api_key(request, cfg: SessionConfig) -> Optional[str]:
+    """The effective legacy API key for a request: the X-API-Key header always,
+    but the ``?api_key=`` query param ONLY while the unified session is disabled.
+    Once sessions are enabled, cookie auth replaces the query param and it is
+    ignored — closing the C1 URL-secret-leak vector. Shared by App A's
+    verify_api_key and api_key_middleware so both enforce it identically."""
+    key = request.headers.get("x-api-key")
+    if not key and not cfg.enabled:
+        key = request.query_params.get("api_key")
+    return key
 
 
 def principal_for_request(request: Request, cfg: SessionConfig) -> Optional[Principal]:
@@ -94,12 +110,17 @@ def make_session_router(cfg: SessionConfig) -> APIRouter:
         resp = JSONResponse({"role": principal.role,
                              "scopes": sorted(principal.scopes)})
         _set_session_cookie(resp, token, cfg)
+        # JS-readable presence hint (no secret) so pages can drop ?api_key=.
+        resp.set_cookie(key=HINT_COOKIE, value="1", max_age=cfg.ttl_seconds,
+                        httponly=False, secure=cfg.secure_cookies,
+                        samesite="lax", path="/")
         return resp
 
     @router.post("/admin/session/logout")
     async def logout():
         resp = JSONResponse({"ok": True})
         resp.delete_cookie(cfg.cookie_name, path="/")
+        resp.delete_cookie(HINT_COOKIE, path="/")
         return resp
 
     @router.get("/admin/session/whoami")
