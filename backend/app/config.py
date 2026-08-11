@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     def admin_token(self) -> str:
         return self.ADMIN_TOKEN or self.JWT_SECRET_KEY
 
+    # ── Unified operator session (merge Phase P2). Default OFF. When enabled,
+    #    require_admin_token also accepts a valid wv_session cookie signed with
+    #    SESSION_SIGNING_SECRET, which MUST match App A's value so one login
+    #    authenticates both apps. Legacy X-Admin-Token stays valid regardless.
+    OPERATOR_SESSION_ENABLED: bool = False
+    SESSION_SIGNING_SECRET: str = ""
+
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
     # if either is empty, alerts are silently skipped.

@@ -15,6 +15,18 @@ from app.core.rate_limit import limiter
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.routers import admin_audit, admin_briefing, admin_browser, admin_chat, admin_checkin, admin_data, admin_digest, admin_eq, admin_failures, admin_journal, admin_kg, admin_learning, admin_persona, admin_planning, admin_presets, admin_relationship, admin_research, admin_self_correction, admin_self_heal, admin_supreme, admin_twin, api_keys_admin, auth, billing, documents, nai, predictions, sol, transcribe, tts, v1
 
+# Merge Phase P2: put the repo root on sys.path so the shared, pure session core
+# (`core/*`, used by BOTH apps) imports here too — App B otherwise only sees `app`.
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = str(_Path(__file__).resolve().parents[2])
+if _REPO_ROOT not in _sys.path:
+    _sys.path.insert(0, _REPO_ROOT)
+from core.operator_session_web import (  # noqa: E402
+    SessionConfig as _SessionConfig,
+    install_operator_session as _install_operator_session,
+)
+
 
 # Uvicorn configures its own loggers but doesn't attach a handler to the root
 # logger, so WARNINGS from app.* loggers silently disappear into the void.
@@ -176,6 +188,19 @@ app.add_middleware(
 # rate-limit 429s, CORS preflights, and SSE streams. HSTS is only set when
 # APP_ENV indicates production (production=HTTPS=safe to set HSTS).
 app.add_middleware(SecurityHeadersMiddleware, app_env=settings.APP_ENV)
+
+# Unified operator session (merge Phase P2, default OFF). Shares
+# SESSION_SIGNING_SECRET with App A so one login authenticates both. When the
+# flag is off this installs nothing. Owner logs in on App A (owner key lives
+# there); App B mints operator sessions from the admin token.
+_install_operator_session(app, _SessionConfig(
+    enabled=settings.OPERATOR_SESSION_ENABLED,
+    owner_key=None,
+    admin_token=(settings.admin_token or None),
+    session_secret=(settings.SESSION_SIGNING_SECRET or None),
+    secure_cookies=(settings.APP_ENV or "production").lower()
+    not in ("dev", "development", "local", "test"),
+))
 
 app.include_router(auth.router)
 app.include_router(predictions.router)

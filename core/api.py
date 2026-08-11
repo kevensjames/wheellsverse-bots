@@ -851,6 +851,43 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
+# ── Unified operator session (merge Phase P2). Default OFF: when the flag is
+#    unset the block below installs nothing and _session_ok() always returns
+#    False, so /api/ auth behaves byte-for-byte as before. When ON, a valid
+#    signed wv_session cookie authenticates in place of the legacy X-API-Key,
+#    and /admin/session/{login,logout,whoami} exist. App A + App B share
+#    SESSION_SIGNING_SECRET so one login authenticates both. ─────────────────
+from core.operator_session_web import (
+    SessionConfig as _SessionConfig,
+    install_operator_session as _install_operator_session,
+    principal_for_request as _principal_for_request,
+)
+
+_OPERATOR_SESSION_CFG = _SessionConfig(
+    enabled=os.getenv("OPERATOR_SESSION_ENABLED", "false").strip().lower()
+    in ("1", "true", "yes", "on"),
+    owner_key=(_API_KEY or None),
+    admin_token=(os.getenv("ADMIN_TOKEN", "").strip() or None),
+    session_secret=(os.getenv("SESSION_SIGNING_SECRET", "").strip() or None),
+    secure_cookies=(os.getenv("APP_ENV", "production").strip().lower()
+                    not in ("dev", "development", "local", "test")),
+)
+
+
+def _session_ok(request: Request) -> bool:
+    """True iff the unified session is enabled AND the request carries a valid
+    principal (cookie or legacy header). Fail-closed on any error."""
+    if not _OPERATOR_SESSION_CFG.enabled:
+        return False
+    try:
+        return _principal_for_request(request, _OPERATOR_SESSION_CFG) is not None
+    except Exception:
+        return False
+
+
+_install_operator_session(app, _OPERATOR_SESSION_CFG)
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""
@@ -873,10 +910,14 @@ async def api_key_middleware(request: Request, call_next):
                 or request.query_params.get("api_key")
             )
             if not key or not hmac.compare_digest(key, _API_KEY):
-                return JSONResponse(
-                    {"error": "Unauthorized", "hint": "Set X-API-Key header"},
-                    status_code=401,
-                )
+                # Flag-gated fallback: accept a valid unified session cookie in
+                # place of the legacy key. _session_ok() is always False while
+                # OPERATOR_SESSION_ENABLED is off → unchanged 401 behavior.
+                if not _session_ok(request):
+                    return JSONResponse(
+                        {"error": "Unauthorized", "hint": "Set X-API-Key header"},
+                        status_code=401,
+                    )
     return await call_next(request)
 
 
