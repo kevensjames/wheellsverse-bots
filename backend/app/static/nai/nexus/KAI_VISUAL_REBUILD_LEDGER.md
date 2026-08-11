@@ -7,7 +7,8 @@ Baseline (start of rebuild): commit `9691632` — canvas synthetic-human avatar,
 
 | ID | Requirement (P) | Status | Verification | Blocker |
 |----|-----------------|--------|--------------|---------|
-| C1 | Composition: KAI dominates 40–60% center, no huge empty space (P0) | VERIFIED | desktop+mobile screenshots | — |
+| C1 | Composition: KAI dominates center, no empty space (P0) | VERIFIED | getBoundingClientRect: KAI 0px column-centered @1920/1440/1280/1000; no overlap/hscroll | — |
+| C0 | Positioning bug: off-center lurch at 720–1080px (P0) | VERIFIED | ROOT CAUSE = asymmetric `1fr 1.3fr` tablet grid; fixed with symmetric minmax 3-col | — |
 | C2 | Rails substantial + stronger command bar (P0/P1) | VERIFIED | dock 56px + accent glow | — |
 | K1 | KAI hero: semi-photoreal, adult, head+neck+shoulders (P0) | VERIFIED | generated portrait hero, both viewports | photoreal *rigged* GLB still external |
 | K2 | Real visual asset pipeline (§21) — generated image presence | VERIFIED | Higgsfield soul_2 → assets/kai.jpg + portrait.js | — |
