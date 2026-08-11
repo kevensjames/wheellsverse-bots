@@ -84,8 +84,10 @@ def test_gate2_bridge_reaches_real_route(A):
 
 
 def test_gate2_operator_ultra_denied(A):
+    # /admin/kai-chat is always tier=ultra on App B → owner-only at the bridge.
     _login(A, "optok")
-    assert A.post("/admin/kai/kai-chat?ultra=1", json={}).status_code == 403
+    assert A.post("/admin/kai/kai-chat", json={}).status_code == 403       # plain
+    assert A.post("/admin/kai/kai-chat?ultra=1", json={}).status_code == 403  # explicit
 
 
 def test_gate2_anonymous_denied(A):

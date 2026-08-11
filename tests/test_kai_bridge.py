@@ -98,10 +98,20 @@ def test_upstream_path_prefix_mapping():
     assert captured["path"] == "/admin/kg/nodes"
 
 
-def test_operator_allowed_on_chat():
+def test_operator_allowed_on_read_route():
+    # Read routes (kg/twin/…) are operator-appropriate → kai.chat suffices.
+    c = _client()
+    r = c.get("/admin/kai/kg/nodes", cookies=_cookie("operator"))
+    assert r.status_code == 200
+
+
+def test_operator_denied_on_chat_ultra_endpoint():
+    # /admin/kai-chat ALWAYS runs tier=ultra on App B, so the bridge gates the
+    # whole kai-chat prefix to owner-only — an operator must be denied (§12).
     c = _client()
     r = c.post("/admin/kai/kai-chat", json={"m": "hi"}, cookies=_cookie("operator"))
-    assert r.status_code == 200
+    assert r.status_code == 403 and r.json()["need"] == osess.SCOPE_KAI_ULTRA
+    assert not captured  # never forwarded to App B
 
 
 def test_operator_denied_on_ultra_path():

@@ -60,7 +60,13 @@ class BridgeConfig:
     allow_prefixes: tuple = ("kai-chat", "kg", "twin", "persona", "briefing",
                              "research", "memory")
     allow_methods: frozenset = frozenset({"GET", "POST"})
-    ultra_prefixes: tuple = ("kai-chat/ultra",)    # sub-paths needing kai.ultra
+    # App B's /admin/kai-chat ALWAYS runs as a synthetic tier='ultra' operator
+    # (admin_chat.py: "bypasses every paid-gate"), and App B's require_admin_token
+    # is binary (any admin passes). So the owner-vs-operator distinction MUST be
+    # enforced HERE: the entire kai-chat prefix requires the owner-only kai.ultra
+    # scope. An operator session reaching it would otherwise get ultra = the §12
+    # escalation. The read routes (kg/twin/persona/…) stay kai.chat (operator-ok).
+    ultra_prefixes: tuple = ("kai-chat",)
     timeout: float = 30.0
     # Test seam: returns an httpx.AsyncClient (default targets the real upstream).
     client_factory: Optional[Callable[[], httpx.AsyncClient]] = field(default=None)
