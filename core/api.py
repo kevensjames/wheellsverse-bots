@@ -1638,8 +1638,8 @@ async def serve_homepage():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def serve_admin_dashboard():
-    """Primary admin: legacy 144-bot dashboard (Command Center merged in as a panel)."""
-    return await _serve_old_dashboard()
+    """Primary admin: KAI CEO Command Center (3D telemetry). Legacy dashboard at /admin/legacy."""
+    return await _serve_old_dashboard("ceo.html")
 
 
 @app.get("/admin/hub", response_class=HTMLResponse)
@@ -1675,12 +1675,10 @@ async def serve_siteboost_admin():
     if not path.exists():
         return HTMLResponse("<h1>siteboost.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        # Sanitize before injection — fetch() headers must be ISO-8859-1 (≤ U+00FF).
-        # If the env var was ever pasted with a smart-quote / fancy unicode char
-        # via copy-paste, strip it out so the JS fetch doesn't crash.
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY (C1): never inject the operator API_KEY into an unauthenticated
+    # /admin/* page — baking it in leaks the platform key to anyone who can GET the
+    # page. The page supplies the key itself via its prompt()/sessionStorage flow
+    # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1694,9 +1692,10 @@ async def serve_portfolio_admin():
     if not path.exists():
         return HTMLResponse("<h1>portfolio.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY (C1): never inject the operator API_KEY into an unauthenticated
+    # /admin/* page — baking it in leaks the platform key to anyone who can GET the
+    # page. The page supplies the key itself via its prompt()/sessionStorage flow
+    # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1707,9 +1706,10 @@ async def serve_portfolio_cockpit(slug: str):
     if not path.exists():
         return HTMLResponse("<h1>portfolio_cockpit.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY (C1): never inject the operator API_KEY into an unauthenticated
+    # /admin/* page — baking it in leaks the platform key to anyone who can GET the
+    # page. The page supplies the key itself via its prompt()/sessionStorage flow
+    # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1743,9 +1743,10 @@ async def serve_scoreboard():
     if not path.exists():
         return HTMLResponse("<h1>scoreboard.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY (C1): never inject the operator API_KEY into an unauthenticated
+    # /admin/* page — baking it in leaks the platform key to anyone who can GET the
+    # page. The page supplies the key itself via its prompt()/sessionStorage flow
+    # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1770,9 +1771,10 @@ async def serve_leadgen():
     if not path.exists():
         return HTMLResponse("<h1>leadgen.html not found</h1>", status_code=404)
     html = path.read_text(encoding="utf-8")
-    if _API_KEY:
-        sanitized = "".join(c for c in _API_KEY if 32 <= ord(c) <= 126).strip()
-        html = html.replace("'%%API_KEY%%'", f"'{sanitized}'")
+    # SECURITY (C1): never inject the operator API_KEY into an unauthenticated
+    # /admin/* page — baking it in leaks the platform key to anyone who can GET the
+    # page. The page supplies the key itself via its prompt()/sessionStorage flow
+    # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
     return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
 
 
@@ -1891,10 +1893,10 @@ async def siteboost_unsubscribe(token: str):
     )
 
 
-async def _serve_old_dashboard():
-    html_path = ROOT / "dashboard" / "index.html"
+async def _serve_old_dashboard(filename: str = "index.html"):
+    html_path = ROOT / "dashboard" / filename
     if not html_path.exists():
-        return HTMLResponse("<h1>Dashboard not found. Expected: dashboard/index.html</h1>", status_code=500)
+        return HTMLResponse(f"<h1>Dashboard not found. Expected: dashboard/{filename}</h1>", status_code=500)
     html = html_path.read_text(encoding="utf-8")
     # Inject API key for authenticated dashboard access
     if _API_KEY:
