@@ -37,11 +37,11 @@ h1,h2,h3,p { margin: 0; }
 /* ---- Top bar ---------------------------------------------------------- */
 .topbar {
   grid-area: top;
-  display: flex; align-items: center; gap: var(--s4);
-  padding: var(--s3) var(--s5);
+  display: flex; align-items: center; gap: var(--s4); min-height: 56px;
+  padding: var(--s2) var(--s5);
   border-bottom: 1px solid var(--stroke-soft);
   background: linear-gradient(180deg, rgba(9,13,26,.9), rgba(9,13,26,.4));
-  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
 }
 .brand { display: flex; align-items: center; gap: var(--s2); font-weight: 700; letter-spacing: .04em; }
 .brand .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent);
@@ -86,7 +86,7 @@ h1,h2,h3,p { margin: 0; }
 }
 .panel.live { border-color: var(--accent-soft); box-shadow: var(--shadow-2), var(--glow-accent); }
 .panel-h { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
-.panel-h .lbl { font-size: var(--fs-micro); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-mute); }
+.panel-h .lbl { font-size: var(--fs-tiny); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
 .panel-h .spark { margin-left: auto; font-family: var(--mono); font-size: var(--fs-tiny); color: var(--accent-ink); }
 
 /* ---- Avatar stage (center) -------------------------------------------- */
@@ -97,16 +97,19 @@ h1,h2,h3,p { margin: 0; }
 /* KAI hero — dominates the center; portrait + halo(behind) + fx(front) */
 /* height-driven → KAI is PROPORTIONAL and always leaves ~88px for the greeting;
    width follows via aspect-ratio; max-width guards a narrow center track. */
-.kai { position: relative; height: min(74vh, calc(100% - 88px)); aspect-ratio: 3 / 4; max-width: 94%; margin: 0 auto; }
-.kai > canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.kai { position: relative; height: min(74vh, calc(100% - 88px)); aspect-ratio: 3 / 4; max-width: 94%; margin: 0 auto; overflow: visible; }
+/* canvases overflow the portrait box so the halo frames head + shoulders */
+.kai > canvas { position: absolute; inset: -12%; width: 124%; height: 124%; pointer-events: none; }
 #kai-halo { z-index: 0; } #kai-fx { z-index: 2; }
 #kai-portrait {
-  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
-  will-change: transform; filter: saturate(1.06) contrast(1.03);
-  -webkit-mask-image: radial-gradient(132% 100% at 50% 36%, #000 56%, transparent 84%), linear-gradient(to bottom, #000 58%, transparent 97%);
-  -webkit-mask-composite: source-in;
-  mask-image: radial-gradient(132% 100% at 50% 36%, #000 56%, transparent 84%), linear-gradient(to bottom, #000 58%, transparent 97%);
-  mask-composite: intersect;
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; will-change: transform;
+  /* the portrait's dark navy background SCREENS into the near-black UI → it
+     vanishes, while the lit face + cyan rim show. No visible portrait rectangle,
+     independent of the asset. */
+  mix-blend-mode: screen;
+  filter: saturate(1.08) contrast(1.05) brightness(1.03);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 92%);
+  mask-image: linear-gradient(to bottom, #000 0%, #000 58%, transparent 92%);
 }
 .stage .greet { margin-top: var(--s4); font-size: var(--fs-lg); color: var(--ink-dim); text-align:center; min-height: 1.4em;
   transition: color var(--t-med); }
@@ -142,12 +145,13 @@ h1,h2,h3,p { margin: 0; }
 .iconbtn.mic.on { color: var(--accent); border-color: var(--accent); animation: pulse 1.2s infinite; }
 
 /* ---- Tab bar ---------------------------------------------------------- */
-.tabs { grid-area: tabs; display:flex; gap:2px; padding: 0 var(--s5) var(--s3); }
-.tab { flex:1; padding: var(--s3) var(--s2); text-align:center; color: var(--ink-mute);
-  font-size: var(--fs-micro); letter-spacing: var(--tracking-wide); text-transform: uppercase;
+.tabs { grid-area: tabs; display:flex; gap:2px; padding: 0 var(--s5) var(--s3);
+  border-top: 1px solid var(--stroke-soft); background: linear-gradient(180deg, rgba(9,13,26,.5), transparent); }
+.tab { flex:1; min-height: 46px; display:flex; align-items:center; justify-content:center; color: var(--ink-dim);
+  font-size: var(--fs-tiny); font-weight: 500; letter-spacing: var(--tracking-wide); text-transform: uppercase;
   border-top: 2px solid transparent; border-radius: 0 0 var(--r-sm) var(--r-sm);
   transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
-.tab:hover { color: var(--ink-dim); background: var(--bg-panel); }
+.tab:hover { color: var(--ink); background: var(--bg-panel); }
 .tab.active { color: var(--accent-ink); border-top-color: var(--accent); background: linear-gradient(180deg, var(--accent-soft), transparent); }
 
 /* ---- Transforming workspace (revealed by a tab) ----------------------- */
@@ -171,7 +175,7 @@ h1,h2,h3,p { margin: 0; }
 .ws-head .close { margin-left:auto; }
 
 /* ---- Shared component vocabulary -------------------------------------- */
-.row { display:flex; align-items:center; gap:var(--s2); padding: 7px 0; border-bottom: 1px solid var(--stroke-soft); font-size: var(--fs-sm); }
+.row { display:flex; align-items:center; gap:var(--s2); padding: 8px 0; border-bottom: 1px solid var(--stroke-soft); font-size: var(--fs-base); }
 .row:last-child { border-bottom: none; }
 .row .k { color: var(--ink-dim); } .row .v { margin-left:auto; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .dim { color: var(--ink-mute); } .mono { font-family: var(--mono); }
@@ -231,7 +235,8 @@ h1,h2,h3,p { margin: 0; }
   background:rgba(242,184,75,.08); padding:3px 9px; border-radius:var(--r-pill); white-space:nowrap; }
 .demoflag[hidden] { display:none; }
 .seg { display:flex; background: var(--glass-bg); border:1px solid var(--glass-stroke); border-radius: var(--r-pill); overflow:hidden; backdrop-filter: blur(10px); }
-.seg button { padding: 5px 11px; font-size: var(--fs-micro); letter-spacing:.08em; text-transform:uppercase; color: var(--ink-mute); }
+.seg button { padding: 7px 13px; min-height: 30px; font-size: var(--fs-tiny); letter-spacing:.08em; text-transform:uppercase; color: var(--ink-dim); transition: color var(--t-fast), background var(--t-fast); }
+.seg button:hover { color: var(--ink); }
 .seg button.on { color: var(--accent-ink); background: var(--accent-soft); }
 
 /* ---- Animations ------------------------------------------------------- */

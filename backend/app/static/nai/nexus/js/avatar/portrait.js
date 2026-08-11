@@ -21,8 +21,10 @@ const ENERGY = [120, 214, 255];
 const SECTORS = ['REASONING', 'MEMORY', 'RESEARCH', 'TOOLS', 'AGENTS', 'SECURITY', 'MARKETS', 'INFRA'];
 const SECTOR_KEY = { reasoning: 0, memory: 1, research: 2, tools: 3, agents: 4, security: 5, market: 6, markets: 6, infra: 7 };
 
-// approx feature positions in the portrait (fractions of the display box)
-const EYE_L = [.43, .315], EYE_R = [.565, .315], CORE = [.5, .76];
+// feature positions as fractions of the OVERSIZED canvas (canvas is 124% of the
+// portrait box, centered → portrait spans 9.7%–90.3%, i.e. ×0.806 + 0.097).
+const P = (fx, fy) => [0.097 + fx * 0.806, 0.097 + fy * 0.806];
+const EYE_L = P(.43, .315), EYE_R = P(.565, .315), CORE = P(.5, .76);
 
 export function mountPortrait({ stage, halo, fx, img }) {
   const hctx = halo.getContext('2d'), fctx = fx.getContext('2d');
@@ -32,11 +34,12 @@ export function mountPortrait({ stage, halo, fx, img }) {
 
   function resize() {
     DPR = Math.min(devicePixelRatio || 1, lowQ() ? 1 : 2);
-    const w = stage.clientWidth || 460, h = stage.clientHeight || 610;
+    // canvases are 124% of the box (overflow) so the halo can frame head+shoulders
+    const w = halo.clientWidth || 560, h = halo.clientHeight || 740;
     for (const c of [halo, fx]) { c.width = w * DPR; c.height = h * DPR; }
     W = w; H = h;
   }
-  new ResizeObserver(resize).observe(stage); resize();
+  new ResizeObserver(resize).observe(halo); resize();
 
   const m = {
     accent: [77, 163, 255], illum: .3, illumT: .3, breath: 0,
@@ -78,24 +81,31 @@ export function mountPortrait({ stage, halo, fx, img }) {
 
   // ---- halo (behind head) --------------------------------------------------
   function drawHalo() {
-    const cx = W / 2, cy = H * .34, R = Math.min(W, H) * .42;
+    const cx = W / 2, cy = H * .37, R = Math.min(W * .47, H * .4);   // frames head + shoulders
     hctx.setTransform(DPR, 0, 0, DPR, 0, 0); hctx.clearRect(0, 0, W, H);
     hctx.translate(cx, cy);
-    hctx.beginPath(); hctx.arc(0, 0, R, 0, TAU); hctx.strokeStyle = rgba(m.accent, .1); hctx.lineWidth = 1; hctx.stroke();
-    hctx.font = `${Math.max(8, R * .05)}px var(--mono,monospace)`; hctx.textAlign = 'center'; hctx.textBaseline = 'middle';
-    for (let i = 0; i < 8; i++) {
-      const a0 = (i / 8) * TAU - Math.PI / 2 + m.haloSpin, a1 = a0 + TAU / 8 * .82, lit = m.haloLit[i];
-      hctx.beginPath(); hctx.arc(0, 0, R, a0, a1); hctx.strokeStyle = rgba(m.accent, .1 + lit * .8); hctx.lineWidth = 1.5 + lit * 4; hctx.stroke();
-      const mid = (a0 + a1) / 2;
-      hctx.fillStyle = rgba(mix(m.accent, ENERGY, lit), .13 + lit * .7);
-      hctx.fillText(SECTORS[i], Math.cos(mid) * (R + R * .12), Math.sin(mid) * (R + R * .12));
-    }
-    for (const f of flows) { const a = (f.s / 8) * TAU - Math.PI / 2 + m.haloSpin + TAU / 16 * .8, rr = R * f.t;
-      hctx.beginPath(); hctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, 2 * (1 - f.t * .5), 0, TAU); hctx.fillStyle = rgba(ENERGY, (1 - f.t) * .7); hctx.fill(); }
     // soft blue separation glow behind the head
-    const g = hctx.createRadialGradient(0, 0, R * .2, 0, 0, R * 1.2);
-    g.addColorStop(0, rgba(m.accent, .12 * (.5 + m.illum))); g.addColorStop(1, rgba(m.accent, 0));
-    hctx.fillStyle = g; hctx.beginPath(); hctx.arc(0, 0, R * 1.2, 0, TAU); hctx.fill();
+    const g = hctx.createRadialGradient(0, 0, R * .2, 0, 0, R * 1.28);
+    g.addColorStop(0, rgba(m.accent, .11 * (.5 + m.illum))); g.addColorStop(1, rgba(m.accent, 0));
+    hctx.fillStyle = g; hctx.beginPath(); hctx.arc(0, 0, R * 1.28, 0, TAU); hctx.fill();
+    // faint radial spokes (intelligence grid)
+    hctx.strokeStyle = rgba(m.accent, .05); hctx.lineWidth = 1;
+    for (let i = 0; i < 24; i++) { const a = i / 24 * TAU + m.haloSpin * .5;
+      hctx.beginPath(); hctx.moveTo(Math.cos(a) * R * .6, Math.sin(a) * R * .6); hctx.lineTo(Math.cos(a) * R * .99, Math.sin(a) * R * .99); hctx.stroke(); }
+    // outer thin ring
+    hctx.beginPath(); hctx.arc(0, 0, R, 0, TAU); hctx.strokeStyle = rgba(m.accent, .24); hctx.lineWidth = 1.2; hctx.stroke();
+    // inner segmented ring: 8 subsystem arcs + anchor points + labels
+    const Ri = R * .86;
+    hctx.font = `${Math.max(8, R * .045)}px var(--mono,monospace)`; hctx.textAlign = 'center'; hctx.textBaseline = 'middle';
+    for (let i = 0; i < 8; i++) {
+      const a0 = (i / 8) * TAU - Math.PI / 2 + m.haloSpin, a1 = a0 + TAU / 8 * .7, lit = m.haloLit[i], mid = (a0 + a1) / 2;
+      hctx.beginPath(); hctx.arc(0, 0, Ri, a0, a1); hctx.strokeStyle = rgba(mix(m.accent, ENERGY, lit), .2 + lit * .8); hctx.lineWidth = 2 + lit * 4; hctx.stroke();
+      hctx.beginPath(); hctx.arc(Math.cos(mid) * Ri, Math.sin(mid) * Ri, 2 + lit * 3.5, 0, TAU); hctx.fillStyle = rgba(mix(m.accent, ENERGY, lit), .45 + lit * .55); hctx.fill();
+      hctx.fillStyle = rgba(mix(m.accent, ENERGY, lit), .16 + lit * .74); hctx.fillText(SECTORS[i], Math.cos(mid) * (R + R * .075), Math.sin(mid) * (R + R * .075));
+    }
+    // particle flows outward from lit sectors
+    for (const f of flows) { const a = (f.s / 8) * TAU - Math.PI / 2 + m.haloSpin + TAU / 16 * .7, rr = Ri * f.t;
+      hctx.beginPath(); hctx.arc(Math.cos(a) * rr, Math.sin(a) * rr, 2 * (1 - f.t * .5), 0, TAU); hctx.fillStyle = rgba(ENERGY, (1 - f.t) * .7); hctx.fill(); }
   }
 
   // ---- fx (in front of portrait) -------------------------------------------
@@ -115,8 +125,8 @@ export function mountPortrait({ stage, halo, fx, img }) {
     fctx.fillStyle = cg; fctx.beginPath(); fctx.arc(cpx, cpy, cr, 0, TAU); fctx.fill();
     // energy dissolve rising from the chest/base
     for (const p of chest) { if (!still) { p.t += p.sp * .016; if (p.t > 1) { p.t = 0; p.a = Math.random(); } }
-      const x = (0.28 + p.a * 0.44) * W + Math.sin(p.t * 6 + p.a * 10) * W * .02;
-      const y = H * (.98 - p.t * .5);
+      const x = (0.097 + (0.3 + p.a * 0.4) * 0.806) * W + Math.sin(p.t * 6 + p.a * 10) * W * .015;
+      const y = H * (0.9 - p.t * 0.42);
       fctx.beginPath(); fctx.arc(x, y, p.r * (1 - p.t) * .9, 0, TAU); fctx.fillStyle = rgba(mix(m.accent, ENERGY, .5), (1 - p.t) * .5); fctx.fill(); }
     // environmental colour wash on the active side
     if (m.env.on > .01) { const rl = fctx.createLinearGradient(m.env.side > 0 ? 0 : W, 0, m.env.side > 0 ? W : 0, 0);
