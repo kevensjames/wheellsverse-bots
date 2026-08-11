@@ -5,6 +5,34 @@
 > cutovers. Production stays OFF until each staged step passes its success gate
 > and the operator explicitly approves. Nothing here has been deployed.
 
+## ⛔ EXTERNAL BLOCKER — no isolated staging exists (S0 finding)
+
+Verified 2026-08-11: there is **no isolated staging deployment** for either app.
+`railway.json`/`nixpacks`/`Dockerfile` start `core.api:app`; `frontend/functions/_middleware.js`
+proxies to `grateful-flexibility-production.up.railway.app` — **production**. App B
+runs at kai.wheellsverse.com — **production**. Running these gates against those
+would touch production, which is forbidden.
+
+**As the credential-free substitute**, the spine is certified LOCALLY against the
+**real** app objects (`tests/test_staging_surrogate.py`: boots `core.api:app` +
+`app.main:app` in-process with stub env, all flags ON). That covers Gate 1 fully
+and Gate 2's security logic; it does NOT cover real DB routes, real LLM streaming,
+HTTPS `Secure`-cookie behavior, or Cloudflare topology.
+
+**Operator must provision to run the real gates:**
+1. An **isolated staging deployment of App A** (`core.api:app`) — separate Railway
+   service (or equivalent), non-prod DB, its own domain, `APP_ENV≠production`
+   only if you want non-Secure cookies (prefer HTTPS + Secure).
+2. An **isolated staging deployment of App B** (`app.main:app`) — separate service,
+   non-prod Postgres + Redis, staging LLM/provider keys.
+3. A shared **`SESSION_SIGNING_SECRET`** (staging-only, high-entropy) on both.
+4. Staging `API_KEY` (A) and `ADMIN_TOKEN` (A+B); staging Cloudflare/proxy route
+   (or direct staging URLs) so the browser reaches both same-origin.
+5. Confirmation that neither URL is production.
+
+Provide the two staging URLs + confirm the secrets are present (do not send their
+values) and the staging gates below can run.
+
 ## Prerequisites (both apps, staging)
 
 Set on **both** App A (`core.api:app`) and App B (`backend/app/main.py`) so a
