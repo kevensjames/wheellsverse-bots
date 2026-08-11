@@ -6,6 +6,8 @@
 // Live via data:agents. All snapshot values reach the DOM through textContent
 // only — never innerHTML — so agent tasks/names can't inject markup.
 // ============================================================================
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 export function create(ctx) {
   const { bus, data, sound, el } = ctx;
   const off = [];
@@ -47,7 +49,7 @@ export function create(ctx) {
   lbl.textContent = 'AGENT';
   const spark = document.createElement('span');
   spark.className = 'spark';
-  head.append(lbl, spark);
+  head.append(lbl, spark, dataFreshness.badge('agents'));
   const cardBody = document.createElement('div');
   card.append(head, cardBody);
   side.append(card);

@@ -11,6 +11,8 @@
 // re-renders on each snapshot.
 // ============================================================================
 
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 // Static, non-sensitive sample findings. Literals only — never snapshot data.
 const FINDINGS = [
   {
@@ -102,6 +104,7 @@ export function create(ctx) {
     const head = mk('div');
     head.style.cssText = 'display:flex;align-items:baseline;gap:var(--s3);flex-wrap:wrap';
     head.appendChild(kicker('SECURITY POSTURE'));
+    head.appendChild(dataFreshness.badge('security'));
     const big = mk('span', 'big mono ' + vd.cls, String(score));
     const outOf = mk('span', 'dim mono', '/ 100');
     outOf.style.fontSize = 'var(--fs-sm)';

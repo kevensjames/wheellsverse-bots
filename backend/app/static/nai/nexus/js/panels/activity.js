@@ -5,6 +5,8 @@
    capped at 14 rows. No snapshot — starts empty.
    ========================================================================== */
 
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 const CAP = 14;
 
 /* Per-sector dot color — all reference existing design tokens, no invented hex.
@@ -28,7 +30,10 @@ export function create(ctx) {
   panel.className = 'panel';
   panel.innerHTML =
     '<div class="panel-h"><span class="lbl">Live Activity</span>' +
-    '<span class="spark mono">LIVE</span></div>';
+    '<span class="spark mono"></span></div>';
+
+  // §36/§6: the header hard-coded a misleading "LIVE" — replace it with the honest freshness badge.
+  panel.querySelector('.spark').appendChild(dataFreshness.badge('activity'));
 
   const feed = document.createElement('div');
   feed.className = 'feed';

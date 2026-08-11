@@ -4,6 +4,7 @@
 // all live off their own data channels. Pure createElement/textContent DOM:
 // no snapshot value ever touches innerHTML.
 // ============================================================================
+import { dataFreshness } from '../shared/dataFreshness.js';
 
 export function create(ctx) {
   const { bus, data, el } = ctx;
@@ -19,12 +20,13 @@ export function create(ctx) {
   const fmt = n => (Number.isFinite(Number(n)) ? Number(n).toLocaleString() : '—');
   const clampPct = v => Math.max(0, Math.min(100, Number(v) || 0));
 
-  function panel(title) {
+  function panel(title, domain) {
     const p = mk('div', 'panel');
     const h = mk('div', 'panel-h');
     h.append(mk('span', 'lbl', title));
     const spark = mk('span', 'spark', '');
     h.append(spark);
+    h.append(dataFreshness.badge(domain));
     p.append(h);
     return { p, spark };
   }
@@ -56,7 +58,7 @@ export function create(ctx) {
   }
 
   // ---- (1) HEALTH -----------------------------------------------------------
-  const H = panel('System · Health');
+  const H = panel('System · Health', 'system');
   const hKpi = kpi('Health');
   const hMeter = meter();
   const hCpu = row('CPU');
@@ -76,7 +78,7 @@ export function create(ctx) {
   }
 
   // ---- (2) SECURITY ---------------------------------------------------------
-  const S = panel('Security');
+  const S = panel('Security', 'security');
   const sKpi = kpi('Score');
   const sMeter = meter();
   const sSub = mk('div', 'dim');
@@ -96,7 +98,7 @@ export function create(ctx) {
   }
 
   // ---- (3) AGENTS -----------------------------------------------------------
-  const A = panel('Agents');
+  const A = panel('Agents', 'agents');
   const aKpi = kpi('Active');
   const aList = mk('div');
   aList.style.marginTop = '6px';
@@ -122,7 +124,7 @@ export function create(ctx) {
   }
 
   // ---- (4) MEMORY -----------------------------------------------------------
-  const M = panel('Memory');
+  const M = panel('Memory', 'memory');
   const mEp = row('Episodic');
   const mSe = row('Semantic');
   const mPr = row('Project');
@@ -139,7 +141,7 @@ export function create(ctx) {
   }
 
   // ---- (5) COSTS ------------------------------------------------------------
-  const C = panel('Costs');
+  const C = panel('Costs', 'costs');
   const cKpi = kpi('Today');
   const cMeter = meter();
   const cMonth = row('Month');

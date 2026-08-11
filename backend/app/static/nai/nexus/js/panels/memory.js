@@ -6,6 +6,8 @@
 // live episodic/semantic/project/user counts from data.get('memory').
 // Renders directly into `el` (already inside the workspace glass frame).
 // ============================================================================
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 export function create(ctx) {
   const { data, bus, avatar, sound, el } = ctx;
   const off = [];
@@ -156,8 +158,15 @@ export function create(ctx) {
   dDetail.textContent = 'Select a node in the graph to inspect what KAI remembers about it.';
   dcard.append(dHead, dTitle, dType, dDetail);
 
+  // data-honesty badge (§36): KPI counts below are simulated until a real feed
+  // is wired — mark them so sample values aren't mistaken for a live feed.
+  const fresh = document.createElement('div');
+  fresh.style.display = 'flex';
+  fresh.style.justifyContent = 'flex-end';
+  fresh.appendChild(dataFreshness.badge('memory'));
+
   stage.append(gcard, dcard);
-  root.append(kpis, stage);
+  root.append(fresh, kpis, stage);
   el.replaceChildren(root);
 
   // ---- interaction ----------------------------------------------------------

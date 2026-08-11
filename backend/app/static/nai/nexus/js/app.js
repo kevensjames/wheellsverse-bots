@@ -4,14 +4,21 @@
 // ============================================================================
 import { bus, KAI } from './state.js';
 import { data } from './data.js';
-import { mountAvatar } from './avatar.js';
+import { mountKai } from './avatar/controller.js';
 import { mountParticles } from './particles.js';
 import { mountSound } from './sound.js';
 import { mountVoice } from './voice.js';
 import { mountWorkspace } from './transitions.js';
+import { quality } from './shared/quality.js';
+import { dataFreshness, FRESH } from './shared/dataFreshness.js';
+import { speak } from './voice/speech.js';
 
+quality.init();                                   // resolve render tier before mounting
 const $ = s => document.querySelector(s);
-const avatar   = mountAvatar($('#avatar'));
+const avatar   = mountKai($('#avatar'));
+// §36 data honesty: everything is simulated until a real feed proves otherwise
+['system', 'security', 'agents', 'memory', 'costs', 'market', 'infra', 'mission', 'news', 'world', 'activity', 'thinking']
+  .forEach(d => dataFreshness.set(d, FRESH.DEMO));
 const particles= mountParticles($('#bg-particles'));
 const sound    = mountSound();
 const workspace= mountWorkspace(document.body);
@@ -103,7 +110,8 @@ function submit(text) {
     [2200, () => { steps[2].state='done'; steps[3].state='active'; avatar.litHalo('reasoning'); emit(); }],
     [3000, () => { steps[3].state='done'; steps[4].state='active'; KAI.set('executing'); avatar.litHalo('tools'); dockMode.textContent='Executing'; emit(); }],
     [3800, () => { steps[4].state='done'; emit(); KAI.transient('success', 1500); toast('Response ready'); }],
-    [4100, () => { KAI.set('speaking'); greet.textContent = reply(text); dockMode.textContent='Speaking';
+    [4100, () => { const r = reply(text); KAI.set('speaking'); greet.textContent = r; dockMode.textContent='Speaking';
+                   if (sound.mode !== 'silent') speak(r);          // real browser TTS + viseme lip-sync
                    setTimeout(() => { KAI.settle(); dockMode.textContent='Ready'; bus.emit('data:thinking', { mode:'idle', steps:[] }); }, 2600); }],
   ];
   seq.forEach(([t, fn]) => setTimeout(fn, t));
@@ -168,6 +176,17 @@ $('#seg-sound').addEventListener('click', e => {
 });
 // reflect stored sound mode
 document.querySelectorAll('#seg-sound button').forEach(b => b.classList.toggle('on', b.dataset.sound === sound.mode));
+// render quality (§34)
+$('#seg-quality').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  quality.apply(b.dataset.q);
+  [...e.currentTarget.children].forEach(x => x.classList.toggle('on', x === b));
+});
+document.querySelectorAll('#seg-quality button').forEach(b => b.classList.toggle('on', b.dataset.q === quality.tier));
+
+// §36 global demo-data flag — visible whenever nothing is a real feed
+function updateDemoFlag() { const f = $('#demoflag'); if (f) f.hidden = dataFreshness.anyReal(); }
+bus.on('freshness', updateDemoFlag); updateDemoFlag();
 
 // ---- clock -----------------------------------------------------------------
 setInterval(() => { $('#clock').textContent = new Date().toTimeString().slice(0, 8); }, 1000);

@@ -45,11 +45,15 @@ const store = {
              agents: [{ name: 'Research', status: 'COMPLETE' }, { name: 'Security', status: 'COMPLETE' },
                       { name: 'Backend', status: 'ACTIVE' }, { name: 'Deployment', status: 'WAITING' }],
              blocker: 'Stripe production verification' },
-  news: [ // seam: replace with a real news API + KAI impact scoring service
-    { title: 'NVIDIA announces new inference architecture', category: 'AI', relevance: 92, impact: 'HIGH', infra: 'Potential inference savings', action: 'Benchmark new architecture' },
-    { title: 'EU finalizes AI transparency rules', category: 'World', relevance: 71, impact: 'MED', infra: 'Compliance review', action: 'Audit model disclosures' },
-    { title: 'New OAuth token-theft campaign observed', category: 'Cybersecurity', relevance: 88, impact: 'HIGH', infra: 'Refresh-token revocation', action: 'Verify logout revocation' },
-    { title: 'Bitcoin ETF inflows hit monthly high', category: 'Finance', relevance: 64, impact: 'LOW', infra: 'None', action: 'Monitor treasury exposure' },
+  // SEAM: replace with a real news API + a KAI impact-scoring service.
+  // Every item is fixture data → verification:'DEMO' (§6 CRITICAL RULE: sample data
+  // must never look like verified live news). source/published/corroborations are
+  // the provenance fields the real feed will populate.
+  news: [
+    { title: 'NVIDIA announces new inference architecture', category: 'AI', relevance: 92, impact: 'HIGH', infra: 'Potential inference savings', action: 'Benchmark new architecture', source: 'Sample feed', published: '3m ago', verification: 'DEMO', corroborations: 0 },
+    { title: 'EU finalizes AI transparency rules', category: 'World', relevance: 71, impact: 'MED', infra: 'Compliance review', action: 'Audit model disclosures', source: 'Sample feed', published: '18m ago', verification: 'DEMO', corroborations: 0 },
+    { title: 'New OAuth token-theft campaign observed', category: 'Cybersecurity', relevance: 88, impact: 'HIGH', infra: 'Refresh-token revocation', action: 'Verify logout revocation', source: 'Sample feed', published: '32m ago', verification: 'DEMO', corroborations: 0 },
+    { title: 'Bitcoin ETF inflows hit monthly high', category: 'Finance', relevance: 64, impact: 'LOW', infra: 'None', action: 'Monitor treasury exposure', source: 'Sample feed', published: '1h ago', verification: 'DEMO', corroborations: 0 },
   ],
   world: [ // seam: real geo feed (news/cyber/traffic). lat/lng normalized to the SVG globe.
     { lng: -74, lat: 40.7, type: 'infra', label: 'US-East · Railway healthy' },
@@ -83,8 +87,10 @@ export const data = {
 
   // ---- simulated real-time loop -----------------------------------------
   start() {
-    // fast tick — numbers drift so the dashboard breathes
+    // fast tick — numbers drift so the dashboard breathes.
+    // (§33: idle when the tab is hidden; the rAF render loops already pause there.)
     setInterval(() => {
+      if (document.hidden) return;
       const s = store.system;
       s.cpu = Math.round(jitter(s.cpu, 6, 8, 96)); s.memPct = Math.round(jitter(s.memPct, 3, 20, 90));
       s.reqs = Math.round(jitter(s.reqs, 24, 40, 400));

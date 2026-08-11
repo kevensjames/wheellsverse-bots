@@ -4,6 +4,8 @@
 // Renders data.get('thinking').steps as .steps; idle shows a calm line.
 // Live channel: data:thinking. Reused full-size in the workspace.
 // ============================================================================
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 export function create(ctx) {
   const { bus, data, el } = ctx;
   const off = [];
@@ -18,7 +20,7 @@ export function create(ctx) {
   lbl.textContent = 'KAI · THINKING';
   const spark = document.createElement('span');
   spark.className = 'spark';
-  head.append(lbl, spark);
+  head.append(lbl, spark, dataFreshness.badge('thinking'));
 
   // request title (working) / calm status line (idle)
   const line = document.createElement('div');

@@ -7,6 +7,8 @@
 // textContent / SVG textContent — never innerHTML.
 // ============================================================================
 
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 const W = 640, H = 520;
 
@@ -58,7 +60,7 @@ export function create(ctx) {
       legend.appendChild(item);
     });
 
-  head.append(title, legend);
+  head.append(title, dataFreshness.badge('infra'), legend);
   el.appendChild(head);
 
   // ---- svg canvas ----

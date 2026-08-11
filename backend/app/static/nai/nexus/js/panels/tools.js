@@ -5,6 +5,8 @@
 // Security: all data-derived values go through textContent only.
 // ============================================================================
 
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 // Static catalog — name, the agent id it maps to, and a one-line description.
 // (These strings are literals, never snapshot data.)
 const CAPS = [
@@ -25,6 +27,7 @@ export function create(ctx) {
   const off = [];
 
   el.replaceChildren();
+  el.appendChild(dataFreshness.badge('agents'));
 
   const grid = document.createElement('div');
   grid.style.display = 'grid';

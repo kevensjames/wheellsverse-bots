@@ -9,6 +9,8 @@
 // innerHTML is never used. Rebuilds wholesale per snapshot; data:market fires
 // rarely (once on start + on tick), so a full repaint is cheap.
 // ============================================================================
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 export function create(ctx) {
   const { bus, data, avatar } = ctx;
   const el = ctx.el;
@@ -69,6 +71,7 @@ export function create(ctx) {
     root.style.display = 'flex';
     root.style.flexDirection = 'column';
     root.style.gap = 'var(--s5)';
+    root.append(dataFreshness.badge('market'));   // honest status: this feed is simulated
 
     // — Top row: index / crypto KPIs —
     const kpis = document.createElement('div');

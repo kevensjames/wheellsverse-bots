@@ -70,7 +70,7 @@ export function mountAvatar(canvas) {
     blink: 0, nextBlink: 1400,
     pupil: 0, pupilT: 0,             // extra contraction (thinking)
     brow: 0, browT: 0,               // eyebrow raise
-    jaw: 0,                          // mouth open (speaking)
+    jaw: 0, mouthT: 0, visemeAt: 0,  // mouth open (viseme-driven while speaking)
     exec: 0, execT: 0,
     wings: 0, wingsT: 0,
     gaze: { x: 0, y: .02 }, gazeT: { x: 0, y: .02 },
@@ -105,6 +105,7 @@ export function mountAvatar(canvas) {
   bus.on('gaze:point', p => { if (p && typeof p.x === 'number') { gazeMode = 'point'; gazePoint = p; } });
   bus.on('halo', sec => { const i = SECTOR_KEY[sec]; if (i != null) { m.haloLit[i] = 1; flows.push(makeFlow(i)); } });
   bus.on('env:light', ({ color, side }) => { m.env.c = parseColor(color || '#3f8cff'); m.env.side = side ?? 0; m.env.on = 1; });
+  bus.on('viseme', v => { m.mouthT = (v && v.open) || 0; m.visemeAt = performance.now(); });  // lip-sync feed
 
   // ---- particle systems ----------------------------------------------------
   let chest = [], flows = [];
@@ -349,9 +350,11 @@ export function mountAvatar(canvas) {
     m.env.on = lerp(m.env.on, m.env.on > 0 ? Math.max(0, m.env.on - dt * .12) : 0, 1);  // env light slowly fades
     m.haloSpin += still ? 0 : dt * .06;
 
-    // jaw for speaking (placeholder prosody until viseme stream — SEAM #21)
+    // jaw driven by real viseme events during speech; gentle fallback if no stream
     const speaking = KAI.state === 'speaking';
-    m.jaw = lerp(m.jaw, speaking && !still ? (Math.sin(now * .018) * .5 + .5) * (Math.random() * .6 + .4) : 0, dt * 12);
+    const vFresh = (now - m.visemeAt) < 380;
+    const mouth = speaking && !still ? (vFresh ? m.mouthT : Math.sin(now * .02) * .25 + .28) : 0;
+    m.jaw = lerp(m.jaw, mouth, dt * 14);
 
     if (!still) {
       m.breath += dt * (KAI.state === 'sleep' ? .7 : 1.3);

@@ -47,6 +47,28 @@ Done (buildless-appropriate): 1 design system · 2 shell · 3 avatar micro-motio
 15 security center · 16 infrastructure · 17 mission control · 18 voice · 19 transitions ·
 23 ambient · 24 sound · 25 mobile · 26 presence · 27 identity direction.
 
+## v2 additions (Presence Engine v2 program)
+```
+js/avatar/controller.js  backend-selecting controller (canvas2d now · gltf when an asset exists)
+js/avatar/gltf.js        photoreal GLB/VRM WebGL backend — real code, activates ONLY with a bundled
+                         3D lib (window.THREE) + a rigged assets/kai.glb (neither ships yet → §9 honest)
+js/voice/speech.js       REAL browser TTS (SpeechSynthesis) + viseme-driven mouth (word-boundary → visemes)
+js/shared/dataFreshness  §36/§6 honesty: LIVE/CACHED/STALE/DEMO/UNAVAILABLE + badge() + global Demo-Data flag
+js/shared/quality.js     §34 tiers AUTO/HIGH/BALANCED/BATTERY (AUTO detects device) + §33 visibility pause
+tests/nexus.test.mjs     §42 invariants — state machine, freshness, and "no fixture news looks VERIFIED"
+```
+Run tests: `node tests/nexus.test.mjs`
+
+### Honest status (anti-scaffolding §45)
+- **Data**: everything is **DEMO** — the header shows a Demo-Data flag and every panel carries a freshness
+  badge. Wire a real feed and call `dataFreshness.set('<domain>', FRESH.LIVE)` to flip it. News fixtures are
+  all `verification:'DEMO'` (§6: fixtures must never read as verified live news).
+- **Voice**: TTS audio + lip-sync are **real** (browser SpeechSynthesis). Phoneme-accurate visemes need a
+  TTS service that emits viseme timing (Azure/ElevenLabs) — swap the engine in `speak()`; the mouth pipeline
+  is already in place.
+- **Photoreal avatar**: the **controller + gltf backend are built and wired**, but no rigged GLB asset or 3D
+  lib ships here, so the canvas presence renders. NOT claimed complete — see below.
+
 ## Seams (need external assets/services — built as clean swap points, not faked)
 - **#2 photoreal avatar** — replace the canvas presence in `avatar.js` with a rigged
   GLB/VRM head in WebGL; drive the SAME controller API (gaze/state/halo).

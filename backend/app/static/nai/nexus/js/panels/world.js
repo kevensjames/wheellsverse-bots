@@ -13,6 +13,8 @@
 // wiring is a future increment.
 // ============================================================================
 
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 const NS = 'http://www.w3.org/2000/svg';
 
 // viewBox geometry
@@ -69,6 +71,7 @@ export function create(ctx) {
     textContent: 'WORLD PULSE',
     style: 'font-size:var(--fs-micro);letter-spacing:var(--tracking-wide);text-transform:uppercase',
   }));
+  head.append(dataFreshness.badge('world'));   // honest status next to heading
   const count = document.createElement('span');
   count.className = 'spark mono dim';
   count.style.marginLeft = 'auto';

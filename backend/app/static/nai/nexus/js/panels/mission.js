@@ -7,6 +7,8 @@
 // innerHTML is never used. Rebuilds wholesale on each snapshot — data:mission
 // fires rarely (once on start + on mission change), so a full repaint is cheap.
 // ============================================================================
+import { dataFreshness } from '../shared/dataFreshness.js';
+
 export function create(ctx) {
   const { bus, data, el } = ctx;
   const off = [];
@@ -43,6 +45,10 @@ export function create(ctx) {
     name.className = 'big';
     name.style.marginTop = 'var(--s1)';
     name.textContent = m.name || 'Untitled mission';
+    const badge = dataFreshness.badge('mission');
+    badge.style.marginLeft = 'var(--s2)';
+    badge.style.verticalAlign = 'middle';
+    name.append(badge);
     head.append(name);
     wrap.append(head);
 

@@ -2,6 +2,12 @@
 // RIGHT-RAIL "LIVE INTELLIGENCE" — News Intelligence Center.
 // One glass panel of clickable headlines; each reveals a KAI IMPACT ANALYSIS block.
 // Live via the data:news channel. Column kind.
+import { dataFreshness } from '../shared/dataFreshness.js';
+
+// §6 provenance: item.verification → freshness badge level. A DEMO item must
+// read clearly as sample data, so the badge lives on the always-visible
+// provenance line, never inside the collapsible impact block.
+const VERIF_BADGE = { 'DEMO': 'demo', 'VERIFIED': 'live', 'SINGLE SOURCE': 'cached', 'UNVERIFIED': 'stale' };
 
 export function create(ctx) {
   const { bus, data, sound, avatar } = ctx;
@@ -21,6 +27,7 @@ export function create(ctx) {
   spark.className = 'spark';
   head.appendChild(lbl);
   head.appendChild(spark);
+  head.appendChild(dataFreshness.badge('news'));
 
   const list = document.createElement('div');
 
@@ -53,6 +60,45 @@ export function create(ctx) {
     row.appendChild(k);
     row.appendChild(v);
     return row;
+  }
+
+  // §6 provenance line: source · published · verification badge · N corroborations.
+  // Always visible so a DEMO item never masquerades as a live feed.
+  function provenanceLine(item) {
+    const line = document.createElement('div');
+    line.className = 'dim mono';
+    line.style.display = 'flex';
+    line.style.alignItems = 'center';
+    line.style.flexWrap = 'wrap';
+    line.style.gap = 'var(--s2)';
+    line.style.fontSize = 'var(--fs-tiny)';
+    line.style.padding = '0 0 var(--s3) var(--s5)';
+
+    const addText = t => {
+      const s = document.createElement('span');
+      s.textContent = t;
+      line.appendChild(s);
+    };
+    const addSep = () => {
+      const s = document.createElement('span');
+      s.textContent = '·';
+      s.style.flex = 'none';
+      line.appendChild(s);
+    };
+
+    addText(item && item.source ? String(item.source) : '—');
+    addSep();
+    addText(item && item.published ? String(item.published) : '—');
+    addSep();
+    const verif = String((item && item.verification) || '').toUpperCase();
+    line.appendChild(dataFreshness.badge(VERIF_BADGE[verif] || 'demo'));
+
+    const corr = Number(item && item.corroborations) || 0;
+    if (corr > 0) {
+      addSep();
+      addText(corr + ' corroborating sources');
+    }
+    return line;
   }
 
   function render(items) {
@@ -174,6 +220,7 @@ export function create(ctx) {
       }
 
       wrap.appendChild(btn);
+      wrap.appendChild(provenanceLine(item));
       wrap.appendChild(reveal);
       list.appendChild(wrap);
     });

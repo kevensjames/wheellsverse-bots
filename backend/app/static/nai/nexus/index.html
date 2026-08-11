@@ -18,15 +18,22 @@
       <div class="title">Command Nexus</div>
       <div class="settings">
         <div class="seg" id="seg-motion" title="Motion">
-          <button data-motion="on" class="on">Motion</button>
-          <button data-motion="off">Still</button>
+          <button type="button" data-motion="on" class="on">Motion</button>
+          <button type="button" data-motion="off">Still</button>
         </div>
         <div class="seg" id="seg-sound" title="Sound">
-          <button data-sound="silent">Silent</button>
-          <button data-sound="ambient" class="on">Ambient</button>
-          <button data-sound="cinematic">Cinematic</button>
+          <button type="button" data-sound="silent">Silent</button>
+          <button type="button" data-sound="ambient" class="on">Ambient</button>
+          <button type="button" data-sound="cinematic">Cinematic</button>
+        </div>
+        <div class="seg" id="seg-quality" title="Render quality">
+          <button type="button" data-q="auto" class="on">Auto</button>
+          <button type="button" data-q="high">High</button>
+          <button type="button" data-q="balanced">Balanced</button>
+          <button type="button" data-q="battery">Saver</button>
         </div>
       </div>
+      <div class="demoflag" id="demoflag" title="Simulated sample data — not a live feed">Demo Data</div>
       <div class="clock" id="clock">00:00:00</div>
       <div class="secure"><span class="ring"></span><span id="secure-label">Secure</span></div>
     </header>
@@ -38,7 +45,7 @@
       <section class="stage" aria-label="KAI">
         <canvas id="avatar" aria-hidden="true"></canvas>
         <div class="greet" id="greet">What can I do for you?</div>
-        <div class="statechip"><b></b><span id="statechip-label">Idle</span></div>
+        <div class="statechip" role="status" aria-live="polite"><b></b><span id="statechip-label">Idle</span></div>
       </section>
 
       <section class="col right" id="col-right" aria-label="Live intelligence"></section>
@@ -51,22 +58,22 @@
     <div class="dock" id="dock">
       <div class="mode"><b></b><span id="dock-mode">Ready</span></div>
       <input id="cmd" type="text" autocomplete="off" placeholder="Ask KAI anything…" aria-label="Ask KAI">
-      <button class="iconbtn mic" id="mic" title="Speak" aria-label="Voice">🎙</button>
-      <button class="iconbtn send" id="send" title="Send" aria-label="Send">↑</button>
+      <button type="button" class="iconbtn mic" id="mic" title="Speak" aria-label="Voice">🎙</button>
+      <button type="button" class="iconbtn send" id="send" title="Send" aria-label="Send">↑</button>
     </div>
 
     <!-- tab bar → transforming workspace -->
-    <nav class="tabs" id="tabs">
-      <button class="tab" data-view="thinking">Thinking Graph</button>
-      <button class="tab" data-view="agents">Agents</button>
-      <button class="tab" data-view="mission">Tasks</button>
-      <button class="tab" data-view="memory">Memory</button>
-      <button class="tab" data-view="tools">Tools</button>
-      <button class="tab" data-view="infrastructure">Infrastructure</button>
+    <nav class="tabs" id="tabs" aria-label="Views">
+      <button type="button" class="tab" data-view="thinking">Thinking Graph</button>
+      <button type="button" class="tab" data-view="agents">Agents</button>
+      <button type="button" class="tab" data-view="mission">Tasks</button>
+      <button type="button" class="tab" data-view="memory">Memory</button>
+      <button type="button" class="tab" data-view="tools">Tools</button>
+      <button type="button" class="tab" data-view="infrastructure">Infrastructure</button>
     </nav>
   </div>
 
-  <div class="toasts" id="toasts"></div>
+  <div class="toasts" id="toasts" role="status" aria-live="polite" aria-atomic="true"></div>
 
   <script type="module" src="js/app.js"></script>
 </body>
