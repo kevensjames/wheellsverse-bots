@@ -118,10 +118,10 @@ export function mountPortrait({ stage, halo, fx, img }) {
       g.addColorStop(0, rgba(ENERGY, .5 * m.eye)); g.addColorStop(1, rgba(ENERGY, 0));
       fctx.fillStyle = g; fctx.beginPath(); fctx.arc(x, y, r, 0, TAU); fctx.fill();
     }
-    // chest core pulse
-    const cpx = CORE[0] * W, cpy = CORE[1] * H, cr = W * .12 * m.core;
+    // chest core — a SUBTLE embedded sigil glow (§7: not an Iron-Man reactor)
+    const cpx = CORE[0] * W, cpy = CORE[1] * H, cr = W * .06 * m.core;
     const cg = fctx.createRadialGradient(cpx, cpy, 0, cpx, cpy, cr);
-    cg.addColorStop(0, rgba(mix(m.accent, ENERGY, .4), .35 * m.core)); cg.addColorStop(1, rgba(m.accent, 0));
+    cg.addColorStop(0, rgba(mix(m.accent, ENERGY, .4), .2 * m.core)); cg.addColorStop(1, rgba(m.accent, 0));
     fctx.fillStyle = cg; fctx.beginPath(); fctx.arc(cpx, cpy, cr, 0, TAU); fctx.fill();
     // energy dissolve rising from the chest/base
     for (const p of chest) { if (!still) { p.t += p.sp * .016; if (p.t > 1) { p.t = 0; p.a = Math.random(); } }
@@ -148,7 +148,7 @@ export function mountPortrait({ stage, halo, fx, img }) {
     m.haloSpin += still ? 0 : dt * .05;
     m.env.on = Math.max(0, m.env.on - dt * .12);
     sweep = Math.max(0, sweep - dt * .7);
-    m.core = .45 + (still ? 0 : Math.sin(m.breath * 1.1) * .12) + m.illum * .3;
+    m.core = .3 + (still ? 0 : Math.sin(m.breath * 1.1) * .08) + m.illum * .22;
     if (!still) m.breath += dt * 1.2;
     for (let i = 0; i < 8; i++) m.haloLit[i] = Math.max(0, m.haloLit[i] - dt * .55);
     for (let i = flows.length - 1; i >= 0; i--) { flows[i].t += dt * flows[i].sp; if (flows[i].t >= 1) flows.splice(i, 1); }

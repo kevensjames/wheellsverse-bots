@@ -96,6 +96,21 @@
   --t-cine: 900ms;   /* cinematic panel transitions */
 
   --z-bg: 0; --z-content: 10; --z-dock: 40; --z-overlay: 80; --z-toast: 100;
+
+  /* ── Fluid scale (§4) — everything grows with viewport, min/max clamped, so a
+     3440px monitor gets big rails/type/hero, not a stretched 16:9 layout. ── */
+  --shell-max:   2600px;                          /* cap so ultrawide is deliberate, not stretched */
+  --rail-left:   clamp(258px, 12.5vw, 400px);
+  --rail-right:  clamp(316px, 14vw,   470px);
+  --hero-h:      clamp(500px, 62vh,   920px);
+  --header-h:    clamp(52px,  4.2vh,  72px);
+  --command-h:   clamp(64px,  6.4vh,  96px);       /* row; dock box = this − bottom margin */
+  --nav-h:       clamp(46px,  3.6vh,  60px);
+  --fz-metric:   clamp(28px, 1.5vw, 44px);        /* big numbers (98%, 82) */
+  --fz-body:     clamp(13px, .78vw, 17px);        /* rows */
+  --fz-meta:     clamp(10.5px, .58vw, 13.5px);    /* labels/metadata */
+  --fz-title:    clamp(11px, .66vw, 15px);        /* panel titles */
+  --fz-control:  clamp(11px, .62vw, 14px);        /* header/nav buttons */
 }
 
 /* — State-driven theming. state.js sets <html data-kai="thinking"> etc. — */

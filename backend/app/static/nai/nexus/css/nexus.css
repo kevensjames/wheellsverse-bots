@@ -28,9 +28,9 @@ h1,h2,h3,p { margin: 0; }
 /* ---- App grid --------------------------------------------------------- */
 .nexus {
   position: relative; z-index: var(--z-content);
-  height: 100dvh; width: 100vw;
+  height: 100dvh; width: 100%; max-width: var(--shell-max); margin-inline: auto;   /* deliberate ultrawide frame */
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
+  grid-template-rows: var(--header-h) minmax(0, 1fr) var(--command-h) var(--nav-h);
   grid-template-areas: "top" "main" "dock" "tabs";
 }
 
@@ -58,15 +58,14 @@ h1,h2,h3,p { margin: 0; }
 .main {
   grid-area: main;
   display: grid;
-  /* deterministic symmetric 3-col: KAI's center track (col 2) is always
-     viewport-centered between two same-behaving rails. minmax keeps it stable
-     across desktop widths without magic numbers (fixes the off-center lurch). */
-  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 350px);
-  gap: var(--s4);
-  padding: var(--s4) var(--s5);
+  /* deterministic symmetric 3-col with FLUID rails (§4): KAI's center track is
+     always centered between two same-behaving rails that scale up on wide screens. */
+  grid-template-columns: var(--rail-left) minmax(0, 1fr) var(--rail-right);
+  gap: clamp(var(--s4), 1.4vw, var(--s8));
+  padding: clamp(var(--s3), 1.4vw, var(--s8)) clamp(var(--s4), 1.6vw, var(--s10));
   min-height: 0;
 }
-.col { display: flex; flex-direction: column; gap: var(--s4); min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--stroke) transparent; }
+.col { display: flex; flex-direction: column; gap: clamp(var(--s3), 1vw, var(--s5)); min-height: 0; overflow-y: auto; font-size: var(--fz-body); scrollbar-width: thin; scrollbar-color: var(--stroke) transparent; }
 .col::-webkit-scrollbar { width: 6px; } .col::-webkit-scrollbar-thumb { background: var(--stroke); border-radius: 3px; }
 
 /* ---- Glass panel ------------------------------------------------------ */
@@ -76,8 +75,8 @@ h1,h2,h3,p { margin: 0; }
   border: 1px solid var(--glass-stroke);
   border-radius: var(--r-lg);
   box-shadow: var(--shadow-2);
-  backdrop-filter: blur(var(--glass-blur));
-  padding: var(--s4);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
+  padding: clamp(var(--s4), 1.15vw, var(--s6));
   transition: border-color var(--t-med) var(--ease), box-shadow var(--t-med) var(--ease), transform var(--t-med) var(--ease);
 }
 .panel::before { /* top inner highlight */
@@ -86,7 +85,7 @@ h1,h2,h3,p { margin: 0; }
 }
 .panel.live { border-color: var(--accent-soft); box-shadow: var(--shadow-2), var(--glow-accent); }
 .panel-h { display: flex; align-items: center; gap: var(--s2); margin-bottom: var(--s3); }
-.panel-h .lbl { font-size: var(--fs-tiny); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+.panel-h .lbl { font-size: var(--fz-title); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
 .panel-h .spark { margin-left: auto; font-family: var(--mono); font-size: var(--fs-tiny); color: var(--accent-ink); }
 
 /* ---- Avatar stage (center) -------------------------------------------- */
@@ -97,7 +96,7 @@ h1,h2,h3,p { margin: 0; }
 /* KAI hero — dominates the center; portrait + halo(behind) + fx(front) */
 /* height-driven → KAI is PROPORTIONAL and always leaves ~88px for the greeting;
    width follows via aspect-ratio; max-width guards a narrow center track. */
-.kai { position: relative; height: min(74vh, calc(100% - 88px)); aspect-ratio: 3 / 4; max-width: 94%; margin: 0 auto; overflow: visible; }
+.kai { position: relative; height: min(var(--hero-h), calc(100% - 92px)); aspect-ratio: 3 / 4; max-width: 94%; margin: 0 auto; overflow: visible; }
 /* canvases overflow the portrait box so the halo frames head + shoulders */
 .kai > canvas { position: absolute; inset: -12%; width: 124%; height: 124%; pointer-events: none; }
 #kai-halo { z-index: 0; } #kai-fx { z-index: 2; }
@@ -135,7 +134,7 @@ h1,h2,h3,p { margin: 0; }
 .dock .mode { display:flex; align-items:center; gap: var(--s2); padding-left: var(--s2); color: var(--accent-ink);
   font-size: var(--fs-micro); letter-spacing: var(--tracking-wide); text-transform: uppercase; white-space: nowrap; }
 .dock .mode b { width:7px;height:7px;border-radius:50%;background:var(--accent);box-shadow:0 0 8px var(--accent); }
-.dock input { flex:1; background:none; border:none; color:var(--ink); font-size: var(--fs-base); padding: var(--s2); }
+.dock input { flex:1; background:none; border:none; color:var(--ink); font-size: var(--fz-body); padding: var(--s2); }
 .dock input::placeholder { color: var(--ink-mute); }
 .iconbtn { width: 40px; height: 40px; border-radius: 50%; display:grid; place-items:center;
   background: var(--bg-raised); border:1px solid var(--stroke); color: var(--ink-dim);
@@ -148,7 +147,7 @@ h1,h2,h3,p { margin: 0; }
 .tabs { grid-area: tabs; display:flex; gap:2px; padding: 0 var(--s5) var(--s3);
   border-top: 1px solid var(--stroke-soft); background: linear-gradient(180deg, rgba(9,13,26,.5), transparent); }
 .tab { flex:1; min-height: 46px; display:flex; align-items:center; justify-content:center; color: var(--ink-dim);
-  font-size: var(--fs-tiny); font-weight: 500; letter-spacing: var(--tracking-wide); text-transform: uppercase;
+  font-size: var(--fz-control); font-weight: 500; letter-spacing: var(--tracking-wide); text-transform: uppercase;
   border-top: 2px solid transparent; border-radius: 0 0 var(--r-sm) var(--r-sm);
   transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast); }
 .tab:hover { color: var(--ink); background: var(--bg-panel); }
@@ -175,7 +174,7 @@ h1,h2,h3,p { margin: 0; }
 .ws-head .close { margin-left:auto; }
 
 /* ---- Shared component vocabulary -------------------------------------- */
-.row { display:flex; align-items:center; gap:var(--s2); padding: 8px 0; border-bottom: 1px solid var(--stroke-soft); font-size: var(--fs-base); }
+.row { display:flex; align-items:center; gap:var(--s2); padding: clamp(8px,.55vw,13px) 0; border-bottom: 1px solid var(--stroke-soft); font-size: var(--fz-body); }
 .row:last-child { border-bottom: none; }
 .row .k { color: var(--ink-dim); } .row .v { margin-left:auto; font-family: var(--mono); font-variant-numeric: tabular-nums; }
 .dim { color: var(--ink-mute); } .mono { font-family: var(--mono); }
@@ -194,7 +193,7 @@ h1,h2,h3,p { margin: 0; }
 .chip.on { color: var(--accent-ink); border-color: var(--accent-soft); background: var(--accent-soft); }
 .chip .d { width:6px; height:6px; border-radius:50%; background: currentColor; }
 
-.big { font-size: var(--fs-2xl); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.big { font-size: var(--fz-metric); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
 .kpi { display:flex; flex-direction:column; gap: 2px; }
 .kpi .lbl { font-size: var(--fs-micro); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-mute); }
 
@@ -235,7 +234,7 @@ h1,h2,h3,p { margin: 0; }
   background:rgba(242,184,75,.08); padding:3px 9px; border-radius:var(--r-pill); white-space:nowrap; }
 .demoflag[hidden] { display:none; }
 .seg { display:flex; background: var(--glass-bg); border:1px solid var(--glass-stroke); border-radius: var(--r-pill); overflow:hidden; backdrop-filter: blur(10px); }
-.seg button { padding: 7px 13px; min-height: 30px; font-size: var(--fs-tiny); letter-spacing:.08em; text-transform:uppercase; color: var(--ink-dim); transition: color var(--t-fast), background var(--t-fast); }
+.seg button { padding: clamp(7px,.5vw,11px) clamp(13px,.9vw,20px); min-height: clamp(30px,2.4vh,38px); font-size: var(--fz-control); letter-spacing:.08em; text-transform:uppercase; color: var(--ink-dim); transition: color var(--t-fast), background var(--t-fast); }
 .seg button:hover { color: var(--ink); }
 .seg button.on { color: var(--accent-ink); background: var(--accent-soft); }
 
@@ -248,7 +247,7 @@ h1,h2,h3,p { margin: 0; }
 /* Stay SYMMETRIC 3-col (the base minmax handles it) so KAI never lurches;
    just tighten padding + the right rail's max so it fits. */
 @media (max-width: 1180px) {
-  .main { grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(280px, 320px); padding: var(--s3) var(--s4); }
+  .main { grid-template-columns: 216px minmax(0, 1fr) 272px; padding: var(--s3) var(--s4); }
 }
 
 /* ---- Responsive: mobile command interface (<768px, distinct composition) */
