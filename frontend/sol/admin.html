@@ -486,6 +486,13 @@ function nav(page) {
   if (page === 'security') loadSecurity();
 }
 
+// Escape untrusted strings before interpolating into innerHTML. Circle names,
+// user names/emails, bank institution names, ACH error codes and audit payloads
+// are all attacker- or provider-controlled, so every dynamic value rendered below
+// is wrapped in esc() to prevent stored XSS (which would run in an admin's session
+// and reach the money endpoints via the admin bearer token).
+function esc(s){ return String(s??'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 // ── Audit log (#1) ────────────────────────────────────────────────────────────
 async function loadAuditLog() {
   const tb = document.getElementById('auditTable');
@@ -511,17 +518,17 @@ async function loadAuditLog() {
     const rows = await api('/admin/audit' + qs) || [];
     if (!rows.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">No audit events yet</td></tr>'; return; }
     tb.innerHTML = rows.map(e => {
-      const payload = e.payload ? `<code style="font-size:.7rem;color:var(--muted)">${JSON.stringify(e.payload)}</code>` : '—';
+      const payload = e.payload ? `<code style="font-size:.7rem;color:var(--muted)">${esc(JSON.stringify(e.payload))}</code>` : '—';
       return `<tr>
         <td style="color:var(--muted);font-size:.75rem">${fmtDate(e.created_at)} ${new Date(e.created_at).toLocaleTimeString()}</td>
-        <td>${e.actor_email || '<span style="color:var(--muted)">—</span>'}</td>
-        <td><code style="color:var(--cyan);font-size:.75rem">${e.action}</code></td>
-        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${e.target_type || '—'} · ${(e.target_id || '').slice(0,8)}${e.target_id && e.target_id.length > 8 ? '…' : ''}</td>
+        <td>${e.actor_email ? esc(e.actor_email) : '<span style="color:var(--muted)">—</span>'}</td>
+        <td><code style="color:var(--cyan);font-size:.75rem">${esc(e.action)}</code></td>
+        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${esc(e.target_type || '—')} · ${esc((e.target_id || '').slice(0,8))}${e.target_id && e.target_id.length > 8 ? '…' : ''}</td>
         <td>${payload}</td>
       </tr>`;
     }).join('');
   } catch (e) {
-    tb.innerHTML = `<tr><td colspan="5" class="empty">${e.message}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="5" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -550,7 +557,7 @@ async function loadSecurity() {
           <span style="display:inline-block;padding:.35rem .65rem;border-radius:.4rem;background:rgba(211,58,58,.15);color:var(--red);font-size:.75rem;font-weight:600">🛑 HALTED</span>
         </div>
         <div style="font-size:.85rem;color:var(--muted);margin-bottom:.5rem">
-          <strong style="color:var(--text)">Reason:</strong> ${(halt.state && halt.state.reason || '—').replace(/</g,'&lt;')}<br>
+          <strong style="color:var(--text)">Reason:</strong> ${esc(halt.state && halt.state.reason || '—')}<br>
           <strong style="color:var(--text)">Since:</strong> ${halt.state && halt.state.halted_at ? new Date(halt.state.halted_at).toLocaleString() : '—'}
         </div>
         <p style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">All new ACH debit/credit attempts are rejected with SOL_HALTED. Existing in-flight transfers at Dwolla continue.</p>
@@ -598,7 +605,7 @@ async function loadSecurity() {
       <button class="btn btn-primary" onclick="startTotp()">Start 2FA setup</button>`;
     el.innerHTML = twoFaHtml + haltHtml;
   } catch(e) {
-    el.innerHTML = `<div class="empty">${e.message}</div>`;
+    el.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
@@ -629,7 +636,7 @@ async function startTotp() {
       <img src="${s.qr_data_url}" style="width:220px;height:220px;background:#fff;padding:8px;border-radius:.5rem;display:block;margin-bottom:1rem">
       <details style="margin-bottom:1rem">
         <summary style="cursor:pointer;font-size:.8rem;color:var(--muted)">Can't scan? Enter this secret manually</summary>
-        <code style="display:block;margin-top:.5rem;padding:.6rem;background:var(--surface-2);border:1px solid var(--border);border-radius:.4rem;font-family:monospace;word-break:break-all">${s.secret}</code>
+        <code style="display:block;margin-top:.5rem;padding:.6rem;background:var(--surface-2);border:1px solid var(--border);border-radius:.4rem;font-family:monospace;word-break:break-all">${esc(s.secret)}</code>
       </details>
       <div style="font-weight:600;margin-bottom:.5rem">Step 2. Enter the 6-digit code shown in your app</div>
       <div class="field"><input type="text" id="ta_code" maxlength="6" inputmode="numeric" placeholder="123456" style="letter-spacing:.3rem;text-align:center;font-size:1.2rem"></div>
@@ -791,7 +798,7 @@ async function loadEmailPreview(template) {
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
     iframe.srcdoc = await r.text();
   } catch (e) {
-    iframe.srcdoc = `<div style="padding:2rem;font-family:sans-serif;color:#f87171">Failed to load: ${e.message}</div>`;
+    iframe.srcdoc = `<div style="padding:2rem;font-family:sans-serif;color:#f87171">Failed to load: ${esc(e.message)}</div>`;
   }
 }
 
@@ -879,7 +886,7 @@ function badge(s) {
     FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',COLLECTING:'badge-cyan',
     SETTLING:'badge-purple',COMPLETED:'badge-gray',
     FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-gray'};
-  return `<span class="badge ${map[s]||'badge-gray'}">${s}</span>`;
+  return `<span class="badge ${map[s]||'badge-gray'}">${esc(s)}</span>`;
 }
 function fmt$(c) { return '$'+(c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 function fmtDate(iso) { return iso ? new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) : '—'; }
@@ -925,11 +932,11 @@ async function loadOverview() {
     ra.innerHTML = `<table>
       <thead><tr><th>User</th><th>Account</th><th>KYC</th><th>Joined</th></tr></thead>
       <tbody>${recent.map(u=>`
-        <tr><td>${u.email}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
+        <tr><td>${esc(u.email)}</td><td>${badge(u.account_status)}</td><td>${badge(u.kyc_status)}</td><td style="color:var(--muted)">${fmtDate(u.created_at)}</td></tr>
       `).join('')}</tbody>
     </table>`;
   } catch(e) {
-    el.innerHTML = `<div class="empty">Could not load: ${e.message}</div>`;
+    el.innerHTML = `<div class="empty">Could not load: ${esc(e.message)}</div>`;
   }
 }
 
@@ -940,7 +947,7 @@ async function loadUsers() {
     renderUsers(null);
   } catch(e) {
     document.getElementById('userTable').innerHTML =
-      `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+      `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -957,8 +964,8 @@ function renderUsers(statusFilter) {
     .filter(u => !statusFilter || u.account_status === statusFilter)
     .filter(u => !q || u.email.toLowerCase().includes(q) || (u.full_name || '').toLowerCase().includes(q))
     .map(u => `<tr style="cursor:pointer" onclick="openUserModal('${u.id}')">
-      <td>${u.email}</td>
-      <td>${u.full_name || '—'}</td>
+      <td>${esc(u.email)}</td>
+      <td>${u.full_name ? esc(u.full_name) : '—'}</td>
       <td>${badge(u.account_status)}</td>
       <td>${badge(u.kyc_status)}</td>
       <td><span style="color:var(--green)">${u.successful_payments}</span> / <span style="color:var(--red)">${u.failed_payments}</span></td>
@@ -978,7 +985,7 @@ async function openUserModal(userId) {
     document.getElementById('umEmail').textContent = d.user.email;
     document.getElementById('userModalBody').innerHTML = renderUserDetail(d);
   } catch (e) {
-    document.getElementById('userModalBody').innerHTML = `<div class="empty">${e.message}</div>`;
+    document.getElementById('userModalBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
@@ -990,8 +997,8 @@ function renderUserDetail(d) {
   const banksHtml = d.bank_accounts.length ? d.bank_accounts.map(b => `
     <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:600">${b.institution_name || b.provider} ···· ${b.account_last4}</div>
-        <div style="font-size:.75rem;color:var(--muted)">${b.account_type || '—'} · ${b.provider}</div>
+        <div style="font-weight:600">${esc(b.institution_name || b.provider)} ···· ${esc(b.account_last4)}</div>
+        <div style="font-size:.75rem;color:var(--muted)">${esc(b.account_type || '—')} · ${esc(b.provider)}</div>
       </div>
       <div style="display:flex;gap:.4rem;align-items:center">
         ${b.verified ? '<span class="badge badge-green">✓ Verified</span>' : '<span class="badge badge-yellow">Pending</span>'}
@@ -1003,7 +1010,7 @@ function renderUserDetail(d) {
   const groupsHtml = d.groups.length ? d.groups.map(g => `
     <div style="display:flex;justify-content:space-between;padding:.5rem;background:rgba(0,0,0,.15);border-radius:.4rem;margin-bottom:.3rem">
       <div>
-        <div style="font-weight:600">${g.name} ${g.is_private ? '🔒' : ''}</div>
+        <div style="font-weight:600">${esc(g.name)} ${g.is_private ? '🔒' : ''}</div>
         <div style="font-size:.75rem;color:var(--muted)">Cycle ${g.current_cycle_number} · ${fmt$(g.contribution_cents)}/member</div>
       </div>
       ${badge(g.status)}
@@ -1017,7 +1024,7 @@ function renderUserDetail(d) {
       <td>${fmt$(p.amount_cents)}</td>
       <td>${badge(p.status)}</td>
       <td>${p.attempt_count}</td>
-      <td style="color:var(--red);font-size:.72rem">${p.ach_error_code || '—'}</td>
+      <td style="color:var(--red);font-size:.72rem">${p.ach_error_code ? esc(p.ach_error_code) : '—'}</td>
     </tr>`).join('')}</tbody></table>
   ` : '<div class="empty" style="padding:1rem">No payments yet</div>';
 
@@ -1082,7 +1089,7 @@ async function loadCyclesData() {
         : `<button class="btn btn-sm btn-ghost" onclick="checkCycleById('${currentCycle.id}')">Check completion</button>`;
       const memberCount = d.members.filter(m => m.status === 'ACTIVE').length;
       return `<tr>
-        <td style="font-weight:500">${g.name}${g.is_private ? ' 🔒' : ''}</td>
+        <td style="font-weight:500">${esc(g.name)}${g.is_private ? ' 🔒' : ''}</td>
         <td>#${currentCycle.cycle_number}</td>
         <td>${badge(currentCycle.status)}</td>
         <td>${memberCount} / ${g.max_members}</td>
@@ -1092,7 +1099,7 @@ async function loadCyclesData() {
     }).join('');
     tb.innerHTML = rows || '<tr><td colspan="6" class="empty">No active cycles</td></tr>';
   } catch (e) {
-    tb.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1130,12 +1137,12 @@ async function loadPayoutsData() {
         <td style="color:var(--green);font-weight:500">${fmt$(p.net_cents || 0)}</td>
         <td style="color:var(--muted)">${fmt$(p.fee_cents || 0)}</td>
         <td style="text-align:center">${p.attempt_count}</td>
-        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${(p.ach_transfer_id || '—').slice(0, 16)}${p.ach_transfer_id && p.ach_transfer_id.length > 16 ? '…' : ''}</td>
+        <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${esc((p.ach_transfer_id || '—').slice(0, 16))}${p.ach_transfer_id && p.ach_transfer_id.length > 16 ? '…' : ''}</td>
         <td>${retryBtn}</td>
       </tr>`;
     }).join('');
   } catch (e) {
-    tb.innerHTML = `<tr><td colspan="7" class="empty">${e.message}</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="7" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1165,7 +1172,7 @@ async function openGroupModal(groupId) {
       `${d.group.status} · Cycle ${d.group.current_cycle_number} · ${fmt$(d.group.contribution_cents)}/member · ${d.group.max_members} max`;
     document.getElementById('groupModalBody').innerHTML = renderGroupDetail(d);
   } catch (e) {
-    document.getElementById('groupModalBody').innerHTML = `<div class="empty">${e.message}</div>`;
+    document.getElementById('groupModalBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
 
@@ -1178,7 +1185,7 @@ function renderGroupDetail(d) {
     <table style="width:100%;font-size:.8rem"><thead><tr><th>Pos</th><th>Email</th><th>Status</th><th>Payments</th><th>Payout</th></tr></thead><tbody>
     ${d.members.map(m => `<tr>
       <td>${m.position ?? '—'}</td>
-      <td>${m.user_email}</td>
+      <td>${esc(m.user_email)}</td>
       <td>${badge(m.status)}</td>
       <td>${m.successful_payments_in_group}</td>
       <td>${m.has_received_payout ? '<span style="color:var(--green)">✓</span>' : '—'}</td>
@@ -1201,14 +1208,14 @@ function renderGroupDetail(d) {
       <td>${d.cycles.find(c => c.id === p.cycle_id)?.cycle_number ?? '?'}</td>
       <td>${fmt$(p.net_cents)}</td>
       <td>${badge(p.status)}</td>
-      <td style="font-family:monospace;font-size:.7rem">${(p.ach_transfer_id || '—').slice(0, 14)}</td>
+      <td style="font-family:monospace;font-size:.7rem">${esc((p.ach_transfer_id || '—').slice(0, 14))}</td>
     </tr>`).join('')}</tbody></table>
   ` : '<div class="empty" style="padding:1rem">No payouts yet</div>';
 
   const inviteBlock = d.group.invite_code ? `
     <div style="background:rgba(232,147,36,.05);border:1px solid rgba(232,147,36,.2);border-radius:.4rem;padding:.5rem .75rem;margin-bottom:1rem;font-size:.75rem">
       <span style="color:var(--muted)">Invite code:</span>
-      <code style="color:var(--cyan);font-family:monospace;margin-left:.25rem">${d.group.invite_code}</code>
+      <code style="color:var(--cyan);font-family:monospace;margin-left:.25rem">${esc(d.group.invite_code)}</code>
       <span style="color:var(--muted);margin-left:.5rem">· payout day ${d.group.payout_day_of_month}</span>
     </div>` : '';
 
@@ -1228,7 +1235,7 @@ function renderGroupDetail(d) {
           <td>${fmt$(p.amount_cents)}</td>
           <td>${badge(p.status)}</td>
           <td>${p.attempt_count}</td>
-          <td style="color:var(--red);font-size:.7rem">${p.ach_error_code || '—'}</td>
+          <td style="color:var(--red);font-size:.7rem">${p.ach_error_code ? esc(p.ach_error_code) : '—'}</td>
         </tr>`).join('')}</tbody></table>` : '<div class="empty" style="padding:1rem">No payments yet</div>'}
     </div>
   `;
@@ -1241,7 +1248,7 @@ async function loadGroupsData() {
     renderGroups(null);
   } catch(e) {
     document.getElementById('groupTable').innerHTML =
-      `<tr><td colspan="6" class="empty">${e.message}</td></tr>`;
+      `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`;
   }
 }
 
@@ -1257,12 +1264,12 @@ function renderGroups(statusFilter) {
     .filter(g => !statusFilter || g.status === statusFilter)
     .filter(g => !q || g.name.toLowerCase().includes(q) || (g.invite_code || '').toLowerCase().includes(q))
     .map(g => `<tr style="cursor:pointer" onclick="openGroupModal('${g.id}')">
-      <td style="font-weight:500">${g.name} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
+      <td style="font-weight:500">${esc(g.name)} ${g.is_private ? '<span style="color:var(--gold);font-size:.7rem">🔒</span>' : ''}</td>
       <td>${badge(g.status)}</td>
       <td>${g.member_count || 0} / ${g.max_members}</td>
       <td>${fmt$(g.contribution_cents)}</td>
       <td>Cycle ${g.current_cycle_number} · day ${g.payout_day_of_month || 1}</td>
-      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${g.invite_code || '—'}</td>
+      <td style="font-family:monospace;font-size:.7rem;color:var(--muted)">${g.invite_code ? esc(g.invite_code) : '—'}</td>
     </tr>`).join('');
   document.getElementById('groupTable').innerHTML = rows ||
     '<tr><td colspan="6" class="empty">No circles match</td></tr>';
@@ -1283,7 +1290,7 @@ async function loadRetries() {
       <td style="color:var(--gold)">${p.next_retry_at ? fmtDate(p.next_retry_at) : '—'}</td>
       <td><button class="btn btn-sm btn-primary" onclick="triggerPayment('${p.id}')">Process</button></td>
     </tr>`).join('');
-  } catch(e) { tb.innerHTML = `<tr><td colspan="6" class="empty">${e.message}</td></tr>`; }
+  } catch(e) { tb.innerHTML = `<tr><td colspan="6" class="empty">${esc(e.message)}</td></tr>`; }
 }
 
 async function processPayment() {
@@ -1353,8 +1360,8 @@ function renderKYC() {
     ['PENDING', 'SUBMITTED', 'REJECTED'].includes(u.kyc_status)
   );
   const rows = actionable.map(u => `<tr>
-    <td>${u.email}</td>
-    <td>${u.full_name || '—'}</td>
+    <td>${esc(u.email)}</td>
+    <td>${u.full_name ? esc(u.full_name) : '—'}</td>
     <td>${badge(u.kyc_status)}</td>
     <td>${badge(u.account_status)}</td>
     <td style="color:var(--muted)">${fmtDate(u.created_at)}</td>

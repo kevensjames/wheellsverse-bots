@@ -322,7 +322,11 @@ async function apiPost(path, body) {
 
 // If the landing URL has ?invite=XYZ, persist it through signup/login so the
 // app page can auto-join the user to the circle after they're authenticated.
-const _inviteFromUrl = new URLSearchParams(window.location.search).get('invite');
+const _inviteRaw = new URLSearchParams(window.location.search).get('invite');
+// Only persist an invite code that matches the server's url-safe code charset.
+// A ?invite= value containing HTML/JS metacharacters is an XSS payload, not a real
+// code — storing it would let it render unescaped on the app page later. Reject it.
+const _inviteFromUrl = (_inviteRaw && /^[A-Za-z0-9_-]{1,64}$/.test(_inviteRaw)) ? _inviteRaw : null;
 if (_inviteFromUrl) {
   sessionStorage.setItem('sol_pending_invite', _inviteFromUrl);
   // If the user arrived via an invite, default to the Register tab + show a

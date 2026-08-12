@@ -493,7 +493,7 @@ function badge(status) {
     FORMING:'badge-yellow',PENDING:'badge-yellow',SUBMITTED:'badge-yellow',COLLECTING:'badge-cyan',SETTLING:'badge-cyan',COMPLETED:'badge-gray',
     FAILED:'badge-red',DELINQUENT:'badge-red',SUSPENDED:'badge-red',CLOSED:'badge-red',
   };
-  return `<span class="badge ${map[status]||'badge-gray'}">${status}</span>`;
+  return `<span class="badge ${map[status]||'badge-gray'}">${esc(status)}</span>`;
 }
 function fmt$(c) { return '$' + (c/100).toLocaleString('en-US',{minimumFractionDigits:2}); }
 // Escape untrusted strings before interpolating into innerHTML — user-controlled
@@ -629,8 +629,8 @@ async function consumePendingInvite() {
     warn.className = 'card';
     warn.style.cssText = 'max-width:none;margin-bottom:1rem;border-color:rgba(232,147,36,.3);background:rgba(232,147,36,.05)';
     warn.innerHTML = `<div style="font-weight:600;color:var(--gold);margin-bottom:.25rem">Invite pending</div>
-      <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${(e.message || '').slice(0,80)}). Your invite code:
-      <code style="color:var(--sol-600);background:var(--surface-2);padding:.15rem .4rem;border-radius:.3rem">${code}</code>.
+      <div style="font-size:.85rem;color:var(--muted)">Couldn't auto-join (${esc((e.message || '').slice(0,80))}). Your invite code:
+      <code style="color:var(--sol-600);background:var(--surface-2);padding:.15rem .4rem;border-radius:.3rem">${esc(code)}</code>.
       Finish verifying ID + linking a bank, then paste it into <a href="javascript:nav('groups')" style="color:var(--sol-600)">Circles → Join with invite code</a>.</div>`;
     document.getElementById('onboardingCard')?.after(warn);
   }
@@ -753,7 +753,7 @@ async function loadGroups() {
       return;
     }
     el.innerHTML = `<div class="group-grid">${gs.map(groupCard).join('')}</div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 function toggleCreateForm() {
@@ -885,7 +885,7 @@ async function showGroup(id) {
           <input readonly value="${inviteUrl}" id="inviteUrl-${g.id}" style="flex:1;min-width:200px;background:var(--surface-2);border:1px solid var(--line);border-radius:.5rem;padding:.5rem .7rem;color:var(--ink-900);font-size:.8rem;font-family:monospace">
           <button type="button" class="btn btn-primary" style="font-size:.8rem;padding:.45rem 1rem" onclick="copyInvite('${g.id}')">Copy</button>
         </div>
-        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--sol-600)">${g.invite_code}</code></div>
+        <div style="font-size:.7rem;color:var(--muted);margin-top:.5rem">Code: <code style="color:var(--sol-600)">${esc(g.invite_code)}</code></div>
       </div>
     ` : '';
 
@@ -936,7 +936,7 @@ async function showGroup(id) {
           </tbody>
         </table>
       </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function joinGroup(id) {
@@ -1027,7 +1027,7 @@ async function loadBank() {
           <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem">
             <div>
               <div style="font-weight:600">${esc(a.institution_name || 'Bank')}</div>
-              <div style="font-size:.8rem;color:var(--muted)">${a.account_type || 'account'} ···· ${a.account_last4}</div>
+              <div style="font-size:.8rem;color:var(--muted)">${esc(a.account_type || 'account')} ···· ${esc(a.account_last4)}</div>
             </div>
             <div style="display:flex;align-items:center;gap:.75rem;flex-wrap:wrap">
               ${a.verified
@@ -1059,7 +1059,7 @@ async function loadBank() {
           `}
         </div>`).join('')}
     </div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 // ── Payments page ─────────────────────────────────────────────────────────────
@@ -1088,7 +1088,7 @@ async function loadMyPayments() {
         </tr>`).join('')}
       </tbody>
     </table></div>`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 async function setPrimary(id) {
@@ -1170,7 +1170,7 @@ async function loadDiscover() {
         <div style="display:flex;justify-content:space-between;font-size:.85rem"><span>${FREQ_LABEL[t.frequency]||esc(t.frequency)}</span><span>${fmt$(t.contribution_cents)}/cycle</span></div>
         <div style="font-size:.8rem;color:var(--muted);margin-top:.3rem">${t.capacity} members per circle</div>
       </div>`).join('')}</div>` : '<div class="empty">No circle plans yet — use SOL Match above to start one.</div>';
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function reservePayout() {
   const btn=document.getElementById('mBtn'), err=document.getElementById('mErr'), res=document.getElementById('mResult');
@@ -1216,7 +1216,7 @@ async function loadTimeline() {
       out.push(`<div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th></tr></thead><tbody>${ph.map(p=>`<tr><td style="color:var(--muted)">${new Date(p.created_at).toLocaleDateString()}</td><td>${fmt$(p.amount_cents)}</td><td>${badge(p.status)}</td></tr>`).join('')}</tbody></table></div>`);
     }
     el.innerHTML = out.join('');
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 // ── Trust / SOL Score ───────────────────────────────────────────────────────────
@@ -1239,7 +1239,7 @@ async function loadTrust() {
       <h2 style="font-size:1.1rem;margin-bottom:.5rem;font-family:var(--font-display)">How it's built</h2>
       <div class="card" style="margin-bottom:1.5rem">${compRows}</div>
       <h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Badges</h2>${badgeGrid}`;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
 // ── Premium ─────────────────────────────────────────────────────────────────────
@@ -1263,7 +1263,7 @@ async function loadPremium() {
     const invTable = invoices.length ? `<h2 style="font-size:1.1rem;margin-bottom:1rem;font-family:var(--font-display)">Billing history</h2>
       <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Status</th><th></th></tr></thead><tbody>${invoices.map(i=>`<tr><td style="color:var(--muted)">${new Date(i.created_at).toLocaleDateString()}</td><td>${fmt$(i.amount_cents)}</td><td>${badge(i.status)}</td><td>${safeUrl(i.hosted_url)?`<a href="${esc(safeUrl(i.hosted_url))}" target="_blank" rel="noopener noreferrer" style="color:var(--sol-600)">Receipt</a>`:''}</td></tr>`).join('')}</tbody></table></div>` : '';
     el.innerHTML = card + invTable;
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function subscribePremium() {
   const btn=document.getElementById('subBtn'); if(btn){btn.disabled=true;btn.textContent='Activating…';}
@@ -1289,7 +1289,7 @@ async function loadNotifications() {
           <div><div style="font-weight:600">${esc(n.title||n.type)}</div><div style="font-size:.85rem;color:var(--muted)">${esc(n.body||'')}</div></div>
           <div style="font-size:.75rem;color:var(--muted);white-space:nowrap">${new Date(n.created_at).toLocaleDateString()}</div>
         </div></div>`).join('') : '<div class="empty">No notifications yet.</div>';
-  } catch(e) { el.innerHTML = `<div class="empty">${e.message}</div>`; }
+  } catch(e) { el.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 async function markAllRead() {
   try { await api('/notifications/read-all', { method:'POST' }); loadNotifications(); } catch(e){ alert(e.message); }
