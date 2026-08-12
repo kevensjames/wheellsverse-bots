@@ -853,8 +853,13 @@ async def security_headers_middleware(request: Request, call_next):
 
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    """Apply optional API key guard to all /api/ routes except public ones."""
+    """Apply optional API key guard to /api/ routes. Public routes stay public,
+    but state-changing operator-control routes always require the key — deny-by-
+    default for mutations, so the ~40 unauthenticated operator routes the audit
+    flagged (factory/reset, shopify/discount, product CRUD, autopilot start/stop,
+    …) can no longer be driven anonymously. See core/api_auth."""
     if _API_KEY:
+        from core import api_auth as _api_auth
         path = request.url.path
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
                              "/api/shopify-autopilot/", "/api/shopify/agents/",
@@ -866,7 +871,9 @@ async def api_key_middleware(request: Request, call_next):
                              "/api/google/",   # OAuth flow: protected by state-based CSRF
                              "/api/store/download/",  # uses its own signed-token auth
                              "/api/store/redeliver")  # customer self-serve re-send (rate-limited internally via order lookup)
-        if path.startswith("/api/") and not any(path.startswith(p) for p in _PUBLIC_PREFIXES) and path not in _PUBLIC_PATHS:
+        existing_public = (path in _PUBLIC_PATHS
+                           or any(path.startswith(p) for p in _PUBLIC_PREFIXES))
+        if _api_auth.requires_api_key(path, request.method, existing_public):
             key = (
                 request.headers.get("X-API-Key")
                 or request.headers.get("x-api-key")
