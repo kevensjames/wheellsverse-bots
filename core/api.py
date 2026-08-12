@@ -8,6 +8,7 @@ Serves the web dashboard + REST endpoints for all bot operations.
 """
 
 import asyncio
+import hashlib
 import hmac
 import json
 import logging
@@ -851,11 +852,72 @@ async def security_headers_middleware(request: Request, call_next):
     return response
 
 
+# ── Admin console auth ────────────────────────────────────────────────────────
+# The /admin* dashboards render the operator API key into their HTML, so they must
+# never be served to an unauthenticated visitor. Access is granted by the API key
+# (X-API-Key header or ?api_key=) or by a session cookie whose value is derived from
+# the key via HMAC — so only someone who already knows the key can mint it. POST
+# /admin/login exchanges the key for that cookie so the key never has to sit in a URL.
+_ADMIN_COOKIE_TOKEN = (
+    hmac.new(_API_KEY.encode(), b"wv-admin-session", hashlib.sha256).hexdigest()
+    if _API_KEY else ""
+)
+
+_ADMIN_LOGIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Admin sign-in</title>
+<style>body{font:16px/1.5 system-ui,-apple-system,sans-serif;background:#0d1015;color:#e2e7ee;display:grid;place-items:center;min-height:100vh;margin:0}
+form{background:#161a21;border:1px solid #262c36;border-radius:12px;padding:28px 30px;width:min(340px,90vw)}
+h1{font-size:18px;margin:0 0 4px}p{color:#939dab;font-size:13px;margin:0 0 18px}
+input{width:100%;box-sizing:border-box;padding:10px 12px;border-radius:8px;border:1px solid #333b48;background:#0d1015;color:#e2e7ee;font-size:15px}
+button{width:100%;margin-top:12px;padding:10px;border:0;border-radius:8px;background:#2f6f8f;color:#fff;font-size:15px;font-weight:600;cursor:pointer}</style></head>
+<body><form method="post" action="/admin/login">
+<h1>Wheellsverse Admin</h1><p>Enter the operator key to continue.</p>
+<input type="password" name="key" placeholder="Operator key" autofocus autocomplete="current-password">
+<button type="submit">Sign in</button></form></body></html>"""
+
+
+def _admin_authorized(request: Request) -> bool:
+    """True if the caller may view an /admin* page (has the key, or the derived cookie)."""
+    if not _API_KEY:
+        return True
+    key = (request.headers.get("X-API-Key")
+           or request.headers.get("x-api-key")
+           or request.query_params.get("api_key"))
+    if key and hmac.compare_digest(key, _API_KEY):
+        return True
+    cookie = request.cookies.get("wv_admin", "")
+    return bool(cookie) and hmac.compare_digest(cookie, _ADMIN_COOKIE_TOKEN)
+
+
+@app.post("/admin/login")
+async def admin_login(request: Request):
+    """Exchange the operator key for a session cookie scoped to /admin."""
+    form = await request.form()
+    key = (form.get("key") or "").strip()
+    if not _API_KEY or not key or not hmac.compare_digest(key, _API_KEY):
+        return HTMLResponse(_ADMIN_LOGIN_HTML, status_code=401)
+    resp = HTMLResponse(
+        '<!doctype html><meta http-equiv="refresh" content="0;url=/admin">Signed in…'
+    )
+    resp.set_cookie(
+        "wv_admin", _ADMIN_COOKIE_TOKEN,
+        httponly=True, samesite="strict",
+        secure=True,  # prod is https end-to-end (browser side); local dev can use ?api_key=
+        max_age=86400, path="/admin",
+    )
+    return resp
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
-    """Apply optional API key guard to all /api/ routes except public ones."""
+    """Apply optional API key guard to all /api/ routes except public ones,
+    and gate every /admin* dashboard behind the operator key/session."""
     if _API_KEY:
         path = request.url.path
+        # Admin dashboards embed the API key in their HTML — never serve them anonymously.
+        if (path == "/admin" or path.startswith("/admin/")) and path != "/admin/login":
+            if not _admin_authorized(request):
+                return HTMLResponse(_ADMIN_LOGIN_HTML, status_code=401)
         _PUBLIC_PREFIXES = ("/api/nx/", "/api/qc/", "/api/factory/", "/api/narai-autopilot/",
                              "/api/shopify-autopilot/", "/api/shopify/agents/",
                              "/api/shopify/media/", "/api/shopify/intelligence/",
@@ -10777,21 +10839,27 @@ class _NxSubscribeReq(BaseModel):
 
 @app.post("/api/nx/subscribe")
 async def nx_subscribe(req: _NxSubscribeReq):
-    """Called after Stripe checkout completes to record a new fan subscriber."""
-    from core.nexora_db import get_creator_by_handle, add_subscriber, record_transaction
+    """Register a subscription INTENT for a fan.
+
+    SECURITY: this endpoint is public and unauthenticated, so it must never grant
+    paid access or write to the earnings ledger. It only records a *pending* row.
+    Paid access (status='active') and the earnings transaction are created solely
+    by the signature-verified Stripe webhook (nx_stripe_webhook), where the amount
+    and customer come from Stripe — never from the client. The client-supplied
+    price_paid/stripe_cust fields are intentionally ignored here.
+    """
+    from core.nexora_db import get_creator_by_handle, add_pending_subscriber
     creator = get_creator_by_handle(req.creator_handle)
     if not creator:
         raise HTTPException(status_code=404, detail="Creator not found")
-    add_subscriber(creator["id"], req.fan_email, req.fan_name, req.price_paid, req.stripe_cust)
-    if req.price_paid > 0:
-        record_transaction(creator["id"], req.price_paid, "subscription", req.fan_email)
+    add_pending_subscriber(creator["id"], req.fan_email, req.fan_name)
     # Also enroll in ConvertKit
     try:
         from core.convertkit import get_convertkit
         get_convertkit().add_subscriber(req.fan_email, req.fan_name, tags=["nexora_subscriber"])
     except Exception:
         pass
-    return {"status": "subscribed", "creator": creator["name"]}
+    return {"status": "pending", "creator": creator["name"]}
 
 
 # ── Earnings ───────────────────────────────────────────────────────────────────
@@ -10812,9 +10880,13 @@ class _NxPayoutReq(BaseModel):
 @app.post("/api/nx/payouts")
 async def nx_request_payout(req: _NxPayoutReq, request: Request):
     creator = _nx_require_creator(request)
-    from core.nexora_db import get_earnings, request_payout
-    earnings = get_earnings(creator["id"])
-    available = earnings["total"]
+    from core.nexora_db import get_earnings, get_reserved_payout_amount, request_payout
+    # Available = lifetime earnings minus everything already claimed by prior payouts
+    # (requested/processing/completed). Without this subtraction a creator could
+    # request the same balance repeatedly and drain many multiples of what they earned.
+    earnings  = get_earnings(creator["id"])
+    reserved  = get_reserved_payout_amount(creator["id"])
+    available = round(earnings["total"] - reserved, 2)
     if req.amount < 20:
         raise HTTPException(status_code=400, detail="Minimum payout is $20")
     if req.amount > available:
@@ -10869,39 +10941,64 @@ async def nx_stats(request: Request):
 @app.post("/api/nx/stripe-webhook")
 async def nx_stripe_webhook(request: Request):
     """
-    Handle Stripe checkout.session.completed events.
+    Handle Stripe checkout.session.completed / invoice.payment_succeeded events.
     Expects metadata: {creator_handle, fan_email, fan_name}
-    """
-    import json as _json
-    body = await request.body()
-    try:
-        event = _json.loads(body)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid JSON")
 
+    SECURITY: this endpoint grants paid access and writes to the earnings ledger,
+    so it MUST verify the Stripe signature and FAIL CLOSED. Without a configured
+    webhook secret we cannot trust the payload (any anonymous caller could forge a
+    paid event, fabricate creator earnings, and withdraw real money), so we reject.
+    Every verified event is also de-duplicated by its Stripe event id for idempotency.
+    """
+    payload = await request.body()
+    sig     = request.headers.get("stripe-signature", "")
+    secret  = os.getenv("NEXORA_STRIPE_WEBHOOK_SECRET") or os.getenv("STRIPE_WEBHOOK_SECRET", "")
+
+    if not secret:
+        _add_log("NEXORA: stripe-webhook rejected — STRIPE_WEBHOOK_SECRET not configured", "ERROR")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+
+    try:
+        import stripe as _stripe_lib
+        _stripe_lib.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+        _stripe_lib.Webhook.construct_event(payload, sig, secret)  # verify signature; raises on tamper
+    except Exception as e:
+        _add_log(f"NEXORA: stripe-webhook signature rejected — {e}", "WARN")
+        raise HTTPException(status_code=400, detail="Webhook signature invalid")
+
+    # The raw payload is now signature-verified, so parse it as a plain dict.
+    # (A stripe.Event object is NOT a dict and has no .get() in modern stripe-python.)
+    event      = json.loads(payload)
+    event_id   = event.get("id", "")
     event_type = event.get("type", "")
+
     if event_type in ("checkout.session.completed", "invoice.payment_succeeded"):
-        obj      = event.get("data", {}).get("object", {})
-        meta     = obj.get("metadata", {})
+        from core.nexora_db import init_db, get_creator_by_handle, process_paid_event
+        init_db()  # ensure nexora tables (incl. nx_processed_events) exist under uvicorn
+
+        obj      = event.get("data", {}).get("object", {}) or {}
+        meta     = obj.get("metadata", {}) or {}
         handle   = meta.get("creator_handle", "")
         fan_email = (
             meta.get("fan_email")
             or obj.get("customer_email")
-            or obj.get("customer_details", {}).get("email", "")
+            or (obj.get("customer_details") or {}).get("email", "")
         )
         fan_name  = meta.get("fan_name", "")
-        amount    = obj.get("amount_total", 0) / 100  # cents → dollars
+        # invoices carry amount_paid, checkout sessions carry amount_total (cents → dollars)
+        amount    = (obj.get("amount_total") or obj.get("amount_paid") or 0) / 100
         stripe_id = obj.get("id", "")
 
-        if handle and fan_email:
-            from core.nexora_db import (get_creator_by_handle, add_subscriber,
-                                         record_transaction)
+        if event_id and handle and fan_email:
             creator = get_creator_by_handle(handle)
             if creator:
-                add_subscriber(creator["id"], fan_email, fan_name, amount, stripe_id)
-                record_transaction(creator["id"], amount, "subscription",
-                                   fan_email, stripe_id)
-                _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
+                # atomic: idempotency mark + activate + record earnings in one txn
+                result = process_paid_event(event_id, creator["id"], fan_email,
+                                            fan_name, amount, stripe_id)
+                if result == "processed":
+                    _add_log(f"NEXORA: new subscriber {fan_email} → @{handle} (${amount})", "INFO")
+                else:
+                    return {"received": True, "duplicate": True}
 
     return {"received": True}
 

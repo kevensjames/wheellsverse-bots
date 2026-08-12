@@ -163,6 +163,13 @@ CREATE TABLE IF NOT EXISTS nx_users (
     avatar_url    TEXT    DEFAULT '',
     created_at    REAL    NOT NULL
 );
+
+-- Idempotency ledger for Stripe webhook events. A verified event is recorded
+-- here BEFORE its side-effects run; a replay of the same event id is a no-op.
+CREATE TABLE IF NOT EXISTS nx_processed_events (
+    event_id      TEXT    PRIMARY KEY,
+    processed_at  REAL    NOT NULL
+);
 """
 
 
@@ -385,6 +392,125 @@ def get_pending_payout_amount(creator_id: int) -> float:
     ).fetchone()
     conn.close()
     return round(row["total"] if row else 0, 2)
+
+
+def get_reserved_payout_amount(creator_id: int) -> float:
+    """Total earnings already claimed by payouts that have NOT been rejected/failed.
+    Requested, processing, and completed payouts all reserve balance, so a creator
+    can never withdraw the same dollar twice. Only explicitly rejected/failed/cancelled
+    payouts release their reservation."""
+    conn = get_conn()
+    row = conn.execute(
+        """SELECT COALESCE(SUM(amount),0) AS total FROM nx_payouts
+           WHERE creator_id=? AND status NOT IN ('rejected','failed','cancelled')""",
+        (creator_id,)
+    ).fetchone()
+    conn.close()
+    return round(row["total"] if row else 0, 2)
+
+
+def add_pending_subscriber(creator_id: int, fan_email: str, fan_name: str = "") -> Dict:
+    """Record an unpaid subscription INTENT. Never grants paid access and never
+    activates an existing subscriber — only a signature-verified Stripe webhook
+    (via add_subscriber) may set status='active'. Existing rows are left untouched."""
+    conn = get_conn()
+    conn.execute(
+        """INSERT INTO nx_subscribers (creator_id,fan_email,fan_name,status,price_paid,started_at)
+           VALUES (?,?,?,'pending',0,?)
+           ON CONFLICT(creator_id,fan_email) DO NOTHING""",
+        (creator_id, fan_email, fan_name, time.time())
+    )
+    conn.commit()
+    conn.close()
+    return {"creator_id": creator_id, "fan_email": fan_email, "status": "pending"}
+
+
+def event_already_processed(event_id: str) -> bool:
+    """True if this Stripe event id has already been handled (idempotency guard)."""
+    if not event_id:
+        return False
+    conn = get_conn()
+    row = conn.execute(
+        "SELECT 1 FROM nx_processed_events WHERE event_id=?", (event_id,)
+    ).fetchone()
+    conn.close()
+    return bool(row)
+
+
+def mark_event_processed(event_id: str) -> bool:
+    """Record a Stripe event id as handled. Returns False if it was already present
+    (i.e. a concurrent/duplicate delivery lost the race), True if freshly inserted."""
+    if not event_id:
+        return True
+    conn = get_conn()
+    try:
+        conn.execute(
+            "INSERT INTO nx_processed_events (event_id,processed_at) VALUES (?,?)",
+            (event_id, time.time())
+        )
+        conn.commit()
+        inserted = True
+    except sqlite3.IntegrityError:
+        inserted = False
+    finally:
+        conn.close()
+    return inserted
+
+
+def process_paid_event(event_id: str, creator_id: int, fan_email: str,
+                       fan_name: str, amount: float, stripe_id: str = "") -> str:
+    """Atomically apply a verified paid Stripe event in ONE transaction: the
+    idempotency mark + subscriber activation + earnings transaction all commit
+    together, or none do.
+
+    Returns 'processed' on success, or 'duplicate' if this event id was already
+    handled (the unique insert on nx_processed_events is the race/replay guard).
+    Because the mark and the side-effects share a transaction, a failure anywhere
+    rolls back the mark too, so a Stripe retry can safely re-process — no lost
+    credit, and the unique guard still prevents double credit."""
+    if not event_id:
+        raise ValueError("event_id is required for idempotent processing")
+    platform_cut = round(amount * 0.10, 4)
+    creator_cut  = round(amount * 0.90, 4)
+    now = time.time()
+    conn = get_conn()
+    try:
+        # Claim the event id first, in the same transaction. ONLY a collision here
+        # means "already processed" — scope the duplicate signal to this insert so an
+        # unrelated integrity error below can't be silently misreported as a duplicate
+        # (which would tell Stripe to stop retrying an uncredited payment).
+        try:
+            conn.execute(
+                "INSERT INTO nx_processed_events (event_id,processed_at) VALUES (?,?)",
+                (event_id, now),
+            )
+        except sqlite3.IntegrityError:
+            conn.rollback()
+            return "duplicate"
+
+        conn.execute(
+            """INSERT INTO nx_subscribers (creator_id,fan_email,fan_name,status,price_paid,stripe_cust,started_at)
+               VALUES (?,?,?,'active',?,?,?)
+               ON CONFLICT(creator_id,fan_email) DO UPDATE SET
+                 status='active', price_paid=excluded.price_paid,
+                 stripe_cust=excluded.stripe_cust, cancelled_at=NULL""",
+            (creator_id, fan_email, fan_name, amount, stripe_id, now),
+        )
+        conn.execute(
+            """INSERT INTO nx_transactions
+               (creator_id,fan_email,amount,platform_cut,creator_cut,type,stripe_id,status,created_at)
+               VALUES (?,?,?,?,?,'subscription',?,'succeeded',?)""",
+            (creator_id, fan_email, amount, platform_cut, creator_cut, stripe_id, now),
+        )
+        conn.commit()
+        return "processed"
+    except Exception:
+        # any side-effect failure rolls back the whole txn (incl. the event mark) and
+        # propagates → the webhook 500s → Stripe retries → no lost credit
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 # ── Messages ───────────────────────────────────────────────────────────────────
 
