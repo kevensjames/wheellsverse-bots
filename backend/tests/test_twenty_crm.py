@@ -145,8 +145,8 @@ def test_registered_only_when_configured(monkeypatch):
     from app.services.tools import build_default_registry
     monkeypatch.delenv("TWENTY_API_URL", raising=False)
     monkeypatch.delenv("TWENTY_API_KEY", raising=False)
-    reg_off = build_default_registry(include_composio=False, include_mcp=False)
+    reg_off = build_default_registry(operator=True, include_composio=False, include_mcp=False)
     assert "twenty_crm" not in reg_off.names()
     _configured(monkeypatch)
-    reg_on = build_default_registry(include_composio=False, include_mcp=False)
+    reg_on = build_default_registry(operator=True, include_composio=False, include_mcp=False)
     assert "twenty_crm" in reg_on.names()

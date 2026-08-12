@@ -46,25 +46,45 @@ logger = logging.getLogger(__name__)
 
 def build_default_registry(
     *,
+    operator: bool = False,
     include_perplexity: bool | None = None,
     include_composio: bool | None = None,
     include_mcp: bool | None = None,
 ) -> ToolRegistry:
     """Wire the default tool set.
 
-    Each include_* defaults to env-detected: register the tool only when its
-    API key is set. Explicit True/False overrides (used in tests, or to force
-    a tool off in dev). include_mcp is detected via the presence of a config
-    file (KAI_MCP_CONFIG_PATH env var or repo-root mcp_config.json).
+    ``operator`` gates OPERATOR-HOST tools — ones that act with the operator's own
+    credentials or process rather than the calling user's:
+      * Composio (executes against the OPERATOR's connected SaaS accounts —
+        Gmail/Slack/GitHub/Stripe — via COMPOSIO_USER_ID),
+      * MCP servers (filesystem/git/postgres running as the KAI host process),
+      * Twenty CRM (read/writes the operator's CRM via a global TWENTY_API_KEY), and
+      * Dwolla (reads the platform's ACH account via global DWOLLA_KEY/SECRET),
+      * the browser tool (drives a browser on the KAI host), and
+      * the unscoped operator-DATA readers — knowledge graph, digital-twin
+        (operator self-model/voice), plans, learnings, failure log, self-audit —
+        which read GLOBAL operator/system data (they ignore ctx.user_id).
+    These must NEVER be registered for the public, multi-user chat: a customer's
+    LLM could otherwise be steered into acting as the operator (confused deputy),
+    reading/writing the operator's disk, or exfiltrating operator-private data.
+    Only the operator/admin chat passes ``operator=True``; the public chat
+    (routers/nai.py) uses the default (False). Per-user tools (memory, document
+    search, claim verification — all scoped by ctx.user_id) stay public.
+
+    Each include_* still defaults to env-detected, but the operator-host tools are
+    additionally gated on ``operator``. Explicit True/False overrides the gate
+    (used in tests, or to force a tool off in dev).
     """
     if include_perplexity is None:
         include_perplexity = bool(os.environ.get("PERPLEXITY_API_KEY"))
     if include_composio is None:
-        include_composio = bool(os.environ.get("COMPOSIO_API_KEY"))
+        # Operator-host: acts on the operator's connected accounts — never in the
+        # public chat.
+        include_composio = operator and bool(os.environ.get("COMPOSIO_API_KEY"))
     if include_mcp is None:
-        # Auto-on whenever a config file exists. Loader returns [] if config
-        # is missing/broken, so this is safe to keep as a default.
-        include_mcp = True
+        # Operator-host: MCP servers run as the KAI process (filesystem/git/…).
+        # Auto-on only for the operator chat (loader returns [] if no config).
+        include_mcp = operator
 
     reg = ToolRegistry()
     if include_perplexity:
@@ -79,10 +99,11 @@ def build_default_registry(
     reg.register(TradingSignalTool())
     # No env key required — pure-Python fetch + trafilatura extraction
     reg.register(WebFetchTool())
-    # Knowledge graph — SQLite-backed, ships with the daemon. No env key.
-    # Always registered: the KG db auto-creates on first use, so the tool
-    # is functional from day one even with an empty graph.
-    reg.register(KGQueryTool())
+    # Knowledge graph — the OPERATOR's infrastructure facts (unscoped; its own
+    # description example leaks secret names like "Stripe depends_on
+    # STRIPE_WEBHOOK_SECRET"). Operator-only — never queryable from the public chat.
+    if operator:
+        reg.register(KGQueryTool())
     # Document search (RAG) — semantic search over the user's indexed documents
     # via pgvector. Ships always; degrades gracefully to "no results" when the
     # knowledge base is empty or embeddings are unavailable.
@@ -105,40 +126,36 @@ def build_default_registry(
     reg.register(ClinicalTrialsSearchTool())
     # Super-router — recommend the best domain expert (preset) for a question.
     reg.register(SuggestAgentTool())
-    # Failure log — JSONL-backed, ships with the daemon. KAI can look up
-    # similar past failures to avoid repeating them.
-    reg.register(FailureLookupTool())
-    # Long-term plans — SQLite-backed, ships with the daemon. READ-ONLY tool;
-    # plan creation/execution goes through the audited admin endpoints.
-    reg.register(PlanQueryTool())
-    # Learning — read-only; reports lessons KAI has learned from feedback.
-    # SQLite-backed, ships with the daemon. No env key.
-    reg.register(LearningQueryTool())
-    # Digital twin — read-only; the operator self-model KAI consults.
-    # SQLite-backed, ships with the daemon. No env key.
-    reg.register(TwinQueryTool())
-    # Self-audit — read-only; KAI reports its own subsystem health on request.
-    reg.register(AuditQueryTool())
+    # OPERATOR-ONLY read tools — these read GLOBAL operator/system data with no
+    # per-user scoping (they ignore ctx.user_id), so exposing them in the public
+    # multi-user chat would leak operator-private data to any customer.
+    if operator:
+        reg.register(FailureLookupTool())   # past failures (may include deploy detail)
+        reg.register(PlanQueryTool())       # operator long-term plans (read-only)
+        reg.register(LearningQueryTool())   # lessons from operator feedback
+        reg.register(TwinQueryTool())       # operator self-model / voice (impersonation risk)
+        reg.register(AuditQueryTool())      # KAI subsystem health / inventory
     # Capability scout — read-only GitHub repo search + adoption assessment.
     # Surfaces open-source projects that could extend KAI and PROPOSES them
     # (license/maintenance/risk/recommendation). Never installs or runs code —
     # adoption stays propose-then-approve. No env key (GITHUB_TOKEN optional
     # only to lift the search rate limit).
     reg.register(GithubScoutTool())
-    # Twenty CRM — read/write a self-hosted Twenty instance over its REST API.
-    # Registered only when configured, so it's inert until the operator points
-    # it at a CRM. KAI talks to Twenty over HTTP; it never runs Twenty's code.
-    if os.environ.get("TWENTY_API_URL") and os.environ.get("TWENTY_API_KEY"):
+    # Twenty CRM — read/WRITE a self-hosted Twenty instance over its REST API using
+    # the OPERATOR's global TWENTY_API_KEY. Operator-host: a public-chat customer
+    # could otherwise read or mutate the operator's whole CRM. Operator chat only.
+    if operator and os.environ.get("TWENTY_API_URL") and os.environ.get("TWENTY_API_KEY"):
         reg.register(TwentyCrmTool())
     else:
-        logger.info("tools: twenty_crm skipped (TWENTY_API_URL/TWENTY_API_KEY not set)")
-    # Dwolla (Sol ACH rail) — READ-ONLY inspection only. Registered when
-    # DWOLLA_KEY + DWOLLA_SECRET are set. Money movement is NOT in this tool;
-    # it lives behind @audited(dwolla.transfer, destructive=True) + sandbox-lock.
-    if os.environ.get("DWOLLA_KEY") and os.environ.get("DWOLLA_SECRET"):
+        logger.info("tools: twenty_crm skipped (operator-only, or TWENTY_API_URL/TWENTY_API_KEY not set)")
+    # Dwolla (Sol ACH rail) — READ-ONLY inspection of the platform's Dwolla account
+    # via the OPERATOR's global DWOLLA_KEY/SECRET. Operator-host: exposes the
+    # platform's financial data, so it must not be in the public customer chat.
+    # (Money movement is NOT in this tool — that's @audited + sandbox-locked.)
+    if operator and os.environ.get("DWOLLA_KEY") and os.environ.get("DWOLLA_SECRET"):
         reg.register(DwollaTool())
     else:
-        logger.info("tools: dwolla skipped (DWOLLA_KEY/DWOLLA_SECRET not set)")
+        logger.info("tools: dwolla skipped (operator-only, or DWOLLA_KEY/DWOLLA_SECRET not set)")
     # Site builder — KAI generates HTML pages/sections in the WheellsVerse style
     # as reviewable DRAFTS (never auto-publishes). No env key (uses the router).
     reg.register(SiteBuilderTool())
@@ -152,10 +169,12 @@ def build_default_registry(
         reg.register(VideoGenTool())
     else:
         logger.info("tools: video_gen skipped (RUNWAYML_API_KEY not set)")
-    # Browser (computer-control) — registered ONLY when KAI_BROWSER_ENABLED is
-    # set (default off). v1 envelope: read + propose; allowlist + SSRF + audit
-    # enforced inside the tool. No browser is launched unless this is on.
-    if _browser_enabled():
+    # Browser (computer-control) — operator-host: drives a browser on the KAI host.
+    # Registered only for the operator chat AND when KAI_BROWSER_ENABLED is set
+    # (default off). Operator-gated so it can't reach the public chat if the flag
+    # is ever turned on. v1 envelope: read + propose; allowlist + SSRF + audit
+    # enforced inside the tool.
+    if operator and _browser_enabled():
         try:
             reg.register(BrowserTool())
         except RuntimeError as e:
