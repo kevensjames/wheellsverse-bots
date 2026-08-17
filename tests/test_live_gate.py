@@ -46,8 +46,17 @@ def A():
         KAI_UPSTREAM_URL=APP_B, KAI_COMMAND_BAR_GOVERNED="true",
     )
     from fastapi.testclient import TestClient
-    from core.api import app as app_a
-    return TestClient(app_a)
+    import core.api as _capi
+    # core.api reads its bridge/session config once at import. If another test
+    # module already imported it with a different secret/upstream (the cached
+    # module can't be reconfigured), this live integration suite can't line up
+    # with the live App B — run it in isolation. Skip cleanly rather than fail.
+    if getattr(_capi, "_OPERATOR_SESSION_CFG", None) is None \
+            or _capi._OPERATOR_SESSION_CFG.session_secret != SECRET \
+            or getattr(_capi, "KAI_UPSTREAM_URL", None) not in (None, APP_B):
+        pytest.skip("core.api already imported with different config — "
+                    "run tests/test_live_gate.py in isolation (needs live App B)")
+    return TestClient(_capi.app)
 
 
 def _login(client, secret):
@@ -75,8 +84,12 @@ def test_s4_cross_app_over_http(A):
 # ── Gate 2 bridge -> LIVE App B (real transport + path mapping + redaction) ───
 def test_gate2_bridge_reaches_real_route(A):
     _login(A, "ownerkey")
-    r = A.post("/admin/kai/kai-chat", json={"message": "status?"})
-    # Reached App B's real /admin/kai-chat (NOT 404 path / 502 unreachable).
+    # use_tools=False so an ollama-only local staging (no tool-capable cloud
+    # adapter) can serve the buffered turn; the point is the bridge REACHES the
+    # real /admin/kai-chat (NOT a 404 path / 502 unreachable).
+    r = A.post("/admin/kai/kai-chat",
+               json={"message": "status?", "prefer_local": True, "use_tools": False},
+               timeout=90)
     assert r.status_code not in (404, 502)
     assert r.headers.get("x-correlation-id")
     # Errors are redacted (App B DEBUG=false) — no traceback leaks through.
@@ -110,7 +123,7 @@ def test_gate3_real_governed_llm(A):
     _login(A, "ownerkey")
     r = A.post("/admin/kai/kai-chat",
                json={"message": "Reply with exactly: KAI staging verified.",
-                     "prefer_local": True}, timeout=60)
+                     "prefer_local": True, "use_tools": False}, timeout=90)
     if r.status_code == 500:
         pytest.skip("App B not fully provisioned for Gate 3 (schema/profile/ollama)")
     assert r.status_code == 200
@@ -119,3 +132,30 @@ def test_gate3_real_governed_llm(A):
     assert "ollama" in str(body.get("message", ""))
     assert body.get("conversation_id")            # conversation persisted
     assert r.headers.get("x-correlation-id")
+
+
+# ── Gate 3 STREAMING: real SSE through the bridge (owner-only) ────────────────
+def test_gate3_streaming_through_bridge(A):
+    _login(A, "ownerkey")
+    tokens, ct, seq = 0, None, []
+    with A.stream("POST", "/admin/kai/kai-chat/stream",
+                  json={"message": "Say hi in 3 words.", "prefer_local": True},
+                  timeout=90) as r:
+        if r.status_code == 500:
+            pytest.skip("App B not fully provisioned for streaming")
+        ct = r.headers.get("content-type")
+        for line in r.iter_lines():
+            if line.startswith("data: "):
+                import json as _j
+                seq.append(_j.loads(line[6:]).get("type"))
+                if '"token"' in line:
+                    tokens += 1
+    assert ct and ct.startswith("text/event-stream")   # real SSE, not buffered JSON
+    assert tokens >= 1                                  # incremental token frames
+    assert "done" in seq                                # clean stream close
+
+
+def test_gate3_stream_operator_denied(A):
+    # Streaming chat is the always-ultra endpoint → owner-only at the bridge.
+    _login(A, "optok")
+    assert A.post("/admin/kai/kai-chat/stream", json={"message": "hi"}).status_code == 403

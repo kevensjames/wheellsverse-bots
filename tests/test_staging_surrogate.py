@@ -164,5 +164,5 @@ def test_s8_bridge_owner_allowed_reaches_forward():
     A.cookies.clear()
     A.post("/admin/session/login", json={"secret": OWNER_KEY})  # owner
     # Allowed + authorized → passes auth/allowlist, attempts forward to the
-    # (unreachable local) upstream → 502. Proves the gate opened for owner.
+    # (unreachable fake) upstream → 502. Proves the gate opened for owner.
     assert A.get("/admin/kai/kg").status_code in (502, 504)

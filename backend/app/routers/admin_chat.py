@@ -40,7 +40,6 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.models.profile import Profile
@@ -89,6 +88,31 @@ def _operator_rate_key(request: Request) -> str:
     return "kai-op:admin"
 
 
+# §6 rate limit — a small fixed-window limiter keyed by the VERIFIED principal
+# (see _operator_rate_key). slowapi's decorator misreads the Pydantic body under
+# `from __future__ import annotations`, and we want full control of the key, so
+# this is deliberate. ponytail: per-process window; move the counter to Redis if
+# this ever runs multi-worker with a shared limit.
+_RATE_LIMIT_PER_MIN = int(os.getenv("KAI_STREAM_RATE_PER_MIN", "30"))
+_RATE_STATE: dict[str, tuple[int, int]] = {}
+
+
+def _check_rate(request: Request) -> int | None:
+    """Return None if allowed, else the Retry-After seconds. Bucket keyed by the
+    verified principal so rotating junk credentials can't mint fresh buckets."""
+    key = _operator_rate_key(request)
+    now = time.time()
+    window = int(now // 60)
+    ws, cnt = _RATE_STATE.get(key, (window, 0))
+    if ws != window:
+        ws, cnt = window, 0
+    cnt += 1
+    _RATE_STATE[key] = (ws, cnt)
+    if cnt > _RATE_LIMIT_PER_MIN:
+        return max(1, 60 - int(now % 60))
+    return None
+
+
 def _audit(event: str, *, corr: str, role: str, ctx: dict, conversation_id) -> None:
     try:
         _stream_audit.info(json.dumps({
@@ -100,10 +124,38 @@ def _audit(event: str, *, corr: str, role: str, ctx: dict, conversation_id) -> N
         pass
 
 
-def _sse(events):
-    """Format dict events as SSE frames (data: {json}\\n\\n)."""
-    for ev in events:
-        yield f"data: {json.dumps(ev, default=str)}\n\n".encode("utf-8")
+async def _sse_async(request: Request, events):
+    """Relay sync event dicts as SSE byte frames with real cancellation.
+
+    We pull one event at a time (the provider read runs in a worker thread) and
+    check `request.is_disconnected()` BETWEEN events. When the client has gone,
+    the sync generator is SUSPENDED at its yield, so closing it delivers
+    GeneratorExit cleanly → Brain.stream → Router.stream → OllamaAdapter's
+    `with client.stream()` exits → the HTTP connection to ollama closes → ollama
+    stops generating. Boundary = the next token-yield after disconnect (a sync
+    generator blocked in a provider read can't be pre-empted mid-read)."""
+    import anyio
+    _DONE = object()
+
+    def _next():
+        try:
+            return next(events)
+        except StopIteration:
+            return _DONE
+
+    try:
+        while True:
+            ev = await anyio.to_thread.run_sync(_next)
+            if ev is _DONE:
+                break
+            yield f"data: {json.dumps(ev, default=str)}\n\n".encode("utf-8")
+            if await request.is_disconnected():
+                break  # generator is suspended at its yield → safe to close below
+    finally:
+        try:
+            events.close()  # GeneratorExit in _events() → cancelled audit + ollama close
+        except Exception:
+            pass
 
 logger = logging.getLogger(__name__)
 
@@ -402,7 +454,6 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
 
 
 @router.post("/kai-chat/stream")
-@limiter.limit("30/minute", key_func=_operator_rate_key)
 def admin_chat_stream(request: Request, req: AdminChatRequest,
                       session: Session = Depends(get_db)):
     """Governed operator chat with REAL incremental SSE streaming.
@@ -417,6 +468,10 @@ def admin_chat_stream(request: Request, req: AdminChatRequest,
     SSE events (as `data: {json}`): meta · status · token · usage · done · error.
     """
     # Errors BEFORE the stream starts → a safe HTTP error (no partial SSE).
+    retry_after = _check_rate(request)
+    if retry_after is not None:
+        raise HTTPException(status_code=429, detail="rate_limited",
+                            headers={"Retry-After": str(retry_after)})
     try:
         prof = _resolve_operator_profile(session)
     except OperatorNotConfigured as e:
@@ -478,7 +533,7 @@ def admin_chat_stream(request: Request, req: AdminChatRequest,
             yield {"type": "error", "error": "internal_error"}
 
     return StreamingResponse(
-        _sse(_events()),
+        _sse_async(request, _events()),
         media_type="text/event-stream",
         headers={
             "X-Correlation-Id": corr,
