@@ -99,11 +99,37 @@ session). This is a precisely-documented transport boundary, not a merge defect.
 HTTPS `Secure`-cookie behavior, Cloudflare same-origin proxying, SSE-through-edge,
 disconnect propagation, header filtering. Tracked as `HOSTED_EDGE_CERTIFICATION`.
 
+## Gate 3 — governed STREAMING (PASS)  [2026-08-17 update]
+
+The buffered-endpoint limitation is resolved: **`POST /admin/kai-chat/stream`** —
+governed operator SSE, reusing the SAME stack (`Brain.stream` → `Router.stream` →
+`OllamaAdapter.stream`, ollama's real `/api/chat` stream). Findings #2–#5 above are
+now addressed in code.
+
+| Check | Result | Evidence |
+|---|---|---|
+| Real incremental streaming | ✅ PASS | 88 token frames spread over ~4.3s (not a buffered split); `text/event-stream` |
+| TTFC recorded | ✅ | ~10.2s first token (llama3.1:8b CPU); TOTAL ~14.6s |
+| SSE framing | ✅ PASS | `meta → status → meta → token×N → usage → done` |
+| Owner-only (RBAC) | ✅ PASS | owner streams via bridge; operator → **403** (kai.ultra) |
+| Cancellation | ✅ PASS | real socket close → `kai.stream.cancelled` audit, no traceback; closing the sync generator closes ollama's httpx stream → connection drops → generation stops. Boundary = next token-yield after disconnect |
+| Correlation / audit | ✅ PASS | `X-Correlation-Id`; bounded `kai.stream.{started,completed,cancelled,failed}`, no per-token, no secrets |
+| Conversation / spend | ✅ PASS | conversation+messages persisted; `llm_call_log` ollama rows ($0) |
+| Error redaction | ✅ PASS | `DEBUG=false` (now the safe default) → redacted SSE `error`, no traceback |
+| Context (§7) | ✅ PASS | `AdminChatRequest.context` allowlisted to 6 descriptive fields (cookie/auth/api_key/DOM dropped), passed into the system prompt; never authz |
+| Rate limit (§6) | ✅ PASS | fixed-window keyed by the VERIFIED principal; rotating/forged/expired credentials collapse to one bucket (regression tested); 429 + Retry-After |
+| ollama-only local | ✅ PASS | `KAI_LLM_ALLOW_LOCAL_ONLY=1` — no placeholder OpenAI key needed; prod `REQUIRED_ADAPTERS` unchanged |
+
+Bridge already routes `/admin/kai/kai-chat/stream` owner-only and streams SSE.
+Buffered `/admin/kai-chat` remains for tool-using turns (tools need a cloud
+tool-capable adapter). Note: real cancellation needs a genuine disconnect — a
+pooling HTTP client that closes gracefully may defer detection to the next send.
+
 ## Verdict
-Gate 1, Gate 2, and C1 are **certified over real HTTP**; **Gate 3 is CONDITIONAL**
-— the governed LLM path is fully proven end-to-end with a real local provider, but
-streaming/cancellation are N/A on the buffered operator endpoint (documented
-boundary). The merge spine is sound. Presence (P11–P15) may proceed in **local
-development** per the directive, but the drawer's streaming UX depends on resolving
-the governed-streaming-endpoint decision, and **production stays blocked** on
-hosted-edge certification.
+Gate 1, Gate 2, C1, and **Gate 3 (streaming)** are **certified over real HTTP**
+against a fully-provisioned local App B (ollama). The governed operator chat now
+streams token-by-token with cancellation, RBAC, context, rate limiting, spend,
+audit, and redaction. The merge spine is complete for local staging. **Presence
+(P11–P15) is unlocked** for local development on this streaming foundation.
+**Production stays blocked** on `HOSTED_EDGE_CERTIFICATION` (HTTPS Secure cookies,
+Cloudflare, SSE-through-edge, disconnect propagation).
