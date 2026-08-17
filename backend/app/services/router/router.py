@@ -35,9 +35,19 @@ class Router:
         adapters: dict[str, Adapter],
         spend_tracker: SpendTracker,
     ):
-        missing = REQUIRED_ADAPTERS - set(adapters.keys())
+        # Prod requires the openai fallback tier. Local/staging may run on ollama
+        # alone via an EXPLICIT opt-in (KAI_LLM_ALLOW_LOCAL_ONLY=1) — so we no
+        # longer need a placeholder OpenAI credential just to construct. Default
+        # (flag unset) keeps the production requirement unchanged.
+        import os as _os
+        allow_local_only = _os.getenv("KAI_LLM_ALLOW_LOCAL_ONLY", "").strip().lower() \
+            in ("1", "true", "yes", "on")
+        required = frozenset() if allow_local_only else REQUIRED_ADAPTERS
+        missing = required - set(adapters.keys())
         if missing:
             raise ValueError(f"missing adapters: {missing}")
+        if not adapters:
+            raise ValueError("router: no adapters configured")
         self.adapters = adapters
         self.spend = spend_tracker
 

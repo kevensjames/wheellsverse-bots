@@ -243,6 +243,7 @@ class Brain:
         user_message: str,
         prefer_local: bool = False,
         max_tokens: int = 1024,
+        context: dict | None = None,
     ) -> Iterator[dict]:
         """Streaming chat. Yields SSE-ready dicts.
 
@@ -273,6 +274,12 @@ class Brain:
         )
         eq_preamble = _eq_analyze_and_record(user_message)
         system = build_system_prompt(memory_preamble, eq_preamble=eq_preamble)
+        # Descriptive-only operator page context (already sanitized by the caller):
+        # let KAI scope its answer to where the operator is. Never authorization.
+        if context:
+            ctx_line = " ".join(f"{k}={v}" for k, v in context.items() if v)
+            if ctx_line:
+                system += f"\n\n[Operator context] {ctx_line}"
 
         collected: list[str] = []
         try:

@@ -14,7 +14,10 @@ class Settings(BaseSettings):
 
     APP_NAME: str = "Wheellsverse"
     APP_ENV: str = "development"
-    DEBUG: bool = True
+    # Safe default: OFF. Debug tracebacks in HTTP/SSE responses leak internals,
+    # so development must explicitly opt in with DEBUG=true — we never rely on
+    # deployment discipline to keep it off in staging/prod.
+    DEBUG: bool = False
 
     DATABASE_URL: str
     REDIS_URL: str = "redis://localhost:6379/0"

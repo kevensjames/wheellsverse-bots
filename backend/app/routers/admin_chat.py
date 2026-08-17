@@ -28,20 +28,82 @@ Configuration:
 """
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
+import time
 import uuid as _uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from app.core.rate_limit import limiter
 from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.models.profile import Profile
 from app.services.nai_brain import Brain
 from app.services.router import build_default_router
 from app.services.tools import build_default_registry
+
+# Stream lifecycle audit — bounded (start/complete/cancel/fail), never per-token,
+# never secrets.
+_stream_audit = logging.getLogger("kai.stream.audit")
+
+# Context envelope allowlist (§2): descriptive-only, never credentials/DOM.
+_CONTEXT_FIELDS = ("route", "module", "surface", "entity_type", "entity_id", "environment")
+
+
+def _sanitize_context(raw) -> dict:
+    """Keep only the allowlisted descriptive fields, coerced to short strings.
+    Anything else (cookie/authorization/api_key/DOM/hidden/secret) is dropped."""
+    if not isinstance(raw, dict):
+        return {}
+    out = {}
+    for k in _CONTEXT_FIELDS:
+        v = raw.get(k)
+        if v is None:
+            continue
+        s = str(v)[:200]
+        if s:
+            out[k] = s
+    return out
+
+
+def _operator_rate_key(request: Request) -> str:
+    """Rate-limit bucket derived from the VERIFIED server-side principal, never
+    from raw bearer text — so rotating junk credentials can't mint fresh buckets.
+    A valid owner session → its role; everything else → the shared admin bucket."""
+    try:
+        from app.config import settings
+        if getattr(settings, "OPERATOR_SESSION_ENABLED", False) and settings.SESSION_SIGNING_SECRET:
+            from core.operator_session import verify_session
+            p = verify_session(request.cookies.get("wv_session"),
+                               secret=settings.SESSION_SIGNING_SECRET)
+            if p is not None:
+                return f"kai-op:{p.role}"
+    except Exception:
+        pass
+    return "kai-op:admin"
+
+
+def _audit(event: str, *, corr: str, role: str, ctx: dict, conversation_id) -> None:
+    try:
+        _stream_audit.info(json.dumps({
+            "event": event, "ts": time.time(), "actor_role": role,
+            "route": "/admin/kai-chat/stream", "module": ctx.get("module"),
+            "correlation_id": corr, "conversation_id": conversation_id,
+        }, default=str))
+    except Exception:
+        pass
+
+
+def _sse(events):
+    """Format dict events as SSE frames (data: {json}\\n\\n)."""
+    for ev in events:
+        yield f"data: {json.dumps(ev, default=str)}\n\n".encode("utf-8")
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +212,11 @@ class AdminChatRequest(BaseModel):
     # grounded verdict + confidence (vs the agent's self-rated tag). One extra
     # LLM call; off by default.
     verify: bool = False
+    # Descriptive-only page context (§2/§7). Allowlisted server-side to
+    # {route, module, surface, entity_type, entity_id, environment}; any other
+    # keys (cookie/authorization/api_key/DOM/hidden) are dropped. Never trusted
+    # for authorization — it only scopes intent.
+    context: dict | None = None
 
 
 # Appended to a GROUNDED expert agent's persona (one that can search the
@@ -332,3 +399,91 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
         # clients that don't look for it are unaffected.
         "self_correction": correction_meta,
     }
+
+
+@router.post("/kai-chat/stream")
+@limiter.limit("30/minute", key_func=_operator_rate_key)
+def admin_chat_stream(request: Request, req: AdminChatRequest,
+                      session: Session = Depends(get_db)):
+    """Governed operator chat with REAL incremental SSE streaming.
+
+    Same governance as /admin/kai-chat — operator-session auth (owner-only
+    kai.ultra is enforced at the bridge), the synthetic ultra operator profile,
+    conversation persistence, spend accounting, redaction — but the reply streams
+    token-by-token from the provider (ollama first via prefer_local). Tools are
+    disabled in streaming mode (tool-using turns use the buffered route). Reuses
+    the SAME execution stack (Brain → Router → adapters); no duplicate reasoning.
+
+    SSE events (as `data: {json}`): meta · status · token · usage · done · error.
+    """
+    # Errors BEFORE the stream starts → a safe HTTP error (no partial SSE).
+    try:
+        prof = _resolve_operator_profile(session)
+    except OperatorNotConfigured as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+    role = _operator_rate_key(request).split(":", 1)[-1]
+    ctx = _sanitize_context(req.context)
+    corr = request.headers.get("x-correlation-id") or _uuid.uuid4().hex
+    rt = build_default_router(session)
+    brain = Brain(session=session, router=rt, registry=build_default_registry())
+    _audit("kai.stream.started", corr=corr, role=role, ctx=ctx, conversation_id=None)
+
+    def _events():
+        conv_id = None
+        try:
+            yield {"type": "meta", "correlation_id": corr}
+            yield {"type": "status", "state": "thinking"}
+            for ev in brain.stream(
+                user_id=prof.id, conversation_id=req.conversation_id,
+                user_message=req.message, prefer_local=req.prefer_local,
+                max_tokens=req.max_tokens, context=ctx,
+            ):
+                t = ev.get("type")
+                if t == "meta":
+                    conv_id = ev.get("conversation_id")
+                    yield {"type": "meta", "conversation_id": conv_id,
+                           "user_message_id": ev.get("user_message_id")}
+                elif t == "delta":
+                    yield {"type": "token", "text": ev.get("content", "")}
+                elif t == "error":
+                    # Redact the provider/internal detail; log server-side only.
+                    logger.warning("kai stream provider error (corr=%s): %s",
+                                   corr, ev.get("error"))
+                    _audit("kai.stream.failed", corr=corr, role=role, ctx=ctx,
+                           conversation_id=conv_id)
+                    yield {"type": "error", "error": "model_error"}
+                    return
+                elif t == "done":
+                    yield {"type": "usage", "conversation_id": conv_id,
+                           "estimated": True}
+                    yield {"type": "done", "conversation_id": conv_id,
+                           "assistant_message_id": ev.get("assistant_message_id")}
+            _audit("kai.stream.completed", corr=corr, role=role, ctx=ctx,
+                   conversation_id=conv_id)
+        except (GeneratorExit, asyncio.CancelledError):
+            # Client disconnect / cancellation: closing this generator closes
+            # Brain→Router→OllamaAdapter's httpx stream context, which closes the
+            # HTTP connection to ollama → ollama stops generating. Boundary =
+            # next-chunk yield point. Do NOT swallow; re-raise so it propagates.
+            _audit("kai.stream.cancelled", corr=corr, role=role, ctx=ctx,
+                   conversation_id=conv_id)
+            raise
+        except Exception:
+            logger.exception("kai stream failed (corr=%s)", corr)
+            _audit("kai.stream.failed", corr=corr, role=role, ctx=ctx,
+                   conversation_id=conv_id)
+            # After headers are sent we can't return a new HTTP status — emit one
+            # safe SSE error and stop. Never a raw traceback.
+            yield {"type": "error", "error": "internal_error"}
+
+    return StreamingResponse(
+        _sse(_events()),
+        media_type="text/event-stream",
+        headers={
+            "X-Correlation-Id": corr,
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # disable proxy buffering so SSE flushes
+            "Connection": "keep-alive",
+        },
+    )
