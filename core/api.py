@@ -924,6 +924,27 @@ async def admin_ui_config():
     }
 
 
+# KAI Presence (merge P11/P12): the single frontend provider (orb + drawer +
+# governed streaming client) any admin page includes. Static, no secrets — auth
+# happens on the /admin/kai/* calls it makes via the session cookie. Served here
+# because frontend/admin JS/CSS has no static mount. NOT under /admin/kai/ so it
+# never collides with the bridge's /admin/kai/{path} routes.
+@app.get("/admin/kai-presence.js", include_in_schema=False)
+def _kai_presence_js():
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "kai-presence.js"
+    return FileResponse(p, media_type="text/javascript",
+                        headers={"Cache-Control": "public, max-age=60, must-revalidate"})
+
+
+@app.get("/admin/kai-presence.css", include_in_schema=False)
+def _kai_presence_css():
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "kai-presence.css"
+    return FileResponse(p, media_type="text/css",
+                        headers={"Cache-Control": "public, max-age=60, must-revalidate"})
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""

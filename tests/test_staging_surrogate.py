@@ -166,3 +166,27 @@ def test_s8_bridge_owner_allowed_reaches_forward():
     # Allowed + authorized → passes auth/allowlist, attempts forward to the
     # (unreachable fake) upstream → 502. Proves the gate opened for owner.
     assert A.get("/admin/kai/kg").status_code in (502, 504)
+
+
+# ── P11/P12: presence assets served + integrated into the shell ──────────────
+@needs_a
+def test_kai_presence_js_served():
+    r = A.get("/admin/kai-presence.js")
+    assert r.status_code == 200
+    assert "kaip-orb" in r.text and "/admin/kai/kai-chat/stream" in r.text
+    assert r.headers.get("content-type", "").startswith(("text/javascript", "application/javascript"))
+
+
+@needs_a
+def test_kai_presence_css_served():
+    r = A.get("/admin/kai-presence.css")
+    assert r.status_code == 200 and ".kaip-drawer" in r.text
+
+
+@needs_a
+def test_hub_shell_uses_presence_not_legacy_drawer():
+    r = A.get("/admin/hub")
+    assert r.status_code == 200
+    assert "/admin/kai-presence.js" in r.text        # governed presence wired
+    assert "kai-fab" not in r.text                    # legacy NarAI drawer removed
+    assert "api/v2/narai/chat" not in r.text
