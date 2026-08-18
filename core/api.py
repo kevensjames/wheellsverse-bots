@@ -1758,6 +1758,14 @@ async def serve_admin_hub():
     return _serve_frontend("admin/index.html", cache=False)
 
 
+@app.get("/admin/nexus", response_class=HTMLResponse)
+async def serve_admin_nexus():
+    """KAI Command Nexus — the immersive full-screen presentation of the SAME
+    governed KAI presence provider (same session, conversation, streaming). NOT
+    /admin/kai (that path is the bridge reverse-proxy). Merge P13."""
+    return _serve_frontend("admin/nexus.html", cache=False)
+
+
 @app.get("/admin/legacy", response_class=HTMLResponse)
 async def serve_admin_legacy():
     """Backward-compat alias — same as /admin (legacy dashboard)."""

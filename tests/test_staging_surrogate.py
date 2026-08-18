@@ -207,3 +207,14 @@ def test_presence_injected_on_all_admin_pages(route):
 @pytest.mark.parametrize("route", ["/terms", "/privacy"])
 def test_presence_not_injected_on_public_pages(route):
     assert "/admin/kai-presence.js" not in A.get(route).text
+
+
+# ── P13: Nexus immersive page served (shared provider, distinct from bridge) ──
+@needs_a
+def test_nexus_page_served_in_nexus_mode():
+    r = A.get("/admin/nexus")
+    assert r.status_code == 200
+    assert 'data-kai-mode="nexus"' in r.text     # provider renders immersive
+    assert "/admin/kai-presence.js" in r.text     # same shared provider
+    # /admin/nexus must NOT be the bridge (that's /admin/kai/*)
+    assert A.get("/admin/kai-bridge/health").status_code == 200
