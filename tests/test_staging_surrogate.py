@@ -190,3 +190,20 @@ def test_hub_shell_uses_presence_not_legacy_drawer():
     assert "/admin/kai-presence.js" in r.text        # governed presence wired
     assert "kai-fab" not in r.text                    # legacy NarAI drawer removed
     assert "api/v2/narai/chat" not in r.text
+
+
+@needs_a
+@pytest.mark.parametrize("route", [
+    "/admin/hub", "/admin/shopify", "/admin/portfolio", "/admin/portfolio/acme",
+    "/admin/siteboost", "/admin/scoreboard", "/admin/leadgen", "/admin/theme-picker",
+])
+def test_presence_injected_on_all_admin_pages(route):
+    r = A.get(route)
+    assert r.status_code == 200
+    assert "/admin/kai-presence.js" in r.text, f"{route} missing governed presence"
+
+
+@needs_a
+@pytest.mark.parametrize("route", ["/terms", "/privacy"])
+def test_presence_not_injected_on_public_pages(route):
+    assert "/admin/kai-presence.js" not in A.get(route).text

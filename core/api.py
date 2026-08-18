@@ -1018,8 +1018,24 @@ def _serve_frontend(filename: str, cache: bool = True) -> HTMLResponse:
     # Inject Supabase public keys (safe — anon key is meant to be public)
     html = html.replace("'%%SUPABASE_URL%%'", f"'{_SUPABASE_URL}'")
     html = html.replace("'%%SUPABASE_ANON_KEY%%'", f"'{_SUPABASE_ANON}'")
+    if filename.startswith("admin/"):
+        html = _inject_kai_presence(html)
     headers = {"Cache-Control": "no-store, no-cache"} if not cache else {}
     return HTMLResponse(html, headers=headers)
+
+
+def _inject_kai_presence(html: str) -> str:
+    """KAI presence 'shared shell' (merge P11/P12/§2): give every admin operator
+    page the same governed orb + drawer with no build step and no per-file editing.
+    Idempotent — a no-op if the page already includes it. The orb authenticates via
+    the operator session cookie on its /admin/kai/* calls, so it carries no secret."""
+    if "kai-presence.js" in html:
+        return html
+    if "</head>" in html:
+        html = html.replace(
+            "</head>", '<link rel="stylesheet" href="/admin/kai-presence.css"></head>', 1)
+    _pres = '<script type="module" src="/admin/kai-presence.js"></script>'
+    return html.replace("</body>", _pres + "</body>", 1) if "</body>" in html else html + _pres
 
 
 @app.get("/terms", response_class=HTMLResponse)
@@ -1773,7 +1789,7 @@ async def serve_siteboost_admin():
     # /admin/* page — baking it in leaks the platform key to anyone who can GET the
     # page. The page supplies the key itself via its prompt()/sessionStorage flow
     # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
-    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+    return HTMLResponse(_inject_kai_presence(html), headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/admin/portfolio", response_class=HTMLResponse)
@@ -1790,7 +1806,7 @@ async def serve_portfolio_admin():
     # /admin/* page — baking it in leaks the platform key to anyone who can GET the
     # page. The page supplies the key itself via its prompt()/sessionStorage flow
     # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
-    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+    return HTMLResponse(_inject_kai_presence(html), headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/admin/portfolio/{slug}", response_class=HTMLResponse)
@@ -1804,7 +1820,7 @@ async def serve_portfolio_cockpit(slug: str):
     # /admin/* page — baking it in leaks the platform key to anyone who can GET the
     # page. The page supplies the key itself via its prompt()/sessionStorage flow
     # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
-    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+    return HTMLResponse(_inject_kai_presence(html), headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/api/narai/scoreboard")
@@ -1841,7 +1857,7 @@ async def serve_scoreboard():
     # /admin/* page — baking it in leaks the platform key to anyone who can GET the
     # page. The page supplies the key itself via its prompt()/sessionStorage flow
     # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
-    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+    return HTMLResponse(_inject_kai_presence(html), headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/api/narai/leadgen/campaigns")
@@ -1869,7 +1885,7 @@ async def serve_leadgen():
     # /admin/* page — baking it in leaks the platform key to anyone who can GET the
     # page. The page supplies the key itself via its prompt()/sessionStorage flow
     # (and sanitizes it client-side). See branch fix/wmos-critical-containment.
-    return HTMLResponse(html, headers={"Cache-Control": "no-store, no-cache"})
+    return HTMLResponse(_inject_kai_presence(html), headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/p/{slug}", response_class=HTMLResponse)
