@@ -93,15 +93,25 @@
 .kaip-nx-exit:hover { color: var(--kaip-text); }
 .kaip-nx-brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 14px; letter-spacing: 1px; justify-self: center; }
 .kaip-nx-ctx { justify-self: end; font-size: 11px; color: var(--kaip-cyan); text-transform: lowercase; }
-.kaip-nx-core { display: flex; align-items: center; justify-content: center; padding: 30px 0 14px; }
-.kaip-nx-orb { width: 132px; height: 132px; border-radius: 50%;
-  background: radial-gradient(circle at 38% 34%, rgba(0, 212, 255, .95), rgba(168, 85, 247, .75) 62%, rgba(168, 85, 247, .15) 100%);
-  box-shadow: 0 0 60px rgba(0, 212, 255, .45), inset 0 0 40px rgba(255, 255, 255, .12); animation: kaip-breathe 4s ease-in-out infinite; }
-.kaip-nx-orb[data-state="thinking"] { animation-duration: 1.4s; }
-.kaip-nx-orb[data-state="speaking"] { animation-duration: .7s; box-shadow: 0 0 80px rgba(0, 212, 255, .7), inset 0 0 40px rgba(255, 255, 255, .18); }
-.kaip-nx-orb[data-state="alert"] { background: radial-gradient(circle at 38% 34%, var(--kaip-warn), var(--kaip-err) 70%); }
-.kaip-nx-orb[data-state="offline"] { background: radial-gradient(circle at 38% 34%, #39414f, #1a2030 70%); box-shadow: none; animation: none; }
-@keyframes kaip-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+.kaip-nx-core { display: flex; align-items: center; justify-content: center; padding: 26px 0 12px; }
+/* Living avatar — driven video (idle ⇄ speaking) composited into the dark stage */
+.kaip-av { position: relative; width: 264px; height: 264px; border-radius: 50%; }
+.kaip-av-ring { position: absolute; inset: -12px; border-radius: 50%; pointer-events: none;
+  border: 1px solid rgba(0, 212, 255, .3); box-shadow: 0 0 60px rgba(0, 212, 255, .4), inset 0 0 30px rgba(0, 212, 255, .14);
+  animation: kaip-breathe 4s ease-in-out infinite; }
+.kaip-av[data-state="thinking"] .kaip-av-ring { animation-duration: 1.4s; }
+.kaip-av[data-state="speaking"] .kaip-av-ring { animation-duration: .7s; box-shadow: 0 0 92px rgba(0, 212, 255, .7), inset 0 0 30px rgba(168, 85, 247, .28); }
+.kaip-av[data-state="alert"] .kaip-av-ring { box-shadow: 0 0 70px rgba(255, 181, 71, .55); border-color: var(--kaip-warn); }
+.kaip-av[data-state="offline"] .kaip-av-ring { animation: none; box-shadow: none; }
+.kaip-av-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: 50%;
+  mix-blend-mode: screen; filter: saturate(1.06) contrast(1.04); transition: opacity .4s; }
+#kaip-av-poster { opacity: 1; }
+#kaip-av-idle, #kaip-av-speak { opacity: 0; }
+#kaip-av-idle.ready { opacity: 1; }
+.kaip-av[data-state="speaking"] #kaip-av-speak.ready { opacity: 1; }
+.kaip-av[data-state="speaking"] #kaip-av-idle.ready { opacity: 0; }
+.kaip-av[data-state="offline"] .kaip-av-media { filter: grayscale(.7) brightness(.6); }
+@keyframes kaip-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.04); } }
 @media (prefers-reduced-motion: reduce) { .kaip-nx-orb { animation: none !important; } }
 .kaip-nx-conv { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 760px; margin: 0 auto; min-height: 0; padding-bottom: 22px; }
 .kaip-nx-conv .kaip-msgs { padding: 12px 24px; }

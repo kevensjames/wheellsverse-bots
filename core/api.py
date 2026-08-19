@@ -945,6 +945,24 @@ def _kai_presence_css():
                         headers={"Cache-Control": "public, max-age=60, must-revalidate"})
 
 
+# Cinematic Nexus avatar assets (merge P13). Allowlisted — no traversal, no secret.
+_NEXUS_ASSET_MIME = {"kai.jpg": "image/jpeg",
+                     "kai-idle.mp4": "video/mp4", "kai-speak.mp4": "video/mp4"}
+
+
+@app.get("/admin/nexus-assets/{name}", include_in_schema=False)
+def _nexus_asset(name: str):
+    from fastapi.responses import FileResponse
+    mime = _NEXUS_ASSET_MIME.get(name)
+    if not mime:
+        raise HTTPException(status_code=404, detail="not found")
+    p = ROOT / "frontend" / "admin" / "nexus-assets" / name
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(p, media_type=mime,
+                        headers={"Cache-Control": "public, max-age=300"})
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""

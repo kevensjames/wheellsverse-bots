@@ -23,6 +23,31 @@ const subs = new Map();
 function on(evt, fn) { (subs.get(evt) ?? subs.set(evt, new Set()).get(evt)).add(fn); return () => subs.get(evt)?.delete(fn); }
 function emit(evt, p) { subs.get(evt)?.forEach(fn => { try { fn(p); } catch (e) { console.error(e); } }); }
 
+// ---- voice: browser TTS, masculine. Nexus only (§25/§32: quiet when minimized) --
+const _MALE = ['Google UK English Male', 'Microsoft Guy', 'Microsoft David', 'Daniel', 'Arthur', 'Oliver', 'Alex', 'Google US English'];
+const _FEMALE = /samantha|victoria|karen|moira|tessa|fiona|susan|zira|serena|allison|ava|female|woman/i;
+let _voices = [], _voice = null;
+function _pickVoice() {
+  if (!_voices.length) return null;
+  for (const n of _MALE) { const v = _voices.find(x => x.name.includes(n)); if (v) return v; }
+  const en = _voices.filter(v => /^en/i.test(v.lang));
+  return en.find(v => !_FEMALE.test(v.name)) || en[0] || _voices[0] || null;
+}
+function _refreshVoices() { if (!('speechSynthesis' in window)) return; _voices = speechSynthesis.getVoices() || []; _voice = _pickVoice(); }
+if ('speechSynthesis' in window) { _refreshVoices(); speechSynthesis.addEventListener('voiceschanged', _refreshVoices); }
+function speak(text) {
+  if (!('speechSynthesis' in window) || !text) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.slice(0, 700));
+    u.voice = _voice || _pickVoice(); u.rate = 0.98; u.pitch = 0.96;
+    u.onstart = () => setKaiState('speaking');   // swaps the avatar to the speaking loop
+    u.onend = () => setKaiState('online');
+    speechSynthesis.speak(u);
+  } catch {}
+}
+function stopSpeak() { try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch {} }
+
 // ---- canonical state (§P14) -------------------------------------------------
 const state = {
   principal: null,          // {role, scopes} from /admin/session/whoami
@@ -242,7 +267,14 @@ function mountNexus() {
       <div class="kaip-nx-brand"><span class="kaip-title-dot"></span>KAI · COMMAND NEXUS <span class="kaip-state" id="kaip-state">online</span></div>
       <span class="kaip-nx-ctx" id="kaip-ctx"></span>
     </div>
-    <div class="kaip-nx-core"><div class="kaip-nx-orb" id="kaip-nx-orb"></div></div>
+    <div class="kaip-nx-core">
+      <div class="kaip-av" id="kaip-av" data-state="online">
+        <span class="kaip-av-ring" aria-hidden="true"></span>
+        <video class="kaip-av-media" id="kaip-av-idle"  src="/admin/nexus-assets/kai-idle.mp4"  poster="/admin/nexus-assets/kai.jpg" loop muted playsinline autoplay preload="auto" aria-hidden="true"></video>
+        <video class="kaip-av-media" id="kaip-av-speak" src="/admin/nexus-assets/kai-speak.mp4" loop muted playsinline preload="auto" aria-hidden="true"></video>
+        <img   class="kaip-av-media" id="kaip-av-poster" src="/admin/nexus-assets/kai.jpg" alt="" aria-hidden="true" decoding="async">
+      </div>
+    </div>
     <div class="kaip-nx-conv">
       <div class="kaip-suggest" id="kaip-suggest"></div>
       <div class="kaip-msgs" id="kaip-msgs"></div>
@@ -262,16 +294,32 @@ function mountNexus() {
   stopBtn = nx.querySelector('#kaip-stop');
   ctxEl = nx.querySelector('#kaip-ctx');
   stateEl = nx.querySelector('#kaip-state');
-  const orb = nx.querySelector('#kaip-nx-orb');
+
+  // Living avatar: idle-loop video by default; swaps to the speaking loop when
+  // KAI is speaking. Driven by the shared provider's kaiState — no separate state
+  // machine. mix-blend-mode composites the dark-navy video into the dark stage
+  // (see CSS); the poster is the fallback if a clip can't load.
+  const av = nx.querySelector('#kaip-av');
+  const vIdle = nx.querySelector('#kaip-av-idle'), vSpeak = nx.querySelector('#kaip-av-speak');
+  [vIdle, vSpeak].forEach(v => {
+    v.addEventListener('loadeddata', () => v.classList.add('ready'), { once: true });
+    v.addEventListener('error', () => v.classList.remove('ready'));
+    const p = v.play && v.play(); if (p) p.catch(() => {});
+  });
+  addEventListener('pointerdown', () => { [vIdle, vSpeak].forEach(v => { const p = v.play && v.play(); if (p) p.catch(() => {}); }); }, { once: true });
 
   sendBtn.addEventListener('click', submit);
   stopBtn.addEventListener('click', stopStream);
   inputEl.addEventListener('input', () => { inputEl.style.height = 'auto'; inputEl.style.height = Math.min(inputEl.scrollHeight, 160) + 'px'; });
   inputEl.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(); } });
-  on('kaiState', s => { if (stateEl) stateEl.textContent = s; if (orb) orb.dataset.state = s; });
+  on('kaiState', s => {
+    if (stateEl) stateEl.textContent = s;
+    av.dataset.state = s;
+    if (s === 'speaking') { const p = vSpeak.play && vSpeak.play(); if (p) p.catch(() => {}); }
+  });
 
   ctxEl.textContent = _ctxLabel(buildContext());
-  orb.dataset.state = state.kaiState;
+  av.dataset.state = state.kaiState;
   renderSuggestions();
   addMessage('kai', canGovernedChat()
     ? "I'm KAI. This is the immersive view — same session, same conversation. Ask me anything."
@@ -307,6 +355,7 @@ async function submit() {
 }
 
 async function streamGoverned(text) {
+  stopSpeak();               // barge-in: a new question stops any current speech
   const asst = addMessage('kai', '');
   setKaiState('thinking');
   state.connectionState = 'streaming';
@@ -349,6 +398,7 @@ async function streamGoverned(text) {
     }
     if (!asst.text) { asst.text = '(no response)'; renderInto(asst); }
     setKaiState('online');
+    if (state.presenceMode === 'nexus') speak(asst.text);  // living KAI speaks the answer
   } catch (e) {
     if (e.name === 'AbortError') { asst.text += ' ⏹'; renderInto(asst); setKaiState('online'); }
     else { asst.text += ' [link error]'; renderInto(asst); setKaiState('alert'); }
@@ -361,7 +411,7 @@ async function streamGoverned(text) {
 
 // Barge-in / cancel: abort the fetch → closes the connection → the bridge and
 // App B tear down → ollama generation stops (server-side cancellation).
-function stopStream() { if (state.streamState) state.streamState.abort(); }
+function stopStream() { stopSpeak(); if (state.streamState) state.streamState.abort(); }
 
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
 else boot();

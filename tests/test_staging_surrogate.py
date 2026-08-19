@@ -218,3 +218,19 @@ def test_nexus_page_served_in_nexus_mode():
     assert "/admin/kai-presence.js" in r.text     # same shared provider
     # /admin/nexus must NOT be the bridge (that's /admin/kai/*)
     assert A.get("/admin/kai-bridge/health").status_code == 200
+
+
+# ── Nexus cinematic assets (allowlisted) + ceo.html governed streaming ────────
+@needs_a
+def test_nexus_assets_allowlisted():
+    assert A.get("/admin/nexus-assets/kai.jpg").status_code == 200
+    assert A.get("/admin/nexus-assets/kai-idle.mp4").headers["content-type"] == "video/mp4"
+    assert A.get("/admin/nexus-assets/../secret").status_code in (404, 400)  # no traversal
+    assert A.get("/admin/nexus-assets/evil.exe").status_code == 404          # allowlist
+
+
+@needs_a
+def test_ceo_command_bar_uses_governed_stream():
+    r = A.get("/admin")   # serves dashboard/ceo.html
+    assert r.status_code == 200
+    assert "/admin/kai/kai-chat/stream" in r.text     # repointed to the streaming brain

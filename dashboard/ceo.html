@@ -468,27 +468,34 @@ function buildKaiContext(){
     environment: /localhost|127\.0\.0\.1/.test(location.hostname) ? 'dev' : 'production'
   };
 }
-// P6 governed path: post to the same-origin bridge → governed KAI brain, cookie
-// auth only (the bridge strips raw secrets and enforces scope/ultra server-side).
+// Governed path: stream from the ONE governed brain via the same-origin bridge →
+// /admin/kai/kai-chat/stream (owner-only kai.ultra, cookie auth). Tokens render
+// into the CEO command log and drive the KAI Core state readout — same brain the
+// admin drawer + Nexus use, no second implementation.
 async function sendCommandGoverned(text){
-  const res = await fetch('/admin/kai/kai-chat', {
+  const res = await fetch('/admin/kai/kai-chat/stream', {
     method:'POST', credentials:'include',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ message: text, context: buildKaiContext() })
+    body: JSON.stringify({ message: text, prefer_local:true, context: buildKaiContext() })
   });
-  if(!res.ok){ throw new Error('HTTP '+res.status+(res.status===403?' (insufficient scope)':'')); }
-  const ct = res.headers.get('content-type')||'';
-  if(ct.includes('event-stream') && res.body && res.body.getReader){
-    const reader=res.body.getReader(), dec=new TextDecoder(); let out='';
-    const line=document.createElement('div'); line.className='kai'; line.innerHTML='<b>KAI</b> '; $('cmd-log').appendChild(line);
-    for(;;){ const {done,value}=await reader.read(); if(done) break;
-      dec.decode(value,{stream:true}).split('\n').forEach(l=>{ if(l.startsWith('data: ')){ const d=l.slice(6); if(d && d!=='[DONE]'){ try{ const o=JSON.parse(d); out+=(o.delta||o.content||o.text||''); }catch{ out+=d; } } } });
-      line.innerHTML='<b>KAI</b> '+out.replace(/</g,'&lt;'); $('cmd-log').scrollTop=$('cmd-log').scrollHeight;
+  if(res.status===403){ cmdEcho('<b>KAI</b> owner access required for governed KAI.','kai'); return; }
+  if(res.status===429){ cmdEcho('<b>KAI</b> rate limited — try again shortly.','kai'); return; }
+  if(!res.ok || !res.body || !res.body.getReader){ throw new Error('HTTP '+res.status); }
+  const setState=(s)=>{ try{ $('kai-state').textContent='KAI · '+s; }catch(e){} };
+  const reader=res.body.getReader(), dec=new TextDecoder(); let out='', buf='';
+  const line=document.createElement('div'); line.className='kai'; line.innerHTML='<b>KAI</b> '; $('cmd-log').appendChild(line);
+  setState('THINKING');
+  for(;;){ const {done,value}=await reader.read(); if(done) break;
+    buf+=dec.decode(value,{stream:true});
+    const frames=buf.split('\n\n'); buf=frames.pop()||'';
+    for(const f of frames){ const l=f.split('\n').find(x=>x.startsWith('data: ')); if(!l) continue;
+      let ev; try{ ev=JSON.parse(l.slice(6)); }catch{ continue; }
+      if(ev.type==='token'){ out+=(ev.text||''); setState('SPEAKING'); line.innerHTML='<b>KAI</b> '+out.replace(/</g,'&lt;'); $('cmd-log').scrollTop=$('cmd-log').scrollHeight; }
+      else if(ev.type==='error'){ line.innerHTML='<b>KAI</b> [model unavailable]'; }
     }
-    return;
   }
-  const data = await res.json().catch(()=>({}));
-  cmdEcho('<b>KAI</b> '+String(data.response||data.reply||data.content||JSON.stringify(data)).replace(/</g,'&lt;'),'kai');
+  if(!out) line.innerHTML='<b>KAI</b> (no response)';
+  setState('ONLINE');
 }
 async function sendCommand(text){
   if(!text.trim()) return;
