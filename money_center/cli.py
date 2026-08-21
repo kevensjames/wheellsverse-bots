@@ -18,6 +18,8 @@ Usage:
 ─────────────────────────────────────────────────────────────────────────────
 """
 
+import os
+import shlex
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -161,10 +163,19 @@ def cmd_start(asset_id: str):
     try:
         log_path = HERE / "logs" / f"{asset_id}.log"
         log_fd = open(log_path, "a", encoding="utf-8")
+        
+        # Parse command safely - split into arguments to avoid shell injection
+        try:
+            cmd_args = shlex.split(cmd)
+        except ValueError as e:
+            console.print(f"[red]✗ Invalid command syntax: {e}[/red]")
+            sys.exit(1)
+        
+        # Execute without shell=True to prevent command injection
         subprocess.Popen(
-            cmd, shell=True, cwd=wdir,
+            cmd_args, cwd=wdir,
             stdout=log_fd, stderr=log_fd,
-            env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"},
+            env={**os.environ, "PYTHONUNBUFFERED": "1"},
         )
         reg.update_status(asset_id, "running", "last_run")
         reg._log("info", asset_id, "start", f"Started: {cmd}")
@@ -190,7 +201,15 @@ def cmd_stop(asset_id: str):
 
     console.print(f"[yellow]⏹ Stopping:[/yellow] {cmd}")
     try:
-        subprocess.run(cmd, shell=True, timeout=10)
+        # Parse command safely - split into arguments to avoid shell injection
+        try:
+            cmd_args = shlex.split(cmd)
+        except ValueError as e:
+            console.print(f"[red]✗ Invalid command syntax: {e}[/red]")
+            sys.exit(1)
+        
+        # Execute without shell=True to prevent command injection
+        subprocess.run(cmd_args, timeout=10)
         reg.update_status(asset_id, "stopped", "last_stop")
         reg._log("info", asset_id, "stop", f"Stopped: {cmd}")
         console.print(f"[yellow]✓ '{asset_id}' stopped.[/yellow]")
