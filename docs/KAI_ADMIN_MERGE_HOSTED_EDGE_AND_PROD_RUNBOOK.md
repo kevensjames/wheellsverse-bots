@@ -73,6 +73,33 @@ Each is something localhost could not prove.
 **Gate:** all E1–E10 PASS → `HOSTED_EDGE_CERTIFIED`. E3/E4 (SSE non-buffering
 through Cloudflare) is the likeliest to need a CF config change — budget for it.
 
+### Driven now (code-level, without prod) — 2026-08-21
+What can be certified/hardened without a live edge has been:
+
+- **E4 (Pages-Function streaming) — code-audited + hardened.**
+  `frontend/functions/_middleware.js` passes the upstream `ReadableStream` through
+  with `return new Response(resp.body, resp)` (streams; does NOT `await
+  .text()/.json()`), and now sets `duplex: "half"` when forwarding a streamed
+  request body (Streams-spec requirement; CF supports it). It propagates the
+  bridge/App-B response headers (`Cache-Control: no-cache`, `X-Accel-Buffering:
+  no`). So the **Worker layer streams SSE**; what remains is **E3** — Cloudflare's
+  CDN must not buffer/compress `text/event-stream` (a CF Cache-Rule / no-compress
+  setting), which only the real edge can confirm.
+- **E7 (C1) + E10 (RBAC + redaction) — already certified against the REAL apps**
+  in-process (surrogate + live-gate): `?api_key=` rejected when sessions on;
+  operator→403 on the ultra path; `DEBUG=false` redacts. The edge run just
+  re-confirms them over HTTPS.
+- **E1 (cookie attributes) — verified in code + local HTTP:** `wv_session` is
+  `HttpOnly; Secure; SameSite=Lax; Path=/`. The only edge-specific unknown is the
+  real-HTTPS round-trip (Secure cookies aren't sent over the local http surrogate).
+- **Security scan (Aikido):** the reverse-proxy bridge and the admin auth
+  dependency scan **clean** (SAST + secrets) via the Aikido MCP. To pull the
+  Aikido *platform* issue feed for the repo, enable it at
+  `app.aikido.dev/settings/integrations/ide/mcp/permissions` (workspace setting).
+
+**Still strictly operator-blocked (need staging behind the real Cloudflare edge):**
+E2, E3, E5, E6, E8, E9 and the HTTPS confirmations of E1/E7/E10.
+
 ---
 
 ## Production cutover — one flag at a time

@@ -23,8 +23,16 @@ export async function onRequest(context) {
   headers.delete("host"); // let fetch set Host for the Railway origin
 
   const init = { method: request.method, headers, redirect: "manual" };
-  if (request.method !== "GET" && request.method !== "HEAD") init.body = request.body;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = request.body;
+    init.duplex = "half"; // required to stream a request body (Streams spec); CF supports it
+  }
 
   const resp = await fetch(BACKEND + p + url.search, init);
+  // Pass the upstream ReadableStream through UNBUFFERED so Server-Sent Events —
+  // the governed KAI stream at /admin/kai/kai-chat/stream — reach the browser
+  // token-by-token. Do NOT await resp.text()/json() here (that would buffer).
+  // (Edge note: Cloudflare's CDN must also not buffer/compress text/event-stream —
+  // verify via the hosted-edge cert E3; the Worker layer streams by default.)
   return new Response(resp.body, resp);
 }
