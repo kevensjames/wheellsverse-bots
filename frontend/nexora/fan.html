@@ -173,6 +173,17 @@ let FAN_EMAIL = '';
 let SUBS = [];
 let ACTIVE_CREATOR = null;
 
+// ── SECURITY ───────────────────────────────────────────────────────────────────
+function escapeHtml(unsafe) {
+  if (typeof unsafe !== 'string') return '';
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // ── AUTH ───────────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   document.getElementById('login-form').style.display    = tab === 'login'    ? 'block' : 'none';
@@ -278,15 +289,18 @@ function renderSubs() {
   el.className = 'subs-grid';
   el.innerHTML = SUBS.map(s => {
     const initials = (s.name || '?').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2);
-    return `<a class="sub-card" href="javascript:void(0)" onclick="loadCreatorContent('${s.handle}','${s.name}')">
+    const safeName = escapeHtml(s.name);
+    const safeHandle = escapeHtml(s.handle);
+    const safeBio = escapeHtml(s.bio);
+    return `<a class="sub-card" href="javascript:void(0)" onclick="loadCreatorContent('${safeHandle}','${safeName}')">
       <div class="sub-card-top">
         <div class="sub-avatar">${initials}</div>
         <div>
-          <div class="sub-name">${s.name}</div>
-          <div class="sub-handle">@${s.handle}</div>
+          <div class="sub-name">${safeName}</div>
+          <div class="sub-handle">@${safeHandle}</div>
         </div>
       </div>
-      ${s.bio ? `<div class="sub-bio">${s.bio}</div>` : ''}
+      ${s.bio ? `<div class="sub-bio">${safeBio}</div>` : ''}
       <span class="sub-cta">View Content →</span>
     </a>`;
   }).join('');
@@ -328,16 +342,18 @@ function renderPosts(posts, isSubscribed) {
   el.className = 'posts-list';
   el.innerHTML = posts.map(p => {
     const date = new Date(p.created_at * 1000).toLocaleDateString('en-US', {month:'short',day:'numeric',year:'numeric'});
+    const safeTitle = escapeHtml(p.title || (p.locked ? 'Exclusive Post' : 'Post'));
+    const safeBody = escapeHtml(p.body || '').replace(/\n/g,'<br>');
     if (p.locked) {
       return `<div class="post-card locked">
-        <div class="post-title">🔒 ${p.title || 'Exclusive Post'} <span class="lock-badge">SUBSCRIBERS ONLY</span></div>
+        <div class="post-title">🔒 ${safeTitle} <span class="lock-badge">SUBSCRIBERS ONLY</span></div>
         <div class="post-body">Subscribe to unlock this content.</div>
         <div class="post-date">${date}</div>
       </div>`;
     }
     return `<div class="post-card">
-      <div class="post-title">${p.title || 'Post'}</div>
-      <div class="post-body">${(p.body || '').replace(/\n/g,'<br>')}</div>
+      <div class="post-title">${safeTitle}</div>
+      <div class="post-body">${safeBody}</div>
       <div class="post-date">${date}</div>
     </div>`;
   }).join('');
