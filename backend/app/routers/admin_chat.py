@@ -35,7 +35,7 @@ import os
 import time
 import uuid as _uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -159,10 +159,53 @@ async def _sse_async(request: Request, events):
 
 logger = logging.getLogger(__name__)
 
+
+def require_kai_ultra(
+    request: Request,
+    x_admin_token: str | None = Header(default=None),
+) -> None:
+    """Owner-only gate for the KAI 'ultra' operator profile (the tier-bypass).
+
+    /admin/kai-chat[/stream] run a synthetic tier='ultra' profile that bypasses
+    every paid/tier gate, so they are OWNER-ONLY (scope kai.ultra). The App A ->
+    App B bridge already enforces this, but App B is a SEPARATELY reachable
+    deployment (kai.wheellsverse.com) — so it MUST enforce it itself, or an
+    operator-role credential hitting App B directly escalates to ultra (merge
+    brief §12; operator_session invariants #3/#4).
+
+    - Unified session ON  -> require an OWNER principal holding SCOPE_KAI_ULTRA.
+      An operator/viewer session cookie, or X-Admin-Token (both map to the
+      operator role, WITHOUT kai.ultra), is denied 403.
+    - Unified session OFF -> no role model exists; fall back to the legacy
+      admin-token gate so today's (pre-merge) behavior is byte-unchanged.
+    """
+    from app.config import settings
+    enabled = getattr(settings, "OPERATOR_SESSION_ENABLED", False)
+    secret = getattr(settings, "SESSION_SIGNING_SECRET", "") or ""
+    if enabled and secret:
+        try:
+            from core.operator_session import resolve_principal, SCOPE_KAI_ULTRA
+            p = resolve_principal(
+                x_api_key=request.headers.get("x-api-key"),
+                x_admin_token=x_admin_token,
+                session_cookie=request.cookies.get("wv_session"),
+                owner_key=(getattr(settings, "API_KEY", "") or None),
+                admin_token=settings.admin_token,
+                session_secret=secret,
+            )
+        except Exception:
+            p = None
+        if p is not None and p.has(SCOPE_KAI_ULTRA):
+            return
+        raise HTTPException(status_code=403, detail="owner access required (kai.ultra)")
+    # Flag OFF -> legacy admin-token gate (pre-merge behavior, byte-unchanged).
+    require_admin_token(request, x_admin_token)
+
+
 router = APIRouter(
     prefix="/admin",
     tags=["admin"],
-    dependencies=[Depends(require_admin_token)],
+    dependencies=[Depends(require_kai_ultra)],
 )
 
 class OperatorNotConfigured(Exception):

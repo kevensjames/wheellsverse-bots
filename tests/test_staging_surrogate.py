@@ -106,7 +106,9 @@ def test_s5_attacks_fail_closed(bad):
     if bad == "tampered":
         t = mint_session("owner", secret=SECRET, ttl_seconds=3600)
         body, sig = t.split(".", 1)
-        cookie = body + "." + (sig[:-1] + ("A" if sig[-1] != "A" else "B"))
+        # Flip the FIRST sig char (always significant); flipping the last can be
+        # a no-op (dropped base64url padding bits) → flaky "still valid" cookie.
+        cookie = body + "." + (("A" if sig[0] != "A" else "B") + sig[1:])
     elif bad == "expired":
         cookie = mint_session("owner", secret=SECRET, ttl_seconds=10, now=1000)
     elif bad == "wrongsecret":
@@ -234,3 +236,84 @@ def test_ceo_command_bar_uses_governed_stream():
     r = A.get("/admin")   # serves dashboard/ceo.html
     assert r.status_code == 200
     assert "/admin/kai/kai-chat/stream" in r.text     # repointed to the streaming brain
+
+
+# ── REGRESSION (adversarial multi-agent review, 2026-08-22) ───────────────────
+# Two confirmed HIGH escalations, both "authN accepted where authZ was required":
+#   F1 (App B): the owner-only ultra endpoints were gated by require_admin_token
+#      (role-blind). An operator reaching App B DIRECTLY (bypassing App A's
+#      bridge) obtained the tier='ultra' bypass. Fixed: require_kai_ultra.
+#   F2 (App A): the /api/ guard authorized on principal PRESENCE, so an operator
+#      credential reached the full /api/ surface (incl destructive/financial)
+#      that pre-merge required the owner API_KEY. Fixed: _session_owner_ok.
+from types import SimpleNamespace  # noqa: E402
+from fastapi import HTTPException  # noqa: E402
+
+
+def _breq(cookie=None, api_key=None):
+    return SimpleNamespace(
+        cookies=({"wv_session": cookie} if cookie else {}),
+        headers=({"x-api-key": api_key} if api_key else {}),
+    )
+
+
+# F1 — App B ultra gate (require_kai_ultra), tested directly (no DB needed) ─────
+@needs_b
+def test_kai_ultra_denies_operator_cookie():
+    from app.routers.admin_chat import require_kai_ultra
+    op = mint_session("operator", secret=SECRET, ttl_seconds=3600)
+    with pytest.raises(HTTPException) as e:
+        require_kai_ultra(_breq(cookie=op), x_admin_token=None)
+    assert e.value.status_code == 403  # operator role has no kai.ultra
+
+
+@needs_b
+def test_kai_ultra_denies_admin_token_when_sessions_on():
+    from app.routers.admin_chat import require_kai_ultra
+    with pytest.raises(HTTPException):
+        require_kai_ultra(_breq(), x_admin_token=ADMIN_TOKEN)  # operator-level secret
+
+
+@needs_b
+def test_kai_ultra_denies_anonymous():
+    from app.routers.admin_chat import require_kai_ultra
+    with pytest.raises(HTTPException):
+        require_kai_ultra(_breq(), x_admin_token=None)
+
+
+@needs_b
+def test_kai_ultra_allows_owner_cookie():
+    from app.routers.admin_chat import require_kai_ultra
+    ow = mint_session("owner", secret=SECRET, ttl_seconds=3600)
+    assert require_kai_ultra(_breq(cookie=ow), x_admin_token=None) is None
+
+
+@needs_b
+def test_kai_ultra_route_denies_operator_direct():
+    """The router WIRES the owner-only gate: an operator hitting App B's
+    /admin/kai-chat/stream directly (not via the bridge) is denied 403."""
+    op = mint_session("operator", secret=SECRET, ttl_seconds=3600)
+    r = B.post("/admin/kai-chat/stream", json={"message": "escalate?"},
+               cookies={"wv_session": op})
+    assert r.status_code == 403
+
+
+# F2 — App A /api/ surface is owner-only (operator must not escalate) ──────────
+@needs_a
+def test_appa_api_denies_operator_cookie():
+    A.cookies.clear()
+    A.post("/admin/session/login", json={"secret": ADMIN_TOKEN})  # operator cookie in jar
+    assert A.get("/api/_c1probe").status_code == 401  # operator must NOT reach /api/
+
+
+@needs_a
+def test_appa_api_denies_operator_admin_token_header():
+    A.cookies.clear()
+    assert A.get("/api/_c1probe", headers={"X-Admin-Token": ADMIN_TOKEN}).status_code == 401
+
+
+@needs_a
+def test_appa_api_allows_owner_cookie():
+    A.cookies.clear()
+    A.post("/admin/session/login", json={"secret": OWNER_KEY})  # owner
+    assert A.get("/api/_c1probe").status_code != 401  # owner still authorized

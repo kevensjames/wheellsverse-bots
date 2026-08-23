@@ -74,7 +74,9 @@ def test_tampered_cookie_rejected(cfg, monkeypatch):
     monkeypatch.setattr(cfg, "OPERATOR_SESSION_ENABLED", True, raising=False)
     good = mint_session("owner", secret=SECRET, ttl_seconds=3600)
     body, sig = good.split(".", 1)
-    forged = body + "." + (sig[:-1] + ("A" if sig[-1] != "A" else "B"))
+    # Flip the FIRST sig char (always significant); the last carries dropped
+    # base64url padding bits, so flipping it can decode to identical bytes.
+    forged = body + "." + (("A" if sig[0] != "A" else "B") + sig[1:])
     with pytest.raises(HTTPException):
         require_admin_token(_req(forged), x_admin_token=None)
 

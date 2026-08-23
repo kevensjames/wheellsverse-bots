@@ -129,7 +129,10 @@ def test_tampered_cookie_is_anonymous():
     client, _ = _app()
     good = osess.mint_session("owner", secret=SECRET, ttl_seconds=3600)
     body, sig = good.split(".", 1)
-    forged = body + "." + (sig[:-1] + ("A" if sig[-1] != "A" else "B"))
+    # Flip the FIRST sig char (top 6 bits of byte 0 — always significant). The
+    # last char carries dropped base64url padding bits, so flipping it can be a
+    # no-op → the cookie stays valid → flaky failure.
+    forged = body + "." + (("A" if sig[0] != "A" else "B") + sig[1:])
     r = client.get("/admin/session/whoami", cookies={COOKIE_NAME: forged})
     assert r.json()["authenticated"] is False  # NOT downgraded-but-valid
 

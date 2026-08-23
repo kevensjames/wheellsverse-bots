@@ -85,17 +85,46 @@ What can be certified/hardened without a live edge has been:
   no`). So the **Worker layer streams SSE**; what remains is **E3** — Cloudflare's
   CDN must not buffer/compress `text/event-stream` (a CF Cache-Rule / no-compress
   setting), which only the real edge can confirm.
-- **E7 (C1) + E10 (RBAC + redaction) — already certified against the REAL apps**
+- **E7 (C1) + E10 (RBAC + redaction) — certified against the REAL apps**
   in-process (surrogate + live-gate): `?api_key=` rejected when sessions on;
-  operator→403 on the ultra path; `DEBUG=false` redacts. The edge run just
+  operator→403 on the ultra path (now enforced at BOTH the App A bridge AND
+  App B's own endpoint — see the adversarial-review note below); operator denied
+  App A's owner-only `/api/` surface; `DEBUG=false` redacts. The edge run just
   re-confirms them over HTTPS.
 - **E1 (cookie attributes) — verified in code + local HTTP:** `wv_session` is
   `HttpOnly; Secure; SameSite=Lax; Path=/`. The only edge-specific unknown is the
   real-HTTPS round-trip (Secure cookies aren't sent over the local http surrogate).
-- **Security scan (Aikido):** the reverse-proxy bridge and the admin auth
-  dependency scan **clean** (SAST + secrets) via the Aikido MCP. To pull the
-  Aikido *platform* issue feed for the repo, enable it at
+- **Security scan (Aikido):** all six merge-authored security files scan
+  **clean** (SAST + secrets) via the Aikido MCP — `core/kai_bridge.py`,
+  `backend/app/dependencies/admin.py`, the governed streaming endpoint
+  `backend/app/routers/admin_chat.py`, the presence client
+  `frontend/admin/kai-presence.js`, and the identity core
+  `core/operator_session.py` + `core/operator_session_web.py`. The
+  `innerHTML` a regex hook flagged in the presence client is a **confirmed
+  false positive**: every `innerHTML` assignment is a static string literal;
+  all dynamic/model content is rendered via `textContent` (no HTML parsing),
+  so there is no XSS sink. To pull the Aikido *platform* issue feed for the
+  repo, enable it at
   `app.aikido.dev/settings/integrations/ide/mcp/permissions` (workspace setting).
+- **Adversarial RBAC review (2026-08-22) — 2 HIGH escalations found + FIXED.**
+  An independent 6-lens multi-agent review (refute-biased verify) found the role
+  model was *modeled* correctly but not *enforced* at two points — authN was
+  accepted where authZ (scope) was required:
+  1. **App B ultra endpoints were role-blind.** `/admin/kai-chat[/stream]` were
+     gated by `require_admin_token` (any valid admin token OR any-role
+     `wv_session` cookie), never checking `kai.ultra`. The bridge enforced
+     owner-only, but App B (kai.wheellsverse.com) is separately reachable — so an
+     operator hitting it *directly* obtained the tier='ultra' bypass. **Fix:**
+     new `require_kai_ultra` dependency requires an OWNER principal holding
+     `SCOPE_KAI_ULTRA` when sessions are on (legacy admin-token fallback when
+     off, byte-unchanged).
+  2. **App A `/api/` guard authorized on presence, not scope.** With sessions on,
+     `_session_ok` allowed ANY principal — so an operator credential reached the
+     whole `/api/` surface (incl `/api/command`, `/api/settings`,
+     `/api/bots/*/run`) that pre-merge required the owner `API_KEY`. **Fix:**
+     `_session_owner_ok` requires `role == owner` (the successor to the owner
+     key). Both fixes shipped with 8 regression tests (operator/admin-token/anon
+     → denied; owner → allowed) in the surrogate; full merge suite 118/118 green.
 
 **Still strictly operator-blocked (need staging behind the real Cloudflare edge):**
 E2, E3, E5, E6, E8, E9 and the HTTPS confirmations of E1/E7/E10.

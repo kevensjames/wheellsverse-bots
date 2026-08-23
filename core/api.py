@@ -127,7 +127,7 @@ _API_KEY = os.getenv("API_KEY", "").strip()
 
 # ── Unified operator session (merge Phase P2). Default OFF. Defined here so both
 #    verify_api_key and api_key_middleware below can reference it. When the flag
-#    is off, _session_ok() is always False and query-param api_key is still
+#    is off, _session_owner_ok() is always False and query-param api_key is still
 #    accepted (legacy) — so /api auth is byte-identical to before. When ON, a
 #    valid signed wv_session cookie authenticates, and ?api_key= is REJECTED
 #    (cookie auth replaces the C1 URL-secret-leak vector). App A + App B share
@@ -151,13 +151,18 @@ _OPERATOR_SESSION_CFG = _SessionConfig(
 )
 
 
-def _session_ok(request) -> bool:
-    """True iff the unified session is enabled AND the request carries a valid
-    principal (cookie or legacy header). Fail-closed on any error."""
+def _session_owner_ok(request) -> bool:
+    """True iff the unified session is enabled AND the request carries an
+    OWNER-authority principal (cookie or legacy header). The /api/ admin surface
+    is owner-only — the successor to the pre-merge owner API_KEY — so an
+    operator/viewer session (role != owner) must NOT pass it. This is authZ, not
+    just authN: presence of a valid principal is insufficient. Fail-closed."""
     if not _OPERATOR_SESSION_CFG.enabled:
         return False
     try:
-        return _principal_for_request(request, _OPERATOR_SESSION_CFG) is not None
+        from core.operator_session import ROLE_OWNER
+        p = _principal_for_request(request, _OPERATOR_SESSION_CFG)
+        return p is not None and p.role == ROLE_OWNER
     except Exception:
         return False
 
@@ -237,7 +242,7 @@ async def verify_api_key(request: Request):
     if not key or not hmac.compare_digest(key, _API_KEY):
         # Flag-gated: a valid unified session cookie authenticates too. Inert
         # (always False) while OPERATOR_SESSION_ENABLED is off.
-        if not _session_ok(request):
+        if not _session_owner_ok(request):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
@@ -982,9 +987,9 @@ async def api_key_middleware(request: Request, call_next):
             key = _resolve_api_key(request, _OPERATOR_SESSION_CFG)
             if not key or not hmac.compare_digest(key, _API_KEY):
                 # Flag-gated fallback: accept a valid unified session cookie in
-                # place of the legacy key. _session_ok() is always False while
+                # place of the legacy key. _session_owner_ok() is always False while
                 # OPERATOR_SESSION_ENABLED is off → unchanged 401 behavior.
-                if not _session_ok(request):
+                if not _session_owner_ok(request):
                     return JSONResponse(
                         {"error": "Unauthorized", "hint": "Set X-API-Key header"},
                         status_code=401,
