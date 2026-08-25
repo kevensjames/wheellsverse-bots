@@ -950,6 +950,40 @@ def _kai_presence_css():
                         headers={"Cache-Control": "public, max-age=60, must-revalidate"})
 
 
+# ── KAI Adaptive Mission Nexus (feat/kai-mission-nexus) — buildless ES assets.
+#    Served at /admin/kai-nexus*.{css,js}; the page is /admin/mission-nexus.
+#    Allowlisted (no traversal); static; no secrets; no new auth/brain.
+_NEXUS_APP_MIME = {
+    "kai-nexus.css": "text/css",
+    "kai-nexus.js": "text/javascript",
+    "kai-nexus-procedure.js": "text/javascript",
+    "kai-nexus-systems.js": "text/javascript",
+    "kai-nexus-agents.js": "text/javascript",
+}
+
+
+def _serve_nexus_app_asset(name: str):
+    from fastapi.responses import FileResponse
+    mime = _NEXUS_APP_MIME.get(name)
+    if not mime:
+        raise HTTPException(status_code=404, detail="not found")
+    p = ROOT / "frontend" / "admin" / name
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(p, media_type=mime, headers={"Cache-Control": "no-store"})
+
+
+def _make_nexus_asset_route(_name: str):
+    def _route():
+        return _serve_nexus_app_asset(_name)
+    return _route
+
+
+for _nx_asset in _NEXUS_APP_MIME:
+    app.add_api_route(f"/admin/{_nx_asset}", _make_nexus_asset_route(_nx_asset),
+                      methods=["GET"], include_in_schema=False)
+
+
 # Cinematic Nexus avatar assets (merge P13). Allowlisted — no traversal, no secret.
 _NEXUS_ASSET_MIME = {"kai.jpg": "image/jpeg",
                      "kai-idle.mp4": "video/mp4", "kai-speak.mp4": "video/mp4"}
@@ -1787,6 +1821,20 @@ async def serve_admin_nexus():
     governed KAI presence provider (same session, conversation, streaming). NOT
     /admin/kai (that path is the bridge reverse-proxy). Merge P13."""
     return _serve_frontend("admin/nexus.html", cache=False)
+
+
+@app.get("/admin/mission-nexus", response_class=HTMLResponse)
+async def serve_mission_nexus():
+    """KAI Adaptive Mission Nexus — the mission-control operating environment
+    (Phases 0-5: adaptive shell, mission engine, procedures/approvals, systems
+    telemetry + topology, agent command center). Buildless; DEMO scenarios via
+    ?scenario=. Static — no new auth/brain/endpoint; reuses the governed presence
+    provider (window.KAI) when injected."""
+    p = ROOT / "frontend" / "admin" / "kai-nexus.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="mission nexus not found")
+    return HTMLResponse(p.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store, no-cache"})
 
 
 @app.get("/admin/legacy", response_class=HTMLResponse)
