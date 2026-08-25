@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KAI · Adaptive Mission Nexus</title>
+  <link rel="stylesheet" href="/admin/kai-nexus.css">
+  <link rel="stylesheet" href="kai-nexus.css">
+</head>
+<body class="nx-body" data-kai-mode="nexus">
+  <div id="nx-demo-banner" class="nx-demo-banner" hidden>◈ DEMO DATA — scenario fixtures, not live</div>
+
+  <div class="nx-shell" data-mode="command" data-env="idle">
+
+    <!-- ── HEADER ───────────────────────────────────────────────────────── -->
+    <header class="nx-header">
+      <div class="nx-brand"><span class="nx-brand-dot"></span>KAI&nbsp;NEXUS</div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Mission</span><span class="nx-hstat-v" id="nx-h-mission">—</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">System</span><span class="nx-hstat-v ok" id="nx-h-system">NOMINAL</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Model</span><span class="nx-hstat-v" id="nx-h-model">—</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Env</span><span class="nx-hstat-v" id="nx-h-env">—</span></div>
+      <div class="nx-hspace"></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">KAI</span><span class="nx-hstat-v" id="nx-h-kai">ONLINE</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Clock UTC</span><span class="nx-hstat-v" id="nx-h-clock">--:--:--</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Security</span><span class="nx-hstat-v ok" id="nx-h-security">CLEAR</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Alerts</span><span class="nx-hstat-v ok" id="nx-h-alerts">CLEAR</span></div>
+    </header>
+
+    <!-- ── LEFT RAIL — SYSTEM STACK ─────────────────────────────────────── -->
+    <aside class="nx-railL">
+      <div class="nx-panel">
+        <div class="nx-panel-h">System Stack <span class="nx-h-accent">HEALTH</span></div>
+        <div id="nx-syslist"></div>
+      </div>
+      <div class="nx-panel">
+        <div class="nx-panel-h">Active Alerts</div>
+        <div id="nx-alerts-strip" class="nx-panel-pad" style="display:flex;flex-direction:column;gap:8px;"></div>
+      </div>
+    </aside>
+
+    <!-- ── HERO — KAI + ACTIVE MISSION ──────────────────────────────────── -->
+    <section class="nx-hero">
+      <div class="nx-kai-stage">
+        <div class="nx-halo" id="nx-halo" data-state="online">
+          <span class="nx-ring r1 spin"></span>
+          <span class="nx-ring r2 spin rev"></span>
+          <span class="nx-ring r3 spin"></span>
+          <span class="nx-ring r4"></span>
+          <span class="nx-core"></span>
+        </div>
+        <div class="nx-kai-caption">
+          <div class="nx-kai-state" id="nx-kai-state">ONLINE</div>
+          <div class="nx-kai-sub" id="nx-kai-sub">What can I do for you?</div>
+        </div>
+      </div>
+      <div class="nx-panel nx-panel-pad nx-mission-head" id="nx-mission-head" hidden>
+        <div class="nx-mh-title">
+          <div class="nx-mh-id" id="nx-mh-id">MISSION —</div>
+          <div class="nx-mh-name" id="nx-mh-name">—</div>
+          <div class="nx-mh-step" id="nx-mh-step">—</div>
+        </div>
+        <div class="nx-mh-field"><span class="nx-mh-k">Status</span><span class="nx-mh-v" id="nx-mh-status">—</span></div>
+        <div class="nx-mh-field"><span class="nx-mh-k">Elapsed</span><span class="nx-mh-v" id="nx-mh-elapsed">00:00</span></div>
+        <div class="nx-mh-field"><span class="nx-mh-k">Priority</span><span class="nx-mh-v" id="nx-mh-prio">—</span></div>
+        <div class="nx-mh-field"><span class="nx-mh-k">Agents</span><span class="nx-mh-v" id="nx-mh-agents">—</span></div>
+      </div>
+    </section>
+
+    <!-- ── RIGHT RAIL — INTELLIGENCE + ACTIVITY ─────────────────────────── -->
+    <aside class="nx-railR">
+      <div class="nx-panel" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+        <div class="nx-panel-h">Live Intelligence <span class="nx-h-accent">FEED</span></div>
+        <div id="nx-intel" class="nx-scroll" style="overflow-y:auto;min-height:0;"></div>
+      </div>
+      <div class="nx-panel" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+        <div class="nx-panel-h">Live Activity</div>
+        <div id="nx-activity" class="nx-scroll" style="overflow-y:auto;min-height:0;"></div>
+      </div>
+    </aside>
+
+    <!-- ── DYNAMIC MISSION CANVAS — TIMELINE + QUEUE ────────────────────── -->
+    <section class="nx-canvas">
+      <div class="nx-panel nx-timeline-wrap">
+        <div class="nx-panel-h">Mission Timeline <span class="nx-h-accent">EVENTS</span></div>
+        <div id="nx-timeline" class="nx-timeline"></div>
+      </div>
+      <div class="nx-panel" style="display:flex;flex-direction:column;min-height:0;">
+        <div class="nx-panel-h">Mission Queue</div>
+        <div id="nx-queue" class="nx-queue nx-scroll" style="overflow-y:auto;min-height:0;"></div>
+      </div>
+    </section>
+
+    <!-- ── COMMAND BAR ──────────────────────────────────────────────────── -->
+    <div class="nx-command">
+      <span class="nx-cmd-state" id="nx-cmd-state">READY</span>
+      <textarea class="nx-cmd-input" id="nx-cmd-input" rows="1" placeholder="🎙  Ask KAI anything…"></textarea>
+      <span class="nx-cmd-ctx" id="nx-cmd-ctx">context · nexus</span>
+      <button class="nx-btn stop" id="nx-cmd-stop" type="button">STOP</button>
+      <button class="nx-btn send" id="nx-cmd-send" type="button" aria-label="Send">↑</button>
+    </div>
+
+    <!-- ── BOTTOM NAV ───────────────────────────────────────────────────── -->
+    <nav class="nx-nav">
+      <button class="nx-nav-item active" data-mode="command" type="button">Command</button>
+      <button class="nx-nav-item" data-mode="mission" type="button">Missions</button>
+      <button class="nx-nav-item" data-mode="systems" type="button">Systems</button>
+      <button class="nx-nav-item" data-mode="agents" type="button">Agents</button>
+      <button class="nx-nav-item" data-mode="memory" type="button">Memory</button>
+      <button class="nx-nav-item" data-mode="intelligence" type="button">Intel</button>
+      <button class="nx-nav-item" data-mode="security" type="button">Security</button>
+      <button class="nx-nav-item" data-mode="developer" type="button">Dev</button>
+    </nav>
+
+  </div>
+  <script src="kai-nexus.js"></script>
+</body>
+</html>
