@@ -165,6 +165,26 @@
           <div id="nx-se-inspector" class="nx-se-inspector nx-scroll"></div>
         </div>
       </div>
+
+      <div class="nx-canvas-memory" hidden>
+        <div class="nx-panel nx-mem-left">
+          <div class="nx-panel-h">Knowledge Graph <span class="nx-h-accent" id="nx-mem-count">—</span></div>
+          <div id="nx-mem-summary" class="nx-in-summary"></div>
+          <div class="nx-in-srch-h">Entity type</div>
+          <div id="nx-mem-filters" class="nx-ag-filters"></div>
+          <div class="nx-in-srch-h">Relations</div>
+          <div id="nx-mem-relations" class="nx-mem-relations"></div>
+          <input id="nx-mem-search" class="nx-in-search" type="search" placeholder="Search entities…" aria-label="Search entities">
+        </div>
+        <div class="nx-panel nx-mem-center">
+          <div class="nx-panel-h">Memory Constellation <span class="nx-h-accent" id="nx-mem-note">—</span></div>
+          <div id="nx-mem-graph" class="nx-mem-graph"></div>
+        </div>
+        <div class="nx-panel nx-mem-right">
+          <div class="nx-panel-h">Entity Inspector</div>
+          <div id="nx-mem-inspector" class="nx-mem-inspector nx-scroll"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ── COMMAND BAR ──────────────────────────────────────────────────── -->
@@ -200,6 +220,7 @@
   <script src="kai-nexus-agents.js"></script>
   <script src="kai-nexus-intel.js"></script>
   <script src="kai-nexus-security.js"></script>
+  <script src="kai-nexus-memory.js"></script>
   <script src="kai-nexus.js"></script>
 </body>
 </html>

@@ -240,3 +240,34 @@ host/ops-scanner + failures are **EXTERNAL_BLOCKED** (cross-app → need the
 `/admin/kai/*` bridge allowlist + App B running). Coded fail-soft; UNAVAILABLE until
 then. Reuses the existing `store.alerts` strip + header counter (no parallel alert
 system) and the Supreme low/medium/high/critical ladder (no invented severity scale).
+
+## D13 — Memory constellation = the KG ego-graph; everything else is flat records (§22) — 2026-08-25
+
+**Evidence (docs/KAI_MEMORY_SOURCES.md):** a 5-reader audit found exactly ONE real
+graph — the App B Knowledge Graph (`data/kg/kg.db`: directed, typed, labeled
+property graph with named-relation edges, real adjacency + BFS). Every other store the
+platform calls "memory" (NarAI tiers, `core.memory`, Supabase `memory_notes`, pgvector
+`memories`, twin, persona, relationship, journal, learning, failures) is **flat records
+with no edges**. The KG has **no edge weights**, **no whole-graph dump**, **no HTTP
+traverse**, is **empty at rest** (operator hand-teaches triples; no auto-extraction), and
+is reachable from the App-A Nexus only via the governed bridge (`kai.chat` scope,
+default OFF).
+
+**Options:** (A) a rich force-directed "memory graph" federating all stores with
+similarity/tag edges (fabricates edges + infra that do not exist — rejected, §39/§47);
+(B) a truthful **KG ego-graph** + a flat records summary.
+
+**DECISION: B.** `kai-nexus-memory.js` models the KG exactly and lays it out
+deterministically (degree-ranked, no physics, no jitter). Enforced + tested honesty:
+(1) **no fabricated edges** — `buildEgoGraph` keeps an edge only where a real triple's
+both endpoints are present nodes, drops missing-endpoint edges and self-loops, never
+backfills; (2) **no edge weights** — edges render uniform; a numeric in `attributes`
+stays there, never promoted to thickness; (3) **no recency-glow / importance-sizing**
+(neither is stored); (4) **ego-graph, never "the full graph"** — no dump exists, so we
+draw a bounded neighborhood and label counts from `/stats` as **"500+"** at the ≤500
+sample cap; (5) labels/attributes are **UNTRUSTED** (`untrusted:true`, `escapeHtml`,
+textContent) — a `<script>` label is inert. **Live path = EXTERNAL_BLOCKED** (bridge OFF
++ Docker down + KG empty) → coded fail-soft, renders an honest empty/unavailable state.
+DEMO scenarios show a realistic hand-taught WheellsVerse KG. Flat stores appear only as
+a labeled records summary (counts by tier/category), explicitly non-graph, **no invented
+links**. Reuses the agent-constellation SVG layout pattern (no new graph engine).

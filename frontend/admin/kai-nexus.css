@@ -216,12 +216,13 @@ body.nx-body {
 /* ── mission timeline (§10) ─────────────────────────────────────────────────*/
 .nx-canvas { display: grid; min-height: 0; }
 .nx-canvas > * { min-height: 0; grid-area: 1 / 1; gap: var(--nx-gap); }   /* panes overlap; one shown by mode */
-.nx-canvas-mission, .nx-canvas-systems, .nx-canvas-agents, .nx-canvas-intel, .nx-canvas-security { display: none; }
-.nx-shell:not([data-mode="systems"]):not([data-mode="agents"]):not([data-mode="intelligence"]):not([data-mode="security"]) .nx-canvas-mission { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(260px,.9fr); }
+.nx-canvas-mission, .nx-canvas-systems, .nx-canvas-agents, .nx-canvas-intel, .nx-canvas-security, .nx-canvas-memory { display: none; }
+.nx-shell:not([data-mode="systems"]):not([data-mode="agents"]):not([data-mode="intelligence"]):not([data-mode="security"]):not([data-mode="memory"]) .nx-canvas-mission { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(260px,.9fr); }
 .nx-shell[data-mode="systems"] .nx-canvas-systems { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,.95fr); }
 .nx-shell[data-mode="agents"] .nx-canvas-agents { display: grid; grid-template-columns: minmax(300px,.85fr) minmax(0,1.4fr) minmax(340px,1fr); }
 .nx-shell[data-mode="intelligence"] .nx-canvas-intel { display: grid; grid-template-columns: minmax(320px,.8fr) minmax(0,1.5fr) minmax(380px,1fr); }
 .nx-shell[data-mode="security"] .nx-canvas-security { display: grid; grid-template-columns: minmax(300px,.8fr) minmax(0,1.5fr) minmax(360px,1fr); }
+.nx-shell[data-mode="memory"] .nx-canvas-memory { display: grid; grid-template-columns: minmax(300px,.8fr) minmax(0,1.6fr) minmax(340px,1fr); }
 .nx-timeline-wrap { min-height: 0; display: flex; flex-direction: column; }
 .nx-timeline { overflow-y: auto; padding: 6px clamp(12px,1vw,16px); min-height: 0; }
 .nx-tl-row { display: grid; grid-template-columns: 74px 14px 1fr; gap: 10px; align-items: start; padding: 5px 0; }
@@ -544,6 +545,44 @@ body.nx-body {
 .nx-se-block.fact .nx-se-block-h { color: var(--nx-nominal); } .nx-se-block.decision .nx-se-block-h { color: var(--nx-purple); }
 .nx-se-caveat { font-size: 10px; color: var(--nx-text-faint); margin-top: 8px; font-style: italic; }
 
+/* ── Phase 9 — memory constellation (KG ego-graph) ──────────────────────────*/
+.nx-mem-left, .nx-mem-center, .nx-mem-right { display: flex; flex-direction: column; min-height: 0; }
+.nx-mem-relations { padding: 0 12px 6px; display: flex; flex-wrap: wrap; gap: 5px; }
+.nx-mem-rel { font-size: 10px; padding: 2px 7px; border-radius: 10px; border: 1px solid var(--nx-border-strong); color: var(--nx-text-dim); cursor: pointer; font-variant-numeric: tabular-nums; }
+.nx-mem-rel.active { border-color: var(--nx-cyan); color: var(--nx-cyan); }
+.nx-mem-graph { flex: 1; min-height: 0; position: relative; display: flex; align-items: center; justify-content: center; }
+.nx-mem-graph svg { width: 100%; height: 100%; }
+.nx-mem-empty { color: var(--nx-text-faint); font-size: 13px; text-align: center; padding: 24px; max-width: 340px; line-height: 1.5; }
+/* graph primitives — uniform edge width (KG has NO weights, D13) */
+.nx-mem-graph .edge { stroke: var(--nx-border-strong); stroke-width: .35; opacity: .7; }
+.nx-mem-graph .edge-lbl { fill: var(--nx-text-faint); font-size: 1.9px; letter-spacing: .1px; }
+.nx-mem-graph .node { cursor: pointer; }
+.nx-mem-graph .node .ring { fill: none; stroke: var(--nx-border-strong); stroke-width: .3; }
+.nx-mem-graph .node .core { stroke: rgba(6,10,20,.7); stroke-width: .3; }
+.nx-mem-graph .node .lbl { fill: var(--nx-text); font-size: 2.5px; text-anchor: middle; }
+.nx-mem-graph .node.sel .ring { stroke: var(--nx-blue); stroke-width: .8; }
+.nx-mem-graph .node.seed .core { stroke: var(--nx-cyan); stroke-width: .6; }
+/* entity type colors */
+.nx-mem-graph .t-person .core { fill: #7fdcff; } .nx-mem-graph .t-company .core { fill: #b98bff; }
+.nx-mem-graph .t-product .core { fill: #35e0a1; } .nx-mem-graph .t-service .core { fill: #2f6bff; }
+.nx-mem-graph .t-concept .core { fill: #ffcf5c; } .nx-mem-graph .t-event .core { fill: #ff9d3c; }
+.nx-mem-graph .t-other .core { fill: #64708a; }
+.nx-mem-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; border-top: 1px solid var(--nx-border); font-size: 10px; color: var(--nx-text-dim); }
+.nx-mem-legend span { display: inline-flex; align-items: center; gap: 4px; }
+.nx-mem-legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+.nx-mem-inspector { overflow-y: auto; min-height: 0; padding: 12px; }
+.nx-mem-i-empty { color: var(--nx-text-faint); font-size: 12px; }
+.nx-mem-i-head { font-size: clamp(14px,1.1vw,17px); font-weight: 700; line-height: 1.3; margin-bottom: 4px; word-break: break-word; }
+.nx-mem-i-type { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--nx-cyan); margin-bottom: 10px; }
+.nx-mem-block { border: 1px solid var(--nx-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.nx-mem-block-h { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; color: var(--nx-text-dim); }
+.nx-mem-edge-row { display: flex; align-items: baseline; gap: 6px; font-size: 12px; padding: 3px 0; cursor: pointer; }
+.nx-mem-edge-row:hover { color: var(--nx-cyan); }
+.nx-mem-edge-rel { color: var(--nx-cyan); font-variant-numeric: tabular-nums; }
+.nx-mem-edge-dir { color: var(--nx-text-faint); }
+.nx-mem-caveat { font-size: 10px; color: var(--nx-text-faint); margin-top: 8px; font-style: italic; }
+
 /* ── responsive breakpoints (§36/§37) ───────────────────────────────────────*/
 /* ULTRAWIDE >=2560: substantial rails, bounded hero already via rail widths */
 @media (min-width: 2560px) {
@@ -558,10 +597,10 @@ body.nx-body {
 @media (max-width: 1799px) and (min-width: 1200px) {
   :root { --nx-rail-l: 300px; --nx-rail-r: 330px; }
   /* dense modes need canvas height more than a tall hero on a ~900px-tall screen */
-  .nx-shell[data-mode="intelligence"], .nx-shell[data-mode="agents"], .nx-shell[data-mode="security"] {
+  .nx-shell[data-mode="intelligence"], .nx-shell[data-mode="agents"], .nx-shell[data-mode="security"], .nx-shell[data-mode="memory"] {
     grid-template-rows: var(--nx-header-h) minmax(0, .85fr) minmax(0, 1.3fr) var(--nx-cmd-h) var(--nx-nav-h);
   }
-  .nx-ag-left, .nx-se-left { overflow-y: auto; }
+  .nx-ag-left, .nx-se-left, .nx-mem-left { overflow-y: auto; }
   /* the canvas is only ~530–780px wide here — three columns collapse the middle pane,
      so stack the detail pane UNDER the main pane (narrow filter rail + full-width work area). */
   .nx-shell[data-mode="intelligence"] .nx-canvas-intel {
@@ -582,6 +621,12 @@ body.nx-body {
     grid-template-areas: "posture events" "posture inspector";
   }
   .nx-se-left { grid-area: posture; } .nx-se-center { grid-area: events; } .nx-se-right { grid-area: inspector; }
+  .nx-shell[data-mode="memory"] .nx-canvas-memory {
+    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr);
+    grid-template-areas: "facets graph" "facets inspector";
+  }
+  .nx-mem-left { grid-area: facets; } .nx-mem-center { grid-area: graph; } .nx-mem-right { grid-area: inspector; }
 }
 /* TABLET 768–1199: drop right rail into canvas area */
 @media (max-width: 1199px) and (min-width: 768px) {
@@ -619,7 +664,9 @@ body.nx-body {
   .nx-shell[data-mode="systems"] .nx-canvas-systems,
   .nx-shell[data-mode="agents"] .nx-canvas-agents,
   .nx-shell[data-mode="intelligence"] .nx-canvas-intel,
-  .nx-shell[data-mode="security"] .nx-canvas-security { grid-template-columns: 1fr; }
+  .nx-shell[data-mode="security"] .nx-canvas-security,
+  .nx-shell[data-mode="memory"] .nx-canvas-memory { grid-template-columns: 1fr; }
+  .nx-shell[data-mode="memory"] .nx-mem-center { min-height: 320px; }   /* keep the graph legible when stacked */
   .nx-shell[data-mode="agents"] .nx-ag-center { display: none; }   /* §5Z — no giant constellation on 390px */
   /* wrap the dense header to rows instead of overlapping/scrolling on a phone */
   .nx-header { flex-wrap: wrap; overflow: visible; height: auto; padding: 8px 12px; row-gap: 8px; column-gap: 16px; }
