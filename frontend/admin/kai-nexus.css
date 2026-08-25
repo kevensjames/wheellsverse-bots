@@ -214,7 +214,12 @@ body.nx-body {
 .nx-q-item.waiting .nx-q-glyph { color: var(--nx-caution); }
 
 /* ── mission timeline (§10) ─────────────────────────────────────────────────*/
-.nx-canvas { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(260px,.9fr); gap: var(--nx-gap); }
+.nx-canvas { display: grid; min-height: 0; }
+.nx-canvas > * { min-height: 0; grid-area: 1 / 1; }   /* panes overlap; one shown by mode */
+.nx-canvas-mission { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(260px,.9fr); gap: var(--nx-gap); }
+.nx-canvas-systems { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,.95fr); gap: var(--nx-gap); }
+.nx-shell[data-mode="systems"] .nx-canvas-mission { display: none; }
+.nx-shell:not([data-mode="systems"]) .nx-canvas-systems { display: none; }
 .nx-timeline-wrap { min-height: 0; display: flex; flex-direction: column; }
 .nx-timeline { overflow-y: auto; padding: 6px clamp(12px,1vw,16px); min-height: 0; }
 .nx-tl-row { display: grid; grid-template-columns: 74px 14px 1fr; gap: 10px; align-items: start; padding: 5px 0; }
@@ -337,6 +342,48 @@ body.nx-body {
 .nx-ev-label { font-size: 13px; margin: 3px 0; word-break: break-word; }
 .nx-ev-empty { color: var(--nx-text-faint); font-size: 12px; }
 
+/* ── Phase 4 — systems telemetry + topology ─────────────────────────────────*/
+.nx-sys-panel, .nx-topo-panel { display: flex; flex-direction: column; min-height: 0; }
+.nx-sys-sum { display: inline-flex; gap: 12px; font-size: 11px; }
+.nx-sys-sum b { font-variant-numeric: tabular-nums; }
+.nx-sys-cards { overflow-y: auto; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(178px, 1fr)); gap: 10px; padding: 12px; align-content: start; }
+.nx-sys-card { border: 1px solid var(--nx-border); border-radius: 11px; padding: 11px 13px; background: var(--nx-panel); }
+.nx-sys-card[data-status="critical"] { border-color: rgba(255,81,99,.45); background: rgba(255,81,99,.05); }
+.nx-sys-card[data-status="warning"] { border-color: rgba(255,157,60,.4); }
+.nx-sys-card[data-status="degraded"], .nx-sys-card[data-status="caution"] { border-color: rgba(255,207,92,.32); }
+.nx-sc-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nx-sc-name { font-size: clamp(13px,1vw,15px); font-weight: 600; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.nx-sc-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-sc-state { font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; flex: none; }
+.nx-sc-state.nominal { color: var(--nx-nominal); } .nx-sc-state.degraded, .nx-sc-state.caution { color: var(--nx-caution); }
+.nx-sc-state.warning { color: var(--nx-warning); } .nx-sc-state.critical { color: var(--nx-critical); }
+.nx-sc-state.offline, .nx-sc-state.unknown { color: var(--nx-text-faint); }
+.nx-sc-metric { font-size: 12px; color: var(--nx-text-dim); margin-top: 7px; display: flex; justify-content: space-between; gap: 8px; }
+.nx-sc-metric .v { font-variant-numeric: tabular-nums; }
+.nx-sc-unavail { color: var(--nx-text-faint); font-style: italic; font-size: 11px; margin-top: 7px; }
+.nx-sc-foot { font-size: 10px; color: var(--nx-text-faint); margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+
+/* topology — JS-drawn SVG */
+.nx-topo { flex: 1; min-height: 160px; position: relative; overflow: hidden; }
+/* explicit width AND height so the SVG box is fixed; viewBox+meet scales content
+   into it (an SVG with only width set derives height from its viewBox ratio). */
+.nx-topo svg { position: absolute; top: 12px; left: 12px; width: calc(100% - 24px); height: calc(100% - 24px); display: block; }
+.nx-topo .node { cursor: pointer; }
+.nx-topo .node rect { fill: var(--nx-panel-solid); stroke: var(--nx-border-strong); stroke-width: 1.2; }
+.nx-topo .node.nominal rect { stroke: var(--nx-nominal); }
+.nx-topo .node.degraded rect, .nx-topo .node.caution rect { stroke: var(--nx-caution); }
+.nx-topo .node.warning rect { stroke: var(--nx-warning); }
+.nx-topo .node.critical rect { stroke: var(--nx-critical); }
+.nx-topo .node.unknown rect, .nx-topo .node.offline rect { stroke: var(--nx-text-faint); stroke-dasharray: 3 3; }
+.nx-topo .node:hover rect { fill: #182238; }
+/* font-size comes from the SVG attribute (user units), NOT CSS px — a CSS
+   font-size here would be interpreted in user units and scaled huge by viewBox. */
+.nx-topo .node .lbl { fill: var(--nx-text); font-weight: 600; font-family: 'Space Grotesk', system-ui, sans-serif; text-anchor: middle; }
+.nx-topo .node .sub { fill: var(--nx-text-faint); text-anchor: middle; }
+.nx-topo .edge { stroke: var(--nx-border-strong); stroke-width: 1.2; fill: none; }
+.nx-topo .edge.active { stroke: var(--nx-cyan); stroke-width: 2; stroke-dasharray: 5 4; animation: nx-flow 1s linear infinite; }
+@keyframes nx-flow { to { stroke-dashoffset: -18; } }
+
 /* ── responsive breakpoints (§36/§37) ───────────────────────────────────────*/
 /* ULTRAWIDE >=2560: substantial rails, bounded hero already via rail widths */
 @media (min-width: 2560px) {
@@ -379,7 +426,7 @@ body.nx-body {
     grid-template-areas: "header" "hero" "canvas" "command" "railL" "railR" "nav";
   }
   .nx-railL, .nx-railR { overflow: visible; }
-  .nx-canvas { grid-template-columns: 1fr; }
+  .nx-canvas-mission, .nx-canvas-systems { grid-template-columns: 1fr; }
   .nx-header { overflow-x: auto; }
   .nx-nav { position: sticky; bottom: 0; overflow-x: auto; }
   .nx-mission-head { grid-template-columns: 1fr 1fr; }

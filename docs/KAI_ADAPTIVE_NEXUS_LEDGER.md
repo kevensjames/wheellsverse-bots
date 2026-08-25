@@ -95,6 +95,23 @@ Evidence: 16 node tests pass (`test_nexus_procedure.js`); screenshots reviewed a
 
 **Phase 3 honest gaps:** real approvals need the governed App B endpoint (blocked, no live backend); the procedure engine currently drives DEMO fixtures only — wiring it to REAL governed-mission events (when a live mission emits procedure steps) is a later integration; procedure-panel header wraps a bit at ≤1440 (cosmetic).
 
+## Session 2 progress — 2026-08-25 (Phase 4: Systems Telemetry + Topology)
+Evidence: 7 node tests (`test_nexus_systems.js`); screenshots reviewed at
+3440×1440 (multi-system-incident) and 1920×1080 (database-degraded).
+
+- **P4-0 telemetry inventory (§4A) → IMPLEMENTED**: `docs/KAI_TELEMETRY_SOURCES.md` — real liveness endpoints vs UNAVAILABLE metrics, provenance per metric.
+- **P4-B SystemNode model + classify/summarize/stale/alerts (§4B/§4F/§4K) → VERIFIED**: `kai-nexus-systems.js`, 7 tests. Discrete states from real probe results; **no fake %**; alerts only from real state; deterministic backoff (no Math.random).
+- **P4-1 Systems mode (§4C) → VERIFIED**: summary (NOMINAL/DEGRADED/WARNING/CRITICAL/UNKNOWN counts) + subsystem cards with status, `metrics unavailable`, last-probe, provenance badge. New adaptive canvas pane swapped by mode.
+- **P4-2 Infrastructure topology (§4D) → VERIFIED**: JS-drawn SVG of the REAL architecture (Client→Cloudflare→App A+Bridge→App B→PG/Redis/Providers), nodes colored by status, edges animate only on `activeEdges`, click→detail.
+- **P4-F real-vs-demo failure (§4F) → VERIFIED**: unavailable metrics show `UNAVAILABLE`/`metrics unavailable`/`no probe endpoint`, never a fabricated number; default topology is UNKNOWN until probed.
+- **P4-G polling architecture (§4G) → IMPLEMENTED (D8)**: hybrid — bounded probing of a curated 3 endpoints (not 20 loops); recommended upgrade = one aggregate `/admin/telemetry` (EXTERNAL_BLOCKED).
+- **P4-H backpressure (§4H) → IMPLEMENTED**: single interval, AbortController timeout, exponential backoff + jitter, `visibilitychange` pause. (Exercised live only in-app; live path blocked — Docker/App A down.)
+- **P4-J topology/card interactions (§4J) → IMPLEMENTED**: click node/card → detail drawer (status/probe/latency/last-probe/provenance) + governed "Ask KAI to explain" action.
+- **P4-K alert integration (§4K) → VERIFIED**: alerts derived only from real system state, each carrying system + provenance.
+- **P4-L DEMO fixtures (§4L) → IMPLEMENTED**: `?scenario=` systems-nominal / database-degraded / provider-offline / worker-stale / multi-system-incident, all DEMO-tagged.
+
+**Phase 4 honest gaps:** the live probe path (REAL telemetry) is coded but unexercised — needs App A running (Docker down). Deep metrics (CPU/RAM/DB-pool/heartbeat) stay UNAVAILABLE until an aggregate telemetry endpoint exists (D8). Mission↔telemetry coupling (§4E) is partial: scenarios set `activeEdges`/status, but auto-derivation of a mission's targeted systems from a live mission is a later integration. Full 5-viewport sweep: 3440 + 1920 done for systems; 2560/1440/390 not yet shot for systems mode.
+
 ## External blockers (§54)
 - Live telemetry / real inference: App A + DB + providers must run (Docker daemon currently DOWN).
 - Live news/intelligence source: no confirmed real feed API yet (P6 → DEMO-labeled until sourced).

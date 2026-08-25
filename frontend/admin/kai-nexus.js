@@ -16,6 +16,7 @@
   'use strict';
   const HOST = (typeof window !== 'undefined' && window.KAI) ? window.KAI : null;
   const P = (typeof window !== 'undefined' && window.NexusProcedure) || null;   // procedure state machine
+  const SYS = (typeof window !== 'undefined' && window.NexusSystems) || null;    // systems/topology model
   const IN_APP = !!HOST && location.protocol.startsWith('http');
   const params = new URLSearchParams(location.search);
   const SCENARIO = params.get('scenario');           // idle|latency|research|security|approval
@@ -38,6 +39,7 @@
     mode: 'command', env: 'idle',
     missions: [], activeId: null,
     systems: [], signals: [], activity: [], alerts: [], procedure: null,
+    systemNodes: [], activeEdges: [],
   };
   const el = (id) => document.getElementById(id);
   const prov = (kind) => { const s = document.createElement('span'); s.className = 'nx-prov ' + kind; s.textContent = kind; return s; };
@@ -306,6 +308,35 @@
       applyProcEvents(); syncMissionToProcedure();
       store.alerts = [{ sev: 'critical', title: 'Postgres primary down', detail: 'Failover blocked on replica promotion' }]; renderAll();
     },
+    'systems-nominal'() {
+      setMode('systems'); setEnv('idle'); setKai('online', 'All systems nominal.');
+      store.systemNodes = buildSystemNodes({ client: { status: 'NOMINAL' }, cloudflare: { status: 'NOMINAL' }, appA: { status: 'NOMINAL' }, bridge: { status: 'NOMINAL' }, appB: { status: 'NOMINAL' }, postgres: { status: 'NOMINAL' }, redis: { status: 'NOMINAL' }, providers: { status: 'NOMINAL' } }, 'DEMO');
+      store.activeEdges = []; store.alerts = []; store.signals = demoSignals(); store.missions = []; store.activeId = null; renderAll();
+    },
+    'database-degraded'() {
+      setMode('systems'); setEnv('warning'); setKai('alert', 'Postgres degraded — investigating.');
+      store.systemNodes = buildSystemNodes({ client: { status: 'NOMINAL' }, cloudflare: { status: 'NOMINAL' }, appA: { status: 'NOMINAL' }, bridge: { status: 'NOMINAL' }, appB: { status: 'WARNING', detail: 'elevated query latency' }, postgres: { status: 'CRITICAL', detail: 'p95 latency 3.2x baseline' }, redis: { status: 'NOMINAL' }, providers: { status: 'NOMINAL' } }, 'DEMO');
+      store.activeEdges = ['appB>postgres']; store.signals = demoSignals();
+      store.alerts = SYS ? SYS.alertsFromSystems(store.systemNodes) : []; renderAll();
+    },
+    'provider-offline'() {
+      setMode('systems'); setEnv('warning'); setKai('alert', 'A model provider is offline.');
+      store.systemNodes = buildSystemNodes({ client: { status: 'NOMINAL' }, cloudflare: { status: 'NOMINAL' }, appA: { status: 'NOMINAL' }, bridge: { status: 'NOMINAL' }, appB: { status: 'DEGRADED', detail: 'falling back to local model' }, postgres: { status: 'NOMINAL' }, redis: { status: 'NOMINAL' }, providers: { status: 'OFFLINE', detail: 'cloud provider unreachable' } }, 'DEMO');
+      store.activeEdges = ['appB>providers']; store.signals = demoSignals();
+      store.alerts = SYS ? SYS.alertsFromSystems(store.systemNodes) : []; renderAll();
+    },
+    'worker-stale'() {
+      setMode('systems'); setEnv('warning'); setKai('alert', 'Scheduler heartbeat stale.');
+      store.systemNodes = buildSystemNodes({ client: { status: 'NOMINAL' }, cloudflare: { status: 'NOMINAL' }, appA: { status: 'NOMINAL' }, bridge: { status: 'NOMINAL' }, appB: { status: 'WARNING', detail: 'scheduler heartbeat > 5m stale' }, postgres: { status: 'NOMINAL' }, redis: { status: 'CAUTION', detail: 'queue depth rising' }, providers: { status: 'NOMINAL' } }, 'DEMO');
+      store.activeEdges = []; store.signals = demoSignals();
+      store.alerts = SYS ? SYS.alertsFromSystems(store.systemNodes) : []; renderAll();
+    },
+    'multi-system-incident'() {
+      setMode('systems'); setEnv('critical'); setKai('alert', 'Multi-system incident in progress.');
+      store.systemNodes = buildSystemNodes({ client: { status: 'NOMINAL' }, cloudflare: { status: 'NOMINAL' }, appA: { status: 'DEGRADED', detail: 'elevated 5xx' }, bridge: { status: 'NOMINAL' }, appB: { status: 'WARNING', detail: 'retry storm' }, postgres: { status: 'CRITICAL', detail: 'primary unreachable' }, redis: { status: 'WARNING', detail: 'evictions rising' }, providers: { status: 'NOMINAL' } }, 'DEMO');
+      store.activeEdges = ['cloudflare>appA', 'appB>postgres', 'appB>redis']; store.signals = demoSignals();
+      store.alerts = SYS ? SYS.alertsFromSystems(store.systemNodes) : []; renderAll();
+    },
   };
   const tl = (rows) => rows.map(([time, actor, text, sev]) => ({ time, actor, text, sev: sev || 'info' }));
   function demoSystems(overrides = {}) {
@@ -466,7 +497,123 @@
   }
   function completeSteps(p, ids, kind) { ids.forEach(id => { P.attachEvidence(p, id, { type: kind || 'check', label: p.steps.find(s => s.step_id === id).title + ' passed', provenance: 'DEMO' }); P.completeStep(p, id, { now: Date.now() }); }); }
 
-  function renderAll() { renderSystemStack(); renderMissionHead(); renderQueue(); renderProcedure(); renderTimeline(); renderIntel(); renderActivity(); renderAlerts(); renderNav(); paintKai(); }
+  // ── Phase 4 — systems telemetry + topology ──────────────────────────────────
+  function buildSystemNodes(statusMap, prov) {
+    if (!SYS) return [];
+    return SYS.TOPOLOGY.nodes.map(n => {
+      const s = (statusMap && statusMap[n.id]) || {};
+      return {
+        id: n.id, name: n.name, sub: n.sub, type: n.type, layer: n.layer, probe: n.probe,
+        status: s.status || 'UNKNOWN', detail: s.detail || null,
+        latency: s.latency != null ? s.latency : null, last_seen: s.last_seen || null,
+        provenance: s.provenance || prov || (n.probe ? 'DERIVED' : 'UNAVAILABLE'),
+        metrics_unavailable: !n.probe,
+      };
+    });
+  }
+
+  function renderSystems() {
+    const cards = el('nx-sys-cards'); if (!cards || !SYS) return;
+    const nodes = store.systemNodes || [];
+    const sum = SYS.summarize(nodes);
+    const sumEl = el('nx-sys-summary');
+    if (sumEl) {
+      sumEl.replaceChildren(); const wrap = document.createElement('span'); wrap.className = 'nx-sys-sum';
+      for (const [k, cls] of [['NOMINAL', 'nominal'], ['DEGRADED', 'degraded'], ['WARNING', 'warning'], ['CRITICAL', 'critical'], ['UNKNOWN', 'unknown']]) {
+        const s = document.createElement('span'); const b = document.createElement('b'); b.className = 'nx-sc-state ' + cls; b.textContent = sum[k];
+        s.append(document.createTextNode(k[0] + k.slice(1).toLowerCase() + ' '), b); wrap.append(s);
+      }
+      sumEl.append(wrap);
+    }
+    cards.replaceChildren();
+    for (const n of nodes) {
+      const card = document.createElement('div'); card.className = 'nx-sys-card'; card.dataset.status = (n.status || 'unknown').toLowerCase();
+      const top = document.createElement('div'); top.className = 'nx-sc-top';
+      const name = document.createElement('div'); name.className = 'nx-sc-name';
+      const dot = document.createElement('span'); dot.className = 'nx-dot ' + (n.status || 'unknown').toLowerCase();
+      const nm = document.createElement('span'); nm.textContent = n.name; name.append(dot, nm);
+      const st = document.createElement('span'); st.className = 'nx-sc-state ' + (n.status || 'unknown').toLowerCase(); st.textContent = n.status || 'UNKNOWN';
+      top.append(name, st); card.append(top);
+      if (n.latency != null) { const m = document.createElement('div'); m.className = 'nx-sc-metric'; const k = document.createElement('span'); k.textContent = 'latency'; const v = document.createElement('span'); v.className = 'v'; v.textContent = n.latency + ' ms'; m.append(k, v); card.append(m); }
+      else if (n.metrics_unavailable) { const u = document.createElement('div'); u.className = 'nx-sc-unavail'; u.textContent = 'metrics unavailable'; card.append(u); }
+      if (n.detail) { const d = document.createElement('div'); d.className = 'nx-sc-metric'; const k = document.createElement('span'); k.textContent = n.detail; d.append(k); card.append(d); }
+      const foot = document.createElement('div'); foot.className = 'nx-sc-foot';
+      const last = document.createElement('span'); last.textContent = n.last_seen ? ('probed ' + Math.max(0, Math.round((Date.now() - n.last_seen) / 1000)) + 's ago') : (n.probe ? 'not probed' : 'no probe endpoint');
+      foot.append(last, prov((n.provenance || 'unavailable').toLowerCase())); card.append(foot);
+      card.addEventListener('click', () => openSystemDetail(n));
+      cards.append(card);
+    }
+    renderTopology();
+  }
+
+  function renderTopology() {
+    const box = el('nx-topo'); if (!box || !SYS) return;
+    const nodes = store.systemNodes || []; const byId = Object.fromEntries(nodes.map(n => [n.id, n]));
+    const layers = {}; SYS.TOPOLOGY.nodes.forEach(n => { (layers[n.layer] = layers[n.layer] || []).push(n.id); });
+    const maxLayer = Math.max(...Object.keys(layers).map(Number)); const pos = {};
+    Object.entries(layers).forEach(([L, ids]) => { const y = 8 + (Number(L) / maxLayer) * 50; ids.forEach((id, i) => { pos[id] = { x: ((i + 1) / (ids.length + 1)) * 100, y }; }); });
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 100 64'); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    for (const [a, b] of SYS.TOPOLOGY.edges) {
+      const pa = pos[a], pb = pos[b]; if (!pa || !pb) continue;
+      const line = document.createElementNS(NS, 'line'); line.setAttribute('x1', pa.x); line.setAttribute('y1', pa.y); line.setAttribute('x2', pb.x); line.setAttribute('y2', pb.y);
+      line.setAttribute('class', 'edge' + ((store.activeEdges || []).includes(a + '>' + b) ? ' active' : '')); svg.append(line);
+    }
+    for (const n of SYS.TOPOLOGY.nodes) {
+      const p = pos[n.id]; const nd = byId[n.id] || {}; const status = (nd.status || 'unknown').toLowerCase();
+      const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'node ' + status);
+      const w = 20, h = 11; const rect = document.createElementNS(NS, 'rect');
+      rect.setAttribute('x', p.x - w / 2); rect.setAttribute('y', p.y - h / 2); rect.setAttribute('width', w); rect.setAttribute('height', h); rect.setAttribute('rx', 1.8);
+      g.append(rect);
+      const t = document.createElementNS(NS, 'text'); t.setAttribute('class', 'lbl'); t.setAttribute('x', p.x); t.setAttribute('y', p.y + (n.sub ? -0.4 : 1.4)); t.setAttribute('font-size', '3.2'); t.textContent = n.name; g.append(t);
+      if (n.sub) { const s = document.createElementNS(NS, 'text'); s.setAttribute('class', 'sub'); s.setAttribute('x', p.x); s.setAttribute('y', p.y + 3.2); s.setAttribute('font-size', '2.3'); s.textContent = n.sub; g.append(s); }
+      g.addEventListener('click', () => openSystemDetail(nd.id ? nd : n));
+      svg.append(g);
+    }
+    box.replaceChildren(svg);
+  }
+
+  function openSystemDetail(n) {
+    const drawer = el('nx-evidence'); if (!drawer) return;
+    el('nx-ev-step').textContent = n.name + ' · ' + (n.status || 'UNKNOWN');
+    const body = el('nx-ev-body'); body.replaceChildren();
+    const rows = [
+      ['Status', n.status || 'UNKNOWN'], ['Type', n.type || '—'], ['Probe endpoint', n.probe || 'none (no telemetry endpoint)'],
+      ['Latency', n.latency != null ? n.latency + ' ms' : 'UNAVAILABLE'],
+      ['Last probe', n.last_seen ? Math.round((Date.now() - n.last_seen) / 1000) + 's ago' : (n.probe ? 'not probed' : 'n/a')],
+      ['Detail', n.detail || '—'],
+    ];
+    for (const [k, v] of rows) { const it = document.createElement('div'); it.className = 'nx-ev-item'; const t = document.createElement('div'); t.className = 'nx-ev-type'; t.textContent = k; const l = document.createElement('div'); l.className = 'nx-ev-label'; l.textContent = v; it.append(t, l); body.append(it); }
+    const pv = document.createElement('div'); pv.className = 'nx-ev-item'; pv.append(prov((n.provenance || 'unavailable').toLowerCase())); body.append(pv);
+    const act = document.createElement('button'); act.className = 'nx-btn'; act.style.marginTop = '6px'; act.textContent = 'Ask KAI to explain ' + n.name;
+    act.addEventListener('click', () => { closeEvidence(); const input = el('nx-cmd-input'); if (input) { input.value = 'Explain the current status of ' + n.name + ' and any risk.'; el('nx-cmd-send').click(); } });
+    body.append(act);
+    drawer.hidden = false; requestAnimationFrame(() => drawer.classList.add('open'));
+  }
+
+  // Bounded polling of a CURATED few real endpoints — backoff + visibility-pause
+  // (§4G/§4H). In-app only; standalone/DEMO never fabricates.
+  let _pollTimer = null, _pollFails = 0;
+  function schedulePoll(ms) { clearTimeout(_pollTimer); _pollTimer = setTimeout(pollSystems, ms); }
+  async function pollSystems() {
+    if (!IN_APP || DEMO || !SYS) return;
+    if (typeof document !== 'undefined' && document.hidden) { schedulePoll(20000); return; }
+    const probes = SYS.TOPOLOGY.nodes.filter(n => n.probe); const statusMap = {}; let anyFail = false;
+    for (const n of probes) {
+      try {
+        const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 4000);
+        const r = await fetch(n.probe, { credentials: 'include', signal: ctrl.signal }); clearTimeout(to);
+        statusMap[n.id] = { status: SYS.classifyProbe({ ok: r.ok, status: r.status }), last_seen: Date.now(), provenance: 'DERIVED' };
+      } catch (e) { statusMap[n.id] = { status: 'UNKNOWN', last_seen: null, provenance: 'UNAVAILABLE', detail: 'probe failed' }; anyFail = true; }
+    }
+    store.systemNodes = buildSystemNodes(statusMap, null);
+    store.alerts = SYS.alertsFromSystems(store.systemNodes);
+    renderSystems(); renderAlerts();
+    _pollFails = anyFail ? _pollFails + 1 : 0;
+    schedulePoll(SYS.backoffMs(20000, _pollFails, 120000));
+  }
+
+  function renderAll() { renderSystemStack(); renderMissionHead(); renderQueue(); renderProcedure(); renderTimeline(); renderIntel(); renderActivity(); renderAlerts(); renderSystems(); renderNav(); paintKai(); }
 
   // ── init ─────────────────────────────────────────────────────────────────
   function init() {
@@ -484,6 +631,7 @@
     wireCommand();
     el('nx-ev-close') && el('nx-ev-close').addEventListener('click', closeEvidence);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEvidence(); });
+    store.systemNodes = buildSystemNodes(null);   // default topology: UNKNOWN/UNAVAILABLE (honest until probed)
     // provenance banner
     const banner = el('nx-demo-banner'); if (banner) banner.hidden = !DEMO;
 
@@ -509,6 +657,8 @@
     store.systems = systems.length ? systems : [{ key: 'x', label: 'Telemetry', status: 'unknown', value: 'UNAVAILABLE', prov: 'unavailable' }];
     renderAll();
     logActivity('Live boot — governed provider ' + (HOST ? 'attached' : 'absent'));
+    // §4G/§4H bounded polling of a curated few real endpoints; resume when visible.
+    if (SYS) { pollSystems(); document.addEventListener('visibilitychange', () => { if (!document.hidden) schedulePoll(1000); }); }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

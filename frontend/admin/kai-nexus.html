@@ -80,6 +80,7 @@
 
     <!-- ── DYNAMIC MISSION CANVAS — TIMELINE + QUEUE ────────────────────── -->
     <section class="nx-canvas">
+      <div class="nx-canvas-mission">
       <div class="nx-panel nx-timeline-wrap">
         <div class="nx-panel-h">Mission Timeline <span class="nx-h-accent">EVENTS</span></div>
         <div id="nx-timeline" class="nx-timeline"></div>
@@ -95,6 +96,18 @@
         <div class="nx-panel nx-queue-wrap">
           <div class="nx-panel-h">Mission Queue</div>
           <div id="nx-queue" class="nx-queue nx-scroll"></div>
+        </div>
+      </div>
+      </div><!-- /nx-canvas-mission -->
+
+      <div class="nx-canvas-systems" hidden>
+        <div class="nx-panel nx-sys-panel">
+          <div class="nx-panel-h">Systems <span class="nx-h-accent" id="nx-sys-summary">—</span></div>
+          <div id="nx-sys-cards" class="nx-sys-cards nx-scroll"></div>
+        </div>
+        <div class="nx-panel nx-topo-panel">
+          <div class="nx-panel-h">Infrastructure Topology <span class="nx-h-accent" id="nx-topo-note">DERIVED</span></div>
+          <div id="nx-topo" class="nx-topo"></div>
         </div>
       </div>
     </section>
@@ -128,6 +141,7 @@
   </aside>
 
   <script src="kai-nexus-procedure.js"></script>
+  <script src="kai-nexus-systems.js"></script>
   <script src="kai-nexus.js"></script>
 </body>
 </html>

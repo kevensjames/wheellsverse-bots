@@ -129,3 +129,24 @@ retrying a non-retryable `FAILED` step, and silently skipping a `required` step
 every visual state derives from this machine. Chosen over an ad-hoc UI-driven
 flow because mission-control execution semantics must be enforced, not merely
 drawn.
+
+## D8 — Telemetry polling strategy (§4G) — 2026-08-25
+
+**Options:** (A) poll every source independently (~20 browser loops); (B) one
+aggregate backend telemetry endpoint the client polls once; (C) hybrid — bounded
+client polling of a *curated few* liveness endpoints + push (SSE) for activity.
+
+**Scores** — A: high browser load, N sockets, brittle; B: cleanest + lowest load
+but requires a new backend endpoint that does not exist yet; C: works today,
+low load, honest.
+
+**DECISION: C now, B recommended.** The client probes a **small curated set**
+(App B `/health`, App A `/api/v2/narai/health`, bridge `/admin/kai-bridge/health`)
+— NOT 20 loops — with: single shared interval, bounded concurrency, `AbortController`
+timeout, exponential backoff + jitter on repeated failure, and **pause when the
+tab is hidden** (`visibilitychange`). Activity/mission telemetry already arrives
+via the governed SSE bus (push), so we do not poll for it. **Recommended upgrade
+(EXTERNAL_BLOCKED):** add an aggregate `GET /admin/telemetry` on App A (one
+response with per-subsystem status + the metrics currently UNAVAILABLE) → the
+client polls once and many UNAVAILABLE metrics become REAL. Until then, deep
+metrics stay honestly UNAVAILABLE (D3/§4F).
