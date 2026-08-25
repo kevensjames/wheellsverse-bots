@@ -48,8 +48,8 @@ Single source of truth for the phased build (directive §44/§45). Status is
 | P7-1 | World mode (§17) | 7 | L | NOT_STARTED | — | signals | mixed |
 | P8-1 | Security mode + alert doctrine (§20/§21) | 8 | H | VERIFIED | kai-nexus-security.js + kai-nexus.{js,css,html} | governance audit + supreme scan + posture | REAL/DERIVED/DEMO |
 | P9-1 | Memory constellation (§22) | 9 | M | VERIFIED | kai-nexus-memory.js + kai-nexus.{js,css,html} | App-B knowledge graph (admin_kg) | REAL/DEMO |
-| P10-1 | Functional halo (§23) | 10 | M | NOT_STARTED | — | event bus | REAL |
-| P10-2 | Safe workflow/thinking viz (no CoT) (§24) | 10 | M | NOT_STARTED | — | observable events | REAL |
+| P10-1 | Functional halo (§23) | 10 | M | VERIFIED | kai-nexus-pulse.js + kai-nexus.{js,css,html} | kaiState + event bus | REAL/DEMO |
+| P10-2 | Safe workflow/thinking viz (no CoT) (§24) | 10 | M | VERIFIED | kai-nexus-pulse.js (describeEvent/stripReasoning) | observable events | REAL |
 | P11-1 | Adaptive environmental reactions (§25) | 11 | M | NOT_STARTED | — | kaiState/events | REAL |
 | P12-1 | KAI motion/embodiment + voice (§26/§27/§28) | 12 | M | IMPLEMENTED* | kai-presence.js | code | REAL |
 | P13-1 | Responsive/mobile (§37) | 13 | H | NOT_STARTED | kai-nexus.css | — | — |
@@ -187,6 +187,30 @@ Evidence: a 5-reader memory-surface inventory (docs/KAI_MEMORY_SOURCES.md, D13) 
 **Adversarial review (4-lens, refute-biased verify) → 7 confirmed (5 were one root bug), all FIXED + 3 tests added (17 total):** (1) the **"500+" cap was dead code** — `capped` required `drawn nodes.length ≥ 500`, but the ego-graph is bounded at ~60, so a real 800-entity KG rendered "60 entities" and the honest cap indicator never fired → fixed: `capped = !!statsCap` (the /stats signal alone), and the header/ENTITIES cell now show the **KG total from /stats** ("500+" at cap, else the count) with "N shown" for the ego sample; (2) **counts included undrawable edges** — summarize now runs over `buildEgoGraph(memNodes, memEdges)` so header/relation-chip counts match what's actually drawn; (3) **live-fetched graph didn't repaint on tab-open** — `bootMemoryLive` always repaints and the nav handler re-renders the revealed pane (also fixes the same latent gap for intel/security). New tests: cap fires from the /stats signal with a small sample, summarize excludes far-endpoint edges, and filtering a node drops its incident edge.
 
 **Phase 9 honest gaps:** the live KG needs the governed bridge enabled + App B running + the operator to have hand-taught triples (no auto-population/NER exists) — until then the constellation is DEMO-fixtured and live is EXTERNAL_BLOCKED; only an ego-graph is drawable (no whole-graph dump endpoint — a thin `/admin/kg/graph` over the existing `traverse()` is the clean backend add); pgvector semantic memories, relationship, journal, learning, and failures are unreachable from the Nexus (not in the bridge allowlist / no read endpoint) and are deliberately NOT drawn.
+
+## Session 6 progress — 2026-08-25 (Phase 10: Functional halo + safe activity/thinking viz)
+Evidence: a 4-reader halo/§24 inventory (docs/KAI_HALO_SOURCES.md, D14) + 11 node tests
+(`test_nexus_pulse.js`); browser-verified halo states + a live §24 leak check (a bus event
+carrying a SECRET content field produced label "tool · Web", no leak). Also an independent
+Phase 9 verify pass ran first (see below).
+
+- **P10-A halo inventory (§23A) → IMPLEMENTED**: `docs/KAI_HALO_SOURCES.md` — the halo was half-functional (real `kaiState` machine from the governed SSE lifecycle, but decorative motion, 3/8 states styled, no env reaction, zero bus subscribers); agent/tool/step events are DEMO-only (no real backend feed); the one §24 leak vector is backend + config-dependent (`ollama_adapter` streams `<think>` verbatim if a reasoning model is configured; default is safe). Decision **D14**.
+- **P10-2 §24 safety boundary → VERIFIED**: `kai-nexus-pulse.js`, 11 tests — `describeEvent(ev)` derives labels **structurally** from the event topic + a name/count allowlist and **never reads content fields** (a payload stuffed with reasoning/answer/prompt/args secrets yields only the topic label — unit-tested + live-verified); `stripReasoning` (client defense-in-depth: closed/variant/unclosed-trailing `<think>` blocks, no-op on normal answers) applied at the presence render + speak path; `activityLabel` maps every state to a safe word.
+- **P10-1 functional halo (§23) → VERIFIED**: distinct CSS visuals for **every real `kaiState`** (researching/listening/alert added; pure CSS on the existing `data-state` contract); the halo now reacts to `data-env` (critical/warning/success — closes the "alert leaves the orb unchanged" gap); an **event-driven pulse** fires a one-shot ping on real bus events via the previously-unused `on('*')` seam (reduced-motion-guarded); a safe **activity indicator** ("what KAI is doing") shows labels only. `setKai` now routes through the one bus (`emit('kai.'+state)`) and the HOST bridge calls `setKai`, so the halo reacts to both live and scenario transitions. `?scenario=halo` cycles the states.
+- **Honesty (§23/§39) → VERIFIED**: a "tools running"/agent-activity label appears only under `?scenario=` (DEMO banner); no fabricated halo states; the pulse binds to real events, not a fabricated busy loop. `kai-nexus-pulse.js` added to `_NEXUS_APP_MIME`.
+
+**Adversarial review (4-lens incl. a dedicated §24-leak trace) → §24 boundary confirmed SOUND (no CoT/content reaches any halo surface, path-by-path); 2 confirmed defects FIXED (+2 tests, 13 total):** (1) `stripReasoning`'s unclosed-trailing strip could silently truncate a completed answer that legitimately contained a literal `<think>` (e.g. explaining tag syntax) → added a `finalized` flag: mid-stream still strips the partial scratchpad, but the final render/speak preserves a lone literal tag; also hardened the regex for attributed tags. (2) the `?scenario=halo` demo's `setInterval` leaked — it kept mutating global kaiState/env over other panes after nav-away → the tick now self-terminates when `store.mode !== 'command'` (browser-verified: timer clears one interval after leaving).
+
+**Phase 10 honest gaps:** rich activity (tool/agent/step) is DEMO-only until a governed backend emits those events (D9); the halo's real live driver in production is the coarse `kaiState` lifecycle (thinking→speaking→done) — faithful but coarse. The §24 CoT leak is mitigated client-side (`stripReasoning` on the drawer) but the **proper fix is a backend strip at `ollama_adapter`/`brain.stream`** before emitting `{type:token}` — required before any reasoning model (deepseek-r1/qwq) is configured; the default model is non-reasoning and safe.
+
+## Session 5b — Phase 9 independent verification (2026-08-25)
+A 3-lens verify workflow confirmed all 7 Phase 9 fixes landed correctly (incl. edge cases
+memStatsCount===0, DEMO null, capped) and found **2 low regressions the fixes introduced**,
+both FIXED (commit 2befbb6): (1) `/stats`-ok but `/search`-fail advertised "500+ entities"
+over an UNAVAILABLE pane; (2) a DEMO after a real boot bled the real `/stats` count into the
+demo header. Root fix: the `/stats` total drives the header ONLY on a REAL connection
+(`useStats = memProvenance === 'REAL'`); reset the stats fields in `_memScene` + each boot.
+Browser-verified: DEMO+stale-stats → drawn count; UNAVAILABLE+stats → "0 entities".
 
 ## External blockers (§54)
 - Live telemetry / real inference: App A + DB + providers must run (Docker daemon currently DOWN).

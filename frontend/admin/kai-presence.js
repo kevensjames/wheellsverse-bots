@@ -338,7 +338,22 @@ function addMessage(role, text) {
   state.messages.push(rec);
   return rec;
 }
-function renderInto(rec) { rec.body.textContent = rec.text; msgsEl.scrollTop = msgsEl.scrollHeight; }
+// §24 defense-in-depth: never render/speak a reasoning model's inline <think> scratchpad.
+// Strips closed reasoning blocks + an unclosed trailing one (mid-stream). No-op on a normal
+// answer. Prefer the Nexus pulse util when present; fall back to a local copy so the shared
+// provider is self-contained. The proper fix is backend (strip at the adapter) — see docs.
+const _REASON_RE_CLOSED = /<(think|thinking|reasoning|scratchpad|reflection)(?:\s[^>]*)?>[\s\S]*?<\/\1>/gi;
+const _REASON_RE_OPEN = /<(think|thinking|reasoning|scratchpad|reflection)(?:\s[^>]*)?>[\s\S]*$/i;
+// finalized=true (stream done): preserve a lone literal <think> as content; only strip the
+// unclosed-trailing block mid-stream to avoid flashing a partial scratchpad.
+function _stripReason(text, finalized) {
+  if (text == null) return '';
+  if (typeof window !== 'undefined' && window.NexusPulse && window.NexusPulse.stripReasoning) return window.NexusPulse.stripReasoning(text, { finalized: !!finalized });
+  let out = String(text).replace(_REASON_RE_CLOSED, '');
+  if (!finalized) out = out.replace(_REASON_RE_OPEN, '');
+  return out;
+}
+function renderInto(rec, finalized) { rec.body.textContent = _stripReason(rec.text, finalized); msgsEl.scrollTop = msgsEl.scrollHeight; }
 
 // ---- governed streaming client (§4/§5) -------------------------------------
 async function submit() {
@@ -397,8 +412,9 @@ async function streamGoverned(text) {
       }
     }
     if (!asst.text) { asst.text = '(no response)'; renderInto(asst); }
+    renderInto(asst, true);   // final render: preserve a literal lone <think> in the completed answer
     setKaiState('online');
-    if (state.presenceMode === 'nexus') speak(asst.text);  // living KAI speaks the answer
+    if (state.presenceMode === 'nexus') speak(_stripReason(asst.text, true));  // speak the answer, never the reasoning (§24)
   } catch (e) {
     if (e.name === 'AbortError') { asst.text += ' ⏹'; renderInto(asst); setKaiState('online'); }
     else { asst.text += ' [link error]'; renderInto(asst); setKaiState('alert'); }

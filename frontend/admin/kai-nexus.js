@@ -21,6 +21,7 @@
   const INTEL = (typeof window !== 'undefined' && window.NexusIntel) || null;     // intelligence/signal model
   const SEC = (typeof window !== 'undefined' && window.NexusSecurity) || null;    // security/governance posture model
   const MEM = (typeof window !== 'undefined' && window.NexusMemory) || null;      // memory / knowledge-graph model
+  const PULSE = (typeof window !== 'undefined' && window.NexusPulse) || null;     // §24 halo/activity safety boundary
   const REDUCE_MOTION = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const NS = 'http://www.w3.org/2000/svg';
   const IN_APP = !!HOST && location.protocol.startsWith('http');
@@ -36,7 +37,7 @@
     subs.get(topic)?.forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
     subs.get('*')?.forEach(fn => { try { fn(ev); } catch (e) { console.error(e); } });
   }
-  if (HOST && HOST.on) HOST.on('kaiState', s => { store.kaiState = s; emit('kai.' + s); paintKai(); });
+  if (HOST && HOST.on) HOST.on('kaiState', s => setKai(s));   // real provider state → single setKai path (emits + paints)
 
   // ── store ─────────────────────────────────────────────────────────────────
   const store = {
@@ -74,6 +75,7 @@
   function setKai(state, sub) {
     store.kaiState = state; if (sub != null) store.kaiSub = sub;
     if (HOST && HOST.state) HOST.state.kaiState = state;   // keep the one provider in sync
+    emit('kai.' + state);   // → the halo pulse/activity subscriber (§23); one canonical bus
     paintKai();
   }
   function paintKai() {
@@ -82,6 +84,22 @@
     const sub = el('nx-kai-sub'); if (sub) sub.textContent = store.kaiSub;
     const cmd = el('nx-cmd-state'); if (cmd) cmd.textContent = ({ online: 'READY', idle: 'READY', thinking: 'THINKING', researching: 'RESEARCHING', speaking: 'SPEAKING', listening: 'LISTENING', alert: 'ATTENTION', offline: 'OFFLINE' })[store.kaiState] || 'READY';
     const hv = el('nx-h-kai'); if (hv) hv.textContent = store.kaiState.toUpperCase();
+    // §24-safe activity indicator: the state label only, never model content
+    setActivity(PULSE ? PULSE.activityLabel(store.kaiState) : store.kaiState, ['online', 'idle', 'offline'].indexOf(store.kaiState) >= 0);
+  }
+  // The "what KAI is doing" line — labels ONLY (never token/reasoning content, §24).
+  function setActivity(label, idle) {
+    const box = el('nx-kai-activity'); if (!box) return;
+    const lbl = el('nx-kai-activity-label'); if (lbl) lbl.textContent = label;   // textContent → inert
+    box.dataset.idle = idle ? '1' : '0';
+  }
+  // Event-driven pulse: a one-shot ping on a REAL bus event (reduced-motion honored).
+  let _pulseTimer = null;
+  function pulseHalo() {
+    if (REDUCE_MOTION) return;
+    const halo = el('nx-halo'); if (!halo) return;
+    halo.classList.remove('pulsing'); void halo.offsetWidth; halo.classList.add('pulsing');   // restart the CSS animation
+    clearTimeout(_pulseTimer); _pulseTimer = setTimeout(() => halo.classList.remove('pulsing'), 600);
   }
 
   // ── renderers ─────────────────────────────────────────────────────────────
@@ -520,6 +538,27 @@
     'memory-unavailable'() {
       _memScene('warning', 'alert', 'Knowledge graph unreachable.', null);
       store.memNodes = []; store.memEdges = []; store.memProvenance = 'UNAVAILABLE'; store.memNote = 'bridge off — EXTERNAL_BLOCKED'; renderAll();
+    },
+    // ── Phase 10 functional-halo demo — cycles the REAL kaiState visuals + env + pulse ──
+    halo() {
+      setMode('command'); store.missions = []; store.activeId = null; store.systems = []; store.signals = []; store.alerts = [];
+      renderAll();
+      const steps = [
+        ['listening', 'idle', 'Listening for a command.'],
+        ['thinking', 'idle', 'Thinking through your request.'],
+        ['researching', 'idle', 'Gathering intelligence.'],
+        ['speaking', 'success', 'Here is what I found.'],
+        ['alert', 'critical', 'Something needs your attention.'],
+        ['online', 'idle', 'What can I do for you?'],
+      ];
+      let i = 0;
+      // self-terminate when the operator navigates away (in-page nav only changes mode) —
+      // otherwise the interval leaks and keeps mutating global kaiState/env over other panes.
+      const tick = () => {
+        if (store.mode !== 'command') { clearInterval(store._haloTimer); store._haloTimer = null; return; }
+        const [k, e, s] = steps[i % steps.length]; setEnv(e); setKai(k, s); i++;
+      };
+      tick(); if (!store._haloTimer) store._haloTimer = setInterval(tick, 2600);
     },
   };
   function _secScene(env, kai, sub) { setMode('security'); setEnv(env); setKai(kai, sub); store.systems = []; store.missions = []; store.activeId = null; store.signals = []; store.secFilter = 'ALL'; }
@@ -1564,6 +1603,13 @@
     const clock = el('nx-h-clock'); if (clock) setInterval(() => { clock.textContent = nowClock(); if (activeMission()) { renderMissionHead(); const q = el('nx-queue'); if (q) renderQueue(); } }, 1000);
     // nav
     document.querySelectorAll('.nx-nav-item').forEach(b => b.addEventListener('click', () => { setMode(b.dataset.mode); renderAll(); }));   // repaint so the revealed pane reflects current store (e.g. a live boot that finished while on another tab)
+    // §23 — make the halo FUNCTIONAL: pulse + activity on REAL bus events (the previously-unused seam).
+    // §24 — PULSE.describeEvent is the safety boundary: only topic-derived labels, never model content.
+    if (PULSE) on('*', (ev) => {
+      const d = PULSE.describeEvent(ev); if (!d || !d.safe) return;
+      if (d.pulse) pulseHalo();
+      if (d.kind !== 'state') setActivity(d.label, false);   // state labels are owned by paintKai (idle-aware)
+    });
     wireCommand();
     el('nx-ev-close') && el('nx-ev-close').addEventListener('click', closeEvidence);
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEvidence(); });

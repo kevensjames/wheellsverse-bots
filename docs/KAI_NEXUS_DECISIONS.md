@@ -271,3 +271,31 @@ textContent) — a `<script>` label is inert. **Live path = EXTERNAL_BLOCKED** (
 DEMO scenarios show a realistic hand-taught WheellsVerse KG. Flat stores appear only as
 a labeled records summary (counts by tier/category), explicitly non-graph, **no invented
 links**. Reuses the agent-constellation SVG layout pattern (no new graph engine).
+
+## D14 — Functional halo bound to REAL signals; §24 safety is a tested boundary (§23/§24) — 2026-08-25
+
+**Evidence (docs/KAI_HALO_SOURCES.md):** the halo was half-functional — a real `kaiState`
+machine (driven by the governed SSE lifecycle) but decorative motion, only 3/8 states
+styled, no env reaction, and a bus with zero subscribers. The only rich "activity"
+signals (agent/tool/procedure events) are DEMO-only; no backend emits tool/step events.
+A real §24 leak vector exists but is backend + config-dependent (`ollama_adapter` streams
+`<think>` verbatim if a reasoning model is configured; default model is safe).
+
+**Options:** (A) add elaborate always-on halo animation + a live "tools running" viz
+(fabricates a busy signal that has no real source — rejected, §39/§47); (B) make motion
+**bind to real events** and keep the viz to observable, CoT-safe labels.
+
+**DECISION: B.** `kai-nexus-pulse.js` is the **§24 safety boundary**: `describeEvent(ev)`
+derives its label **structurally** from the event topic + a small name/count allowlist and
+**never reads content fields** (`text/reasoning/thought/scratchpad/prompt/args/critique/…`),
+so a "thinking" indicator cannot leak chain-of-thought — unit-tested, incl. a payload
+stuffed with secrets that never reach the label. Enforced + shipped: (1) the halo shows a
+distinct visual for **every real `kaiState`** (pure CSS on the existing `data-state`
+contract) and reacts to `data-env` — no fabricated states; (2) a **one-shot pulse** fires
+on real bus events via the previously-unused `on('*')` seam, reduced-motion-guarded; (3)
+the activity indicator shows **labels only**, tagged DEMO when a scenario drives it — a
+"tools running" signal is DEMO-only (no real backend feed) and never presented as REAL;
+(4) `stripReasoning` (tested: closed/variant/unclosed-trailing think-tags, no-op on normal
+answers) is applied as **client defense-in-depth** at the presence render/speak path, with
+the adapter-level strip documented as the proper backend fix. Reuses the one `setKai`/
+`paintKai` choke point + the existing bus + `REDUCE_MOTION` — wiring, not new infrastructure.
