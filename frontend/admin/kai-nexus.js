@@ -15,6 +15,7 @@
 (() => {
   'use strict';
   const HOST = (typeof window !== 'undefined' && window.KAI) ? window.KAI : null;
+  const P = (typeof window !== 'undefined' && window.NexusProcedure) || null;   // procedure state machine
   const IN_APP = !!HOST && location.protocol.startsWith('http');
   const params = new URLSearchParams(location.search);
   const SCENARIO = params.get('scenario');           // idle|latency|research|security|approval
@@ -36,7 +37,7 @@
     kaiSub: 'What can I do for you?',
     mode: 'command', env: 'idle',
     missions: [], activeId: null,
-    systems: [], signals: [], activity: [], alerts: [],
+    systems: [], signals: [], activity: [], alerts: [], procedure: null,
   };
   const el = (id) => document.getElementById(id);
   const prov = (kind) => { const s = document.createElement('span'); s.className = 'nx-prov ' + kind; s.textContent = kind; return s; };
@@ -248,6 +249,63 @@
       store.alerts = [{ sev: 'caution', title: 'Approval required', detail: 'Deploy production release abc123' }];
       store.signals = demoSignals(); renderAll();
     },
+    'deployment-approval'() {
+      setMode('mission'); setEnv('warning');
+      const mid = 'M00301'; const m = mission({ id: mid, title: 'Production Deployment', type: 'deployment', status: 'ACTIVE', priority: 'HIGH', started_at: Date.now() - 30000, agents: ['DevOps'], tools: ['Railway', 'GitHub'] });
+      m.timeline = []; store.missions = [m]; store.activeId = mid; store.systems = demoSystems(); store.signals = demoSignals(); store.alerts = [];
+      const p = deployProc(mid); store.procedure = p; P.start(p, Date.now());
+      completeSteps(p, ['s1', 's2', 's3', 's4', 's5', 's6']);
+      P.requireApproval(p, 's7', { action: 'Deploy production release', risk: 'MEDIUM', required_role: 'owner', required_scope: 'kai.ultra', summary: 'Commit abc123 → production', evidence: [{ label: 'tests' }, { label: 'migration' }, { label: 'backup' }, { label: 'readyz' }, { label: 'rollback' }], now: Date.now() });
+      applyProcEvents(); syncMissionToProcedure();
+      store.alerts = [{ sev: 'caution', title: 'Approval required', detail: 'Deploy production release abc123' }]; renderAll();
+    },
+    'deployment-success'() {
+      setMode('mission'); setEnv('idle');
+      const mid = 'M00302'; const m = mission({ id: mid, title: 'Production Deployment', type: 'deployment', status: 'ACTIVE', priority: 'HIGH', started_at: Date.now() - 6000, agents: ['DevOps'], tools: ['Railway'] });
+      m.timeline = []; store.missions = [m]; store.activeId = mid; store.systems = demoSystems(); store.signals = demoSignals(); store.alerts = [];
+      const p = deployProc(mid); store.procedure = p; P.start(p, Date.now()); renderAll();
+      const pre = ['s1', 's2', 's3', 's4', 's5', 's6'];
+      (function run(i) {
+        if (i < pre.length) { completeSteps(p, [pre[i]]); applyProcEvents(); syncMissionToProcedure(); renderProcedure(); setTimeout(() => run(i + 1), 650); }
+        else { const ap = P.requireApproval(p, 's7', { action: 'Deploy production release', risk: 'MEDIUM', now: Date.now() }); applyProcEvents(); syncMissionToProcedure(); renderProcedure(); setTimeout(() => { try { P.approve(p, ap.approval_id, { by: 'operator', now: Date.now() }); } catch (e) {} applyProcEvents(); syncMissionToProcedure(); renderProcedure(); advanceDemoProcedure(); }, 1400); }
+      })(0);
+    },
+    'deployment-failure'() {
+      setMode('mission'); setEnv('critical');
+      const mid = 'M00303'; const m = mission({ id: mid, title: 'Production Deployment', type: 'deployment', status: 'ACTIVE', priority: 'HIGH', started_at: Date.now() - 45000, agents: ['DevOps'] });
+      m.timeline = []; store.missions = [m]; store.activeId = mid; store.systems = demoSystems({ 'core-api': 'warning' }); store.signals = demoSignals();
+      const p = deployProc(mid); store.procedure = p; P.start(p, Date.now());
+      completeSteps(p, ['s1', 's2', 's3', 's4', 's5', 's6']);
+      const ap = P.requireApproval(p, 's7', { action: 'Deploy', risk: 'MEDIUM', now: Date.now() }); try { P.approve(p, ap.approval_id, { by: 'operator', now: Date.now() }); } catch (e) {}
+      P.completeStep(p, 's7', { now: Date.now() }); P.completeStep(p, 's8', { now: Date.now() });
+      P.attachEvidence(p, 's9', { type: 'log', label: 'smoke: 3 endpoints returning 500', provenance: 'DEMO' });
+      P.failStep(p, 's9', { error: 'Smoke test failed — 3 endpoints 500', retryable: true, now: Date.now() });
+      applyProcEvents(); syncMissionToProcedure();
+      store.alerts = [{ sev: 'critical', title: 'Deploy smoke test failed', detail: '3 endpoints 500 — rollback recommended' }]; renderAll();
+    },
+    'security-remediation'() {
+      setMode('security'); setEnv('warning');
+      const mid = 'M00305'; const m = mission({ id: mid, title: 'Security Remediation', type: 'security', status: 'ACTIVE', priority: 'HIGH', started_at: Date.now() - 20000, agents: ['Security'], tools: ['Scanner'] });
+      m.timeline = []; store.missions = [m]; store.activeId = mid; store.systems = demoSystems(); store.signals = demoSignals();
+      const p = secProc(mid); store.procedure = p; P.start(p, Date.now());
+      completeSteps(p, ['x1', 'x2', 'x3']);
+      P.requireApproval(p, 'x4', { action: 'Apply security fix to production', risk: 'HIGH', required_role: 'owner', required_scope: 'kai.ultra', summary: 'CVE remediation patch', evidence: [{ label: 'finding confirmed' }, { label: 'blast radius' }, { label: 'fix prepared' }], now: Date.now() });
+      applyProcEvents(); syncMissionToProcedure();
+      store.alerts = [{ sev: 'warning', title: 'Remediation awaiting approval', detail: 'CVE fix ready to apply' }]; renderAll();
+    },
+    'incident-recovery'() {
+      setMode('mission'); setEnv('warning');
+      const mid = 'M00307'; const m = mission({ id: mid, title: 'Incident Recovery', type: 'infrastructure', status: 'ACTIVE', priority: 'CRITICAL', started_at: Date.now() - 90000, agents: ['Infrastructure'], tools: ['Railway', 'Postgres'] });
+      m.timeline = []; store.missions = [m]; store.activeId = mid; store.systems = demoSystems({ postgres: 'critical', 'core-api': 'degraded' }); store.signals = demoSignals();
+      const p = P.createProcedure({ procedure_id: 'PINC', mission_id: mid, name: 'Incident Recovery', steps: [
+        { step_id: 'r1', title: 'Detect outage' }, { step_id: 'r2', title: 'Isolate subsystem' }, { step_id: 'r3', title: 'Failover' }, { step_id: 'r4', title: 'Verify recovery' }, { step_id: 'r5', title: 'Post-incident note', required: false },
+      ] });
+      store.procedure = p; P.start(p, Date.now());
+      completeSteps(p, ['r1', 'r2']);
+      P.blockStep(p, 'r3', { blocker: 'Waiting on replica promotion', now: Date.now() });
+      applyProcEvents(); syncMissionToProcedure();
+      store.alerts = [{ sev: 'critical', title: 'Postgres primary down', detail: 'Failover blocked on replica promotion' }]; renderAll();
+    },
   };
   const tl = (rows) => rows.map(([time, actor, text, sev]) => ({ time, actor, text, sev: sev || 'info' }));
   function demoSystems(overrides = {}) {
@@ -262,7 +320,153 @@
     ];
   }
 
-  function renderAll() { renderSystemStack(); renderMissionHead(); renderQueue(); renderTimeline(); renderIntel(); renderActivity(); renderAlerts(); renderNav(); paintKai(); }
+  // ── Phase 3 — procedure engine + approval + evidence ────────────────────────
+  const STEP_GLYPH = { SUCCESS: '✓', ACTIVE: '●', PENDING: '○', BLOCKED: '■', APPROVAL_REQUIRED: '◐', FAILED: '✕', SKIPPED_WITH_REASON: '⊘', CANCELLED: '⊘' };
+
+  function renderProcedure() {
+    const panel = el('nx-proc-panel'); const p = store.procedure; if (!panel) return;
+    if (!p || !P) { panel.hidden = true; renderApproval(); return; }
+    panel.hidden = false;
+    el('nx-proc-name').textContent = p.name + ' · ' + p.status.replace(/_/g, ' ');
+    const box = el('nx-proc-steps'); box.replaceChildren();
+    for (const s of p.steps.slice().sort((a, b) => a.sequence - b.sequence)) {
+      const row = document.createElement('div'); row.className = 'nx-proc-step'; row.dataset.s = s.status;
+      const seq = document.createElement('span'); seq.className = 'nx-ps-seq'; seq.textContent = String(s.sequence).padStart(2, '0');
+      const g = document.createElement('span'); g.className = 'nx-ps-glyph'; g.textContent = STEP_GLYPH[s.status] || '○';
+      const title = document.createElement('span'); title.className = 'nx-ps-title'; title.textContent = s.title;
+      const note = s.blocker || s.error; if (note) { const d = document.createElement('span'); d.className = 'nx-ps-desc'; d.textContent = note; title.append(d); }
+      const right = document.createElement('span');
+      const st = document.createElement('span'); st.className = 'nx-ps-state'; st.textContent = s.status.replace(/_/g, ' '); right.append(st);
+      if (s.evidence_refs.length) { const ev = document.createElement('span'); ev.className = 'nx-ps-ev'; ev.textContent = ' ◈' + s.evidence_refs.length; right.append(ev); }
+      row.append(seq, g, title, right);
+      row.addEventListener('click', () => openEvidence(s));
+      box.append(row);
+    }
+    renderApproval();
+  }
+
+  function renderApproval() {
+    const box = el('nx-approval'); const p = store.procedure; if (!box) return;
+    const ap = (p && P) ? P.pendingApprovals(p)[0] : null;
+    if (!ap) { box.hidden = true; return; }
+    box.hidden = false; box.replaceChildren();
+    const head = document.createElement('div'); head.className = 'nx-ap-head'; head.textContent = 'Approval Required';
+    const action = document.createElement('div'); action.className = 'nx-ap-action'; action.textContent = ap.action;
+    const grid = document.createElement('div'); grid.className = 'nx-ap-grid';
+    const kv = (k, v, cls) => { const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k; const vv = document.createElement('span'); if (cls) vv.className = cls; vv.textContent = v; grid.append(kk, vv); };
+    kv('Required role', ap.required_role); kv('Required scope', ap.required_scope); kv('Risk', ap.risk, 'nx-ap-risk ' + ap.risk);
+    if (ap.summary) kv('Summary', ap.summary);
+    const checks = document.createElement('div'); checks.className = 'nx-ap-checks';
+    checks.textContent = (ap.evidence || []).map(e => '✓ ' + (e.label || e)).join('   ');
+    const actions = document.createElement('div'); actions.className = 'nx-ap-actions';
+    const mk = (cls, label, fn) => { const b = document.createElement('button'); b.className = 'nx-ap-btn ' + cls; b.textContent = label; b.addEventListener('click', fn); return b; };
+    actions.append(
+      mk('approve', 'APPROVE', () => decideApproval(ap.approval_id, true)),
+      mk('deny', 'DENY', () => decideApproval(ap.approval_id, false)),
+      mk('details', 'DETAILS', () => { const s = p.steps.find(x => x.step_id === ap.step_id); if (s) openEvidence(s); }),
+    );
+    const note = document.createElement('div'); note.className = 'nx-ap-note';
+    note.textContent = DEMO ? 'DEMO — client-side decision. In production this needs the owner + kai.ultra scope; the backend is authoritative.'
+      : 'Backend-authoritative: your session role + scope + governance are enforced server-side.';
+    box.append(head, action, grid); if (checks.textContent) box.append(checks); box.append(actions, note);
+  }
+
+  function decideApproval(approvalId, approve) {
+    const p = store.procedure; if (!p || !P) return;
+    if (IN_APP && !DEMO) {
+      // §3E: real authorization is server-side. No governed approval endpoint is
+      // wired yet → do NOT fake a client-side grant. Surface honestly.
+      logActivity('Approval requires the governed backend endpoint (not yet wired).');
+      setKai('alert', 'Approval needs the governed backend.'); return;
+    }
+    try {
+      if (approve) { P.approve(p, approvalId, { by: 'operator', now: Date.now() }); logActivity('DEMO: ' + approvalId + ' APPROVED'); }
+      else { P.deny(p, approvalId, { by: 'operator', reason: 'operator denied', now: Date.now() }); logActivity('DEMO: ' + approvalId + ' DENIED'); }
+    } catch (e) { logActivity('approval error: ' + e.message); }
+    applyProcEvents(); syncMissionToProcedure(); renderProcedure();
+    if (approve) setTimeout(advanceDemoProcedure, 700);
+  }
+
+  function openEvidence(step) {
+    const drawer = el('nx-evidence'); if (!drawer) return;
+    el('nx-ev-step').textContent = step.title;
+    const body = el('nx-ev-body'); body.replaceChildren();
+    if (!step.evidence_refs.length) { const e = document.createElement('div'); e.className = 'nx-ev-empty'; e.textContent = 'No evidence attached to this step.'; body.append(e); }
+    for (const ev of step.evidence_refs) {
+      const it = document.createElement('div'); it.className = 'nx-ev-item';
+      const t = document.createElement('div'); t.className = 'nx-ev-type'; t.textContent = ev.type || 'note';
+      const l = document.createElement('div'); l.className = 'nx-ev-label'; l.textContent = ev.label || '(no label)';
+      it.append(t, l, prov((ev.provenance || 'DEMO').toLowerCase()));
+      body.append(it);
+    }
+    drawer.hidden = false; requestAnimationFrame(() => drawer.classList.add('open'));
+  }
+  function closeEvidence() { const d = el('nx-evidence'); if (!d) return; d.classList.remove('open'); setTimeout(() => { d.hidden = true; }, 280); }
+
+  function applyProcEvents() {
+    const p = store.procedure; if (!p || !P) return;
+    const m = activeMission();
+    for (const ev of P.drainEvents(p)) {
+      const step = ev.payload && ev.payload.step_id ? p.steps.find(s => s.step_id === ev.payload.step_id) : null;
+      const nm = step ? step.title : p.name; let sev = 'info', text = ev.topic;
+      switch (ev.topic) {
+        case 'procedure.started': text = 'Procedure started: ' + p.name; break;
+        case 'procedure.step.started': text = 'Step active: ' + nm; break;
+        case 'procedure.step.completed': text = 'Step complete: ' + nm; break;
+        case 'procedure.step.failed': text = 'Step FAILED: ' + nm; sev = 'critical'; setKai('alert', 'A step failed — review needed.'); break;
+        case 'procedure.step.blocked': text = 'Step blocked: ' + nm; sev = 'warning'; break;
+        case 'procedure.step.skipped': text = 'Step skipped (with reason): ' + nm; break;
+        case 'approval.required': text = 'APPROVAL required: ' + nm; sev = 'warning'; setKai('alert', 'Waiting for your approval.'); break;
+        case 'approval.approved': text = 'Approval granted'; setKai('thinking', 'Resuming procedure…'); break;
+        case 'approval.denied': text = 'Approval DENIED'; sev = 'critical'; setKai('alert', 'Procedure halted.'); break;
+        case 'procedure.completed': text = 'Procedure complete: ' + p.name; setKai('speaking', 'Procedure completed.'); setEnv('success'); break;
+        case 'procedure.failed': text = 'Procedure FAILED'; sev = 'critical'; setKai('alert', 'Procedure failed.'); break;
+      }
+      if (m) m.timeline.push({ time: nowClock(), actor: 'procedure', text, sev });
+      logActivity(text);
+    }
+    if (m) renderTimeline();
+  }
+
+  function syncMissionToProcedure() {
+    const p = store.procedure; const m = activeMission(); if (!p || !m) return;
+    m.status = ({ APPROVAL_REQUIRED: 'APPROVAL_REQUIRED', BLOCKED: 'BLOCKED', WAITING: 'WAITING', ACTIVE: 'ACTIVE', SUCCESS: 'SUCCESS', FAILED: 'FAILED' })[p.status] || m.status;
+    if (p.current_step_id) { const s = p.steps.find(x => x.step_id === p.current_step_id); if (s) m.current_step = s.title; }
+    if (p.status === 'APPROVAL_REQUIRED' || p.status === 'BLOCKED') setEnv('warning');
+    else if (p.status === 'FAILED') setEnv('critical');
+    else if (p.status === 'SUCCESS') setEnv('success');
+    renderMissionHead(); renderQueue();
+  }
+
+  // DEMO-only auto-driver: completes the current ACTIVE step (with DEMO evidence)
+  // and continues until an approval boundary or terminal state.
+  function advanceDemoProcedure() {
+    const p = store.procedure; if (!p || !P || !DEMO) return;
+    const cur = p.current_step_id ? p.steps.find(s => s.step_id === p.current_step_id) : null;
+    if (!cur || cur.status !== 'ACTIVE') { syncMissionToProcedure(); return; }
+    try { P.attachEvidence(p, cur.step_id, { type: 'note', label: cur.title + ' — DEMO evidence', provenance: 'DEMO' }); P.completeStep(p, cur.step_id, { now: Date.now() }); } catch (e) { /* terminal */ }
+    applyProcEvents(); syncMissionToProcedure(); renderProcedure();
+    const nxt = p.current_step_id ? p.steps.find(s => s.step_id === p.current_step_id) : null;
+    if (nxt && nxt.status === 'ACTIVE' && p.status === 'ACTIVE') setTimeout(advanceDemoProcedure, 1100);
+  }
+
+  function deployProc(mid) {
+    return P.createProcedure({ procedure_id: 'PDEP', mission_id: mid, name: 'Production Deployment', steps: [
+      { step_id: 's1', title: 'Verify branch' }, { step_id: 's2', title: 'Run test suite' }, { step_id: 's3', title: 'Verify migration head' },
+      { step_id: 's4', title: 'Verify backup' }, { step_id: 's5', title: 'Readiness check' }, { step_id: 's6', title: 'Rollback validation' },
+      { step_id: 's7', title: 'Operator approval' }, { step_id: 's8', title: 'Deploy' }, { step_id: 's9', title: 'Smoke test' },
+      { step_id: 's10', title: 'Observation', required: false },
+    ] });
+  }
+  function secProc(mid) {
+    return P.createProcedure({ procedure_id: 'PSEC', mission_id: mid, name: 'Security Remediation', steps: [
+      { step_id: 'x1', title: 'Confirm finding' }, { step_id: 'x2', title: 'Assess blast radius' }, { step_id: 'x3', title: 'Prepare remediation' },
+      { step_id: 'x4', title: 'Operator approval' }, { step_id: 'x5', title: 'Apply fix' }, { step_id: 'x6', title: 'Verify closed' },
+    ] });
+  }
+  function completeSteps(p, ids, kind) { ids.forEach(id => { P.attachEvidence(p, id, { type: kind || 'check', label: p.steps.find(s => s.step_id === id).title + ' passed', provenance: 'DEMO' }); P.completeStep(p, id, { now: Date.now() }); }); }
+
+  function renderAll() { renderSystemStack(); renderMissionHead(); renderQueue(); renderProcedure(); renderTimeline(); renderIntel(); renderActivity(); renderAlerts(); renderNav(); paintKai(); }
 
   // ── init ─────────────────────────────────────────────────────────────────
   function init() {
@@ -278,6 +482,8 @@
     // nav
     document.querySelectorAll('.nx-nav-item').forEach(b => b.addEventListener('click', () => setMode(b.dataset.mode)));
     wireCommand();
+    el('nx-ev-close') && el('nx-ev-close').addEventListener('click', closeEvidence);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') closeEvidence(); });
     // provenance banner
     const banner = el('nx-demo-banner'); if (banner) banner.hidden = !DEMO;
 

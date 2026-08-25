@@ -84,9 +84,18 @@
         <div class="nx-panel-h">Mission Timeline <span class="nx-h-accent">EVENTS</span></div>
         <div id="nx-timeline" class="nx-timeline"></div>
       </div>
-      <div class="nx-panel" style="display:flex;flex-direction:column;min-height:0;">
-        <div class="nx-panel-h">Mission Queue</div>
-        <div id="nx-queue" class="nx-queue nx-scroll" style="overflow-y:auto;min-height:0;"></div>
+      <div class="nx-canvas-right">
+        <div class="nx-panel nx-proc-wrap" id="nx-proc-panel" hidden>
+          <div class="nx-panel-h">Procedure <span class="nx-h-accent" id="nx-proc-name">—</span></div>
+          <div id="nx-approval" class="nx-approval" hidden></div>
+          <div class="nx-proc-body nx-scroll">
+            <div id="nx-proc-steps" class="nx-proc-steps"></div>
+          </div>
+        </div>
+        <div class="nx-panel nx-queue-wrap">
+          <div class="nx-panel-h">Mission Queue</div>
+          <div id="nx-queue" class="nx-queue nx-scroll"></div>
+        </div>
       </div>
     </section>
 
@@ -112,6 +121,13 @@
     </nav>
 
   </div>
+
+  <aside class="nx-evidence-drawer" id="nx-evidence" hidden>
+    <div class="nx-panel-h">Evidence <span class="nx-h-accent" id="nx-ev-step"></span><button class="nx-ev-close" id="nx-ev-close" type="button" aria-label="Close">×</button></div>
+    <div id="nx-ev-body" class="nx-ev-body nx-scroll"></div>
+  </aside>
+
+  <script src="kai-nexus-procedure.js"></script>
   <script src="kai-nexus.js"></script>
 </body>
 </html>

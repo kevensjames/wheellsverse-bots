@@ -80,6 +80,21 @@ Evidence: screenshots reviewed at 3440×1440 (mission + idle) and 390×844 (mobi
 
 **Honest gaps this session:** live data path (REAL telemetry/agents/intel) only wired as fail-soft probes — not yet exercised against a running App A (Docker down); modes SYSTEMS/AGENTS/INTEL/SECURITY/MEMORY/WORLD/FINANCE/DEV are nav-switchable but their dedicated views (Phases 4–9) are NOT_STARTED; procedure engine/approval center (Phase 3), functional-halo event wiring (Phase 10), a11y (14), perf audit (15), adversarial pass (16), and full 6-viewport sweep (17) remain. This is the Phase 0–2 foundation, not a finished product (§53).
 
+## Session 2 progress — 2026-08-25 (Phase 3: Procedure + Approval + Evidence)
+Evidence: 16 node tests pass (`test_nexus_procedure.js`); screenshots reviewed at
+3440×1440 (approval-pause + failure) and 1440×900 (approval).
+
+- **P3-1 procedure engine → VERIFIED**: `kai-nexus-procedure.js` — canonical Procedure/step models + state machine (§3A/§3C). Refuses illegal transitions (PENDING→SUCCESS, APPROVAL_REQUIRED→SUCCESS w/o approval, blocked-resume, non-retryable retry, silent required-skip). 16 tests.
+- **P3-2 approval center → IMPLEMENTED** (VERIFIED for DEMO): approval card with role/scope/risk/checks + APPROVE/DENY/DETAILS. **Governed reality (D6):** in-app the buttons DO NOT grant — they surface "requires the governed backend endpoint"; DEMO-only client transitions under `?scenario=`. Real `POST /admin/kai/approvals/{id}` is EXTERNAL_BLOCKED.
+- **P3-2b procedure visualization (§3B) → VERIFIED**: step list with glyph+color+label per state (never color-alone), current-step pulse, evidence badges.
+- **P3-2c approval pause semantics (§3F) → VERIFIED**: mission → WAITING/APPROVAL_REQUIRED, KAI → ALERT "Waiting for your approval"; no fake background continuation.
+- **P3-3 evidence drawer (§3G) → IMPLEMENTED**: click a step → slide-in drawer with provenance-tagged evidence items; default provenance DEMO (never silently REAL); no secrets.
+- **P3-8 procedure event bus (§3H) → IMPLEMENTED**: procedure.*/approval.* topics on the ONE bus → timeline + activity + kaiState + mission sync + alerts.
+- **P3-9 DEMO procedures (§3I) → IMPLEMENTED**: `?scenario=` deployment-approval / deployment-success / deployment-failure / security-remediation / incident-recovery — all DEMO-tagged.
+- **P3-10 tests (§3J) → VERIFIED**: creation, ordering, required-enforcement, invalid transitions, approval pause, approve/deny/expire, retry, blocked/resume, evidence, provenance, event ordering.
+
+**Phase 3 honest gaps:** real approvals need the governed App B endpoint (blocked, no live backend); the procedure engine currently drives DEMO fixtures only — wiring it to REAL governed-mission events (when a live mission emits procedure steps) is a later integration; procedure-panel header wraps a bit at ≤1440 (cosmetic).
+
 ## External blockers (§54)
 - Live telemetry / real inference: App A + DB + providers must run (Docker daemon currently DOWN).
 - Live news/intelligence source: no confirmed real feed API yet (P6 → DEMO-labeled until sourced).

@@ -98,3 +98,34 @@ existing governed stream (`/admin/kai/kai-chat/stream`, owner-only kai.ultra via
 the RBAC-hardened bridge) and read-only status endpoints. Client role/scope is
 display-only; every action re-checks server-side scope + governance + approval.
 No secrets in the DOM. UI work never justifies a security regression.
+
+---
+
+## D6 — Approval governance: UI approval is NOT authorization (§3E) — 2026-08-25
+
+**Options:** (A) client-side approval grants the action; (B) client records/
+requests only, backend authoritative.
+
+**DECISION: B.** `kai-nexus-procedure.js` `approve()` only *records* a decision
+and unlocks the step in the local machine — it never grants a real action. In
+production (`IN_APP && !DEMO`) the approve/deny buttons DO NOT transition state;
+they surface "requires the governed backend endpoint" because no governed
+approval endpoint is wired yet (honest, not faked). The DEMO path performs the
+client transition only under `?scenario=` with a visible "DEMO — backend is
+authoritative" note. Rationale: §3E/§42 — the backend (session role + scope +
+kai.ultra + money/destructive gates + audit) is the sole authority; the UI must
+never become a privilege-escalation path. **Open (EXTERNAL_BLOCKED):** a governed
+`POST /admin/kai/approvals/{id}` endpoint on App B is required before real
+approvals; until then approvals are DEMO-only.
+
+## D7 — Procedure state machine: refuse illegal transitions (§3C) — 2026-08-25
+
+**DECISION:** a pure, unit-tested state machine (`kai-nexus-procedure.js`, 16
+node tests) is the single source of execution truth. It structurally forbids
+`PENDING→SUCCESS` (no un-executed success), `APPROVAL_REQUIRED→SUCCESS` without
+an `APPROVED` record, resuming a `BLOCKED` step before the blocker resolves,
+retrying a non-retryable `FAILED` step, and silently skipping a `required` step
+(skip needs `required:false` + a reason). The UI cannot fake progress because
+every visual state derives from this machine. Chosen over an ad-hoc UI-driven
+flow because mission-control execution semantics must be enforced, not merely
+drawn.

@@ -278,6 +278,65 @@ body.nx-body {
 .nx-shell[data-env="success"]  { box-shadow: inset 0 0 0 2px rgba(53,224,161,.3); }
 .nx-shell { border-radius: var(--nx-radius); transition: box-shadow .6s ease; }
 
+/* ── Phase 3 — procedure engine + approval + evidence ───────────────────────*/
+.nx-canvas-right { display: flex; flex-direction: column; gap: var(--nx-gap); min-height: 0; }
+.nx-proc-wrap, .nx-queue-wrap { display: flex; flex-direction: column; min-height: 0; }
+.nx-proc-wrap { flex: 2; } .nx-queue-wrap { flex: 0.8; }
+.nx-proc-wrap[hidden] { display: none; }
+.nx-proc-body { flex: 1; min-height: 0; overflow-y: auto; }   /* steps scroll; approval is a fixed banner above */
+.nx-proc-steps { padding: 2px 0; }
+
+.nx-proc-step { display: grid; grid-template-columns: 26px 16px 1fr auto; gap: 10px; align-items: center; padding: 6px clamp(12px,1vw,16px); border-bottom: 1px solid var(--nx-border); cursor: pointer; }
+.nx-proc-step:last-child { border-bottom: none; }
+.nx-proc-step:hover { background: rgba(47,107,255,.07); }
+.nx-ps-seq { font-size: 11px; color: var(--nx-text-faint); font-variant-numeric: tabular-nums; }
+.nx-ps-glyph { font-size: 13px; text-align: center; }
+.nx-ps-title { font-size: clamp(12px, 0.92vw, 14px); }
+.nx-ps-title .nx-ps-desc { display: block; font-size: 11px; color: var(--nx-text-faint); }
+.nx-ps-state { font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; }
+.nx-ps-ev { font-size: 10px; color: var(--nx-cyan); }
+/* per-state (glyph + color + label — never color alone) */
+.nx-proc-step[data-s="SUCCESS"] .nx-ps-glyph { color: var(--nx-nominal); }
+.nx-proc-step[data-s="SUCCESS"] .nx-ps-state { color: var(--nx-nominal); }
+.nx-proc-step[data-s="ACTIVE"] { background: rgba(0,212,255,.06); }
+.nx-proc-step[data-s="ACTIVE"] .nx-ps-glyph { color: var(--nx-cyan); animation: nx-pulse 1.3s infinite; }
+.nx-proc-step[data-s="ACTIVE"] .nx-ps-state { color: var(--nx-cyan); }
+.nx-proc-step[data-s="PENDING"] { opacity: .6; }
+.nx-proc-step[data-s="PENDING"] .nx-ps-glyph, .nx-proc-step[data-s="PENDING"] .nx-ps-state { color: var(--nx-text-faint); }
+.nx-proc-step[data-s="BLOCKED"] .nx-ps-glyph, .nx-proc-step[data-s="BLOCKED"] .nx-ps-state { color: var(--nx-warning); }
+.nx-proc-step[data-s="APPROVAL_REQUIRED"] .nx-ps-glyph, .nx-proc-step[data-s="APPROVAL_REQUIRED"] .nx-ps-state { color: var(--nx-caution); }
+.nx-proc-step[data-s="FAILED"] .nx-ps-glyph, .nx-proc-step[data-s="FAILED"] .nx-ps-state { color: var(--nx-critical); }
+.nx-proc-step[data-s="SKIPPED_WITH_REASON"] .nx-ps-glyph, .nx-proc-step[data-s="SKIPPED_WITH_REASON"] .nx-ps-state { color: var(--nx-text-dim); }
+
+/* approval center card (§3D) — amber, explicit control */
+.nx-approval { margin: 10px; padding: 12px; border-radius: 12px; border: 1px solid var(--nx-caution); background: rgba(255,207,92,.08); overflow: hidden; }
+.nx-approval[hidden] { display: none; }
+.nx-ap-head { font-size: 10px; letter-spacing: 1.6px; text-transform: uppercase; color: var(--nx-caution); font-weight: 700; }
+.nx-ap-action { font-size: clamp(13px,1vw,15px); font-weight: 700; margin: 3px 0 6px; }
+.nx-ap-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font-size: 11.5px; margin-bottom: 6px; }
+.nx-ap-grid .k { color: var(--nx-text-faint); text-transform: uppercase; letter-spacing: .5px; font-size: 10px; }
+.nx-ap-checks { font-size: 10px; color: var(--nx-nominal); margin-bottom: 8px; }
+.nx-ap-risk.MEDIUM { color: var(--nx-caution); } .nx-ap-risk.HIGH { color: var(--nx-warning); } .nx-ap-risk.CRITICAL { color: var(--nx-critical); } .nx-ap-risk.LOW { color: var(--nx-nominal); }
+.nx-ap-actions { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.nx-ap-btn { min-width: 0; padding: 9px 10px; border-radius: 9px; font: inherit; font-size: 12px; font-weight: 700; letter-spacing: .5px; cursor: pointer; border: 1px solid; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nx-ap-btn.approve { color: #06231a; background: var(--nx-nominal); border-color: var(--nx-nominal); }
+.nx-ap-btn.deny { color: var(--nx-critical); background: rgba(255,81,99,.1); border-color: var(--nx-critical); }
+.nx-ap-btn.details { color: var(--nx-text-dim); background: transparent; border-color: var(--nx-border-strong); flex: 0 0 auto; }
+.nx-ap-note { font-size: 9px; color: var(--nx-text-faint); margin-top: 6px; line-height: 1.3; }
+
+/* evidence drawer (§3G) — slide-in right */
+.nx-evidence-drawer { position: fixed; top: 0; right: -460px; width: 440px; max-width: 94vw; height: 100vh; z-index: 2147483400;
+  background: var(--nx-bg-1); border-left: 1px solid var(--nx-border-strong); box-shadow: -22px 0 60px rgba(0,0,0,.55);
+  transition: right .26s cubic-bezier(.4,0,.2,1); display: flex; flex-direction: column; }
+.nx-evidence-drawer.open { right: 0; }
+.nx-evidence-drawer[hidden] { display: none; }
+.nx-ev-close { margin-left: auto; background: none; border: none; color: var(--nx-text-dim); font-size: 20px; cursor: pointer; }
+.nx-ev-body { overflow-y: auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
+.nx-ev-item { border: 1px solid var(--nx-border); border-radius: 10px; padding: 10px 12px; background: var(--nx-panel); }
+.nx-ev-type { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--nx-cyan); }
+.nx-ev-label { font-size: 13px; margin: 3px 0; word-break: break-word; }
+.nx-ev-empty { color: var(--nx-text-faint); font-size: 12px; }
+
 /* ── responsive breakpoints (§36/§37) ───────────────────────────────────────*/
 /* ULTRAWIDE >=2560: substantial rails, bounded hero already via rail widths */
 @media (min-width: 2560px) {
