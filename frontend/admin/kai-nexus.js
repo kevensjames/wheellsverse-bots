@@ -1387,10 +1387,13 @@
     // match what's shown — not raw store.memEdges which may include far-endpoint-missing triples.
     const g0 = MEM.buildEgoGraph(store.memNodes, store.memEdges);
     const sum = MEM.summarize(g0.nodes, g0.edges, store.memStatsCapped);
-    // KG total comes from /stats (capped → "500+"); drawn count is the ego sample.
-    const kgTotal = store.memStatsCount != null ? (sum.capped ? '500+' : String(store.memStatsCount)) : (sum.capped ? '500+' : String(sum.entityCount));
-    const drawnDiffers = store.memStatsCount != null && !sum.capped && store.memStatsCount !== sum.entityCount;
-    const cnt = el('nx-mem-count'); if (cnt) cnt.textContent = kgTotal + ' entities' + (drawnDiffers || sum.capped ? ' · ' + sum.entityCount + ' shown' : '') + ' · ' + sum.edgeCount + ' edges';
+    // KG total comes from /stats ONLY on a REAL connection (capped → "500+"). For DEMO or a
+    // failed/empty fetch, use the drawn count — never advertise a /stats total over an
+    // unavailable/demo pane (that would contradict the empty graph).
+    const useStats = store.memProvenance === 'REAL' && store.memStatsCount != null;
+    const kgTotal = useStats ? (sum.capped ? '500+' : String(store.memStatsCount)) : String(sum.entityCount);
+    const showShown = useStats && (sum.capped || store.memStatsCount !== sum.entityCount);
+    const cnt = el('nx-mem-count'); if (cnt) cnt.textContent = kgTotal + ' entities' + (showShown ? ' · ' + sum.entityCount + ' shown' : '') + ' · ' + sum.edgeCount + ' edges';
     const sEl = el('nx-mem-summary');
     if (sEl) {
       sEl.replaceChildren();
@@ -1501,7 +1504,7 @@
   // §Live: the KG is App-B, reachable only via the governed bridge (default OFF) → EXTERNAL_BLOCKED.
   async function bootMemoryLive() {
     if (!MEM) return;
-    store.memProvenance = 'UNAVAILABLE'; store.memNote = 'probing bridge';
+    store.memProvenance = 'UNAVAILABLE'; store.memNote = 'probing bridge'; store.memStatsCount = null; store.memStatsCapped = false;   // fresh each boot — no stale /stats
     let bridgeOn = false;
     try { const r = await fetch('/admin/kai-bridge/health', { credentials: 'include' }); if (r.ok) { const b = await r.json(); bridgeOn = !!b.enabled && !!b.upstream_configured; } } catch (e) {}
     if (!bridgeOn) { store.memNote = 'bridge off — KG EXTERNAL_BLOCKED'; renderMemory(); return; }   // always repaint so a later tab-open reflects it
@@ -1528,7 +1531,7 @@
   // ── DEMO memory fixtures — a realistic hand-taught WheellsVerse KG (DEMO-tagged) ──
   function demoEntity(label, type) { return MEM.normalizeEntity({ label, type }, { provenance: 'DEMO' }); }
   function demoEdge(src, relation, dst) { return MEM.normalizeEdge({ src, relation, dst }, { provenance: 'DEMO' }); }
-  function _memScene(env, kai, sub, seed) { setMode('memory'); setEnv(env); setKai(kai, sub); store.systems = []; store.missions = []; store.activeId = null; store.signals = []; store.alerts = []; store.memFilter = 'ALL'; store.memRelFilter = null; store.memSearch = ''; store.memSeed = seed || null; store.memSelectedId = seed || null; }
+  function _memScene(env, kai, sub, seed) { setMode('memory'); setEnv(env); setKai(kai, sub); store.systems = []; store.missions = []; store.activeId = null; store.signals = []; store.alerts = []; store.memFilter = 'ALL'; store.memRelFilter = null; store.memSearch = ''; store.memSeed = seed || null; store.memSelectedId = seed || null; store.memStatsCount = null; store.memStatsCapped = false; /* clear any real-boot /stats bleed */ }
   function demoKgFull() {
     const nodes = [
       demoEntity('KAI', 'service'), demoEntity('Jhon', 'person'), demoEntity('WheellsVerse', 'company'),
