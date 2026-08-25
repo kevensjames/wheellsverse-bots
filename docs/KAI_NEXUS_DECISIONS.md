@@ -150,3 +150,26 @@ via the governed SSE bus (push), so we do not poll for it. **Recommended upgrade
 response with per-subsystem status + the metrics currently UNAVAILABLE) → the
 client polls once and many UNAVAILABLE metrics become REAL. Until then, deep
 metrics stay honestly UNAVAILABLE (D3/§4F).
+
+## D9 — Agent registry source (§5B/§5AD) — 2026-08-25
+
+**Evidence (docs/KAI_AGENT_SOURCES.md):** no unified agent-registry endpoint
+exists; the real "agent catalog" is App B `GET /admin/presets` (11 REAL_AGENT
+presets, no runtime state), and live state is scattered across ~8 status
+endpoints in two apps behind two auth models (App B `kai.ultra` vs App A
+operator_session).
+
+**Options:** (A) frontend-only registry (hard-code agent truth in kai-nexus.js);
+(B) frontend adapter fanning out to all 8 status endpoints; (C) one canonical
+backend aggregator (`GET /admin/agents`) that normalizes catalog + live state.
+
+**DECISION: C is correct — RECORDED but EXTERNAL_BLOCKED; interim = minimal B.**
+A is rejected outright (§5B — do not hard-code duplicate agent truth). C is the
+right architecture (normalize once, keyed by the REAL_AGENT/WORKER/SERVICE/TOOL
+taxonomy that exists nowhere in the code today) but needs a new App B endpoint +
+the running stack (Docker down). **Interim:** a thin frontend adapter loads the
+ONE real catalog endpoint (`/admin/presets`) for identities (provenance REAL),
+marks runtime status/health/cost **UNAVAILABLE**, and reconciles duplicates in
+`kai-nexus-agents.js`. The registry model is source-agnostic, so wiring the
+aggregator later is a drop-in. **We never claim REAL agent activity until a real
+event/endpoint is exercised (§5AC).**

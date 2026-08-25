@@ -17,6 +17,9 @@
   const HOST = (typeof window !== 'undefined' && window.KAI) ? window.KAI : null;
   const P = (typeof window !== 'undefined' && window.NexusProcedure) || null;   // procedure state machine
   const SYS = (typeof window !== 'undefined' && window.NexusSystems) || null;    // systems/topology model
+  const AG = (typeof window !== 'undefined' && window.NexusAgents) || null;       // agent registry model
+  const REDUCE_MOTION = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const NS = 'http://www.w3.org/2000/svg';
   const IN_APP = !!HOST && location.protocol.startsWith('http');
   const params = new URLSearchParams(location.search);
   const SCENARIO = params.get('scenario');           // idle|latency|research|security|approval
@@ -40,6 +43,7 @@
     missions: [], activeId: null,
     systems: [], signals: [], activity: [], alerts: [], procedure: null,
     systemNodes: [], activeEdges: [],
+    agents: (AG ? AG.createRegistry() : null), agentFilter: 'ALL', selectedAgentId: null, _agpos: {},
   };
   const el = (id) => document.getElementById(id);
   const prov = (kind) => { const s = document.createElement('span'); s.className = 'nx-prov ' + kind; s.textContent = kind; return s; };
@@ -337,6 +341,58 @@
       store.activeEdges = ['cloudflare>appA', 'appB>postgres', 'appB>redis']; store.signals = demoSignals();
       store.alerts = SYS ? SYS.alertsFromSystems(store.systemNodes) : []; renderAll();
     },
+    'agents-idle'() {
+      setMode('agents'); setEnv('idle'); setKai('online', 'Workforce standing by.');
+      seedDemoAgents(); store.selectedAgentId = 'research'; store.missions = []; store.activeId = null; store.systems = []; store.signals = demoSignals(); store.alerts = []; renderAll();
+    },
+    'agents-multi'() {
+      setMode('agents'); setEnv('idle'); setKai('online', 'Coordinating the workforce.');
+      seedDemoAgents(); const now = Date.now();
+      store.missions = [mission({ id: 'M00291', title: 'API Latency Investigation', type: 'infrastructure', status: 'ACTIVE', priority: 'HIGH', started_at: now - 95000, agents: ['Research', 'SWE'], tools: ['Browser', 'GitHub'] })]; store.activeId = 'M00291';
+      store.agents.applyEvent({ topic: 'agent.started', ts: now - 95000, payload: { agent_id: 'research', mission_id: 'M00291', task: 'Check recent Railway deploys', delegated_by: 'KAI' } });
+      store.agents.applyEvent({ topic: 'agent.tool.started', ts: now - 90000, payload: { agent_id: 'research', tool: 'browser_tool' } });
+      store.agents.applyEvent({ topic: 'agent.started', ts: now - 60000, payload: { agent_id: 'swe', mission_id: 'M00291', task: 'Diff connection-pool config', delegated_by: 'KAI' } });
+      store.agents.applyEvent({ topic: 'agent.waiting', ts: now - 20000, payload: { agent_id: 'finance' } });
+      store.selectedAgentId = 'research'; store.systems = []; store.signals = demoSignals(); store.alerts = []; renderAll();
+    },
+    'agent-blocked'() {
+      setMode('agents'); setEnv('warning'); setKai('alert', 'An agent is blocked.');
+      seedDemoAgents(); const now = Date.now();
+      store.agents.applyEvent({ topic: 'agent.started', ts: now - 40000, payload: { agent_id: 'research', mission_id: 'M00291', task: 'Retrieve deploy logs', delegated_by: 'KAI' } });
+      store.agents.applyEvent({ topic: 'agent.blocked', ts: now - 8000, payload: { agent_id: 'research', reason: 'WAITING_FOR_PROVIDER' } });
+      store.missions = [mission({ id: 'M00291', title: 'API Latency Investigation', status: 'ACTIVE', priority: 'HIGH', started_at: now - 40000, agents: ['Research'] })]; store.activeId = 'M00291';
+      store.selectedAgentId = 'research'; store.alerts = [{ sev: 'warning', title: 'Research agent blocked', detail: 'WAITING_FOR_PROVIDER' }]; store.systems = []; store.signals = demoSignals(); renderAll();
+    },
+    'agent-failure'() {
+      setMode('agents'); setEnv('critical'); setKai('alert', 'An agent failed.');
+      seedDemoAgents(); const now = Date.now();
+      store.agents.applyEvent({ topic: 'agent.started', ts: now - 30000, payload: { agent_id: 'swe', mission_id: 'M00291', task: 'Apply pool-config patch', delegated_by: 'KAI' } });
+      store.agents.applyEvent({ topic: 'agent.failed', ts: now - 4000, payload: { agent_id: 'swe', error: 'patch failed: merge conflict' } });
+      store.missions = [mission({ id: 'M00291', title: 'API Latency Investigation', status: 'ACTIVE', priority: 'HIGH', started_at: now - 30000, agents: ['SWE'] })]; store.activeId = 'M00291';
+      store.selectedAgentId = 'swe'; store.alerts = [{ sev: 'critical', title: 'SWE agent failed', detail: 'patch failed: merge conflict' }]; store.systems = []; store.signals = demoSignals(); renderAll();
+    },
+    'agent-approval'() {
+      setMode('agents'); setEnv('warning'); setKai('online', 'SuperAgent requests approval.');
+      seedDemoAgents(); const now = Date.now();
+      store.agents.applyEvent({ topic: 'agent.started', ts: now - 25000, payload: { agent_id: 'superagent', mission_id: 'M00301', task: 'Deploy new revenue bot', delegated_by: 'KAI' } });
+      const sa = store.agents.get('superagent'); if (sa) { sa.status = 'APPROVAL_REQUIRED'; sa.blocking_reason = 'WAITING_FOR_APPROVAL'; }
+      store.missions = [mission({ id: 'M00301', title: 'Deploy Revenue Bot', type: 'deployment', status: 'APPROVAL_REQUIRED', priority: 'HIGH', started_at: now - 25000, agents: ['SuperAgent'] })]; store.activeId = 'M00301';
+      store.selectedAgentId = 'superagent'; store.alerts = [{ sev: 'caution', title: 'Approval required', detail: 'SuperAgent → deploy revenue bot' }]; store.systems = []; store.signals = demoSignals(); renderAll();
+    },
+    'agent-delegation'() {
+      setMode('agents'); setEnv('idle'); setKai('thinking', 'Delegating investigation…');
+      seedDemoAgents(); store.missions = [mission({ id: 'M00291', title: 'API Latency Investigation', status: 'ACTIVE', priority: 'HIGH', started_at: Date.now(), agents: [] })]; store.activeId = 'M00291';
+      store.selectedAgentId = 'research'; store.systems = []; store.signals = demoSignals(); store.alerts = []; renderAll();
+      setTimeout(() => prepareDelegation('research'), 900);
+    },
+    'agent-stale'() {
+      setMode('agents'); setEnv('warning'); setKai('alert', 'An agent may be unresponsive.');
+      seedDemoAgents(); const now = Date.now();
+      store.agents.applyEvent({ topic: 'agent.started', ts: now - 200000, payload: { agent_id: 'research', mission_id: 'M00291', task: 'Long-running crawl', delegated_by: 'KAI' } });
+      store.agents.detectStale(now, 120000);
+      store.missions = [mission({ id: 'M00291', title: 'API Latency Investigation', status: 'ACTIVE', priority: 'HIGH', started_at: now - 200000, agents: ['Research'] })]; store.activeId = 'M00291';
+      store.selectedAgentId = 'research'; store.alerts = [{ sev: 'warning', title: 'Research agent stale', detail: 'no heartbeat > 2m' }]; store.systems = []; store.signals = demoSignals(); renderAll();
+    },
   };
   const tl = (rows) => rows.map(([time, actor, text, sev]) => ({ time, actor, text, sev: sev || 'info' }));
   function demoSystems(overrides = {}) {
@@ -613,7 +669,189 @@
     schedulePoll(SYS.backoffMs(20000, _pollFails, 120000));
   }
 
-  function renderAll() { renderSystemStack(); renderMissionHead(); renderQueue(); renderProcedure(); renderTimeline(); renderIntel(); renderActivity(); renderAlerts(); renderSystems(); renderNav(); paintKai(); }
+  // ── Phase 5 — agent command center ──────────────────────────────────────────
+  const AGENT_DOMAIN = { swe: 'infrastructure', engineering: 'infrastructure', research: 'intelligence', medical_research: 'intelligence', dental_research: 'intelligence', legal_research: 'intelligence', marketing: 'business', crm: 'business', finance: 'business', accounting: 'business', self_improvement: 'operations', superagent: 'operations', planning: 'operations', twin: 'intelligence' };
+  const _agents = () => (store.agents ? store.agents.operational() : []);
+  function _agentFilterPred(a) {
+    switch (store.agentFilter) {
+      case 'ACTIVE': return a.status === 'ACTIVE';
+      case 'BLOCKED': return ['BLOCKED', 'WAITING', 'APPROVAL_REQUIRED'].includes(a.status);
+      case 'MISSION': return !!a.current_mission_id;
+      case 'SYSTEM': return a.type === 'worker' || a.domain === 'infrastructure';
+      default: return true;
+    }
+  }
+  function selectAgent(id) { store.selectedAgentId = id; renderAgents(); }
+
+  function renderAgents() {
+    if (!AG || !store.agents) return;
+    const agents = _agents(); const sum = store.agents.summarize();
+    const sEl = el('nx-ag-summary');
+    if (sEl) {
+      sEl.replaceChildren();
+      for (const [k, v, cls] of [['TOTAL', sum.TOTAL, ''], ['ACTIVE', sum.ACTIVE, 'active'], ['WAITING', sum.WAITING, ''], ['BLOCKED', sum.BLOCKED, 'blocked'], ['FAILED', sum.FAILED, 'failed'], ['OFFLINE', sum.OFFLINE, 'offline']]) {
+        const c = document.createElement('div'); c.className = 'nx-ag-sum-cell'; const kk = document.createElement('div'); kk.className = 'nx-ag-sum-k'; kk.textContent = k; const vv = document.createElement('div'); vv.className = 'nx-ag-sum-v ' + cls; vv.textContent = v; c.append(kk, vv); sEl.append(c);
+      }
+    }
+    const cnt = el('nx-ag-count'); if (cnt) cnt.textContent = sum.TOTAL + (sum.SUGGESTED ? ' · ' + sum.SUGGESTED + ' suggested' : '');
+    const fEl = el('nx-ag-filters');
+    if (fEl && !fEl.childElementCount) { for (const f of ['ALL', 'ACTIVE', 'BLOCKED', 'MISSION', 'SYSTEM']) { const b = document.createElement('button'); b.className = 'nx-ag-filter'; b.dataset.f = f; b.textContent = f; b.addEventListener('click', () => { store.agentFilter = f; renderAgents(); }); fEl.append(b); } }
+    if (fEl) fEl.querySelectorAll('.nx-ag-filter').forEach(b => b.classList.toggle('active', b.dataset.f === store.agentFilter));
+    renderAgentList(agents.filter(_agentFilterPred));
+    renderAgentConstellation(agents);
+    renderAgentInspector();
+  }
+
+  function renderAgentList(agents) {
+    const box = el('nx-ag-list'); if (!box) return; box.replaceChildren();
+    if (!agents.length) { const e = document.createElement('div'); e.className = 'nx-ag-insp-empty'; e.textContent = (store.agents && store.agents.all().length) ? 'No agents match this filter.' : (IN_APP ? 'No agent runtime state (needs the agent aggregator, D9).' : 'No agents loaded.'); box.append(e); return; }
+    for (const a of agents) {
+      const card = document.createElement('div'); card.className = 'nx-ag-card ' + (a.agent_id === store.selectedAgentId ? 'sel ' : '') + (a.suggested ? 'suggested' : ''); card.tabIndex = 0; card.setAttribute('role', 'button'); card.setAttribute('aria-label', a.name + ', ' + a.status + (a.health === 'STALE' ? ', stale' : ''));
+      const top = document.createElement('div'); top.className = 'nx-ag-card-top';
+      const name = document.createElement('div'); name.className = 'nx-ag-card-name';
+      const dot = document.createElement('span'); dot.className = 'nx-dot ' + a.status.toLowerCase();
+      const n = document.createElement('span'); n.className = 'n'; n.textContent = a.name; name.append(dot, n);
+      if (a.suggested) { const b = document.createElement('span'); b.className = 'nx-ag-badge suggested'; b.textContent = 'SUGGESTED'; name.append(b); }
+      const st = document.createElement('span'); st.className = 'nx-ag-st ' + a.status.toLowerCase(); st.textContent = a.status;
+      top.append(name, st); card.append(top);
+      const sub = document.createElement('div'); sub.className = 'nx-ag-card-sub';
+      const mission = document.createElement('span'); mission.className = 'mission'; mission.textContent = a.current_task || (a.current_mission_id ? 'mission ' + a.current_mission_id : (a.capabilities[0] || a.domain));
+      const right = document.createElement('span');
+      if (a.health === 'STALE') { right.className = 'nx-ag-health stale'; right.textContent = 'STALE ' + (a.stale_for ? Math.round(a.stale_for / 1000) + 's' : ''); } else { right.append(prov((a.provenance || 'unknown').toLowerCase())); }
+      sub.append(mission, right); card.append(sub);
+      const sel = () => selectAgent(a.agent_id);
+      card.addEventListener('click', sel); card.addEventListener('keydown', e => { if (e.key === 'Enter') sel(); });
+      box.append(card);
+    }
+  }
+
+  function renderAgentConstellation(agents) {
+    const box = el('nx-ag-constellation'); if (!box) return;
+    const note = el('nx-ag-note'); if (note) note.textContent = agents.length ? (agents[0].provenance || '') : '';
+    const pos = { KAI: { x: 50, y: 50 } };
+    const byDomain = {}; agents.forEach(a => { (byDomain[a.domain || 'operations'] = byDomain[a.domain || 'operations'] || []).push(a); });
+    const domains = Object.keys(byDomain); const nD = domains.length || 1;
+    domains.forEach((d, di) => {
+      const base = (di / nD) * Math.PI * 2 - Math.PI / 2; const list = byDomain[d]; const rr = 37;
+      list.forEach((a, i) => {
+        const spread = Math.min(1.0, 0.3 * list.length);
+        const ang = base + (list.length > 1 ? (i - (list.length - 1) / 2) * (spread / (list.length - 1 || 1)) : 0);
+        pos[a.agent_id] = { x: 50 + Math.cos(ang) * rr, y: 50 + Math.sin(ang) * rr * 0.8 };
+      });
+    });
+    store._agpos = pos;
+    const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', '0 0 100 100'); svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+    const defs = document.createElementNS(NS, 'defs');
+    const grad = document.createElementNS(NS, 'radialGradient'); grad.setAttribute('id', 'nx-kaigrad');
+    const s1 = document.createElementNS(NS, 'stop'); s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', '#9fe6ff');
+    const s2 = document.createElementNS(NS, 'stop'); s2.setAttribute('offset', '100%'); s2.setAttribute('stop-color', '#2f6bff');
+    grad.append(s1, s2); defs.append(grad); svg.append(defs);
+    for (const a of agents) { const p = pos[a.agent_id]; const line = document.createElementNS(NS, 'line'); line.setAttribute('x1', 50); line.setAttribute('y1', 50); line.setAttribute('x2', p.x); line.setAttribute('y2', p.y); line.setAttribute('class', 'edge' + (a.status === 'ACTIVE' ? ' busy' : '')); svg.append(line); }
+    const drawNode = (id, name, cls, r) => {
+      const p = pos[id]; if (!p) return; const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'node ' + cls + (id === store.selectedAgentId ? ' sel' : ''));
+      const ring = document.createElementNS(NS, 'circle'); ring.setAttribute('class', 'ring'); ring.setAttribute('cx', p.x); ring.setAttribute('cy', p.y); ring.setAttribute('r', r + 1.3); g.append(ring);
+      const core = document.createElementNS(NS, 'circle'); core.setAttribute('class', 'core'); core.setAttribute('cx', p.x); core.setAttribute('cy', p.y); core.setAttribute('r', r); g.append(core);
+      const t = document.createElementNS(NS, 'text'); t.setAttribute('class', 'lbl'); t.setAttribute('x', p.x); t.setAttribute('y', p.y + r + 3); t.setAttribute('font-size', '2.7'); t.textContent = name; g.append(t);
+      if (id !== 'KAI') g.addEventListener('click', () => selectAgent(id));
+      svg.append(g);
+    };
+    for (const a of agents) drawNode(a.agent_id, a.name.length > 12 ? a.name.slice(0, 11) + '…' : a.name, (a.suggested ? 'suggested ' : '') + a.status.toLowerCase(), 2.4);
+    drawNode('KAI', 'KAI', 'kai active', 4.2);
+    box.replaceChildren(svg);
+  }
+
+  function renderAgentInspector() {
+    const box = el('nx-ag-inspector'); if (!box) return; box.replaceChildren();
+    const a = (store.selectedAgentId && store.agents) ? store.agents.get(store.selectedAgentId) : null;
+    if (!a) { const e = document.createElement('div'); e.className = 'nx-ag-insp-empty'; e.textContent = 'Select an agent to inspect.'; box.append(e); return; }
+    const head = document.createElement('div'); head.className = 'nx-ag-insp-head';
+    const nm = document.createElement('div'); nm.className = 'nx-ag-insp-name'; nm.textContent = a.name;
+    const st = document.createElement('span'); st.className = 'nx-ag-st ' + a.status.toLowerCase(); st.textContent = a.status; head.append(nm, st); box.append(head);
+    const grid = document.createElement('div'); grid.className = 'nx-ag-insp-grid';
+    const kv = (k, v) => { const kk = document.createElement('span'); kk.className = 'k'; kk.textContent = k; const vv = document.createElement('span'); vv.className = 'v'; vv.textContent = v; grid.append(kk, vv); };
+    kv('Type', a.type); kv('Health', a.health + (a.health === 'STALE' && a.stale_for ? (' · last seen ' + Math.round(a.stale_for / 1000) + 's ago') : ''));
+    if (a.current_mission_id) kv('Mission', a.current_mission_id);
+    if (a.current_task) kv('Task', a.current_task);
+    if (a.delegated_by) kv('Delegated by', a.delegated_by);
+    if (a.started_at) kv('Elapsed', fmtElapsed(a.started_at));
+    kv('Tools', a.tools.length ? a.tools.join(', ') : '—');
+    kv('Model', a.model || 'UNAVAILABLE'); kv('Provider', a.provider || 'UNAVAILABLE');
+    kv('Cost', a.cost != null ? '$' + Number(a.cost).toFixed(4) : 'UNAVAILABLE');
+    if (a.blocking_reason) kv('Blocked', a.blocking_reason);
+    if (a.last_result) kv('Last result', String(a.last_result).slice(0, 140));
+    box.append(grid);
+    const pvw = document.createElement('div'); pvw.style.marginBottom = '10px'; pvw.append(prov((a.provenance || 'unknown').toLowerCase())); box.append(pvw);
+    const acts = document.createElement('div'); acts.className = 'nx-ag-insp-actions';
+    const mk = (label, fn) => { const b = document.createElement('button'); b.className = 'nx-btn'; b.style.fontSize = '12px'; b.textContent = label; b.addEventListener('click', fn); return b; };
+    acts.append(mk('Ask KAI about ' + a.name, () => { const input = el('nx-cmd-input'); if (input) { input.value = 'What is the ' + a.name + ' agent doing, and can it help with the current mission?'; el('nx-cmd-send').click(); } }));
+    if (a.current_mission_id) acts.append(mk('Open mission', () => { store.activeId = a.current_mission_id; setMode('mission'); renderAll(); }));
+    acts.append(mk('Delegate task', () => prepareDelegation(a.agent_id)));
+    box.append(acts);
+    const tlh = document.createElement('div'); tlh.className = 'nx-ag-tl-h'; tlh.textContent = 'Activity (observable events only)'; box.append(tlh);
+    const evs = a.activity.slice(-24);
+    if (!evs.length) { const e = document.createElement('div'); e.className = 'nx-ag-insp-empty'; e.textContent = 'No recorded activity.'; box.append(e); }
+    for (const ev of evs) { const row = document.createElement('div'); row.className = 'nx-ag-tl-row'; const t = document.createElement('span'); t.className = 't'; t.textContent = ev.ts ? new Date(ev.ts).toISOString().slice(11, 19) : ''; const e = document.createElement('span'); e.textContent = ev.event + (ev.tool ? ' · ' + ev.tool : ''); row.append(t, e); box.append(row); }
+  }
+
+  // §5G — event-triggered delegation packet (one short pulse; never a loop).
+  function delegationPacket(fromId, toId) {
+    if (REDUCE_MOTION || store.mode !== 'agents') return;
+    const box = el('nx-ag-constellation'); const svg = box && box.querySelector('svg'); if (!svg) return;
+    const a = store._agpos[fromId], b = store._agpos[toId]; if (!a || !b) return;
+    const c = document.createElementNS(NS, 'circle'); c.setAttribute('r', '1.4'); c.setAttribute('class', 'packet'); c.setAttribute('cx', a.x); c.setAttribute('cy', a.y); svg.append(c);
+    const t0 = performance.now(), dur = 650;
+    const step = (now) => { const k = Math.min(1, (now - t0) / dur); c.setAttribute('cx', a.x + (b.x - a.x) * k); c.setAttribute('cy', a.y + (b.y - a.y) * k); if (k < 1) requestAnimationFrame(step); else c.remove(); };
+    requestAnimationFrame(step);
+  }
+
+  // §5U — apply a canonical agent event through the ONE registry + drive the UI.
+  function applyAgentEvent(ev) {
+    if (!store.agents) return; const a = store.agents.applyEvent(ev); if (!a) return;
+    if (ev.topic === 'agent.started' || ev.topic === 'task.assigned') delegationPacket(a.delegated_by || 'KAI', a.agent_id);
+    else if (ev.topic === 'agent.result.returned' || ev.topic === 'agent.completed') delegationPacket(a.agent_id, 'KAI');
+    const m = activeMission(); if (m) { m.timeline.push({ time: nowClock(), actor: 'agent:' + a.agent_id, text: ev.topic.replace('agent.', '').replace('task.', 'task ') + ' — ' + a.name, sev: ev.topic.includes('failed') ? 'critical' : ev.topic.includes('blocked') ? 'warning' : 'info' }); renderTimeline(); }
+    logActivity(a.name + ': ' + ev.topic);
+    if (store.mode === 'agents') renderAgents();
+  }
+
+  // §5S — prepare a delegation. Real invocation is governed backend-side; if no
+  // governed invoke endpoint is wired, surface DELEGATION UNAVAILABLE (never fake).
+  function prepareDelegation(agentId) {
+    const a = store.agents && store.agents.get(agentId); if (!a) return;
+    if (IN_APP && !DEMO) { logActivity('DELEGATION UNAVAILABLE — needs the governed agent-invocation endpoint (D9).'); setKai('alert', 'Delegation needs the governed backend.'); return; }
+    applyAgentEvent({ topic: 'agent.started', ts: Date.now(), payload: { agent_id: agentId, name: a.name, mission_id: store.activeId || 'M-demo', task: 'DEMO delegated task', delegated_by: 'KAI' } });
+    store.selectedAgentId = agentId; setKai('thinking', 'Delegating to ' + a.name + '…'); renderAgents();
+  }
+
+  // Seed the REAL agent identities (from the catalog) for DEMO scenarios. Their
+  // ACTIVITY is DEMO; their identity mirrors the real presets + SuperAgent/etc.
+  function seedDemoAgents() {
+    store.agents = AG.createRegistry();
+    const cat = [
+      ['research', 'Research', ['web_search', 'browser_tool']], ['swe', 'SWE', ['mcp_git', 'web_fetch']],
+      ['finance', 'Finance', ['trading_signal']], ['legal_research', 'Legal Research', ['courtlistener_search']],
+      ['marketing', 'Marketing', ['site_builder']], ['superagent', 'SuperAgent', ['bot_ops']],
+      ['planning', 'Planning', ['plan_query']], ['twin', 'Digital Twin', ['twin_query']],
+    ];
+    for (const [id, name, tools] of cat) store.agents.upsert({ agent_id: id, name, type: 'agent', domain: AGENT_DOMAIN[id] || 'operations', tools, capabilities: tools, provenance: 'DEMO', status: 'IDLE', health: 'NOMINAL', invocable: true, approval_required: true });
+  }
+
+  // §5AC — catalog adapter: load the ONE real agent catalog (identities REAL,
+  // runtime UNAVAILABLE). Fail-soft. Never claims REAL activity.
+  async function bootAgentsLive() {
+    if (!AG || !store.agents) return;
+    try {
+      const r = await fetch('/admin/presets', { credentials: 'include' });
+      if (r.ok) {
+        const data = await r.json(); const presets = data.presets || data || [];
+        for (const p of (Array.isArray(presets) ? presets : [])) { const id = p.id || p.preset_id; if (!id) continue; store.agents.upsert({ agent_id: id, name: p.name || id, type: 'agent', domain: AGENT_DOMAIN[id] || 'operations', capabilities: p.tool_whitelist || [], provenance: 'REAL', status: 'UNKNOWN', health: 'UNKNOWN', invocable: true, approval_required: true, metadata: { catalog: 'presets' } }); }
+        logActivity('Agent catalog loaded (' + (Array.isArray(presets) ? presets.length : 0) + ' presets · REAL identity, runtime UNAVAILABLE)');
+      }
+    } catch (e) { /* fail-soft */ }
+    if (store.mode === 'agents') renderAgents();
+  }
+
+  function renderAll() { renderSystemStack(); renderMissionHead(); renderQueue(); renderProcedure(); renderTimeline(); renderIntel(); renderActivity(); renderAlerts(); renderSystems(); renderAgents(); renderNav(); paintKai(); }
 
   // ── init ─────────────────────────────────────────────────────────────────
   function init() {
@@ -659,6 +897,7 @@
     logActivity('Live boot — governed provider ' + (HOST ? 'attached' : 'absent'));
     // §4G/§4H bounded polling of a curated few real endpoints; resume when visible.
     if (SYS) { pollSystems(); document.addEventListener('visibilitychange', () => { if (!document.hidden) schedulePoll(1000); }); }
+    if (AG) bootAgentsLive();   // load the REAL agent catalog (identities REAL, runtime UNAVAILABLE)
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();

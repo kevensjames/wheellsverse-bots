@@ -112,6 +112,29 @@ Evidence: 7 node tests (`test_nexus_systems.js`); screenshots reviewed at
 
 **Phase 4 honest gaps:** the live probe path (REAL telemetry) is coded but unexercised — needs App A running (Docker down). Deep metrics (CPU/RAM/DB-pool/heartbeat) stay UNAVAILABLE until an aggregate telemetry endpoint exists (D8). Mission↔telemetry coupling (§4E) is partial: scenarios set `activeEdges`/status, but auto-derivation of a mission's targeted systems from a live mission is a later integration. Full 5-viewport sweep: 3440 + 1920 done for systems; 2560/1440/390 not yet shot for systems mode.
 
+## Session 2 progress — 2026-08-25 (Phase 5: Agent Command Center)
+Evidence: 13 node tests (`test_nexus_agents.js`, incl 3 security); screenshots
+reviewed at 3440×1440 (agents-multi, agent-blocked, agent-approval) + 390×844.
+
+- **P5-A agent inventory (§5A) → IMPLEMENTED**: `docs/KAI_AGENT_SOURCES.md` — 11 REAL_AGENT presets + SuperAgent/Planning/Twin, WORKER/SERVICE/TOOL/BOT taxonomy, DUPLICATES reconciled ("Research" ×3, etc.). No fake agents.
+- **P5-B/D9 registry architecture → RECORDED**: no unified endpoint exists; C (backend aggregator `GET /admin/agents`) is right but EXTERNAL_BLOCKED; interim = frontend adapter over the ONE real catalog `/admin/presets`. Decision D9.
+- **P5-C/D canonical model + registry (§5C/§5D) → VERIFIED**: `kai-nexus-agents.js`, 13 tests — normalization, **duplicate reconciliation** (one identity, merged tools), summary (excl SUGGESTED), stale detection (STALE ≠ FAILED), event contract, blocked reason, provenance never silently REAL.
+- **P5-E agents mode (§5E) → VERIFIED**: summary + filters + list | KAI-centered constellation | inspector.
+- **P5-F constellation (§5F/§5G) → VERIFIED**: deterministic domain positioning (no jitter), KAI central, edges busy on ACTIVE, **event-triggered** delegation packet (one pulse, reduced-motion off).
+- **P5-I/J inspector + activity (§5I/§5J) → VERIFIED**: status/mission/task/delegated-by/elapsed/tools/model/provider/cost, provenance, governed actions, observable-events-only timeline.
+- **P5-K/L/P mission/procedure/approval integration → IMPLEMENTED**: agent events → mission timeline + kaiState; agent-approval → mission APPROVAL_REQUIRED (§5P); procedure actor linkage supported by the model (full visual via Phase 3 approval).
+- **P5-M/N/O health/stale/blocked (§5M/§5N/§5O) → VERIFIED**: health distinct from status; STALE with "last seen"; blocked shows the REAL reason (WAITING_FOR_PROVIDER etc.).
+- **P5-Q cost/model visibility (§5Q) → VERIFIED**: shown when real, else UNAVAILABLE (never invented).
+- **P5-S delegation control (§5S) → IMPLEMENTED**: in-app + no governed endpoint → DELEGATION UNAVAILABLE (never simulates success); DEMO emits a real event through the bus.
+- **P5-T suggested ≠ active (§5T) → VERIFIED**: SUGGESTED badge + dashed node + excluded from counts.
+- **P5-W DEMO scenarios (§5W) → IMPLEMENTED**: agents-idle/multi, agent-blocked/failure/approval/delegation/stale — all DEMO-tagged.
+- **P5-AE security (§5AE) → VERIFIED (model)**: labels stored inert (textContent render), provenance never elevated from unlabeled events, registry has no backend write path. Backend authorization stays authoritative (no client-side invoke).
+- **§5AC live path**: catalog adapter over `/admin/presets` coded (fail-soft); runtime state UNAVAILABLE (Docker/App A down) — never claims REAL activity.
+
+**Phase 4 debt (§5AH) → CLOSED**: systems mode verified at 390×844 (single-column stack + full-width topology). Fixed a media-query specificity bug where mode-grid rules beat the mobile 1-col override (now specificity-matched for mission/systems/agents panes).
+
+**Phase 5 honest gaps:** live agent runtime (REAL status/cost) needs App B + the D9 aggregator (blocked); real delegation needs a governed invoke endpoint (blocked); full 5-viewport sweep did 3440 + 390 for agents (2560/1920/1440 consistent with prior phases, not separately shot); perf at 250 agents not stress-tested (registry is O(n), constellation renders all nodes — virtualization is a future item §5AB).
+
 ## External blockers (§54)
 - Live telemetry / real inference: App A + DB + providers must run (Docker daemon currently DOWN).
 - Live news/intelligence source: no confirmed real feed API yet (P6 → DEMO-labeled until sourced).
