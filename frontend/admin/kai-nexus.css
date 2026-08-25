@@ -216,11 +216,12 @@ body.nx-body {
 /* ── mission timeline (§10) ─────────────────────────────────────────────────*/
 .nx-canvas { display: grid; min-height: 0; }
 .nx-canvas > * { min-height: 0; grid-area: 1 / 1; gap: var(--nx-gap); }   /* panes overlap; one shown by mode */
-.nx-canvas-mission, .nx-canvas-systems, .nx-canvas-agents, .nx-canvas-intel { display: none; }
-.nx-shell:not([data-mode="systems"]):not([data-mode="agents"]):not([data-mode="intelligence"]) .nx-canvas-mission { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(260px,.9fr); }
+.nx-canvas-mission, .nx-canvas-systems, .nx-canvas-agents, .nx-canvas-intel, .nx-canvas-security { display: none; }
+.nx-shell:not([data-mode="systems"]):not([data-mode="agents"]):not([data-mode="intelligence"]):not([data-mode="security"]) .nx-canvas-mission { display: grid; grid-template-columns: minmax(0,1.3fr) minmax(260px,.9fr); }
 .nx-shell[data-mode="systems"] .nx-canvas-systems { display: grid; grid-template-columns: minmax(0,1fr) minmax(320px,.95fr); }
 .nx-shell[data-mode="agents"] .nx-canvas-agents { display: grid; grid-template-columns: minmax(300px,.85fr) minmax(0,1.4fr) minmax(340px,1fr); }
 .nx-shell[data-mode="intelligence"] .nx-canvas-intel { display: grid; grid-template-columns: minmax(320px,.8fr) minmax(0,1.5fr) minmax(380px,1fr); }
+.nx-shell[data-mode="security"] .nx-canvas-security { display: grid; grid-template-columns: minmax(300px,.8fr) minmax(0,1.5fr) minmax(360px,1fr); }
 .nx-timeline-wrap { min-height: 0; display: flex; flex-direction: column; }
 .nx-timeline { overflow-y: auto; padding: 6px clamp(12px,1vw,16px); min-height: 0; }
 .nx-tl-row { display: grid; grid-template-columns: 74px 14px 1fr; gap: 10px; align-items: start; padding: 5px 0; }
@@ -503,6 +504,46 @@ body.nx-body {
 .nx-in-a-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .nx-in-untrusted { font-size: 10px; color: var(--nx-text-faint); margin-top: 8px; font-style: italic; }
 
+/* ── Phase 8 — security & governance posture ────────────────────────────────*/
+.nx-se-left, .nx-se-center, .nx-se-right { display: flex; flex-direction: column; min-height: 0; }
+.nx-se-posture { padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 7px; }
+.nx-se-prow { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; }
+.nx-se-prow .k { color: var(--nx-text-faint); text-transform: uppercase; letter-spacing: .5px; font-size: 10px; }
+.nx-se-prow .v { display: flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.nx-se-pv-critical { color: var(--nx-critical); } .nx-se-pv-high { color: var(--nx-warning); }
+.nx-se-pv-medium { color: var(--nx-caution); } .nx-se-pv-info { color: var(--nx-nominal); }
+.nx-se-pv-unknown { color: var(--nx-text-faint); }
+.nx-se-scan { margin: 8px 12px 12px; font-size: 12px; align-self: stretch; }
+.nx-se-worst.crit { color: var(--nx-critical); } .nx-se-worst.warn { color: var(--nx-warning); }
+
+.nx-se-stream { overflow-y: auto; min-height: 0; padding: 8px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.nx-se-card { border: 1px solid var(--nx-border); border-radius: 10px; padding: 10px 12px; cursor: pointer; border-left: 3px solid var(--nx-border-strong); }
+.nx-se-card:hover { background: rgba(47,107,255,.06); }
+.nx-se-card.sel { border-color: var(--nx-blue); box-shadow: 0 0 0 1px var(--nx-blue); }
+.nx-se-card.sev-critical { border-left-color: var(--nx-critical); } .nx-se-card.sev-high { border-left-color: var(--nx-warning); }
+.nx-se-card.sev-medium { border-left-color: var(--nx-caution); } .nx-se-card.sev-low, .nx-se-card.sev-info { border-left-color: var(--nx-nominal); }
+.nx-se-card.sev-unknown { border-left-color: var(--nx-border-strong); }
+.nx-se-card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.nx-se-src { font-size: 9.5px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 700; color: var(--nx-cyan); }
+.nx-se-sev { font-size: 9.5px; letter-spacing: 1px; text-transform: uppercase; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+.nx-se-sev.critical { color: var(--nx-critical); background: rgba(255,81,99,.12); } .nx-se-sev.high { color: var(--nx-warning); background: rgba(255,157,60,.12); }
+.nx-se-sev.medium { color: var(--nx-caution); background: rgba(255,207,92,.1); } .nx-se-sev.low, .nx-se-sev.info { color: var(--nx-nominal); background: rgba(53,224,161,.1); }
+.nx-se-sev.unknown { color: var(--nx-text-faint); background: rgba(100,112,138,.12); }
+.nx-se-head { font-size: clamp(12px,.95vw,14px); font-weight: 500; margin: 5px 0; line-height: 1.32; word-break: break-word; }
+.nx-se-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 10.5px; color: var(--nx-text-faint); }
+.nx-se-origin { font-size: 9px; letter-spacing: .5px; text-transform: uppercase; padding: 1px 5px; border-radius: 4px; border: 1px solid var(--nx-border-strong); }
+.nx-se-origin.measured { color: var(--nx-nominal); } .nx-se-origin.inferred { color: var(--nx-caution); } .nx-se-origin.none { color: var(--nx-text-faint); }
+
+.nx-se-inspector { overflow-y: auto; min-height: 0; padding: 12px; }
+.nx-se-i-empty { color: var(--nx-text-faint); font-size: 12px; }
+.nx-se-i-head { font-size: clamp(13px,1vw,16px); font-weight: 700; line-height: 1.3; margin-bottom: 10px; text-wrap: balance; word-break: break-word; }
+.nx-se-block { border: 1px solid var(--nx-border); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
+.nx-se-block.fact { border-left: 3px solid var(--nx-nominal); }
+.nx-se-block.decision { border-left: 3px solid var(--nx-purple); }
+.nx-se-block-h { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 700; margin-bottom: 6px; }
+.nx-se-block.fact .nx-se-block-h { color: var(--nx-nominal); } .nx-se-block.decision .nx-se-block-h { color: var(--nx-purple); }
+.nx-se-caveat { font-size: 10px; color: var(--nx-text-faint); margin-top: 8px; font-style: italic; }
+
 /* ── responsive breakpoints (§36/§37) ───────────────────────────────────────*/
 /* ULTRAWIDE >=2560: substantial rails, bounded hero already via rail widths */
 @media (min-width: 2560px) {
@@ -517,10 +558,10 @@ body.nx-body {
 @media (max-width: 1799px) and (min-width: 1200px) {
   :root { --nx-rail-l: 300px; --nx-rail-r: 330px; }
   /* dense modes need canvas height more than a tall hero on a ~900px-tall screen */
-  .nx-shell[data-mode="intelligence"], .nx-shell[data-mode="agents"] {
+  .nx-shell[data-mode="intelligence"], .nx-shell[data-mode="agents"], .nx-shell[data-mode="security"] {
     grid-template-rows: var(--nx-header-h) minmax(0, .85fr) minmax(0, 1.3fr) var(--nx-cmd-h) var(--nx-nav-h);
   }
-  .nx-ag-left { overflow-y: auto; }
+  .nx-ag-left, .nx-se-left { overflow-y: auto; }
   /* the canvas is only ~530–780px wide here — three columns collapse the middle pane,
      so stack the detail pane UNDER the main pane (narrow filter rail + full-width work area). */
   .nx-shell[data-mode="intelligence"] .nx-canvas-intel {
@@ -535,6 +576,12 @@ body.nx-body {
     grid-template-areas: "roster constellation" "roster inspector";
   }
   .nx-ag-left { grid-area: roster; } .nx-ag-center { grid-area: constellation; } .nx-ag-right { grid-area: inspector; }
+  .nx-shell[data-mode="security"] .nx-canvas-security {
+    grid-template-columns: 236px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1.3fr) minmax(0, 1fr);
+    grid-template-areas: "posture events" "posture inspector";
+  }
+  .nx-se-left { grid-area: posture; } .nx-se-center { grid-area: events; } .nx-se-right { grid-area: inspector; }
 }
 /* TABLET 768–1199: drop right rail into canvas area */
 @media (max-width: 1199px) and (min-width: 768px) {
@@ -571,7 +618,8 @@ body.nx-body {
   .nx-shell:not([data-mode="systems"]):not([data-mode="agents"]):not([data-mode="intelligence"]) .nx-canvas-mission,
   .nx-shell[data-mode="systems"] .nx-canvas-systems,
   .nx-shell[data-mode="agents"] .nx-canvas-agents,
-  .nx-shell[data-mode="intelligence"] .nx-canvas-intel { grid-template-columns: 1fr; }
+  .nx-shell[data-mode="intelligence"] .nx-canvas-intel,
+  .nx-shell[data-mode="security"] .nx-canvas-security { grid-template-columns: 1fr; }
   .nx-shell[data-mode="agents"] .nx-ag-center { display: none; }   /* §5Z — no giant constellation on 390px */
   /* wrap the dense header to rows instead of overlapping/scrolling on a phone */
   .nx-header { flex-wrap: wrap; overflow: visible; height: auto; padding: 8px 12px; row-gap: 8px; column-gap: 16px; }

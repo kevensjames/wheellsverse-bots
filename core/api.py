@@ -960,6 +960,7 @@ _NEXUS_APP_MIME = {
     "kai-nexus-systems.js": "text/javascript",
     "kai-nexus-agents.js": "text/javascript",
     "kai-nexus-intel.js": "text/javascript",
+    "kai-nexus-security.js": "text/javascript",
 }
 
 

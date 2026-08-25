@@ -22,7 +22,7 @@
       <div class="nx-hspace"></div>
       <div class="nx-hstat"><span class="nx-hstat-k">KAI</span><span class="nx-hstat-v" id="nx-h-kai">ONLINE</span></div>
       <div class="nx-hstat"><span class="nx-hstat-k">Clock UTC</span><span class="nx-hstat-v" id="nx-h-clock">--:--:--</span></div>
-      <div class="nx-hstat"><span class="nx-hstat-k">Security</span><span class="nx-hstat-v ok" id="nx-h-security">CLEAR</span></div>
+      <div class="nx-hstat"><span class="nx-hstat-k">Security</span><span class="nx-hstat-v" id="nx-h-security">UNKNOWN</span></div>
       <div class="nx-hstat"><span class="nx-hstat-k">Alerts</span><span class="nx-hstat-v ok" id="nx-h-alerts">CLEAR</span></div>
     </header>
 
@@ -146,6 +146,25 @@
           <div id="nx-in-analysis" class="nx-in-analysis nx-scroll"></div>
         </div>
       </div>
+
+      <div class="nx-canvas-security" hidden>
+        <div class="nx-panel nx-se-left">
+          <div class="nx-panel-h">Posture <span class="nx-h-accent" id="nx-se-worst">—</span></div>
+          <div id="nx-se-posture" class="nx-se-posture"></div>
+          <div id="nx-se-summary" class="nx-in-summary"></div>
+          <div class="nx-in-srch-h">Filter</div>
+          <div id="nx-se-filters" class="nx-ag-filters"></div>
+          <button id="nx-se-scan" class="nx-btn nx-se-scan" type="button">Run defensive scan…</button>
+        </div>
+        <div class="nx-panel nx-se-center">
+          <div class="nx-panel-h">Security &amp; Governance Events <span class="nx-h-accent" id="nx-se-note">—</span></div>
+          <div id="nx-se-stream" class="nx-se-stream nx-scroll"></div>
+        </div>
+        <div class="nx-panel nx-se-right">
+          <div class="nx-panel-h">Event Inspector</div>
+          <div id="nx-se-inspector" class="nx-se-inspector nx-scroll"></div>
+        </div>
+      </div>
     </section>
 
     <!-- ── COMMAND BAR ──────────────────────────────────────────────────── -->
@@ -180,6 +199,7 @@
   <script src="kai-nexus-systems.js"></script>
   <script src="kai-nexus-agents.js"></script>
   <script src="kai-nexus-intel.js"></script>
+  <script src="kai-nexus-security.js"></script>
   <script src="kai-nexus.js"></script>
 </body>
 </html>
