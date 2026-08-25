@@ -44,7 +44,7 @@ Single source of truth for the phased build (directive §44/§45). Status is
 | P4-2 | Infrastructure topology (§14) | 4 | M | NOT_STARTED | — | discovered arch | DERIVED |
 | P5-1 | Agent registry (§18) | 5 | H | NOT_STARTED | — | admin_* + /api/*/agents | REAL |
 | P5-2 | Agent constellation + delegation (§19) | 5 | M | NOT_STARTED | — | events | REAL |
-| P6-1 | Intelligence center + provenance (§15/§16) | 6 | H | NOT_STARTED | — | news source TBD | REAL/DEMO |
+| P6-1 | Intelligence center + provenance (§15/§16) | 6 | H | VERIFIED | kai-nexus-intel.js + kai-nexus.{js,css,html} | research digest `/admin/research/latest` | REAL/DEMO |
 | P7-1 | World mode (§17) | 7 | L | NOT_STARTED | — | signals | mixed |
 | P8-1 | Security mode + alert doctrine (§20/§21) | 8 | H | NOT_STARTED | — | admin_audit + security scans | REAL |
 | P9-1 | Memory constellation (§22) | 9 | M | NOT_STARTED | — | /api/narai/memory/* + admin_kg | REAL |
@@ -135,7 +135,26 @@ reviewed at 3440×1440 (agents-multi, agent-blocked, agent-approval) + 390×844.
 
 **Phase 5 honest gaps:** live agent runtime (REAL status/cost) needs App B + the D9 aggregator (blocked); real delegation needs a governed invoke endpoint (blocked); full 5-viewport sweep did 3440 + 390 for agents (2560/1920/1440 consistent with prior phases, not separately shot); perf at 250 agents not stress-tested (registry is O(n), constellation renders all nodes — virtualization is a future item §5AB).
 
+## Session 3 progress — 2026-08-25 (Phase 6: Intelligence Center + Signal Analysis + Provenance)
+Evidence: 15 node tests (`test_nexus_intel.js`); screenshots reviewed at 3440×1440
+(intel-ai / intel-cyber / intel-source-down), 1440×900 (intel-multi-source +
+mission regression), and 390×844 (mobile stack). In-app asset serving allowlisted.
+
+- **P6-A intelligence inventory (§6A) → IMPLEMENTED**: `docs/KAI_INTELLIGENCE_SOURCES.md` — the ONE real primary source (research digest: arxiv/hn/gh via `/admin/research/latest`), DERIVED sources that must NOT pose as news, and the honest "does not exist — do not fake" list (no CVE/GHSA feed). Decisions **D10** (dedupe/corroboration) + **D11** (untrusted-content security).
+- **P6-B Signal model + intelligence logic (§6B/§6K/§6L) → VERIFIED**: `kai-nexus-intel.js`, 15 tests — `normalizeSignal` (untrusted:true, text escaped-as-data), `dedupeAndCorroborate` (canonical-URL dedupe + **distinct-domain** corroboration; mirrors of one source do NOT count), explainable `computeRelevance`, `sourceHealth`, `summarize`.
+- **P6-C fact vs KAI analysis (§6C) → VERIFIED**: analysis pane renders **SOURCE FACTS** (green-railed) strictly separated from **KAI ANALYSIS** (purple-railed); a signal with no KAI analysis says so — source facts are never presented as KAI's conclusions and vice-versa.
+- **P6-F intelligence mode (§6F) → VERIFIED**: filters + summary + source-health rail | signal stream | analysis. Right-rail live feed also upgraded to the Signal model.
+- **P6-G/S signal analysis + source health (§6G/§6S) → VERIFIED**: verification badge (PRIMARY_SOURCE/CORROBORATED·N/SINGLE_SOURCE/UNKNOWN), freshness ("fetched Nm" — never a fabricated published time, D10), per-source HEALTHY/STALE/OFFLINE/UNKNOWN.
+- **P6-Q signal → governed investigation (§6Q) → IMPLEMENTED**: "Start research mission" creates a MISSION (not an execution) with the signal attached as evidence; emits a real agent event through the ONE bus.
+- **P6-AD/AE security (§6AD/§6AE) → VERIFIED (model + render)**: `safeUrl` (http/https only; javascript:/data:/file:/relative → rejected + flagged), all text via `textContent` (a `<script>`/`onerror` headline is inert), links `rel="noopener noreferrer nofollow"`; **prompt-injection isolation** — "Ask KAI" places signal text into the command bar as a user *data* message, never into KAI's instruction path; every signal `untrusted:true` with a visible untrusted-content note.
+- **P6-X DEMO scenarios (§6X) → VERIFIED**: `?scenario=` intel-ai / intel-cyber / intel-conflict / intel-multi-source / intel-stale / intel-source-down — all DEMO-tagged; source-down shows an empty stream + OFFLINE source health (no fabricated signals); multi-source collapses 3 distinct-domain mirrors → 1 CORROBORATED·3.
+- **P6-Y REAL adapter (§6Y) → IMPLEMENTED (fail-soft)**: `bootIntelLive()` fetches `/admin/research/latest`, normalizes to PRIMARY_SOURCE signals with real URLs; published time honestly UNAVAILABLE (D10). In-app serving: `kai-nexus-intel.js` added to `_NEXUS_APP_MIME` (core/api.py).
+
+**Phase 5 viewport debt (§6AH) → CLOSED**: fixed real responsive bugs found this pass — (1) mobile shell overflowed to 555px because the single column was `1fr` (=`minmax(auto,…)`) and a wide child (command bar) forced the track past the viewport → now `minmax(0,1fr)`, no horizontal scroll; (2) header stats overlapped on a phone → header wraps to rows (brand on its own line); (3) DEMO banner overlapped the header on mobile → static flow; (4) at 1440 the 3-pane intel/agents canvases collapsed the middle pane → stack the detail pane under the main pane (236px filter rail + full-width work area); (5) canvas content bled under the command bar → canvas clips + filter rails scroll + hero/canvas row ratio rebalanced for dense modes.
+
+**Phase 6 honest gaps:** live intelligence path is coded fail-soft but **unexercised** — reaching `/admin/research/latest` needs App B + admin auth (Docker down), so no successful live connection is claimed; the digest drops `published_at` at ingest, so REAL signals show freshness-as-fetched and published-time UNKNOWN until a ~1-line-per-fetcher backend fix captures it (documented in KAI_INTELLIGENCE_SOURCES.md); cyber/CVE signals are DEMO-only because no real security feed exists; corroboration is URL/domain-based (no body available to content-hash); Perplexity `web_search` (a real secondary source) is not wired (needs `PERPLEXITY_API_KEY`).
+
 ## External blockers (§54)
 - Live telemetry / real inference: App A + DB + providers must run (Docker daemon currently DOWN).
-- Live news/intelligence source: no confirmed real feed API yet (P6 → DEMO-labeled until sourced).
+- Live news/intelligence source: the research digest (`/admin/research/latest`) is the ONE real primary source and is wired fail-soft (P6), but is unexercised until App B runs; no CVE/security feed exists; Perplexity needs `PERPLEXITY_API_KEY`.
 - Avatar/voice asset upgrade: cinematic assets exist; provider-side TTS/viseme lip-sync pending (P12 milestone).
