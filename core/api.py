@@ -963,6 +963,7 @@ _NEXUS_APP_MIME = {
     "kai-nexus-security.js": "text/javascript",
     "kai-nexus-memory.js": "text/javascript",
     "kai-nexus-pulse.js": "text/javascript",
+    "kai-nexus-embodiment.js": "text/javascript",
 }
 
 

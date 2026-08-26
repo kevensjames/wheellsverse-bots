@@ -22,6 +22,7 @@
   const SEC = (typeof window !== 'undefined' && window.NexusSecurity) || null;    // security/governance posture model
   const MEM = (typeof window !== 'undefined' && window.NexusMemory) || null;      // memory / knowledge-graph model
   const PULSE = (typeof window !== 'undefined' && window.NexusPulse) || null;     // §24 halo/activity safety boundary
+  const EMB = (typeof window !== 'undefined' && window.NexusEmbodiment) || null;  // §5 authoritative embodiment state machine
   const REDUCE_MOTION = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const NS = 'http://www.w3.org/2000/svg';
   const IN_APP = !!HOST && location.protocol.startsWith('http');
@@ -79,7 +80,13 @@
     paintKai();
   }
   function paintKai() {
-    const halo = el('nx-halo'); if (halo) halo.dataset.state = store.kaiState;
+    const halo = el('nx-halo');
+    if (halo) {
+      halo.dataset.state = store.kaiState;
+      // §5 — one authoritative embodiment state flows to the DOM for every consumer
+      // (halo/video/env/subtitle/a rigged face when one exists) to read from ONE source.
+      if (EMB) halo.dataset.embodiment = EMB.resolve({ kaiState: store.kaiState, env: store.env });
+    }
     const st = el('nx-kai-state'); if (st) st.textContent = store.kaiState.toUpperCase();
     const sub = el('nx-kai-sub'); if (sub) sub.textContent = store.kaiSub;
     const cmd = el('nx-cmd-state'); if (cmd) cmd.textContent = ({ online: 'READY', idle: 'READY', thinking: 'THINKING', researching: 'RESEARCHING', speaking: 'SPEAKING', listening: 'LISTENING', alert: 'ATTENTION', offline: 'OFFLINE' })[store.kaiState] || 'READY';
@@ -1649,5 +1656,5 @@
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
   // expose for debugging + future phases (single namespace)
-  window.KAINexus = { on, emit, store, setMode, setKai, setEnv };
+  window.KAINexus = { on, emit, store, setMode, setKai, setEnv, embodiment: EMB };
 })();
