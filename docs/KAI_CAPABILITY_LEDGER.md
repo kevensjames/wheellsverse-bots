@@ -91,6 +91,24 @@ risk.py pre-approval target gate, results.py summary-only scan, brain.py depende
 The 3 REFUTED (no locking in a single-threaded model; no failure backoff; a duplicate re-stamp
 finding) were correctly not fixed. **22 regression tests added across rounds → 73 capability tests.**
 
+## Expansion Pack (AppLlama + security fabric + HERO + Empire)
+
+New governance shipped + tested (pure `security.py` + manifest tiers; 13 security + expansion tests):
+Security-tier model (§17) **PASS** · least-power selection (§18) **PASS** · AuthorizedTarget allowlist
+(§32) **PASS** · Empire full-envelope gate + never-auto (§14/§23/§31) **PASS** · HERO precedence (§11)
+**PASS** (never trims a load-bearing security concern). All 8 upstreams verified; none installed.
+
+| capability | tier | type | status |
+|-----------|------|------|--------|
+| hero | 0 | AGENT_BEHAVIOR_POLICY | **CERTIFIED_POLICY** (integrated into CLAUDE.md; precedence enforced) |
+| appllama | 0 | AGENT_SKILL | **EXPERIMENTAL** — verified, not installed (needs external Appllama MCP + paid acct) |
+| awesome-osint | 1 | OSINT_RESOURCE_PACK | **EXPERIMENTAL** — verified, not installed; lawful public info only |
+| awesome-hacking | 0 | SECURITY_KNOWLEDGE_PACK | **EXPERIMENTAL** — canonical Hack-with-Github (0x4D31 is a 404) |
+| payloads-all-the-things | 2 | SECURITY_KNOWLEDGE_PACK | **EXTERNAL_BLOCKED** — authorized-mission only; never auto-loaded |
+| seclists | 2 | SECURITY_DATA_PACK | **EXTERNAL_BLOCKED** — authorized-mission only; never auto-loaded |
+| cybersecurity-reference | 0 | SECURITY_KNOWLEDGE_PACK | **UPSTREAM_UNRESOLVED** → DISABLED |
+| empire | 4 | SECURITY_EXECUTION_FRAMEWORK | **DISABLED_RESTRICTED_LAB_ONLY** — never auto; full envelope + sandbox + approval |
+
 ## What blocks CERTIFIED for the external capabilities
 
 1. **No network in the Bash sandbox** → cannot install (pip/npm/git clone/`claude mcp add`).

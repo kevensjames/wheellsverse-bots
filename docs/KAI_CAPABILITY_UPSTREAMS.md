@@ -41,6 +41,19 @@ discovery inputs, not trusted install instructions.
 Configuration presence is not certification — only context7/playwright are connected **and**
 exercised. All are session-context MCPs; none is wired into the **KAI runtime** (App B down).
 
+## Expansion Pack — verified (read-only sweep, 2026-08-26)
+
+| id | canonical upstream | owner | license | type | tier | risk | key finding |
+|----|--------------------|-------|---------|------|------|------|-------------|
+| appllama | github.com/Appllama/appllama-skills | Appllama | MIT | AGENT_SKILL | 0 | LOW | Mobile-design agent skill (no offensive execution). Full research features need the **external** Appllama MCP + a **paid Pro account** — vendor egress/auth caveat. |
+| hero | github.com/wanshuiyin/HERO-Anti-OverDefense | wanshuiyin | MIT | AGENT_BEHAVIOR_POLICY | 0 | LOW | Pure **policy text** (RULES.md), no runtime. Integrated into CLAUDE.md; can never suppress a load-bearing security concern. |
+| awesome-osint | github.com/jivoi/awesome-osint | jivoi | CC-BY-SA-4.0 | OSINT_RESOURCE_PACK | 1 | MEDIUM | Curated OSINT link list; lawful public info only. |
+| awesome-hacking | github.com/Hack-with-Github/Awesome-Hacking | Hack-with-Github | CC0-1.0 | SECURITY_KNOWLEDGE_PACK | 0 | LOW | **Canonical RESOLVED** — the `0x4D31/awesome-hacking` candidate is a **404**. Meta-list of links, no code. |
+| cybersecurity-reference | **UNRESOLVED** | — | — | SECURITY_KNOWLEDGE_PACK | 0 | LOW | "The Ultimate Cybersecurity Reference Guide" is a generic phrase, not a unique repo → **UPSTREAM_UNRESOLVED / DISABLED**. |
+| payloads-all-the-things | github.com/swisskyrepo/PayloadsAllTheThings | swisskyrepo | MIT | SECURITY_KNOWLEDGE_PACK | 2 | HIGH | Offensive payload/methodology **reference DATA**, not an attack engine. Authorized-mission only; never auto-loaded. |
+| seclists | github.com/danielmiessler/SecLists | danielmiessler | MIT | SECURITY_DATA_PACK | 2 | HIGH | Wordlists/leaked-password corpora/web-shell samples (AV-false-positive prone). **DATA** only; authorized-mission only. |
+| empire | github.com/BC-SECURITY/Empire | BC-SECURITY | BSD-3-Clause | SECURITY_EXECUTION_FRAMEWORK | 4 | RESTRICTED | **Executes** real post-exploitation C2 / adversary emulation (v6.7.1). DISABLED_RESTRICTED_LAB_ONLY; never auto-activated; full envelope + sandbox + approval required. |
+
 ## What this record is NOT
 
 It is not an installation. Per §73, cloning/verifying an upstream is not success. The next

@@ -133,6 +133,33 @@ def t_auto_selectable_gate():
     assert emp.auto_selectable() is False, "Empire must NEVER be auto-selected by the Brain"
 
 
+# ── §44 expansion adversarial vectors ─────────────────────────────────────────
+def t_adv_production_target_denied():
+    """A production hostname not on the allowlist can never be an Empire target (§15/§31)."""
+    emp = empire_cap()
+    ctx = SecurityContext(security_mission=True, sandbox_ready=True, approvals={"empire"},
+                          authorized_targets={"lab-1": AuthorizedTarget(target_id="lab-1", owner="me")})
+    d = authorize_security_capability(emp, ctx, now=0, target_id="prod.wheellsverse.com", explicit=True)
+    assert d.decision == Decision.DENY, "a non-allowlisted production target must be denied"
+
+
+def t_adv_target_substitution_after_approval():
+    """Approval for one target is not approval for another (§44 target changes after approval)."""
+    emp = empire_cap()
+    ctx = SecurityContext(security_mission=True, sandbox_ready=True, approvals={"empire"},
+                          authorized_targets={"lab-1": AuthorizedTarget(target_id="lab-1", owner="me")})
+    assert authorize_security_capability(emp, ctx, 0, target_id="lab-1", explicit=True).decision == Decision.ALLOW
+    # substitute a different target id → not on the allowlist → DENY
+    assert authorize_security_capability(emp, ctx, 0, target_id="lab-2", explicit=True).decision == Decision.DENY
+
+
+def t_adv_no_mission_no_offensive_tooling():
+    """Without a security mission, tier 2+ is denied — a generic pentest prompt can't self-authorize."""
+    for tier in (TIER_AUTHORIZED_TEST, TIER_ACTIVE_TEST, TIER_ADVERSARY):
+        cap = sec_cap(f"t{tier}", tier, authorized_context_required=True, automatic_activation_allowed=False)
+        assert authorize_security_capability(cap, SecurityContext(security_mission=False), 0, explicit=True).decision == Decision.DENY
+
+
 for _n, _f in list(globals().items()):
     if _n.startswith("t_"):
         test(_n[2:], _f)
