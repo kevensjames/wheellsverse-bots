@@ -964,6 +964,10 @@ _NEXUS_APP_MIME = {
     "kai-nexus-memory.js": "text/javascript",
     "kai-nexus-pulse.js": "text/javascript",
     "kai-nexus-embodiment.js": "text/javascript",
+    "kai-viseme-mapper.js": "text/javascript",
+    "kai-viseme-engine.js": "text/javascript",
+    "kai-idle-life.js": "text/javascript",
+    "kai-avatar-driver.js": "text/javascript",
 }
 
 
