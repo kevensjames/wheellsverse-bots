@@ -179,6 +179,87 @@ def seed_manifests() -> list[CM]:
                             "desktop/web/pip (Tauri)"),
            notes="§11: canonical is opengeos/GeoLibre (the taka015 hint was a FORK). Preserve location "
                  "provenance; never fabricate coordinates. Integrate with World Mode."),
+
+        # ── EXPANSION PACK — verified upstreams, NOT installed (§Expansion) ────────
+        CM(id="appllama", name="AppLlama (Mobile Design Skills)", type=CT.AGENT_SKILL,
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.LOW, default_action_class=AC.READ_ONLY, security_tier=0,
+           capabilities=["mobile_design_research", "onboarding_research", "paywall_research", "react_native_design"],
+           triggers=["build mobile app", "mobile onboarding", "design mobile screen", "subscription flow",
+                     "react native ui", "expo screen", "mobile ux"],
+           provenance=_prov("https://github.com/Appllama/appllama-skills", "Appllama", "MIT", "4b54282",
+                            "npx skills add appllama/appllama-skills"),
+           notes="§2: mobile-app DESIGN agent skill (no offensive execution). Full research features need "
+                 "the EXTERNAL Appllama MCP (mcp.appllama.io) + a paid Pro account — vendor egress/auth "
+                 "caveat, not a security risk. §36: use for pattern research, never pixel-clone copyrighted apps."),
+        CM(id="hero", name="HERO (Proportional Engineering Policy)", type=CT.AGENT_BEHAVIOR_POLICY,
+           availability=AV.AVAILABLE, certification=CE.CERTIFIED, activation=AM.ALWAYS_AVAILABLE,
+           risk_class=RK.LOW, default_action_class=AC.READ_ONLY, security_tier=0, triggers=[],
+           provenance=_prov("https://github.com/wanshuiyin/HERO-Anti-OverDefense", "wanshuiyin", "MIT",
+                            "bfe4026", "paste-in policy text (no runtime)"),
+           notes="§11/§12: a BEHAVIOR POLICY, not a tool — integrated into CLAUDE.md. Trims speculative "
+                 "over-engineering but can NEVER suppress a load-bearing security/auth/financial/privacy/"
+                 "production/verified-finding concern (enforced by security.hero_allows_reduction). "
+                 "Precedence: system safety > security > regulatory > user > project > HERO."),
+        CM(id="awesome-osint", name="Awesome OSINT", type=CT.OSINT_RESOURCE_PACK,
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=1,
+           capabilities=["osint_resources", "public_research"],
+           triggers=["osint", "open-source intel", "public research", "company research"],
+           provenance=_prov("https://github.com/jivoi/awesome-osint", "jivoi", "CC-BY-SA-4.0", "374d93d",
+                            "reference list (no runtime)"),
+           notes="§8: curated OSINT resource list (tier 1). LAWFUL PUBLIC info only — never authorizes "
+                 "credential theft, intrusion, private-data access, or doxxing. §35: OSINT results with "
+                 "personal data must route through privacy classification before any memory write."),
+        CM(id="awesome-hacking", name="Awesome-Hacking (Reference)", type=CT.SECURITY_KNOWLEDGE_PACK,
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.LOW, default_action_class=AC.READ_ONLY, security_tier=0,
+           capabilities=["security_reference"],
+           triggers=["security resources", "hacking reference", "security reading list"],
+           provenance=_prov("https://github.com/Hack-with-Github/Awesome-Hacking", "Hack-with-Github", "CC0-1.0",
+                            "", "reference meta-list (no runtime)"),
+           notes="§9: canonical RESOLVED to Hack-with-Github/Awesome-Hacking (the 0x4D31 candidate is a 404). "
+                 "A meta-list of links — no code, tier 0."),
+        CM(id="payloads-all-the-things", name="PayloadsAllTheThings", type=CT.SECURITY_KNOWLEDGE_PACK,
+           availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.MANUAL_ONLY,
+           risk_class=RK.HIGH, default_action_class=AC.READ_ONLY, security_tier=2,
+           authorized_context_required=True, automatic_activation_allowed=False,
+           permissions=["security.authorized"], capabilities=["web_security_payloads", "methodology"],
+           triggers=["payload reference", "authorized web-security review"],
+           provenance=_prov("https://github.com/swisskyrepo/PayloadsAllTheThings", "swisskyrepo", "MIT", "3bff425",
+                            "git clone (markdown/payload reference)"),
+           notes="§6: offensive payload/methodology REFERENCE (tier 2) — DATA, not an attack engine. "
+                 "Never auto-loaded for ordinary work; requires an authorized security mission. Retrieve "
+                 "only the needed subset; do not execute payloads because they exist. RISK HIGH."),
+        CM(id="seclists", name="SecLists", type=CT.SECURITY_DATA_PACK,
+           availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.MANUAL_ONLY,
+           risk_class=RK.HIGH, default_action_class=AC.READ_ONLY, security_tier=2,
+           authorized_context_required=True, automatic_activation_allowed=False,
+           permissions=["security.authorized"], capabilities=["wordlists", "fuzzing_data"],
+           triggers=["wordlist", "fuzzing data", "authorized discovery list"],
+           provenance=_prov("https://github.com/danielmiessler/SecLists", "danielmiessler", "MIT", "2026.1",
+                            "git clone (static data)"),
+           notes="§7: security DATA pack (tier 2) — wordlists, leaked-password corpora, web-shell samples "
+                 "(AV false-positive prone). Never auto-loaded; authorized mission only. Retrieve the "
+                 "minimal subset; never surface sensitive list content unnecessarily. RISK HIGH."),
+        CM(id="cybersecurity-reference", name="Cybersecurity Reference Guide", type=CT.SECURITY_KNOWLEDGE_PACK,
+           availability=AV.DISCOVERED, certification=CE.UPSTREAM_UNRESOLVED, activation=AM.DISABLED,
+           risk_class=RK.LOW, default_action_class=AC.READ_ONLY, security_tier=0,
+           automatic_activation_allowed=False, triggers=[],
+           notes="§10: 'The Ultimate Cybersecurity Reference Guide' is a generic phrase, not a unique repo — "
+                 "UPSTREAM_UNRESOLVED → DISABLED. Do not guess a canonical repo."),
+        CM(id="empire", name="PowerShell Empire (Adversary Emulation)", type=CT.SECURITY_EXECUTION_FRAMEWORK,
+           version="v6.7.1", availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.DISABLED,
+           risk_class=RK.RESTRICTED, default_action_class=AC.HIGH_IMPACT, security_tier=4,
+           authorized_context_required=True, target_allowlist_required=True, operator_approval_required=True,
+           sandbox_required=True, automatic_activation_allowed=False, permissions=["security.redteam"],
+           capabilities=["adversary_emulation", "c2", "post_exploitation"], triggers=[],
+           provenance=_prov("https://github.com/BC-SECURITY/Empire", "BC-SECURITY", "BSD-3-Clause", "v6.7.1",
+                            "git clone --recursive + ps-empire install (lab only)"),
+           notes="§13-16: EXECUTING post-exploitation C2 (tier 4) — DISABLED_RESTRICTED_LAB_ONLY. NEVER "
+                 "auto-activated (§23/§31); requires the FULL envelope — authorized security mission, "
+                 "AuthorizedTarget on the allowlist, explicit high-impact approval, initialized sandbox, "
+                 "network policy, audit. No internet-wide/production targeting, ever (§15). RISK RESTRICTED."),
     ]
 
 
@@ -203,4 +284,10 @@ def seed_graph() -> CapabilityGraph:
         g.add("claude-code", Relation.HELPS, helper)
     g.add("reverse-skill", Relation.HELPS, "filesystem")
     g.add("reverse-skill", Relation.HELPS, "github")
+    # ── expansion relations (§48) ──
+    g.add("appllama", Relation.HELPS, "claude-code")          # mobile design → implementation
+    g.add("hero", Relation.HELPS, "claude-code")              # HERO guides coding workers (proportional)
+    g.add("payloads-all-the-things", Relation.HELPS, "reverse-skill")   # authorized web-security review
+    g.add("seclists", Relation.HELPS, "reverse-skill")
+    g.add("awesome-osint", Relation.HELPS, "claude-code")     # public-source research feeds analysis
     return g

@@ -29,10 +29,10 @@ def t_catalog_loads():
 
 
 def t_only_certified_are_available():
-    """Only native caps + CERTIFIED foundation MCPs (connected+exercised) are AVAILABLE (§73/§3/§4)."""
+    """Native caps + CERTIFIED foundation MCPs + the HERO policy are AVAILABLE (§73/§3/§4/§11)."""
     reg = seed_registry()
     available = [m.id for m in reg.list(availability=AV.AVAILABLE)]
-    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright"}, f"unexpected available set: {available}"
+    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright", "hero"}, f"unexpected available set: {available}"
 
 
 def t_external_not_selectable():
@@ -92,6 +92,58 @@ def t_live_brain_on_real_seed_is_honest():
     # a memory ask routes to the native, available kai-memory
     plan2 = CapabilityBrain(reg, g).plan("remember what we learned here", Principal("u"))
     assert "kai-memory" in plan2.selected_ids()
+
+
+# ── expansion pack (§Expansion) ───────────────────────────────────────────────
+def t_expansion_catalog_present():
+    reg = seed_registry()
+    for cid in ("appllama", "hero", "awesome-osint", "awesome-hacking",
+                "payloads-all-the-things", "seclists", "cybersecurity-reference", "empire"):
+        assert reg.has(cid), f"missing expansion capability {cid}"
+
+
+def t_empire_is_restricted_disabled_and_never_auto():
+    m = seed_registry().get("empire")
+    assert m.security_tier == 4 and m.risk_class.value == "RESTRICTED" and m.activation.value == "DISABLED"
+    assert m.automatic_activation_allowed is False and m.auto_selectable() is False
+    assert m.target_allowlist_required and m.operator_approval_required and m.sandbox_required
+
+
+def t_offensive_data_not_auto_selectable():
+    reg = seed_registry()
+    for cid in ("payloads-all-the-things", "seclists"):
+        assert reg.get(cid).automatic_activation_allowed is False, f"{cid} must not auto-load (§7)"
+        assert reg.get(cid).security_tier == 2 and reg.get(cid).authorized_context_required
+
+
+def t_cybersecurity_reference_unresolved_disabled():
+    m = seed_registry().get("cybersecurity-reference")
+    assert m.certification.value == "UPSTREAM_UNRESOLVED" and m.activation.value == "DISABLED"
+
+
+def t_appllama_not_selectable_until_installed():
+    """Honesty: AppLlama is upstream-verified but NOT installed → DISCOVERED → not auto-routed live."""
+    assert seed_registry().get("appllama").auto_selectable() is False
+
+
+def t_appllama_routing_logic_when_installed():
+    """§4/§29: IF installed, a mobile-design task auto-routes to AppLlama; ordinary backend work does not."""
+    reg, g = seed_registry(), seed_graph()
+    reg.get("appllama").availability = AV.AVAILABLE   # simulate install to exercise the routing logic
+    brain = CapabilityBrain(reg, g)
+    mobile = brain.plan("Build a premium mobile onboarding flow for a pregnancy app.", Principal("u"))
+    assert "appllama" in mobile.selected_ids(), f"mobile task must route to AppLlama, got {mobile.summary}"
+    backend = brain.plan("Fix the database connection pool in the billing service.", Principal("u"))
+    assert "appllama" not in backend.selected_ids(), "AppLlama must NOT activate for ordinary backend work"
+
+
+def t_empire_never_selected_by_natural_language():
+    reg, g = seed_registry(), seed_graph()
+    brain = CapabilityBrain(reg, g)
+    for prompt in ("Explain what cross-site scripting is.",
+                   "Run a penetration test.",
+                   "Do adversary emulation against example.com."):
+        assert "empire" not in brain.plan(prompt, Principal("u")).selected_ids(), f"Empire auto-selected for: {prompt}"
 
 
 for _n, _f in list(globals().items()):

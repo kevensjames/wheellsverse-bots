@@ -10,6 +10,7 @@
       "certification": "CERTIFIED",
       "activation": "ALWAYS_AVAILABLE",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "long_term_memory",
         "recall",
@@ -41,6 +42,7 @@
       "certification": "CERTIFIED",
       "activation": "ALWAYS_AVAILABLE",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "implement",
         "refactor",
@@ -72,6 +74,7 @@
       "certification": "CERTIFIED",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "library_docs",
         "api_reference"
@@ -103,6 +106,7 @@
       "certification": "CERTIFIED",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "browser_qa",
         "screenshot",
@@ -135,6 +139,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "structured_planning"
       ],
@@ -163,6 +168,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "read_files",
         "write_files"
@@ -195,6 +201,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "repo_read",
         "pr",
@@ -228,6 +235,7 @@
       "certification": "EXPERIMENTAL",
       "activation": "DISABLED",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "concise_output",
         "action_first"
@@ -253,6 +261,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "MANUAL_ONLY",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "skill_compile",
         "document_distill"
@@ -283,6 +292,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "DISABLED",
       "risk_class": "RESTRICTED",
+      "security_tier": 0,
       "capabilities": [
         "reverse_analysis",
         "malware_analysis",
@@ -316,6 +326,7 @@
       "certification": "EXPERIMENTAL",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "ai_concepts",
         "neural_networks",
@@ -347,6 +358,7 @@
       "certification": "EXPERIMENTAL",
       "activation": "MANUAL_ONLY",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "layered_memory",
         "context_compression"
@@ -374,6 +386,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "shared_workspace",
         "skill_sharing"
@@ -402,6 +415,7 @@
       "certification": "EXPERIMENTAL",
       "activation": "DISABLED",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "agent_rooms",
         "signed_activity"
@@ -427,6 +441,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "local_inference",
         "low_vram"
@@ -457,6 +472,7 @@
       "certification": "EXPERIMENTAL",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
+      "security_tier": 0,
       "capabilities": [
         "local_inference"
       ],
@@ -485,6 +501,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "HIGH",
+      "security_tier": 0,
       "capabilities": [
         "lightweight_coding",
         "parallel_scan"
@@ -513,6 +530,7 @@
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
       "risk_class": "MEDIUM",
+      "security_tier": 0,
       "capabilities": [
         "gis",
         "map_layers",
@@ -534,6 +552,240 @@
         "owner": "opengeos",
         "license": "MIT",
         "ref": "v2.7.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "appllama",
+      "name": "AppLlama (Mobile Design Skills)",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "mobile_design_research",
+        "onboarding_research",
+        "paywall_research",
+        "react_native_design"
+      ],
+      "triggers": [
+        "build mobile app",
+        "mobile onboarding",
+        "design mobile screen",
+        "subscription flow",
+        "react native ui",
+        "expo screen",
+        "mobile ux"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a72: mobile-app DESIGN agent skill (no offensive execution). Full research features need the EXTERNAL Appllama MCP (mcp.appllama.io) + a paid Pro account \u2014 vendor egress/auth caveat, not a security risk. \u00a736: use for pattern research, never pixel-clone copyrighted apps.",
+      "provenance": {
+        "upstream": "https://github.com/Appllama/appllama-skills",
+        "owner": "Appllama",
+        "license": "MIT",
+        "ref": "4b54282",
+        "verified": true
+      }
+    },
+    {
+      "id": "hero",
+      "name": "HERO (Proportional Engineering Policy)",
+      "type": "AGENT_BEHAVIOR_POLICY",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
+      "activation": "ALWAYS_AVAILABLE",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a711/\u00a712: a BEHAVIOR POLICY, not a tool \u2014 integrated into CLAUDE.md. Trims speculative over-engineering but can NEVER suppress a load-bearing security/auth/financial/privacy/production/verified-finding concern (enforced by security.hero_allows_reduction). Precedence: system safety > security > regulatory > user > project > HERO.",
+      "provenance": {
+        "upstream": "https://github.com/wanshuiyin/HERO-Anti-OverDefense",
+        "owner": "wanshuiyin",
+        "license": "MIT",
+        "ref": "bfe4026",
+        "verified": true
+      }
+    },
+    {
+      "id": "awesome-osint",
+      "name": "Awesome OSINT",
+      "type": "OSINT_RESOURCE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 1,
+      "capabilities": [
+        "osint_resources",
+        "public_research"
+      ],
+      "triggers": [
+        "osint",
+        "open-source intel",
+        "public research",
+        "company research"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a78: curated OSINT resource list (tier 1). LAWFUL PUBLIC info only \u2014 never authorizes credential theft, intrusion, private-data access, or doxxing. \u00a735: OSINT results with personal data must route through privacy classification before any memory write.",
+      "provenance": {
+        "upstream": "https://github.com/jivoi/awesome-osint",
+        "owner": "jivoi",
+        "license": "CC-BY-SA-4.0",
+        "ref": "374d93d",
+        "verified": true
+      }
+    },
+    {
+      "id": "awesome-hacking",
+      "name": "Awesome-Hacking (Reference)",
+      "type": "SECURITY_KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "security_reference"
+      ],
+      "triggers": [
+        "security resources",
+        "hacking reference",
+        "security reading list"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a79: canonical RESOLVED to Hack-with-Github/Awesome-Hacking (the 0x4D31 candidate is a 404). A meta-list of links \u2014 no code, tier 0.",
+      "provenance": {
+        "upstream": "https://github.com/Hack-with-Github/Awesome-Hacking",
+        "owner": "Hack-with-Github",
+        "license": "CC0-1.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "payloads-all-the-things",
+      "name": "PayloadsAllTheThings",
+      "type": "SECURITY_KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "HIGH",
+      "security_tier": 2,
+      "capabilities": [
+        "web_security_payloads",
+        "methodology"
+      ],
+      "triggers": [
+        "payload reference",
+        "authorized web-security review"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "\u00a76: offensive payload/methodology REFERENCE (tier 2) \u2014 DATA, not an attack engine. Never auto-loaded for ordinary work; requires an authorized security mission. Retrieve only the needed subset; do not execute payloads because they exist. RISK HIGH.",
+      "provenance": {
+        "upstream": "https://github.com/swisskyrepo/PayloadsAllTheThings",
+        "owner": "swisskyrepo",
+        "license": "MIT",
+        "ref": "3bff425",
+        "verified": true
+      }
+    },
+    {
+      "id": "seclists",
+      "name": "SecLists",
+      "type": "SECURITY_DATA_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "HIGH",
+      "security_tier": 2,
+      "capabilities": [
+        "wordlists",
+        "fuzzing_data"
+      ],
+      "triggers": [
+        "wordlist",
+        "fuzzing data",
+        "authorized discovery list"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "\u00a77: security DATA pack (tier 2) \u2014 wordlists, leaked-password corpora, web-shell samples (AV false-positive prone). Never auto-loaded; authorized mission only. Retrieve the minimal subset; never surface sensitive list content unnecessarily. RISK HIGH.",
+      "provenance": {
+        "upstream": "https://github.com/danielmiessler/SecLists",
+        "owner": "danielmiessler",
+        "license": "MIT",
+        "ref": "2026.1",
+        "verified": true
+      }
+    },
+    {
+      "id": "cybersecurity-reference",
+      "name": "Cybersecurity Reference Guide",
+      "type": "SECURITY_KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "UPSTREAM_UNRESOLVED",
+      "activation": "DISABLED",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a710: 'The Ultimate Cybersecurity Reference Guide' is a generic phrase, not a unique repo \u2014 UPSTREAM_UNRESOLVED \u2192 DISABLED. Do not guess a canonical repo.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "empire",
+      "name": "PowerShell Empire (Adversary Emulation)",
+      "type": "SECURITY_EXECUTION_FRAMEWORK",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 4,
+      "capabilities": [
+        "adversary_emulation",
+        "c2",
+        "post_exploitation"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.redteam"
+      ],
+      "notes": "\u00a713-16: EXECUTING post-exploitation C2 (tier 4) \u2014 DISABLED_RESTRICTED_LAB_ONLY. NEVER auto-activated (\u00a723/\u00a731); requires the FULL envelope \u2014 authorized security mission, AuthorizedTarget on the allowlist, explicit high-impact approval, initialized sandbox, network policy, audit. No internet-wide/production targeting, ever (\u00a715). RISK RESTRICTED.",
+      "provenance": {
+        "upstream": "https://github.com/BC-SECURITY/Empire",
+        "owner": "BC-SECURITY",
+        "license": "BSD-3-Clause",
+        "ref": "v6.7.1",
         "verified": true
       }
     }

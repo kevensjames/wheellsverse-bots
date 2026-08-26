@@ -20,8 +20,8 @@ test('stateLabel derives strictly from availability; DISCOVERED/BLOCKED never re
 });
 test('on the REAL catalog, only genuinely-available capabilities show READY', () => {
   const ready = C.buildCapabilityRows(catalog).filter((r) => r.state === 'READY').map((r) => r.id);
-  // native caps + CERTIFIED foundation MCPs (connected+exercised); nothing else may show READY
-  assert.deepStrictEqual(ready.sort(), ['claude-code', 'context7', 'kai-memory', 'playwright'], 'only certified caps show READY');
+  // native caps + CERTIFIED foundation MCPs + the HERO policy; nothing else may show READY
+  assert.deepStrictEqual(ready.sort(), ['claude-code', 'context7', 'hero', 'kai-memory', 'playwright'], 'only certified caps show READY');
 });
 
 // ── mode + restricted override ───────────────────────────────────────────────
@@ -39,7 +39,20 @@ test('categoryOf maps each capability to its functional-halo lane', () => {
   assert.strictEqual(C.categoryOf(byId['geolibre']), 'GEO');
   assert.strictEqual(C.categoryOf(byId['airllm']), 'INFERENCE');
   assert.strictEqual(C.categoryOf(byId['kai-memory']), 'MEMORY');
-  assert.strictEqual(C.categoryOf(byId['reverse-skill']), 'SECURITY');
+  assert.strictEqual(C.categoryOf(byId['reverse-skill']), 'ACTIVE SECURITY');
+  // expansion groups — high-risk tiers are visually distinct (§26/§49)
+  assert.strictEqual(C.categoryOf(byId['empire']), 'ADVERSARY EMULATION');
+  assert.strictEqual(C.categoryOf(byId['seclists']), 'SECURITY REFERENCE');
+  assert.strictEqual(C.categoryOf(byId['awesome-osint']), 'OSINT');
+  assert.strictEqual(C.categoryOf(byId['appllama']), 'MOBILE DESIGN');
+  assert.strictEqual(C.categoryOf(byId['hero']), 'AGENT BEHAVIOR');
+});
+test('Empire renders as a distinct high-risk row, never a green AUTO-READY tile (§26)', () => {
+  const rows = C.buildCapabilityRows(catalog);
+  const emp = rows.find((r) => r.id === 'empire');
+  assert.ok(emp && emp.state !== 'READY', 'Empire must never show READY');
+  assert.strictEqual(emp.risk, 'RESTRICTED');
+  assert.strictEqual(emp.category, 'ADVERSARY EMULATION');
 });
 
 // ── inspector never exposes credentials (§55) ─────────────────────────────────

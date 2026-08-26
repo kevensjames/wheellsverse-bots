@@ -39,11 +39,17 @@
   // §57 functional-halo categories
   var _TYPE_CAT = {
     KNOWLEDGE_PACK: 'KNOWLEDGE', CODE_TOOL: 'CODE', AGENT_RUNTIME: 'CODE',
-    MEMORY_PROVIDER: 'MEMORY', SECURITY_ROUTER: 'SECURITY', BROWSER_TOOL: 'BROWSER',
+    MEMORY_PROVIDER: 'MEMORY', SECURITY_ROUTER: 'ACTIVE SECURITY', BROWSER_TOOL: 'BROWSER',
     GEOSPATIAL_TOOL: 'GEO', COLLABORATION_TOOL: 'COLLABORATION', WORKSPACE_ADAPTER: 'COLLABORATION',
     MODEL_RUNTIME: 'INFERENCE', AGENT_SKILL: 'KNOWLEDGE',
+    // expansion groups (§49) — high-risk security tiers are visually distinct, never plain "tools"
+    SECURITY_KNOWLEDGE_PACK: 'SECURITY REFERENCE', SECURITY_DATA_PACK: 'SECURITY REFERENCE',
+    OSINT_RESOURCE_PACK: 'OSINT', AGENT_BEHAVIOR_POLICY: 'AGENT BEHAVIOR',
+    SECURITY_EXECUTION_FRAMEWORK: 'ADVERSARY EMULATION',
   };
   function categoryOf(cap) {
+    // a mobile-design agent skill groups under MOBILE DESIGN, not generic KNOWLEDGE
+    if (cap.type === 'AGENT_SKILL' && /mobile|react_native|onboarding|paywall/.test((cap.capabilities || []).join(' ').toLowerCase())) return 'MOBILE DESIGN';
     if (cap.type in _TYPE_CAT) return _TYPE_CAT[cap.type];
     if (cap.type === 'MCP' || cap.type === 'NATIVE_KAI_TOOL') {
       var caps = (cap.capabilities || []).join(' ').toLowerCase();
