@@ -58,11 +58,18 @@ def seed_manifests() -> list[CM]:
                  "FastAPI lifespan docs w/ source fastapi.tiangolo.com), auto-routing proven. "
                  "CAVEATS: config uses UNPINNED npx (pin a version for the final config, §3/§9); "
                  "KAI-runtime (App B) wiring EXTERNAL_BLOCKED — Claude-Code layer only (§13)."),
-        CM(id="playwright", name="Playwright MCP", type=CT.BROWSER_TOOL, availability=AV.DISCOVERED,
-           certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND, risk_class=RK.LOW,
-           default_action_class=AC.READ_ONLY, capabilities=["browser_qa", "screenshot", "dom"],
+        CM(id="playwright", name="Playwright MCP", type=CT.BROWSER_TOOL, availability=AV.AVAILABLE,
+           certification=CE.CERTIFIED, activation=AM.ON_DEMAND, risk_class=RK.LOW,
+           default_action_class=AC.READ_ONLY, version="@playwright/mcp (npx, UNPINNED)",
+           capabilities=["browser_qa", "screenshot", "dom"],
            triggers=["browser", "mobile", "screenshot", "verify the page", "render"],
-           notes="LIVE in the Claude Code session; not wired into the KAI runtime."),
+           provenance=_prov("https://github.com/microsoft/playwright-mcp", "microsoft", "Apache-2.0", "",
+                            "claude mcp (npx @playwright/mcp)"),
+           notes="§4 CERTIFIED_LOCAL_STAGING at the Claude Code layer: connected + exercised at "
+                 "3440x1440 / 1920x1080 / 390x844 (no horizontal overflow; console inspection worked). "
+                 "POLICY: local/staging only — inspection is READ_ONLY; local interaction REVERSIBLE_WRITE; "
+                 "production mutation / deploy / merge is HIGH_IMPACT + approval-gated (§5/§16). "
+                 "CAVEATS: unpinned npx (§3/§9); KAI-runtime EXTERNAL_BLOCKED (§13)."),
         CM(id="sequential-thinking", name="Sequential Thinking MCP", type=CT.MCP,
            availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND,
            risk_class=RK.LOW, default_action_class=AC.READ_ONLY, capabilities=["structured_planning"],

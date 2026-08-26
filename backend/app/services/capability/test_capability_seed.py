@@ -29,16 +29,16 @@ def t_catalog_loads():
 
 
 def t_only_certified_are_available():
-    """Only native caps + the CERTIFIED Context7 (connected+exercised) are AVAILABLE (§73/§3)."""
+    """Only native caps + CERTIFIED foundation MCPs (connected+exercised) are AVAILABLE (§73/§3/§4)."""
     reg = seed_registry()
     available = [m.id for m in reg.list(availability=AV.AVAILABLE)]
-    assert set(available) == {"kai-memory", "claude-code", "context7"}, f"unexpected available set: {available}"
+    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright"}, f"unexpected available set: {available}"
 
 
 def t_external_not_selectable():
     """An upstream-verified-but-uninstalled capability is not selectable → never planned."""
     reg = seed_registry()
-    for cid in ("geolibre", "airllm", "jcode", "openwork", "reverse-skill", "playwright"):
+    for cid in ("geolibre", "airllm", "jcode", "openwork", "reverse-skill", "github", "filesystem"):
         assert not reg.get(cid).selectable(), f"{cid} must not be selectable until installed/certified"
 
 
@@ -50,6 +50,15 @@ def t_context7_certified_and_auto_routes():
     assert "context7" in docs.selected_ids(), f"docs query must auto-route to Context7, got {docs.summary}"
     greeting = brain.plan("Hello KAI.", Principal("u"))
     assert "context7" not in greeting.selected_ids() and greeting.selected_ids() == [], "a greeting must select nothing"
+
+
+def t_playwright_certified_and_auto_routes():
+    """§4: a browser-verification query auto-routes to Playwright (no tool named); a greeting selects none."""
+    reg, g = seed_registry(), seed_graph()
+    brain = CapabilityBrain(reg, g)
+    plan = brain.plan("Verify the Nexus works correctly on a mobile viewport.", Principal("u"))
+    assert "playwright" in plan.selected_ids(), f"a browser-verify query must auto-route to Playwright, got {plan.summary}"
+    assert brain.plan("Hi there.", Principal("u")).selected_ids() == []
 
 
 def t_reverse_skill_is_restricted_and_disabled():

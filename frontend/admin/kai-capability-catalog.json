@@ -99,8 +99,8 @@
       "id": "playwright",
       "name": "Playwright MCP",
       "type": "BROWSER_TOOL",
-      "availability": "DISCOVERED",
-      "certification": "EXTERNAL_BLOCKED",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
       "capabilities": [
@@ -118,13 +118,13 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "LIVE in the Claude Code session; not wired into the KAI runtime.",
+      "notes": "\u00a74 CERTIFIED_LOCAL_STAGING at the Claude Code layer: connected + exercised at 3440x1440 / 1920x1080 / 390x844 (no horizontal overflow; console inspection worked). POLICY: local/staging only \u2014 inspection is READ_ONLY; local interaction REVERSIBLE_WRITE; production mutation / deploy / merge is HIGH_IMPACT + approval-gated (\u00a75/\u00a716). CAVEATS: unpinned npx (\u00a73/\u00a79); KAI-runtime EXTERNAL_BLOCKED (\u00a713).",
       "provenance": {
-        "upstream": "",
-        "owner": "",
-        "license": "",
+        "upstream": "https://github.com/microsoft/playwright-mcp",
+        "owner": "microsoft",
+        "license": "Apache-2.0",
         "ref": "",
-        "verified": false
+        "verified": true
       }
     },
     {
