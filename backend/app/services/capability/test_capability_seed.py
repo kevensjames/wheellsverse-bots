@@ -28,18 +28,28 @@ def t_catalog_loads():
         assert reg.has(cid), f"missing {cid}"
 
 
-def t_only_native_is_available():
-    """Nothing external is installed here — external capabilities must NOT be AVAILABLE (§73)."""
+def t_only_certified_are_available():
+    """Only native caps + the CERTIFIED Context7 (connected+exercised) are AVAILABLE (§73/§3)."""
     reg = seed_registry()
     available = [m.id for m in reg.list(availability=AV.AVAILABLE)]
-    assert set(available) == {"kai-memory", "claude-code"}, f"only native caps are available, got {available}"
+    assert set(available) == {"kai-memory", "claude-code", "context7"}, f"unexpected available set: {available}"
 
 
 def t_external_not_selectable():
     """An upstream-verified-but-uninstalled capability is not selectable → never planned."""
     reg = seed_registry()
-    for cid in ("geolibre", "airllm", "jcode", "openwork", "reverse-skill", "context7"):
-        assert not reg.get(cid).selectable(), f"{cid} must not be selectable until installed"
+    for cid in ("geolibre", "airllm", "jcode", "openwork", "reverse-skill", "playwright"):
+        assert not reg.get(cid).selectable(), f"{cid} must not be selectable until installed/certified"
+
+
+def t_context7_certified_and_auto_routes():
+    """§3: on the REAL seed the Brain selects Context7 for a docs query (no tool named); a greeting selects none."""
+    reg, g = seed_registry(), seed_graph()
+    brain = CapabilityBrain(reg, g)
+    docs = brain.plan("Check the current official documentation for this FastAPI behavior.", Principal("u"))
+    assert "context7" in docs.selected_ids(), f"docs query must auto-route to Context7, got {docs.summary}"
+    greeting = brain.plan("Hello KAI.", Principal("u"))
+    assert "context7" not in greeting.selected_ids() and greeting.selected_ids() == [], "a greeting must select nothing"
 
 
 def t_reverse_skill_is_restricted_and_disabled():

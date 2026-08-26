@@ -47,11 +47,17 @@ def seed_manifests() -> list[CM]:
            notes="Primary engineering authority (§10/§40). No worker merges/deploys independently."),
 
         # ── MCP superstack (§12/§42) — transports, not wired into the KAI runtime here ──
-        CM(id="context7", name="Context7 MCP", type=CT.MCP, availability=AV.DISCOVERED,
-           certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND, risk_class=RK.LOW,
-           default_action_class=AC.READ_ONLY, capabilities=["library_docs", "api_reference"],
+        CM(id="context7", name="Context7 MCP", type=CT.MCP, availability=AV.AVAILABLE,
+           certification=CE.CERTIFIED, activation=AM.ON_DEMAND, risk_class=RK.LOW,
+           default_action_class=AC.READ_ONLY, version="@upstash/context7-mcp (npx, UNPINNED)",
+           capabilities=["library_docs", "api_reference"],
            triggers=["documentation", "docs", "library", "framework", "api reference"],
-           notes="LIVE in the Claude Code session; NOT wired into the KAI runtime (App B down)."),
+           provenance=_prov("https://github.com/upstash/context7", "upstash", "MIT", "",
+                            "claude mcp (npx @upstash/context7-mcp)"),
+           notes="§3 CERTIFIED at the Claude Code layer: connected + exercised (returned current "
+                 "FastAPI lifespan docs w/ source fastapi.tiangolo.com), auto-routing proven. "
+                 "CAVEATS: config uses UNPINNED npx (pin a version for the final config, §3/§9); "
+                 "KAI-runtime (App B) wiring EXTERNAL_BLOCKED — Claude-Code layer only (§13)."),
         CM(id="playwright", name="Playwright MCP", type=CT.BROWSER_TOOL, availability=AV.DISCOVERED,
            certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND, risk_class=RK.LOW,
            default_action_class=AC.READ_ONLY, capabilities=["browser_qa", "screenshot", "dom"],

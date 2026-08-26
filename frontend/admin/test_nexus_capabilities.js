@@ -20,7 +20,8 @@ test('stateLabel derives strictly from availability; DISCOVERED/BLOCKED never re
 });
 test('on the REAL catalog, only genuinely-available capabilities show READY', () => {
   const ready = C.buildCapabilityRows(catalog).filter((r) => r.state === 'READY').map((r) => r.id);
-  assert.deepStrictEqual(ready.sort(), ['claude-code', 'kai-memory'], 'no external capability may show READY');
+  // native caps + the CERTIFIED Context7 (connected+exercised); nothing else may show READY
+  assert.deepStrictEqual(ready.sort(), ['claude-code', 'context7', 'kai-memory'], 'only certified caps show READY');
 });
 
 // ── mode + restricted override ───────────────────────────────────────────────

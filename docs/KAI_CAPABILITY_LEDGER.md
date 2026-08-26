@@ -42,7 +42,7 @@ built · `CC`=Claude-Code-available · `KAI`=KAI-runtime-available · `AR`=auto-
 |-----------|----|----|-----|-----|----|----|----|-----|------|
 | kai-memory (native) | ✓ | ✓ | ✓ | ~ | — | ✓ | ✓ | ~ | **CERTIFIED** |
 | claude-code (native) | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | **CERTIFIED** |
-| context7 | ✓ | ✓ | ✓* | — | ✓ | — | ~ | ✓* | **PARTIAL** (connected + **exercised**) |
+| context7 | ✓ | ✓ | ✓* | — | ✓ | — | ✓ | ✓* | **CERTIFIED (Claude Code layer)** — connected + exercised + auto-routes; caveats: unpinned npx (§3/§9), KAI-runtime EXTERNAL_BLOCKED (§13) |
 | playwright | ✓ | ✓ | ✓* | — | ✓ | — | ~ | ✓* | **PARTIAL** (connected + exercised) |
 | sequential-thinking | ✓ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (absent — not configured) |
 | filesystem | ✓ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (absent — native file tools) |

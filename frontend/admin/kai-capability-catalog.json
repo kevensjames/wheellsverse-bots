@@ -68,8 +68,8 @@
       "id": "context7",
       "name": "Context7 MCP",
       "type": "MCP",
-      "availability": "DISCOVERED",
-      "certification": "EXTERNAL_BLOCKED",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
       "capabilities": [
@@ -86,13 +86,13 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "LIVE in the Claude Code session; NOT wired into the KAI runtime (App B down).",
+      "notes": "\u00a73 CERTIFIED at the Claude Code layer: connected + exercised (returned current FastAPI lifespan docs w/ source fastapi.tiangolo.com), auto-routing proven. CAVEATS: config uses UNPINNED npx (pin a version for the final config, \u00a73/\u00a79); KAI-runtime (App B) wiring EXTERNAL_BLOCKED \u2014 Claude-Code layer only (\u00a713).",
       "provenance": {
-        "upstream": "",
-        "owner": "",
-        "license": "",
+        "upstream": "https://github.com/upstash/context7",
+        "owner": "upstash",
+        "license": "MIT",
         "ref": "",
-        "verified": false
+        "verified": true
       }
     },
     {
