@@ -978,6 +978,7 @@ _NEXUS_APP_MIME = {
     "kai-glb-validator.js": "text/javascript",
     "kai-glb-renderer.js": "text/javascript",
     "kai-subtitles.js": "text/javascript",
+    "kai-speech-input.js": "text/javascript",
 }
 
 
