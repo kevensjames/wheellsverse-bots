@@ -45,11 +45,23 @@ test('glb with no asset → ASSET_UNAVAILABLE, load rejects, capabilities all fa
   for (const k of ['lip_sync', 'visemes', 'facial_rig', 'blink']) assert.strictEqual(caps[k], false);
   return g.load().then(() => { throw new Error('load should reject without an asset'); }, (e) => { assert.ok(/ASSET_UNAVAILABLE/.test(e.message)); });
 });
-test('glb WITH an asset reports full capabilities (plug-and-play)', () => {
-  const g = D.createDriver('glb', { assetUrl: '/admin/nexus-assets/kai-avatar-v1.glb' });
-  const caps = g.getCapabilities();
-  for (const k of ['lip_sync', 'visemes', 'facial_rig', 'gaze', 'blink', 'head_pose', 'breathing']) assert.strictEqual(caps[k], true);
-  assert.strictEqual(g.getDiagnostics().mode, 'GLB');
+test('glb caps are NOT advertised from a mere assetUrl — only after a verified load (§6/§8)', () => {
+  const g = D.createDriver('glb', { assetUrl: '/admin/nexus-assets/kai-avatar-v1.glb', load: () => Promise.resolve('ok') });
+  const before = g.getCapabilities();
+  for (const k of ['lip_sync', 'visemes', 'facial_rig']) assert.strictEqual(before[k], false, 'no caps before a verified load');
+  return g.load().then(() => {
+    const caps = g.getCapabilities();
+    for (const k of ['lip_sync', 'visemes', 'facial_rig', 'gaze', 'blink', 'head_pose', 'breathing']) assert.strictEqual(caps[k], true);
+    assert.strictEqual(g.getDiagnostics().mode, 'GLB');
+  });
+});
+test('glb with an assetUrl but NO loader/renderer → refuses to claim loaded (no_loader)', () => {
+  const g = D.createDriver('glb', { assetUrl: '/x.glb' });   // nothing can actually load it
+  assert.strictEqual(g.getCapabilities().lip_sync, false);
+  return g.load().then(() => { throw new Error('should reject'); }, () => {
+    assert.strictEqual(g.getDiagnostics().loaded, false);
+    assert.strictEqual(g.getDiagnostics().mode, 'ASSET_UNAVAILABLE');
+  });
 });
 test('glb with an asset whose loader REJECTS must NOT claim loaded (no pretend)', () => {
   const g = D.createDriver('glb', { assetUrl: '/x.glb', load: () => Promise.reject(new Error('404')) });
@@ -88,25 +100,32 @@ function fakeRenderer(mode) {
     dispose: function () { this.disposed++; this.state = 'DISPOSED'; },
   };
 }
-test('glb+renderer: caps are all-false until the renderer reaches READY, then GLB_CAPS', () => {
+test('glb+renderer: caps all-false until READY, then only what the renderer DELIVERS (no dead caps)', () => {
   const rnd = fakeRenderer();
   const g = D.createDriver('glb', { assetUrl: '/kai.glb', renderer: rnd });
   assert.strictEqual(g.getCapabilities().lip_sync, false, 'no caps before a real bind');
   assert.strictEqual(g.getDiagnostics().renderer, true);
   return g.load().then(() => {
-    assert.strictEqual(g.getCapabilities().lip_sync, true, 'caps true only after READY');
+    const caps = g.getCapabilities();
+    // morph-coefficient caps the renderer genuinely applies:
+    for (const k of ['lip_sync', 'visemes', 'facial_rig', 'blink', 'expression']) assert.strictEqual(caps[k], true, k + ' delivered via applyCoeffs');
+    // bone-driven caps NOT wired in the renderer yet → honestly false (§8, no advertised-but-dead cap):
+    for (const k of ['gaze', 'head_pose', 'breathing']) assert.strictEqual(caps[k], false, k + ' must not be advertised');
     assert.strictEqual(g.getDiagnostics().loaded, true);
     assert.strictEqual(g.getDiagnostics().mode, 'GLB');
   });
 });
-test('glb+renderer: applyCoeffs / setGaze / setHeadPose route to the renderer (§11)', () => {
+test('glb+renderer: applyCoeffs / setViseme / setGaze / setHeadPose route to the renderer (§11)', () => {
   const rnd = fakeRenderer();
   const g = D.createDriver('glb', { assetUrl: '/kai.glb', renderer: rnd });
   return g.load().then(() => {
     g.applyCoeffs({ jawOpen: 0.7 });
+    assert.deepStrictEqual(rnd.applied[rnd.applied.length - 1], { jawOpen: 0.7 });
+    g.setViseme('MBP', 1);                       // renderer path: setViseme is REAL (mapped → applyCoeffs), not a no-op
+    const last = rnd.applied[rnd.applied.length - 1];
+    assert.ok(last && Object.keys(last).length > 0 && last.jawOpen !== 0.7, 'setViseme drove morphs via the renderer');
     g.setGaze({ x: 0.5, y: -0.2 });
     g.setHeadPose(0.3, 0.1, 0);
-    assert.deepStrictEqual(rnd.applied[rnd.applied.length - 1], { jawOpen: 0.7 });
     assert.deepStrictEqual(rnd.gaze, { x: 0.5, y: -0.2 });
     assert.deepStrictEqual(rnd.head, { yaw: 0.3, pitch: 0.1 });
     g.unload();

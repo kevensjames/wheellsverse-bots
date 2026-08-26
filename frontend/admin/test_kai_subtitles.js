@@ -1,28 +1,10 @@
-/* Node tests for kai-subtitles.js — bounded, §24-sanitized, interruption-consistent.
+/* Node tests for kai-subtitles.js — bounded, §24-sanitized (FAIL-CLOSED), interruption-consistent.
  * Run: node test_kai_subtitles.js */
 const assert = require('assert');
 const S = require('./kai-subtitles.js');
 
 let pass = 0;
 function test(name, fn) { try { fn(); console.log('  ok  ' + name); pass++; } catch (e) { console.error('  FAIL ' + name + '\n       ' + e.message); process.exitCode = 1; } }
-
-// a minimal streaming §24 stripper: removes closed <think>…</think>, holds an open block
-// (suppresses its trailing text), and on flush drops any still-open reasoning remainder.
-function thinkStripper() {
-  let buf = '';
-  return {
-    push(d) {
-      buf += (d || '');
-      buf = buf.replace(/<think>[\s\S]*?<\/think>/g, '');   // closed reasoning removed
-      const open = buf.indexOf('<think>');
-      let out;
-      if (open === -1) { out = buf; buf = ''; } else { out = buf.slice(0, open); buf = buf.slice(open); }
-      return out;
-    },
-    flush() { const open = buf.indexOf('<think>'); const out = open === -1 ? buf : buf.slice(0, open); buf = ''; return out; },
-    reset() { buf = ''; },
-  };
-}
 
 // ── progressive accumulation + state machine ─────────────────────────────────
 test('EMPTY → STREAMING → SETTLED across push/finalize', () => {
@@ -40,27 +22,34 @@ test('rolling window bounds the visible tail at a word boundary', () => {
   b.push('one two three four five six seven eight');
   const v = b.visible();
   assert.ok(v.length <= 20, 'bounded to maxChars');
-  assert.ok(!/^\S*\s/.test(' ' + v) || v[0] !== ' ', 'no leading space');
+  assert.ok(v[0] !== ' ', 'no leading space');
   assert.ok(b.fullText().length > 20, 'full text is retained even though the window is small');
 });
 
-// ── §24: reasoning never reaches the screen ───────────────────────────────────
-test('a closed <think> block never appears in the visible subtitle', () => {
-  const b = new S.KaiSubtitleBuffer({ sanitizer: thinkStripper() });
+// ── §24 FAIL-CLOSED default: reasoning stripped even with NO injected sanitizer ────
+test('DEFAULT (no sanitizer injected) strips a closed <think> block — fail-closed', () => {
+  const b = new S.KaiSubtitleBuffer();   // <-- no sanitizer; must NOT pass reasoning through
   b.begin();
   b.push('The answer is ');
   b.push('<think>the user probably wants X, let me hedge</think>');
   b.push('42.');
   const out = b.finalize();
   assert.strictEqual(out, 'The answer is 42.');
-  assert.ok(out.indexOf('think') === -1 && out.indexOf('hedge') === -1, 'no reasoning leaked');
+  assert.ok(out.indexOf('think') === -1 && out.indexOf('hedge') === -1, 'no reasoning leaked by default');
 });
-test('an OPEN <think> mid-stream is suppressed while streaming (not shown early)', () => {
-  const b = new S.KaiSubtitleBuffer({ sanitizer: thinkStripper() });
+test('DEFAULT suppresses an OPEN <think> mid-stream (not painted early)', () => {
+  const b = new S.KaiSubtitleBuffer();
   b.begin();
   b.push('Result: ');
   const mid = b.push('<think>still deliberating');
   assert.strictEqual(mid, 'Result: ', 'the open reasoning tail is held back, not painted');
+  assert.ok(mid.indexOf('deliberating') === -1, 'reasoning content never shown');
+});
+test('an injected custom sanitize is honored (raw, finalized) → safe', () => {
+  const upper = (raw) => String(raw).toUpperCase();
+  const b = new S.KaiSubtitleBuffer({ sanitize: upper });
+  b.begin(); b.push('hello');
+  assert.strictEqual(b.visible(), 'HELLO');
 });
 
 // ── §14/§27: interruption consistency — no ghost text after STOP/barge-in ──────

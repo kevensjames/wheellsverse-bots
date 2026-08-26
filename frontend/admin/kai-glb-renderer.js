@@ -45,7 +45,9 @@
     this.mesh = null;            // the SkinnedMesh carrying morphTargetInfluences
     this.morphRegistry = null;
     this.boneRegistry = null;
+    this._root = null;           // the added gltf.scene root (removed on dispose)
     this._disposables = [];      // {dispose()} geometries/materials/textures/renderer we own
+    this._trackedSet = (typeof Set !== 'undefined') ? new Set() : null;   // dedupe shared textures/materials
     this._disposedCount = 0;
     this.renderer = null;
     this.scene = null;
@@ -56,7 +58,30 @@
   }
   var P = KaiGLBRenderer.prototype;
 
-  P._track = function (obj) { if (obj && typeof obj.dispose === 'function') this._disposables.push(obj); return obj; };
+  // texture-bearing PBR material slots — ALL leak on dispose if only .map is released
+  var TEX_KEYS = ['map', 'normalMap', 'bumpMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap',
+    'displacementMap', 'alphaMap', 'envMap', 'lightMap', 'clearcoatMap', 'clearcoatNormalMap',
+    'clearcoatRoughnessMap', 'sheenColorMap', 'specularMap', 'transmissionMap', 'thicknessMap'];
+
+  P._track = function (obj) {
+    if (!obj || typeof obj.dispose !== 'function') return obj;
+    if (this._trackedSet) { if (this._trackedSet.has(obj)) return obj; this._trackedSet.add(obj); }  // dedupe shared handles
+    this._disposables.push(obj);
+    return obj;
+  };
+  // track a material and EVERY texture map it references (not just .map)
+  P._trackMaterial = function (mat) {
+    if (!mat) return;
+    this._track(mat);
+    for (var i = 0; i < TEX_KEYS.length; i++) { var t = mat[TEX_KEYS[i]]; if (t) this._track(t); }
+  };
+  // track a mesh's geometry + all its materials' textures
+  P._trackMesh = function (mesh) {
+    if (!mesh) return;
+    this._track(mesh.geometry);
+    var mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+    for (var i = 0; i < mats.length; i++) this._trackMaterial(mats[i]);
+  };
 
   // build the WebGL renderer/scene/camera/lights and arm the context-loss listener.
   // No GLB yet → state stays UNINITIALIZED (a scene without an avatar is NOT READY).
@@ -72,12 +97,15 @@
     var fill = new T.AmbientLight(0x8090ff, 0.35);   // faint KAI-blue ambient
     this.scene.add(key); this.scene.add(fill);
     if (this.canvas.addEventListener) {
-      this.canvas.addEventListener('webglcontextlost', function (e) { if (e && e.preventDefault) e.preventDefault(); self._onContextLost(); });
+      // keep the bound ref so dispose() can removeEventListener (no retained renderer / cross-instance fire)
+      this._ctxLostListener = function (e) { if (e && e.preventDefault) e.preventDefault(); self._onContextLost(); };
+      this.canvas.addEventListener('webglcontextlost', this._ctxLostListener);
     }
     return this;
   };
 
   P._onContextLost = function () {
+    if (this.state === 'DISPOSED') return;   // a disposed renderer never fires fallback
     if (this._contextLost) return;
     this._contextLost = true;
     this.error = 'webgl_context_lost';
@@ -95,6 +123,9 @@
     return new Promise(function (resolve, reject) {
       loader.load(url,
         function (gltf) {
+          // dispose() may have run while the loader was in flight — DISPOSED is terminal: bind,
+          // dispose whatever it just created, and DO NOT resurrect state (no leak, no fake READY).
+          if (self.state === 'DISPOSED') { try { self._bind(gltf); } catch (e) { /* ignore */ } self._disposeTracked(); return reject(new Error('disposed')); }
           try {
             self._bind(gltf);
             self.state = 'READY';                 // set READY only after a successful bind
@@ -105,28 +136,42 @@
           }
         },
         function () {},                            // progress (ignored)
-        function (err) { self.state = 'FAILED'; self.error = 'load_error'; reject(err || new Error('load_error')); }
+        function (err) {
+          if (self.state === 'DISPOSED') return reject(new Error('disposed'));   // don't rewrite DISPOSED → FAILED
+          self.state = 'FAILED'; self.error = 'load_error'; reject(err || new Error('load_error'));
+        }
       );
     });
   };
 
-  // find the morph-bearing mesh, bind the registries, add to scene. Throws if the rig is unusable.
+  // bind the registries + add to scene, tracking EVERY mesh's resources. Throws if the rig is
+  // unusable so READY is NEVER set on a degenerate asset (§8 — no fake READY).
   P._bind = function (gltf) {
     var root = gltf && gltf.scene;
     if (!root) throw new Error('no_scene');
-    var mesh = null, boneNames = [];
+    var candidates = [], meshes = [], boneNames = [];
     root.traverse(function (o) {
-      if (!mesh && o.morphTargetDictionary && o.morphTargetInfluences) mesh = o;
+      // a real morph mesh needs a NON-EMPTY dictionary + an influences array ({} and [] are both truthy)
+      if (o.morphTargetDictionary && o.morphTargetInfluences && Object.keys(o.morphTargetDictionary).length > 0) candidates.push(o);
+      if (o.geometry) meshes.push(o);
       if (o.isBone || o.type === 'Bone') boneNames.push(o.name);
     });
-    if (!mesh) throw new Error('no_morph_mesh');       // a GLB with no blendshapes cannot lip-sync — refuse, don't fake
-    this.mesh = mesh;
-    this.morphRegistry = MR.buildMorphRegistry(mesh.morphTargetDictionary);
+    if (!candidates.length) throw new Error('no_morph_mesh');   // no blendshapes → cannot lip-sync — refuse
+
+    // choose the candidate that binds the MOST critical morphs (the real face, not a teeth/eyelash morph mesh)
+    var best = null, bestReg = null, bestScore = -1;
+    for (var i = 0; i < candidates.length; i++) {
+      var reg = MR.buildMorphRegistry(candidates[i].morphTargetDictionary);
+      var score = MR.CRITICAL_MORPHS.length - reg.missingCritical.length;
+      if (score > bestScore) { bestScore = score; best = candidates[i]; bestReg = reg; }
+    }
+    if (bestScore <= 0) throw new Error('no_critical_morphs');   // binds no jaw/blink/mouth → not a usable face
+
+    this.mesh = best;
+    this.morphRegistry = bestReg;
     this.boneRegistry = MR.buildBoneRegistry(boneNames);
-    if (this.scene && this.scene.add) this.scene.add(root);
-    this._track(mesh.geometry);
-    var mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-    for (var i = 0; i < mats.length; i++) { var m = mats[i]; if (!m) continue; this._track(m); if (m.map) this._track(m.map); }
+    if (this.scene && this.scene.add) { this.scene.add(root); this._root = root; }
+    for (var j = 0; j < meshes.length; j++) this._trackMesh(meshes[j]);   // track ALL meshes, not just the face
   };
 
   // §11 invariant: the same coefficient frame the Lab uses drives the GLB morph influences.
@@ -159,14 +204,28 @@
 
   P.getState = function () { return { state: this.state, error: this.error, morphsBound: this.morphRegistry ? this.morphRegistry.boundCount : 0, disposed: this._disposedCount, contextLost: this._contextLost }; };
 
-  // dispose every tracked GPU resource exactly once and go terminal.
-  P.dispose = function () {
-    if (this.state === 'DISPOSED') return this._disposedCount;
+  // dispose every tracked GPU resource exactly once + detach the scene root. Reused by the
+  // dispose-during-load path, so it never changes state itself.
+  P._disposeTracked = function () {
     for (var i = 0; i < this._disposables.length; i++) {
       try { this._disposables[i].dispose(); this._disposedCount++; } catch (e) { /* keep disposing the rest */ }
     }
     this._disposables = [];
-    this.mesh = null; this.scene = null; this.camera = null; this.renderer = null;
+    if (this._trackedSet) this._trackedSet.clear();
+    if (this._root && this.scene && this.scene.remove) { try { this.scene.remove(this._root); } catch (e) { /* ignore */ } }
+    this._root = null;
+    return this._disposedCount;
+  };
+
+  // dispose every tracked GPU resource exactly once and go terminal.
+  P.dispose = function () {
+    if (this.state === 'DISPOSED') return this._disposedCount;
+    this._disposeTracked();
+    if (this._ctxLostListener && this.canvas && this.canvas.removeEventListener) {
+      this.canvas.removeEventListener('webglcontextlost', this._ctxLostListener);   // no retained renderer / cross-instance fire
+    }
+    this._ctxLostListener = null;
+    this.mesh = null; this.scene = null; this.camera = null; this.renderer = null; this.canvas = null;
     this.state = 'DISPOSED';
     return this._disposedCount;
   };

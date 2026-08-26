@@ -23,6 +23,10 @@
   }
   var VIDEO_CAPS = caps({ state: true });   // only idle↔speak clip swap is real
   var GLB_CAPS = caps({ state: true, lip_sync: true, visemes: true, facial_rig: true, gaze: true, blink: true, head_pose: true, breathing: true, expression: true });
+  // HONEST caps for the KaiGLBRenderer path: it applies the MORPH coefficient frame (lip-sync,
+  // visemes, blink, expression are all morph coefficients) but does NOT yet drive head/eye BONES
+  // or breathing — so those read false until bone animation is wired (§8, no advertised-but-dead cap).
+  var GLB_RENDERER_CAPS = caps({ state: true, lip_sync: true, visemes: true, facial_rig: true, blink: true, expression: true });
   var LAB_CAPS = caps({ state: true, visemes: true, blink: true, gaze: true, expression: true });   // dev harness; no true 3D head/breath
 
   var STATE_CLIP = { speaking: 'speak' };   // every other state → idle clip (video only has two)
@@ -95,15 +99,22 @@
       kind: 'GLB',
       load: function () {
         if (!hasAsset) { diag.mode = 'ASSET_UNAVAILABLE'; return Promise.reject(new Error('ASSET_UNAVAILABLE')); }
+        // nothing actually loads the asset (no renderer AND no loader) → do NOT claim loaded (§6)
+        if (!rnd && !opts.load) { diag.mode = 'ASSET_UNAVAILABLE'; return Promise.reject(new Error('no_loader')); }
         // loaded reflects a REAL successful load — never claim success before the loader/renderer resolves (§6)
-        var p = rnd ? rnd.load(opts.assetUrl) : Promise.resolve(opts.load ? opts.load(opts.assetUrl) : undefined);
+        var p = rnd ? rnd.load(opts.assetUrl) : Promise.resolve(opts.load(opts.assetUrl));
         return Promise.resolve(p).then(
           function (r) { diag.loaded = rnd ? ready() : true; diag.mode = diag.loaded ? 'GLB' : 'ASSET_UNAVAILABLE'; diag.rstate = rState(); return r; },
           function (e) { diag.loaded = false; diag.mode = 'ASSET_UNAVAILABLE'; diag.rstate = rState(); throw e; });
       },
       unload: function () { diag.loaded = false; if (rnd && rnd.dispose) rnd.dispose(); else if (opts.unload) opts.unload(); },
       setState: function (s) { diag.state = s; if (opts.setState) opts.setState(s); },
-      setViseme: function (v, w, t) { if (opts.setViseme) opts.setViseme(v, w, t); },
+      // on the renderer path setViseme is REAL — it maps the viseme to coeffs and drives the morphs
+      // (not a silent no-op); the §11 frame path (applyCoeffs) is the primary driver.
+      setViseme: function (v, w, t) {
+        if (rnd) { var base = Mapper ? Mapper.visemeToCoefficients(v) : {}, ww = (w == null ? 1 : w), c = {}; for (var k in base) c[k] = base[k] * ww; rnd.applyCoeffs(c); }
+        else if (opts.setViseme) opts.setViseme(v, w, t);
+      },
       applyCoeffs: function (c) { if (rnd) rnd.applyCoeffs(c); else if (opts.applyCoeffs) opts.applyCoeffs(c); },
       setExpression: function (n, w) { if (opts.setExpression) opts.setExpression(n, w); },
       blink: function (s) { if (opts.blink) opts.blink(s); },
@@ -111,9 +122,10 @@
       setHeadPose: function (y, p, r) { if (rnd && rnd.setHeadTarget) rnd.setHeadTarget(y, p); else if (opts.setHeadPose) opts.setHeadPose(y, p, r); },
       setBreathing: function (a) { if (opts.setBreathing) opts.setBreathing(a); },
       returnToNeutral: function () { if (rnd) rnd.applyCoeffs(Mapper ? Mapper.visemeToCoefficients('REST') : {}); else if (opts.returnToNeutral) opts.returnToNeutral(); },
-      // capabilities are UNKNOWN until a real bind: with a renderer they are true ONLY at READY;
-      // without a renderer, the legacy contract reports GLB_CAPS once an assetUrl is present.
-      getCapabilities: function () { return rnd ? (ready() ? Object.assign({}, GLB_CAPS) : caps({})) : (hasAsset ? Object.assign({}, GLB_CAPS) : caps({})); },
+      // capabilities are UNKNOWN until a real bind. Renderer path → GLB_RENDERER_CAPS (only what the
+      // renderer actually delivers) at READY, else none. No-renderer path → GLB_CAPS ONLY after a
+      // verified load (diag.loaded), never from a mere assetUrl (§6/§8).
+      getCapabilities: function () { return rnd ? (ready() ? Object.assign({}, GLB_RENDERER_CAPS) : caps({})) : (diag.loaded ? Object.assign({}, GLB_CAPS) : caps({})); },
       getDiagnostics: function () { if (rnd) diag.rstate = rState(); return Object.assign({}, diag); },
     };
   }
@@ -127,7 +139,7 @@
   }
 
   return {
-    CAP_KEYS: CAP_KEYS, VIDEO_CAPS: VIDEO_CAPS, GLB_CAPS: GLB_CAPS, LAB_CAPS: LAB_CAPS,
+    CAP_KEYS: CAP_KEYS, VIDEO_CAPS: VIDEO_CAPS, GLB_CAPS: GLB_CAPS, GLB_RENDERER_CAPS: GLB_RENDERER_CAPS, LAB_CAPS: LAB_CAPS,
     stateToClip: stateToClip, createDriver: createDriver,
     videoDriver: videoDriver, labDriver: labDriver, glbDriver: glbDriver,
   };
