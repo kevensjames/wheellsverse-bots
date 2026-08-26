@@ -157,9 +157,13 @@ class CapabilityBrain:
         intent = classify_intent(request)
         plan = CapabilityPlan(request=request, intent=intent)
 
-        # 1. candidate search — selectable capabilities whose triggers appear in the request
+        # 1. candidate search — AUTO-selectable capabilities whose triggers appear in the request.
+        # auto_selectable() excludes manual/approval/restricted capabilities (Empire) from natural-
+        # language routing (§23/§31): they can be invoked explicitly + governed, never auto-picked.
         candidates: list[Candidate] = []
-        for m in self.registry.list(selectable_only=True):
+        for m in self.registry.list():
+            if not m.auto_selectable():
+                continue
             matched = self._matched_triggers(m, request)
             if not matched:
                 continue

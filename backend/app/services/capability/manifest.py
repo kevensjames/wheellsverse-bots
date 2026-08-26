@@ -32,6 +32,12 @@ class CapabilityType(str, Enum):
     GEOSPATIAL_TOOL = "GEOSPATIAL_TOOL"
     COLLABORATION_TOOL = "COLLABORATION_TOOL"
     NATIVE_KAI_TOOL = "NATIVE_KAI_TOOL"
+    # ── expansion-pack subtypes (§5/§17/§22) ──
+    SECURITY_KNOWLEDGE_PACK = "SECURITY_KNOWLEDGE_PACK"   # PayloadsAllTheThings, reference guides
+    SECURITY_DATA_PACK = "SECURITY_DATA_PACK"             # SecLists (wordlists/fuzzing data)
+    OSINT_RESOURCE_PACK = "OSINT_RESOURCE_PACK"           # Awesome OSINT
+    AGENT_BEHAVIOR_POLICY = "AGENT_BEHAVIOR_POLICY"       # HERO (proportional engineering)
+    SECURITY_EXECUTION_FRAMEWORK = "SECURITY_EXECUTION_FRAMEWORK"   # Empire (adversary emulation)
 
 
 class RiskClass(str, Enum):
@@ -126,13 +132,25 @@ class CapabilityManifest:
     provenance: Provenance = field(default_factory=Provenance)
     fallback: str | None = None                               # capability id to fall back to (§30)
     notes: str = ""
+    # ── security-tier governance (§17/§37) ──
+    security_tier: int = 0                    # 0 knowledge · 1 passive data · 2 authorized test data · 3 active testing · 4 adversary emulation
+    authorized_context_required: bool = False  # needs an authorized security mission before activation
+    target_allowlist_required: bool = False    # needs an AuthorizedTarget (§32) — a raw hostname is never enough
+    operator_approval_required: bool = False   # explicit high-impact approval (§14)
+    sandbox_required: bool = False             # must run in an isolated runtime (§33)
+    automatic_activation_allowed: bool = True  # false → the Brain may NEVER auto-select it (§23/§31, e.g. Empire)
 
     def selectable(self) -> bool:
-        """A capability may be considered by the Brain only if it is genuinely usable now."""
+        """A capability may be invoked at all only if it is genuinely usable now."""
         return (
             self.availability == Availability.AVAILABLE
             and self.activation != ActivationMode.DISABLED
         )
+
+    def auto_selectable(self) -> bool:
+        """A capability the Brain may AUTO-route to (natural language alone). A manual/approval or
+        restricted capability (Empire) is selectable-by-explicit-invocation but never auto-selected."""
+        return self.selectable() and self.automatic_activation_allowed
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -171,7 +189,9 @@ def manifest_from_dict(d: dict[str, Any]) -> CapabilityManifest:
             except ValueError as exc:
                 raise ValueError(f"manifest {d['id']!r}: invalid {key}={d[key]!r}") from exc
     for key in ("id", "name", "version", "capabilities", "triggers", "dependencies",
-                "conflicts", "permissions", "timeout_ms", "fallback", "notes"):
+                "conflicts", "permissions", "timeout_ms", "fallback", "notes",
+                "security_tier", "authorized_context_required", "target_allowlist_required",
+                "operator_approval_required", "sandbox_required", "automatic_activation_allowed"):
         if key in d and d[key] is not None:
             kwargs[key] = d[key]
     if isinstance(d.get("resource_profile"), dict):
