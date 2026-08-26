@@ -22,7 +22,10 @@ require a running KAI runtime, real installs, or a browser are honestly PENDING/
 | Security Policy (§25) | **PASS** | `evaluate_policy` + tests |
 | RBAC (§22) | **PASS** | scope/role gating in the policy |
 | Approval Gates (§25) | **PASS** | REQUIRE_APPROVAL tiers |
-| Prompt Injection (§24) | **PASS** | untrusted-by-default + `scan_for_injection` + inert proposals |
+| Prompt Injection (§24) | **PASS** | untrusted-by-default + `scan_for_injection` (all fields) + inert proposals |
+| Principal Propagation (§17) | **PASS** | `invocation.py` — every call carries principal/mission/correlation; no anonymous calls; forged request scopes ignored |
+| Plugin-to-plugin control (§18) | **PASS** | `route_capability_proposal` — a proposal is gated by policy, never a direct A→B grant |
+| Governed invocation (§16) | **PASS** | `governed_invoke` — DENY never executes, REQUIRE_APPROVAL returns inert proposal, oversized result clamped |
 | Secret Isolation (§50) | **PARTIAL** | broker designed in docs; not wired to a live secret store |
 | Audit (§59) | **PARTIAL** | event taxonomy defined; sink wiring EXTERNAL_BLOCKED (App B down) |
 | Nexus Integration (§54–58) | **PARTIAL** | `kai-nexus-capabilities.js` panel + honest catalog snapshot built + tested (no fake READY, credential-redacted inspector, §57 categories); live Nexus tab wiring pending |
@@ -39,11 +42,11 @@ built · `CC`=Claude-Code-available · `KAI`=KAI-runtime-available · `AR`=auto-
 |-----------|----|----|-----|-----|----|----|----|-----|------|
 | kai-memory (native) | ✓ | ✓ | ✓ | ~ | — | ✓ | ✓ | ~ | **CERTIFIED** |
 | claude-code (native) | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | **CERTIFIED** |
-| context7 | ✓ | ✓ | ✓* | — | ✓ | — | ~ | — | **PARTIAL** |
-| playwright | ✓ | ✓ | ✓* | — | ✓ | — | ~ | — | **PARTIAL** |
-| sequential-thinking | ~ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** |
-| filesystem | ~ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** |
-| github | ~ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** |
+| context7 | ✓ | ✓ | ✓* | — | ✓ | — | ~ | ✓* | **PARTIAL** (connected + **exercised**) |
+| playwright | ✓ | ✓ | ✓* | — | ✓ | — | ~ | ✓* | **PARTIAL** (connected + exercised) |
+| sequential-thinking | ✓ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (absent — not configured) |
+| filesystem | ✓ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (absent — native file tools) |
+| github | ✓ | ✓ | — | — | — | — | — | — | **AUTH_PENDING** (Copilot MCP configured; failed to connect — §36) |
 | focus-output (i-have-adhd) | ✓ | ✓ | — | — | — | — | — | — | **EXPERIMENTAL** |
 | book-to-skill | ✓ | ✓ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** |
 | reverse-skill | ✓ | ✓ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (RESTRICTED, vet-only) |

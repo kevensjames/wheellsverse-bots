@@ -28,15 +28,18 @@ discovery inputs, not trusted install instructions.
 | jcode | github.com/1jehuang/jcode | 1jehuang | MIT | CODE_TOOL | **HIGH** | **curl\|bash** (jcode.sh) / brew / cargo | A Claude Code *competitor* CLI; multi-provider, needs credentials. HIGH because it ships a `curl\|bash` installer — inspect before any install. Never final authority. |
 | geolibre | github.com/opengeos/GeoLibre | opengeos | MIT | GEOSPATIAL_TOOL | MEDIUM | desktop/web/pip (Tauri) | **The `taka015/geolibre` hint was a FORK** — canonical is opengeos/GeoLibre (6.7k★). Local-first WASM GIS; preserve location provenance. |
 
-## MCP superstack (§12/§42) — verify, don't assume
+## MCP superstack — INSPECTED via `claude mcp list` (§2, 2026-08-26, not assumed)
 
-| id | type | state in this session | KAI runtime |
-|----|------|-----------------------|-------------|
-| context7 | MCP | **LIVE** (used this session) | not wired (App B down) |
-| playwright | BROWSER_TOOL | **LIVE** (used this session) | not wired |
-| sequential-thinking | MCP | not verified connected | not wired |
-| filesystem | MCP | not verified connected | not wired |
-| github | MCP | `gh` authed locally; MCP not verified | not wired (needs scoped credential via broker §50) |
+| id | configured | connected | exercised |
+|----|-----------|-----------|-----------|
+| context7 | ✓ `npx @upstash/context7-mcp` | ✓ | ✓ **returned current FastAPI lifespan docs** (source fastapi.tiangolo.com, incl. the 0.93.0 release note) — READ_ONLY/ON_DEMAND/LOW |
+| playwright | ✓ `npx @playwright/mcp@latest` | ✓ | ✓ (Avatar Lab, this session) |
+| github | ✓ `api.githubcopilot.com/mcp` (HTTP) | ✘ **Failed to connect** | — **AUTH_PENDING**, operator checkpoint (§36) |
+| sequential-thinking | ✘ **absent** | — | — (not configured) |
+| filesystem | ✘ **absent** | — | — (native Read/Write/Edit; scoped FS-MCP root is a later add per §7) |
+
+Configuration presence is not certification — only context7/playwright are connected **and**
+exercised. All are session-context MCPs; none is wired into the **KAI runtime** (App B down).
 
 ## What this record is NOT
 
