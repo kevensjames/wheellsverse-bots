@@ -80,32 +80,41 @@
   }
 
   // ── GLB production target (reports ASSET_UNAVAILABLE until the rigged .glb exists) ──
+  // Production drop-in contract: createDriver('glb', {assetUrl, renderer}). When a
+  // KaiGLBRenderer is supplied it becomes the SOURCE OF TRUTH — capabilities/loaded
+  // reflect the renderer's real load state (READY only after a morph-bearing mesh binds),
+  // and applyCoeffs feeds the SAME viseme-engine frames the Lab uses (§11 invariant).
   function glbDriver(opts) {
     opts = opts || {};
     var hasAsset = !!opts.assetUrl;
-    var diag = { kind: 'GLB', mode: hasAsset ? 'GLB' : 'ASSET_UNAVAILABLE', loaded: false, assetUrl: opts.assetUrl || null };
+    var rnd = opts.renderer || null;   // KaiGLBRenderer instance (optional)
+    var diag = { kind: 'GLB', mode: hasAsset ? 'GLB' : 'ASSET_UNAVAILABLE', loaded: false, assetUrl: opts.assetUrl || null, renderer: !!rnd };
+    function rState() { return rnd ? (rnd.getState ? rnd.getState().state : rnd.state) : null; }
+    function ready() { return rnd ? rState() === 'READY' : false; }
     return {
       kind: 'GLB',
       load: function () {
         if (!hasAsset) { diag.mode = 'ASSET_UNAVAILABLE'; return Promise.reject(new Error('ASSET_UNAVAILABLE')); }
-        // loaded reflects a REAL successful load — never claim success before the loader resolves (§6)
-        return Promise.resolve(opts.load ? opts.load(opts.assetUrl) : undefined).then(
-          function (r) { diag.loaded = true; diag.mode = 'GLB'; return r; },
-          function (e) { diag.loaded = false; diag.mode = 'ASSET_UNAVAILABLE'; throw e; });
+        // loaded reflects a REAL successful load — never claim success before the loader/renderer resolves (§6)
+        var p = rnd ? rnd.load(opts.assetUrl) : Promise.resolve(opts.load ? opts.load(opts.assetUrl) : undefined);
+        return Promise.resolve(p).then(
+          function (r) { diag.loaded = rnd ? ready() : true; diag.mode = diag.loaded ? 'GLB' : 'ASSET_UNAVAILABLE'; diag.rstate = rState(); return r; },
+          function (e) { diag.loaded = false; diag.mode = 'ASSET_UNAVAILABLE'; diag.rstate = rState(); throw e; });
       },
-      unload: function () { diag.loaded = false; if (opts.unload) opts.unload(); },
+      unload: function () { diag.loaded = false; if (rnd && rnd.dispose) rnd.dispose(); else if (opts.unload) opts.unload(); },
       setState: function (s) { diag.state = s; if (opts.setState) opts.setState(s); },
       setViseme: function (v, w, t) { if (opts.setViseme) opts.setViseme(v, w, t); },
-      applyCoeffs: function (c) { if (opts.applyCoeffs) opts.applyCoeffs(c); },
+      applyCoeffs: function (c) { if (rnd) rnd.applyCoeffs(c); else if (opts.applyCoeffs) opts.applyCoeffs(c); },
       setExpression: function (n, w) { if (opts.setExpression) opts.setExpression(n, w); },
       blink: function (s) { if (opts.blink) opts.blink(s); },
-      setGaze: function (t) { if (opts.setGaze) opts.setGaze(t); },
-      setHeadPose: function (y, p, r) { if (opts.setHeadPose) opts.setHeadPose(y, p, r); },
+      setGaze: function (t) { if (rnd && rnd.setGazeTarget) rnd.setGazeTarget(t && t.x, t && t.y); else if (opts.setGaze) opts.setGaze(t); },
+      setHeadPose: function (y, p, r) { if (rnd && rnd.setHeadTarget) rnd.setHeadTarget(y, p); else if (opts.setHeadPose) opts.setHeadPose(y, p, r); },
       setBreathing: function (a) { if (opts.setBreathing) opts.setBreathing(a); },
-      returnToNeutral: function () { if (opts.returnToNeutral) opts.returnToNeutral(); },
-      // capabilities are UNKNOWN until the asset loads + the inspector runs → all false when unavailable
-      getCapabilities: function () { return hasAsset ? Object.assign({}, GLB_CAPS) : caps({}); },
-      getDiagnostics: function () { return Object.assign({}, diag); },
+      returnToNeutral: function () { if (rnd) rnd.applyCoeffs(Mapper ? Mapper.visemeToCoefficients('REST') : {}); else if (opts.returnToNeutral) opts.returnToNeutral(); },
+      // capabilities are UNKNOWN until a real bind: with a renderer they are true ONLY at READY;
+      // without a renderer, the legacy contract reports GLB_CAPS once an assetUrl is present.
+      getCapabilities: function () { return rnd ? (ready() ? Object.assign({}, GLB_CAPS) : caps({})) : (hasAsset ? Object.assign({}, GLB_CAPS) : caps({})); },
+      getDiagnostics: function () { if (rnd) diag.rstate = rState(); return Object.assign({}, diag); },
     };
   }
 

@@ -76,4 +76,50 @@ test('createDriver dispatches by kind; default is video', () => {
   assert.strictEqual(D.createDriver(undefined, {}).kind, 'VIDEO');
 });
 
+// ── GLB driver bound to a KaiGLBRenderer (production drop-in contract) ─────────
+function fakeRenderer(mode) {
+  return {
+    state: 'UNINITIALIZED', applied: [], disposed: 0, gaze: null, head: null,
+    getState: function () { return { state: this.state }; },
+    load: function (url) { var self = this; return mode === 'fail' ? Promise.reject(new Error('load_error')) : Promise.resolve().then(function () { self.state = 'READY'; self._url = url; }); },
+    applyCoeffs: function (c) { this.applied.push(c); return this.state === 'READY'; },
+    setGazeTarget: function (x, y) { this.gaze = { x: x, y: y }; },
+    setHeadTarget: function (y, p) { this.head = { yaw: y, pitch: p }; },
+    dispose: function () { this.disposed++; this.state = 'DISPOSED'; },
+  };
+}
+test('glb+renderer: caps are all-false until the renderer reaches READY, then GLB_CAPS', () => {
+  const rnd = fakeRenderer();
+  const g = D.createDriver('glb', { assetUrl: '/kai.glb', renderer: rnd });
+  assert.strictEqual(g.getCapabilities().lip_sync, false, 'no caps before a real bind');
+  assert.strictEqual(g.getDiagnostics().renderer, true);
+  return g.load().then(() => {
+    assert.strictEqual(g.getCapabilities().lip_sync, true, 'caps true only after READY');
+    assert.strictEqual(g.getDiagnostics().loaded, true);
+    assert.strictEqual(g.getDiagnostics().mode, 'GLB');
+  });
+});
+test('glb+renderer: applyCoeffs / setGaze / setHeadPose route to the renderer (§11)', () => {
+  const rnd = fakeRenderer();
+  const g = D.createDriver('glb', { assetUrl: '/kai.glb', renderer: rnd });
+  return g.load().then(() => {
+    g.applyCoeffs({ jawOpen: 0.7 });
+    g.setGaze({ x: 0.5, y: -0.2 });
+    g.setHeadPose(0.3, 0.1, 0);
+    assert.deepStrictEqual(rnd.applied[rnd.applied.length - 1], { jawOpen: 0.7 });
+    assert.deepStrictEqual(rnd.gaze, { x: 0.5, y: -0.2 });
+    assert.deepStrictEqual(rnd.head, { yaw: 0.3, pitch: 0.1 });
+    g.unload();
+    assert.strictEqual(rnd.disposed, 1, 'unload disposes the renderer');
+  });
+});
+test('glb+renderer: a renderer load failure keeps loaded=false / ASSET_UNAVAILABLE (no fake success)', () => {
+  const g = D.createDriver('glb', { assetUrl: '/kai.glb', renderer: fakeRenderer('fail') });
+  return g.load().then(() => { throw new Error('should reject'); }, () => {
+    assert.strictEqual(g.getDiagnostics().loaded, false);
+    assert.strictEqual(g.getDiagnostics().mode, 'ASSET_UNAVAILABLE');
+    assert.strictEqual(g.getCapabilities().visemes, false);
+  });
+});
+
 console.log('\n' + pass + ' passed');

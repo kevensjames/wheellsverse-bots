@@ -974,6 +974,9 @@ _NEXUS_APP_MIME = {
     "kai-barge-in.js": "text/javascript",
     "kai-avatar-lab.js": "text/javascript",
     "kai-avatar-lab.css": "text/css",
+    "kai-morph-registry.js": "text/javascript",
+    "kai-glb-validator.js": "text/javascript",
+    "kai-glb-renderer.js": "text/javascript",
 }
 
 
