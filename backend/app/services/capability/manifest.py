@@ -38,6 +38,11 @@ class CapabilityType(str, Enum):
     OSINT_RESOURCE_PACK = "OSINT_RESOURCE_PACK"           # Awesome OSINT
     AGENT_BEHAVIOR_POLICY = "AGENT_BEHAVIOR_POLICY"       # HERO (proportional engineering)
     SECURITY_EXECUTION_FRAMEWORK = "SECURITY_EXECUTION_FRAMEWORK"   # Empire (adversary emulation)
+    # ── coding agent pool (§1) ──
+    CODING_WORKER = "CODING_WORKER"                       # Codex, Cline, Claude Code (general worker)
+    CODING_CLI = "CODING_CLI"                             # Gemini CLI (CLI-only worker)
+    CODING_IDE_ADAPTER = "CODING_IDE_ADAPTER"             # Windsurf (interactive IDE)
+    CODING_CLOUD_AGENT = "CODING_CLOUD_AGENT"             # cloud-delegated coding
 
 
 class RiskClass(str, Enum):
@@ -99,6 +104,24 @@ class ResourceProfile:
 
 
 @dataclass
+class WorkerProfile:
+    """Coding-worker attributes the CodingWorkerRouter reasons over (§1). Data, not authority."""
+    coding_modes: list[str] = field(default_factory=list)   # implement / review / test / debug
+    headless_support: bool = False       # can KAI drive it programmatically (not GUI-only)?
+    workspace_support: bool = False
+    git_support: bool = False
+    browser_support: bool = False
+    tool_support: bool = False           # supports tool/function calling
+    parallel_support: bool = False       # safe to run bounded-parallel instances
+    cloud_execution: bool = False
+    local_execution: bool = True
+    context_window: int = 0
+    model_provider: str = ""             # anthropic / openai / google / github — never a credential
+    approval_model: str = "governed"     # all writes/merges/deploys governed by KAI, never autonomous
+    interactive_only: bool = False       # true → cannot satisfy an unattended mission (Windsurf)
+
+
+@dataclass
 class Provenance:
     """Supply-chain record (§53). Verified, never assumed."""
     upstream: str = ""
@@ -129,6 +152,7 @@ class CapabilityManifest:
     activation: ActivationMode = ActivationMode.ON_DEMAND
     timeout_ms: int = 0
     resource_profile: ResourceProfile = field(default_factory=ResourceProfile)
+    worker_profile: WorkerProfile | None = None               # set for CODING_* capabilities (§1)
     provenance: Provenance = field(default_factory=Provenance)
     fallback: str | None = None                               # capability id to fall back to (§30)
     notes: str = ""
@@ -196,6 +220,8 @@ def manifest_from_dict(d: dict[str, Any]) -> CapabilityManifest:
             kwargs[key] = d[key]
     if isinstance(d.get("resource_profile"), dict):
         kwargs["resource_profile"] = ResourceProfile(**d["resource_profile"])
+    if isinstance(d.get("worker_profile"), dict):
+        kwargs["worker_profile"] = WorkerProfile(**d["worker_profile"])
     if isinstance(d.get("provenance"), dict):
         kwargs["provenance"] = Provenance(**d["provenance"])
     return CapabilityManifest(**kwargs)
