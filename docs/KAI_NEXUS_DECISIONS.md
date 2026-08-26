@@ -299,3 +299,63 @@ the activity indicator shows **labels only**, tagged DEMO when a scenario drives
 answers) is applied as **client defense-in-depth** at the presence render/speak path, with
 the adapter-level strip documented as the proper backend fix. Reuses the one `setKai`/
 `paintKai` choke point + the existing bus + `REDUCE_MOTION` — wiring, not new infrastructure.
+
+## D15 — Backend reasoning-output boundary is authoritative (§1/§22) — 2026-08-25
+
+**Evidence (docs/KAI_EMBODIMENT_SOURCES.md):** NO backend `<think>`/reasoning strip
+existed — the frontend regex was the ONLY defense while the backend streamed and
+persisted raw provider output across SSE, DB, usage, and TTS.
+
+**DECISION:** `backend/app/services/reasoning_sanitizer.py` is the canonical sanitizer,
+inserted at the earliest boundaries that cover all sinks at once: `Brain.stream()`
+(streaming SSE for admin+public + persistence, via a **stateful chunk-boundary-safe**
+`StreamingReasoningSanitizer` so a `<think>` split across SSE frames never leaks),
+`Brain.chat()` (buffered + persistence), the self-correction/reviser override in
+`admin_chat.py` (which bypasses Router), and `services/tts.py` (§22 — reasoning must
+never be vocalized). It matches the frontend semantic EXACTLY (no divergence): a paired
+block is always removed; an unclosed trailing block is suppressed mid-stream and
+preserved on finalize. 26 pure tests incl. an exhaustive streaming-equivalence property.
+The frontend strip remains defense-in-depth. This closes the real §24 gap authoritatively.
+
+## D12 — Avatar architecture: production stays state-driven VIDEO; rigged lip-sync is EXTERNAL_BLOCKED on an asset (§2/§3) — 2026-08-25
+
+**Evidence:** `CURRENT_AVATAR_TYPE = VIDEO` — two canned MP4 loops (`kai-idle`/`kai-speak`)
+swapped by a boolean. No rig, no morph targets, no viseme feed. The directive's Options
+A (static+CSS), B (2D facial rig), C (rigged GLB/VRM) **all require a rigged asset with
+blendshapes to achieve real lip-sync** — none exists in the repo, and a rigged Live2D/
+GLB/VRM likeness of KAI is an **art/rigging-pipeline deliverable that cannot be
+generated in this environment.**
+
+**Weighted view:** on realism/lip-sync/motion, C > B > A; on *buildability-here*, all
+three are **blocked on the same missing asset**. Choosing A/B/C now and shipping a
+"rigged" avatar would fabricate an asset that does not exist (violates §4/§40 + the data-
+honesty rule).
+
+**DECISION:** the production KAI avatar **remains the current state-driven video**
+(honest, identity-preserving) until a rigged asset is produced. Real audio-driven viseme
+lip-sync is **EXTERNAL_BLOCKED** on (a) a rigged 2D/3D asset AND (b) a viseme feed (Azure
+Speech visemes — key+network — or client audio-energy inference, which itself needs a
+rigged mouth + an `<audio>` element). What IS built instead, all real + non-fabricated:
+the backend sanitizer (D15), the authoritative embodiment **state machine**, masculine-
+voice hardening, the viseme/coarticulation **engine as pure tested logic** (ready to
+drive a rig the moment one exists; shown against a 2D placeholder in the Avatar Lab),
+idle-life *schedulers*, and state→halo/env/subtitle sync (extends Phase 10/11). The
+photoreal rigged embodiment is recorded EXTERNAL_BLOCKED, never faked. When an asset is
+provided (recommend **Live2D Cubism** for identity preservation + lighter GPU, or a
+rigged **VRM/GLB** for full 3D), the target is **Option B→C** driven by the already-built
+engine. **Prerequisite before any reasoning model is configured: D15 (done).**
+
+## D13 — KAI voice: keep browser masculine Web Speech; server male-voice available (§9) — 2026-08-25
+
+**Evidence:** the Nexus avatar voice is browser Web Speech with `_pickVoice` **already
+preferring masculine** (the rejected female voices are the separate server "read-aloud"
+Piper `lessac`/`amy`, NOT the avatar). A **male Piper `en_US-ryan-high.onnx` is on disk,
+unused.** No viseme/timestamp feed; no streaming TTS.
+
+**DECISION:** keep the browser Web Speech avatar voice (offline, zero-cost, masculine-
+preferring); **harden** the male-voice selection (broaden the male-name list, exclude
+female voices robustly, expose an **audition** control in the Avatar Lab since audio
+quality cannot be judged from config). The **server** TTS male voice is a 1-line config
+(`PIPER_MODEL_PATH` → `en_US-ryan-high.onnx`) — recommended but that path is the
+"read-aloud" button, not the avatar. A viseme-capable provider (Azure) is EXTERNAL_BLOCKED
+(key+network). Voice audition/certification requires listening (§38) — not asserted here.

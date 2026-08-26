@@ -109,7 +109,10 @@ def synthesize(text: str) -> tuple[bytes, str]:
     Returns (wav_bytes, mime_type). Raises TTSError only if BOTH backends
     fail — single-backend failure logs a warning and continues.
     """
-    text = (text or "").strip()
+    # §22/§24: reasoning scratchpads must NEVER be vocalized — sanitize at the TTS
+    # boundary regardless of caller (finalized: text here is a complete utterance).
+    from app.services.reasoning_sanitizer import strip_reasoning
+    text = strip_reasoning((text or "")).strip()
     if not text:
         raise TTSError("text cannot be empty")
     if len(text) > MAX_INPUT_CHARS:

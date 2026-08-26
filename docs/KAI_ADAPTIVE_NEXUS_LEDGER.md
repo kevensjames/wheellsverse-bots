@@ -188,6 +188,19 @@ Evidence: a 5-reader memory-surface inventory (docs/KAI_MEMORY_SOURCES.md, D13) 
 
 **Phase 9 honest gaps:** the live KG needs the governed bridge enabled + App B running + the operator to have hand-taught triples (no auto-population/NER exists) — until then the constellation is DEMO-fixtured and live is EXTERNAL_BLOCKED; only an ego-graph is drawable (no whole-graph dump endpoint — a thin `/admin/kg/graph` over the existing `traverse()` is the clean backend add); pgvector semantic memories, relationship, journal, learning, and failures are unreachable from the Nexus (not in the bridge allowlist / no read endpoint) and are deliberately NOT drawn.
 
+## Session 7 progress — 2026-08-25 (Phase 12 Step 1: authoritative backend reasoning boundary + honest embodiment audit)
+Evidence: a 4-reader Phase 12 audit (docs/KAI_EMBODIMENT_SOURCES.md; decisions D15/D12/D13)
++ 26 pure Python tests (`backend/app/services/test_reasoning_sanitizer.py`, incl. an
+exhaustive streaming-equivalence property). Docker DOWN + bridge OFF → live speak/stream
+paths unexercisable; validated by unit test per the audit's recommendation.
+
+- **P12-Step1 backend reasoning sanitizer (§1/§22, P0) → VERIFIED (unit)**: `backend/app/services/reasoning_sanitizer.py` — stateless `strip_reasoning` + stateful chunk-boundary-safe `StreamingReasoningSanitizer` (a `<think>` split across SSE frames is buffered, never leaked). Wired at **all six sinks**: admin SSE + public SSE (both via `Brain.stream`), both buffered paths (`Brain.chat`), DB persistence (brain saves sanitized), the self-correction/reviser override (`admin_chat.py` — bypasses Router), and `/kai/tts` (`services/tts.py`). Matches the frontend semantic exactly (closed always removed; unclosed-trailing suppressed mid-stream, preserved on finalize). Frontend strip retained as defense-in-depth. **Decision D15.**
+- **P12-audit + D12/D13 architecture (§2/§3/§9) → RECORDED (honest)**: `CURRENT_AVATAR_TYPE = VIDEO` (two canned MP4 loops swapped by a boolean — no rig, no morph targets, no viseme feed). The avatar voice is browser Web Speech, **already masculine-preferring** (rejected female voices are the separate server "read-aloud" path; a male Piper model exists on disk, unused). No microphone / VAD / SpeechRecognition anywhere; output-side barge-in exists (stop KAI talking), input-side absent.
+  - **D12:** production avatar stays state-driven VIDEO; real audio-driven viseme lip-sync is **EXTERNAL_BLOCKED** on a rigged 2D/3D asset (art/rigging pipeline — cannot be fabricated here) AND a viseme feed (Azure key+network, or audio-energy inference needing a rigged mouth). Target when an asset exists: Live2D (identity/GPU) or rigged VRM/GLB, driven by a to-be-built engine.
+  - **D13:** keep the masculine Web Speech avatar voice; harden male-voice selection + an audition control; server male voice is a 1-line `PIPER_MODEL_PATH` config (read-aloud path, not the avatar).
+
+**Phase 12 honest status (§40 — NOT complete):** the P0 backend boundary is the real, tested, non-blocked win. The living-avatar embodiment (rigged face, real visemes/lip-sync, blink/gaze/micro-expression, microphone barge-in, streaming TTS with viseme timing) is **EXTERNAL_BLOCKED on assets/infra that cannot be generated in this environment** and is NOT faked. Buildable-next without new assets: the authoritative embodiment state machine, viseme/coarticulation engine as pure logic, idle-life schedulers, an Avatar Lab dev harness, and state→halo/env/subtitle sync (extends Phase 10/11). Per §40, KAI is not "a living person" while the production avatar is a video with audio over it — this is recorded, not claimed.
+
 ## Session 6 progress — 2026-08-25 (Phase 10: Functional halo + safe activity/thinking viz)
 Evidence: a 4-reader halo/§24 inventory (docs/KAI_HALO_SOURCES.md, D14) + 11 node tests
 (`test_nexus_pulse.js`); browser-verified halo states + a live §24 leak check (a bus event

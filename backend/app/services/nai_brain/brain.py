@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 
 from app.models.conversation import Conversation, Message
+from app.services.reasoning_sanitizer import StreamingReasoningSanitizer, strip_reasoning
 from app.services.nai_brain.memory_injection import build_memory_preamble
 from app.services.nai_brain.system_prompt import build_system_prompt
 from app.services.router.router import Router
@@ -221,7 +222,7 @@ class Brain:
         assistant_msg = self._save_message(
             conv,
             "assistant",
-            result.content,
+            strip_reasoning(result.content),   # §24: never persist/return reasoning
             adapter=result.adapter,
             model_used=result.model,
             cost_usd=result.cost_usd,
@@ -282,6 +283,10 @@ class Brain:
                 system += f"\n\n[Operator context] {ctx_line}"
 
         collected: list[str] = []
+        # §24 authoritative boundary: strip reasoning scratchpads from every delta BEFORE
+        # it is yielded to SSE or accumulated for persistence. Chunk-boundary-safe (a tag
+        # split across deltas is buffered); a lone unclosed block is preserved on flush.
+        sanitizer = StreamingReasoningSanitizer()
         try:
             for delta in self.router.stream(
                 user_id=user_id,
@@ -290,14 +295,20 @@ class Brain:
                 max_tokens=max_tokens,
                 prefer_local=prefer_local,
             ):
-                collected.append(delta)
-                yield {"type": "delta", "content": delta}
+                safe = sanitizer.push(delta)
+                if safe:
+                    collected.append(safe)
+                    yield {"type": "delta", "content": safe}
+            tail = sanitizer.flush()
+            if tail:
+                collected.append(tail)
+                yield {"type": "delta", "content": tail}
         except Exception as e:
             logger.exception("stream failure")
             yield {"type": "error", "error": str(e)}
             return
 
-        full_content = "".join(collected)
+        full_content = "".join(collected)   # already sanitized → persistence is clean
         # adapter/model not surfaced by router.stream() — Phase B refinement.
         assistant_msg = self._save_message(conv, "assistant", full_content)
         conv.updated_at = func.now()

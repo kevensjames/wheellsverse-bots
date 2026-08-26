@@ -44,6 +44,7 @@ from app.database import get_db
 from app.dependencies.admin import require_admin_token
 from app.models.profile import Profile
 from app.services.nai_brain import Brain
+from app.services.reasoning_sanitizer import strip_reasoning
 from app.services.router import build_default_router
 from app.services.tools import build_default_registry
 
@@ -431,7 +432,8 @@ def admin_chat(req: AdminChatRequest, session: Session = Depends(get_db)):
                 max_iterations=req.self_correct_max_iterations,
                 prefer_local=req.prefer_local,
             )
-            final_content = corr.final_text or msg.content
+            # §24: the reviser bypasses Brain/Router — sanitize its output here too
+            final_content = strip_reasoning(corr.final_text or "") or msg.content
             cost = (cost or 0.0) + (corr.total_cost or 0.0)
             correction_meta = {
                 "iterations": corr.iterations,
