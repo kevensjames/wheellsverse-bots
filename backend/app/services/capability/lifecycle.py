@@ -113,14 +113,23 @@ class PluginLifecycleManager:
         self.track(cap_id)._to(State.DEGRADED, reason)
         return State.DEGRADED
 
-    def deactivate(self, cap_id: str, trigger: str) -> State:
-        """Map a §19 trigger to a real teardown. Unknown triggers are rejected (no silent stops)."""
+    def deactivate(self, cap_id: str, trigger: str, teardown: Callable[[], None] | None = None) -> State:
+        """Map a §19 trigger to a real teardown. Unknown triggers are rejected (no silent stops).
+
+        ``teardown`` (e.g. ``adapter.stop`` / a cancel token) runs during STOPPING so deactivation
+        actually releases the runtime instead of only flipping an enum — best-effort, never raises.
+        """
         if trigger not in DEACTIVATION_TRIGGERS:
             raise ValueError(f"unknown deactivation trigger {trigger!r}")
         lc = self.track(cap_id)
         if lc.state in (State.OFFLINE, State.STOPPING, State.DISCOVERED, State.DISABLED):
             return lc.state
         lc._to(State.STOPPING, trigger)
+        if teardown is not None:
+            try:
+                teardown()
+            except Exception:   # noqa: BLE001 — a teardown failure must not block the stop
+                pass
         lc._to(State.OFFLINE, trigger)
         return State.OFFLINE
 

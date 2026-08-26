@@ -64,25 +64,32 @@ KAI runtime (App B Docker-down).
 
 ## Adversarial review (§67)
 
-A 4-lens (authority-boundary / policy-bypass / fake-success / correctness) refute-biased
-review ran against the core. It **hit the session usage limit mid-verification** (8 verify
-agents finished, 13 could not run), so it is **partial** — a re-run of the remaining lenses is
-advised. Of the completed verifications, **2 confirmed + 1 correctly refuted**; a 3rd,
-finder-flagged and independently confirmed by re-reading the code, was also fixed:
+**Round 1 (partial — hit the session usage limit):** 2 confirmed + 1 independently confirmed →
+risk.py pre-approval target gate, results.py summary-only scan, brain.py dependency ALLOW bypass.
 
-- **MEDIUM (confirmed)** — `risk.py`: the mission pre-approval path allowed FINANCIAL/DESTRUCTIVE/
-  HIGH_IMPACT with no authorized-target check (asymmetric with RESTRICTED). **Fixed** — the
-  authorized-target gate now applies even to a pre-approved capability.
-- **LOW (confirmed)** — `results.py`: `scan_for_injection` scanned only `summary`, so a payload in
-  `data`/`proposed_action` evaded the audit signal (authority invariant held; detection missed).
-  **Fixed** — the default scan covers every untrusted field.
-- **(independently confirmed)** — `brain.py`: dependency steps were hardcoded `ALLOW`. **Fixed** —
-  a required dependency now passes the same policy gate (a RESTRICTED/HIGH_IMPACT dep is
-  approval-gated or BLOCKED, never auto-allowed).
+**Round 2 — COMPLETE §67 battery re-run** at SHA `68f6c49` (5 lenses × ~30 vectors, refute-biased,
+21 agents, 0 errors): **13 confirmed (1 critical, 3 high, 8 medium, 1 low), 3 correctly refuted,
+0 unverified.** All 13 fixed with a regression test each (reproduce → fix → re-run). Highlights:
 
-3 regression tests added (51 capability tests total). The correctly-refuted finding
-(`authorize_action` accepts any approver) has **zero production callers** and an inert flag (no
-executor exists yet) — noted as a hardening TODO for when a live executor is wired.
+- **CRITICAL** `invocation.py::route_capability_proposal` — a malicious plugin could label a
+  DESTRUCTIVE proposal `READ_ONLY` (fail-open default) and get it ALLOWed with no target/approval.
+  **Fixed** — the action tier now comes from the TRUSTED manifest (`_trusted_action_class`): a
+  proposal may only escalate; a missing label uses the declared class; an invalid one → PROHIBITED.
+- **HIGH** `invocation.py::governed_invoke` — a hostile adapter could return `authorized=True` /
+  `trust='TRUSTED'` / empty flags. **Fixed** — `sanitize_external_result` forces every adapter
+  result UNTRUSTED + unauthorized and re-scans it; the fabric, never the adapter, owns trust.
+- **HIGH** `lifecycle.py` quarantine split-brain — a lifecycle-quarantined capability could still
+  run. **Fixed** — `governed_invoke` consults lifecycle state and DENYs QUARANTINED/FAILED/STOPPING/OFFLINE.
+- **HIGH** `brain.py` — the §26 resource filter was skipped for dependencies. **Fixed** — deps face
+  the same VRAM/RAM/GPU + §61 conflict + §25 policy gates, or are BLOCKED with a fallback.
+- **MEDIUM** — structured/nested/zero-width injection evaded `repr()` scanning (**fixed** — recursive
+  leaf walk + NFKC + cross-element concat); adapter crashes propagated with secrets in the message
+  (**fixed** — caught, redacted to the exception type only, failure audit emitted); no timeout
+  (**fixed** — `manifest.timeout_ms` enforced under a deadline + deactivation); GPU never enforced;
+  oversized `data`/`evidence` unbounded; `deactivate` no teardown (all fixed).
+
+The 3 REFUTED (no locking in a single-threaded model; no failure backoff; a duplicate re-stamp
+finding) were correctly not fixed. **22 regression tests added across rounds → 73 capability tests.**
 
 ## What blocks CERTIFIED for the external capabilities
 

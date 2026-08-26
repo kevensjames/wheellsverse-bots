@@ -207,6 +207,34 @@ def t_review_dependency_passes_policy_gate():
     assert dep[0].needs_approval is True or dep[0].decision == "BLOCKED"
 
 
+def t_review_dependency_resource_gated():
+    """§26: a dependency the host can't run is BLOCKED, not silently ALLOWed."""
+    reg, g = fixture()
+    reg.get("doc-parser").resource_profile = ResourceProfile(vram_mb=99999)
+    plan = CapabilityBrain(reg, g).plan("Learn this PDF.", Principal("u"))
+    dep = [s for s in plan.steps if s.cap_id == "doc-parser"][0]
+    assert dep.decision == "BLOCKED" and "resource" in dep.rationale.lower()
+
+
+def t_review_dependency_conflict_gated():
+    """§61: a dependency conflicting with a selected capability is BLOCKED, not both-selected."""
+    reg, g = fixture()
+    g.add("doc-parser", Relation.CONFLICTS_WITH, "book-to-skill")
+    plan = CapabilityBrain(reg, g).plan("Learn this PDF.", Principal("u"))
+    dep = [s for s in plan.steps if s.cap_id == "doc-parser"][0]
+    assert dep.decision == "BLOCKED" and "conflict" in dep.rationale.lower()
+
+
+def t_review_gpu_enforced():
+    """§26: a GPU-only capability is not planned on a GPU-less host."""
+    reg, g = fixture()
+    reg.get("airllm").resource_profile.gpu = True
+    reg.unregister("ollama")   # airllm the only runtime candidate
+    plan = CapabilityBrain(reg, g).plan("run this model locally", Principal("u"), resources=ResourceState(gpu=False))
+    assert "airllm" not in plan.selected_ids()
+    assert any(cid == "airllm" and "gpu" in reason for cid, reason in plan.rejected)
+
+
 for _n, _f in list(globals().items()):
     if _n.startswith("t_"):
         test(_n[2:], _f)

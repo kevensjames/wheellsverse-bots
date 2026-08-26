@@ -13,6 +13,7 @@ Pure stdlib; testable as a plain ``python3`` script.
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 from typing import Any
@@ -53,6 +54,38 @@ _INJECTION_PATTERNS = [
 _INJECTION_RE = [re.compile(p, re.IGNORECASE) for p in _INJECTION_PATTERNS]
 
 
+_ZERO_WIDTH = dict.fromkeys(map(ord, "​‌‍⁠﻿­"), None)
+
+
+def _norm(s: Any) -> str:
+    """Unicode-normalize (NFKC) + strip zero-width/format chars so split/obfuscated markers fold together."""
+    return unicodedata.normalize("NFKC", str(s)).translate(_ZERO_WIDTH)
+
+
+def _collect_leaves(obj: Any, depth: int = 0) -> list[str]:
+    """Recursively collect every text leaf from nested data (dicts/lists/tuples/sets).
+
+    Scanning ``repr(data)`` misses markers split across element delimiters; walking to the
+    leaves and scanning each leaf (plus a whitespace-joined concatenation) does not.
+    """
+    if depth > 8 or obj is None or isinstance(obj, (bool, int, float)):
+        return []
+    if isinstance(obj, bytes):
+        return [obj.decode("utf-8", "replace")]
+    if isinstance(obj, str):
+        return [obj]
+    out: list[str] = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            out += _collect_leaves(k, depth + 1) + _collect_leaves(v, depth + 1)
+    elif isinstance(obj, (list, tuple, set)):
+        for it in obj:
+            out += _collect_leaves(it, depth + 1)
+    else:
+        out.append(str(obj))
+    return out
+
+
 def scan_for_injection(text: str) -> list[str]:
     """Return the injection markers found in untrusted text (for audit/quarantine, not for trust).
 
@@ -61,12 +94,29 @@ def scan_for_injection(text: str) -> list[str]:
     """
     if not text:
         return []
+    text = _norm(text)
     hits: list[str] = []
     for rx in _INJECTION_RE:
         m = rx.search(text)
         if m:
             hits.append(m.group(0).strip()[:80])
     return hits
+
+
+def scan_fields(*fields: Any) -> list[str]:
+    """Scan every text leaf of the given (possibly nested) fields for injection markers.
+
+    Catches markers hidden deep in structured data and markers SPLIT across list/dict elements
+    (via a whitespace-joined concatenation), which a flat ``repr()`` scan would miss.
+    """
+    leaves = []
+    for f in fields:
+        leaves += _collect_leaves(f)
+    leaves = [_norm(leaf) for leaf in leaves if leaf]
+    if not leaves:
+        return []
+    combined = "\n".join(leaves) + "\n" + " ".join(leaves)   # per-leaf + cross-element
+    return scan_for_injection(combined)
 
 
 @dataclass
@@ -113,13 +163,9 @@ def normalize(
     caller may upgrade trust later, but external capabilities always land here as UNTRUSTED.
     """
     if scan_text is None:
-        parts = [summary]
-        if data is not None:
-            parts.append(repr(data))
-        if proposed_action is not None:
-            parts.append(repr(proposed_action))
-        scan_text = "\n".join(str(p) for p in parts if p)
-    flags = scan_for_injection(scan_text)
+        flags = scan_fields(summary, data, proposed_action)   # walks nested leaves, catches splits
+    else:
+        flags = scan_for_injection(scan_text)
     return NormalizedResult(
         kind=kind,
         source=source,
@@ -132,6 +178,21 @@ def normalize(
         proposed_action=proposed_action,
         injection_flags=flags,
     )
+
+
+def sanitize_external_result(result: NormalizedResult) -> NormalizedResult:
+    """The fabric RE-OWNS the trust fields of an adapter's own result object (§24).
+
+    A hostile capability could construct a NormalizedResult with ``authorized=True`` /
+    ``trust='TRUSTED'`` / empty ``injection_flags`` to smuggle authority past the boundary.
+    This forces the result back to UNTRUSTED + unauthorized and re-scans EVERY field, so the
+    untrusted source can neither self-authorize nor suppress the injection signal. Called by
+    ``governed_invoke`` on every adapter result before it flows onward.
+    """
+    result.trust = "UNTRUSTED"
+    result.authorized = False
+    result.injection_flags = scan_fields(result.summary, result.data, result.proposed_action)
+    return result
 
 
 def authorize_action(result: NormalizedResult, *, approved_by: str) -> NormalizedResult:

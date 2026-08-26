@@ -103,6 +103,12 @@ _CERT_SCORE = {
 }
 
 
+def _exceeds_resources(rp, resources) -> bool:
+    """A capability the host cannot run (over VRAM/RAM, or GPU-only on a GPU-less host, §26)."""
+    return (rp.vram_mb > resources.vram_mb or rp.ram_mb > resources.ram_mb
+            or (rp.gpu and not resources.gpu))
+
+
 class CapabilityBrain:
     def __init__(self, registry: CapabilityRegistry, graph: CapabilityGraph | None = None,
                  weights: dict | None = None) -> None:
@@ -164,8 +170,9 @@ class CapabilityBrain:
                 continue
             # 3. resource filter — never plan a capability the machine can't run (§26)
             rp = m.resource_profile
-            if rp.vram_mb > resources.vram_mb or rp.ram_mb > resources.ram_mb:
-                plan.rejected.append((m.id, f"resource: needs {rp.vram_mb}MB vram / {rp.ram_mb}MB ram"))
+            if _exceeds_resources(rp, resources):
+                plan.rejected.append((m.id, f"resource: needs {rp.vram_mb}MB vram / {rp.ram_mb}MB ram"
+                                            + ("/gpu" if rp.gpu and not resources.gpu else "")))
                 continue
             score, factors = self._score(m, matched, intent, resources)
             candidates.append(Candidate(
@@ -193,8 +200,11 @@ class CapabilityBrain:
             selected.append(c)
             chosen_ids.add(cid)
 
-        # 6. dependency resolution (§60) + execution plan ordering (§29): deps first
+        # 6. dependency resolution (§60) + execution plan ordering (§29): deps first.
+        # A dependency is NOT a policy/resource/conflict loophole — it faces the SAME gates as a
+        # directly-selected capability, or it is BLOCKED with a fallback (never silently ALLOWed).
         emitted: set[str] = set()
+        active_ids: set[str] = set(chosen_ids)   # capabilities that will actually run
         for c in selected:
             cid = c.manifest.id
             try:
@@ -205,24 +215,30 @@ class CapabilityBrain:
             for dep in deps:
                 if dep in emitted:
                     continue
-                if not self.registry.has(dep) or not self.registry.get(dep).selectable():
-                    # a required dependency is unavailable → offer a fallback, don't fake readiness (§30)
-                    fb = sorted(self.graph.fallbacks_for(dep))
+                emitted.add(dep)
+                fb = sorted(self.graph.fallbacks_for(dep))
+                fb0 = fb[0] if fb else None
+
+                def _blocked(reason):
                     plan.steps.append(Step(cap_id=dep, action_class="READ_ONLY", decision="BLOCKED",
                                            needs_approval=False, is_dependency=True,
-                                           rationale=f"required by {cid} but unavailable",
-                                           fallback=fb[0] if fb else None))
-                    emitted.add(dep)
-                    continue
+                                           rationale=f"required by {cid} but {reason}", fallback=fb0))
+
+                if not self.registry.has(dep) or not self.registry.get(dep).selectable():
+                    _blocked("unavailable"); continue           # §30 don't fake readiness
                 dm = self.registry.get(dep)
-                emitted.add(dep)
-                # a dependency is NOT auto-allowed — it passes the SAME policy gate (§25). A required
-                # capability that is itself HIGH_IMPACT/RESTRICTED must be approval-gated or blocked,
-                # never silently allowed just because something depends on it.
+                if _exceeds_resources(dm.resource_profile, resources):
+                    _blocked("exceeds host resources"); continue    # §26 no resource bypass via deps
+                clash = self.graph.conflicts_with(dep) & active_ids
+                if clash:
+                    _blocked(f"conflicts with {sorted(clash)[0]}"); continue   # §61 no conflict bypass via deps
+                # §25 policy gate — a HIGH_IMPACT/RESTRICTED dependency is approval-gated or blocked
                 dpol = evaluate_policy(dm, dm.default_action_class, principal)
-                dep_decision = "BLOCKED" if dpol.decision == Decision.DENY else dpol.decision.value
+                if dpol.decision == Decision.DENY:
+                    _blocked(f"policy: {dpol.reason}"); continue
+                active_ids.add(dep)
                 plan.steps.append(Step(cap_id=dep, action_class=dm.default_action_class.value,
-                                       decision=dep_decision,
+                                       decision=dpol.decision.value,
                                        needs_approval=(dpol.decision == Decision.REQUIRE_APPROVAL),
                                        is_dependency=True,
                                        rationale=f"required by {cid}"
