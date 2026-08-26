@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>KAI · Avatar Lab</title>
+  <link rel="stylesheet" href="kai-avatar-lab.css">
+</head>
+<body class="lab-body">
+  <div class="lab-banner">⚙ DEVELOPER TOOL — DEV AVATAR, NOT PRODUCTION KAI · exercises the real embodiment engines</div>
+
+  <div class="lab-shell">
+    <!-- ── stage: the LAB SVG face + state + subtitles ─────────────────────── -->
+    <section class="lab-stage">
+      <div class="lab-stage-head">
+        <span>LAB AVATAR</span>
+        <span class="lab-state" id="lab-state">IDLE</span>
+      </div>
+      <div class="lab-face-wrap" id="lab-face-wrap"><!-- SVG injected by controller --></div>
+      <div class="lab-subtitles" id="lab-subtitles" aria-live="polite"></div>
+      <div class="lab-diag" id="lab-avatar-diag">driver: —</div>
+    </section>
+
+    <!-- ── controls ────────────────────────────────────────────────────────── -->
+    <section class="lab-controls">
+      <div class="lab-tabs" id="lab-tabs">
+        <button class="lab-tab active" data-tab="visemes" type="button">Visemes</button>
+        <button class="lab-tab" data-tab="coart" type="button">Coarticulation</button>
+        <button class="lab-tab" data-tab="idle" type="button">Idle Life</button>
+        <button class="lab-tab" data-tab="states" type="button">States</button>
+        <button class="lab-tab" data-tab="voice" type="button">Voice</button>
+        <button class="lab-tab" data-tab="speech" type="button">Speech / Mic</button>
+      </div>
+
+      <div class="lab-panel active" data-panel="visemes">
+        <div class="lab-h">Visemes</div>
+        <div class="lab-btns" id="lab-viseme-btns"></div>
+        <button class="lab-btn primary" id="lab-play-all" type="button">▶ Play all visemes</button>
+        <div class="lab-h">Coefficients <span id="lab-viseme-name" class="lab-accent">REST</span></div>
+        <div class="lab-coeffs" id="lab-coeffs"></div>
+      </div>
+
+      <div class="lab-panel" data-panel="coart">
+        <div class="lab-h">Coarticulation sequences</div>
+        <div class="lab-btns" id="lab-coart-btns"></div>
+        <label class="lab-check"><input type="checkbox" id="lab-slowmo"> slow-motion (0.25×)</label>
+        <div class="lab-h">Active window (prev · current · next)</div>
+        <div class="lab-coart-view" id="lab-coart-view">—</div>
+      </div>
+
+      <div class="lab-panel" data-panel="idle">
+        <div class="lab-h">Idle life <label class="lab-check" style="float:right"><input type="checkbox" id="lab-idle-on" checked> running</label></div>
+        <div class="lab-diaglist" id="lab-idle-diag"></div>
+        <div class="lab-btns">
+          <button class="lab-btn" data-blink="single" type="button">Blink</button>
+          <button class="lab-btn" data-blink="double" type="button">Double blink</button>
+          <button class="lab-btn" data-gaze="LEFT" type="button">Look left</button>
+          <button class="lab-btn" data-gaze="RIGHT" type="button">Look right</button>
+          <button class="lab-btn" data-gaze="USER" type="button">Look user</button>
+          <button class="lab-btn" data-gaze="MISSION" type="button">Look mission</button>
+          <button class="lab-btn" data-gaze="SECURITY" type="button">Look security</button>
+        </div>
+        <div class="lab-h">Micro-expression</div>
+        <div class="lab-btns" id="lab-expr-btns"></div>
+      </div>
+
+      <div class="lab-panel" data-panel="states">
+        <div class="lab-h">Embodiment states</div>
+        <div class="lab-btns" id="lab-state-btns"></div>
+      </div>
+
+      <div class="lab-panel" data-panel="voice">
+        <div class="lab-h">Voice <span id="lab-voice-avail" class="lab-accent"></span></div>
+        <select id="lab-voice-select" class="lab-select" aria-label="Voice"></select>
+        <div class="lab-btns">
+          <button class="lab-btn" id="lab-voice-save" type="button">Set as KAI voice</button>
+          <span id="lab-voice-pref" class="lab-diag"></span>
+        </div>
+        <div class="lab-h">Audition phrases</div>
+        <div class="lab-btns" id="lab-phrase-btns"></div>
+        <div class="lab-diag">D13_KAI_VOICE = <b>PROVISIONAL</b> until a human audition selects a voice.</div>
+      </div>
+
+      <div class="lab-panel" data-panel="speech">
+        <div class="lab-h">Streaming speech + subtitles</div>
+        <div class="lab-btns">
+          <button class="lab-btn primary" id="lab-speak-demo" type="button">▶ Speak a streamed answer</button>
+          <button class="lab-btn stop" id="lab-stop" type="button">■ Stop</button>
+        </div>
+        <div class="lab-h">Microphone / barge-in <span id="lab-mic-avail" class="lab-accent"></span></div>
+        <div class="lab-btns">
+          <button class="lab-btn" id="lab-mic" type="button" aria-pressed="false">🎙 Start mic</button>
+          <button class="lab-btn" id="lab-bargein" type="button">Simulate barge-in</button>
+        </div>
+        <div class="lab-h">Audio queue</div>
+        <div class="lab-queue" id="lab-queue"></div>
+        <div class="lab-diag" id="lab-bargein-diag"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="kai-viseme-mapper.js"></script>
+  <script src="kai-viseme-engine.js"></script>
+  <script src="kai-idle-life.js"></script>
+  <script src="kai-avatar-driver.js"></script>
+  <script src="kai-nexus-embodiment.js"></script>
+  <script src="kai-speech-chunker.js"></script>
+  <script src="kai-audio-queue.js"></script>
+  <script src="kai-tts-provider.js"></script>
+  <script src="kai-barge-in.js"></script>
+  <script src="kai-avatar-lab.js"></script>
+</body>
+</html>

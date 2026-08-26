@@ -968,6 +968,12 @@ _NEXUS_APP_MIME = {
     "kai-viseme-engine.js": "text/javascript",
     "kai-idle-life.js": "text/javascript",
     "kai-avatar-driver.js": "text/javascript",
+    "kai-speech-chunker.js": "text/javascript",
+    "kai-audio-queue.js": "text/javascript",
+    "kai-tts-provider.js": "text/javascript",
+    "kai-barge-in.js": "text/javascript",
+    "kai-avatar-lab.js": "text/javascript",
+    "kai-avatar-lab.css": "text/css",
 }
 
 
@@ -1842,6 +1848,20 @@ async def serve_mission_nexus():
     p = ROOT / "frontend" / "admin" / "kai-nexus.html"
     if not p.exists():
         raise HTTPException(status_code=404, detail="mission nexus not found")
+    return HTMLResponse(p.read_text(encoding="utf-8"),
+                        headers={"Cache-Control": "no-store, no-cache"})
+
+
+@app.get("/admin/avatar-lab", response_class=HTMLResponse)
+async def serve_avatar_lab():
+    """KAI Avatar Lab — DEVELOPER TOOL (Phase 12). Exercises the REAL embodiment
+    engines (viseme mapper/engine, coarticulation, idle-life, state machine, speech
+    chunker, audio queue, TTS provider, barge-in) through a LabAvatarDriver rendering
+    a 2D SVG face. NOT the production KAI asset. Static; relative assets resolve to the
+    /admin/<name> routes (base /admin/). No new auth/brain/endpoint."""
+    p = ROOT / "frontend" / "admin" / "kai-avatar-lab.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="avatar lab not found")
     return HTMLResponse(p.read_text(encoding="utf-8"),
                         headers={"Cache-Control": "no-store, no-cache"})
 
