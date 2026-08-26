@@ -215,41 +215,47 @@
 
   // ── streaming speech + subtitles + audio queue ────────────────────────────
   var queue = new AQ.KaiAudioQueue({ now: now, maxLen: 24 });
+  var speakSession = 0, feedTimer = null;   // epoch: a stop/barge-in bumps it so the token producer stops
   var cancel = new BI.KaiSpeechCancellationController({
-    now: now, cancelTTS: function () { provider.cancel(); }, clearQueue: function () { queue.cancelAll(); renderQueue(); },
+    now: now, cancelTTS: function () { provider.cancel(); },
+    clearQueue: function () { speakSession++; if (feedTimer) { clearTimeout(feedTimer); feedTimer = null; } queue.cancelAll(); queue.prune(); renderQueue(); },
     clearVisemes: function () { stopLoops(); }, mouthToRest: function () { face.coeffs = VE.restCoeffs(); drawFace(); },
-    cancelLLM: function () {}, setState: function (s) { el('lab-state').textContent = s.toUpperCase(); },
+    cancelLLM: function () {}, disposeTimers: function () { if (feedTimer) { clearTimeout(feedTimer); feedTimer = null; } }, setState: function (s) { el('lab-state').textContent = s.toUpperCase(); },
   });
   function renderQueue() {
     var box = el('lab-queue'); if (!box) return; box.replaceChildren();
     queue.items.slice(-8).forEach(function (it) { var d = document.createElement('div'); d.className = 'lab-qitem'; var t = document.createElement('span'); t.textContent = it.text.slice(0, 40); var st = document.createElement('span'); st.className = 'st st-' + it.status; st.textContent = it.status; d.append(t, st); box.appendChild(d); });
   }
   function speakStreamed(full) {
-    cancel.stop('restart'); el('lab-state').textContent = 'SPEAKING'; el('lab-subtitles').textContent = '';
+    cancel.stop('restart'); var sid = ++speakSession;   // this run's epoch; any stop/barge-in/new-stream invalidates it
+    el('lab-state').textContent = 'SPEAKING'; el('lab-subtitles').textContent = '';
     var chunker = new CH.KaiSpeechChunker();
-    // simulate token streaming
     var toks = full.match(/\S+\s*/g) || [full]; var i = 0, subtitle = '';
     (function feed() {
+      if (sid !== speakSession) return;   // cancelled → the producer stops
       if (i < toks.length) {
-        var chunks = chunker.push(toks[i]); i++;
-        chunks.forEach(enqueueSpeak);
-        setTimeout(feed, 45);
+        chunker.push(toks[i]).forEach(enqueueSpeak); i++;
+        feedTimer = setTimeout(feed, 45);
       } else { chunker.flush().forEach(enqueueSpeak); }
     })();
     function enqueueSpeak(chunk) {
+      if (sid !== speakSession) return;
       var item = queue.enqueue(chunk); if (!item) return; renderQueue();
       subtitle += (subtitle ? ' ' : '') + chunk; setSubtitle(subtitle, chunk);
       pump();
     }
     var speaking = false;
     function pump() {
-      if (speaking) return; var it = queue.next(); if (!it) return; speaking = true;
+      if (sid !== speakSession || speaking) return; var it = queue.next(); if (!it) return; speaking = true;
       queue.markPlaying(it.id); renderQueue(); driver.setState('speaking');
-      // drive the mouth from the chunk's viseme timeline (approx from graphemes — labeled approximate)
-      var units = graphemesToUnits(it.text); playUnits(units);
+      var units = graphemesToUnits(it.text); playUnits(units);   // APPROX grapheme timing (§16), not real phoneme sync
       if (voiceAvail.available) provider.speak(it.text, { onend: doneOne, onerror: doneOne });
       else setTimeout(doneOne, Math.max(400, it.text.length * 45));
-      function doneOne() { queue.markComplete(it.id); renderQueue(); speaking = false; pump(); if (!queue.next() && !queue.active()) { el('lab-state').textContent = 'ATTENTIVE'; face.coeffs = VE.restCoeffs(); drawFace(); } }
+      function doneOne() {
+        if (sid !== speakSession || it.status !== 'PLAYING') return;   // a stop/barge-in cancelled this chunk — do NOT clobber state
+        queue.markComplete(it.id); queue.prune(); renderQueue(); speaking = false; pump();
+        if (sid === speakSession && !queue.next() && !queue.active()) { el('lab-state').textContent = 'ATTENTIVE'; face.coeffs = VE.restCoeffs(); drawFace(); }
+      }
     }
   }
   // §16 APPROXIMATE speech timing from graphemes — labeled, NOT real phoneme sync

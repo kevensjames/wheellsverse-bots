@@ -43,6 +43,7 @@
   };
   P._set = function (id, status, stamp) {
     var it = this._byId(id); if (!it) return null;
+    if (TERMINAL[it.status]) return null;   // a CANCELLED/COMPLETE/FAILED item is immutable — a late onend can't resurrect it
     it.status = status;
     if (stamp === 'start') it.started_at = this.now();
     if (stamp === 'end') it.completed_at = this.now();

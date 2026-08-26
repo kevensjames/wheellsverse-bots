@@ -68,6 +68,24 @@ test('cancelAll cancels the active item AND clears the future queue', () => {
   assert.strictEqual(q.next(), null);
 });
 
+test('review: a late onend cannot resurrect a CANCELLED item (terminal-state guard)', () => {
+  const q = new Q.KaiAudioQueue();
+  const a = q.enqueue('a'); q.markPlaying(a.id); q.cancelAll();
+  assert.strictEqual(a.status, 'CANCELLED');
+  assert.strictEqual(q.markComplete(a.id), null, 'markComplete on a cancelled item must be a no-op');
+  assert.strictEqual(a.status, 'CANCELLED', 'status stays CANCELLED (not resurrected to COMPLETE)');
+  // a live (PLAYING) item still completes normally
+  const b = q.enqueue('b'); q.markPlaying(b.id); assert.ok(q.markComplete(b.id)); assert.strictEqual(b.status, 'COMPLETE');
+});
+test('review: chunker makes progress + stays bounded on a whitespace-free token > maxChars', () => {
+  const ch = new C.KaiSpeechChunker({ maxChars: 40 });
+  const hash = 'a'.repeat(120);   // no whitespace, no punctuation
+  const out = ch.push(hash);
+  assert.ok(out.length >= 2, 'a long unbreakable token must be cut into bounded chunks, not withheld');
+  assert.ok(out.every((c) => c.length <= 42), 'each chunk stays bounded');
+  assert.strictEqual(out.join('') + ch.flush().join(''), hash, 'no characters lost');
+});
+
 // ── tts voice ranking (masculine preference, honest) ─────────────────────────
 test('rankVoices prefers an English masculine voice over a female one', () => {
   const voices = [

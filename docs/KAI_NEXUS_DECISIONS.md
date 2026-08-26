@@ -359,3 +359,39 @@ quality cannot be judged from config). The **server** TTS male voice is a 1-line
 (`PIPER_MODEL_PATH` → `en_US-ryan-high.onnx`) — recommended but that path is the
 "read-aloud" button, not the avatar. A viseme-capable provider (Azure) is EXTERNAL_BLOCKED
 (key+network). Voice audition/certification requires listening (§38) — not asserted here.
+
+## D14 — GLTF renderer: plain Three.js (ESM, pinned, vendored), single rendering boundary (§1/§19) — 2026-08-26
+
+**Evidence (audited):** the admin frontend is **buildless** — no `package.json`, no bundler,
+no `type="module"` (9 classic `<script src>` on the Nexus page), UMD/global modules, and
+**no React and no Three.js present**. The `react`/`three` grep hits are false positives
+(`reaction`/`interaction` in CSS, the word "three" in demo copy).
+
+**Options & scores** (fit / dep-cost / state-integration / GLB+morph / lifecycle / mobile /
+maintainability / bundle / complexity):
+- **A — plain Three.js:** best fit for a non-React app; direct GLTFLoader + morph/bone access;
+  we own lifecycle/disposal; one clean boundary. ✔
+- **B — React Three Fiber:** would require introducing **React + a bundler** into a buildless
+  vanilla app — a massive, unjustified architecture change. ✘ (directive §1: do not add React
+  merely for R3F).
+- **C — another renderer already present:** none exists. ✘
+- **D — custom WebGL:** re-implementing glTF skinning + morph targets + PBR by hand is a huge
+  maintenance burden with no evidence of superiority. ✘
+
+**DECISION: A — plain Three.js.** Integration for a buildless app: **vendor a PINNED Three.js
+ESM build** under `frontend/admin/vendor/three/` and load the GLB renderer as a SINGLE
+`type="module"` script ON THE AVATAR-LAB/NEXUS PAGE ONLY (`import * as THREE`,
+`import { GLTFLoader }`); the classic UMD engines coexist and are read via `window.Kai*`
+globals. Pin a specific version (validated), **no uncontrolled CDN `latest`** (CSP + §2),
+one rendering boundary (`KaiGLBRenderer`), Three.js internals never leak into Nexus.
+
+**Runtime status — honest:** Three.js is **not yet vendored** and cannot be fetched in this
+environment (no network / CSP) → the GLB renderer **RUNTIME is EXTERNAL_BLOCKED** until the
+operator vendors the pinned Three.js build (+ a test-fixture GLB). What is built + tested NOW,
+Three.js-independent (dependency-injected `THREE`/loader + mock GLTF inventories): the
+`MorphTargetRegistry` (ARKit→morph, EXACT/ALIASED/MISSING/DUPLICATE), the `BoneRegistry`
+(FOUND/ALIASED/MISSING), `validateKaiAvatarAsset` (the full PASS/PARTIAL/FAIL/FINAL report),
+the `GLBAvatarDriver` coefficient→influence mapping, and the `KaiGLBRenderer` load-state
+machine (UNINITIALIZED→LOADING→READY/FAILED/DISPOSED) + disposal + context-loss logic. The
+SAME viseme-engine coefficient frames that drive `LabAvatarDriver` drive `GLBAvatarDriver`
+(the central §11 invariant) — no viseme recompute in the renderer.

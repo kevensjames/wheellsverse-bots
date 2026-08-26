@@ -68,6 +68,7 @@
       var k = chunkStart + cfg.maxChars;
       while (k > chunkStart && !/\s/.test(buf[k])) k--;
       if (k > chunkStart) return k - 1;
+      return chunkStart + cfg.maxChars - 1;   // no whitespace in the window → hard-cut so the buffer stays bounded
     }
     return -1;
   }
