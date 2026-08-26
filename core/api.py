@@ -977,6 +977,7 @@ _NEXUS_APP_MIME = {
     "kai-morph-registry.js": "text/javascript",
     "kai-glb-validator.js": "text/javascript",
     "kai-glb-renderer.js": "text/javascript",
+    "kai-subtitles.js": "text/javascript",
 }
 
 

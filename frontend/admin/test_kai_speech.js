@@ -153,4 +153,13 @@ test('teardown (route change) stops speech + mic and settles to idle', () => {
   assert.strictEqual(m.state, 'idle');
 });
 
+test('§27: subtitles freeze on EVERY cancellation path (stop/barge-in/teardown) — one path', () => {
+  for (const call of ['userStop', 'bargeIn', 'teardown']) {
+    let froze = 0;
+    const ctl = new B.KaiSpeechCancellationController({ now: () => 0, cancelTTS: () => {}, freezeSubtitles: () => { froze++; }, setState: () => {}, stopMic: () => {} });
+    ctl[call]();
+    assert.strictEqual(froze, 1, call + ' must freeze subtitles exactly once');
+  }
+});
+
 console.log('\n' + pass + ' passed');

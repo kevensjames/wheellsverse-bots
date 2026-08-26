@@ -29,6 +29,7 @@
     m.audio_stopped_at = this.now();
     if (this.d.clearQueue) this.d.clearQueue();
     if (this.d.clearVisemes) this.d.clearVisemes();
+    if (this.d.freezeSubtitles) this.d.freezeSubtitles();   // §27: subtitles freeze with the voice — no ghost text
     m.viseme_stopped_at = this.now();
     if (this.d.mouthToRest) this.d.mouthToRest();
     if (this.d.cancelLLM) this.d.cancelLLM();     // abort the governed SSE where supported
