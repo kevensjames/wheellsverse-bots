@@ -195,6 +195,18 @@ def t_selection_is_observable():
     assert step.rationale.startswith("Selected context7 —") and "documentation" in step.rationale
 
 
+def t_review_dependency_passes_policy_gate():
+    """A required dependency is NOT auto-allowed — a RESTRICTED/HIGH_IMPACT dep is gated, not silently ALLOW."""
+    reg, g = fixture()
+    # make the doc-parser dependency a RESTRICTED capability
+    reg.get("doc-parser").risk_class = RiskClass.RESTRICTED
+    plan = CapabilityBrain(reg, g).plan("Learn this PDF.", Principal("u"))
+    dep = [s for s in plan.steps if s.cap_id == "doc-parser"]
+    assert dep, "dependency should be planned"
+    assert dep[0].decision != "ALLOW", "a RESTRICTED dependency must not be auto-ALLOW"
+    assert dep[0].needs_approval is True or dep[0].decision == "BLOCKED"
+
+
 for _n, _f in list(globals().items()):
     if _n.startswith("t_"):
         test(_n[2:], _f)

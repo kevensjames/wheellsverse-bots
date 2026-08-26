@@ -216,9 +216,17 @@ class CapabilityBrain:
                     continue
                 dm = self.registry.get(dep)
                 emitted.add(dep)
+                # a dependency is NOT auto-allowed — it passes the SAME policy gate (§25). A required
+                # capability that is itself HIGH_IMPACT/RESTRICTED must be approval-gated or blocked,
+                # never silently allowed just because something depends on it.
+                dpol = evaluate_policy(dm, dm.default_action_class, principal)
+                dep_decision = "BLOCKED" if dpol.decision == Decision.DENY else dpol.decision.value
                 plan.steps.append(Step(cap_id=dep, action_class=dm.default_action_class.value,
-                                       decision="ALLOW", needs_approval=False, is_dependency=True,
-                                       rationale=f"required by {cid}"))
+                                       decision=dep_decision,
+                                       needs_approval=(dpol.decision == Decision.REQUIRE_APPROVAL),
+                                       is_dependency=True,
+                                       rationale=f"required by {cid}"
+                                       + ("" if dpol.decision == Decision.ALLOW else f" ({dpol.reason})")))
             if cid in emitted:
                 continue
             emitted.add(cid)

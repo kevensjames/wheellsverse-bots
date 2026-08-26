@@ -59,6 +59,28 @@ built · `CC`=Claude-Code-available · `KAI`=KAI-runtime-available · `AR`=auto-
 \* context7 / playwright are **live in the Claude Code session** (used this session), not in the
 KAI runtime (App B Docker-down).
 
+## Adversarial review (§67)
+
+A 4-lens (authority-boundary / policy-bypass / fake-success / correctness) refute-biased
+review ran against the core. It **hit the session usage limit mid-verification** (8 verify
+agents finished, 13 could not run), so it is **partial** — a re-run of the remaining lenses is
+advised. Of the completed verifications, **2 confirmed + 1 correctly refuted**; a 3rd,
+finder-flagged and independently confirmed by re-reading the code, was also fixed:
+
+- **MEDIUM (confirmed)** — `risk.py`: the mission pre-approval path allowed FINANCIAL/DESTRUCTIVE/
+  HIGH_IMPACT with no authorized-target check (asymmetric with RESTRICTED). **Fixed** — the
+  authorized-target gate now applies even to a pre-approved capability.
+- **LOW (confirmed)** — `results.py`: `scan_for_injection` scanned only `summary`, so a payload in
+  `data`/`proposed_action` evaded the audit signal (authority invariant held; detection missed).
+  **Fixed** — the default scan covers every untrusted field.
+- **(independently confirmed)** — `brain.py`: dependency steps were hardcoded `ALLOW`. **Fixed** —
+  a required dependency now passes the same policy gate (a RESTRICTED/HIGH_IMPACT dep is
+  approval-gated or BLOCKED, never auto-allowed).
+
+3 regression tests added (51 capability tests total). The correctly-refuted finding
+(`authorize_action` accepts any approver) has **zero production callers** and an inert flag (no
+executor exists yet) — noted as a hardening TODO for when a live executor is wired.
+
 ## What blocks CERTIFIED for the external capabilities
 
 1. **No network in the Bash sandbox** → cannot install (pip/npm/git clone/`claude mcp add`).

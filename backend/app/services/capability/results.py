@@ -107,11 +107,19 @@ def normalize(
 ) -> NormalizedResult:
     """Wrap raw capability output as a normalized, provenance-tagged, untrusted result.
 
-    ``scan_text`` (defaults to summary) is scanned for injection markers so a hostile
-    payload is flagged at the boundary. A NATIVE_KAI_TOOL caller may upgrade trust later,
-    but external capabilities always land here as UNTRUSTED.
+    ``scan_text`` overrides what is scanned; by default EVERY untrusted textual field
+    (summary + data + proposed_action) is scanned, so a hostile payload hidden in a
+    structured field is flagged just like one in the summary (§52/§59). A NATIVE_KAI_TOOL
+    caller may upgrade trust later, but external capabilities always land here as UNTRUSTED.
     """
-    flags = scan_for_injection(scan_text if scan_text is not None else summary)
+    if scan_text is None:
+        parts = [summary]
+        if data is not None:
+            parts.append(repr(data))
+        if proposed_action is not None:
+            parts.append(repr(proposed_action))
+        scan_text = "\n".join(str(p) for p in parts if p)
+    flags = scan_for_injection(scan_text)
     return NormalizedResult(
         kind=kind,
         source=source,

@@ -76,10 +76,21 @@ def evaluate_policy(
         # read-only / reversible on a restricted capability: still require approval to arm it
         return PolicyResult(Decision.REQUIRE_APPROVAL, "RESTRICTED capability requires approval to activate", action_class, rc)
 
-    # 5. High-impact / destructive / financial actions always need explicit approval (never auto).
+    # 5. High-impact / destructive / financial actions.
     if action_class in (ActionClass.DESTRUCTIVE, ActionClass.FINANCIAL, ActionClass.HIGH_IMPACT):
+        # The authorized-target gate applies EVEN to a pre-approved capability (§25) — a mission
+        # pre-approval of a capability is not a blank cheque to hit an arbitrary target. Financial
+        # and destructive actions require an explicit authorized target; a high-impact action may
+        # be targetless but must never run against a provided-but-unauthorized target.
+        if action_class in (ActionClass.DESTRUCTIVE, ActionClass.FINANCIAL):
+            if not target or target not in principal.authorized_targets:
+                return PolicyResult(Decision.DENY, f"{action_class.value} action on an unauthorized target", action_class, rc)
+        elif target is not None and target not in principal.authorized_targets:
+            return PolicyResult(Decision.DENY, "HIGH_IMPACT action on an unauthorized target", action_class, rc)
+        # ponytail: approvals is keyed by cap_id (per-mission). Per-(cap,action,target) keying would
+        # be finer, but the authorized-target gate above already blocks the arbitrary-target exploit.
         if manifest.id in principal.approvals:
-            return PolicyResult(Decision.ALLOW, "pre-approved this mission", action_class, rc)
+            return PolicyResult(Decision.ALLOW, "pre-approved this mission (authorized target)", action_class, rc)
         return PolicyResult(Decision.REQUIRE_APPROVAL, f"{action_class.value} action requires approval", action_class, rc)
 
     # 6. Reversible writes on a HIGH-risk capability get an approval tier; on LOW/MEDIUM they pass.
