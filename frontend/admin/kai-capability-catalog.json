@@ -1,0 +1,541 @@
+{
+  "generated": "2026-08-26",
+  "source": "backend/app/services/capability/seed.py",
+  "capabilities": [
+    {
+      "id": "kai-memory",
+      "name": "KAI Memory",
+      "type": "NATIVE_KAI_TOOL",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
+      "activation": "ALWAYS_AVAILABLE",
+      "risk_class": "LOW",
+      "capabilities": [
+        "long_term_memory",
+        "recall",
+        "persist"
+      ],
+      "triggers": [
+        "remember",
+        "memory",
+        "recall",
+        "what we learned"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "Canonical source of truth for long-term memory (\u00a731). One writer only.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "claude-code",
+      "name": "Claude Code",
+      "type": "AGENT_RUNTIME",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
+      "activation": "ALWAYS_AVAILABLE",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "implement",
+        "refactor",
+        "engineer"
+      ],
+      "triggers": [
+        "implement",
+        "refactor",
+        "fix the bug",
+        "write code"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "Primary engineering authority (\u00a710/\u00a740). No worker merges/deploys independently.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "context7",
+      "name": "Context7 MCP",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "capabilities": [
+        "library_docs",
+        "api_reference"
+      ],
+      "triggers": [
+        "documentation",
+        "docs",
+        "library",
+        "framework",
+        "api reference"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "LIVE in the Claude Code session; NOT wired into the KAI runtime (App B down).",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "playwright",
+      "name": "Playwright MCP",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "capabilities": [
+        "browser_qa",
+        "screenshot",
+        "dom"
+      ],
+      "triggers": [
+        "browser",
+        "mobile",
+        "screenshot",
+        "verify the page",
+        "render"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "LIVE in the Claude Code session; not wired into the KAI runtime.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "sequential-thinking",
+      "name": "Sequential Thinking MCP",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "capabilities": [
+        "structured_planning"
+      ],
+      "triggers": [
+        "step by step",
+        "think through",
+        "plan the approach"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "VERIFY connection before use (\u00a742).",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "filesystem",
+      "name": "Filesystem MCP",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "read_files",
+        "write_files"
+      ],
+      "triggers": [
+        "repository",
+        "codebase",
+        "read the file",
+        "project files"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "fs.workspace"
+      ],
+      "notes": "Sandbox to a workspace root (\u00a749). VERIFY.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "github",
+      "name": "GitHub MCP",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "repo_read",
+        "pr",
+        "issues"
+      ],
+      "triggers": [
+        "github",
+        "pull request",
+        "commit",
+        "open a pr"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "github.read"
+      ],
+      "notes": "Needs a scoped credential via the broker (\u00a750); PR/merge = HIGH_IMPACT, approval-gated.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "focus-output",
+      "name": "Focus Output Mode (i-have-adhd)",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "DISABLED",
+      "risk_class": "LOW",
+      "capabilities": [
+        "concise_output",
+        "action_first"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a72: an OUTPUT_MODE, not a medical tool. No network/telemetry. Auto-select for code remediation / deploy / incident tasks; never force terse for research/legal/safety.",
+      "provenance": {
+        "upstream": "https://github.com/ayghri/i-have-adhd",
+        "owner": "ayghri",
+        "license": "MIT",
+        "ref": "b42a45a",
+        "verified": true
+      }
+    },
+    {
+      "id": "book-to-skill",
+      "name": "Book-to-Skill",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "skill_compile",
+        "document_distill"
+      ],
+      "triggers": [
+        "pdf",
+        "book",
+        "learn this document",
+        "turn into a skill"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a73/\u00a734: authorized/open-license material ONLY. Distilling an untrusted doc is a prompt-injection surface \u2014 human-review generated skills before load.",
+      "provenance": {
+        "upstream": "https://github.com/virgiliojr94/book-to-skill",
+        "owner": "virgiliojr94",
+        "license": "MIT",
+        "ref": "8a2cae6",
+        "verified": true
+      }
+    },
+    {
+      "id": "reverse-skill",
+      "name": "Reverse-Skill (Security Router)",
+      "type": "SECURITY_ROUTER",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "capabilities": [
+        "reverse_analysis",
+        "malware_analysis",
+        "code_audit"
+      ],
+      "triggers": [
+        "reverse engineer",
+        "analyze this binary",
+        "malware",
+        "security audit"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "\u00a74/\u00a735: RESTRICTED. Ships OFFENSIVE tooling \u2014 'vet-only, do not wire as-is'. Owned/authorized targets only; accessibility != authorization. SECURITY_GATED.",
+      "provenance": {
+        "upstream": "https://github.com/zhaoxuya520/reverse-skill",
+        "owner": "zhaoxuya520",
+        "license": "MIT/GPLv3/AGPL-3.0",
+        "ref": "914f74a",
+        "verified": true
+      }
+    },
+    {
+      "id": "ai-fundamentals",
+      "name": "AI Fundamentals (AI-For-Beginners)",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "capabilities": [
+        "ai_concepts",
+        "neural_networks",
+        "responsible_ai"
+      ],
+      "triggers": [
+        "ai fundamentals",
+        "explain neural network",
+        "ai concept",
+        "responsible ai"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a75: KNOWLEDGE_PACK, not a runtime. Reference selected authorized material.",
+      "provenance": {
+        "upstream": "https://github.com/microsoft/AI-For-Beginners",
+        "owner": "microsoft",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "tencentdb-memory",
+      "name": "TencentDB Agent Memory",
+      "type": "MEMORY_PROVIDER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "layered_memory",
+        "context_compression"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [
+        "kai-memory"
+      ],
+      "permissions": [],
+      "notes": "\u00a76/\u00a731/\u00a737: EXPERIMENTAL only. Repo documents NO user/team isolation \u2014 KAI must supply per-tenant namespacing. Must NOT co-own canonical memory (conflicts kai-memory).",
+      "provenance": {
+        "upstream": "https://github.com/TencentCloud/TencentDB-Agent-Memory",
+        "owner": "TencentCloud",
+        "license": "MIT",
+        "ref": "v2.0.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "openwork",
+      "name": "OpenWork",
+      "type": "WORKSPACE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "shared_workspace",
+        "skill_sharing"
+      ],
+      "triggers": [
+        "shared workspace",
+        "share this workflow"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a77: REUSE-AS-MCP (search_capabilities/execute_capability); do NOT embed runtime. Routes via vendor Den control plane + per-user OAuth \u2014 never bypasses KAI governance.",
+      "provenance": {
+        "upstream": "https://github.com/different-ai/openwork",
+        "owner": "different-ai",
+        "license": "MIT + EE (source-available)",
+        "ref": "v0.18.36",
+        "verified": true
+      }
+    },
+    {
+      "id": "buzz",
+      "name": "Buzz (block/buzz)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "agent_rooms",
+        "signed_activity"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a78: canonical RESOLVED to block/buzz (Nostr, signed events). Kept DISABLED \u2014 heavy external platform; ALTERNATIVE to OpenWork, evaluate before enabling.",
+      "provenance": {
+        "upstream": "https://github.com/block/buzz",
+        "owner": "block",
+        "license": "Apache-2.0",
+        "ref": "desktop-v0.5.20",
+        "verified": true
+      }
+    },
+    {
+      "id": "airllm",
+      "name": "AirLLM",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "local_inference",
+        "low_vram"
+      ],
+      "triggers": [
+        "run locally",
+        "local model",
+        "low vram",
+        "offline model"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a79: layer-by-layer local inference (70B on 4GB). Benchmark before production \u2014 NOT assumed faster than Ollama. Inference infra, not a brain.",
+      "provenance": {
+        "upstream": "https://github.com/lyogavin/airllm",
+        "owner": "lyogavin",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "ollama",
+      "name": "Ollama",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "capabilities": [
+        "local_inference"
+      ],
+      "triggers": [
+        "run locally",
+        "local model",
+        "offline model"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "Incumbent local provider (\u00a730/\u00a747). ALTERNATIVE to AirLLM; the default fallback.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "jcode",
+      "name": "jcode (Coding Worker)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "HIGH",
+      "capabilities": [
+        "lightweight_coding",
+        "parallel_scan"
+      ],
+      "triggers": [
+        "lightweight coding worker",
+        "parallel repository scan"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a710/\u00a740: bounded worker, NOT a replacement for Claude Code; never final authority. HIGH risk \u2014 ships a curl|bash installer; inspect before any install.",
+      "provenance": {
+        "upstream": "https://github.com/1jehuang/jcode",
+        "owner": "1jehuang",
+        "license": "MIT",
+        "ref": "v0.81.1",
+        "verified": true
+      }
+    },
+    {
+      "id": "geolibre",
+      "name": "GeoLibre",
+      "type": "GEOSPATIAL_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "capabilities": [
+        "gis",
+        "map_layers",
+        "spatial_query"
+      ],
+      "triggers": [
+        "map",
+        "coordinates",
+        "by region",
+        "geospatial",
+        "gis"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a711: canonical is opengeos/GeoLibre (the taka015 hint was a FORK). Preserve location provenance; never fabricate coordinates. Integrate with World Mode.",
+      "provenance": {
+        "upstream": "https://github.com/opengeos/GeoLibre",
+        "owner": "opengeos",
+        "license": "MIT",
+        "ref": "v2.7.0",
+        "verified": true
+      }
+    }
+  ]
+}

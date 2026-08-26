@@ -25,7 +25,7 @@ require a running KAI runtime, real installs, or a browser are honestly PENDING/
 | Prompt Injection (§24) | **PASS** | untrusted-by-default + `scan_for_injection` + inert proposals |
 | Secret Isolation (§50) | **PARTIAL** | broker designed in docs; not wired to a live secret store |
 | Audit (§59) | **PARTIAL** | event taxonomy defined; sink wiring EXTERNAL_BLOCKED (App B down) |
-| Nexus Integration (§54–58) | **PENDING** | Capabilities panel not yet built |
+| Nexus Integration (§54–58) | **PARTIAL** | `kai-nexus-capabilities.js` panel + honest catalog snapshot built + tested (no fake READY, credential-redacted inspector, §57 categories); live Nexus tab wiring pending |
 | Mission Integration (§58) | **PARTIAL** | correlation model defined; live mission wiring pending |
 | Claude Code Integration (§32/§72) | **PARTIAL** | CLAUDE.md routing section added; MCP installs EXTERNAL_BLOCKED |
 

@@ -979,6 +979,8 @@ _NEXUS_APP_MIME = {
     "kai-glb-renderer.js": "text/javascript",
     "kai-subtitles.js": "text/javascript",
     "kai-speech-input.js": "text/javascript",
+    "kai-nexus-capabilities.js": "text/javascript",
+    "kai-capability-catalog.json": "application/json",
 }
 
 
