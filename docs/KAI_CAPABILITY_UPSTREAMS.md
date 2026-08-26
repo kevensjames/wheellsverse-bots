@@ -54,6 +54,19 @@ exercised. All are session-context MCPs; none is wired into the **KAI runtime** 
 | seclists | github.com/danielmiessler/SecLists | danielmiessler | MIT | SECURITY_DATA_PACK | 2 | HIGH | Wordlists/leaked-password corpora/web-shell samples (AV-false-positive prone). **DATA** only; authorized-mission only. |
 | empire | github.com/BC-SECURITY/Empire | BC-SECURITY | BSD-3-Clause | SECURITY_EXECUTION_FRAMEWORK | 4 | RESTRICTED | **Executes** real post-exploitation C2 / adversary emulation (v6.7.1). DISABLED_RESTRICTED_LAB_ONLY; never auto-activated; full envelope + sandbox + approval required. |
 
+## Coding Agent Pool — verified (read-only sweep, 2026-08-26)
+
+| id | canonical upstream | license | class | headless | key finding |
+|----|--------------------|---------|-------|----------|-------------|
+| claude-code | (native) | — | CODING_WORKER | yes | PRIMARY engineering/certification worker; may delegate bounded subtasks. |
+| codex | github.com/openai/codex | Apache-2.0 | CODING_WORKER | yes (`codex exec`) | v0.150.0; npm/brew preferred — **curl\|bash installer FLAGGED**. OpenAI auth. Cloud "Codex Web" variant. |
+| cline | github.com/cline/cline | Apache-2.0 | CODING_WORKER | yes (CLI `--json` + `@cline/sdk`) | Multi-provider BYO key; npm, no curl\|bash; parallel-capable. |
+| gemini-cli | github.com/google-gemini/gemini-cli | Apache-2.0 | CODING_CLI | yes (`-p --output-format json`) | v0.57.0; npm/brew; Google-only; **use stable, not nightly** (§6). |
+| github-copilot-cli | github.com/github/copilot-cli | **Proprietary** | CODING_WORKER | yes (`-p`) | npm `@github/copilot` v1.0.80. The old `gh copilot` extension is **ARCHIVED/DEPRECATED**. Needs GitHub OAuth + Copilot license. |
+| windsurf | devin.ai/desktop (Cognition) | Proprietary | CODING_IDE_ADAPTER | **NO (GUI-only)** | Rebranded Windsurf → **Devin Desktop**. **HUMAN_INTERACTIVE_ONLY** — cannot satisfy an unattended mission. |
+| roo | github.com/RooCodeInc/Roo-Code | Apache-2.0 | — | n/a | **ARCHIVED** read-only since 2026-05-15 → DISABLED. Successor **Kilo Code** (Kilo-Org/kilocode, MIT) is a separate product, not adopted. |
+| jcode | github.com/1jehuang/jcode | MIT | CODING_WORKER | yes | v0.81.1; HIGH — **curl\|bash installer**; bounded lightweight worker only. |
+
 ## What this record is NOT
 
 It is not an installation. Per §73, cloning/verifying an upstream is not success. The next

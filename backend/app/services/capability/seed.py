@@ -18,6 +18,7 @@ from __future__ import annotations
 from .manifest import (
     CapabilityManifest as CM, CapabilityType as CT, RiskClass as RK, ActionClass as AC,
     ActivationMode as AM, Availability as AV, Certification as CE, ResourceProfile, Provenance,
+    WorkerProfile,
 )
 from .registry import CapabilityRegistry
 from .graph import CapabilityGraph, Relation
@@ -39,12 +40,16 @@ def seed_manifests() -> list[CM]:
            capabilities=["long_term_memory", "recall", "persist"],
            triggers=["remember", "memory", "recall", "what we learned"],
            notes="Canonical source of truth for long-term memory (§31). One writer only."),
-        CM(id="claude-code", name="Claude Code", type=CT.AGENT_RUNTIME, version="native",
+        CM(id="claude-code", name="Claude Code", type=CT.CODING_WORKER, version="native",
            availability=AV.AVAILABLE, certification=CE.CERTIFIED, activation=AM.ALWAYS_AVAILABLE,
            risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE,
            capabilities=["implement", "refactor", "engineer"],
            triggers=["implement", "refactor", "fix the bug", "write code"],
-           notes="Primary engineering authority (§10/§40). No worker merges/deploys independently."),
+           worker_profile=WorkerProfile(coding_modes=["implement", "review", "debug", "test"],
+                                        headless_support=True, workspace_support=True, git_support=True,
+                                        tool_support=True, context_window=200000, model_provider="anthropic"),
+           notes="PRIMARY engineering/certification worker (§2/§10/§40). May delegate bounded subtasks; "
+                 "no worker merges/deploys independently."),
 
         # ── MCP superstack (§12/§42) — transports, not wired into the KAI runtime here ──
         CM(id="context7", name="Context7 MCP", type=CT.MCP, availability=AV.AVAILABLE,
@@ -161,15 +166,18 @@ def seed_manifests() -> list[CM]:
            triggers=["run locally", "local model", "offline model"],
            resource_profile=ResourceProfile(vram_mb=6000, gpu=True, est_latency_ms=1500),
            notes="Incumbent local provider (§30/§47). ALTERNATIVE to AirLLM; the default fallback."),
-        CM(id="jcode", name="jcode (Coding Worker)", type=CT.CODE_TOOL, version="0.81.1",
+        CM(id="jcode", name="jcode (Lightweight Coding Worker)", type=CT.CODING_WORKER, version="0.81.1",
            availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND,
            risk_class=RK.HIGH, default_action_class=AC.REVERSIBLE_WRITE,
            capabilities=["lightweight_coding", "parallel_scan"],
            triggers=["lightweight coding worker", "parallel repository scan"],
+           worker_profile=WorkerProfile(coding_modes=["implement", "inspect"], headless_support=True,
+                                        parallel_support=True, git_support=True, context_window=32000,
+                                        model_provider=""),
            provenance=_prov("https://github.com/1jehuang/jcode", "1jehuang", "MIT", "v0.81.1",
                             "curl|bash (jcode.sh) / brew / cargo"),
-           notes="§10/§40: bounded worker, NOT a replacement for Claude Code; never final authority. "
-                 "HIGH risk — ships a curl|bash installer; inspect before any install."),
+           notes="§9/§10/§40: bounded lightweight worker, NOT a replacement for Claude Code; never final "
+                 "authority. HIGH risk — ships a curl|bash installer; inspect before any install."),
         CM(id="geolibre", name="GeoLibre", type=CT.GEOSPATIAL_TOOL, version="2.7.0",
            availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND,
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY,
@@ -260,6 +268,73 @@ def seed_manifests() -> list[CM]:
                  "auto-activated (§23/§31); requires the FULL envelope — authorized security mission, "
                  "AuthorizedTarget on the allowlist, explicit high-impact approval, initialized sandbox, "
                  "network policy, audit. No internet-wide/production targeting, ever (§15). RISK RESTRICTED."),
+
+        # ── CODING AGENT POOL — verified upstreams, NOT installed (§Coding) ────────
+        CM(id="codex", name="OpenAI Codex", type=CT.CODING_WORKER, version="v0.150.0",
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE,
+           capabilities=["implement", "review", "test"], triggers=["implement", "generate tests"],
+           worker_profile=WorkerProfile(coding_modes=["implement", "review", "test"], headless_support=True,
+                                        git_support=True, tool_support=True, cloud_execution=True,
+                                        context_window=192000, model_provider="openai"),
+           provenance=_prov("https://github.com/openai/codex", "openai", "Apache-2.0", "v0.150.0",
+                            "npm @openai/codex (PREFERRED) / brew — curl|bash installer FLAGGED, avoid"),
+           notes="§3: CLI+IDE+cloud coding worker (`codex exec` headless). VERIFY_INSTALLATION via npm/brew, "
+                 "NOT the curl|bash path (§9). Auth = ChatGPT sign-in or OpenAI key (operator, never in chat). "
+                 "Cannot merge/deploy merely because it can modify code."),
+        CM(id="cline", name="Cline", type=CT.CODING_WORKER, version="cli-3.0.60",
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE,
+           capabilities=["implement", "review"], triggers=["headless coding", "parallel coding task"],
+           worker_profile=WorkerProfile(coding_modes=["implement", "review"], headless_support=True,
+                                        parallel_support=True, git_support=True, tool_support=True,
+                                        context_window=200000, model_provider=""),
+           provenance=_prov("https://github.com/cline/cline", "Cline Bot Inc.", "Apache-2.0", "cli-v3.0.60",
+                            "npm i -g cline / @cline/sdk (no curl|bash)"),
+           notes="§4: headless CLI (`cline --json --auto-approve`) + SDK (@cline/sdk) — prefer SDK/CLI over "
+                 "UI automation. Multi-provider BYO key (local Ollama needs none). Bounded workspace; no "
+                 "unlimited shell/fs."),
+        CM(id="gemini-cli", name="Gemini CLI", type=CT.CODING_CLI, version="v0.57.0",
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE,
+           capabilities=["implement"], triggers=["gemini coding"],
+           worker_profile=WorkerProfile(coding_modes=["implement"], headless_support=True, git_support=True,
+                                        context_window=1000000, model_provider="google"),
+           provenance=_prov("https://github.com/google-gemini/gemini-cli", "google-gemini", "Apache-2.0",
+                            "v0.57.0", "npm @google/gemini-cli / brew (stable only, NOT nightly §6)"),
+           notes="§6: headless `gemini -p --output-format json`. Google-only; headless auth = GEMINI_API_KEY / "
+                 "Vertex (OAuth is interactive). Use the STABLE channel in certified config, never nightly."),
+        CM(id="github-copilot-cli", name="GitHub Copilot CLI", type=CT.CODING_WORKER, version="v1.0.80",
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE,
+           capabilities=["implement", "github_context"], triggers=["github coding task"],
+           worker_profile=WorkerProfile(coding_modes=["implement", "review"], headless_support=True,
+                                        git_support=True, context_window=128000, model_provider="github"),
+           provenance=_prov("https://github.com/github/copilot-cli", "github", "Proprietary", "v1.0.80",
+                            "npm @github/copilot / brew / winget"),
+           notes="§5: GitHub-native (`copilot -p`). Canonical is github/copilot-cli — the old `gh copilot` "
+                 "extension is ARCHIVED/DEPRECATED. Proprietary. VERIFY_AUTH: GitHub OAuth + Copilot license "
+                 "(operator, never in chat). Initial mode REVERSIBLE_WRITE; PR merge governed separately."),
+        CM(id="windsurf", name="Windsurf / Devin Desktop", type=CT.CODING_IDE_ADAPTER,
+           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.MANUAL_ONLY,
+           risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE, automatic_activation_allowed=False,
+           capabilities=["interactive_coding"], triggers=[],
+           worker_profile=WorkerProfile(coding_modes=["implement"], headless_support=False,
+                                        interactive_only=True, local_execution=True, model_provider=""),
+           provenance=_prov("https://devin.ai/desktop", "Cognition", "Proprietary", "Devin-Desktop",
+                            "signed desktop installer (GUI)"),
+           notes="§7: HUMAN_INTERACTIVE_ONLY — GUI IDE (rebranded Windsurf→Devin Desktop; Cognition acquired "
+                 "Codeium). No official headless/API interface → cannot satisfy an unattended mission. KAI may "
+                 "prepare tasks/context for a human handoff; never claims autonomous execution."),
+        CM(id="roo", name="Roo Code (archived)", type=CT.CODING_CLI,
+           availability=AV.DISCOVERED, certification=CE.REJECTED, activation=AM.DISABLED,
+           risk_class=RK.MEDIUM, default_action_class=AC.REVERSIBLE_WRITE, automatic_activation_allowed=False,
+           capabilities=[], triggers=[],
+           provenance=_prov("https://github.com/RooCodeInc/Roo-Code", "RooCodeInc", "Apache-2.0", "ARCHIVED",
+                            "n/a — archived read-only 2026-05-15"),
+           notes="§8: ARCHIVED (read-only since 2026-05-15) → DISABLED, do not certify. Successor is Kilo Code "
+                 "(Kilo-Org/kilocode, MIT, @kilocode/cli) — a SEPARATE product, not adopted here; evaluate "
+                 "independently before any use."),
     ]
 
 
@@ -290,4 +365,8 @@ def seed_graph() -> CapabilityGraph:
     g.add("payloads-all-the-things", Relation.HELPS, "reverse-skill")   # authorized web-security review
     g.add("seclists", Relation.HELPS, "reverse-skill")
     g.add("awesome-osint", Relation.HELPS, "claude-code")     # public-source research feeds analysis
+    # ── coding agent pool (§24) — interchangeable workers collapse to one; claude-code is the fallback (§19) ──
+    for w in ("codex", "cline", "gemini-cli", "github-copilot-cli", "jcode"):
+        g.add(w, Relation.ALTERNATIVE_TO, "claude-code")
+        g.add("claude-code", Relation.FALLBACK_FOR, w)
     return g

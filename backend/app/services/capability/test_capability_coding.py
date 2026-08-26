@@ -125,6 +125,26 @@ def t_worktree_isolation():
         pass
 
 
+# ── §26 adversarial: fake results / untrusted by default / governed writes ────
+def t_adv_worker_result_untrusted_by_default():
+    r = WorkerResult(task="x", worker="codex", ending_state="done", tests_passed=99)
+    assert r.reviewed is False and r.certified is False, "'done' is never trusted without review+tests"
+
+
+def t_adv_fabricated_test_claim_not_certified():
+    # a worker CLAIMS passing tests but ran none (fabricated evidence) → never certified
+    r = WorkerResult(task="x", worker="codex", tests_run=0, tests_passed=50, tests_failed=0)
+    certify_worker_result(r, reviewed_by="claude-code", tests_ok=True)
+    assert r.certified is False, "a fabricated test claim (0 run) must not certify"
+
+
+def t_adv_git_writes_are_governed_action_classes():
+    # a worker trying to push/merge/change protection maps to gated/forbidden classes (§14/§26)
+    assert coding_action_class("push") == ActionClass.HIGH_IMPACT
+    assert coding_action_class("merge") == ActionClass.DESTRUCTIVE
+    assert coding_action_class("branch_protection") == ActionClass.PROHIBITED
+
+
 for _n, _f in list(globals().items()):
     if _n.startswith("t_"):
         test(_n[2:], _f)

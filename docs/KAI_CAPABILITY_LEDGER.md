@@ -109,6 +109,22 @@ Security-tier model (§17) **PASS** · least-power selection (§18) **PASS** · 
 | cybersecurity-reference | 0 | SECURITY_KNOWLEDGE_PACK | **UPSTREAM_UNRESOLVED** → DISABLED |
 | empire | 4 | SECURITY_EXECUTION_FRAMEWORK | **DISABLED_RESTRICTED_LAB_ONLY** — never auto; full envelope + sandbox + approval |
 
+## Coding Agent Pool (§10–§16)
+
+`CodingWorkerRouter` shipped + tested (`coding.py`): selection by measured §11 factors — **no
+hard-coded winner** (a provider-pinned or parallel task routes away from the CERTIFIED default);
+interactive-only excluded from unattended missions; no silent model switch (§19). §14 action
+classes (merge=DESTRUCTIVE, branch-protection=PROHIBITED). §16 doctrine — a worker **never
+certifies itself** (independent review + passing tests required; "done" without tests is never
+trusted). §12/§13 one isolated worktree/branch per writable worker. 12 coding + adversarial tests.
+
+| worker | status |
+|--------|--------|
+| claude-code | **AVAILABLE / PRIMARY** (native) |
+| codex · cline · gemini-cli · github-copilot-cli · jcode | **EXPERIMENTAL** — verified, not installed → not auto-routed live |
+| windsurf | **HUMAN_INTERACTIVE_ONLY** (Devin Desktop, GUI-only; never unattended) |
+| roo | **REJECTED / DISABLED** — archived; successor Kilo Code not adopted |
+
 ## What blocks CERTIFIED for the external capabilities
 
 1. **No network in the Bash sandbox** → cannot install (pip/npm/git clone/`claude mcp add`).

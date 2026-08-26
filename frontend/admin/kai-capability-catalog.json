@@ -37,7 +37,7 @@
     {
       "id": "claude-code",
       "name": "Claude Code",
-      "type": "AGENT_RUNTIME",
+      "type": "CODING_WORKER",
       "availability": "AVAILABLE",
       "certification": "CERTIFIED",
       "activation": "ALWAYS_AVAILABLE",
@@ -57,7 +57,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "Primary engineering authority (\u00a710/\u00a740). No worker merges/deploys independently.",
+      "notes": "PRIMARY engineering/certification worker (\u00a72/\u00a710/\u00a740). May delegate bounded subtasks; no worker merges/deploys independently.",
       "provenance": {
         "upstream": "",
         "owner": "",
@@ -495,8 +495,8 @@
     },
     {
       "id": "jcode",
-      "name": "jcode (Coding Worker)",
-      "type": "CODE_TOOL",
+      "name": "jcode (Lightweight Coding Worker)",
+      "type": "CODING_WORKER",
       "availability": "DISCOVERED",
       "certification": "EXTERNAL_BLOCKED",
       "activation": "ON_DEMAND",
@@ -513,7 +513,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a710/\u00a740: bounded worker, NOT a replacement for Claude Code; never final authority. HIGH risk \u2014 ships a curl|bash installer; inspect before any install.",
+      "notes": "\u00a79/\u00a710/\u00a740: bounded lightweight worker, NOT a replacement for Claude Code; never final authority. HIGH risk \u2014 ships a curl|bash installer; inspect before any install.",
       "provenance": {
         "upstream": "https://github.com/1jehuang/jcode",
         "owner": "1jehuang",
@@ -786,6 +786,168 @@
         "owner": "BC-SECURITY",
         "license": "BSD-3-Clause",
         "ref": "v6.7.1",
+        "verified": true
+      }
+    },
+    {
+      "id": "codex",
+      "name": "OpenAI Codex",
+      "type": "CODING_WORKER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "implement",
+        "review",
+        "test"
+      ],
+      "triggers": [
+        "implement",
+        "generate tests"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a73: CLI+IDE+cloud coding worker (`codex exec` headless). VERIFY_INSTALLATION via npm/brew, NOT the curl|bash path (\u00a79). Auth = ChatGPT sign-in or OpenAI key (operator, never in chat). Cannot merge/deploy merely because it can modify code.",
+      "provenance": {
+        "upstream": "https://github.com/openai/codex",
+        "owner": "openai",
+        "license": "Apache-2.0",
+        "ref": "v0.150.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "cline",
+      "name": "Cline",
+      "type": "CODING_WORKER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "implement",
+        "review"
+      ],
+      "triggers": [
+        "headless coding",
+        "parallel coding task"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a74: headless CLI (`cline --json --auto-approve`) + SDK (@cline/sdk) \u2014 prefer SDK/CLI over UI automation. Multi-provider BYO key (local Ollama needs none). Bounded workspace; no unlimited shell/fs.",
+      "provenance": {
+        "upstream": "https://github.com/cline/cline",
+        "owner": "Cline Bot Inc.",
+        "license": "Apache-2.0",
+        "ref": "cli-v3.0.60",
+        "verified": true
+      }
+    },
+    {
+      "id": "gemini-cli",
+      "name": "Gemini CLI",
+      "type": "CODING_CLI",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "implement"
+      ],
+      "triggers": [
+        "gemini coding"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a76: headless `gemini -p --output-format json`. Google-only; headless auth = GEMINI_API_KEY / Vertex (OAuth is interactive). Use the STABLE channel in certified config, never nightly.",
+      "provenance": {
+        "upstream": "https://github.com/google-gemini/gemini-cli",
+        "owner": "google-gemini",
+        "license": "Apache-2.0",
+        "ref": "v0.57.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "github-copilot-cli",
+      "name": "GitHub Copilot CLI",
+      "type": "CODING_WORKER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "implement",
+        "github_context"
+      ],
+      "triggers": [
+        "github coding task"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a75: GitHub-native (`copilot -p`). Canonical is github/copilot-cli \u2014 the old `gh copilot` extension is ARCHIVED/DEPRECATED. Proprietary. VERIFY_AUTH: GitHub OAuth + Copilot license (operator, never in chat). Initial mode REVERSIBLE_WRITE; PR merge governed separately.",
+      "provenance": {
+        "upstream": "https://github.com/github/copilot-cli",
+        "owner": "github",
+        "license": "Proprietary",
+        "ref": "v1.0.80",
+        "verified": true
+      }
+    },
+    {
+      "id": "windsurf",
+      "name": "Windsurf / Devin Desktop",
+      "type": "CODING_IDE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "interactive_coding"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a77: HUMAN_INTERACTIVE_ONLY \u2014 GUI IDE (rebranded Windsurf\u2192Devin Desktop; Cognition acquired Codeium). No official headless/API interface \u2192 cannot satisfy an unattended mission. KAI may prepare tasks/context for a human handoff; never claims autonomous execution.",
+      "provenance": {
+        "upstream": "https://devin.ai/desktop",
+        "owner": "Cognition",
+        "license": "Proprietary",
+        "ref": "Devin-Desktop",
+        "verified": true
+      }
+    },
+    {
+      "id": "roo",
+      "name": "Roo Code (archived)",
+      "type": "CODING_CLI",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "\u00a78: ARCHIVED (read-only since 2026-05-15) \u2192 DISABLED, do not certify. Successor is Kilo Code (Kilo-Org/kilocode, MIT, @kilocode/cli) \u2014 a SEPARATE product, not adopted here; evaluate independently before any use.",
+      "provenance": {
+        "upstream": "https://github.com/RooCodeInc/Roo-Code",
+        "owner": "RooCodeInc",
+        "license": "Apache-2.0",
+        "ref": "ARCHIVED",
         "verified": true
       }
     }

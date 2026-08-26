@@ -146,6 +146,43 @@ def t_empire_never_selected_by_natural_language():
         assert "empire" not in brain.plan(prompt, Principal("u")).selected_ids(), f"Empire auto-selected for: {prompt}"
 
 
+# ── coding agent pool (§Coding) ───────────────────────────────────────────────
+def t_coding_pool_present():
+    reg = seed_registry()
+    for cid in ("claude-code", "codex", "cline", "gemini-cli", "github-copilot-cli", "windsurf", "roo", "jcode"):
+        assert reg.has(cid), f"missing coding worker {cid}"
+        if cid != "windsurf" and cid != "roo":
+            assert reg.get(cid).worker_profile is not None, f"{cid} needs a worker_profile"
+
+
+def t_windsurf_interactive_only_never_auto():
+    m = seed_registry().get("windsurf")
+    assert m.worker_profile.interactive_only is True and m.worker_profile.headless_support is False
+    assert m.auto_selectable() is False, "an interactive-only IDE cannot be auto-routed for unattended work"
+
+
+def t_roo_archived_disabled():
+    m = seed_registry().get("roo")
+    assert m.certification.value == "REJECTED" and m.activation.value == "DISABLED"
+    assert m.auto_selectable() is False
+
+
+def t_coding_workers_not_auto_until_installed():
+    reg = seed_registry()
+    for cid in ("codex", "cline", "gemini-cli", "github-copilot-cli"):
+        assert reg.get(cid).auto_selectable() is False, f"{cid} verified-but-not-installed → not auto-routed"
+
+
+def t_live_coding_routes_to_claude_code():
+    """On the real seed only claude-code is an AVAILABLE coding worker, so an implement task routes to it."""
+    reg, g = seed_registry(), seed_graph()
+    plan = CapabilityBrain(reg, g).plan("Implement this API endpoint and write the tests.", Principal("u"))
+    ids = plan.selected_ids()
+    assert "claude-code" in ids, f"implement task must route to the available worker, got {plan.summary}"
+    for other in ("codex", "cline", "gemini-cli"):
+        assert other not in ids, f"{other} is not installed and must not be selected"
+
+
 for _n, _f in list(globals().items()):
     if _n.startswith("t_"):
         test(_n[2:], _f)
