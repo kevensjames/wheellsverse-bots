@@ -1024,6 +1024,108 @@ def _nexus_asset(name: str):
                         headers={"Cache-Control": "public, max-age=300"})
 
 
+# ── KAI Capability Fabric — production status API + Capabilities view ──────────
+#    Feature-flagged (default OFF → 404). The catalog is served from the SAME
+#    CapabilityRegistry the fabric/tests use (not a hand-maintained frontend array),
+#    with an HONEST runtime split: CLAUDE_LOCAL (this dev/session MCP state) vs
+#    KAI_SERVER (the hosted production runtime — no adapters wired yet, so CATALOG_ONLY).
+_CAPABILITY_FABRIC_ENABLED = os.getenv("KAI_CAPABILITY_FABRIC_ENABLED", "false").strip().lower() \
+    in ("1", "true", "yes", "on")
+
+_CAP_FOUNDATION = {"context7", "playwright", "sequential-thinking", "filesystem", "github"}
+_CAP_TYPE_GROUP = {
+    "CODING_WORKER": "CODING WORKFORCE", "CODING_CLI": "CODING WORKFORCE",
+    "CODING_IDE_ADAPTER": "CODING WORKFORCE", "CODING_CLOUD_AGENT": "CODING WORKFORCE",
+    "KNOWLEDGE_PACK": "KNOWLEDGE", "AGENT_SKILL": "KNOWLEDGE",
+    "MEMORY_PROVIDER": "MEMORY", "GEOSPATIAL_TOOL": "GEO", "MODEL_RUNTIME": "INFERENCE",
+    "COLLABORATION_TOOL": "COLLABORATION", "WORKSPACE_ADAPTER": "COLLABORATION",
+    "SECURITY_KNOWLEDGE_PACK": "SECURITY REFERENCE", "SECURITY_DATA_PACK": "SECURITY REFERENCE",
+    "OSINT_RESOURCE_PACK": "OSINT", "SECURITY_ROUTER": "ACTIVE SECURITY",
+    "SECURITY_EXECUTION_FRAMEWORK": "ADVERSARY EMULATION", "AGENT_BEHAVIOR_POLICY": "AGENT BEHAVIOR",
+    "NATIVE_KAI_TOOL": "MEMORY",
+}
+# CLAUDE_LOCAL status per capability (this session's verified MCP reality)
+_CAP_CLAUDE_LOCAL = {
+    "context7": "CERTIFIED", "playwright": "CERTIFIED",
+    "sequential-thinking": "CONNECTED", "filesystem": "CONNECTED", "claude-code": "AVAILABLE",
+    "github": "AUTH_PENDING",
+}
+
+
+def _cap_group(m: dict) -> str:
+    cid = m.get("id", "")
+    if cid in _CAP_FOUNDATION:
+        return "FOUNDATION"
+    if cid == "appllama":
+        return "MOBILE DESIGN"
+    return _CAP_TYPE_GROUP.get(m.get("type", ""), "DEVELOPMENT")
+
+
+def _cap_runtime(m: dict) -> dict:
+    """§12 honest runtime split. KAI_SERVER has no wired adapters yet, so external caps are
+    CATALOG_ONLY there even when CLAUDE_LOCAL is CERTIFIED — never show a single misleading badge."""
+    kai_server = "AVAILABLE" if m.get("type") == "NATIVE_KAI_TOOL" else "CATALOG_ONLY"
+    return {"claude_local": _CAP_CLAUDE_LOCAL.get(m.get("id", ""), "—"), "kai_server": kai_server}
+
+
+def _capability_catalog() -> dict:
+    from backend.app.services.capability.seed import seed_manifests  # lazy — pure module
+    caps = []
+    for man in seed_manifests():
+        d = man.to_dict()
+        prov = d.get("provenance", {}) or {}
+        caps.append({
+            "id": d["id"], "name": d["name"], "type": d["type"], "group": _cap_group(d),
+            "availability": d["availability"], "certification": d["certification"],
+            "activation": d["activation"], "risk_class": d["risk_class"],
+            "security_tier": d.get("security_tier", 0),
+            "automatic_activation_allowed": d.get("automatic_activation_allowed", True),
+            "runtime": _cap_runtime(d), "capabilities": d["capabilities"], "triggers": d["triggers"],
+            "dependencies": d["dependencies"], "conflicts": d["conflicts"],
+            "permissions": d["permissions"], "notes": d["notes"],
+            "provenance": {"upstream": prov.get("upstream", ""), "owner": prov.get("owner", ""),
+                           "license": prov.get("license", ""), "ref": prov.get("ref", ""),
+                           "verified": prov.get("verified", False)},
+        })
+    return {"version": "1", "generated": "2026-08-27", "source": "CapabilityRegistry",
+            "count": len(caps), "capabilities": caps}
+
+
+@app.get("/admin/capabilities", include_in_schema=False)
+def _admin_capabilities(request: Request):
+    if not _CAPABILITY_FABRIC_ENABLED:
+        raise HTTPException(status_code=404, detail="capability fabric disabled")
+    # HTML page for a browser; JSON for API clients (Accept: application/json)
+    accept = request.headers.get("accept", "")
+    if "application/json" in accept and "text/html" not in accept:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(_capability_catalog(), headers={"Cache-Control": "no-store"})
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "kai-capabilities.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/capabilities.json", include_in_schema=False)
+def _admin_capabilities_json():
+    if not _CAPABILITY_FABRIC_ENABLED:
+        raise HTTPException(status_code=404, detail="capability fabric disabled")
+    from fastapi.responses import JSONResponse
+    return JSONResponse(_capability_catalog(), headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/capabilities/{cap_id}", include_in_schema=False)
+def _admin_capability_inspect(cap_id: str):
+    if not _CAPABILITY_FABRIC_ENABLED:
+        raise HTTPException(status_code=404, detail="capability fabric disabled")
+    from fastapi.responses import JSONResponse
+    for c in _capability_catalog()["capabilities"]:
+        if c["id"] == cap_id:
+            return JSONResponse(c, headers={"Cache-Control": "no-store"})   # no credentials by construction
+    raise HTTPException(status_code=404, detail="unknown capability")
+
+
 @app.middleware("http")
 async def api_key_middleware(request: Request, call_next):
     """Apply optional API key guard to all /api/ routes except public ones."""

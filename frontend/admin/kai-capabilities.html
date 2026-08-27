@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KAI · Capabilities</title>
+<style>
+  :root{--bg:#0a0e14;--panel:#0f1620;--line:#1e2a3a;--fg:#dbe6f2;--dim:#7f94ac;--accent:#39c0ed;
+        --good:#2ec77a;--connect:#22b8c4;--warn:#e5a13a;--bad:#e5533a;--grey:#5a6b80;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{padding:20px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12.5px}
+  .wrap{display:flex;gap:0;min-height:calc(100vh - 66px)}
+  .list{flex:1;padding:16px 24px;overflow:auto}
+  .inspector{width:min(420px,40vw);border-left:1px solid var(--line);padding:18px 20px;background:var(--panel);display:none}
+  .inspector.open{display:block}
+  .banner{margin:0 24px 8px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--dim);font-size:12.5px}
+  .group{margin:22px 0 8px;color:var(--accent);font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:600}
+  table{width:100%;border-collapse:collapse}
+  th{ text-align:left;color:var(--dim);font-weight:500;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:6px 10px;border-bottom:1px solid var(--line)}
+  td{padding:9px 10px;border-bottom:1px solid #131c28;vertical-align:middle}
+  tr.cap{cursor:pointer}
+  tr.cap:hover{background:#111a26}
+  .name{font-weight:600}
+  .pill{display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:600;letter-spacing:.02em;white-space:nowrap}
+  .lbl{color:var(--dim);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;margin-right:5px}
+  .kv{display:grid;grid-template-columns:130px 1fr;gap:6px 10px;font-size:12.5px;margin-top:10px}
+  .kv .k{color:var(--dim)}
+  .close{float:right;cursor:pointer;color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
+  code{background:#0b131d;padding:1px 5px;border-radius:4px;color:#a9c7e2;font-size:12px}
+  @media (max-width:760px){
+    .wrap{flex-direction:column}
+    .inspector{width:100%;border-left:none;border-top:1px solid var(--line)}
+    .name{font-size:13px}
+    td,th{padding:7px 6px}
+    /* keep name + both runtime badges + certification; risk/tier live in the inspector */
+    th:nth-child(5),td:nth-child(5),th:nth-child(6),td:nth-child(6){display:none}
+    .list{overflow-x:auto}
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>◆ KAI Capability Fabric</h1>
+  <span class="sub" id="summary">loading…</span>
+</header>
+<div class="banner" id="rt-banner"></div>
+<div class="wrap">
+  <div class="list" id="list">loading capabilities…</div>
+  <aside class="inspector" id="inspector"></aside>
+</div>
+<script>
+(function(){
+  "use strict";
+  var GROUP_ORDER = ["FOUNDATION","DEVELOPMENT","CODING WORKFORCE","KNOWLEDGE","MOBILE DESIGN",
+    "SECURITY REFERENCE","OSINT","ACTIVE SECURITY","ADVERSARY EMULATION","AGENT BEHAVIOR",
+    "MEMORY","INFERENCE","COLLABORATION","GEO"];
+  // honest colour: green ONLY for genuinely available/certified; restricted/disabled = red; unknown = grey
+  function color(s){
+    s=(s||"").toUpperCase();
+    if(/CERTIFIED|AVAILABLE/.test(s)) return "var(--good)";
+    if(/CONNECTED/.test(s)) return "var(--connect)";
+    if(/AUTH_PENDING|PARTIAL|EXPERIMENTAL|PENDING/.test(s)) return "var(--warn)";
+    if(/DISABLED|RESTRICTED|REJECTED/.test(s)) return "var(--bad)";
+    return "var(--grey)";
+  }
+  function pill(s){ if(!s||s==="—") return '<span class="lbl">—</span>';
+    return '<span class="pill" style="background:'+color(s)+'22;color:'+color(s)+'">'+s+'</span>'; }
+  function esc(t){ var d=document.createElement("div"); d.textContent=(t==null?"":String(t)); return d.innerHTML; }
+
+  function render(cat){
+    document.getElementById("summary").textContent =
+      cat.count+" capabilities · source: "+cat.source+" · generated "+cat.generated;
+    document.getElementById("rt-banner").innerHTML =
+      "Runtime split is honest: <b>CLAUDE&nbsp;LOCAL</b> = this operator/Claude-Code MCP state · "+
+      "<b>KAI&nbsp;SERVER</b> = the hosted production runtime. External capabilities show "+
+      "<code>CATALOG_ONLY</code> on the KAI server until a production adapter is wired — never a fake READY.";
+    var byGroup={};
+    cat.capabilities.forEach(function(c){ (byGroup[c.group]=byGroup[c.group]||[]).push(c); });
+    var groups = GROUP_ORDER.filter(function(g){return byGroup[g];})
+      .concat(Object.keys(byGroup).filter(function(g){return GROUP_ORDER.indexOf(g)<0;}));
+    var html="";
+    groups.forEach(function(g){
+      html+='<div class="group">'+esc(g)+'</div><table><tr>'+
+        '<th>Capability</th><th>KAI Server</th><th>Claude Local</th><th>Certification</th><th>Risk</th><th>Tier</th></tr>';
+      byGroup[g].sort(function(a,b){return a.name.localeCompare(b.name);}).forEach(function(c){
+        html+='<tr class="cap" data-id="'+esc(c.id)+'">'+
+          '<td class="name">'+esc(c.name)+'</td>'+
+          '<td>'+pill(c.runtime.kai_server)+'</td>'+
+          '<td>'+pill(c.runtime.claude_local)+'</td>'+
+          '<td>'+pill(c.certification)+'</td>'+
+          '<td>'+pill(c.risk_class)+'</td>'+
+          '<td>'+(c.security_tier?('T'+c.security_tier):'—')+'</td></tr>';
+      });
+      html+='</table>';
+    });
+    var list=document.getElementById("list"); list.innerHTML=html;
+    Array.prototype.forEach.call(list.querySelectorAll("tr.cap"),function(tr){
+      tr.addEventListener("click",function(){ inspect(tr.getAttribute("data-id")); });
+    });
+  }
+
+  function inspect(id){
+    fetch("/admin/capabilities/"+encodeURIComponent(id),{headers:{Accept:"application/json"}})
+      .then(function(r){return r.json();}).then(function(c){
+      var p=c.provenance||{};
+      var rows=[["Type",c.type],["Group",c.group],["KAI server",c.runtime.kai_server],
+        ["Claude local",c.runtime.claude_local],["Availability",c.availability],
+        ["Certification",c.certification],["Activation",c.activation],["Risk",c.risk_class],
+        ["Security tier",c.security_tier],["Auto-activation",String(c.automatic_activation_allowed)],
+        ["Capabilities",(c.capabilities||[]).join(", ")||"—"],["Dependencies",(c.dependencies||[]).join(", ")||"—"],
+        ["Conflicts",(c.conflicts||[]).join(", ")||"—"],["Permissions",(c.permissions||[]).join(", ")||"—"],
+        ["Upstream",p.upstream||"—"],["Owner",p.owner||"—"],["License",p.license||"—"],["Ref",p.ref||"—"]];
+      var kv=rows.map(function(r){return '<div class="k">'+esc(r[0])+'</div><div>'+esc(r[1])+'</div>';}).join("");
+      document.getElementById("inspector").innerHTML=
+        '<span class="close" id="ins-close">close ✕</span>'+
+        '<div class="name" style="font-size:15px">'+esc(c.name)+'</div>'+
+        '<div class="kv">'+kv+'</div>'+
+        '<div style="margin-top:12px;color:var(--dim);font-size:12px">'+esc(c.notes||"")+'</div>'+
+        '<div style="margin-top:10px;color:var(--grey);font-size:11px">No credentials are ever shown.</div>';
+      document.getElementById("inspector").classList.add("open");
+      document.getElementById("ins-close").addEventListener("click",function(){
+        document.getElementById("inspector").classList.remove("open"); });
+    });
+  }
+
+  fetch("/admin/capabilities.json",{headers:{Accept:"application/json"}})
+    .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
+    .then(render)
+    .catch(function(e){ document.getElementById("list").innerHTML=
+      '<div style="color:var(--bad)">Capability API unavailable: '+esc(e.message)+
+      '</div><div class="sub">Is KAI_CAPABILITY_FABRIC_ENABLED set on this deployment?</div>'; });
+})();
+</script>
+</body>
+</html>
