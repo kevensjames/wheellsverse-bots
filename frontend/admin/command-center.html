@@ -44,7 +44,7 @@
 
   /* command bar */
   .bar{display:flex;align-items:center;gap:16px;padding:12px 22px;border-bottom:1px solid var(--line);
-    background:rgba(10,14,20,.78);backdrop-filter:blur(10px);position:sticky;top:0;z-index:25}
+    background:rgba(10,14,20,.78);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);position:sticky;top:0;z-index:25}
   body.demo .bar{top:32px}
   .brand{display:flex;align-items:center;gap:11px}
   .brand__mk{width:34px;height:34px;flex:none;position:relative}
@@ -218,7 +218,7 @@
 </style>
 </head>
 <body>
-  <div class="demobar">⚠ DEMO DATA — illustrative sample values, NOT live. Every figure tagged DEMO. Switch to LIVE for real data.</div>
+  <div class="demobar">⚠ DEMO DATA — illustrative sample values, NOT live. Nothing here is measured. Switch to LIVE for real data.</div>
 
   <header class="bar">
     <div class="brand"><div class="brand__mk"></div>
@@ -227,9 +227,9 @@
     <div class="search"><span>⌕</span><input id="search" placeholder="Search systems, companies, capabilities…" autocomplete="off"/><kbd>⌘K</kbd></div>
     <div class="bar__spacer"></div>
     <div class="clock"><b id="clock" class="mono">—</b><span id="date">—</span></div>
-    <div class="toggle" role="tablist" aria-label="data mode">
-      <button id="mLive" class="on" onclick="CC.setMode('live')">LIVE</button>
-      <button id="mDemo" onclick="CC.setMode('demo')">DEMO</button>
+    <div class="toggle" role="group" aria-label="data mode">
+      <button type="button" id="mLive" class="on" onclick="CC.setMode('live')">LIVE</button>
+      <button type="button" id="mDemo" onclick="CC.setMode('demo')">DEMO</button>
     </div>
     <div class="who"><div class="who__av">JW</div>
       <div class="who__n"><b>Jhon Wheeler</b><span>Founder / CEO</span></div>
@@ -359,7 +359,8 @@
   function tick(){ var d=new Date();
     $("clock").textContent = d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"})+" ";
     $("date").textContent = d.toLocaleDateString([], {weekday:"short",year:"numeric",month:"short",day:"numeric"}).toUpperCase();
-    if(MET){ MET._u = (MET._u==null?MET.uptime_seconds:MET._u)+1; var el=$("upt"); if(el) el.textContent=fmtUptime(MET._u); }
+    // never overwrite the tagged DEMO uptime with untagged real uptime
+    if(MET && !isDemo()){ MET._u = (MET._u==null?MET.uptime_seconds:MET._u)+1; var el=$("upt"); if(el) el.textContent=fmtUptime(MET._u); }
   }
   tick(); setInterval(tick,1000);
 
@@ -428,11 +429,11 @@
     $("kpis").innerHTML =
       kpi("Portfolio Revenue 30D", val(null, DEMO.revenue), isDemo()?"vs prior 30d":'<span class="na">no financial source wired</span>') +
       kpi("Serving Now", isDemo()?esc(DEMO.merchants)+dtag():esc(c.serving_now), (isDemo()?"active":c.live_prod+" prod-deployed")) +
-      kpi("AI Agents (fleet)", val(fleet, DEMO.agents), isDemo()?"142 idle · 3 busy · 1 failed":(fleet!=null?"bot.py on disk (REAL)":"—")) +
-      kpi("System Uptime", '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?"99.98% trailing 90d":"this process (REAL)") +
+      kpi("AI Agents (fleet)", val(fleet, DEMO.agents), isDemo()?("142 idle · 3 busy · 1 failed"+dtag()):(fleet!=null?"bot.py on disk (REAL)":"—")) +
+      kpi("System Uptime", '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?("99.98% trailing 90d"+dtag()):"this process (REAL)") +
       kpi("KAI Capabilities", val(caps, "32"), (caps!=null||isDemo())?"governed catalog":'<span class="na">fabric flag off</span>');
     $("modeNote").textContent = isDemo() ? "DEMO · ILLUSTRATIVE" : "LIVE · REAL DATA";
-    $("kaiCaps").textContent = caps!=null?caps:(isDemo()?"32":"—");
+    $("kaiCaps").innerHTML = caps!=null?esc(String(caps)):(isDemo()?esc("32")+dtag():'<span class="na">—</span>');
     $("kaiCos").textContent = c.by_tier.COMPANY||0;
     $("kaiSys").textContent = c.total;
     $("uniCount").textContent = c.total+" NODES · "+c.serving_now+" SERVING";
@@ -458,7 +459,7 @@
       // ring: demo shows a %; live shows a status-derived fill (qualitative, NOT a fake %)
       var fill = isDemo()? d.h : (n.status==="HEALTHY"?100:n.status==="DEGRADED"?66:n.status==="DORMANT"?33:n.status==="LOCAL"||n.status==="PRE_DEPLOY"?15:50);
       var ctop = isDemo()? d.h+"%" : n.status;
-      var cbot = isDemo()? "health" : "status";
+      var cbot = isDemo()? '<b style="color:var(--demo);font-weight:600">DEMO</b>' : "status";  // ring % is illustrative
       var metrics = (isDemo()? d.m : [["metric","—"],["metric","—"],["metric","—"]]);
       var mh = (isDemo()? d.m.map(function(m){return '<div class="gmetric"><span>'+esc(m[0])+'</span><b>'+esc(m[1])+dtag()+'</b></div>';}).join("")
                         : '<div class="gmetric"><span>Deploy</span><b>'+esc((n.deploy||"").replace(/_/g," "))+'</b></div>'+
@@ -480,7 +481,7 @@
   function renderTelem(){
     var t=$("telem");
     t.innerHTML =
-      tcell("Workers", val(null,DEMO.workers), isDemo()?"28 idle · 3 busy":'') +
+      tcell("Workers", val(null,DEMO.workers), isDemo()?("28 idle · 3 busy"+dtag()):'') +
       tcell("Queues", val(null,DEMO.queues), isDemo()?"active":'') +
       tcell("Jobs 24h", val(null,DEMO.jobs), isDemo()?"processed":'') +
       tcell("API Latency", val(null,DEMO.latency), "p95") +
@@ -528,10 +529,11 @@
     var hs=REG.counts.by_status||{};
     var crit=(hs.UNKNOWN||0), warn=(hs.DEGRADED||0), info=(hs.DORMANT||0);
     if(isDemo()){ crit=DEMO.alerts.c; warn=DEMO.alerts.w; info=DEMO.alerts.i; }
+    var at = isDemo()?dtag():"";  // tag fabricated demo counts; live counts (real) stay untagged
     $("alerts").innerHTML =
-      '<div class="apill"><b style="color:'+(crit?'var(--critical)':'var(--txt-3)')+'">'+crit+'</b><span>Critical</span></div>'+
-      '<div class="apill"><b style="color:var(--caution)">'+warn+'</b><span>Warning</span></div>'+
-      '<div class="apill"><b style="color:var(--accent)">'+info+'</b><span>Info</span></div>';
+      '<div class="apill"><b style="color:'+(crit?'var(--critical)':'var(--txt-3)')+'">'+crit+at+'</b><span>Critical</span></div>'+
+      '<div class="apill"><b style="color:var(--caution)">'+warn+at+'</b><span>Warning</span></div>'+
+      '<div class="apill"><b style="color:var(--accent)">'+info+at+'</b><span>Info</span></div>';
     var list="";
     if(isDemo()){
       list = DEMO.alerts.list.map(function(a){ var c=a[0]==="warn"?"var(--caution)":"var(--accent)";
