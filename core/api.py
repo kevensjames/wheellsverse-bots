@@ -1038,6 +1038,8 @@ _CAPABILITY_FABRIC_ENABLED = os.getenv("KAI_CAPABILITY_FABRIC_ENABLED", "false")
 # Command Center is always previewable at /admin/command regardless of the flag.
 _COMMAND_CENTER_ENABLED = os.getenv("WHEELLSVERSE_COMMAND_CENTER", "false").strip().lower() \
     in ("1", "true", "yes", "on")
+# Process boot time — the Command Center's uptime is REAL (this process), never faked.
+_COMMAND_METRICS_START = time.time()
 
 _CAP_FOUNDATION = {"context7", "playwright", "sequential-thinking", "filesystem", "github"}
 _CAP_TYPE_GROUP = {
@@ -1144,6 +1146,46 @@ def _admin_registry_json():
     # anonymous caller (the whole snapshot is secret-clean either way).
     return JSONResponse(registry_snapshot(include_evidence=False),
                         headers={"Cache-Control": "no-store"})
+
+
+@app.get("/admin/command/metrics.json", include_in_schema=False)
+def _admin_command_metrics():
+    """Honest live-metrics aggregator for the Command Center. Assembles REAL data
+    in-process (registry counts, capability count, bot-fleet size, this process's
+    uptime). Anything without a wired live source is reported under `unavailable`
+    with a reason — NEVER a fabricated number (directive §24). Carries no secret."""
+    from fastapi.responses import JSONResponse
+    from backend.app.services.registry.catalog import registry_snapshot
+    reg = registry_snapshot(include_evidence=False)
+    # REAL: bot fleet = actual bot.py files on disk
+    try:
+        fleet_total = len(list((ROOT / "bots").rglob("bot.py")))
+    except Exception:
+        fleet_total = None
+    # REAL: capability count (only when the fabric is enabled, else honest null)
+    caps = None
+    if _CAPABILITY_FABRIC_ENABLED:
+        try:
+            caps = _capability_catalog()["count"]
+        except Exception:
+            caps = None
+    return JSONResponse({
+        "generated_unix": int(time.time()),
+        "uptime_seconds": int(time.time() - _COMMAND_METRICS_START),   # REAL (this process)
+        "fleet_total": fleet_total,                                    # REAL (files on disk)
+        "capabilities": caps,                                          # REAL or null (flag off)
+        "counts": reg["counts"],                                       # REAL structural (registry)
+        # No live source wired yet — reported honestly, never invented.
+        "unavailable": {
+            "portfolio_revenue_30d": "no financial source wired to App A",
+            "active_merchants": "requires authenticated Shopify call",
+            "api_latency_ms": "no in-process probe wired",
+            "db_ms": "App B database not reachable from App A",
+            "redis_ms": "no probe wired",
+            "per_startup_metrics": "live per-company metrics live in separate services",
+            "activity_feed": "no event stream wired",
+        },
+    }, headers={"Cache-Control": "no-store"})
 
 
 @app.middleware("http")

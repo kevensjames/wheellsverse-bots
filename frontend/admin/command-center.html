@@ -7,11 +7,12 @@
 <title>WHEELLSVERSE Command Center</title>
 <style>
   :root{
-    --bg:#090b0f; --bg2:#0b0e13; --grid:rgba(120,150,180,.045);
-    --panel:#10141a; --panel2:#141922; --line:rgba(150,170,195,.10); --line2:rgba(150,170,195,.18);
-    --txt:#e8eef4; --txt-2:#aeb9c8; --txt-3:#727e90;
-    --accent:#37c4e0; --accent-2:#7bd0e6; --accent-dim:rgba(55,196,224,.12); --accent-line:rgba(55,196,224,.42);
+    --bg:#070a0f; --bg2:#0a0e14; --grid:rgba(120,150,180,.04);
+    --panel:#0f141c; --panel2:#131a24; --line:rgba(150,170,195,.10); --line2:rgba(150,170,195,.18);
+    --txt:#e8eef4; --txt-2:#aeb9c8; --txt-3:#6f7b8d;
+    --accent:#37c4e0; --accent-2:#7bd0e6; --accent-dim:rgba(55,196,224,.12); --accent-line:rgba(55,196,224,.40);
     --nominal:#3ed88f; --caution:#e8b84e; --critical:#f2685c; --idle:#7f8b99; --steel:#8f9db6; --violet:#a389f4;
+    --demo:#e8934e;
     --radius:12px;
     --mono:ui-monospace,"SF Mono","Menlo","Cascadia Mono",monospace;
     --sans:system-ui,"Segoe UI","Helvetica Neue",sans-serif;
@@ -20,406 +21,629 @@
   html,body{margin:0}
   body{
     background:
-      radial-gradient(1200px 600px at 78% -8%, rgba(55,196,224,.06), transparent 60%),
-      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/44px 44px,
-      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/44px 44px,
+      radial-gradient(1100px 560px at 70% -10%, rgba(55,196,224,.06), transparent 60%),
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/46px 46px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/46px 46px,
       var(--bg);
-    color:var(--txt); font-family:var(--sans); min-height:100vh; font-size:14px; line-height:1.5;
+    color:var(--txt); font-family:var(--sans); min-height:100vh; font-size:13.5px; line-height:1.5;
     -webkit-font-smoothing:antialiased;
   }
+  body.demo{ box-shadow:inset 0 0 0 3px rgba(232,147,78,.55); }
   a{color:inherit;text-decoration:none}
   .mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt-3)}
+  .eyebrow{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--txt-3)}
+  .dot{width:8px;height:8px;border-radius:50%;flex:none;display:inline-block}
+  .dtag{font-family:var(--mono);font-size:7.5px;letter-spacing:.1em;color:var(--demo);border:1px solid rgba(232,147,78,.4);border-radius:3px;padding:1px 3px;margin-left:5px;vertical-align:middle}
+  .na{color:var(--txt-3);font-style:normal}
 
-  /* ── command bar ── */
-  .bar{display:flex;align-items:center;gap:22px;padding:14px 26px;border-bottom:1px solid var(--line);
-    background:rgba(11,14,19,.72);backdrop-filter:blur(10px);position:sticky;top:0;z-index:20}
-  .brand{display:flex;align-items:center;gap:12px}
-  .brand__mk{width:30px;height:30px;flex:none;position:relative}
-  .brand__mk::before,.brand__mk::after{content:"";position:absolute;inset:0;border-radius:50%}
-  .brand__mk::before{border:1.5px solid var(--accent-line)}
-  .brand__mk::after{inset:8px;background:var(--accent);box-shadow:0 0 16px var(--accent);animation:pulse 2.6s infinite}
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
-  .brand__tt{font-weight:700;font-size:16px;letter-spacing:.14em}
-  .brand__sub{font-family:var(--mono);font-size:9px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);margin-top:1px}
+  /* demo banner */
+  .demobar{display:none;align-items:center;gap:10px;justify-content:center;background:rgba(232,147,78,.12);
+    border-bottom:1px solid rgba(232,147,78,.4);color:var(--demo);font-family:var(--mono);font-size:10.5px;
+    letter-spacing:.12em;text-transform:uppercase;padding:7px 16px;position:sticky;top:0;z-index:30}
+  body.demo .demobar{display:flex}
+
+  /* command bar */
+  .bar{display:flex;align-items:center;gap:16px;padding:12px 22px;border-bottom:1px solid var(--line);
+    background:rgba(10,14,20,.78);backdrop-filter:blur(10px);position:sticky;top:0;z-index:25}
+  body.demo .bar{top:32px}
+  .brand{display:flex;align-items:center;gap:11px}
+  .brand__mk{width:34px;height:34px;flex:none;position:relative}
+  .brand__mk::before{content:"";position:absolute;inset:0;border-radius:9px;border:1.5px solid var(--accent-line);transform:rotate(45deg)}
+  .brand__mk::after{content:"W";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent);font-size:16px;text-shadow:0 0 14px var(--accent)}
+  .brand__tt{font-weight:700;font-size:15px;letter-spacing:.12em}
+  .brand__sub{font-family:var(--mono);font-size:8.5px;letter-spacing:.24em;text-transform:uppercase;color:var(--accent);margin-top:1px}
+  .search{flex:1;max-width:420px;display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line2);border-radius:9px;padding:8px 13px;color:var(--txt-3)}
+  .search input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-family:var(--sans);font-size:13px}
+  .search kbd{font-family:var(--mono);font-size:9px;border:1px solid var(--line2);border-radius:4px;padding:1px 5px;color:var(--txt-3)}
   .bar__spacer{flex:1}
-  .rstat{display:flex;flex-direction:column;gap:1px;padding:0 14px;border-left:1px solid var(--line)}
-  .rstat span{font-family:var(--mono);font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-3)}
-  .rstat b{font-family:var(--mono);font-size:12.5px;color:var(--txt-2);font-weight:500}
-  .healthpill{display:flex;align-items:center;gap:8px;padding:7px 13px;border:1px solid var(--line2);border-radius:999px;font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase}
-  .dot{width:8px;height:8px;border-radius:50%;flex:none}
+  .clock{text-align:right}
+  .clock b{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;display:block}
+  .clock span{font-family:var(--mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-3)}
+  .toggle{display:flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;font-family:var(--mono);font-size:10px;letter-spacing:.1em}
+  .toggle button{background:transparent;border:none;color:var(--txt-3);padding:7px 12px;cursor:pointer;text-transform:uppercase}
+  .toggle button.on{background:var(--accent-dim);color:var(--accent)}
+  .toggle button.on.demoon{background:rgba(232,147,78,.16);color:var(--demo)}
+  .who{display:flex;align-items:center;gap:9px}
+  .who__av{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--violet));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;color:#04121a}
+  .who__n b{font-size:12.5px;display:block;line-height:1.2}
+  .who__n span{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3)}
+  .livebadge{font-family:var(--mono);font-size:9px;letter-spacing:.16em;color:var(--nominal);border:1px solid rgba(62,216,143,.4);border-radius:5px;padding:3px 7px}
 
-  /* ── layout ── */
-  .wrap{max-width:1560px;margin:0 auto;padding:22px 26px 120px}
-  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:20px}
-  .kpi{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;position:relative;overflow:hidden}
+  /* shell */
+  .shell{display:grid;grid-template-columns:214px 1fr;min-height:calc(100vh - 59px)}
+  .side{border-right:1px solid var(--line);padding:14px 12px;position:sticky;top:59px;align-self:start;height:calc(100vh - 59px);overflow-y:auto}
+  body.demo .side{top:91px;height:calc(100vh - 91px)}
+  .side__grp{font-family:var(--mono);font-size:8.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--txt-3);margin:16px 8px 7px}
+  .nav{display:flex;flex-direction:column;gap:1px}
+  .nav a{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;color:var(--txt-2);font-size:12.5px;transition:background .12s,color .12s;cursor:pointer}
+  .nav a:hover{background:var(--panel);color:var(--txt)}
+  .nav a.active{background:var(--accent-dim);color:var(--accent)}
+  .nav a .ico{width:16px;height:16px;flex:none;opacity:.85}
+  .nav a small{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt-3);margin-top:1px}
+  .nav a .lbl{line-height:1.15}
+  .nav a[data-disabled] {opacity:.4;cursor:not-allowed}
+
+  main{padding:18px 22px 130px;min-width:0}
+  .section-t{display:flex;align-items:center;gap:12px;margin:26px 2px 12px}
+  .section-t h2{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-2);margin:0;font-weight:600}
+  .section-t h2 b{color:var(--txt)}
+  .section-t .rule{flex:1;height:1px;background:var(--line)}
+
+  /* KPI strip */
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px}
+  .kpi{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius);padding:14px 15px;position:relative;overflow:hidden;min-width:0}
   .kpi::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent);opacity:.5}
-  .kpi__lab{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-3)}
-  .kpi__val{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:34px;font-weight:600;margin-top:8px;line-height:1}
-  .kpi__sub{margin-top:7px;font-family:var(--mono);font-size:10.5px;color:var(--txt-2)}
-  .kpi__sub .tag{color:var(--txt-3)}
+  .kpi__lab{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-3)}
+  .kpi__val{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:27px;font-weight:600;margin-top:7px;line-height:1;overflow:hidden;text-overflow:ellipsis}
+  .kpi__sub{margin-top:6px;font-family:var(--mono);font-size:9.5px;color:var(--txt-2)}
+  .kpi__spark{position:absolute;right:10px;bottom:10px;width:64px;height:24px;opacity:.6}
 
-  .grid{display:grid;grid-template-columns:1fr 344px;gap:20px;align-items:start}
+  /* two-col */
+  .cols{display:grid;grid-template-columns:1fr 320px;gap:18px;align-items:start;margin-top:8px}
   .panel{background:linear-gradient(180deg,var(--panel),var(--panel2));border:1px solid var(--line);border-radius:var(--radius)}
-  .panel__hd{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--line)}
-  .panel__ti{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-2)}
+  .panel__hd{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid var(--line)}
+  .panel__ti{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-2)}
   .panel__ti b{color:var(--txt)}
+  .panel__bd{padding:15px 16px}
 
-  /* ── KAI flight director ── */
-  .kai{display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center;padding:18px 22px;margin-bottom:20px}
-  .kai__orb{width:70px;height:70px;position:relative;flex:none}
+  /* KAI flight director */
+  .kai{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:16px 20px;margin:8px 0 0}
+  .kai__orb{width:64px;height:64px;position:relative;flex:none}
   .kai__orb i{position:absolute;inset:0;border-radius:50%;border:1px solid var(--accent-line);animation:spin 14s linear infinite}
-  .kai__orb i:nth-child(2){inset:11px;border-color:rgba(163,137,244,.4);animation-duration:9s;animation-direction:reverse}
-  .kai__orb i:nth-child(3){inset:24px;background:radial-gradient(circle,var(--accent),rgba(55,196,224,.15));box-shadow:0 0 26px var(--accent);animation:none}
+  .kai__orb i:nth-child(2){inset:10px;border-color:rgba(163,137,244,.45);animation-duration:9s;animation-direction:reverse}
+  .kai__orb i:nth-child(3){inset:22px;background:radial-gradient(circle,var(--accent),rgba(55,196,224,.15));box-shadow:0 0 24px var(--accent);animation:none}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .kai__id b{font-size:18px;letter-spacing:.08em}
-  .kai__id span{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-2);margin-top:3px}
-  .kai__id .role{color:var(--accent);margin-top:6px}
-  .kai__meta{display:flex;gap:26px}
-  .kai__meta div span{font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-3);display:block}
+  .kai__id b{font-size:17px;letter-spacing:.06em}
+  .kai__id span{display:block;font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--txt-2);margin-top:3px}
+  .kai__id .role{color:var(--accent);margin-top:5px}
+  .kai__meta{display:flex;gap:22px}
+  .kai__meta div span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-3);display:block}
   .kai__meta div b{font-family:var(--mono);font-size:15px;color:var(--txt);font-weight:600}
 
-  /* ── universe ── */
-  .universe{margin-bottom:20px;position:relative}
+  /* universe */
   #galaxy{display:block;width:100%;height:auto;border-radius:var(--radius)}
-  .universe__legend{display:flex;flex-wrap:wrap;gap:12px 18px;padding:12px 18px;border-top:1px solid var(--line)}
-  .universe__legend span{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--txt-2)}
+  .uni__legend{display:flex;flex-wrap:wrap;gap:10px 16px;padding:11px 16px;border-top:1px solid var(--line)}
+  .uni__legend span{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9.5px;color:var(--txt-2)}
 
-  /* ── company grid ── */
-  .tier{margin-top:6px}
-  .tier__hd{display:flex;align-items:center;gap:12px;margin:22px 2px 12px}
-  .tier__hd h3{font-family:var(--mono);font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--txt-2);margin:0;font-weight:600}
-  .tier__hd .rule{flex:1;height:1px;background:var(--line)}
-  .tier__hd .n{font-family:var(--mono);font-size:10px;color:var(--txt-3)}
-  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:12px}
-  .card{display:block;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 15px;position:relative;transition:border-color .15s,transform .15s;overflow:hidden}
-  .card:hover{border-color:var(--accent-line);transform:translateY(-2px)}
-  .card[data-noroute="1"]{cursor:default;opacity:.9}
-  .card[data-noroute="1"]:hover{transform:none;border-color:var(--line)}
-  .card__stripe{position:absolute;left:0;top:0;bottom:0;width:3px}
-  .card__top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-  .card__nm{font-weight:600;font-size:14px;letter-spacing:.01em;padding-left:6px}
-  .card__badge{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;padding:3px 7px;border-radius:5px;white-space:nowrap;border:1px solid transparent}
-  .card__sub{font-family:var(--mono);font-size:10.5px;color:var(--txt-2);margin-top:9px;padding-left:6px;line-height:1.5;min-height:31px}
-  .card__ft{display:flex;align-items:center;gap:8px;margin-top:11px;padding-left:6px;flex-wrap:wrap}
-  .pill{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3);border:1px solid var(--line2);border-radius:4px;padding:2px 6px}
-  .pill--lost{color:var(--caution);border-color:rgba(232,184,78,.35)}
-  .pill--rec{color:var(--nominal);border-color:rgba(62,216,143,.35)}
-  .card__arrow{position:absolute;right:12px;bottom:12px;color:var(--txt-3);font-family:var(--mono);font-size:12px;opacity:0;transition:opacity .15s}
-  .card:hover .card__arrow{opacity:1}
+  /* startup gauges grid */
+  .gauges{display:grid;grid-template-columns:repeat(auto-fill,minmax(198px,1fr));gap:12px}
+  .gcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;position:relative;display:block;transition:border-color .15s,transform .15s}
+  a.gcard:hover{border-color:var(--accent-line);transform:translateY(-2px)}
+  .gcard__hd{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+  .gcard__nm{font-weight:600;font-size:13px}
+  .gcard__st{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border-radius:4px;border:1px solid transparent;white-space:nowrap}
+  .gwrap{display:flex;align-items:center;gap:14px}
+  .ring{width:74px;height:74px;flex:none;position:relative}
+  .ring svg{transform:rotate(-90deg)}
+  .ring__c{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+  .ring__c b{font-family:var(--mono);font-size:13px;font-weight:600;line-height:1}
+  .ring__c span{font-family:var(--mono);font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3);margin-top:2px}
+  .gmetrics{flex:1;min-width:0;display:flex;flex-direction:column;gap:7px}
+  .gmetric{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+  .gmetric span{font-family:var(--mono);font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--txt-3)}
+  .gmetric b{font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums}
 
-  /* ── right rail ── */
-  .rail{display:flex;flex-direction:column;gap:16px;position:sticky;top:84px}
-  .rail .panel__bd{padding:16px 18px}
-  .health__row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line)}
-  .health__row:last-child{border-bottom:none}
-  .health__row .lab{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;letter-spacing:.04em;color:var(--txt-2)}
-  .health__row .val{font-family:var(--mono);font-size:13px;font-variant-numeric:tabular-nums}
-  .legend__item{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
-  .legend__item:last-child{border-bottom:none}
-  .legend__k{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--txt);min-width:88px;flex:none}
-  .legend__v{font-family:var(--mono);font-size:10px;color:var(--txt-3);line-height:1.5}
-  .tl{position:relative;padding-left:18px}
-  .tl::before{content:"";position:absolute;left:4px;top:4px;bottom:4px;width:1px;background:var(--line2)}
-  .tl__e{position:relative;padding:0 0 15px}
+  /* telemetry strip */
+  .telem{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:10px}
+  .tcell{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 12px}
+  .tcell span{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-3);display:block}
+  .tcell b{font-family:var(--mono);font-size:18px;font-variant-numeric:tabular-nums;display:block;margin-top:5px}
+  .tcell small{font-family:var(--mono);font-size:8.5px;color:var(--txt-3)}
+  .providers{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+  .prov{font-family:var(--mono);font-size:8.5px;letter-spacing:.06em;color:var(--txt-2);border:1px solid var(--line2);border-radius:5px;padding:4px 8px}
+
+  /* console + quick actions row */
+  .lowrow{display:grid;grid-template-columns:1fr 300px;gap:18px;margin-top:8px}
+  .term{font-family:var(--mono);font-size:11.5px;background:#05080c;border-radius:8px;padding:12px 14px;min-height:120px;max-height:150px;overflow-y:auto}
+  .term div{margin:2px 0;color:var(--txt-2)}
+  .term .ok{color:var(--nominal)} .term .ts{color:var(--txt-3)} .term .warn{color:var(--caution)}
+  .term__in{display:flex;align-items:center;gap:8px;margin-top:10px;border-top:1px solid var(--line);padding-top:10px}
+  .term__in span{font-family:var(--mono);color:var(--accent);font-size:15px}
+  .term__in input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-family:var(--mono);font-size:13px}
+  .qa{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .qa button{display:flex;flex-direction:column;align-items:flex-start;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 12px;color:var(--txt-2);cursor:pointer;text-align:left;transition:border-color .12s,color .12s}
+  .qa button:hover{border-color:var(--accent-line);color:var(--txt)}
+  .qa button b{font-size:12px;font-weight:600}
+  .qa button small{font-family:var(--mono);font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--txt-3)}
+  .qa button.danger:hover{border-color:rgba(242,104,92,.5)}
+  .qa button.danger small{color:var(--critical)}
+
+  /* right rail */
+  .rail{display:flex;flex-direction:column;gap:16px;position:sticky;top:75px}
+  body.demo .rail{top:107px}
+  .hstat{text-align:center;padding:6px 0 2px}
+  .hstat b{font-family:var(--mono);font-size:22px;letter-spacing:.05em;display:block}
+  .hstat span{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-3)}
+  .hrow{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--line)}
+  .hrow:last-child{border-bottom:none}
+  .hrow .l{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:10.5px;color:var(--txt-2)}
+  .hrow .v{font-family:var(--mono);font-size:12px;font-variant-numeric:tabular-nums}
+  .feed{display:flex;flex-direction:column}
+  .fitem{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .fitem:last-child{border-bottom:none}
+  .fitem .fi{width:26px;height:26px;border-radius:7px;background:var(--panel2);display:flex;align-items:center;justify-content:center;flex:none;font-size:12px}
+  .fitem .ft b{font-size:11.5px;display:block}
+  .fitem .ft span{font-family:var(--mono);font-size:8.5px;color:var(--txt-3)}
+  .fitem .amt{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--nominal);white-space:nowrap}
+  .tl{position:relative;padding-left:16px}
+  .tl::before{content:"";position:absolute;left:3px;top:4px;bottom:4px;width:1px;background:var(--line2)}
+  .tl__e{position:relative;padding:0 0 13px}
   .tl__e:last-child{padding-bottom:0}
-  .tl__e::before{content:"";position:absolute;left:-17px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--panel);border:1.5px solid var(--accent)}
-  .tl__t{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--txt-3)}
-  .tl__d{font-size:12px;color:var(--txt-2);margin-top:3px;line-height:1.45}
+  .tl__e::before{content:"";position:absolute;left:-16px;top:3px;width:8px;height:8px;border-radius:50%;background:var(--panel);border:1.5px solid var(--accent)}
+  .tl__t{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3)}
+  .tl__d{font-size:11.5px;color:var(--txt-2);margin-top:2px}
+  .alerts{display:flex;gap:8px;margin-bottom:10px}
+  .apill{flex:1;text-align:center;border:1px solid var(--line);border-radius:8px;padding:8px 4px}
+  .apill b{font-family:var(--mono);font-size:18px;display:block}
+  .apill span{font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3)}
+  /* KAI assistant */
+  .ka{padding:15px 16px}
+  .ka__hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+  .ka__orb{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle,var(--accent),rgba(55,196,224,.15));box-shadow:0 0 16px var(--accent);flex:none}
+  .ka__hd b{font-size:13px;display:block}
+  .ka__hd span{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3)}
+  .ka__in{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line2);border-radius:9px;padding:9px 12px;margin-bottom:11px}
+  .ka__in input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-size:12px}
+  .ka__chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{font-family:var(--mono);font-size:9.5px;letter-spacing:.02em;border:1px solid var(--line2);border-radius:6px;padding:5px 9px;color:var(--txt-2);cursor:pointer;transition:border-color .12s,color .12s}
+  .chip:hover{border-color:var(--accent-line);color:var(--accent)}
 
-  /* ── console dock ── */
-  .dock{position:fixed;left:0;right:0;bottom:0;z-index:15;background:rgba(9,11,15,.9);backdrop-filter:blur(12px);border-top:1px solid var(--line2);padding:13px 26px}
-  .dock__in{max-width:1560px;margin:0 auto;display:flex;align-items:center;gap:14px}
-  .dock__caret{font-family:var(--mono);color:var(--accent);font-size:16px}
-  .dock input{flex:1;background:transparent;border:none;outline:none;color:var(--txt);font-family:var(--mono);font-size:14px}
-  .dock input::placeholder{color:var(--txt-3)}
-  .dock__go{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);border:1px solid var(--accent-line);border-radius:7px;padding:8px 16px;background:var(--accent-dim);cursor:pointer;transition:box-shadow .15s}
-  .dock__go:hover{box-shadow:0 0 20px rgba(55,196,224,.35)}
-  .dock__hint{font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3)}
+  .err{margin:10px 0;padding:12px 15px;border:1px solid var(--critical);border-radius:8px;color:var(--critical);font-family:var(--mono);font-size:12px;background:rgba(242,104,92,.06)}
+  .footnote{font-family:var(--mono);font-size:9px;color:var(--txt-3);margin-top:8px;letter-spacing:.02em}
 
-  .err{margin:8px 0;padding:12px 16px;border:1px solid var(--critical);border-radius:8px;color:var(--critical);font-family:var(--mono);font-size:12px;background:rgba(242,104,92,.06)}
-
-  @media(max-width:1080px){
-    .grid{grid-template-columns:1fr}
-    .rail{position:static}
-    .kpis{grid-template-columns:repeat(2,1fr)}
-    .kai{grid-template-columns:auto 1fr;gap:14px}
-    .kai__meta{grid-column:1/-1}
-  }
-  @media(max-width:560px){
-    .bar{gap:12px;padding:12px 16px}.wrap{padding:16px 14px 120px}
-    .kpis{grid-template-columns:1fr 1fr}.kpi__val{font-size:26px}
-    .rstat{display:none}.dock{padding:11px 14px}.dock__hint{display:none}
-  }
+  @media(max-width:1200px){ .cols{grid-template-columns:1fr} .rail{position:static} .lowrow{grid-template-columns:1fr} }
+  @media(max-width:900px){ .shell{grid-template-columns:1fr} .side{display:none} .kpis{grid-template-columns:repeat(2,1fr)} .kai{grid-template-columns:auto 1fr} .kai__meta{grid-column:1/-1} }
+  @media(max-width:560px){ .bar{flex-wrap:wrap;gap:10px} .search{order:5;max-width:none;flex-basis:100%} .kpis{grid-template-columns:1fr 1fr} main{padding:14px 12px 130px} }
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
+  <div class="demobar">⚠ DEMO DATA — illustrative sample values, NOT live. Every figure tagged DEMO. Switch to LIVE for real data.</div>
+
   <header class="bar">
-    <div class="brand">
-      <div class="brand__mk"></div>
-      <div>
-        <div class="brand__tt">WHEELLSVERSE</div>
-        <div class="brand__sub">Holding Command Center</div>
-      </div>
+    <div class="brand"><div class="brand__mk"></div>
+      <div><div class="brand__tt">WHEELLSVERSE</div><div class="brand__sub">Command Center</div></div>
     </div>
+    <div class="search"><span>⌕</span><input id="search" placeholder="Search systems, companies, capabilities…" autocomplete="off"/><kbd>⌘K</kbd></div>
     <div class="bar__spacer"></div>
-    <div class="rstat"><span>Environment</span><b id="env">PRODUCTION</b></div>
-    <div class="rstat"><span>Local Time</span><b id="clock" class="mono">—</b></div>
-    <div class="healthpill"><i class="dot" id="hdot" style="background:var(--idle)"></i><span id="hlabel">SYNCING…</span></div>
+    <div class="clock"><b id="clock" class="mono">—</b><span id="date">—</span></div>
+    <div class="toggle" role="tablist" aria-label="data mode">
+      <button id="mLive" class="on" onclick="CC.setMode('live')">LIVE</button>
+      <button id="mDemo" onclick="CC.setMode('demo')">DEMO</button>
+    </div>
+    <div class="who"><div class="who__av">JW</div>
+      <div class="who__n"><b>Jhon Wheeler</b><span>Founder / CEO</span></div>
+      <span class="livebadge" id="livebadge">● LIVE</span>
+    </div>
   </header>
 
-  <main class="wrap">
-    <div id="err"></div>
+  <div class="shell">
+    <aside class="side">
+      <nav class="nav" id="nav"></nav>
+    </aside>
 
-    <!-- KPI instrument strip (all figures from the live registry) -->
-    <section class="kpis" id="kpis"></section>
+    <main>
+      <div id="err"></div>
 
-    <!-- KAI — the brain in the middle, governing everything -->
-    <section class="panel kai">
-      <div class="kai__orb"><i></i><i></i><i></i></div>
-      <div class="kai__id">
-        <b>KAI</b>
-        <span>Flight Director · Intelligence Layer</span>
-        <span class="role" id="kaiRole">GOVERNED · CATALOG-ONLY ON SERVER</span>
-      </div>
-      <div class="kai__meta">
-        <div><span>Capabilities</span><b id="kaiCaps" class="mono">—</b></div>
-        <div><span>Companies</span><b id="kaiCos" class="mono">—</b></div>
-        <div><span>Nexus</span><b><a href="/admin/nexus" style="color:var(--accent)">OPEN →</a></b></div>
-      </div>
-    </section>
+      <!-- KPI strip -->
+      <div class="section-t" id="s-overview"><h2>MISSION <b>CONTROL</b></h2><div class="rule"></div><div class="eyebrow" id="modeNote">LIVE · REAL DATA</div></div>
+      <section class="kpis" id="kpis"></section>
 
-    <div class="grid">
-      <div>
-        <!-- WHEELLSVERSE UNIVERSE -->
-        <section class="panel universe">
-          <div class="panel__hd">
-            <div class="panel__ti">WHEELLSVERSE <b>UNIVERSE</b> · holding topology</div>
-            <div class="eyebrow" id="uniCount">—</div>
-          </div>
-          <canvas id="galaxy" width="1160" height="520" aria-label="Orbital map of the WHEELLSVERSE holding company"></canvas>
-          <div class="universe__legend">
-            <span><i class="dot" style="background:var(--nominal)"></i>Healthy</span>
-            <span><i class="dot" style="background:var(--caution)"></i>Degraded</span>
-            <span><i class="dot" style="background:var(--steel)"></i>Dormant</span>
-            <span><i class="dot" style="background:var(--idle)"></i>Local / Pre-deploy</span>
-            <span><i class="dot" style="background:var(--accent)"></i>External</span>
-          </div>
-        </section>
+      <!-- KAI flight director -->
+      <section class="panel kai" id="s-kai">
+        <div class="kai__orb"><i></i><i></i><i></i></div>
+        <div class="kai__id"><b>KAI</b><span>Flight Director · Intelligence Layer</span>
+          <span class="role" id="kaiRole">GOVERNED · AWAITING PRESENCE PROVIDER</span></div>
+        <div class="kai__meta">
+          <div><span>Capabilities</span><b id="kaiCaps" class="mono">—</b></div>
+          <div><span>Companies</span><b id="kaiCos" class="mono">—</b></div>
+          <div><span>Systems</span><b id="kaiSys" class="mono">—</b></div>
+          <div><span>Nexus</span><b><a href="/admin/nexus" style="color:var(--accent)">OPEN →</a></b></div>
+        </div>
+      </section>
 
-        <!-- company / system cards grouped by tier -->
-        <section id="tiers"></section>
-      </div>
-
-      <!-- right rail -->
-      <aside class="rail">
-        <section class="panel">
-          <div class="panel__hd"><div class="panel__ti">SYSTEM <b>HEALTH</b></div></div>
-          <div class="panel__bd" id="health"></div>
-        </section>
-        <section class="panel">
-          <div class="panel__hd"><div class="panel__ti">DATA <b>HONESTY</b></div></div>
-          <div class="panel__bd">
-            <div class="legend__item"><div class="legend__k" style="color:var(--nominal)">REAL</div><div class="legend__v">Read from a live source right now.</div></div>
-            <div class="legend__item"><div class="legend__k" style="color:var(--accent)">DERIVED</div><div class="legend__v">Computed from verified structural facts.</div></div>
-            <div class="legend__item"><div class="legend__k" style="color:var(--txt-3)">UNAVAILABLE</div><div class="legend__v">No live probe — shown as “—”, never a guessed number.</div></div>
-            <div class="legend__item"><div class="legend__k" style="color:var(--idle)">UNKNOWN</div><div class="legend__v">Existence known, run-state unverified. Never rendered green.</div></div>
-          </div>
-        </section>
-        <section class="panel">
-          <div class="panel__hd"><div class="panel__ti">MISSION <b>TIMELINE</b></div></div>
-          <div class="panel__bd">
-            <div class="tl">
-              <div class="tl__e"><div class="tl__t">Phase 0 · Forensic</div><div class="tl__d">97 systems inventoried across 3 repos. Zero fabricated status.</div></div>
-              <div class="tl__e"><div class="tl__t">Root cause</div><div class="tl__d">The “/admin wipeout” was a one-line route repoint (d52a975), not a deletion. Nothing was lost.</div></div>
-              <div class="tl__e"><div class="tl__t">Recovery</div><div class="tl__d" id="tlRecover">Lost surfaces resurfaced below, driven by the canonical registry.</div></div>
-              <div class="tl__e"><div class="tl__t">Guard</div><div class="tl__d">A snapshot test fails CI if any company or surface ever disappears again.</div></div>
+      <div class="cols">
+        <div>
+          <!-- Universe -->
+          <div class="section-t" id="s-universe"><h2>WHEELLSVERSE <b>UNIVERSE</b></h2><div class="rule"></div><div class="eyebrow" id="uniCount">—</div></div>
+          <section class="panel">
+            <canvas id="galaxy" width="1120" height="500" aria-label="Orbital map of the WHEELLSVERSE holding company"></canvas>
+            <div class="uni__legend">
+              <span><i class="dot" style="background:var(--accent)"></i>WHEELLSVERSE / KAI core</span>
+              <span><i class="dot" style="background:var(--nominal)"></i>Healthy</span>
+              <span><i class="dot" style="background:var(--caution)"></i>Degraded</span>
+              <span><i class="dot" style="background:var(--steel)"></i>Dormant</span>
+              <span><i class="dot" style="background:var(--idle)"></i>Local / Pre-deploy</span>
             </div>
-          </div>
-        </section>
-      </aside>
-    </div>
-  </main>
+          </section>
 
-  <div class="dock">
-    <div class="dock__in">
-      <span class="dock__caret">›</span>
-      <input id="cmd" placeholder="Ask KAI to plan, route, or open a company…" autocomplete="off"/>
-      <span class="dock__hint">KAI · governed</span>
-      <button class="dock__go" id="go">Send</button>
-    </div>
+          <!-- Startup & system status -->
+          <div class="section-t" id="s-startups"><h2>STARTUP &amp; SYSTEM <b>STATUS</b></h2><div class="rule"></div><div class="eyebrow" id="statusNote">real status · metrics awaiting source</div></div>
+          <section class="gauges" id="gauges"></section>
+
+          <!-- Telemetry -->
+          <div class="section-t" id="s-telemetry"><h2>REAL-TIME <b>TELEMETRY</b></h2><div class="rule"></div><div class="eyebrow" id="telemNote">—</div></div>
+          <section class="panel"><div class="panel__bd">
+            <div class="telem" id="telem"></div>
+            <div class="footnote" id="telemFoot"></div>
+          </div></section>
+
+          <!-- Console + quick actions -->
+          <div class="lowrow" id="s-console">
+            <section class="panel">
+              <div class="panel__hd"><div class="panel__ti">COMMAND <b>CONSOLE</b> · governed</div></div>
+              <div class="panel__bd">
+                <div class="term" id="term"></div>
+                <div class="term__in"><span>›</span><input id="cmd" placeholder="Ask KAI to plan, route, or open a company…" autocomplete="off"/></div>
+              </div>
+            </section>
+            <section class="panel">
+              <div class="panel__hd"><div class="panel__ti">QUICK <b>ACTIONS</b></div></div>
+              <div class="panel__bd"><div class="qa" id="qa"></div>
+                <div class="footnote">Actions route through KAI's governed approval — nothing destructive fires directly.</div>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <!-- right rail -->
+        <aside class="rail">
+          <section class="panel">
+            <div class="panel__hd"><div class="panel__ti">SYSTEM <b>HEALTH</b></div></div>
+            <div class="panel__bd">
+              <div class="hstat"><b id="healthWord" style="color:var(--idle)">SYNCING</b><span id="healthSub">—</span></div>
+              <div id="healthRows" style="margin-top:8px"></div>
+            </div>
+          </section>
+          <section class="panel">
+            <div class="panel__hd"><div class="panel__ti">LIVE <b>ACTIVITY</b></div></div>
+            <div class="panel__bd"><div class="feed" id="feed"></div></div>
+          </section>
+          <section class="panel">
+            <div class="panel__hd"><div class="panel__ti">SYSTEM <b>ALERTS</b></div></div>
+            <div class="panel__bd"><div class="alerts" id="alerts"></div><div id="alertList"></div></div>
+          </section>
+          <section class="panel">
+            <div class="panel__hd"><div class="panel__ti">MISSION <b>TIMELINE</b></div></div>
+            <div class="panel__bd"><div class="tl" id="timeline"></div></div>
+          </section>
+          <section class="panel ka">
+            <div class="ka__hd"><div class="ka__orb"></div><div><b>KAI Assistant</b><span>Your AI Co-Pilot</span></div></div>
+            <div class="ka__in"><input id="kaAsk" placeholder="Ask KAI anything about your universe…" autocomplete="off"/></div>
+            <div class="ka__chips" id="kaChips"></div>
+          </section>
+        </aside>
+      </div>
+    </main>
   </div>
 
 <script>
 (function(){
   "use strict";
-  var STATUS_COLOR = {
-    HEALTHY:"var(--nominal)", DEGRADED:"var(--caution)", DORMANT:"var(--steel)",
-    LOCAL:"var(--idle)", PRE_DEPLOY:"var(--idle)", EXTERNAL:"var(--accent)",
-    HISTORICAL:"var(--txt-3)", UNKNOWN:"var(--idle)"
-  };
-  var STATUS_BADGE_BG = {
-    HEALTHY:"rgba(62,216,143,.12)", DEGRADED:"rgba(232,184,78,.12)", DORMANT:"rgba(143,157,182,.12)",
-    LOCAL:"rgba(127,139,153,.12)", PRE_DEPLOY:"rgba(127,139,153,.12)", EXTERNAL:"rgba(55,196,224,.12)",
-    HISTORICAL:"rgba(114,126,144,.1)", UNKNOWN:"rgba(127,139,153,.12)"
-  };
-  var TIER_LABEL = {
-    HOLDING:"Holding", BRAIN:"KAI · Intelligence", COMPANY:"Companies & Startups",
-    PLATFORM:"Platform & Infrastructure", GOVERNANCE:"Governance & Security"
-  };
-  var $ = function(id){ return document.getElementById(id); };
-  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){
-    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
-  function statusColor(s){ return STATUS_COLOR[s] || "var(--idle)"; }
+  var STATUS_HEX = {HEALTHY:"#3ed88f",DEGRADED:"#e8b84e",DORMANT:"#8f9db6",LOCAL:"#7f8b99",
+    PRE_DEPLOY:"#7f8b99",EXTERNAL:"#37c4e0",HISTORICAL:"#6f7b8d",UNKNOWN:"#7f8b99"};
+  var STATUS_BADGE_BG = {HEALTHY:"rgba(62,216,143,.12)",DEGRADED:"rgba(232,184,78,.12)",DORMANT:"rgba(143,157,182,.12)",
+    LOCAL:"rgba(127,139,153,.12)",PRE_DEPLOY:"rgba(127,139,153,.12)",EXTERNAL:"rgba(55,196,224,.12)",HISTORICAL:"rgba(111,123,141,.1)",UNKNOWN:"rgba(127,139,153,.12)"};
+  var TIER_LABEL = {HOLDING:"Holding",BRAIN:"KAI · Intelligence",COMPANY:"Companies & Startups",
+    PLATFORM:"Platform & Infrastructure",GOVERNANCE:"Governance & Security"};
+  var $ = function(id){return document.getElementById(id);};
+  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+  function sHex(s){return STATUS_HEX[s]||"#7f8b99";}
+  function fmtUptime(sec){ if(sec==null) return "—"; var d=Math.floor(sec/86400),h=Math.floor(sec%86400/3600),m=Math.floor(sec%3600/60),s=sec%60;
+    return d+"d "+String(h).padStart(2,"0")+":"+String(m).padStart(2,"0")+":"+String(s).padStart(2,"0"); }
 
-  // live clock
-  function tick(){ var d=new Date(); $("clock").textContent =
-    d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"}); }
-  tick(); setInterval(tick, 1000);
+  var REG=null, CAPS=null, MET=null, MODE="live";
+  try{ MODE = localStorage.getItem("cc_mode")==="demo" ? "demo" : "live"; }catch(e){}
 
-  function showErr(msg){ $("err").innerHTML = '<div class="err">'+esc(msg)+'</div>'; }
-
-  function kpi(lab, val, sub, tag){
-    return '<div class="kpi"><div class="kpi__lab">'+esc(lab)+'</div>'+
-      '<div class="kpi__val">'+esc(val)+'</div>'+
-      '<div class="kpi__sub">'+esc(sub)+(tag?' <span class="tag">· '+esc(tag)+'</span>':'')+'</div></div>';
+  // ── clock ──
+  function tick(){ var d=new Date();
+    $("clock").textContent = d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"})+" ";
+    $("date").textContent = d.toLocaleDateString([], {weekday:"short",year:"numeric",month:"short",day:"numeric"}).toUpperCase();
+    if(MET){ MET._u = (MET._u==null?MET.uptime_seconds:MET._u)+1; var el=$("upt"); if(el) el.textContent=fmtUptime(MET._u); }
   }
+  tick(); setInterval(tick,1000);
 
-  function render(reg, caps){
-    var c = reg.counts, sys = reg.systems;
-    var capCount = caps && typeof caps.count === "number" ? caps.count : null;
+  // ── DEMO sample data (illustrative only; every value rendered with a DEMO tag) ──
+  var DEMO = {
+    revenue:"$24,680", merchants:42, agents:"146", uptime:"42d 06:23:48", deployments:"24",
+    latency:"120ms", db:"18ms", redis:"2ms", storage:"72%", workers:"32", queues:"8", jobs:"1,248",
+    startups:{ sol:{h:99,m:[["Active Circles","86"],["Members","1,284"],["Revenue 30D","$18.2K"]]},
+      narai:{h:95,m:[["Models","12"],["Signals","312"],["Accuracy","67.3%"]]},
+      nexora:{h:97,m:[["Creators","156"],["MRR","$9.4K"],["Subscribers","642"]]},
+      siteboost:{h:99,m:[["Sites","312"],["Leads","1,940"],["Conversion","18.6%"]]},
+      suprema:{h:99,m:[["Checks","1,248"],["Auto Actions","38"],["Issues Fixed","12"]]},
+      nurtelle:{h:99,m:[["Users","214"],["Plans","328"],["Retention","82%"]]} },
+    feed:[["✓","Payout completed","SOL ROSCA · Circle #103","+$1,250"],["◆","New circle created","SOL ROSCA · Circle #104","$800"],
+      ["●","Stripe payment succeeded","Subscription · Premium","+$14.99"],["↑","ACH debit settled","Contribution · Circle #101","+$200"],
+      ["✓","Auto-reconciliation complete","All ledgers balanced",""]],
+    alerts:{c:0,w:2,i:5, list:[["warn","Worker retry high","SOL Worker 03"],["warn","Webhook retry","Dwolla ACH Webhook"],["info","High queue depth","Email Queue"]]}
+  };
+  function isDemo(){return MODE==="demo";}
+  function dtag(){return isDemo()?'<span class="dtag">DEMO</span>':"";}
+  // value-or-unavailable: in demo show sample (tagged), in live show real or honest dash
+  function val(real, demo){ if(isDemo()) return esc(demo)+dtag(); return real!=null&&real!=="" ? esc(real) : '<span class="na">—</span>'; }
 
-    // KPI strip — every number traceable to the registry (DERIVED) or the capability catalog (REAL)
-    // "Serving Now" is the HONEST liveness count (prod-deployed AND healthy/degraded);
-    // deploy-classified prod (c.live_prod) is shown as context, never as "serving".
-    $("kpis").innerHTML =
-      kpi("Systems Tracked", c.total, "canonical registry", "DERIVED") +
-      kpi("Serving Now", c.serving_now, c.live_prod+" prod-deployed", "DERIVED") +
-      kpi("Companies", (c.by_tier.COMPANY||0), "startups integrated", "DERIVED") +
-      kpi("Recovered Surfaces", c.lost_from_current, "were off the front door", "DERIVED") +
-      kpi("KAI Capabilities", capCount==null?"—":capCount, capCount==null?"fabric flag off":"governed catalog", capCount==null?"UNAVAILABLE":"REAL");
-
-    $("kaiCaps").textContent = capCount==null ? "—" : capCount;
-    $("kaiCos").textContent = (c.by_tier.COMPANY||0);
-    $("uniCount").textContent = c.total + " NODES · " + c.serving_now + " SERVING";
-    $("tlRecover").textContent = c.lost_from_current + " surfaces resurfaced below, driven by the canonical registry.";
-
-    // health breakdown (by honest status)
-    var order = ["HEALTHY","DEGRADED","DORMANT","LOCAL","PRE_DEPLOY","EXTERNAL","HISTORICAL","UNKNOWN"];
-    var hs = c.by_status || {}, hhtml = "";
-    order.forEach(function(k){ if(hs[k]) hhtml +=
-      '<div class="health__row"><div class="lab"><i class="dot" style="background:'+statusColor(k)+'"></i>'+esc(k)+'</div>'+
-      '<div class="val" style="color:'+statusColor(k)+'">'+hs[k]+'</div></div>'; });
-    $("health").innerHTML = hhtml;
-
-    // overall health pill — green "ALL NOMINAL" ONLY when nothing is unknown, degraded,
-    // OR not-running. DORMANT/LOCAL/PRE_DEPLOY count against green (configured != running),
-    // so the top-of-page trust signal can never go green while systems sit idle.
-    var degraded = (hs.DEGRADED||0), unknown = (hs.UNKNOWN||0);
-    var notRunning = (hs.DORMANT||0) + (hs.LOCAL||0) + (hs.PRE_DEPLOY||0);
-    var pillColor, pillText;
-    if (unknown)         { pillColor="var(--idle)";    pillText="PARTIAL · "+unknown+" UNKNOWN"; }
-    else if (degraded)   { pillColor="var(--caution)"; pillText="OPERATIONAL · "+degraded+" DEGRADED"; }
-    else if (notRunning) { pillColor="var(--caution)"; pillText="OPERATIONAL · "+notRunning+" NOT RUNNING"; }
-    else                 { pillColor="var(--nominal)"; pillText="ALL NOMINAL"; }
-    $("hdot").style.background = pillColor; $("hlabel").textContent = pillText; $("hlabel").style.color = pillColor;
-
-    // tier groups + cards (recovery of every surface)
-    var tiers = reg.tiers, out = "";
-    tiers.forEach(function(t){
-      var nodes = sys.filter(function(n){ return n.tier===t; });
-      if(!nodes.length) return;
-      out += '<div class="tier"><div class="tier__hd"><h3>'+esc(TIER_LABEL[t]||t)+'</h3>'+
-        '<div class="rule"></div><div class="n">'+nodes.length+'</div></div><div class="cards">';
-      nodes.forEach(function(n){
-        var col = statusColor(n.status), href = n.route || n.url || "";
-        var noroute = href ? "" : ' data-noroute="1"';
-        var tag = href ? "" : "";
-        out += '<'+(href?'a':'div')+' class="card"'+(href?' href="'+esc(href)+'"':'')+noroute+' title="'+esc(n.evidence||n.id)+'">'+
-          '<div class="card__stripe" style="background:'+col+'"></div>'+
-          '<div class="card__top"><div class="card__nm">'+esc(n.name)+'</div>'+
-            '<div class="card__badge" style="color:'+col+';background:'+(STATUS_BADGE_BG[n.status]||'transparent')+';border-color:'+col+'">'+esc(n.status)+'</div></div>'+
-          '<div class="card__sub">'+esc(n.summary)+'</div>'+
-          '<div class="card__ft">'+
-            '<span class="pill">'+esc((n.deploy||"").replace(/_/g," "))+'</span>'+
-            (n.lost_from_current ? '<span class="pill pill--rec">RECOVERED</span>' : '')+
-            (n.repo && n.repo!=="wheellsverse-bots" ? '<span class="pill">'+esc(n.repo)+'</span>' : '')+
-          '</div>'+
-          (href?'<div class="card__arrow">→</div>':'')+
-        '</'+(href?'a':'div')+'>';
-      });
-      out += '</div></div>';
+  // ── sidebar nav (real routes where they exist) ──
+  var NAV = [
+    {t:"OVERVIEW",s:"Mission Control",go:"#s-overview"},
+    {t:"PORTFOLIO",s:"All Startups",go:"#s-startups"},
+    {t:"KAI",s:"Intelligence Layer",go:"#s-kai"},
+    {t:"AI WORKFORCE",s:"Bots & Agents",href:"/admin/hub"},
+    {t:"W-MOS",s:"Orchestrator",href:"/admin/portfolio"},
+    {grp:"STARTUPS"},
+    {t:"SOL / SOLCIRCLE",s:"ROSCA / Fintech",href:"/admin/sol"},
+    {t:"NarAI",s:"AI Market / Predict",href:"/admin/nexus"},
+    {t:"Nurtelle",s:"Wellness · pre-deploy",dis:true},
+    {t:"Nexora",s:"Creator Monetization",href:"/nexora/dashboard"},
+    {t:"SiteBoost",s:"Websites / Growth",href:"/admin/siteboost"},
+    {t:"Suprema",s:"Self-Healing",href:"/admin/legacy"},
+    {grp:"CONTROL"},
+    {t:"SECURITY",s:"Command Center",href:"/admin/capabilities"},
+    {t:"FINANCE",s:"Scoreboard",href:"/admin/scoreboard"},
+    {t:"CAPABILITIES",s:"KAI Fabric",href:"/admin/capabilities"},
+    {t:"TELEMETRY",s:"Live Metrics",go:"#s-telemetry"},
+    {t:"COMMAND",s:"Console",go:"#s-console"},
+    {t:"LEGACY",s:"Full Dashboard",href:"/admin/legacy"}
+  ];
+  function renderNav(){
+    var h="";
+    NAV.forEach(function(n){
+      if(n.grp){ h+='<div class="side__grp">'+esc(n.grp)+'</div>'; return; }
+      var attrs = n.dis ? ' data-disabled title="no environment yet"' :
+        (n.href ? ' href="'+esc(n.href)+'"' : ' onclick="CC.scrollTo(\''+n.go+'\')"');
+      h+='<a'+attrs+'><span class="lbl">'+esc(n.t)+'<small>'+esc(n.s)+'</small></span></a>';
     });
-    $("tiers").innerHTML = out;
-
-    drawGalaxy(sys);
+    $("nav").innerHTML=h;
   }
 
-  // ── WHEELLSVERSE Universe: canvas orbital map (decorative, driven by real nodes) ──
-  function drawGalaxy(sys){
-    var cv = $("galaxy"); if(!cv) return;
-    var ctx = cv.getContext("2d"); var W=cv.width, H=cv.height, cx=W/2, cy=H/2;
-    ctx.clearRect(0,0,W,H);
-    // faint orbit rings
-    var rings=[92,170,240];
-    ctx.save();
-    rings.forEach(function(r){ ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2);
-      ctx.strokeStyle="rgba(150,170,195,.10)"; ctx.lineWidth=1; ctx.stroke(); });
-    // core = WHEELLSVERSE
-    var g=ctx.createRadialGradient(cx,cy,2,cx,cy,46);
-    g.addColorStop(0,"#eafaff"); g.addColorStop(.35,"#37c4e0"); g.addColorStop(1,"rgba(55,196,224,.05)");
-    ctx.beginPath(); ctx.arc(cx,cy,46,0,Math.PI*2); ctx.fillStyle=g; ctx.fill();
-    ctx.font="600 12px ui-monospace,Menlo,monospace"; ctx.fillStyle="#04121a"; ctx.textAlign="center"; ctx.textBaseline="middle";
-    ctx.fillText("WV", cx, cy);
-    // KAI ring (brain nodes) on ring 1
-    place(ctx, sys.filter(function(n){return n.tier==="BRAIN";}), cx, cy, rings[0], "#a389f4", 6);
-    // companies on ring 2
-    place(ctx, sys.filter(function(n){return n.tier==="COMPANY";}), cx, cy, rings[1], null, 7);
-    // platform + governance on ring 3
-    place(ctx, sys.filter(function(n){return n.tier==="PLATFORM"||n.tier==="GOVERNANCE";}), cx, cy, rings[2], null, 5);
-    ctx.restore();
+  // ── KPI strip ──
+  function spark(){ // tiny decorative sparkline (not data) — omitted in live to avoid implying a trend
+    return ''; }
+  function kpi(lab,valHtml,sub){ return '<div class="kpi"><div class="kpi__lab">'+esc(lab)+'</div>'+
+    '<div class="kpi__val">'+valHtml+'</div><div class="kpi__sub">'+sub+'</div></div>'; }
+
+  function renderKpis(){
+    var c = REG.counts, caps = CAPS&&typeof CAPS.count==="number"?CAPS.count:(MET&&MET.capabilities!=null?MET.capabilities:null);
+    var fleet = MET&&MET.fleet_total!=null?MET.fleet_total:null;
+    $("kpis").innerHTML =
+      kpi("Portfolio Revenue 30D", val(null, DEMO.revenue), isDemo()?"vs prior 30d":'<span class="na">no financial source wired</span>') +
+      kpi("Serving Now", isDemo()?esc(DEMO.merchants)+dtag():esc(c.serving_now), (isDemo()?"active":c.live_prod+" prod-deployed")) +
+      kpi("AI Agents (fleet)", val(fleet, DEMO.agents), isDemo()?"142 idle · 3 busy · 1 failed":(fleet!=null?"bot.py on disk (REAL)":"—")) +
+      kpi("System Uptime", '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?"99.98% trailing 90d":"this process (REAL)") +
+      kpi("KAI Capabilities", val(caps, "32"), (caps!=null||isDemo())?"governed catalog":'<span class="na">fabric flag off</span>');
+    $("modeNote").textContent = isDemo() ? "DEMO · ILLUSTRATIVE" : "LIVE · REAL DATA";
+    $("kaiCaps").textContent = caps!=null?caps:(isDemo()?"32":"—");
+    $("kaiCos").textContent = c.by_tier.COMPANY||0;
+    $("kaiSys").textContent = c.total;
+    $("uniCount").textContent = c.total+" NODES · "+c.serving_now+" SERVING";
   }
-  function statusHex(s){
-    return ({HEALTHY:"#3ed88f",DEGRADED:"#e8b84e",DORMANT:"#8f9db6",LOCAL:"#7f8b99",
-      PRE_DEPLOY:"#7f8b99",EXTERNAL:"#37c4e0",HISTORICAL:"#727e90",UNKNOWN:"#7f8b99"})[s]||"#7f8b99";
+
+  // ── startup gauges ──
+  function ring(pct, color, centerTop, centerBot){
+    var r=32, circ=2*Math.PI*r, off=circ*(1-(pct/100));
+    return '<div class="ring"><svg width="74" height="74" viewBox="0 0 74 74">'+
+      '<circle cx="37" cy="37" r="'+r+'" fill="none" stroke="rgba(150,170,195,.12)" stroke-width="6"/>'+
+      '<circle cx="37" cy="37" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="6" stroke-linecap="round" stroke-dasharray="'+circ+'" stroke-dashoffset="'+off+'"/>'+
+      '</svg><div class="ring__c"><b style="color:'+color+'">'+centerTop+'</b><span>'+centerBot+'</span></div></div>';
   }
-  function place(ctx, nodes, cx, cy, r, forceColor, rad){
-    var N=nodes.length; if(!N) return;
-    for(var i=0;i<N;i++){
-      var a=(i/N)*Math.PI*2 - Math.PI/2;
-      var x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
-      // connector
-      ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(x,y);
-      ctx.strokeStyle="rgba(150,170,195,.07)"; ctx.lineWidth=1; ctx.stroke();
-      var col = forceColor || statusHex(nodes[i].status);
-      ctx.beginPath(); ctx.arc(x,y,rad,0,Math.PI*2);
-      ctx.fillStyle=col; ctx.shadowColor=col; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
-      // label (short)
-      ctx.font="9px ui-monospace,Menlo,monospace"; ctx.fillStyle="#aeb9c8";
-      var lbl=(nodes[i].name||"").split(" ")[0].slice(0,11);
-      var lx = x + (Math.cos(a)>=0?rad+5:-(rad+5)); ctx.textAlign = Math.cos(a)>=0?"left":"right";
-      ctx.fillText(lbl, lx, y);
+  function renderGauges(){
+    // the 6 companies from the mockup, driven by REAL registry status; metrics honest
+    var want = ["sol","narai","nexora","siteboost","suprema","nurtelle"];
+    var byId={}; REG.systems.forEach(function(n){byId[n.id]=n;});
+    var h="";
+    want.forEach(function(id){
+      var n=byId[id]; if(!n) return;
+      var col=sHex(n.status), href=n.route||n.url||"";
+      var d=DEMO.startups[id]||{h:90,m:[]};
+      // ring: demo shows a %; live shows a status-derived fill (qualitative, NOT a fake %)
+      var fill = isDemo()? d.h : (n.status==="HEALTHY"?100:n.status==="DEGRADED"?66:n.status==="DORMANT"?33:n.status==="LOCAL"||n.status==="PRE_DEPLOY"?15:50);
+      var ctop = isDemo()? d.h+"%" : n.status;
+      var cbot = isDemo()? "health" : "status";
+      var metrics = (isDemo()? d.m : [["metric","—"],["metric","—"],["metric","—"]]);
+      var mh = (isDemo()? d.m.map(function(m){return '<div class="gmetric"><span>'+esc(m[0])+'</span><b>'+esc(m[1])+dtag()+'</b></div>';}).join("")
+                        : '<div class="gmetric"><span>Deploy</span><b>'+esc((n.deploy||"").replace(/_/g," "))+'</b></div>'+
+                          '<div class="gmetric"><span>Live metrics</span><b class="na">no source</b></div>'+
+                          (n.lost_from_current?'<div class="gmetric"><span>Recovery</span><b style="color:var(--nominal)">RECOVERED</b></div>':'<div class="gmetric"><span>Repo</span><b>'+esc(n.repo==="wheellsverse-bots"?"core":n.repo)+'</b></div>'));
+      var tag=href?'a':'div', hattr=href?' href="'+esc(href)+'"':'';
+      h+='<'+tag+' class="gcard"'+hattr+'>'+
+        '<div class="gcard__hd"><div class="gcard__nm">'+esc(n.name)+'</div>'+
+          '<div class="gcard__st" style="color:'+col+';background:'+(STATUS_BADGE_BG[n.status]||'transparent')+';border-color:'+col+'">'+esc(n.status)+'</div></div>'+
+        '<div class="gwrap">'+ring(fill,col,ctop,cbot)+'<div class="gmetrics">'+mh+'</div></div>'+
+      '</'+tag+'>';
+    });
+    $("gauges").innerHTML=h;
+    $("statusNote").textContent = isDemo()?"DEMO metrics":"real status · metrics awaiting live source";
+  }
+
+  // ── telemetry ──
+  function tcell(lab,valHtml,sub){ return '<div class="tcell"><span>'+esc(lab)+'</span><b>'+valHtml+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>'; }
+  function renderTelem(){
+    var t=$("telem");
+    t.innerHTML =
+      tcell("Workers", val(null,DEMO.workers), isDemo()?"28 idle · 3 busy":'') +
+      tcell("Queues", val(null,DEMO.queues), isDemo()?"active":'') +
+      tcell("Jobs 24h", val(null,DEMO.jobs), isDemo()?"processed":'') +
+      tcell("API Latency", val(null,DEMO.latency), "p95") +
+      tcell("Database", val(null,DEMO.db), "postgres") +
+      tcell("Redis", val(null,DEMO.redis), "memory") +
+      tcell("Storage", val(null,DEMO.storage), "used") +
+      '<div class="tcell" style="grid-column:span 2"><span>External Providers</span>'+
+        '<div class="providers"><span class="prov">Stripe</span><span class="prov">Dwolla</span><span class="prov">Persona</span><span class="prov">SendGrid</span></div>'+
+        '<small>'+(isDemo()?"all operational"+' <span class="dtag">DEMO</span>':'<span class="na">status not probed</span>')+'</small></div>';
+    $("telemNote").textContent = isDemo()?"DEMO":"live probes not yet wired";
+    $("telemFoot").innerHTML = isDemo()? "Illustrative values — not measured." :
+      "Live telemetry probes (latency, DB, Redis, workers) are not wired to App A yet — shown honestly as “—”, never estimated.";
+  }
+
+  // ── health rail ──
+  function renderHealth(){
+    var hs=REG.counts.by_status||{}, order=["HEALTHY","DEGRADED","DORMANT","LOCAL","PRE_DEPLOY","EXTERNAL","HISTORICAL","UNKNOWN"];
+    var rows="";
+    order.forEach(function(k){ if(hs[k]) rows+='<div class="hrow"><div class="l"><i class="dot" style="background:'+sHex(k)+'"></i>'+esc(k)+'</div><div class="v" style="color:'+sHex(k)+'">'+hs[k]+'</div></div>'; });
+    $("healthRows").innerHTML=rows;
+    var degraded=hs.DEGRADED||0, unknown=hs.UNKNOWN||0, notRunning=(hs.DORMANT||0)+(hs.LOCAL||0)+(hs.PRE_DEPLOY||0);
+    var word,color,sub;
+    if(unknown){ word="PARTIAL"; color="var(--idle)"; sub=unknown+" unknown of "+REG.counts.total; }
+    else if(degraded){ word="OPERATIONAL"; color="var(--caution)"; sub=degraded+" degraded · "+REG.counts.serving_now+" serving"; }
+    else if(notRunning){ word="OPERATIONAL"; color="var(--caution)"; sub=notRunning+" not running · "+REG.counts.serving_now+" serving"; }
+    else { word="NOMINAL"; color="var(--nominal)"; sub=REG.counts.total+" systems · 0 critical"; }
+    $("healthWord").textContent=word; $("healthWord").style.color=color; $("healthSub").textContent=sub;
+    $("livebadge").innerHTML="● "+(isDemo()?"DEMO":"LIVE"); $("livebadge").style.color=isDemo()?"var(--demo)":"var(--nominal)";
+  }
+
+  // ── activity feed ──
+  function renderFeed(){
+    var f=$("feed");
+    if(isDemo()){
+      f.innerHTML = DEMO.feed.map(function(x){ return '<div class="fitem"><div class="fi">'+esc(x[0])+'</div>'+
+        '<div class="ft"><b>'+esc(x[1])+dtag()+'</b><span>'+esc(x[2])+'</span></div>'+(x[3]?'<div class="amt">'+esc(x[3])+'</div>':'')+'</div>'; }).join("");
+    } else {
+      f.innerHTML = '<div class="fitem"><div class="fi">◷</div><div class="ft"><b>No live event stream wired</b>'+
+        '<span class="na">real financial/system events surface here once App B\'s event bus is connected — no fabricated activity shown</span></div></div>';
     }
   }
 
-  // ── command console → governed KAI (window.KAI from the injected presence provider) ──
-  function sendCmd(){
-    var v=$("cmd").value.trim(); if(!v) return;
-    if(window.KAI && typeof window.KAI.ask==="function"){ window.KAI.ask(v); $("cmd").value=""; }
-    else { location.href="/admin/nexus?q="+encodeURIComponent(v); }
+  // ── alerts (LIVE: derived from real registry statuses; DEMO: sample) ──
+  function renderAlerts(){
+    var hs=REG.counts.by_status||{};
+    var crit=(hs.UNKNOWN||0), warn=(hs.DEGRADED||0), info=(hs.DORMANT||0);
+    if(isDemo()){ crit=DEMO.alerts.c; warn=DEMO.alerts.w; info=DEMO.alerts.i; }
+    $("alerts").innerHTML =
+      '<div class="apill"><b style="color:'+(crit?'var(--critical)':'var(--txt-3)')+'">'+crit+'</b><span>Critical</span></div>'+
+      '<div class="apill"><b style="color:var(--caution)">'+warn+'</b><span>Warning</span></div>'+
+      '<div class="apill"><b style="color:var(--accent)">'+info+'</b><span>Info</span></div>';
+    var list="";
+    if(isDemo()){
+      list = DEMO.alerts.list.map(function(a){ var c=a[0]==="warn"?"var(--caution)":"var(--accent)";
+        return '<div class="hrow"><div class="l"><i class="dot" style="background:'+c+'"></i>'+esc(a[1])+dtag()+'</div><div class="v" style="color:var(--txt-3)">'+esc(a[2])+'</div></div>'; }).join("");
+    } else {
+      // derive real "alerts" from registry: degraded + unknown systems
+      REG.systems.filter(function(n){return n.status==="DEGRADED"||n.status==="UNKNOWN";}).slice(0,6).forEach(function(n){
+        var c=sHex(n.status); list+='<div class="hrow"><div class="l"><i class="dot" style="background:'+c+'"></i>'+esc(n.name)+'</div><div class="v" style="color:'+c+'">'+esc(n.status)+'</div></div>';
+      });
+      if(!list) list='<div class="footnote">No degraded or unknown systems.</div>';
+    }
+    $("alertList").innerHTML=list;
   }
-  $("go").addEventListener("click", sendCmd);
-  $("cmd").addEventListener("keydown", function(e){ if(e.key==="Enter") sendCmd(); });
 
-  // ── load: registry (always) + capability catalog (best-effort; 404 when flag off) ──
+  // ── mission timeline (real reconstruction facts) ──
+  function renderTimeline(){
+    var evs = [
+      ["Phase 0 · Forensic","97 systems inventoried across 3 repos. Zero fabricated status."],
+      ["Root cause","The '/admin wipeout' was a one-line route repoint, not a deletion."],
+      ["Recovery",(REG.counts.lost_from_current)+" surfaces resurfaced below, driven by the registry."],
+      ["Guard","A snapshot test fails CI if any company/surface disappears again."],
+      ["Certified","6 adversarial findings fixed; secret-leak + XSS clean."]
+    ];
+    $("timeline").innerHTML = evs.map(function(e){return '<div class="tl__e"><div class="tl__t">'+esc(e[0])+'</div><div class="tl__d">'+esc(e[1])+'</div></div>';}).join("");
+  }
+
+  // ── quick actions (governed) ──
+  var QA=[["New Circle","sol"],["New Campaign","marketing"],["Create Agent","workforce"],["Deploy Service","deploy",1],
+    ["Run Automation","automation"],["Generate Report","report"],["Health Check","health"],["Emergency Halt","halt",1]];
+  function renderQA(){
+    $("qa").innerHTML = QA.map(function(a){ var d=a[2]?" danger":"";
+      return '<button class="'+d.trim()+'" onclick="CC.kai(\'Request: '+esc(a[0])+'\')"><b>'+esc(a[0])+'</b><small>'+(a[2]?"needs approval":"via KAI")+'</small></button>'; }).join("");
+    var chips=["Company health","Revenue report","Startup status","Deploy update","Security scan","AI agents"];
+    $("kaChips").innerHTML = chips.map(function(c){return '<span class="chip" onclick="CC.kai(\''+esc(c)+'\')">'+esc(c)+'</span>';}).join("");
+  }
+
+  // ── governed KAI bridge ──
+  function kaiAsk(q){
+    if(!q) return;
+    logTerm("› "+q, "");
+    if(window.KAI && typeof window.KAI.ask==="function"){ window.KAI.ask(q); logTerm("routed to KAI (governed)","ok"); }
+    else { logTerm("KAI presence provider not loaded on this page — opening Nexus","warn"); setTimeout(function(){location.href="/admin/nexus?q="+encodeURIComponent(q);},700); }
+  }
+  function logTerm(msg,cls){ var t=$("term"); var d=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+    var line=document.createElement("div"); line.innerHTML='<span class="ts">'+d+'</span>  <span class="'+(cls||"")+'">'+esc(msg)+'</span>'; t.appendChild(line); t.scrollTop=t.scrollHeight; }
+  function seedTerm(){ $("term").innerHTML="";
+    logTerm("Command Center online — registry loaded","ok");
+    logTerm(REG.counts.total+" systems · "+REG.counts.serving_now+" serving · "+REG.counts.lost_from_current+" recovered","");
+    logTerm("KAI "+(window.KAI?"presence connected":"presence provider not detected"), window.KAI?"ok":"warn");
+    $("kaiRole").textContent = window.KAI ? "GOVERNED · PRESENCE CONNECTED" : "GOVERNED · AWAITING PRESENCE PROVIDER";
+  }
+
+  // ── universe canvas ──
+  function drawGalaxy(){
+    var cv=$("galaxy"); if(!cv) return; var ctx=cv.getContext("2d"),W=cv.width,H=cv.height,cx=W/2,cy=H/2+18;
+    ctx.clearRect(0,0,W,H);
+    var rings=[96,176,250];
+    rings.forEach(function(r){ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle="rgba(150,170,195,.09)";ctx.lineWidth=1;ctx.stroke();});
+    var sys=REG.systems;
+    place(ctx, sys.filter(function(n){return n.tier==="COMPANY";}), cx, cy, rings[1], null, 7);
+    place(ctx, sys.filter(function(n){return n.tier==="PLATFORM"||n.tier==="GOVERNANCE";}), cx, cy, rings[2], null, 5);
+    // KAI above core
+    var kx=cx, ky=cy-rings[0];
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(kx,ky);ctx.strokeStyle="rgba(163,137,244,.4)";ctx.lineWidth=1.5;ctx.stroke();
+    var kg=ctx.createRadialGradient(kx,ky,1,kx,ky,26);kg.addColorStop(0,"#c9b8ff");kg.addColorStop(.5,"#a389f4");kg.addColorStop(1,"rgba(163,137,244,.05)");
+    ctx.beginPath();ctx.arc(kx,ky,26,0,Math.PI*2);ctx.fillStyle=kg;ctx.shadowColor="#a389f4";ctx.shadowBlur=22;ctx.fill();ctx.shadowBlur=0;
+    ctx.font="700 12px ui-monospace,Menlo,monospace";ctx.fillStyle="#0a0618";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("KAI",kx,ky);
+    ctx.font="9px ui-monospace,Menlo,monospace";ctx.fillStyle="#a389f4";ctx.fillText("INTELLIGENCE LAYER",kx,ky-38);
+    // core WHEELLSVERSE
+    var g=ctx.createRadialGradient(cx,cy,2,cx,cy,52);g.addColorStop(0,"#eafaff");g.addColorStop(.35,"#37c4e0");g.addColorStop(1,"rgba(55,196,224,.04)");
+    ctx.beginPath();ctx.arc(cx,cy,52,0,Math.PI*2);ctx.fillStyle=g;ctx.shadowColor="#37c4e0";ctx.shadowBlur=26;ctx.fill();ctx.shadowBlur=0;
+    ctx.font="800 20px ui-monospace,Menlo,monospace";ctx.fillStyle="#04121a";ctx.fillText("W",cx,cy-4);
+    ctx.font="7px ui-monospace,Menlo,monospace";ctx.fillStyle="#04121a";ctx.fillText("HOLDINGS",cx,cy+12);
+  }
+  function place(ctx,nodes,cx,cy,r,force,rad){ var N=nodes.length; if(!N) return;
+    for(var i=0;i<N;i++){ var a=(i/N)*Math.PI*2 - Math.PI/2 + 0.35;
+      var x=cx+Math.cos(a)*r, y=cy+Math.sin(a)*r;
+      ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(x,y);ctx.strokeStyle="rgba(150,170,195,.06)";ctx.lineWidth=1;ctx.stroke();
+      var col=force||sHex(nodes[i].status);
+      ctx.beginPath();ctx.arc(x,y,rad,0,Math.PI*2);ctx.fillStyle=col;ctx.shadowColor=col;ctx.shadowBlur=9;ctx.fill();ctx.shadowBlur=0;
+      ctx.font="9px ui-monospace,Menlo,monospace";ctx.fillStyle="#aeb9c8";
+      var lbl=(nodes[i].name||"").split(" ")[0].slice(0,12), lx=x+(Math.cos(a)>=0?rad+5:-(rad+5));
+      ctx.textAlign=Math.cos(a)>=0?"left":"right";ctx.fillText(lbl,lx,y);
+    }
+  }
+
+  function renderAll(){
+    document.body.classList.toggle("demo", isDemo());
+    $("mLive").className = isDemo()?"":"on"; $("mDemo").className = isDemo()?"on demoon":"";
+    renderNav(); renderKpis(); renderGauges(); renderTelem(); renderHealth();
+    renderFeed(); renderAlerts(); renderTimeline(); renderQA(); drawGalaxy(); seedTerm();
+  }
+
+  // ── public API ──
+  window.CC = {
+    setMode:function(m){ MODE=m; try{localStorage.setItem("cc_mode",m);}catch(e){} if(REG) renderAll(); },
+    scrollTo:function(sel){ var el=document.querySelector(sel); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); },
+    kai:kaiAsk
+  };
+  $("cmd").addEventListener("keydown",function(e){ if(e.key==="Enter"){ kaiAsk(this.value.trim()); this.value=""; } });
+  $("kaAsk").addEventListener("keydown",function(e){ if(e.key==="Enter"){ kaiAsk(this.value.trim()); this.value=""; } });
+  $("search").addEventListener("keydown",function(e){ if(e.key==="Enter"){ var q=this.value.trim().toLowerCase(); if(!q) return;
+    var hit=REG&&REG.systems.filter(function(n){return (n.name+" "+n.id).toLowerCase().indexOf(q)>=0;})[0];
+    if(hit&&(hit.route||hit.url)) location.href=hit.route||hit.url; else kaiAsk("Find: "+this.value.trim()); } });
+
+  // ── load ──
   Promise.all([
-    fetch("/admin/registry.json", {headers:{Accept:"application/json"}}).then(function(r){
-      if(!r.ok) throw new Error("registry "+r.status); return r.json(); }),
-    fetch("/admin/capabilities.json", {headers:{Accept:"application/json"}})
-      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
-  ]).then(function(res){ render(res[0], res[1]); })
-    .catch(function(e){ showErr("Could not load the canonical registry: "+e.message+". Systems view unavailable — nothing fabricated in its place."); });
+    fetch("/admin/registry.json",{headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw new Error("registry "+r.status);return r.json();}),
+    fetch("/admin/capabilities.json",{headers:{Accept:"application/json"}}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;}),
+    fetch("/admin/command/metrics.json",{headers:{Accept:"application/json"}}).then(function(r){return r.ok?r.json():null;}).catch(function(){return null;})
+  ]).then(function(res){ REG=res[0]; CAPS=res[1]; MET=res[2]; renderAll(); })
+    .catch(function(e){ $("err").innerHTML='<div class="err">Could not load the canonical registry: '+esc(e.message)+'. Nothing fabricated in its place.</div>'; });
 })();
 </script>
 </body>
