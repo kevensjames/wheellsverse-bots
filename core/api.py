@@ -1032,6 +1032,13 @@ def _nexus_asset(name: str):
 _CAPABILITY_FABRIC_ENABLED = os.getenv("KAI_CAPABILITY_FABRIC_ENABLED", "false").strip().lower() \
     in ("1", "true", "yes", "on")
 
+# WHEELLSVERSE Command Center: when ON, GET /admin serves the unified holding-company
+# flight deck (registry-driven). Default OFF → /admin behaves exactly as before
+# (ceo.html), so a deploy is inert until the operator flips this one variable. The
+# Command Center is always previewable at /admin/command regardless of the flag.
+_COMMAND_CENTER_ENABLED = os.getenv("WHEELLSVERSE_COMMAND_CENTER", "false").strip().lower() \
+    in ("1", "true", "yes", "on")
+
 _CAP_FOUNDATION = {"context7", "playwright", "sequential-thinking", "filesystem", "github"}
 _CAP_TYPE_GROUP = {
     "CODING_WORKER": "CODING WORKFORCE", "CODING_CLI": "CODING WORKFORCE",
@@ -1124,6 +1131,16 @@ def _admin_capability_inspect(cap_id: str):
         if c["id"] == cap_id:
             return JSONResponse(c, headers={"Cache-Control": "no-store"})   # no credentials by construction
     raise HTTPException(status_code=404, detail="unknown capability")
+
+
+@app.get("/admin/registry.json", include_in_schema=False)
+def _admin_registry_json():
+    """Canonical WHEELLSVERSE registry — the single source of truth the Command
+    Center renders. Structural truth only; carries NO secrets and no fabricated
+    metric (UNAVAILABLE where there is no live probe). Always available."""
+    from fastapi.responses import JSONResponse
+    from backend.app.services.registry.catalog import registry_snapshot  # lazy, pure module
+    return JSONResponse(registry_snapshot(), headers={"Cache-Control": "no-store"})
 
 
 @app.middleware("http")
@@ -1929,7 +1946,24 @@ async def serve_homepage():
 
 @app.get("/admin", response_class=HTMLResponse)
 async def serve_admin_dashboard():
-    """Primary admin: KAI CEO Command Center (3D telemetry). Legacy dashboard at /admin/legacy."""
+    """Primary admin. When WHEELLSVERSE_COMMAND_CENTER is on, serve the unified
+    holding-company flight deck (registry-driven); otherwise the CEO Command
+    Center (ceo.html), unchanged. Both remain reachable at /admin/command and
+    /admin/ceo. Legacy dashboard at /admin/legacy, the 12-card hub at /admin/hub."""
+    if _COMMAND_CENTER_ENABLED:
+        return _serve_frontend("admin/command-center.html", cache=False)
+    return await _serve_old_dashboard("ceo.html")
+
+
+@app.get("/admin/command", response_class=HTMLResponse)
+async def serve_command_center():
+    """The unified WHEELLSVERSE Command Center — always previewable, flag or not."""
+    return _serve_frontend("admin/command-center.html", cache=False)
+
+
+@app.get("/admin/ceo", response_class=HTMLResponse)
+async def serve_ceo_dashboard():
+    """The CEO Command Center (ceo.html) — preserved even after /admin is swapped."""
     return await _serve_old_dashboard("ceo.html")
 
 
