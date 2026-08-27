@@ -291,16 +291,18 @@
     var capCount = caps && typeof caps.count === "number" ? caps.count : null;
 
     // KPI strip — every number traceable to the registry (DERIVED) or the capability catalog (REAL)
+    // "Serving Now" is the HONEST liveness count (prod-deployed AND healthy/degraded);
+    // deploy-classified prod (c.live_prod) is shown as context, never as "serving".
     $("kpis").innerHTML =
       kpi("Systems Tracked", c.total, "canonical registry", "DERIVED") +
-      kpi("Live in Production", c.live_prod, "serving now", "DERIVED") +
+      kpi("Serving Now", c.serving_now, c.live_prod+" prod-deployed", "DERIVED") +
       kpi("Companies", (c.by_tier.COMPANY||0), "startups integrated", "DERIVED") +
       kpi("Recovered Surfaces", c.lost_from_current, "were off the front door", "DERIVED") +
       kpi("KAI Capabilities", capCount==null?"—":capCount, capCount==null?"fabric flag off":"governed catalog", capCount==null?"UNAVAILABLE":"REAL");
 
     $("kaiCaps").textContent = capCount==null ? "—" : capCount;
     $("kaiCos").textContent = (c.by_tier.COMPANY||0);
-    $("uniCount").textContent = c.total + " NODES · " + c.live_prod + " LIVE";
+    $("uniCount").textContent = c.total + " NODES · " + c.serving_now + " SERVING";
     $("tlRecover").textContent = c.lost_from_current + " surfaces resurfaced below, driven by the canonical registry.";
 
     // health breakdown (by honest status)
@@ -311,10 +313,16 @@
       '<div class="val" style="color:'+statusColor(k)+'">'+hs[k]+'</div></div>'; });
     $("health").innerHTML = hhtml;
 
-    // overall health pill — never claim green unless everything live-prod is healthy/degraded
+    // overall health pill — green "ALL NOMINAL" ONLY when nothing is unknown, degraded,
+    // OR not-running. DORMANT/LOCAL/PRE_DEPLOY count against green (configured != running),
+    // so the top-of-page trust signal can never go green while systems sit idle.
     var degraded = (hs.DEGRADED||0), unknown = (hs.UNKNOWN||0);
-    var pillColor = unknown ? "var(--idle)" : (degraded ? "var(--caution)" : "var(--nominal)");
-    var pillText = unknown ? "PARTIAL · UNKNOWNS" : (degraded ? "OPERATIONAL · "+degraded+" DEGRADED" : "ALL NOMINAL");
+    var notRunning = (hs.DORMANT||0) + (hs.LOCAL||0) + (hs.PRE_DEPLOY||0);
+    var pillColor, pillText;
+    if (unknown)         { pillColor="var(--idle)";    pillText="PARTIAL · "+unknown+" UNKNOWN"; }
+    else if (degraded)   { pillColor="var(--caution)"; pillText="OPERATIONAL · "+degraded+" DEGRADED"; }
+    else if (notRunning) { pillColor="var(--caution)"; pillText="OPERATIONAL · "+notRunning+" NOT RUNNING"; }
+    else                 { pillColor="var(--nominal)"; pillText="ALL NOMINAL"; }
     $("hdot").style.background = pillColor; $("hlabel").textContent = pillText; $("hlabel").style.color = pillColor;
 
     // tier groups + cards (recovery of every surface)

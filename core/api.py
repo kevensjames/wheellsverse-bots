@@ -1140,7 +1140,10 @@ def _admin_registry_json():
     metric (UNAVAILABLE where there is no live probe). Always available."""
     from fastapi.responses import JSONResponse
     from backend.app.services.registry.catalog import registry_snapshot  # lazy, pure module
-    return JSONResponse(registry_snapshot(), headers={"Cache-Control": "no-store"})
+    # include_evidence=False: don't hand internal source file:line pointers to an
+    # anonymous caller (the whole snapshot is secret-clean either way).
+    return JSONResponse(registry_snapshot(include_evidence=False),
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.middleware("http")

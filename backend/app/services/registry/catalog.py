@@ -179,9 +179,9 @@ _CATALOG: list[Node] = [
     _n("ceo-dashboard", "CEO Command Center (ceo.html)", TIER_PLATFORM, Status.HEALTHY, DeployState.LIVE_PROD,
        "The W-MOS-focused 3D telemetry view — the current /admin default.",
        route="/admin/ceo", evidence="core/api.py:1930; dashboard/ceo.html"),
-    _n("wvkey", "wvkey Vault", TIER_PLATFORM, Status.LOCAL, DeployState.LIVE_PROD,
-       "Encrypted operator secrets vault UI.", route="/admin/wvkey",
-       lost_from_current=True, evidence="frontend/admin/wvkey.html"),
+    _n("wvkey", "wvkey Vault", TIER_PLATFORM, Status.DORMANT, DeployState.LIVE_PROD,
+       "Encrypted operator secrets vault UI — page served in prod, vault not actively exercised.",
+       route="/admin/wvkey", lost_from_current=True, evidence="frontend/admin/wvkey.html"),
     _n("avatar-lab", "KAI Avatar Lab", TIER_PLATFORM, Status.DORMANT, DeployState.LIVE_PROD,
        "Developer tool for the KAI avatar / viseme / speech stack.", route="/admin/avatar-lab",
        evidence="core/api.py:1964"),
@@ -235,15 +235,32 @@ def _counts(nodes: list[Node]) -> dict:
     return {
         "total": len(nodes),
         "lost_from_current": sum(1 for n in nodes if n.lost_from_current),
+        # deploy classification (a node is CONFIGURED for prod) — NOT a liveness claim
         "live_prod": sum(1 for n in nodes if n.deploy == DeployState.LIVE_PROD),
+        # honest "actually serving": prod-deployed AND its own status is healthy/degraded.
+        # A DORMANT/HISTORICAL/LOCAL node is never counted as serving (configured != running).
+        "serving_now": sum(1 for n in nodes if n.deploy == DeployState.LIVE_PROD
+                           and n.status in (Status.HEALTHY, Status.DEGRADED)),
         "by_status": by_status,
         "by_tier": by_tier,
     }
 
 
-def registry_snapshot() -> dict:
-    """The JSON the Command Center renders. Structural truth only."""
+def registry_snapshot(include_evidence: bool = True) -> dict:
+    """The JSON the Command Center renders. Structural truth only.
+
+    include_evidence=False strips the per-node `evidence` (source file:line)
+    pointers — used by the HTTP endpoint so an anonymous caller doesn't receive
+    the internal source layout. The fields carry no secret either way; this just
+    avoids handing out source-tree granularity the operator UI doesn't need.
+    """
     nodes = systems()
+    out = []
+    for n in nodes:
+        d = n.to_dict()
+        if not include_evidence:
+            d.pop("evidence", None)
+        out.append(d)
     return {
         "version": "1",
         "generated": "2026-08-27",
@@ -251,7 +268,7 @@ def registry_snapshot() -> dict:
         "honesty": "structural truth; no live metric is fabricated — UNAVAILABLE means no probe",
         "counts": _counts(nodes),
         "tiers": [TIER_HOLDING, TIER_BRAIN, TIER_COMPANY, TIER_PLATFORM, TIER_GOVERNANCE],
-        "systems": [n.to_dict() for n in nodes],
+        "systems": out,
     }
 
 
