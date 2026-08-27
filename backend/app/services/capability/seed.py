@@ -76,15 +76,27 @@ def seed_manifests() -> list[CM]:
                  "production mutation / deploy / merge is HIGH_IMPACT + approval-gated (§5/§16). "
                  "CAVEATS: unpinned npx (§3/§9); KAI-runtime EXTERNAL_BLOCKED (§13)."),
         CM(id="sequential-thinking", name="Sequential Thinking MCP", type=CT.MCP,
-           availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND,
+           availability=AV.DISCOVERED, certification=CE.PARTIAL, activation=AM.ON_DEMAND,
+           version="@modelcontextprotocol/server-sequential-thinking@2026.7.4",
            risk_class=RK.LOW, default_action_class=AC.READ_ONLY, capabilities=["structured_planning"],
            triggers=["step by step", "think through", "plan the approach"],
-           notes="VERIFY connection before use (§42)."),
+           provenance=_prov("https://github.com/modelcontextprotocol/servers", "modelcontextprotocol",
+                            "MIT", "server-sequential-thinking@2026.7.4", "claude mcp add (npx, PINNED)"),
+           notes="§3: CONFIGURED + CONNECTED (pinned 2026.7.4, user config). INTERNAL_ONLY — raw reasoning "
+                 "must NEVER reach Nexus/messages/memory/audit/TTS/subtitles (§4/§24). Exercise + "
+                 "CERTIFIED_INTERNAL pending one Claude Code restart to load its tools."),
         CM(id="filesystem", name="Filesystem MCP", type=CT.MCP, availability=AV.DISCOVERED,
-           certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND, risk_class=RK.MEDIUM,
-           default_action_class=AC.REVERSIBLE_WRITE, capabilities=["read_files", "write_files"],
+           certification=CE.PARTIAL, activation=AM.ON_DEMAND, risk_class=RK.MEDIUM,
+           version="@modelcontextprotocol/server-filesystem@2026.7.10",
+           default_action_class=AC.READ_ONLY, capabilities=["read_files", "search"],
            triggers=["repository", "codebase", "read the file", "project files"],
-           permissions=["fs.workspace"], notes="Sandbox to a workspace root (§49). VERIFY."),
+           permissions=["fs.workspace"],
+           provenance=_prov("https://github.com/modelcontextprotocol/servers", "modelcontextprotocol",
+                            "MIT", "server-filesystem@2026.7.10", "claude mcp add (npx, PINNED, root-scoped)"),
+           notes="§5/§6: CONFIGURED + CONNECTED (pinned 2026.7.10), ROOT-SCOPED to the KAI worktree only. "
+                 "NOT natively read-only — Phase-1 read-only = root containment + auto-allow READ ops only; "
+                 "write=REVERSIBLE_WRITE (gated), delete=DESTRUCTIVE (denied). Traversal/symlink-escape + "
+                 "CERTIFIED_SCOPED pending one restart to load its tools."),
         CM(id="github", name="GitHub MCP", type=CT.MCP, availability=AV.DISCOVERED,
            certification=CE.EXTERNAL_BLOCKED, activation=AM.ON_DEMAND, risk_class=RK.MEDIUM,
            default_action_class=AC.READ_ONLY, capabilities=["repo_read", "pr", "issues"],

@@ -136,7 +136,7 @@
       "name": "Sequential Thinking MCP",
       "type": "MCP",
       "availability": "DISCOVERED",
-      "certification": "EXTERNAL_BLOCKED",
+      "certification": "PARTIAL",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
       "security_tier": 0,
@@ -151,13 +151,13 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "VERIFY connection before use (\u00a742).",
+      "notes": "\u00a73: CONFIGURED + CONNECTED (pinned 2026.7.4, user config). INTERNAL_ONLY \u2014 raw reasoning must NEVER reach Nexus/messages/memory/audit/TTS/subtitles (\u00a74/\u00a724). Exercise + CERTIFIED_INTERNAL pending one Claude Code restart to load its tools.",
       "provenance": {
-        "upstream": "",
-        "owner": "",
-        "license": "",
-        "ref": "",
-        "verified": false
+        "upstream": "https://github.com/modelcontextprotocol/servers",
+        "owner": "modelcontextprotocol",
+        "license": "MIT",
+        "ref": "server-sequential-thinking@2026.7.4",
+        "verified": true
       }
     },
     {
@@ -165,13 +165,13 @@
       "name": "Filesystem MCP",
       "type": "MCP",
       "availability": "DISCOVERED",
-      "certification": "EXTERNAL_BLOCKED",
+      "certification": "PARTIAL",
       "activation": "ON_DEMAND",
       "risk_class": "MEDIUM",
       "security_tier": 0,
       "capabilities": [
         "read_files",
-        "write_files"
+        "search"
       ],
       "triggers": [
         "repository",
@@ -184,13 +184,13 @@
       "permissions": [
         "fs.workspace"
       ],
-      "notes": "Sandbox to a workspace root (\u00a749). VERIFY.",
+      "notes": "\u00a75/\u00a76: CONFIGURED + CONNECTED (pinned 2026.7.10), ROOT-SCOPED to the KAI worktree only. NOT natively read-only \u2014 Phase-1 read-only = root containment + auto-allow READ ops only; write=REVERSIBLE_WRITE (gated), delete=DESTRUCTIVE (denied). Traversal/symlink-escape + CERTIFIED_SCOPED pending one restart to load its tools.",
       "provenance": {
-        "upstream": "",
-        "owner": "",
-        "license": "",
-        "ref": "",
-        "verified": false
+        "upstream": "https://github.com/modelcontextprotocol/servers",
+        "owner": "modelcontextprotocol",
+        "license": "MIT",
+        "ref": "server-filesystem@2026.7.10",
+        "verified": true
       }
     },
     {

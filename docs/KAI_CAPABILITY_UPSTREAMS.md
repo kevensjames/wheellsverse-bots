@@ -34,9 +34,9 @@ discovery inputs, not trusted install instructions.
 |----|-----------|-----------|-----------|
 | context7 | ✓ `npx @upstash/context7-mcp` | ✓ | ✓ **returned current FastAPI lifespan docs** (source fastapi.tiangolo.com, incl. the 0.93.0 release note) — READ_ONLY/ON_DEMAND/LOW |
 | playwright | ✓ `npx @playwright/mcp@latest` | ✓ | ✓ (Avatar Lab, this session) |
-| github | ✓ `api.githubcopilot.com/mcp` (HTTP) | ✘ **Failed to connect** | — **AUTH_PENDING**, operator checkpoint (§36) |
-| sequential-thinking | ✘ **absent** | — | — (not configured) |
-| filesystem | ✘ **absent** | — | — (native Read/Write/Edit; scoped FS-MCP root is a later add per §7) |
+| sequential-thinking | ✓ `@modelcontextprotocol/server-sequential-thinking@2026.7.4` (npx, PINNED) | ✓ **Connected** | — exercise + CERTIFIED_INTERNAL pending one restart (tools load at session start) |
+| filesystem | ✓ `@modelcontextprotocol/server-filesystem@2026.7.10` (npx, PINNED, **root-scoped** to the KAI worktree) | ✓ **Connected** | — traversal tests + CERTIFIED_SCOPED pending one restart |
+| github (remote plugin) | ✓ `api.githubcopilot.com/mcp` (HTTP, plugin-managed) | ✘ **Failed to connect** | **replace** with the official local stdio `github/github-mcp-server` (operator: install release binary + OAuth) |
 
 Configuration presence is not certification — only context7/playwright are connected **and**
 exercised. All are session-context MCPs; none is wired into the **KAI runtime** (App B down).

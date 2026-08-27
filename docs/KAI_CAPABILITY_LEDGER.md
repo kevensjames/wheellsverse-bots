@@ -44,9 +44,9 @@ built · `CC`=Claude-Code-available · `KAI`=KAI-runtime-available · `AR`=auto-
 | claude-code (native) | ✓ | ✓ | ✓ | ~ | ✓ | ✓ | ✓ | ~ | **CERTIFIED** |
 | context7 | ✓ | ✓ | ✓* | — | ✓ | — | ✓ | ✓* | **CERTIFIED (Claude Code layer)** — connected + exercised + auto-routes; caveats: unpinned npx (§3/§9), KAI-runtime EXTERNAL_BLOCKED (§13) |
 | playwright | ✓ | ✓ | ✓* | — | ✓ | — | ✓ | ✓* | **CERTIFIED_LOCAL_STAGING** — exercised at 3440/1920/390 (no overflow); auto-routes; inspection READ_ONLY, prod mutation approval-gated; unpinned npx (§3), KAI EXTERNAL_BLOCKED (§13) |
-| sequential-thinking | ✓ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (absent — not configured) |
-| filesystem | ✓ | ~ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (absent — native file tools) |
-| github | ✓ | ✓ | — | — | — | — | — | — | **AUTH_PENDING** (Copilot MCP configured; failed to connect — §36) |
+| sequential-thinking | ✓ | ✓ | ✓ | — | ✓(connected) | — | — | — | **PARTIAL** — configured+connected (pinned 2026.7.4); exercise + CERTIFIED_INTERNAL pending restart |
+| filesystem | ✓ | ✓ | ✓ | — | ✓(connected) | — | — | — | **PARTIAL** — configured+connected (pinned 2026.7.10, root-scoped); traversal tests + CERTIFIED_SCOPED pending restart |
+| github | ✓ | ✓ | — | — | — | — | — | — | **AUTH_PENDING** — remote Copilot MCP fails; replace with local stdio `github/github-mcp-server` (operator: binary + OAuth) |
 | focus-output (i-have-adhd) | ✓ | ✓ | — | — | — | — | — | — | **EXPERIMENTAL** |
 | book-to-skill | ✓ | ✓ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** |
 | reverse-skill | ✓ | ✓ | — | — | — | — | — | — | **EXTERNAL_BLOCKED** (RESTRICTED, vet-only) |
