@@ -425,11 +425,14 @@
 
   function renderKpis(){
     var c = REG.counts, caps = CAPS&&typeof CAPS.count==="number"?CAPS.count:(MET&&MET.capabilities!=null?MET.capabilities:null);
-    var fleet = MET&&MET.fleet_total!=null?MET.fleet_total:null;
+    var fleet = MET&&MET.fleet_total!=null?MET.fleet_total:null, F = MET&&MET.fleet;
+    var fleetSub = isDemo()?("142 idle · 3 busy · 1 failed"+dtag())
+      : (F ? (F.idle+" idle · "+F.running+" running · "+F.failed+" failed")
+           : (fleet!=null?"bot.py on disk (REAL)":"—"));
     $("kpis").innerHTML =
-      kpi("Portfolio Revenue 30D", val(null, DEMO.revenue), isDemo()?"vs prior 30d":'<span class="na">no financial source wired</span>') +
-      kpi("Serving Now", isDemo()?esc(DEMO.merchants)+dtag():esc(c.serving_now), (isDemo()?"active":c.live_prod+" prod-deployed")) +
-      kpi("AI Agents (fleet)", val(fleet, DEMO.agents), isDemo()?("142 idle · 3 busy · 1 failed"+dtag()):(fleet!=null?"bot.py on disk (REAL)":"—")) +
+      kpi("Portfolio Revenue 30D", val(null, DEMO.revenue), isDemo()?("vs prior 30d"+dtag()):'<span class="na">no financial source wired</span>') +
+      kpi("Serving Now", isDemo()?esc(DEMO.merchants)+dtag():esc(c.serving_now), (isDemo()?("active"+dtag()):c.live_prod+" prod-deployed")) +
+      kpi("AI Agents (fleet)", val(fleet, DEMO.agents), fleetSub) +
       kpi("System Uptime", '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?("99.98% trailing 90d"+dtag()):"this process (REAL)") +
       kpi("KAI Capabilities", val(caps, "32"), (caps!=null||isDemo())?"governed catalog":'<span class="na">fabric flag off</span>');
     $("modeNote").textContent = isDemo() ? "DEMO · ILLUSTRATIVE" : "LIVE · REAL DATA";
@@ -461,10 +464,18 @@
       var ctop = isDemo()? d.h+"%" : n.status;
       var cbot = isDemo()? '<b style="color:var(--demo);font-weight:600">DEMO</b>' : "status";  // ring % is illustrative
       var metrics = (isDemo()? d.m : [["metric","—"],["metric","—"],["metric","—"]]);
-      var mh = (isDemo()? d.m.map(function(m){return '<div class="gmetric"><span>'+esc(m[0])+'</span><b>'+esc(m[1])+dtag()+'</b></div>';}).join("")
-                        : '<div class="gmetric"><span>Deploy</span><b>'+esc((n.deploy||"").replace(/_/g," "))+'</b></div>'+
-                          '<div class="gmetric"><span>Live metrics</span><b class="na">no source</b></div>'+
-                          (n.lost_from_current?'<div class="gmetric"><span>Recovery</span><b style="color:var(--nominal)">RECOVERED</b></div>':'<div class="gmetric"><span>Repo</span><b>'+esc(n.repo==="wheellsverse-bots"?"core":n.repo)+'</b></div>'));
+      var mh;
+      if(isDemo()){
+        mh = d.m.map(function(m){return '<div class="gmetric"><span>'+esc(m[0])+'</span><b>'+esc(m[1])+dtag()+'</b></div>';}).join("");
+      } else {
+        // LIVE: rich REAL structural facts (no "no source" filler)
+        mh = '<div class="gmetric"><span>Deploy</span><b>'+esc((n.deploy||"").replace(/_/g," "))+'</b></div>'+
+             '<div class="gmetric"><span>Repo</span><b>'+esc(n.repo==="wheellsverse-bots"?"core (App A)":n.repo)+'</b></div>'+
+             (n.lost_from_current
+               ? '<div class="gmetric"><span>Recovery</span><b style="color:var(--nominal)">RECOVERED ✓</b></div>'
+               : (href?'<div class="gmetric"><span>Console</span><b style="color:var(--accent)">OPEN →</b></div>'
+                      : '<div class="gmetric"><span>Tier</span><b>company</b></div>'));
+      }
       var tag=href?'a':'div', hattr=href?' href="'+esc(href)+'"':'';
       h+='<'+tag+' class="gcard"'+hattr+'>'+
         '<div class="gcard__hd"><div class="gcard__nm">'+esc(n.name)+'</div>'+
@@ -478,22 +489,37 @@
 
   // ── telemetry ──
   function tcell(lab,valHtml,sub){ return '<div class="tcell"><span>'+esc(lab)+'</span><b>'+valHtml+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>'; }
+  function na(){ return '<span class="na">—</span>'; }
   function renderTelem(){
-    var t=$("telem");
-    t.innerHTML =
-      tcell("Workers", val(null,DEMO.workers), isDemo()?("28 idle · 3 busy"+dtag()):'') +
-      tcell("Queues", val(null,DEMO.queues), isDemo()?"active":'') +
-      tcell("Jobs 24h", val(null,DEMO.jobs), isDemo()?"processed":'') +
-      tcell("API Latency", val(null,DEMO.latency), "p95") +
-      tcell("Database", val(null,DEMO.db), "postgres") +
-      tcell("Redis", val(null,DEMO.redis), "memory") +
-      tcell("Storage", val(null,DEMO.storage), "used") +
-      '<div class="tcell" style="grid-column:span 2"><span>External Providers</span>'+
-        '<div class="providers"><span class="prov">Stripe</span><span class="prov">Dwolla</span><span class="prov">Persona</span><span class="prov">SendGrid</span></div>'+
-        '<small>'+(isDemo()?"all operational"+' <span class="dtag">DEMO</span>':'<span class="na">status not probed</span>')+'</small></div>';
-    $("telemNote").textContent = isDemo()?"DEMO":"live probes not yet wired";
-    $("telemFoot").innerHTML = isDemo()? "Illustrative values — not measured." :
-      "Live telemetry probes (latency, DB, Redis, workers) are not wired to App A yet — shown honestly as “—”, never estimated.";
+    var t=$("telem"), S=(MET&&MET.system)||{}, F=MET&&MET.fleet, up=MET?MET.uptime_seconds:null;
+    var provs='<div class="tcell" style="grid-column:span 2"><span>External Providers</span>'+
+      '<div class="providers"><span class="prov">Stripe</span><span class="prov">Dwolla</span><span class="prov">Persona</span><span class="prov">SendGrid</span></div>'+
+      '<small>'+(isDemo()?"all operational"+dtag():'<span class="na">status not probed</span>')+'</small></div>';
+    if(isDemo()){
+      t.innerHTML =
+        tcell("Workers", esc(DEMO.workers)+dtag(), "28 idle · 3 busy"+dtag()) +
+        tcell("Queues", esc(DEMO.queues)+dtag(), "active"+dtag()) +
+        tcell("Jobs 24h", esc(DEMO.jobs)+dtag(), "processed"+dtag()) +
+        tcell("API Latency", esc(DEMO.latency)+dtag(), "p95") +
+        tcell("Database", esc(DEMO.db)+dtag(), "postgres") +
+        tcell("Redis", esc(DEMO.redis)+dtag(), "memory") +
+        tcell("Storage", esc(DEMO.storage)+dtag(), "used") + provs;
+      $("telemNote").textContent="DEMO";
+      $("telemFoot").innerHTML="Illustrative values — not measured.";
+    } else {
+      // REAL host + fleet telemetry (in-process); latency/db/redis probes honestly absent
+      t.innerHTML =
+        tcell("CPU", S.cpu_pct!=null?esc(Math.round(S.cpu_pct)+"%"):na(), S.cpu_pct!=null?"host · REAL":"psutil n/a") +
+        tcell("Memory", S.mem_pct!=null?esc(Math.round(S.mem_pct)+"%"):na(), S.mem_pct!=null?"host · REAL":"psutil n/a") +
+        tcell("Uptime", esc(fmtUptime(up)), "process · REAL") +
+        tcell("Fleet Loaded", F?esc(String(F.loaded)):na(), F?"of "+(MET.fleet_total!=null?MET.fleet_total:"?")+" on disk":"—") +
+        tcell("Idle", F?esc(String(F.idle)):na(), "agents · REAL") +
+        tcell("Running", F?esc(String(F.running)):na(), F&&F.failed?F.failed+" failed":"agents · REAL") +
+        tcell("Scheduler", F?(F.scheduler_running?"ON":"OFF"):na(), "orchestrator · REAL") +
+        tcell("Build", MET&&MET.git_sha?esc(MET.git_sha):na(), "commit · REAL") + provs;
+      $("telemNote").textContent="host + fleet · REAL";
+      $("telemFoot").innerHTML="CPU, memory, uptime, fleet and scheduler are measured in-process (REAL). Request latency / DB / Redis probes are not wired yet — no estimate is shown in their place.";
+    }
   }
 
   // ── health rail ──
@@ -590,6 +616,14 @@
   function drawGalaxy(){
     var cv=$("galaxy"); if(!cv) return; var ctx=cv.getContext("2d"),W=cv.width,H=cv.height,cx=W/2,cy=H/2+18;
     ctx.clearRect(0,0,W,H);
+    // nebula depth behind the core
+    var neb=ctx.createRadialGradient(cx,cy,20,cx,cy,300);
+    neb.addColorStop(0,"rgba(55,196,224,.10)");neb.addColorStop(.4,"rgba(80,120,200,.05)");neb.addColorStop(1,"rgba(0,0,0,0)");
+    ctx.fillStyle=neb;ctx.fillRect(0,0,W,H);
+    // deterministic starfield (stable across redraws — no RNG)
+    for(var s=0;s<90;s++){ var sx=(Math.sin(s*12.9898)*43758.5453)%1, sy=(Math.sin(s*78.233)*43758.5453)%1;
+      var px=Math.abs(sx)*W, py=Math.abs(sy)*H, sr=(Math.abs(Math.sin(s*3.7))*1.3)+.2;
+      ctx.beginPath();ctx.arc(px,py,sr,0,Math.PI*2);ctx.fillStyle="rgba(200,220,240,"+(0.05+Math.abs(Math.sin(s))*0.10)+")";ctx.fill(); }
     var rings=[96,176,250];
     rings.forEach(function(r){ctx.beginPath();ctx.arc(cx,cy,r,0,Math.PI*2);ctx.strokeStyle="rgba(150,170,195,.09)";ctx.lineWidth=1;ctx.stroke();});
     var sys=REG.systems;

@@ -1162,6 +1162,29 @@ def _admin_command_metrics():
         fleet_total = len(list((ROOT / "bots").rglob("bot.py")))
     except Exception:
         fleet_total = None
+    # REAL: live bot fleet state from the orchestrator (same source as /api/overview)
+    fleet = None
+    try:
+        orch = _get_orch()
+        names = orch.list_bots()
+        st = [orch.bots[n].get_status() for n in names if n in orch.bots]
+        running = sum(1 for s in st if s.get("status") == "running")
+        failed = sum(1 for s in st if s.get("status") == "error")
+        done = sum(1 for s in st if s.get("status") == "done")
+        fleet = {"loaded": len(st), "running": running, "failed": failed, "done": done,
+                 "idle": len(st) - running - failed - done,
+                 "scheduler_running": bool(_scheduler and getattr(_scheduler, "_running", False))}
+    except Exception:
+        fleet = None
+    # REAL: host telemetry (psutil, same as /api/health) — honest nulls if unavailable
+    system = {"cpu_pct": None, "mem_pct": None, "platform": None}
+    try:
+        import psutil as _ps, platform as _pf
+        system["cpu_pct"] = _ps.cpu_percent(interval=0.05)
+        system["mem_pct"] = _ps.virtual_memory().percent
+        system["platform"] = _pf.system()
+    except Exception:
+        pass
     # REAL: capability count (only when the fabric is enabled, else honest null)
     caps = None
     if _CAPABILITY_FABRIC_ENABLED:
@@ -1173,6 +1196,9 @@ def _admin_command_metrics():
         "generated_unix": int(time.time()),
         "uptime_seconds": int(time.time() - _COMMAND_METRICS_START),   # REAL (this process)
         "fleet_total": fleet_total,                                    # REAL (files on disk)
+        "fleet": fleet,                                                # REAL (orchestrator) or null
+        "system": system,                                             # REAL host cpu/mem or nulls
+        "git_sha": (_GIT_SHA or "")[:12] or None,                     # REAL deploy commit
         "capabilities": caps,                                          # REAL or null (flag off)
         "counts": reg["counts"],                                       # REAL structural (registry)
         # No live source wired yet — reported honestly, never invented.
