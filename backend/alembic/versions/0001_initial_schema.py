@@ -13,7 +13,7 @@ from sqlalchemy.dialects import postgresql
 
 
 revision: str = "0001_initial"
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = "0000_base_compat"  # base-compat creates Supabase-owned tables first
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

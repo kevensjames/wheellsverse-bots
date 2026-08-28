@@ -44,7 +44,16 @@ class OllamaAdapter:
         max_tokens: int = 1024,
         temperature: float = 0.7,
         system: str | None = None,
+        tools=None,
     ) -> CompletionResult:
+        # §12: the router passes `tools` to every adapter uniformly. Ollama is
+        # tool-INCAPABLE: an empty/None schema is a plain chat (proceed); a real
+        # tool schema is refused CLEANLY (previously raised a raw TypeError/500).
+        if tools:
+            raise ValueError(
+                "ollama adapter does not support tool-calling — route tool "
+                "requests to a tool-capable adapter (openai/anthropic)"
+            )
         payload = {
             "model": self.model,
             "messages": self._build(messages, system),
