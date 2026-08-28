@@ -1,0 +1,31 @@
+# App B — KAI governance runtime — STAGING image.
+#
+# Built from the REPO ROOT context (Railway service Root Directory = "/") so the
+# shared session core (repo-root `core/`) is present alongside `backend/`:
+# backend/app/main.py does `from core.operator_session_web import ...` and inserts
+# the repo root on sys.path (Merge Phase P2 bridge identity). A backend-only build
+# would miss `core/` and fail at import.
+#
+# Why a Dockerfile (not Nixpacks): App B's deps live in backend/requirements.txt and
+# CONFLICT with App A's root requirements (fastapi 0.115.0 vs >=0.116); a root
+# nixpacks.toml drives App A's build. This image pins App B's set explicitly and adds
+# the cloud tool-capable brains (openai/anthropic) that backend/requirements.txt omits
+# but the router needs for Journey B.
+FROM python:3.11
+
+WORKDIR /app
+
+# Deps first for layer caching. psycopg2-binary is a wheel (no libpq build step).
+COPY backend/requirements.txt /tmp/backend-requirements.txt
+RUN pip install --no-cache-dir -r /tmp/backend-requirements.txt \
+ && pip install --no-cache-dir 'openai>=1.30.0,<2.0.0' 'anthropic>=0.39.0,<1.0.0'
+
+# Whole repo (core/ + backend/) so the cross-package import resolves.
+COPY . /app
+
+ENV PYTHONPATH=/app/backend
+
+# Canonical migrate-to-head (proven repeatable from empty) then serve App B.
+# alembic runs from backend/ (alembic.ini lives there); uvicorn finds `app` via
+# PYTHONPATH=backend and `core` via main.py's repo-root sys.path insert.
+CMD ["sh", "-c", "echo \"${RAILWAY_GIT_COMMIT_SHA:-${GIT_SHA:-unknown}}\" > /app/GIT_SHA && (cd /app/backend && alembic upgrade head) && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
