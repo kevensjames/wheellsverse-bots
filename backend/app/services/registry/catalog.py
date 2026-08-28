@@ -112,7 +112,7 @@ _CATALOG: list[Node] = [
     _n("sol", "SOL / SOLCIRCLE", TIER_COMPANY, Status.HEALTHY, DeployState.EXTERNAL_SERVICE,
        "ROSCA savings-circle fintech. Real backend is the separate wheellsverse-sol repo, "
        "LIVE on Railway. Money mode = MOCK (APP_ENV=staging). Append-only balanced ledger.",
-       route="/admin/sol", url="https://sol-api-production.up.railway.app",
+       route="/sol/admin", url="https://sol-api-production.up.railway.app",
        repo="wheellsverse-sol", lost_from_current=True, evidence="wheellsverse-sol backend/app/main.py"),
     _n("narai", "NarAI", TIER_COMPANY, Status.DEGRADED, DeployState.LIVE_PROD,
        "Multi-domain AI brain. Market/prediction engine LIVE in prod (v2 routers). "

@@ -490,11 +490,11 @@
     {grp:"OVERVIEW"},{t:"Mission Control",i:"overview",go:"#s-overview"},
     {grp:"PORTFOLIO"},{t:"All Startups",i:"portfolio",go:"#s-startups"},{t:"Portfolio HQ / W-MOS",i:"wmos",href:"/admin/portfolio"},{t:"Scoreboard",i:"chart",go:"#s-finance"},
     {grp:"INTELLIGENCE"},{t:"KAI Flight Director",i:"kai",go:"#s-kai"},{t:"AI Workforce",i:"bot",href:"/admin/hub"},{t:"Capability Fabric",i:"memory",href:"/admin/capabilities"},{t:"Command Nexus",i:"kai",href:"/admin/nexus"},
-    {grp:"STARTUPS"},{t:"SOL / SOLCIRCLE",i:"coins",href:"/admin/sol",id:"sol"},{t:"NarAI",i:"trend",href:"/admin/nexus",id:"narai"},{t:"Nurtelle",i:"heart",dis:true,id:"nurtelle"},
+    {grp:"STARTUPS"},{t:"SOL / SOLCIRCLE",i:"coins",href:"/sol/admin",id:"sol"},{t:"NarAI",i:"trend",href:"/admin/nexus",id:"narai"},{t:"Nurtelle",i:"heart",dis:true,id:"nurtelle"},
       {t:"Nexora",i:"users",href:"/nexora/dashboard",id:"nexora"},{t:"SiteBoost",i:"globe",href:"/admin/siteboost",id:"siteboost"},{t:"Suprema",i:"shield",href:"/admin/legacy",id:"suprema"},{t:"Toodle",i:"flow",href:"/admin/toodle",id:"toodle"},
     {grp:"OPERATIONS"},{t:"Deployments",i:"rocket",go:"#s-telemetry"},{t:"Infrastructure",i:"server",go:"#s-telemetry"},{t:"Automations",i:"flow",href:"/admin/legacy"},{t:"Workers & Queues",i:"server",go:"#s-telemetry"},{t:"Incidents",i:"alert",go:"#s-alerts"},
     {grp:"SECURITY"},{t:"Security Center",i:"lock",href:"/admin/capabilities"},{t:"Audit Logs",i:"book",href:"/admin/legacy"},
-    {grp:"FINANCE"},{t:"Finance Center",i:"dollar",go:"#s-finance"},{t:"Reconciliation",i:"coins",href:"/admin/sol"},
+    {grp:"FINANCE"},{t:"Finance Center",i:"dollar",go:"#s-finance"},{t:"Reconciliation",i:"coins",href:"/sol/admin"},
     {grp:"ANALYTICS"},{t:"Analytics Hub",i:"chart",go:"#s-finance"},{t:"Knowledge",i:"book",href:"/admin/capabilities"},
     {grp:"SETTINGS"},{t:"Legacy Dashboard",i:"gear",href:"/admin/legacy"}
   ];
@@ -518,8 +518,9 @@
       '<defs><linearGradient id="'+gid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="'+color+'" stop-opacity=".3"/><stop offset="1" stop-color="'+color+'" stop-opacity="0"/></linearGradient></defs>'+
       '<path d="'+line+' L60 18 L0 18 Z" fill="url(#'+gid+')"/><path d="'+line+'" fill="none" stroke="'+color+'" stroke-width="1.3" opacity=".75"/></svg></div>';
   }
-  function kcard(lab,ico_,valHtml,sub,color,seed){
-    return '<div class="kpi"><div class="kpi__lab">'+ico_+esc(lab)+'</div><div class="kpi__val">'+valHtml+'</div><div class="kpi__sub">'+sub+'</div>'+sparkBar(color||"#19c9f5",seed||1)+'</div>';
+  function kcard(lab,ico_,valHtml,sub,color,seed,go){
+    var clk=go?' role="button" tabindex="0" onclick="CC.scrollTo(\''+go+'\')" onkeydown="if(event.key===\'Enter\')CC.scrollTo(\''+go+'\')" title="drill down" style="cursor:pointer"':'';
+    return '<div class="kpi"'+clk+'><div class="kpi__lab">'+ico_+esc(lab)+'</div><div class="kpi__val">'+valHtml+'</div><div class="kpi__sub">'+sub+'</div>'+sparkBar(color||"#19c9f5",seed||1)+'</div>';
   }
   function renderKpis(){
     var c=REG.counts,caps=CAPS&&typeof CAPS.count==="number"?CAPS.count:(MET&&MET.capabilities!=null?MET.capabilities:null);
@@ -529,14 +530,14 @@
     var fleetSub=isDemo()?("142 idle · 3 busy"+dtag()):(F?(F.idle+" idle · "+F.running+" run"):(fleet!=null?"on disk":"—"));
     function biz(m,fmt){return isDemo()?"":(m.c?(fmt?fmt(m.v):esc(String(m.v))):na());}
     $("kpis").innerHTML=
-      kcard("Portfolio Rev 30D",ICOsmall("dollar"), isDemo()?(esc(DEMO.revenue)+dtag()):(rev.c?money(rev.v):na()), isDemo()?("vs prior"+dtag()):(rev.c?"stripe":'<span class="na">connect Stripe</span>'),"#19c9f5",1)+
-      kcard("MRR",ICOsmall("chart"), isDemo()?(esc(DEMO.business.mrr)+dtag()):(mrr.c?money(mrr.v):na()), isDemo()?("recurring"+dtag()):(mrr.c?"stripe":'<span class="na">—</span>'),"#55e7ff",2)+
-      kcard("Active Users",ICOsmall("users"), isDemo()?(esc(DEMO.business.users)+dtag()):(users.c?esc(String(users.v)):na()), isDemo()?("subs"+dtag()):(users.c?"stripe":'<span class="na">—</span>'),"#965eff",3)+
-      kcard("AI Agents",ICOsmall("bot"), isDemo()?(esc(DEMO.agents)+dtag()):(fleet!=null?esc(String(fleet)):na()), fleetSub,"#714cff",4)+
-      kcard("System Uptime",ICOsmall("server"), '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?("99.98%"+dtag()):"process · REAL","#3fe58c",5)+
-      kcard("Deployments",ICOsmall("rocket"), isDemo()?(esc(DEMO.business.deployments)+dtag()):(dep.c?esc(String(dep.v)):na()), isDemo()?("this month"+dtag()):(dep.c?"production":'<span class="na">—</span>'),"#714cff",6)+
-      kcard("Open Incidents",ICOsmall("alert"), isDemo()?("2"+dtag()):esc(String(incidents)), isDemo()?("warnings"+dtag()):"degraded+unknown","#ff5364",7)+
-      kcard("Serving Now",ICOsmall("wmos"), isDemo()?(esc(String(DEMO.merchants))+dtag()):esc(String(c.serving_now)), isDemo()?("live"+dtag()):c.live_prod+" prod","#3fe58c",8);
+      kcard("Portfolio Rev 30D",ICOsmall("dollar"), isDemo()?(esc(DEMO.revenue)+dtag()):(rev.c?money(rev.v):na()), isDemo()?("vs prior"+dtag()):(rev.c?"stripe":'<span class="na">connect Stripe</span>'),"#19c9f5",1,"#s-finance")+
+      kcard("MRR",ICOsmall("chart"), isDemo()?(esc(DEMO.business.mrr)+dtag()):(mrr.c?money(mrr.v):na()), isDemo()?("recurring"+dtag()):(mrr.c?"stripe":'<span class="na">—</span>'),"#55e7ff",2,"#s-finance")+
+      kcard("Active Users",ICOsmall("users"), isDemo()?(esc(DEMO.business.users)+dtag()):(users.c?esc(String(users.v)):na()), isDemo()?("subs"+dtag()):(users.c?"stripe":'<span class="na">—</span>'),"#965eff",3,"#s-finance")+
+      kcard("AI Agents",ICOsmall("bot"), isDemo()?(esc(DEMO.agents)+dtag()):(fleet!=null?esc(String(fleet)):na()), fleetSub,"#714cff",4,"#s-telemetry")+
+      kcard("System Uptime",ICOsmall("server"), '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?("99.98%"+dtag()):"process · REAL","#3fe58c",5,"#s-telemetry")+
+      kcard("Deployments",ICOsmall("rocket"), isDemo()?(esc(DEMO.business.deployments)+dtag()):(dep.c?esc(String(dep.v)):na()), isDemo()?("this month"+dtag()):(dep.c?"production":'<span class="na">—</span>'),"#714cff",6,"#s-finance")+
+      kcard("Open Incidents",ICOsmall("alert"), isDemo()?("2"+dtag()):esc(String(incidents)), isDemo()?("warnings"+dtag()):"degraded+unknown","#ff5364",7,"#s-alerts")+
+      kcard("Serving Now",ICOsmall("wmos"), isDemo()?(esc(String(DEMO.merchants))+dtag()):esc(String(c.serving_now)), isDemo()?("live"+dtag()):c.live_prod+" prod","#3fe58c",8,"#s-startups");
     $("kaiCaps").innerHTML=caps!=null?esc(String(caps)):(isDemo()?esc("32")+dtag():na());
     $("kaiCos").textContent=c.by_tier.COMPANY||0; $("kaiSys").textContent=c.total;
     $("uniCount").textContent=c.total+" nodes · "+c.serving_now+" serving";
@@ -643,7 +644,7 @@
       '<div class="apill"><b style="color:var(--cyan)">'+info+at+'</b><span>Info</span></div>';
     var list="";
     if(isDemo()){list=DEMO.alerts.list.map(function(a){var c=a[0]==="warn"?"var(--yellow)":"var(--cyan)";return '<div class="hrow"><div class="l"><i class="dot" style="background:'+c+'"></i>'+esc(a[1])+dtag()+'</div><div class="v" style="color:var(--txt-3)">'+esc(a[2])+'</div></div>';}).join("");}
-    else{REG.systems.filter(function(n){return n.status==="DEGRADED"||n.status==="UNKNOWN";}).slice(0,6).forEach(function(n){var c=sHex(n.status);list+='<div class="hrow"><div class="l"><i class="dot" style="background:'+c+'"></i>'+esc(n.name)+'</div><div class="v" style="color:'+c+'">'+esc(n.status)+'</div></div>';});
+    else{REG.systems.filter(function(n){return n.status==="DEGRADED"||n.status==="UNKNOWN";}).slice(0,6).forEach(function(n){var c=sHex(n.status);list+='<div class="hrow alertrow" role="button" tabindex="0" style="cursor:pointer" onclick="CC.openDrawer(\''+esc(n.id)+'\')" onkeydown="if(event.key===\'Enter\')CC.openDrawer(\''+esc(n.id)+'\')" title="open '+esc(n.name)+'"><div class="l"><i class="dot" style="background:'+c+'"></i>'+esc(n.name)+'</div><div class="v" style="color:'+c+'">'+esc(n.status)+' ›</div></div>';});
       if(!list)list='<div class="footnote">No degraded or unknown systems.</div>';}
     $("alertList").innerHTML=list;
   }
@@ -671,12 +672,32 @@
   function kaiAsk(q){if(!q)return;logTerm("› "+q,"");
     if(window.KAI&&typeof window.KAI.ask==="function"){window.KAI.ask(q);logTerm("routed to KAI (governed)","ok");}
     else{logTerm("KAI presence provider not loaded — opening Nexus","warn");setTimeout(function(){location.href="/admin/nexus?q="+encodeURIComponent(q);},700);}}
+  // §28 command registry — explicit local commands executed against REAL data (read-only);
+  // anything else routes to the governed KAI. No arbitrary shell.
+  function runCommand(raw){
+    var v=(raw||"").trim();if(!v)return;logTerm("› "+v,"");
+    var parts=v.split(/\s+/),cmd=parts[0].toLowerCase(),arg=parts.slice(1).join(" ").trim(),C=REG.counts,hs=C.by_status||{};
+    if(cmd==="help"||cmd==="?"){logTerm("commands: help · health · status · companies · incidents · workers · capabilities · metrics · open <system> · find <q> · ask <q> (→KAI)","ok");return;}
+    if(cmd==="health"||cmd==="status"){logTerm(C.total+" systems · "+C.serving_now+" serving · "+(hs.DEGRADED||0)+" degraded · "+(hs.DORMANT||0)+" dormant · "+(hs.UNKNOWN||0)+" unknown","ok");return;}
+    if(cmd==="companies"){var co=REG.systems.filter(function(n){return n.tier==="COMPANY";});logTerm(co.length+" companies: "+co.map(function(n){return n.name+" ("+n.status+")";}).join(" · "),"");return;}
+    if(cmd==="incidents"||(cmd==="show"&&arg==="incidents")){var inc=REG.systems.filter(function(n){return n.status==="DEGRADED"||n.status==="UNKNOWN";});if(!inc.length){logTerm("no degraded/unknown systems","ok");return;}inc.forEach(function(n){logTerm(n.name+" — "+n.status+"  (open "+n.id+")","warn");});return;}
+    if(cmd==="workers"||(cmd==="show"&&arg==="workers")){var F=MET&&MET.fleet;if(!F){logTerm("fleet telemetry unavailable","warn");return;}logTerm("fleet: "+F.loaded+" loaded of "+MET.fleet_total+" · "+F.idle+" idle · "+F.running+" running · "+F.failed+" failed · scheduler "+(F.scheduler_running?"ON":"OFF"),"ok");return;}
+    if(cmd==="capabilities"||cmd==="caps"){var cc=CAPS&&CAPS.count;logTerm(cc!=null?(cc+" governed capabilities — open /admin/capabilities"):"capability fabric not loaded","ok");return;}
+    if(cmd==="metrics"){logTerm("uptime "+fmtUptime(MET&&MET.uptime_seconds)+" · fleet "+(MET&&MET.fleet_total)+" · serving "+C.serving_now+" · caps "+((CAPS&&CAPS.count)||"—"),"");return;}
+    if(cmd==="open"){if(!arg){logTerm("usage: open <system name or id>","warn");return;}var hit=REG.systems.filter(function(n){return (n.name+" "+n.id).toLowerCase().indexOf(arg.toLowerCase())>=0;})[0];if(hit){logTerm("opening "+hit.name,"ok");openDrawer(hit.id);}else logTerm("no system matching '"+arg+"'","warn");return;}
+    if(cmd==="find"||cmd==="search"){if(!arg){logTerm("usage: find <query>","warn");return;}var h=REG.systems.filter(function(n){return (n.name+" "+n.id+" "+n.summary).toLowerCase().indexOf(arg.toLowerCase())>=0;});if(!h.length){logTerm("no match for '"+arg+"'","warn");return;}logTerm(h.length+" match: "+h.map(function(n){return n.name;}).join(" · "),"");return;}
+    if(cmd==="ask"){if(arg)kaiAsk(arg);else logTerm("usage: ask <question for KAI>","warn");return;}
+    logTerm("unknown command — routing to KAI (governed). type 'help' for local commands.","warn");
+    if(window.KAI&&window.KAI.ask){window.KAI.ask(v);logTerm("sent to KAI","ok");}
+    else{setTimeout(function(){location.href="/admin/nexus?q="+encodeURIComponent(v);},700);}
+  }
   var TERM=[];
   function logTerm(msg,cls){var d=new Date().toLocaleTimeString([], {hour:"2-digit",minute:"2-digit",second:"2-digit"});
     TERM.push('<span class="ts">'+d+'</span>  <span class="'+(cls||"")+'">'+esc(msg)+'</span>');if(TERM.length>40)TERM.shift();
     $("term").innerHTML=TERM.map(function(l){return '<div>'+l+'</div>';}).join("");$("term").scrollTop=$("term").scrollHeight;}
   function seedTerm(){TERM=[];logTerm("Command Center online — registry loaded","ok");
     logTerm(REG.counts.total+" systems · "+REG.counts.serving_now+" serving · "+REG.counts.lost_from_current+" recovered","");
+    logTerm("type 'help' for commands (health · status · companies · incidents · workers · open <system> · find <q>)","");
     var loaded=!!(window.KAI&&typeof window.KAI.ask==="function");
     // §21: only claim ONLINE when the provider reports a live bridge — provider script
     // loading is not the same as the KAI backend being reachable.
@@ -732,7 +753,7 @@
     ctx.beginPath();ctx.arc(cx,cy,86,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
   }
   function renderUniNodes(placed,W,H,cx,cy){
-    var h='<div class="uninode core" style="left:'+(cx/W*100).toFixed(2)+'%;top:'+(cy/H*100).toFixed(2)+'%" role="img" aria-label="WHEELLSVERSE Holdings"><b>W</b><small>HOLDINGS</small></div>';
+    var h='<div class="uninode core" style="left:'+(cx/W*100).toFixed(2)+'%;top:'+(cy/H*100).toFixed(2)+'%;cursor:pointer" role="button" tabindex="0" onclick="CC.scrollTo(\'#s-overview\')" onkeydown="if(event.key===\'Enter\')CC.scrollTo(\'#s-overview\')" aria-label="WHEELLSVERSE Holdings — overview"><b>W</b><small>HOLDINGS</small></div>';
     placed.forEach(function(p){var col=p.col;
       h+='<div class="uninode" style="left:'+(p.x/W*100).toFixed(2)+'%;top:'+(p.y/H*100).toFixed(2)+'%;--nc:'+col+';--ng:'+hexToRgba(col,.28)+';--nb:'+hexToRgba(col,.14)+'" '+
         'role="button" tabindex="0" onclick="CC.openDrawer(\''+esc(p.n.id)+'\')" onkeydown="if(event.key===\'Enter\')CC.openDrawer(\''+esc(p.n.id)+'\')" title="'+esc(p.n.name)+' — '+esc(p.n.status)+'">'+
@@ -808,9 +829,9 @@
   window.CC={
     setMode:function(m){MODE=m;try{localStorage.setItem("cc_mode",m);}catch(e){}if(REG)renderAll();},
     scrollTo:function(sel){var el=document.querySelector(sel);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});},
-    kai:kaiAsk, openDrawer:openDrawer, drTab:drTab, closeDrawer:closeDrawer
+    kai:kaiAsk, cmd:runCommand, openDrawer:openDrawer, drTab:drTab, closeDrawer:closeDrawer
   };
-  $("cmd").addEventListener("keydown",function(e){if(e.key==="Enter"){kaiAsk(this.value.trim());this.value="";}});
+  $("cmd").addEventListener("keydown",function(e){if(e.key==="Enter"){runCommand(this.value.trim());this.value="";}});
   $("kaAsk").addEventListener("keydown",function(e){if(e.key==="Enter"){kaiAsk(this.value.trim());this.value="";}});
   document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer();trapDrawer(e);
     if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("search").focus();}});

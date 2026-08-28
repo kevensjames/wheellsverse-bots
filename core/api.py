@@ -2069,6 +2069,13 @@ async def serve_admin_hub():
     return _serve_frontend("admin/index.html", cache=False)
 
 
+@app.get("/admin/wvkey", response_class=HTMLResponse)
+async def serve_admin_wvkey():
+    """wvkey Vault — encrypted operator secrets UI (frontend existed but was unrouted;
+    wired so the registry's wvkey control resolves instead of 404ing)."""
+    return _serve_frontend("admin/wvkey.html", cache=False)
+
+
 @app.get("/admin/nexus", response_class=HTMLResponse)
 async def serve_admin_nexus():
     """KAI Command Nexus — the immersive full-screen presentation of the SAME
