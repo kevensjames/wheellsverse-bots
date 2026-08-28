@@ -663,7 +663,11 @@
   var QA=[["New Circle","coins","sol"],["New Campaign","flow","marketing"],["Create Agent","bot","workforce"],["Deploy Service","rocket","deploy",1],
     ["Run Automation","flow","automation"],["Generate Report","chart","report"],["Health Check","shield","health"],["Emergency Halt","alert","halt",1]];
   function renderQA(){
-    $("qa").innerHTML=QA.map(function(a){var d=a[3]?" danger":"";return '<button class="'+d.trim()+'" onclick="CC.kai(\'Request: '+esc(a[0])+'\')">'+ico(a[1])+'<span class="ql">'+esc(a[0])+'<small>'+(a[3]?"needs approval":"via KAI")+'</small></span></button>';}).join("");
+    $("qa").innerHTML=QA.map(function(a){var d=a[3]?" danger":"";
+      var local=a[0]==="Health Check";  // maps to the real local health command (no KAI needed)
+      var onclick=local?"CC.cmd('health')":"CC.kai('Request: "+esc(a[0])+"')";
+      var sub=a[3]?"needs approval":(local?"runs now":"via KAI");
+      return '<button class="'+d.trim()+'" onclick="'+onclick+'">'+ico(a[1])+'<span class="ql">'+esc(a[0])+'<small>'+sub+'</small></span></button>';}).join("");
     var chips=["Company health","Revenue report","Startup status","Incident summary","Security scan","AI agents","Deploy updates"];
     $("kaChips").innerHTML=chips.map(function(c){return '<span class="chip" role="button" tabindex="0" onclick="CC.kai(\''+esc(c)+'\')" onkeydown="if(event.key===\'Enter\')CC.kai(\''+esc(c)+'\')">'+esc(c)+'</span>';}).join("");
   }
