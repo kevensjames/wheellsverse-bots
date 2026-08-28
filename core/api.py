@@ -2076,6 +2076,48 @@ async def serve_admin_wvkey():
     return _serve_frontend("admin/wvkey.html", cache=False)
 
 
+@app.get("/admin/automations", response_class=HTMLResponse)
+async def serve_admin_automations():
+    """Dedicated Automations surface (§5A) — replaces the approximate /admin/legacy
+    fallback. Renders /admin/automations.json (real scheduler + automation + autopilot)."""
+    return _serve_frontend("admin/automations.html", cache=False)
+
+
+@app.get("/admin/automations.json", include_in_schema=False)
+def _admin_automations_json():
+    """In-process aggregator of the REAL automation subsystems (no fake data; a source
+    that isn't wired reports null). Same secret-free pattern as metrics.json."""
+    from fastapi.responses import JSONResponse
+    out = {"generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+           "autopilot": None, "automation": None, "scheduler": None}
+    try:
+        from core.autopilot import AutopilotEngine
+        out["autopilot"] = AutopilotEngine.get().summary()   # REAL (enabled/cycles/errors)
+    except Exception:
+        pass
+    try:
+        from core.output_automation import get_automator
+        out["automation"] = get_automator().get_status()     # REAL (delivery channels/queue)
+    except Exception:
+        pass
+    try:
+        sched = _get_scheduler(); jobs = []
+        for j in getattr(sched, "jobs", []) or []:
+            jo = j.get("job"); nr = None
+            if jo is not None and getattr(jo, "next_run", None):
+                try:
+                    nr = jo.next_run.isoformat()
+                except Exception:
+                    nr = str(jo.next_run)
+            jobs.append({"bot": j.get("bot", "job"), "schedule": j.get("schedule", ""),
+                         "next_run": nr or j.get("next_run")})
+        out["scheduler"] = {"running": bool(getattr(sched, "_running", False)),
+                            "jobs": jobs[:80], "total": len(jobs)}
+    except Exception:
+        pass
+    return JSONResponse(out, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/admin/nexus", response_class=HTMLResponse)
 async def serve_admin_nexus():
     """KAI Command Nexus — the immersive full-screen presentation of the SAME

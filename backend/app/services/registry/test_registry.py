@@ -156,6 +156,18 @@ def test_no_status_deploy_contradiction():
                 f"{n.id}: status LOCAL contradicts deploy LIVE_PROD"
 
 
+def test_control_routes_are_not_the_known_dead_ones():
+    """Functional-cert CI guard (§20): the Pass-1 dead routes must never come back.
+    /admin/sol was a 404 (real is /sol/admin); wvkey must not use the unrouted path."""
+    by_id = {n.id: n for n in systems()}
+    assert by_id["sol"].route == "/sol/admin", \
+        f"SOL route regressed to a dead path: {by_id['sol'].route} (must be /sol/admin)"
+    # every route must be a well-formed absolute path (no accidental 404 shapes)
+    for n in systems():
+        if n.route:
+            assert n.route.startswith("/") and " " not in n.route, f"{n.id} malformed route {n.route}"
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     passed = 0

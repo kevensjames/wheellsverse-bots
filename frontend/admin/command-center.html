@@ -492,8 +492,8 @@
     {grp:"INTELLIGENCE"},{t:"KAI Flight Director",i:"kai",go:"#s-kai"},{t:"AI Workforce",i:"bot",href:"/admin/hub"},{t:"Capability Fabric",i:"memory",href:"/admin/capabilities"},{t:"Command Nexus",i:"kai",href:"/admin/nexus"},
     {grp:"STARTUPS"},{t:"SOL / SOLCIRCLE",i:"coins",href:"/sol/admin",id:"sol"},{t:"NarAI",i:"trend",href:"/admin/nexus",id:"narai"},{t:"Nurtelle",i:"heart",dis:true,id:"nurtelle"},
       {t:"Nexora",i:"users",href:"/nexora/dashboard",id:"nexora"},{t:"SiteBoost",i:"globe",href:"/admin/siteboost",id:"siteboost"},{t:"Suprema",i:"shield",href:"/admin/legacy",id:"suprema"},{t:"Toodle",i:"flow",href:"/admin/toodle",id:"toodle"},
-    {grp:"OPERATIONS"},{t:"Deployments",i:"rocket",go:"#s-telemetry"},{t:"Infrastructure",i:"server",go:"#s-telemetry"},{t:"Automations",i:"flow",href:"/admin/legacy"},{t:"Workers & Queues",i:"server",go:"#s-telemetry"},{t:"Incidents",i:"alert",go:"#s-alerts"},
-    {grp:"SECURITY"},{t:"Security Center",i:"lock",href:"/admin/capabilities"},{t:"Audit Logs",i:"book",href:"/admin/legacy"},
+    {grp:"OPERATIONS"},{t:"Deployments",i:"rocket",go:"#s-telemetry"},{t:"Infrastructure",i:"server",go:"#s-telemetry"},{t:"Automations",i:"flow",href:"/admin/automations"},{t:"Workers & Queues",i:"server",go:"#s-telemetry"},{t:"Incidents",i:"alert",go:"#s-alerts"},
+    {grp:"SECURITY"},{t:"Security Center",i:"lock",href:"/admin/capabilities"},{t:"Audit Logs",i:"book",dis:true,tip:"action audit log is served by App B (KAI runtime) — not reachable from App A"},
     {grp:"FINANCE"},{t:"Finance Center",i:"dollar",go:"#s-finance"},{t:"Reconciliation",i:"coins",href:"/sol/admin"},
     {grp:"ANALYTICS"},{t:"Analytics Hub",i:"chart",go:"#s-finance"},{t:"Knowledge",i:"book",href:"/admin/capabilities"},
     {grp:"SETTINGS"},{t:"Legacy Dashboard",i:"gear",href:"/admin/legacy"}
@@ -501,7 +501,7 @@
   function renderNav(){
     var h="";NAV.forEach(function(n){
       if(n.grp){h+='<div class="navgrp">'+esc(n.grp)+'</div>';return;}
-      var attrs=n.dis?' data-disabled title="no environment yet"':(n.href?' href="'+esc(n.href)+'"':' onclick="CC.scrollTo(\''+n.go+'\')" tabindex="0" role="link"');
+      var attrs=n.dis?(' data-disabled title="'+esc(n.tip||"no environment yet")+'"'):(n.href?' href="'+esc(n.href)+'"':' onclick="CC.scrollTo(\''+n.go+'\')" tabindex="0" role="link"');
       var st=n.id&&REG?statusDot(n.id):"";
       h+='<a'+attrs+'>'+ico(n.i)+'<span>'+esc(n.t)+'</span>'+st+'</a>';
     });$("nav").innerHTML=h;

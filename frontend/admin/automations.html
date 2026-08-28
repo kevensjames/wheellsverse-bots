@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<base target="_top"/>
+<title>WHEELLSVERSE Automations</title>
+<style>
+  :root{--bg:#02070d;--panel:linear-gradient(180deg,rgba(10,27,39,.96),rgba(5,16,25,.96));
+    --border:rgba(65,181,227,.18);--border-strong:rgba(72,220,255,.5);--txt:#e8f6ff;--txt-2:#9fb4c4;--txt-3:#7d93a6;
+    --cyan:#19c9f5;--green:#3fe58c;--yellow:#f3c84a;--red:#ff5364;--mono:ui-monospace,"SF Mono",Menlo,monospace;--sans:system-ui,"Segoe UI",sans-serif;}
+  *{box-sizing:border-box}body{margin:0;background:radial-gradient(1200px 700px at 60% 0%,#05101a,var(--bg) 70%);color:var(--txt);font-family:var(--sans);font-size:13px;min-height:100vh}
+  a{color:var(--cyan);text-decoration:none}
+  .bar{display:flex;align-items:center;gap:14px;padding:14px 22px;border-bottom:1px solid var(--border);position:sticky;top:0;background:rgba(6,16,24,.85);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+  .bar b{font-weight:700;letter-spacing:.12em;font-size:15px}.bar .sub{font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--cyan)}
+  .wrap{max-width:1100px;margin:0 auto;padding:22px}
+  .sect{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--txt-2);margin:24px 2px 10px}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:16px;box-shadow:0 8px 28px rgba(0,0,0,.3)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+  .cell{background:rgba(8,20,30,.6);border:1px solid var(--border);border-radius:9px;padding:12px}
+  .cell span{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3);display:block}
+  .cell b{font-family:var(--mono);font-size:18px;display:block;margin-top:5px}
+  .pill{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:3px 8px;border-radius:5px;border:1px solid}
+  table{width:100%;border-collapse:collapse;margin-top:6px}
+  th{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt-3);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border)}
+  td{padding:9px 10px;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--txt-2)}
+  .na{color:var(--txt-3)}.foot{font-family:var(--mono);font-size:9px;color:var(--txt-3);margin-top:10px;line-height:1.5}
+  .nc{border:1px solid rgba(243,200,74,.4);background:rgba(243,200,74,.08);color:var(--yellow);border-radius:9px;padding:12px 14px;font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+  <header class="bar"><a href="/admin">← Command Center</a><div><b>AUTOMATIONS</b><div class="sub">Scheduler · Delivery · Autopilot</div></div>
+    <div style="margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--txt-3)" id="fresh">—</div></header>
+  <div class="wrap">
+    <div id="err"></div>
+    <div class="sect">AUTOPILOT</div><section class="panel" id="autopilotPanel"></section>
+    <div class="sect">DELIVERY AUTOMATION</div><section class="panel" id="automationPanel"></section>
+    <div class="sect">SCHEDULER JOBS</div><section class="panel" id="schedulerPanel"></section>
+  </div>
+<script>
+(function(){
+  "use strict";
+  var $=function(i){return document.getElementById(i);};
+  function esc(s){return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];});}
+  function na(){return '<span class="na">—</span>';}
+  function pill(txt,color){return '<span class="pill" style="color:'+color+';border-color:'+color+'">'+esc(txt)+'</span>';}
+  function boolp(v){return v?pill("configured","var(--green)"):pill("not configured","var(--txt-3)");}
+  fetch("/admin/automations.json",{headers:{Accept:"application/json"}}).then(function(r){if(!r.ok)throw new Error(r.status);return r.json();}).then(function(d){
+    $("fresh").textContent="updated "+esc(d.generated_at);
+    // autopilot
+    var ap=d.autopilot;
+    if(!ap){$("autopilotPanel").innerHTML='<div class="nc">Autopilot engine NOT CONNECTED — core.autopilot not available.</div>';}
+    else{$("autopilotPanel").innerHTML='<div class="grid">'+
+      '<div class="cell"><span>State</span><b style="color:'+(ap.enabled?"var(--green)":"var(--txt-3)")+'">'+(ap.enabled?"ENABLED":"OFF")+'</b></div>'+
+      '<div class="cell"><span>Mode</span><b>'+esc(ap.mode||"—")+'</b></div>'+
+      '<div class="cell"><span>Hourly cycles</span><b>'+(ap.hourly_cycles!=null?ap.hourly_cycles:na())+'</b></div>'+
+      '<div class="cell"><span>Daily cycles</span><b>'+(ap.daily_cycles!=null?ap.daily_cycles:na())+'</b></div>'+
+      '<div class="cell"><span>Posts (auto)</span><b>'+(ap.total_posts_auto!=null?ap.total_posts_auto:na())+'</b></div>'+
+      '<div class="cell"><span>Recent errors</span><b style="color:'+((ap.recent_errors&&ap.recent_errors.length)?"var(--red)":"var(--green)")+'">'+((ap.recent_errors&&ap.recent_errors.length)||0)+'</b></div>'+
+      '</div><div class="foot">Last hourly run: '+esc(ap.last_hourly_run||"never")+' · last daily: '+esc(ap.last_daily_run||"never")+' · REAL (core.autopilot)</div>';}
+    // automation delivery
+    var au=d.automation;
+    if(!au){$("automationPanel").innerHTML='<div class="nc">Delivery automation NOT CONNECTED.</div>';}
+    else{$("automationPanel").innerHTML='<div class="grid">'+
+      '<div class="cell"><span>Email</span><div style="margin-top:6px">'+boolp(au.email_configured)+'</div></div>'+
+      '<div class="cell"><span>Slack</span><div style="margin-top:6px">'+boolp(au.slack_configured)+'</div></div>'+
+      '<div class="cell"><span>Discord</span><div style="margin-top:6px">'+boolp(au.discord_configured)+'</div></div>'+
+      '<div class="cell"><span>Queue size</span><b>'+(au.queue_size!=null?au.queue_size:na())+'</b></div>'+
+      '<div class="cell"><span>Delivery log</span><b>'+(au.delivery_log_count!=null?au.delivery_log_count:na())+'</b></div>'+
+      '</div><div class="foot">Provider config = env presence (boolean, no secret) · REAL (core.output_automation)</div>';}
+    // scheduler jobs
+    var sc=d.scheduler;
+    if(!sc){$("schedulerPanel").innerHTML='<div class="nc">Scheduler NOT CONNECTED.</div>';}
+    else if(!sc.jobs||!sc.jobs.length){$("schedulerPanel").innerHTML='<div class="foot">Scheduler '+(sc.running?"running":"stopped")+' · no jobs registered (real 0).</div>';}
+    else{var rows=sc.jobs.map(function(j){return '<tr><td>'+esc(j.bot)+'</td><td>'+esc(j.schedule||"—")+'</td><td>'+(j.next_run?esc(j.next_run):na())+'</td></tr>';}).join("");
+      $("schedulerPanel").innerHTML='<div style="font-family:var(--mono);font-size:10px;color:var(--txt-3);margin-bottom:6px">scheduler '+(sc.running?'<span style="color:var(--green)">RUNNING</span>':'<span class="na">STOPPED</span>')+' · '+sc.total+' jobs · REAL</div>'+
+        '<table><thead><tr><th>Bot / Job</th><th>Schedule</th><th>Next run</th></tr></thead><tbody>'+rows+'</tbody></table>';}
+  }).catch(function(e){$("err").innerHTML='<div class="nc">Could not load automations: '+esc(e.message)+'. Nothing fabricated.</div>';});
+})();
+</script>
+</body>
+</html>
