@@ -1192,6 +1192,15 @@ def _admin_command_metrics():
             caps = _capability_catalog()["count"]
         except Exception:
             caps = None
+    # REAL: honest portfolio scoreboard (revenue/MRR/users/leads/emails/conversion —
+    # each tagged connected+source; leads/emails are file-backed so real even locally,
+    # Stripe metrics real in prod). Never a fake 0 — unconnected surfaces report null.
+    business = None
+    try:
+        from core.scoreboard import snapshot as _sb_snapshot
+        business = _sb_snapshot()
+    except Exception:
+        business = None
     return JSONResponse({
         "generated_unix": int(time.time()),
         "uptime_seconds": int(time.time() - _COMMAND_METRICS_START),   # REAL (this process)
@@ -1200,11 +1209,10 @@ def _admin_command_metrics():
         "system": system,                                             # REAL host cpu/mem or nulls
         "git_sha": (_GIT_SHA or "")[:12] or None,                     # REAL deploy commit
         "capabilities": caps,                                          # REAL or null (flag off)
+        "business": business,                                         # REAL scoreboard (honest per-metric)
         "counts": reg["counts"],                                       # REAL structural (registry)
         # No live source wired yet — reported honestly, never invented.
         "unavailable": {
-            "portfolio_revenue_30d": "no financial source wired to App A",
-            "active_merchants": "requires authenticated Shopify call",
             "api_latency_ms": "no in-process probe wired",
             "db_ms": "App B database not reachable from App A",
             "redis_ms": "no probe wired",

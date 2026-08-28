@@ -262,6 +262,13 @@
         </div>
       </section>
 
+      <!-- Portfolio business metrics (honest scoreboard: real value or "—", never fake 0) -->
+      <div class="section-t" id="s-business"><h2>PORTFOLIO <b>METRICS</b></h2><div class="rule"></div><div class="eyebrow" id="bizNote">—</div></div>
+      <section class="panel"><div class="panel__bd">
+        <div class="telem" id="bmetrics"></div>
+        <div class="footnote" id="bfoot"></div>
+      </div></section>
+
       <div class="cols">
         <div>
           <!-- Universe -->
@@ -377,7 +384,8 @@
     feed:[["✓","Payout completed","SOL ROSCA · Circle #103","+$1,250"],["◆","New circle created","SOL ROSCA · Circle #104","$800"],
       ["●","Stripe payment succeeded","Subscription · Premium","+$14.99"],["↑","ACH debit settled","Contribution · Circle #101","+$200"],
       ["✓","Auto-reconciliation complete","All ledgers balanced",""]],
-    alerts:{c:0,w:2,i:5, list:[["warn","Worker retry high","SOL Worker 03"],["warn","Webhook retry","Dwolla ACH Webhook"],["info","High queue depth","Email Queue"]]}
+    alerts:{c:0,w:2,i:5, list:[["warn","Worker retry high","SOL Worker 03"],["warn","Webhook retry","Dwolla ACH Webhook"],["info","High queue depth","Email Queue"]]},
+    business:{revenue_month:"$24,680",mrr:"$9,340",users:"1,284",trials:"86",leads:"1,940",emails_sent:"12,405",conversion:"18.6%",deployments:"24"}
   };
   function isDemo(){return MODE==="demo";}
   function dtag(){return isDemo()?'<span class="dtag">DEMO</span>':"";}
@@ -429,8 +437,11 @@
     var fleetSub = isDemo()?("142 idle · 3 busy · 1 failed"+dtag())
       : (F ? (F.idle+" idle · "+F.running+" running · "+F.failed+" failed")
            : (fleet!=null?"bot.py on disk (REAL)":"—"));
+    var rev = bget("revenue_month");
     $("kpis").innerHTML =
-      kpi("Portfolio Revenue 30D", val(null, DEMO.revenue), isDemo()?("vs prior 30d"+dtag()):'<span class="na">no financial source wired</span>') +
+      kpi("Portfolio Revenue 30D",
+          isDemo()?(esc(DEMO.revenue)+dtag()):(rev.c?money(rev.v):na()),
+          isDemo()?("vs prior 30d"+dtag()):(rev.c?"stripe · REAL":'<span class="na">connect Stripe</span>')) +
       kpi("Serving Now", isDemo()?esc(DEMO.merchants)+dtag():esc(c.serving_now), (isDemo()?("active"+dtag()):c.live_prod+" prod-deployed")) +
       kpi("AI Agents (fleet)", val(fleet, DEMO.agents), fleetSub) +
       kpi("System Uptime", '<span id="upt">'+(isDemo()?esc(DEMO.uptime)+dtag():fmtUptime(MET?MET.uptime_seconds:null))+'</span>', isDemo()?("99.98% trailing 90d"+dtag()):"this process (REAL)") +
@@ -490,6 +501,25 @@
   // ── telemetry ──
   function tcell(lab,valHtml,sub){ return '<div class="tcell"><span>'+esc(lab)+'</span><b>'+valHtml+'</b>'+(sub?'<small>'+sub+'</small>':'')+'</div>'; }
   function na(){ return '<span class="na">—</span>'; }
+  function money(v){ return '$'+Number(v).toLocaleString(); }
+  // honest scoreboard read: {v, c} — connected true means the value (even 0) is REAL
+  function bget(k){ var b=MET&&MET.business&&MET.business.metrics; if(!b||!b[k]) return {v:null,c:false}; return {v:b[k].value, c:!!b[k].connected}; }
+  function bcellLive(lab,k,fmt){ var m=bget(k); var v=m.c?(fmt?fmt(m.v):esc(String(m.v))):na(); return '<div class="tcell"><span>'+esc(lab)+'</span><b>'+v+'</b><small>'+(m.c?"REAL":"not connected")+'</small></div>'; }
+  function bcellDemo(lab,k){ return '<div class="tcell"><span>'+esc(lab)+'</span><b>'+esc(DEMO.business[k])+dtag()+'</b><small>illustrative</small></div>'; }
+  function renderBusiness(){
+    var keys=[["Revenue (month)","revenue_month",money],["MRR","mrr",money],["Users","users",null],["Trials","trials",null],
+      ["Leads","leads",null],["Emails Sent","emails_sent",null],["Conversion","conversion",function(v){return (v*100).toFixed(1)+"%";}],["Deployments","deployments",null]];
+    if(isDemo()){
+      $("bmetrics").innerHTML = keys.map(function(x){return bcellDemo(x[0],x[1]);}).join("");
+      $("bizNote").textContent="DEMO"; $("bfoot").innerHTML="Illustrative values — not measured.";
+    } else {
+      $("bmetrics").innerHTML = keys.map(function(x){return bcellLive(x[0],x[1],x[2]);}).join("");
+      var b=MET&&MET.business;
+      $("bizNote").textContent = b ? (b.connected_count+"/"+b.total_surfaces+" sources connected") : "scoreboard n/a";
+      $("bfoot").innerHTML = b ? ("Honest scoreboard — a real 0 shows as 0; an unconnected surface shows “—”, never a fake number. "+esc(b.headline||"")) :
+        "Portfolio scoreboard unavailable.";
+    }
+  }
   function renderTelem(){
     var t=$("telem"), S=(MET&&MET.system)||{}, F=MET&&MET.fleet, up=MET?MET.uptime_seconds:null;
     var provs='<div class="tcell" style="grid-column:span 2"><span>External Providers</span>'+
@@ -657,7 +687,7 @@
   function renderAll(){
     document.body.classList.toggle("demo", isDemo());
     $("mLive").className = isDemo()?"":"on"; $("mDemo").className = isDemo()?"on demoon":"";
-    renderNav(); renderKpis(); renderGauges(); renderTelem(); renderHealth();
+    renderNav(); renderKpis(); renderBusiness(); renderGauges(); renderTelem(); renderHealth();
     renderFeed(); renderAlerts(); renderTimeline(); renderQA(); drawGalaxy(); seedTerm();
   }
 
