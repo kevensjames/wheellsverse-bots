@@ -1201,8 +1201,25 @@ def _admin_command_metrics():
         business = _sb_snapshot()
     except Exception:
         business = None
+    # REAL: provider connectivity — env var PRESENCE only (boolean, never the value/secret)
+    def _cfg(*names):
+        return any(bool(os.getenv(n, "").strip()) for n in names)
+    providers = {
+        "stripe": _cfg("STRIPE_SECRET_KEY", "STRIPE_API_KEY"),
+        "dwolla": _cfg("DWOLLA_KEY", "DWOLLA_SECRET", "DWOLLA_APP_KEY"),
+        "persona": _cfg("PERSONA_API_KEY"),
+        "sendgrid": _cfg("SENDGRID_API_KEY"),
+        "shopify": _cfg("SHOPIFY_ACCESS_TOKEN", "SHOPIFY_STORE"),
+        "supabase": _cfg("SUPABASE_URL"),
+        "openai": _cfg("OPENAI_API_KEY"),
+        "anthropic": _cfg("ANTHROPIC_API_KEY"),
+    }
+    env = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("APP_ENV") or "local"
     return JSONResponse({
         "generated_unix": int(time.time()),
+        "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        "env": env,                                                   # REAL deploy environment
+        "providers": providers,                                       # REAL configured booleans (no secret)
         "uptime_seconds": int(time.time() - _COMMAND_METRICS_START),   # REAL (this process)
         "fleet_total": fleet_total,                                    # REAL (files on disk)
         "fleet": fleet,                                                # REAL (orchestrator) or null
