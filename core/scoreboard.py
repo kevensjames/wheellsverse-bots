@@ -82,8 +82,10 @@ def snapshot() -> dict:
         "churn": _metric(rev.get("churn"), rc and rev.get("churn") is not None,
                          "stripe (canceled 30d)"),
         "open_bugs": _metric(None, False, "manual / gh issues (not wired)"),
-        "deployments": _metric(0, True, "production",
-                               note="nothing in this portfolio is deployed to production yet"),
+        # honest: no deploy-count source is wired, so report unmeasured (not a fake 0).
+        # Matches this module's stated principle and open_bugs above.
+        "deployments": _metric(None, False, "no deploy-count source wired",
+                               note="deploy count is not wired to a real source"),
     }
 
     # Surface connectivity — what we can and cannot see, named plainly.
@@ -101,7 +103,7 @@ def snapshot() -> dict:
         f"MRR ${metrics['mrr']['value'] if rc else '—'} · "
         f"users {metrics['users']['value'] if metrics['users']['connected'] else '—'} · "
         f"leads {metrics['leads']['value'] if lc else '—'} · "
-        f"{metrics['deployments']['value']} prod deployments"
+        f"{metrics['deployments']['value'] if metrics['deployments']['connected'] else '—'} prod deployments"
     )
 
     return {
