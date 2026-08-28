@@ -16,7 +16,12 @@ FROM python:3.11
 WORKDIR /app
 
 # Deps first for layer caching. psycopg2-binary is a wheel (no libpq build step).
-COPY backend/requirements.txt /tmp/backend-requirements.txt
+# requirements-staging.txt == requirements.txt minus `mcp` (mcp==1.27.2 needs
+# pydantic>=2.11 but App B pins 2.9.2 -> unsatisfiable). mcp is imported lazily
+# (only inside mcp_tools.py functions), so omitting it does not affect boot or the
+# governance journeys — it only disables optional external MCP tool servers, which
+# are not part of the certified journeys. Mirrors the local curated dep set.
+COPY backend/requirements-staging.txt /tmp/backend-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/backend-requirements.txt \
  && pip install --no-cache-dir 'openai>=1.30.0,<2.0.0' 'anthropic>=0.39.0,<1.0.0'
 

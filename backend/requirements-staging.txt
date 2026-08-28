@@ -1,0 +1,55 @@
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+sqlalchemy==2.0.35
+psycopg2-binary==2.9.10
+alembic==1.13.3
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+bcrypt==4.0.1
+pydantic==2.9.2
+pydantic-settings==2.5.2
+python-dotenv==1.0.1
+httpx==0.27.2
+redis==5.1.1
+python-multipart==0.0.12
+email-validator==2.2.0
+stripe==11.1.0
+# Stage 6: rate-limit auth endpoints. In-memory storage by default —
+# acceptable for single-worker uvicorn; multi-worker needs storage_uri="redis://..."
+slowapi==0.1.9
+
+# market data + workers (Stage 3)
+# yfinance chases Yahoo's undocumented backend — use a range so cookie/crumb
+# regressions can be patched without a manifest edit.
+yfinance>=0.2.55,<0.3
+pandas==2.2.3
+numpy==2.1.3
+celery[redis]==5.4.0
+tenacity==9.0.0
+
+# predictions (Stage 4)
+ta==0.11.0
+
+# document upload parsers — lighter-than-docling default path. Same format
+# coverage (PDF / Word / Excel / PowerPoint), deterministic, no ML inference.
+# If a user genuinely needs layout-aware table extraction, we can add
+# `docling` as an opt-in heavy path later (~1GB venv growth, slow per-page).
+pypdf==6.13.1
+python-docx==1.2.0
+python-pptx==1.0.2
+openpyxl==3.1.5
+
+# Voice output — Piper (local, fast) + onnxruntime is already a transitive
+# dep so the marginal install is tiny. Voice model lives at
+# models/piper/en_US-lessac-medium.onnx (downloaded out-of-band).
+piper-tts==1.4.2
+
+# NOTE: `mcp` is intentionally omitted from the staging image — mcp==1.27.2 requires
+# pydantic>=2.11 but App B pins pydantic==2.9.2 (unsatisfiable). It is imported lazily
+# (only inside app/services/mcp_tools.py functions), so omitting it does not affect
+# boot or the governance journeys; it only disables optional external MCP tool servers.
+
+# dev / test
+pytest==8.3.3
+pytest-asyncio==0.24.0
+faker==30.3.0
