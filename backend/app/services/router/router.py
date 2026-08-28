@@ -91,16 +91,26 @@ class Router:
         return None
 
     def _log_failure_safe(self, *, user_id, adapter: Adapter, error: str) -> None:
-        """Record an adapter failure, best-effort. Spend logging hits the DB,
-        and a logging hiccup must NEVER defeat the runtime fallback or mask the
-        original adapter error — so swallow logging errors here."""
+        """Record an adapter failure DURABLY, best-effort. On a terminal failure
+        the request transaction is rolled back (get_db closes without commit), so
+        writing the failure row on the shared request Session would be erased —
+        losing the only evidence that execution was attempted. We therefore write
+        it on an ISOLATED short-lived Session that commits immediately. A logging
+        hiccup must NEVER defeat the runtime fallback or mask the original adapter
+        error — so swallow logging errors here."""
         try:
-            self.spend.log_call(
-                user_id=user_id, adapter=adapter.name, model=adapter.model,
-                success=False, error_message=error,
-            )
+            from app.database import SessionLocal
+            s = SessionLocal()
+            try:
+                SpendTracker(s).log_call(
+                    user_id=user_id, adapter=adapter.name, model=adapter.model,
+                    success=False, error_message=error,
+                )
+                s.commit()
+            finally:
+                s.close()
         except Exception as log_err:  # pragma: no cover - defensive
-            logger.warning("router: spend.log_call swallowed: %s", log_err)
+            logger.warning("router: durable failure-log swallowed: %s", log_err)
 
     def select(
         self,
@@ -205,13 +215,8 @@ class Router:
                 collected.append(delta)
                 yield delta
         except Exception as e:
-            self.spend.log_call(
-                user_id=user_id,
-                adapter=adapter.name,
-                model=adapter.model,
-                success=False,
-                error_message=str(e),
-            )
+            # durable: the request tx rolls back on this raise — isolate the write
+            self._log_failure_safe(user_id=user_id, adapter=adapter, error=str(e))
             raise
 
         total_text = "".join(collected)
