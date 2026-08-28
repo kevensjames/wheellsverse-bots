@@ -12,7 +12,7 @@
     --panel:linear-gradient(180deg,rgba(10,27,39,.96),rgba(5,16,25,.96));
     --panel-elev:linear-gradient(180deg,rgba(13,32,46,.97),rgba(7,20,30,.97));
     --border:rgba(65,181,227,.18); --border-strong:rgba(72,220,255,.5);
-    --txt:#e8f6ff; --txt-2:#93a9b9; --txt-3:#607888;
+    --txt:#e8f6ff; --txt-2:#9fb4c4; --txt-3:#7d93a6;  /* AA-contrast on the deep bg */
     --cyan:#19c9f5; --cyan-bright:#55e7ff; --blue:#2f8fff; --purple:#965eff; --violet:#714cff;
     --green:#3fe58c; --green-bright:#78f5ad; --yellow:#f3c84a; --orange:#f39a3f; --red:#ff5364; --critical:#ff3b4d;
     --demo:#f39a3f;
@@ -51,6 +51,7 @@
   .dtag{font-family:var(--mono);font-size:7px;letter-spacing:.08em;color:var(--demo);border:1px solid rgba(245,158,66,.4);border-radius:3px;padding:1px 3px;margin-left:5px;vertical-align:middle}
   svg.ico{width:15px;height:15px;flex:none;stroke:currentColor;stroke-width:1.6;fill:none;stroke-linecap:round;stroke-linejoin:round}
   :focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:4px}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
   /* demo banner */
   .demobar{display:none;align-items:center;gap:10px;justify-content:center;background:rgba(245,158,66,.12);
@@ -155,11 +156,11 @@
   .uninode .un-ic svg{width:14px;height:14px}
   .uninode b{font-size:11px;font-weight:600;display:block;line-height:1.15;color:var(--txt)}
   .uninode small{font-family:var(--mono);font-size:7.5px;letter-spacing:.03em;color:var(--txt-3);text-transform:uppercase}
-  .uninode.core{width:74px;height:74px;border-radius:50%;flex-direction:column;gap:0;padding:0;justify-content:center;
-    background:radial-gradient(circle at 50% 42%,#eafcff,#19c9f5 58%,rgba(25,201,245,.12));border:none;
-    box-shadow:0 0 46px rgba(25,201,245,.7),0 0 90px rgba(47,143,255,.35)}
-  .uninode.core b{color:#02121a;font-size:24px;font-weight:800}
-  .uninode.core small{color:#043143;font-size:7px;letter-spacing:.14em;margin-top:-2px}
+  .uninode.core{width:88px;height:88px;border-radius:50%;flex-direction:column;gap:0;padding:0;justify-content:center;
+    background:radial-gradient(circle at 50% 40%,#f2feff,#4ee6ff 40%,#19c9f5 66%,rgba(25,201,245,.14));border:1px solid rgba(120,232,255,.5);
+    box-shadow:0 0 60px rgba(25,201,245,.82),0 0 130px rgba(47,143,255,.42),inset 0 0 22px rgba(255,255,255,.35)}
+  .uninode.core b{color:#02121a;font-size:31px;font-weight:800;text-shadow:0 1px 2px rgba(255,255,255,.4)}
+  .uninode.core small{color:#043143;font-size:8px;font-weight:600;letter-spacing:.16em;margin-top:-3px}
   .uni__legend{display:flex;flex-wrap:wrap;gap:9px 15px;padding:10px 14px;border-top:1px solid var(--border)}
   .uni__legend span{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:9px;color:var(--txt-2)}
 
@@ -193,7 +194,8 @@
   .prov{font-family:var(--mono);font-size:8px;letter-spacing:.04em;border-radius:5px;padding:3px 7px;display:flex;align-items:center;gap:5px;border:1px solid var(--border)}
 
   /* console §19 + quick actions §20 */
-  .lowrow{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;margin-top:6px}
+  .lowrow{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(200px,.9fr) minmax(240px,1.1fr);gap:14px;margin-top:6px}
+  .lowrow .ka{align-self:stretch}
   .term{font-family:var(--mono);font-size:11px;background:#03080d;border:1px solid var(--border);border-radius:8px;padding:11px 13px;min-height:118px;max-height:150px;overflow-y:auto}
   .term div{margin:2px 0;color:var(--txt-2)}
   .term .ok{color:var(--green)} .term .ts{color:var(--txt-3)} .term .warn{color:var(--yellow)}
@@ -284,7 +286,7 @@
     <div class="brand"><div class="brand__mk"><b>W</b></div>
       <div><div class="brand__tt">WHEELLSVERSE</div><div class="brand__sub">Command Center</div></div>
     </div>
-    <div class="search"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <div class="search"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
       <input id="search" placeholder="Search anything…" aria-label="Search" autocomplete="off"/><kbd>⌘K</kbd></div>
     <div class="bar__sp"></div>
     <div class="envchip"><i class="dot" id="envDot" style="background:var(--txt-3)"></i><span id="env">—</span></div>
@@ -293,7 +295,7 @@
       <button type="button" id="mLive" class="on" onclick="CC.setMode('live')">LIVE</button>
       <button type="button" id="mDemo" onclick="CC.setMode('demo')">DEMO</button>
     </div>
-    <button class="barbtn" aria-label="Notifications" title="Alerts" onclick="CC.scrollTo('#s-alerts')"><svg class="ico" viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+    <button class="barbtn" aria-label="Notifications" title="Alerts" onclick="CC.scrollTo('#s-alerts')"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 01-3.4 0"/></svg></button>
     <div class="who"><div class="who__av">JW<i></i></div>
       <div class="who__n"><b>Jhon Wheeler</b><span>Founder / CEO</span></div>
     </div>
@@ -303,7 +305,8 @@
     <aside class="side"><nav class="nav" id="nav" aria-label="Primary"></nav></aside>
 
     <main>
-      <div id="err"></div>
+      <h1 class="sr-only">WHEELLSVERSE Command Center — Mission Control</h1>
+      <div id="err" role="alert"></div>
 
       <!-- KPI strip -->
       <div class="sect" id="s-overview"><h2>MISSION <b>CONTROL</b></h2><div class="rule"></div><div class="fresh" id="topFresh">—</div></div>
@@ -356,41 +359,41 @@
           <!-- Console + quick actions -->
           <div class="lowrow" id="s-console">
             <section class="panel">
-              <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>COMMAND <b>CONSOLE</b></div><div class="fresh">governed</div></div>
+              <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 17l6-6-6-6"/><path d="M12 19h8"/></svg>COMMAND <b>CONSOLE</b></div><div class="fresh">governed</div></div>
               <div class="panel__bd"><div class="term" id="term" aria-live="polite"></div>
                 <div class="term__in"><span>›</span><input id="cmd" placeholder="Ask KAI to plan, route, or open a company…" aria-label="Command input" autocomplete="off"/></div></div>
             </section>
             <section class="panel">
-              <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>QUICK <b>ACTIONS</b></div></div>
+              <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M13 2L3 14h7l-1 8 10-12h-7z"/></svg>QUICK <b>ACTIONS</b></div></div>
               <div class="panel__bd"><div class="qa" id="qa"></div>
                 <div class="footnote">Actions route through KAI's governed approval — nothing destructive fires directly.</div></div>
+            </section>
+            <section class="panel ka">
+              <div class="ka__hd"><div class="ka__orb"></div><div><b>KAI Assistant</b><span>Your AI Co-Pilot</span></div><div class="stt" id="kaStat">· CHECKING</div></div>
+              <div class="ka__in"><input id="kaAsk" placeholder="Ask KAI anything about your universe…" aria-label="Ask KAI" autocomplete="off"/></div>
+              <div class="ka__chips" id="kaChips"></div>
             </section>
           </div>
         </div>
 
         <!-- right rail -->
-        <aside class="rail">
+        <aside class="rail" aria-label="Operations rail">
           <section class="panel">
-            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>SYSTEM <b>HEALTH</b></div></div>
+            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>SYSTEM <b>HEALTH</b></div></div>
             <div class="panel__bd"><div class="hstat"><b id="healthWord" style="color:var(--txt-3)">SYNCING</b><span id="healthSub">—</span></div>
               <div id="healthRows" style="margin-top:7px"></div></div>
           </section>
           <section class="panel">
-            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>LIVE <b>ACTIVITY</b></div></div>
+            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>LIVE <b>ACTIVITY</b></div></div>
             <div class="panel__bd"><div class="feed" id="feed"></div></div>
           </section>
           <section class="panel" id="s-alerts">
-            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h16.9a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>MISSION <b>ALERTS</b></div></div>
+            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h16.9a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg>MISSION <b>ALERTS</b></div></div>
             <div class="panel__bd"><div class="alerts" id="alerts"></div><div id="alertList"></div></div>
           </section>
           <section class="panel">
-            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>MISSION <b>TIMELINE</b></div></div>
+            <div class="panel__hd"><div class="panel__ti"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>MISSION <b>TIMELINE</b></div></div>
             <div class="panel__bd"><div class="tl" id="timeline"></div></div>
-          </section>
-          <section class="panel ka">
-            <div class="ka__hd"><div class="ka__orb"></div><div><b>KAI Assistant</b><span>Your AI Co-Pilot</span></div><div class="stt" id="kaStat" style="color:var(--txt-3)">· CHECKING</div></div>
-            <div class="ka__in"><input id="kaAsk" placeholder="Ask KAI anything about your universe…" aria-label="Ask KAI" autocomplete="off"/></div>
-            <div class="ka__chips" id="kaChips"></div>
           </section>
         </aside>
       </div>
@@ -480,7 +483,7 @@
     memory:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 4v-2M15 4v-2M9 22v-2M15 22v-2M4 9H2M4 15H2M22 9h-2M22 15h-2"/>',
     dot:'<circle cx="12" cy="12" r="4"/>'
   };
-  function ico(n){return '<svg class="ico" viewBox="0 0 24 24">'+(ICO[n]||ICO.dot)+'</svg>';}
+  function ico(n){return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(ICO[n]||ICO.dot)+'</svg>';}
 
   // ── nav §9 ──
   var NAV=[
@@ -503,7 +506,7 @@
       h+='<a'+attrs+'>'+ico(n.i)+'<span>'+esc(n.t)+'</span>'+st+'</a>';
     });$("nav").innerHTML=h;
   }
-  function statusDot(id){var n=REG.systems.filter(function(x){return x.id===id;})[0];if(!n)return "";return '<i class="st" style="background:'+sHex(n.status)+'"></i>';}
+  function statusDot(id){var n=REG.systems.filter(function(x){return x.id===id;})[0];if(!n)return "";return '<i class="st" style="background:'+sHex(n.status)+'" role="img" aria-label="status '+esc(n.status)+'"></i>';}
 
   // ── KPI strip §10 (8 cards) ── area sparkline is a DECORATIVE visual affordance (no
   // historical series exists to chart); the card VALUE stays real. Deterministic (stable).
@@ -538,7 +541,7 @@
     $("kaiCos").textContent=c.by_tier.COMPANY||0; $("kaiSys").textContent=c.total;
     $("uniCount").textContent=c.total+" nodes · "+c.serving_now+" serving";
   }
-  function ICOsmall(n){return '<svg class="ico" style="width:11px;height:11px;stroke-width:1.8" viewBox="0 0 24 24">'+(ICO[n]||ICO.dot)+'</svg>';}
+  function ICOsmall(n){return '<svg class="ico" style="width:11px;height:11px;stroke-width:1.8" viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+(ICO[n]||ICO.dot)+'</svg>';}
 
   // ── portfolio metrics §10 ──
   function bcellLive(lab,k,fmt){var m=bget(k);var v=m.c?(fmt?fmt(m.v):esc(String(m.v))):na();return '<div class="tcell"><span>'+esc(lab)+'</span><b>'+v+'</b><small>'+(m.c?"REAL":"not connected")+'</small></div>';}
@@ -725,8 +728,8 @@
       var g=ctx.createLinearGradient(cx,cy,p.x,p.y);g.addColorStop(0,hexToRgba(p.col,.35));g.addColorStop(1,hexToRgba(p.col,.06));
       ctx.strokeStyle=g;ctx.lineWidth=1.1;ctx.stroke();
       ctx.beginPath();ctx.arc(p.x,p.y,3.5,0,Math.PI*2);ctx.fillStyle=p.col;ctx.shadowColor=p.col;ctx.shadowBlur=9;ctx.fill();ctx.shadowBlur=0;});
-    var g=ctx.createRadialGradient(cx,cy,2,cx,cy,64);g.addColorStop(0,"rgba(234,252,255,.5)");g.addColorStop(.4,"rgba(25,201,245,.32)");g.addColorStop(1,"rgba(25,201,245,0)");
-    ctx.beginPath();ctx.arc(cx,cy,64,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+    var g=ctx.createRadialGradient(cx,cy,2,cx,cy,86);g.addColorStop(0,"rgba(234,252,255,.55)");g.addColorStop(.35,"rgba(25,201,245,.36)");g.addColorStop(.7,"rgba(47,143,255,.14)");g.addColorStop(1,"rgba(25,201,245,0)");
+    ctx.beginPath();ctx.arc(cx,cy,86,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
   }
   function renderUniNodes(placed,W,H,cx,cy){
     var h='<div class="uninode core" style="left:'+(cx/W*100).toFixed(2)+'%;top:'+(cy/H*100).toFixed(2)+'%" role="img" aria-label="WHEELLSVERSE Holdings"><b>W</b><small>HOLDINGS</small></div>';
@@ -749,7 +752,10 @@
     DR_TAB[id]=DR_TAB[id]||tabs[0];
     $("drTabs").innerHTML=tabs.map(function(t){return '<button class="'+(DR_TAB[id]===t?"on":"")+'" onclick="CC.drTab(\''+id+'\',\''+t+'\')">'+esc(t)+'</button>';}).join("");
     drawDrawerBody(n,DR_TAB[id]);
-    $("scrim").classList.add("open");$("drawer").classList.add("open");$("drawer").setAttribute("aria-hidden","false");}
+    if(!$("drawer").classList.contains("open"))_drawerReturn=document.activeElement;  // remember trigger
+    $("scrim").classList.add("open");$("drawer").classList.add("open");$("drawer").setAttribute("aria-hidden","false");
+    setTimeout(function(){var f=$("drawer").querySelector('.x');if(f)f.focus();},30);}
+  var _drawerReturn=null;
   function drTab(id,t){DR_TAB[id]=t;openDrawer(id);}
   function drawDrawerBody(n,tab){
     function row(k,v){return '<div class="drow"><span>'+esc(k)+'</span><b>'+v+'</b></div>';}
@@ -780,13 +786,23 @@
     }
     $("drBody").innerHTML=h;
   }
-  function closeDrawer(){$("scrim").classList.remove("open");$("drawer").classList.remove("open");$("drawer").setAttribute("aria-hidden","true");}
+  function closeDrawer(){var d=$("drawer");$("scrim").classList.remove("open");d.classList.remove("open");d.setAttribute("aria-hidden","true");
+    if(d.contains(document.activeElement)&&document.activeElement.blur)document.activeElement.blur();  // never leave focus on hidden content
+    if(_drawerReturn&&_drawerReturn.focus){try{_drawerReturn.focus();}catch(e){}}_drawerReturn=null;}
+  // focus trap inside the open drawer (§3)
+  function trapDrawer(e){if(e.key!=="Tab"||!$("drawer").classList.contains("open"))return;
+    var f=$("drawer").querySelectorAll('button,a[href],input,[tabindex]:not([tabindex="-1"])');if(!f.length)return;
+    var first=f[0],last=f[f.length-1];
+    if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}}
 
   function renderAll(){
     document.body.classList.toggle("demo",isDemo());
     $("mLive").className=isDemo()?"":"on";$("mDemo").className=isDemo()?"on demoon":"";
     if(MET){$("env").textContent=(MET.env||"—").toUpperCase();$("envDot").style.background=(MET.env==="production"?"var(--green)":"var(--yellow)");LOADED_AT=MET.generated_unix||Math.floor(Date.now()/1000);}
     renderNav();renderKpis();renderBusiness();renderGauges();renderTelem();renderHealth();renderFeed();renderAlerts();renderTimeline();renderQA();drawGalaxy();seedTerm();
+    // §3: all .ico SVGs are decorative accompaniments to text — hide from AT
+    document.querySelectorAll('svg.ico').forEach(function(sv){if(!sv.getAttribute('aria-label'))sv.setAttribute('aria-hidden','true');});
   }
 
   window.CC={
@@ -796,7 +812,7 @@
   };
   $("cmd").addEventListener("keydown",function(e){if(e.key==="Enter"){kaiAsk(this.value.trim());this.value="";}});
   $("kaAsk").addEventListener("keydown",function(e){if(e.key==="Enter"){kaiAsk(this.value.trim());this.value="";}});
-  document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer();
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")closeDrawer();trapDrawer(e);
     if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("search").focus();}});
   $("search").addEventListener("keydown",function(e){if(e.key==="Enter"){var q=this.value.trim().toLowerCase();if(!q)return;
     var hit=REG&&REG.systems.filter(function(n){return (n.name+" "+n.id).toLowerCase().indexOf(q)>=0;})[0];
