@@ -16,6 +16,6 @@ COPY . /app
 
 ENV PYTHONPATH=/app/backend
 
-# Celery worker: broker + result backend come from CELERY_* env (staging Redis).
-# --loglevel=INFO so "ready" + task-received lines are visible in `railway logs`.
-CMD ["sh", "-c", "celery -A app.workers.celery_app worker --loglevel=INFO --concurrency=2"]
+# Run via the entrypoint that ALSO binds $PORT (Railway stops portless containers).
+# It starts a trivial health server + runs the Celery worker in-process (solo pool).
+CMD ["python", "/app/backend/worker_entrypoint.py"]
