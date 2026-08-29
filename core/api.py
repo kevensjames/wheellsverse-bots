@@ -1214,7 +1214,11 @@ def _admin_command_metrics():
         "openai": _cfg("OPENAI_API_KEY"),
         "anthropic": _cfg("ANTHROPIC_API_KEY"),
     }
-    env = os.getenv("RAILWAY_ENVIRONMENT") or os.getenv("APP_ENV") or "local"
+    # Prefer the explicit app-level APP_ENV over Railway's environment NAME:
+    # an isolated staging project's Railway env is often still named "production",
+    # so RAILWAY_ENVIRONMENT would misreport. APP_ENV is the canonical, honest
+    # source (unset in prod -> falls through to RAILWAY_ENVIRONMENT/"local").
+    env = os.getenv("APP_ENV") or os.getenv("RAILWAY_ENVIRONMENT") or "local"
     return JSONResponse({
         "generated_unix": int(time.time()),
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
