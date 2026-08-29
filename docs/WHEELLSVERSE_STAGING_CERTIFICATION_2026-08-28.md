@@ -35,7 +35,7 @@ Build notes (in-repo, additive; App A untouched): App B is **not** self-containe
 Container ran the canonical `alembic upgrade head` against the empty staging Postgres — full chain `0000 → 0006`, incl. `0003`'s `CREATE EXTENSION IF NOT EXISTS vector` (pgvector present on Railway). No create_all / stamp / manual SQL.
 
 ### Health / readiness (Section 5): **PASS**
-`GET /health` → `200 {"status":"ok"}`; `/docs` → 200; boot log shows every scheduler honestly reporting "not started (…_ENABLED not set)" — no fabricated activity. *(Minor: `/health` reports `env:"development"` — cosmetic env label to set to `staging`.)*
+`GET /health` → `200 {"status":"ok","env":"staging"}`; `/docs` → 200; boot log shows every scheduler honestly reporting "not started (…_ENABLED not set)" — no fabricated activity. *(Pass-6 fix: the LOW env-label defect is resolved — `APP_ENV=staging` set on the staging services + regression test `app/test_health_env.py`; `/health` now truthfully reports `env:"staging"`.)*
 
 ### Governance gates (Sections 5/11): **PASS**
 On the public edge, `POST /admin/kai-chat` and `/admin/kai-chat/stream`:
