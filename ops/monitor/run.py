@@ -208,7 +208,7 @@ def main():
     ap.add_argument("--send-recovery", action="store_true")
     ap.add_argument("--cron", action="store_true", help="one scheduled tick: smart cadence + heartbeat + staleness")
     ap.add_argument("--soak", type=int, default=0)
-    ap.add_argument("--interval", type=int, default=120, help="expected seconds between cron runs (staleness calc)")
+    ap.add_argument("--interval", type=int, default=300, help="expected seconds between cron runs (staleness calc; default matches */5)")
     ap.add_argument("--canary-minute", type=int, default=5, help="run the governed canary only when UTC minute < this (default: top-of-hour)")
     ap.add_argument("--no-canary", action="store_true")
     ap.add_argument("--state", default=os.path.join(STATE_DIR, "wv_monitor_state.json"))
@@ -234,12 +234,16 @@ def main():
         # one scheduled invocation: live delivery, smart cadence, heartbeat, staleness
         adapter = TelegramAdapter()
         now_dt = datetime.now(timezone.utc)
+        now_epoch = time.time()
         # governed canary (OpenAI cost) only in the top-of-hour window ≈ once/hour; cheap otherwise
         cron_canary = (not args.no_canary) and (now_dt.minute < args.canary_minute)
         prior = _read_json(args.heartbeat)
         stale = None
-        if is_stale(prior.get("last_tick_epoch"), time.time(), args.interval):
-            gap = int(time.time() - prior["last_tick_epoch"])
+        # Fire staleness ONLY on a real gap (> 2x the expected interval) AND not within a 15-min
+        # cooldown — so a normal cadence never trips it and a persistent gap can't storm the channel.
+        if is_stale(prior.get("last_tick_epoch"), now_epoch, args.interval) \
+                and (now_epoch - float(prior.get("last_stale_epoch", 0))) > 900:
+            gap = int(now_epoch - prior["last_tick_epoch"])
             stale = Alert(signal="monitor_stale", severity=HIGH, service="monitor",
                           summary=f"Monitor resumed after {gap}s gap (> 2x{args.interval}s expected) — scheduled ticks were missed",
                           runbook=RUNBOOKS["monitor_self"])
@@ -248,10 +252,11 @@ def main():
             stale.timestamp = _iso(); stale.alert_id = stale.compute_id()
             deliver([stale], adapter)
         _write_json(args.heartbeat, {
-            "last_tick_at": _iso(), "last_tick_epoch": time.time(),
+            "last_tick_at": _iso(), "last_tick_epoch": now_epoch,
             "last_tick_status": "healthy" if r["healthy"] else "unhealthy",
             "last_delivery_status": "ok" if not r["delivery_failures"] else "failed",
             "consecutive_failures": 0 if r["healthy"] else int(prior.get("consecutive_failures", 0)) + 1,
+            "last_stale_epoch": now_epoch if stale else float(prior.get("last_stale_epoch", 0)),
             "monitor_version": MONITOR_VERSION, "did_canary": cron_canary,
             "environment": os.environ.get("ENVIRONMENT", "unknown")})
         print(json.dumps({"cron_tick": True, "environment": os.environ.get("ENVIRONMENT", "unknown"),
