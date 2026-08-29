@@ -140,6 +140,31 @@ async function refreshPrincipal() {
   emit('principal', state.principal);
 }
 
+// ---- owner session login/logout (certified /admin/session/*) ----------------
+// Establishes/clears the HttpOnly wv_session cookie via the certified endpoints.
+// The secret lives only transiently in the request body over HTTPS — it is never
+// stored (no localStorage/sessionStorage/JS-cookie/persistent var), never logged,
+// never placed in a URL. The real session cookie is HttpOnly and invisible to JS.
+async function login(secret) {
+  let ok = false;
+  try {
+    const r = await fetch('/admin/session/login', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ secret }),
+    });
+    ok = r.ok;
+  } catch { ok = false; }
+  await refreshPrincipal();            // server set the cookie; re-read identity server-side
+  setKaiState(state.principal ? 'online' : 'offline');
+  return ok && !!state.principal;
+}
+async function logout() {
+  try { await fetch('/admin/session/logout', { method: 'POST', credentials: 'same-origin' }); } catch {}
+  state.principal = null; emit('principal', state.principal);
+  setKaiState('offline');
+}
+
 function canGovernedChat() {
   // Owner-only governed chat (kai.ultra) via the bridge. If the bridge/session
   // flags are off, the drawer degrades to a clear "not enabled" message.
@@ -176,9 +201,20 @@ function mountDrawer() {
     <div class="kaip-head">
       <div class="kaip-title"><span class="kaip-title-dot"></span>KAI<span class="kaip-state" id="kaip-state">online</span></div>
       <div class="kaip-head-actions">
+        <button class="kaip-logout" id="kaip-logout" type="button" title="Sign out" hidden>Sign out</button>
         <a class="kaip-nexus-link" href="/admin/nexus" title="Enter Nexus — same KAI, immersive">⤢ Nexus</a>
         <button class="kaip-x" id="kaip-close" type="button" aria-label="Close">×</button>
       </div>
+    </div>
+    <div class="kaip-auth" id="kaip-auth" hidden>
+      <div class="kaip-auth-sys" id="kaip-auth-sys"></div>
+      <form class="kaip-auth-form" id="kaip-auth-form" autocomplete="off">
+        <input class="kaip-auth-input" id="kaip-auth-secret" type="password" autocomplete="off"
+               autocapitalize="off" autocorrect="off" spellcheck="false"
+               placeholder="Owner access key" aria-label="Owner access key">
+        <button class="kaip-auth-btn" id="kaip-auth-btn" type="submit">Sign in as owner</button>
+        <div class="kaip-auth-msg" id="kaip-auth-msg" role="status" aria-live="polite"></div>
+      </form>
     </div>
     <div class="kaip-ctx" id="kaip-ctx"></div>
     <div class="kaip-suggest" id="kaip-suggest"></div>
@@ -219,11 +255,52 @@ function mountDrawer() {
   });
   on('kaiState', s => { if (stateEl) stateEl.textContent = s; });
 
-  // Greeting reflects capability honestly.
-  if (canGovernedChat()) {
-    addMessage('kai', "I'm KAI. Ask me about this page — I'll stream a governed answer.");
-  } else {
-    addMessage('kai', "KAI governed chat is not enabled for this session. (Needs the operator session + bridge, owner access.)");
+  // owner session: wire the sign-in form + the sign-out button, then paint the
+  // honest system/session state. Separates SYSTEM HEALTH (bridge/session enabled)
+  // from CURRENT SESSION AUTHORIZATION (anonymous vs owner) — a signed-out browser
+  // is "sign in required", never "system degraded".
+  drawerEl.querySelector('#kaip-auth-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const inp = drawerEl.querySelector('#kaip-auth-secret');
+    const msg = drawerEl.querySelector('#kaip-auth-msg');
+    const secret = inp.value;
+    inp.value = '';                    // clear the field immediately — never persisted
+    if (!secret) { msg.textContent = 'Enter the owner access key.'; return; }
+    msg.textContent = 'Signing in…';
+    const ok = await login(secret);    // secret goes only into the request body, then out of scope
+    msg.textContent = ok ? '' : 'Sign-in failed. Check the owner access key.';
+    renderAuthState();
+    if (ok && canGovernedChat()) addMessage('kai', "I'm KAI. Ask me about this page — I'll stream a governed answer.");
+  });
+  drawerEl.querySelector('#kaip-logout').addEventListener('click', async () => { await logout(); renderAuthState(); });
+  on('principal', renderAuthState);
+  renderAuthState();
+  if (canGovernedChat()) addMessage('kai', "I'm KAI. Ask me about this page — I'll stream a governed answer.");
+}
+
+// Paint the drawer for the current system + session state — honest separation of
+// SYSTEM HEALTH from SESSION AUTHORIZATION (§ owner session UI).
+function renderAuthState() {
+  if (!drawerEl) return;
+  const authEl = drawerEl.querySelector('#kaip-auth');
+  const formEl = drawerEl.querySelector('#kaip-auth-form');
+  const sysEl = drawerEl.querySelector('#kaip-auth-sys');
+  const inputWrap = drawerEl.querySelector('.kaip-input-wrap');
+  const logoutBtn = drawerEl.querySelector('#kaip-logout');
+  const sysHealthy = !!(state.flags.operator_session_enabled && state.flags.kai_bridge_enabled);
+  const authed = !!state.principal;
+  if (logoutBtn) logoutBtn.hidden = !authed;
+  if (canGovernedChat()) {                         // owner + governed → normal chat
+    authEl.hidden = true; inputWrap.hidden = false; renderSuggestions();
+  } else if (!sysHealthy) {                         // real system state (not a session issue)
+    authEl.hidden = false; formEl.hidden = true; inputWrap.hidden = true;
+    if (sysEl) sysEl.textContent = 'KAI is not enabled on this deployment.';
+  } else if (!authed) {                             // system healthy; just need to sign in
+    authEl.hidden = false; formEl.hidden = false; inputWrap.hidden = true;
+    if (sysEl) sysEl.textContent = 'KAI system online. Sign in as owner to use governed chat.';
+  } else {                                          // signed in, but not owner
+    authEl.hidden = false; formEl.hidden = true; inputWrap.hidden = true;
+    if (sysEl) sysEl.textContent = `Signed in as ${state.principal.role}. Owner access is required for governed KAI.`;
   }
 }
 
