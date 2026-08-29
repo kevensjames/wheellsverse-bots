@@ -8,7 +8,7 @@ import os, sys, json
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from ops.monitor.core import Alert, AlertState, INFO, WARNING, HIGH, CRITICAL, redact
 from ops.monitor.delivery import TestAdapter, TelegramAdapter, deliver
-from ops.monitor.run import evaluate, send_test, tick
+from ops.monitor.run import evaluate, send_test, tick, is_stale
 
 PASS = []
 def check(name, cond, detail=""):
@@ -133,6 +133,11 @@ def run():
         check("delivery failure -> monitor_self appended", any(a.signal == "monitor_self" for a in r["alerts"]))
     finally:
         C.collect = orig
+
+    # --- monitor-stale detection (Phase G): gap > 2x interval ---
+    check("no prior heartbeat -> not stale", is_stale(None, 1000, 300) is False)
+    check("fresh tick (1 interval) -> not stale", is_stale(1000, 1000 + 300, 300) is False)
+    check("gap > 2x interval -> stale", is_stale(1000, 1000 + 700, 300) is True)
 
     # --- delivery certification payload is secret-free INFO ---
     a2, res2, text2, leaked = send_test(TestAdapter())

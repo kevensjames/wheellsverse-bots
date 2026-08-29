@@ -21,10 +21,33 @@ from ops.monitor.delivery import TelegramAdapter, TestAdapter, deliver
 from ops.monitor import collectors
 
 REGISTRY_EXPECTED = 39
+MONITOR_VERSION = "1.0.0"
+STATE_DIR = os.environ.get("MONITOR_STATE_DIR", "/tmp")
 
 
 def _iso():
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _read_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _write_json(path, obj):
+    try:
+        with open(path, "w") as f:
+            json.dump(obj, f)
+    except OSError:
+        pass
+
+
+def is_stale(prior_epoch, now_epoch, interval):
+    """True if the previous scheduled tick is older than 2 expected intervals (missed ticks)."""
+    return bool(prior_epoch) and (now_epoch - prior_epoch) > 2 * interval
 
 
 def evaluate(snap, thresholds=THRESHOLDS, registry_expected=REGISTRY_EXPECTED):
@@ -183,11 +206,14 @@ def main():
     ap.add_argument("--live", action="store_true")
     ap.add_argument("--send-test", action="store_true")
     ap.add_argument("--send-recovery", action="store_true")
+    ap.add_argument("--cron", action="store_true", help="one scheduled tick: smart cadence + heartbeat + staleness")
     ap.add_argument("--soak", type=int, default=0)
-    ap.add_argument("--interval", type=int, default=120)
+    ap.add_argument("--interval", type=int, default=120, help="expected seconds between cron runs (staleness calc)")
+    ap.add_argument("--canary-minute", type=int, default=5, help="run the governed canary only when UTC minute < this (default: top-of-hour)")
     ap.add_argument("--no-canary", action="store_true")
-    ap.add_argument("--state", default="/tmp/wv_monitor_state.json")
-    ap.add_argument("--soak-log", default="/tmp/wv_monitor_soak.jsonl")
+    ap.add_argument("--state", default=os.path.join(STATE_DIR, "wv_monitor_state.json"))
+    ap.add_argument("--heartbeat", default=os.path.join(STATE_DIR, "wv_monitor_heartbeat.json"))
+    ap.add_argument("--soak-log", default=os.path.join(STATE_DIR, "wv_monitor_soak.jsonl"))
     args = ap.parse_args()
 
     secret = os.environ.get("SESSION_SIGNING_SECRET")
@@ -203,6 +229,37 @@ def main():
         return
 
     state = AlertState(path=args.state, cooldown_ticks=900)
+
+    if args.cron:
+        # one scheduled invocation: live delivery, smart cadence, heartbeat, staleness
+        adapter = TelegramAdapter()
+        now_dt = datetime.now(timezone.utc)
+        # governed canary (OpenAI cost) only in the top-of-hour window ≈ once/hour; cheap otherwise
+        cron_canary = (not args.no_canary) and (now_dt.minute < args.canary_minute)
+        prior = _read_json(args.heartbeat)
+        stale = None
+        if is_stale(prior.get("last_tick_epoch"), time.time(), args.interval):
+            gap = int(time.time() - prior["last_tick_epoch"])
+            stale = Alert(signal="monitor_stale", severity=HIGH, service="monitor",
+                          summary=f"Monitor resumed after {gap}s gap (> 2x{args.interval}s expected) — scheduled ticks were missed",
+                          runbook=RUNBOOKS["monitor_self"])
+        r = tick(secret, adapter, state, do_canary=cron_canary)
+        if stale:
+            stale.timestamp = _iso(); stale.alert_id = stale.compute_id()
+            deliver([stale], adapter)
+        _write_json(args.heartbeat, {
+            "last_tick_at": _iso(), "last_tick_epoch": time.time(),
+            "last_tick_status": "healthy" if r["healthy"] else "unhealthy",
+            "last_delivery_status": "ok" if not r["delivery_failures"] else "failed",
+            "consecutive_failures": 0 if r["healthy"] else int(prior.get("consecutive_failures", 0)) + 1,
+            "monitor_version": MONITOR_VERSION, "did_canary": cron_canary,
+            "environment": os.environ.get("ENVIRONMENT", "unknown")})
+        print(json.dumps({"cron_tick": True, "environment": os.environ.get("ENVIRONMENT", "unknown"),
+                          "healthy": r["healthy"], "did_canary": cron_canary, "alerts": len(r["alerts"]),
+                          "sent": len(r["sent"]), "delivery_failures": len(r["delivery_failures"]),
+                          "stale_detected": bool(stale), "monitor_version": MONITOR_VERSION}, default=str))
+        return
+
     if args.soak:
         for i in range(args.soak):
             r = tick(secret, adapter, state, do_canary=do_canary)
