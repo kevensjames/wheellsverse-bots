@@ -116,3 +116,15 @@
 .kaip-nx-conv { flex: 1; display: flex; flex-direction: column; width: 100%; max-width: 760px; margin: 0 auto; min-height: 0; padding-bottom: 22px; }
 .kaip-nx-conv .kaip-msgs { padding: 12px 24px; }
 .kaip-nx-conv .kaip-input-wrap { border-top: none; padding: 10px 24px 0; }
+
+/* ── owner session sign-in (drawer) ──────────────────────────────────────── */
+.kaip-auth { padding: 16px 18px; border-bottom: 1px solid var(--kaip-border); display: flex; flex-direction: column; gap: 10px; }
+.kaip-auth-sys { font-size: 12.5px; color: var(--kaip-muted); line-height: 1.4; }
+.kaip-auth-form { display: flex; flex-direction: column; gap: 9px; }
+.kaip-auth-input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--kaip-border); background: var(--kaip-bg); color: var(--kaip-text); font: inherit; font-size: 13px; }
+.kaip-auth-input:focus { outline: none; border-color: var(--kaip-cyan); box-shadow: 0 0 0 2px rgba(0, 212, 255, .18); }
+.kaip-auth-btn { padding: 9px 14px; border-radius: 9px; border: none; cursor: pointer; font: inherit; font-weight: 700; font-size: 13px; color: #06121b; background: linear-gradient(135deg, var(--kaip-cyan), var(--kaip-purple)); }
+.kaip-auth-btn:hover { filter: brightness(1.08); }
+.kaip-auth-msg { min-height: 15px; font-size: 12px; color: var(--kaip-warn); }
+.kaip-logout { padding: 5px 10px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 11px; font-weight: 600; color: var(--kaip-muted); background: transparent; border: 1px solid var(--kaip-border); }
+.kaip-logout:hover { color: var(--kaip-text); border-color: var(--kaip-cyan); }
