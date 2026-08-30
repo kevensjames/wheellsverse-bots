@@ -459,7 +459,9 @@ async function streamGoverned(text) {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: text, prefer_local: true,
+        // prefer the local model (ollama) only in local dev; production has no local
+        // model, so prod routes to the cloud provider (avoids a false model_error).
+        message: text, prefer_local: /localhost|127\.0\.0\.1/.test(location.hostname),
         conversation_id: state.conversationId, context: buildContext(),
       }),
       signal: ctrl.signal,
