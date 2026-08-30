@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Holding Operations</title>
+<style>
+  :root{--bg:#0b0f1a;--panel:#11172a;--border:#1e2740;--text:#e8edf5;--muted:#8a95a8;--cyan:#00d4ff;--purple:#a855f7;--accent:#4df4a5;--warn:#ffb547}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 'Space Grotesk',system-ui,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:24px}
+  h1{font-size:19px;margin:0 0 4px} .sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
+  .brand{font-weight:700;font-size:15px} .row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);margin-top:6px}
+  .badge{font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:700;border-radius:6px;padding:2px 7px}
+  .v{color:var(--accent);border:1px solid rgba(77,244,165,.35)} .u{color:var(--warn);border:1px solid rgba(255,181,71,.35)} .k{color:var(--muted);border:1px solid var(--border)}
+  .confirm{color:var(--warn);font-style:italic}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:18px}
+  .panel h2{font-size:14px;margin:0 0 10px} .muted{color:var(--muted)} code{color:var(--cyan)}
+  a{color:var(--cyan)} .msg{color:var(--warn);padding:14px}
+</style></head>
+<body><div class="wrap">
+  <h1>Holding Operations</h1>
+  <div class="sub">Source-backed only · financials/customers/legal shown as <span class="confirm">requires operator confirmation</span> until you verify them · read-only</div>
+  <div id="out"><div class="msg">Loading… (sign in via the KAI Command Center if this stays blank)</div></div>
+</div>
+<script>
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const badge = c => c==='VERIFIED'?'<span class="badge v">verified</span>' : (c==='UNKNOWN'?'<span class="badge k">unknown</span>':'<span class="badge u">'+esc((c||'').toLowerCase())+'</span>');
+async function j(p){ const r=await fetch(p,{credentials:'same-origin'}); if(!r.ok) throw new Error(r.status); return r.json(); }
+(async ()=>{
+  const out=document.getElementById('out');
+  try{
+    const who = await j('/admin/session/whoami');
+    if(!who.authenticated || who.role!=='owner'){ out.innerHTML='<div class="msg">Owner sign-in required. Open the KAI Command Center, sign in, then reload.</div>'; return; }
+    const ov = await j('/admin/kai/holding/overview');          // through the bridge → App B (owner-gated)
+    let html='<div class="grid">';
+    for(const e of ov.entities){
+      html+='<div class="card"><div class="brand">'+esc(e.brand)+' '+badge(e.confidence)+'</div>'
+        +'<div class="row"><span>status</span><span>'+esc(e.status)+'</span></div>'
+        +'<div class="row"><span>stage</span><span>'+esc(e.stage||'—')+'</span></div>'
+        +'<div class="row"><span>repo</span><span>'+esc(e.repository||'—')+'</span></div>'
+        +'<div class="row"><span>deploy</span><span>'+esc(e.deployment||'—')+'</span></div>'
+        +'<div class="row"><span>revenue</span><span class="confirm">requires confirmation</span></div></div>';
+    }
+    html+='</div>';
+    html+='<div class="panel"><h2>Financials & sensitive data</h2><div class="muted">'+esc(ov.financials)+'</div>'
+      +'<div class="muted" style="margin-top:8px">Fields awaiting confirmation: <code>'+esc(ov.requires_confirmation.length)+'</code></div></div>';
+    try{ const b=await j('/admin/kai/holding/briefing');
+      html+='<div class="panel"><h2>Morning briefing (report-only)</h2>'
+        +'<div class="muted">timezone '+esc(b.timezone)+' · '+esc(b.delivery)+'</div>'
+        +'<div class="muted" style="margin-top:8px">priorities: '+esc(b.todays_priorities)+'</div></div>';
+    }catch(_){}
+    out.innerHTML=html;
+  }catch(err){ out.innerHTML='<div class="msg">Holding view unavailable ('+esc(err.message)+'). It is enabled only when KAI_HOLDING_ENABLED is on.</div>'; }
+})();
+</script>
+</body></html>

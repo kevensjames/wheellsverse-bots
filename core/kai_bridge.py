@@ -58,7 +58,7 @@ class BridgeConfig:
     # <upstream>/admin/kai-chat. Configurable in case App B remounts.
     upstream_prefix: str = "/admin"
     allow_prefixes: tuple = ("kai-chat", "kg", "twin", "persona", "briefing",
-                             "research", "memory")
+                             "research", "memory", "holding")
     allow_methods: frozenset = frozenset({"GET", "POST"})
     # App B's /admin/kai-chat ALWAYS runs as a synthetic tier='ultra' operator
     # (admin_chat.py: "bypasses every paid-gate"), and App B's require_admin_token

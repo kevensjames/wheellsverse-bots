@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Holding Operations OS — governed READ-ONLY holding endpoints. Default off:
     # when False the router is not mounted at all (zero new surface).
     KAI_HOLDING_ENABLED: bool = False
+    # Daily morning-briefing routine (report-only, no external send). Default off.
+    KAI_HOLDING_BRIEFING_ENABLED: bool = False
+    KAI_HOLDING_BRIEFING_UTC_HOUR: int = 11   # 07:00 America/New_York (EDT); use 12 for EST
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

@@ -8,7 +8,7 @@ celery_app = Celery(
     "wheellsverse",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.workers.tasks"],
+    include=["app.workers.tasks", "app.workers.holding_tasks"],
 )
 
 celery_app.conf.update(
@@ -38,3 +38,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(minute=f"*/{settings.CRYPTO_PREDICTION_INTERVAL_MINUTES}"),
     },
 }
+
+# Holding morning briefing — scheduled ONLY when enabled (default off → not scheduled).
+# Report-only; ~07:00 America/New_York via the configurable UTC hour (DST-adjustable).
+if getattr(settings, "KAI_HOLDING_BRIEFING_ENABLED", False):
+    celery_app.conf.beat_schedule["holding-morning-briefing"] = {
+        "task": "app.workers.holding_tasks.morning_briefing",
+        "schedule": crontab(hour=int(getattr(settings, "KAI_HOLDING_BRIEFING_UTC_HOUR", 11)), minute=0),
+    }
