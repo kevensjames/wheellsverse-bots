@@ -44,10 +44,26 @@ def company_portfolio(entity_id: str) -> Optional[dict]:
     return d
 
 
+def _movement(cur: dict, prev: Optional[dict]) -> dict:
+    """REAL day-over-day deltas from a stored prior snapshot. No history yet → honest baseline note."""
+    if not prev:
+        return {"status": "baseline captured — deltas available from the next daily briefing (no prior snapshot yet)"}
+    flds = ("entities_total", "entities_verified", "open_incidents", "open_risks", "fields_awaiting_confirmation")
+    d = {"since": prev.get("as_of", "")}
+    for f in flds:
+        try:
+            d[f] = int(cur.get(f, 0)) - int(prev.get(f, 0))
+        except Exception:
+            pass
+    return d
+
+
 def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[dict] = None,
+                           signals: Optional[list] = None, prev_kpis: Optional[dict] = None,
                            now_iso: str = "") -> dict:
     """Report-only. Reports source-backed status + explicitly what needs confirmation.
-    Never fabricates KPI movement, revenue, or system health it wasn't given."""
+    Never fabricates KPI movement, revenue, or system health it wasn't given. `signals` are
+    live self-observed probes (feed priorities); `prev_kpis` is the last stored snapshot (feed movement)."""
     ents = reg.all_entities()
     sys_health = health if health else {"status": "UNVERIFIED — no live health data supplied to this briefing"}
     monitor_state = monitor if monitor else {"status": "UNVERIFIED — no monitor snapshot supplied"}
@@ -63,7 +79,7 @@ def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[d
         "health": f"{ok_probes}/{len(health)} probes OK" if health else "UNVERIFIED — no live probe this briefing",
     }
     # Deterministic, source-cited ranked priorities (empty only if nothing is surfaced):
-    priorities = derive_priorities(health=health, monitor=monitor)
+    priorities = derive_priorities(health=health, monitor=monitor, signals=signals)
     return {
         "generated_at": now_iso or "",
         "timezone": "America/New_York",
@@ -74,9 +90,8 @@ def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[d
             for e in ents
         ],
         "kpis": kpis,
-        # Movement/deltas stay disclaimed: a briefing runs statelessly, so trends need a stored KPI history.
-        "kpi_movement": ("Point-in-time snapshot provided in `kpis`. Trend/delta movement is "
-                         "REQUIRES_OPERATOR_CONFIRMATION — no stored KPI history is connected (briefing is stateless)."),
+        # REAL movement when a prior snapshot exists; honest baseline note on the first run.
+        "kpi_movement": _movement(kpis, prev_kpis),
         "todays_priorities": priorities if priorities else (
             "No priorities surfaced — no failing probes, logged risks/incidents, unverified entities, "
             "or pending confirmations."),

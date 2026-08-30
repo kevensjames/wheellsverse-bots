@@ -17,9 +17,11 @@ from app.services.holding import registry as reg
 
 CRITICAL, HIGH, MEDIUM, LOW = 0, 1, 2, 3
 _SEV = {CRITICAL: "CRITICAL", HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW"}
+_SEVRANK = {"CRITICAL": CRITICAL, "HIGH": HIGH, "MEDIUM": MEDIUM, "LOW": LOW}
 
 
-def derive_priorities(*, health: Optional[dict] = None, monitor: Optional[dict] = None) -> list[dict]:
+def derive_priorities(*, health: Optional[dict] = None, monitor: Optional[dict] = None,
+                      signals: Optional[list] = None) -> list[dict]:
     """Return today's ranked priorities, each with a cited source. Deterministic + source-backed."""
     items: list[tuple[int, dict]] = []
 
@@ -29,8 +31,16 @@ def derive_priorities(*, health: Optional[dict] = None, monitor: Optional[dict] 
         if detail: body["detail"] = detail
         items.append((sev, body))
 
-    # 1. live health failures (CRITICAL) — source: the same public probes the monitor uses
-    if health:
+    # 1a. live self-observed signals (each at its OWN severity) — source: live public probe.
+    #     When signals are supplied they SUBSUME the simple health-arg check (no double-count).
+    if signals:
+        for s in signals:
+            if not s.get("ok", True):
+                add(_SEVRANK.get(s.get("severity", "HIGH"), HIGH),
+                    f"live signal {s.get('name')}: {s.get('detail', '')}".rstrip(),
+                    f"live-signal:{s.get('name')}")
+    # 1b. fallback: the simple 2-probe health arg (only when richer signals weren't collected)
+    elif health:
         for name, h in health.items():
             code = h.get("http") if isinstance(h, dict) else None
             if code != 200:
@@ -79,7 +89,12 @@ def demo() -> None:
     base = derive_priorities()
     assert all(p["source"].startswith(("registry:", "registry.")) for p in base), base
     assert isinstance(base, list)
-    print(f"priorities.demo OK — {len(ps)} ranked w/ health+monitor, {len(base)} registry-only")
+    # live signals rank at their own severity and cite the probe (a failing CRITICAL signal leads)
+    sp = derive_priorities(signals=[{"name": "appB_health", "ok": False, "severity": "CRITICAL", "detail": "HTTP 0"},
+                                    {"name": "appA_cpu", "ok": True, "severity": "OK", "detail": "54%"}])
+    assert sp[0]["source"] == "live-signal:appB_health" and sp[0]["severity"] == "CRITICAL", sp[:1]
+    print(f"priorities.demo OK — {len(ps)} ranked w/ health+monitor, {len(base)} registry-only, "
+          f"{len(sp)} w/ a failing live signal leading")
 
 
 if __name__ == "__main__":

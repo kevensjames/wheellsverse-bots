@@ -35,7 +35,9 @@ def morning_briefing() -> dict:
             pass
 
     now = datetime.now(timezone.utc).isoformat()
-    briefing = run_morning_briefing(now_iso=now, fetch_health=True, audit=_audit)
+    # persist=True: the daily scheduled run stores a KPI snapshot so movement/deltas accrue
+    # (the on-demand endpoint reads movement but does NOT persist — keeps history one-per-day).
+    briefing = run_morning_briefing(now_iso=now, fetch_health=True, audit=_audit, persist=True)
     return {"generated": True, "audit_event_ids": audit_ids,
             "entities": len(briefing.get("portfolio_status", [])),
             "delivery": "in-app only (no external send)"}
