@@ -35,8 +35,22 @@ def main():
 
     from playwright.sync_api import sync_playwright
     t0 = time.time()
+    # Route ALL browser traffic through the egress-allowlist proxy when provided. The worker
+    # runs on an internal network (no direct internet), so the proxy is the only way out.
+    proxy = os.environ.get("WORKER_PROXY", "")
+    args = ["--no-sandbox", "--disable-dev-shm-usage"]
+    if proxy:
+        # There is no external DNS on the internal network, so Chromium must NOT resolve the
+        # target locally. MAP * ~NOTFOUND forces every hostname to fail local resolution, which
+        # makes Chromium defer DNS to the SOCKS5 proxy (remote DNS). The proxy itself is given
+        # by IP, so EXCLUDE it — otherwise the NOTFOUND rule also kills the proxy connection.
+        phost = proxy.split("://", 1)[-1].rsplit(":", 1)[0]
+        args.append(f"--host-resolver-rules=MAP * ~NOTFOUND,EXCLUDE {phost}")
+    launch_kwargs = {"args": args}
+    if proxy:
+        launch_kwargs["proxy"] = {"server": proxy}
     with sync_playwright() as p:
-        browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage"])
+        browser = p.chromium.launch(**launch_kwargs)
         ctx = browser.new_context()             # fresh, isolated context per task
         page = ctx.new_page()
         page.set_default_timeout(int(task.get("maximum_runtime_seconds", 30)) * 1000)

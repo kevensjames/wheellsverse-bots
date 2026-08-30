@@ -4,8 +4,9 @@ Reuses the governed TARS policy (no parallel policy). Enforces strong container 
 read-only rootfs, tmpfs /tmp, non-root, all caps dropped, no-new-privileges, memory/cpu/pids
 limits, NO host mounts, per-task ephemeral (--rm). Supports timeout + cancellation. Returns
 structured evidence. WRITE/consequential actions are denied before any container starts.
-NOTE: full network default-deny/allowlist needs an egress-proxy sidecar (documented hardening);
-the runner + this submitter block internal/metadata/private hosts and require a domain allowlist.
+Network egress is DEFAULT-DENY: the worker runs on an --internal network (no direct internet)
+and all traffic is forced through an egress-allowlist SOCKS5 proxy sidecar (see proxy/), so a
+compromised runner cannot reach a non-allowlisted host — enforced at the network layer.
 """
 import json, os, subprocess, sys, time, uuid
 
@@ -28,6 +29,7 @@ def _permit(action: str, *, isolated_preapproved_env: bool):
     return False, f"denied: unknown action '{a}' (fail-closed)"
 
 IMAGE = "wv-browser-worker:v1.47.0"
+PROXY_IMAGE = "wv-egress-proxy:v1"
 
 def _iso_flags(name: str) -> list:
     return [
@@ -45,23 +47,44 @@ def run_browser_task(task: dict, *, isolated_preapproved_env: bool = True, timeo
     ok, reason = _permit(action, isolated_preapproved_env=isolated_preapproved_env)
     if not ok:
         return {"status": "denied", "policy": reason}
-    name = "wvbw-" + uuid.uuid4().hex[:10]
-    cmd = ["docker", "run", *_iso_flags(name), "-e", "TASK_JSON=" + json.dumps(task), IMAGE]
-    t0 = time.time()
+    sfx = uuid.uuid4().hex[:8]
+    name, net, proxy = f"wvbw-{sfx}", f"wvbwnet-{sfx}", f"wvbwproxy-{sfx}"
+    allow = ",".join(task.get("allowed_domains", []))
+    t0 = time.time(); result = {}
     try:
+        # 1) INTERNAL network (no direct internet) for the worker
+        subprocess.run(["docker", "network", "create", "--internal", net], capture_output=True, check=True)
+        # 2) egress-allowlist proxy on the internal net + bridge (the only path to the internet)
+        subprocess.run(["docker", "run", "-d", "--name", proxy, "--network", net,
+                        "-e", "ALLOWED_DOMAINS=" + allow, PROXY_IMAGE], capture_output=True, check=True)
+        subprocess.run(["docker", "network", "connect", "bridge", proxy], capture_output=True, check=True)
+        time.sleep(1.5)   # let the proxy bind
+        # proxy IP on the internal net — address it by IP (Chromium resolves the proxy address
+        # itself). SOCKS5 does REMOTE DNS: the target hostname is resolved by the proxy, so the
+        # worker never needs external DNS (which the internal network doesn't provide).
+        pip = subprocess.run(["docker", "inspect", "-f",
+                              '{{(index .NetworkSettings.Networks "' + net + '").IPAddress}}', proxy],
+                             capture_output=True, text=True).stdout.strip() or proxy
+        # 3) worker on the internal net ONLY, all traffic forced through the SOCKS5 proxy
+        cmd = ["docker", "run", *_iso_flags(name), "--network", net,
+               "-e", f"WORKER_PROXY=socks5://{pip}:8888", "-e", "TASK_JSON=" + json.dumps(task), IMAGE]
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout_s)
+        for line in reversed((p.stdout or "").strip().splitlines()):
+            try: result = json.loads(line); break
+            except Exception: continue
+        if p.returncode != 0 and not result:
+            result = {"status": "error", "stderr_tail": (p.stderr or "")[-200:]}
     except subprocess.TimeoutExpired:
         subprocess.run(["docker", "kill", name], capture_output=True)
-        return {"status": "timeout", "duration_ms": int((time.time() - t0) * 1000)}
-    out = (p.stdout or "").strip().splitlines()
-    result = {}
-    for line in reversed(out):
-        try: result = json.loads(line); break
-        except Exception: continue
+        result = {"status": "timeout"}
+    except subprocess.CalledProcessError as e:
+        result = {"status": "error", "setup": (e.stderr or b"")[-160:].decode(errors="replace") if isinstance(e.stderr, bytes) else str(e.stderr)[-160:]}
+    finally:
+        subprocess.run(["docker", "kill", proxy], capture_output=True)
+        subprocess.run(["docker", "network", "rm", net], capture_output=True)
     result["container"] = name
+    result["egress"] = "default-deny via allowlist proxy"
     result["duration_ms"] = int((time.time() - t0) * 1000)
-    if p.returncode != 0 and not result:
-        result = {"status": "error", "stderr_tail": (p.stderr or "")[-200:]}
     return result
 
 def cancel(name: str) -> bool:

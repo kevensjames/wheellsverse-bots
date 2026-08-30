@@ -53,6 +53,28 @@ still = subprocess.run(["docker", "ps", "-q", "-f", f"name={cname}"], capture_ou
 ck("cancellation kills a running worker container", bool(running_before) and killed and not still,
    f"running_before={bool(running_before)} killed={killed} still_running={bool(still)}")
 
+# 6) EGRESS DEFAULT-DENY: proxy blocks a host the RUNNER would otherwise allow (network layer)
+sfx = uuid.uuid4().hex[:8]; net = f"pxnet-{sfx}"; px = f"px-{sfx}"; wk = f"wk-{sfx}"
+try:
+    subprocess.run(["docker", "network", "create", "--internal", net], capture_output=True, check=True)
+    subprocess.run(["docker", "run", "-d", "--name", px, "--network", net,
+                    "-e", "ALLOWED_DOMAINS=app.wheellsverse.com", submit.PROXY_IMAGE], capture_output=True, check=True)
+    subprocess.run(["docker", "network", "connect", "bridge", px], capture_output=True)
+    time.sleep(1.5)
+    pip = subprocess.run(["docker", "inspect", "-f", '{{(index .NetworkSettings.Networks "' + net + '").IPAddress}}', px],
+                         capture_output=True, text=True).stdout.strip() or px
+    # runner allowlist INCLUDES example.com (runner would allow) but the proxy allowlist does NOT
+    bad = json.dumps({"action": "read_page", "url": "https://example.com", "allowed_domains": ["example.com"], "maximum_runtime_seconds": 20})
+    p6 = subprocess.run(["docker", "run", "--rm", "--name", wk, *submit._iso_flags(wk)[3:], "--network", net,
+                         "-e", f"WORKER_PROXY=socks5://{pip}:8888", "-e", "TASK_JSON=" + bad, submit.IMAGE],
+                        capture_output=True, text=True, timeout=60)
+    blocked = '"status": "completed"' not in (p6.stdout or "")
+finally:
+    subprocess.run(["docker", "kill", px], capture_output=True)
+    subprocess.run(["docker", "network", "rm", net], capture_output=True)
+ck("egress default-deny: proxy blocks a non-allowlisted host at the NETWORK layer", blocked,
+   (p6.stdout or p6.stderr or "").strip()[:110])
+
 n = len(res); ok = sum(res)
 print(f"\nBROWSER-WORKER MILESTONE: {ok}/{n} —", "PASS" if ok == n else "FAIL")
 sys.exit(0 if ok == n else 1)
