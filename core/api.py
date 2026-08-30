@@ -942,6 +942,15 @@ def _kai_presence_js():
                         headers={"Cache-Control": "public, max-age=60, must-revalidate"})
 
 
+@app.get("/admin/holding", include_in_schema=False)
+def _admin_holding_page():
+    # Read-only Holding Operations view. Fetches owner-gated data through the bridge
+    # (/admin/kai/holding/*); degrades gracefully when the feature is off.
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "holding.html"
+    return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/admin/kai-presence.css", include_in_schema=False)
 def _kai_presence_css():
     from fastapi.responses import FileResponse
