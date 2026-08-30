@@ -8,6 +8,7 @@ absent health data is disclosed as unverified, not guessed.
 from __future__ import annotations
 from typing import Optional
 from app.services.holding import registry as reg
+from app.services.holding.priorities import derive_priorities
 
 
 def executive_overview() -> dict:
@@ -50,6 +51,19 @@ def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[d
     ents = reg.all_entities()
     sys_health = health if health else {"status": "UNVERIFIED — no live health data supplied to this briefing"}
     monitor_state = monitor if monitor else {"status": "UNVERIFIED — no monitor snapshot supplied"}
+    ok_probes = sum(1 for h in (health or {}).values() if isinstance(h, dict) and h.get("http") == 200)
+    # Source-backed point-in-time KPI snapshot (real counts from live state — never invented):
+    kpis = {
+        "as_of": now_iso or "",
+        "entities_total": len(ents),
+        "entities_verified": sum(1 for e in ents if e.confidence.value == "VERIFIED"),
+        "open_incidents": sum(len(getattr(e, "incidents", None) or []) for e in ents),
+        "open_risks": sum(len(getattr(e, "risks", None) or []) for e in ents),
+        "fields_awaiting_confirmation": len(reg.needs_confirmation()),
+        "health": f"{ok_probes}/{len(health)} probes OK" if health else "UNVERIFIED — no live probe this briefing",
+    }
+    # Deterministic, source-cited ranked priorities (empty only if nothing is surfaced):
+    priorities = derive_priorities(health=health, monitor=monitor)
     return {
         "generated_at": now_iso or "",
         "timezone": "America/New_York",
@@ -59,10 +73,13 @@ def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[d
             {"brand": e.brand_name, "status": e.operational_status, "confidence": e.confidence.value}
             for e in ents
         ],
-        # honest: priorities/KPI-movement/revenue are NOT invented — they need source-backed inputs
-        "kpi_movement": "REQUIRES_OPERATOR_CONFIRMATION (no source-backed KPI feed connected)",
-        "todays_priorities": ("No source-backed priorities are connected yet. Confirm holding data / connect a "
-                              "source-backed KPI + task feed to enable ranked priorities."),
+        "kpis": kpis,
+        # Movement/deltas stay disclaimed: a briefing runs statelessly, so trends need a stored KPI history.
+        "kpi_movement": ("Point-in-time snapshot provided in `kpis`. Trend/delta movement is "
+                         "REQUIRES_OPERATOR_CONFIRMATION — no stored KPI history is connected (briefing is stateless)."),
+        "todays_priorities": priorities if priorities else (
+            "No priorities surfaced — no failing probes, logged risks/incidents, unverified entities, "
+            "or pending confirmations."),
         "requires_confirmation": reg.needs_confirmation(),
         "delivery": "report generated in-app only — sending to any external recipient requires explicit approval",
     }

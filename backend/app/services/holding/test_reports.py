@@ -21,8 +21,10 @@ ck("unknown entity -> None", reports.company_portfolio("nope") is None)
 
 b = run_morning_briefing(now_iso="2026-08-30T09:00:00-04:00")   # fetch_health=False → no network
 ck("briefing timezone America/New_York", b["timezone"] == "America/New_York")
-ck("briefing does NOT invent KPI movement or priorities",
-   "REQUIRES_OPERATOR_CONFIRMATION" in b["kpi_movement"] and "No source-backed priorities" in b["todays_priorities"])
+ck("briefing priorities are ranked + every one cites a source (never invented); movement stays disclaimed",
+   "REQUIRES_OPERATOR_CONFIRMATION" in b["kpi_movement"]
+   and isinstance(b["todays_priorities"], list) and len(b["todays_priorities"]) > 0
+   and all("source" in p and "severity" in p for p in b["todays_priorities"]))
 ck("briefing health disclaimed when none supplied", "UNVERIFIED" in str(b["system_health"]))
 ck("briefing is report-only (no external send)", "requires explicit approval" in b["delivery"])
 
