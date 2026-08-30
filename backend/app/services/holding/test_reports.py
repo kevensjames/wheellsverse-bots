@@ -12,9 +12,10 @@ ck("overview does NOT summarize financials (requires confirmation)",
 ck("overview lists entities + verified count", ov["counts"]["total"] >= 10 and ov["counts"]["verified"] >= 1)
 
 port = reports.company_portfolio("kai")
-ck("portfolio financial fields are disclaimer objects (value None)",
-   port["revenue_metrics"] == {"value": None, "status": "REQUIRES_OPERATOR_CONFIRMATION"}
-   and port["customers"]["value"] is None)
+bots = reports.company_portfolio("wheellsverse_bots")   # money never operator-confirmed
+ck("un-confirmed portfolio financial fields are disclaimer objects (value None)",
+   bots["revenue_metrics"] == {"value": None, "status": "REQUIRES_OPERATOR_CONFIRMATION"}
+   and bots["customers"]["value"] is None)
 ck("portfolio shows verified deployment fact", port["deployment"] and "kai-prod" in port["deployment"].lower())
 ck("unknown entity -> None", reports.company_portfolio("nope") is None)
 
