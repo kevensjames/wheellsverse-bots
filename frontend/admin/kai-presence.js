@@ -199,7 +199,7 @@ function mountDrawer() {
   drawerEl.setAttribute('aria-hidden', 'true');
   drawerEl.innerHTML = `
     <div class="kaip-head">
-      <div class="kaip-title"><span class="kaip-title-dot"></span>KAI<span class="kaip-state" id="kaip-state">online</span></div>
+      <div class="kaip-title"><span class="kaip-title-dot"></span>KAI<span class="kaip-state" id="kaip-state">online</span><span class="kaip-role-badge" id="kaip-role-badge" hidden>OWNER · GOVERNED</span></div>
       <div class="kaip-head-actions">
         <button class="kaip-logout" id="kaip-logout" type="button" title="Sign out" hidden>Sign out</button>
         <a class="kaip-nexus-link" href="/admin/nexus" title="Enter Nexus — same KAI, immersive">⤢ Nexus</a>
@@ -287,9 +287,11 @@ function renderAuthState() {
   const sysEl = drawerEl.querySelector('#kaip-auth-sys');
   const inputWrap = drawerEl.querySelector('.kaip-input-wrap');
   const logoutBtn = drawerEl.querySelector('#kaip-logout');
+  const roleBadge = drawerEl.querySelector('#kaip-role-badge');
   const sysHealthy = !!(state.flags.operator_session_enabled && state.flags.kai_bridge_enabled);
   const authed = !!state.principal;
-  if (logoutBtn) logoutBtn.hidden = !authed;
+  if (logoutBtn) logoutBtn.hidden = !authed;                 // SESSION control: only when signed in
+  if (roleBadge) roleBadge.hidden = !canGovernedChat();      // SESSION state: OWNER · GOVERNED (distinct from orb/system state)
   if (canGovernedChat()) {                         // owner + governed → normal chat
     authEl.hidden = true; inputWrap.hidden = false; renderSuggestions();
   } else if (!sysHealthy) {                         // real system state (not a session issue)
