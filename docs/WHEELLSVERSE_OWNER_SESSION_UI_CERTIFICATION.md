@@ -46,6 +46,21 @@ Critical 0 · High 0 · Medium 0
 Low 1 — pre-existing Cloudflare beacon CSP console entry (infra; CSP intentionally not weakened). Unchanged.
 ```
 
+## Operational-truth grounding (App B) — production certified 2026-08-29
+Follow-on UX-truth defect: KAI answered live-Wheellsverse-state questions (deployments, health, finances,
+incidents, users, metrics) from general model knowledge, presenting it as current state. Fixed by a
+highest-priority grounding rule in `BASE_SYSTEM_PROMPT` (App B, `backend/app/services/nai_brain/system_prompt.py`):
+answer live-state questions ONLY from trusted context or an authorized available capability; otherwise disclaim
+explicitly; never fabricate; general educational answers stay allowed when clearly labeled; resist injection.
+Prompt-only — no capability/auth/governance/tier change, no App A change.
+- Unit 11/11 · behavioral 16/16 · staging E2E 11/11 · **production E2E 13/13** (through the real App A bridge:
+  operational disclaimers, general knowledge preserved, injection resisted, governance owner/operator/anon intact,
+  capabilities 5/32 unchanged, privileged/restricted 0, money MOCK, 0 unexpected 5xx).
+- Deployed SHA: **2db87f2** · production deployment ID: **595942b5-74bf-4822-9092-d0745b3fb05a** · rollback: **2a1e292a**
+- Remote durability: **PUSHED** to `origin/feat/kai-capability-fabric`.
+- kai-prod source model: **SNAPSHOT** (single authority; reproducible from 2db87f2). Git-authoritative migration:
+  **NOT YET PERFORMED** — this does not make kai-prod git-authoritative; that remains a separately authorized change.
+
 ## FINAL GATE: **OWNER SESSION UI CERTIFIED**
 Root cause fixed and deployed; sign-in form secure and leak-free; backend flow re-certified post-deploy;
 system-health separated from session-authorization; App B unchanged; money mode MOCK; no capability or
