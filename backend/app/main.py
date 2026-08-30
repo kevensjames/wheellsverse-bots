@@ -207,6 +207,10 @@ app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
 app.include_router(admin_chat.router)
+# Holding Operations OS — governed READ-ONLY endpoints, mounted ONLY when enabled (default off).
+if settings.KAI_HOLDING_ENABLED:
+    from app.routers import admin_holding
+    app.include_router(admin_holding.router)
 app.include_router(admin_supreme.router)
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     #    authenticates both apps. Legacy X-Admin-Token stays valid regardless.
     OPERATOR_SESSION_ENABLED: bool = False
     SESSION_SIGNING_SECRET: str = ""
+    # Holding Operations OS — governed READ-ONLY holding endpoints. Default off:
+    # when False the router is not mounted at all (zero new surface).
+    KAI_HOLDING_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
