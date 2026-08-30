@@ -82,9 +82,17 @@ _ENTITIES: list[HoldingEntity] = [
                   deployment="Railway backend (grateful-flexibility-production) + Cloudflare Pages frontend",
                   products=["SOL member app", "Circle Catalog (participation plan)"],
                   integrations=["Dwolla (MOCK — no real money movement)", "Stripe Checkout (Go Premium)"],
+                  # Verified context in NON-protected fields (payment RAILS are code-facts, not the
+                  # operator's merchant/account reference — that stays disclaimed below):
+                  kpis=["Pricing: Premium $14.99, Participation plan $9.99 (plan_id 999)",
+                        "Payment rails: Stripe Checkout (Go Premium) + Dwolla (MOCK — no real transfers)",
+                        "Money mode: MOCK (no real Dwolla transfers)"],
                   last_verified_at="2026-08-30",
-                  data_source="verified this engagement (Sol deploy reality, staging env, Phase-3 build)",
+                  data_source="verified this engagement (Sol deploy reality, staging env, Phase-3 build) + repo pricing",
                   confidence=Confidence.VERIFIED),
+                  # revenue_metrics / customers / banking / payment-account-ref / expenses / compliance /
+                  # legal_name stay disclaimed: the ACTUAL figures live in the wheellsverse-sol backend +
+                  # Stripe/Dwolla dashboards, not this repo — operator confirmation required (never invented).
     HoldingEntity("kai", "KAI", entity_type="product", operational_status="LIVE",
                   stage="governed prod (App A app.wheellsverse.com ⇄ App B kai-prod, bridge ON)",
                   ownership=_HOLDCO,
@@ -93,9 +101,17 @@ _ENTITIES: list[HoldingEntity] = [
                   domains=["app.wheellsverse.com", "kai.wheellsverse.com"],
                   products=["KAI Command Center", "KAI governance runtime", "Holding Operations OS (dormant)"],
                   integrations=["OpenAI (prod)", "prod observability monitor (Railway cron, */5)"],
+                  # KAI is the internal, owner-only operator control plane — not a sold product. These are
+                  # verified code/engagement facts, kept in NON-protected fields (kpis), so the money/
+                  # customer fields below still hard-disclaim (operator confirms the business model):
+                  kpis=["LIVE governed prod; A⇄B bridge ON", "Prod observability monitor active (Railway cron */5)",
+                        "Owner-only access (kai.ultra) enforced at every reachable entry point",
+                        "Internal control plane — processes no payments (no Stripe/Dwolla in its codebase)"],
                   last_verified_at="2026-08-30",
-                  data_source="verified this engagement (Phase 0–4, operational-truth cert)",
+                  data_source="verified this engagement (Phase 0–4, operational-truth cert, owner-only RBAC)",
                   confidence=Confidence.VERIFIED),
+                  # revenue_metrics / expense_metrics / customers / banking / compliance / legal_name stay
+                  # disclaimed: KAI's business model / spend / entity are the operator's to confirm — not invented.
     HoldingEntity("nurtelle", "Nurtelle", entity_type="product", operational_status="ACTIVE (development)",
                   stage="Phase 2 (PR #11 open, 248 tests) — point-in-time",
                   ownership=_HOLDCO,
