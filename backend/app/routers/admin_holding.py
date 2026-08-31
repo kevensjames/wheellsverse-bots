@@ -147,3 +147,20 @@ def holding_worker_reclaim():
     """Return lease-expired stranded jobs to the queue (crash recovery). Owner-only."""
     from app.services.holding import worker_jobs
     return {"reclaimed": worker_jobs.reclaim_expired()}
+
+
+@router.post("/workers/heartbeat")
+def holding_worker_hb(body: dict = Body(default={})):
+    """The runner pings its liveness (even when idle) so the UI shows ONLINE/OFFLINE truthfully."""
+    from app.services.holding import status as stat
+    ok = stat.worker_heartbeat(str(body.get("worker_id") or "unknown"), host_id=str(body.get("host_id") or ""),
+                               version=str(body.get("version") or ""), runtime=str(body.get("runtime") or ""),
+                               current_job=body.get("current_job"))
+    return {"ok": ok}
+
+
+@router.get("/status")
+def holding_status():
+    """Operational status: worker liveness, cron, Telegram presence (never the token), autonomy roll-up."""
+    from app.services.holding import status as stat
+    return stat.full_status()

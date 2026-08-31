@@ -132,6 +132,8 @@ def main() -> int:
     print(f"[{WORKER_ID}] runner up · v{VERSION} · host={HOST_ID} · base={BASE} · oneshot={ONESHOT}", flush=True)
     processed = 0
     while not _STOP.is_set():
+        _post("/admin/holding/workers/heartbeat",                 # liveness (even when idle) for the UI
+              {"worker_id": WORKER_ID, "host_id": HOST_ID, "version": VERSION, "runtime": "colima/docker"}, retries=1)
         did = process_one(gh, br)
         if did:
             processed += 1
