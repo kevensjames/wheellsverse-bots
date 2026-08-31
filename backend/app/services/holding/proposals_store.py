@@ -54,7 +54,8 @@ def sync_open(proposals: list) -> int:
                      LIMIT 1"""), {"sk": sk}).fetchone()
                 if exists:
                     continue
-                action = {k: p.get(k) for k in ("action_class", "proposed_action", "plan", "risk", "reversible")}
+                action = {k: p.get(k) for k in
+                          ("action_class", "proposed_action", "plan", "risk", "reversible", "worker", "impact", "effort")}
                 db.execute(text("""
                     INSERT INTO holding_proposals (source_key, severity, entity, title, action, status)
                     VALUES (:sk, :sev, :ent, :ttl, CAST(:act AS JSONB), 'proposed')

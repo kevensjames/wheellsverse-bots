@@ -6,7 +6,7 @@ so a disabled deployment has ZERO new surface. All endpoints are GET/read-only a
 approval-gated by design.
 """
 from __future__ import annotations
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 
 from app.routers.admin_chat import require_kai_ultra  # reuse the owner-only gate (no parallel auth)
 from app.services.holding import reports
@@ -98,3 +98,29 @@ def holding_execute(proposal_id: int):
     _audit_proposal("holding.proposal.executed",
                     {"id": proposal_id, "action_class": r.get("action_class"), "evidence": r.get("evidence")})
     return r
+
+
+# ── Worker-job queue (Wave 3+): prod queues; the operator's colima worker-runner executes ──
+@router.get("/worker-jobs")
+def holding_worker_jobs(status: str = ""):
+    from app.services.holding import worker_jobs
+    return {"jobs": worker_jobs.list_jobs(status=status or None)}
+
+
+@router.post("/worker-jobs/claim")
+def holding_worker_claim():
+    """The worker-runner claims the next dispatched job (dispatched -> running). Owner-only."""
+    from app.services.holding import worker_jobs
+    job = worker_jobs.claim_next()
+    return {"job": job}   # {} when the queue is empty
+
+
+@router.post("/worker-jobs/{job_id}/complete")
+def holding_worker_complete(job_id: int, body: dict = Body(default={})):
+    """The worker-runner posts a job's read-only evidence (running -> done/failed). Owner-only."""
+    from app.services.holding import worker_jobs
+    ok = worker_jobs.complete(job_id, body.get("evidence", body), status=body.get("status", "done"))
+    if not ok:
+        raise HTTPException(status_code=409, detail="job not in 'running' state")
+    _audit_proposal("holding.worker_job.completed", {"job_id": job_id, "status": body.get("status", "done")})
+    return {"completed": True, "job_id": job_id}

@@ -60,6 +60,27 @@ def _review(proposal):
 _RUNNERS = {"VERIFY": _verify, "INVESTIGATE": _investigate, "REQUEST_INFO": _request_info, "REVIEW": _review}
 
 
+def _github_slug(entity: str) -> str:
+    """Resolve an entity to a GitHub owner/repo for a read-only worker task."""
+    return "kevensjames/chenara" if entity == "nurtelle" else "kevensjames/wheellsverse-bots"
+
+
+def _dispatch_worker(proposal_id: int, worker: str, entity) -> dict:
+    """Enqueue a READ-ONLY isolated-worker job for the approved proposal (executed by the colima
+    worker-runner, not prod). Returns the dispatch evidence."""
+    if worker == "github":
+        task = {"action": "list_prs", "repo": _github_slug(entity or "")}
+    elif worker == "browser":
+        task = {"action": "read_page", "url": "https://app.wheellsverse.com",
+                "allowed_domains": ["app.wheellsverse.com"]}
+    else:
+        return {"kind": "DISPATCH_SKIPPED", "reason": f"unknown worker '{worker}'"}
+    from app.services.holding import worker_jobs
+    job_id = worker_jobs.enqueue(proposal_id, worker, task)
+    return {"kind": "DISPATCHED", "worker": worker, "job_id": job_id, "task": task,
+            "note": "queued for the isolated worker-runner (read-only, runs in an isolated container)"}
+
+
 def execute_approved(proposal_id: int) -> dict:
     """Execute an APPROVED proposal's read-only action → record evidence → mark 'executed'.
     Refuses anything not already approved. Never raises fatally."""
@@ -71,8 +92,14 @@ def execute_approved(proposal_id: int) -> dict:
         if p.get("status") != "approved":
             return {"executed": False,
                     "reason": f"proposal is '{p.get('status')}', not 'approved' — execution requires a prior approval"}
-        ac = (p.get("action") or {}).get("action_class")
-        evidence = _RUNNERS.get(ac, _review)(p)
+        action = p.get("action") or {}
+        ac = action.get("action_class")
+        worker = action.get("worker")
+        if worker:
+            # dispatch to an isolated worker (executed off-prod by the colima worker-runner)
+            evidence = _dispatch_worker(proposal_id, worker, p.get("entity"))
+        else:
+            evidence = _RUNNERS.get(ac, _review)(p)
         evidence["read_only"] = True
         ok = proposals_store.record_execution(proposal_id, evidence)
         if not ok:

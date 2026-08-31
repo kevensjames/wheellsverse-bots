@@ -11,35 +11,44 @@ def ck(n, ok): res.append(ok); print(f"  [{'PASS' if ok else 'FAIL'}] {n}")
 
 s = SessionLocal(); s.execute(text("DELETE FROM holding_proposals")); s.commit(); s.close()
 
-# seed one VERIFY proposal (for kai) and one REQUEST_INFO
+# seed a VERIFY (kai -> worker=github, DISPATCHES) and a REQUEST_INFO (no worker, in-process)
+from app.services.holding import worker_jobs
+worker_jobs.enqueue(0, "_ensure", {})  # a committed write creates the table; cleared next
+w = SessionLocal(); w.execute(text("DELETE FROM holding_worker_jobs")); w.commit(); w.close()
 store.sync_open(prop.build_proposals([
     {"severity": "MEDIUM", "title": "Re-verify KAI", "source": "registry:kai.confidence", "entity": "kai"},
     {"severity": "LOW", "title": "Confirm operator data fields", "source": "registry.needs_confirmation()"},
 ]))
 opened = store.list_proposals(status="proposed")
 verify_p = next(p for p in opened if p["action"]["action_class"] == "VERIFY")
+info_p = next(p for p in opened if p["action"]["action_class"] == "REQUEST_INFO")
 
 # 1) SAFETY: a 'proposed' (un-approved) proposal cannot execute
 r = execute_approved(verify_p["id"])
 ck("un-approved proposal is REFUSED (execution bound to approval)",
    r["executed"] is False and "approval" in r["reason"])
 
-# 2) approve, then execute → read-only evidence recorded, status → executed
+# 2) approve + execute a WORKER (github) proposal -> DISPATCHES to the queue (not in-process)
 store.decide(verify_p["id"], "approved")
 r = execute_approved(verify_p["id"])
-ck("approved proposal executes (read-only)", r["executed"] is True and r["evidence"].get("read_only") is True)
-ck("VERIFY evidence carries live + registry status", r["evidence"]["kind"] == "VERIFY"
-   and ("live" in r["evidence"] or "registry" in r["evidence"]))
+ck("approved worker-proposal dispatches a job (read-only)",
+   r["executed"] is True and r["evidence"]["kind"] == "DISPATCHED" and r["evidence"].get("job_id") is not None)
+ck("a read-only worker job is enqueued (github, list_prs)",
+   any(j["worker"] == "github" and j["task"].get("action") == "list_prs"
+       for j in worker_jobs.list_jobs(status="dispatched")))
 ck("executed proposal leaves the approved set", store.get(verify_p["id"])["status"] == "executed")
 
 # 3) re-executing an already-executed proposal is refused (no longer approved)
-r2 = execute_approved(verify_p["id"])
-ck("re-execute refused (idempotent guard)", r2["executed"] is False)
+ck("re-execute refused (idempotent guard)", execute_approved(verify_p["id"])["executed"] is False)
 
-# 4) a REJECTED proposal cannot execute
-ri = next(p for p in opened if p["action"]["action_class"] == "REQUEST_INFO")
-store.decide(ri["id"], "rejected", reason="nope")
-ck("rejected proposal cannot execute", execute_approved(ri["id"])["executed"] is False)
+# 4) approve + execute a NON-worker proposal (REQUEST_INFO) -> runs IN-PROCESS, read-only evidence
+store.decide(info_p["id"], "approved")
+ri_r = execute_approved(info_p["id"])
+ck("non-worker proposal runs in-process (read-only evidence)",
+   ri_r["executed"] is True and ri_r["evidence"]["kind"] == "REQUEST_INFO" and ri_r["evidence"].get("read_only"))
+
+# cleanup worker jobs
+w = SessionLocal(); w.execute(text("DELETE FROM holding_worker_jobs")); w.commit(); w.close()
 
 # 5) unknown id → refused, not a crash
 ck("unknown proposal id refused cleanly", execute_approved(999999)["executed"] is False)

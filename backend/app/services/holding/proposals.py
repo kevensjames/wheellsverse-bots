@@ -12,38 +12,64 @@ INVESTIGATE, VERIFY, REQUEST_INFO, REVIEW = "INVESTIGATE", "VERIFY", "REQUEST_IN
 _OPEN = "proposed"
 
 
+def _entity_facts(entity: Optional[str]) -> dict:
+    """Real registry facts for an entity (repo, status, confidence) — grounds a richer proposal. Fail-open."""
+    if not entity:
+        return {}
+    try:
+        from app.services.holding import registry as reg
+        e = reg.get(entity)
+        if not e:
+            return {}
+        return {"repo": e.repository, "status": e.operational_status, "confidence": e.confidence.value,
+                "deployment": e.deployment}
+    except Exception:
+        return {}
+
+
 def _template(priority: dict) -> dict:
-    """priority -> {action_class, proposed_action, plan[], risk, reversible}. Read-only actions only."""
+    """priority -> {action_class, proposed_action, plan[], risk, reversible, worker?, impact, effort}.
+    Read-only actions only. Entity-aware: pulls the entity's real repo/status to be specific, and hints
+    which isolated worker (github/browser) could carry the read-only action if dispatched (Wave 3)."""
     src = priority.get("source", "") or ""
     title = priority.get("title", "") or ""
-    ent = priority.get("entity") or "the entity"
+    ent = priority.get("entity")
+    who = ent or "the entity"
+    f = _entity_facts(ent)
+    repo = f.get("repo")
+    ctx = (f" (repo {repo.split(' ')[0]}, currently {f.get('status')})" if repo else "")
     if ".risks" in src:
-        return {"action_class": INVESTIGATE, "risk": "low", "reversible": True,
-                "proposed_action": f"Investigate and confirm remediation of the logged risk on {ent}.",
-                "plan": [f"Pull {ent}'s repo + recent PRs (read-only GitHub worker) to confirm the fix landed",
-                         "Verify the vulnerability is closed with no regression",
-                         "If confirmed, propose clearing the risk from the registry; else escalate"]}
+        return {"action_class": INVESTIGATE, "risk": "low", "reversible": True, "impact": "high", "effort": "30m",
+                "worker": "github" if repo else None,
+                "proposed_action": f"Confirm the logged risk on {who}{ctx} is remediated.",
+                "plan": ([f"Pull {repo.split(' ')[0]}'s open PRs + latest CI (read-only GitHub worker)"] if repo
+                         else ["Gather read-only evidence on the risk's current state"]) + [
+                         f"Verify the specific issue in “{title[:60]}” is closed, no regression",
+                         "If confirmed → propose clearing the risk from the registry (a separate approval); else escalate"]}
     if ".confidence" in src:
-        return {"action_class": VERIFY, "risk": "low", "reversible": True,
-                "proposed_action": f"Re-verify {ent} to move it off UNVERIFIED.",
-                "plan": [f"Probe {ent}'s live endpoints / in-process status",
-                         f"Check {ent}'s repo + CI health (read-only GitHub worker)",
-                         "Update the registry confidence with cited evidence"]}
+        return {"action_class": VERIFY, "risk": "low", "reversible": True, "impact": "medium", "effort": "20m",
+                "worker": "github" if repo else None,
+                "proposed_action": f"Re-verify {who}{ctx} to move it off {f.get('confidence','UNVERIFIED')}.",
+                "plan": [f"Re-probe {who}'s live endpoints / in-process status"] +
+                        ([f"Pull {repo.split(' ')[0]}'s repo + CI health (read-only GitHub worker)"] if repo else []) +
+                        ["Update the registry confidence with cited evidence"]}
     if src.startswith("live-signal") or ":live" in src or "health" in title.lower() or "DOWN" in title:
-        return {"action_class": INVESTIGATE, "risk": "low", "reversible": True,
-                "proposed_action": f"Investigate the live-signal issue: {title}.",
-                "plan": ["Pull the failing endpoint's health detail + recent deploys",
-                         "Determine if it is a transient blip or a real outage",
-                         "If real, prepare an escalation summary for approval"]}
+        return {"action_class": INVESTIGATE, "risk": "low", "reversible": True, "impact": "high", "effort": "20m",
+                "worker": None,
+                "proposed_action": f"Diagnose the live-signal issue: {title}.",
+                "plan": [f"Pull {who}'s health detail + the last deploy's status",
+                         "Classify: transient blip vs real outage (check duration + recent change)",
+                         "If real → prepare an escalation summary + a rollback option for approval"]}
     if "needs_confirmation" in src or title.startswith("Confirm"):
-        return {"action_class": REQUEST_INFO, "risk": "none", "reversible": True,
-                "proposed_action": "Request the operator confirm the pending holding-data fields.",
-                "plan": ["List the exact fields awaiting confirmation, grouped by entity",
-                         "Send one consolidated confirmation request",
-                         "Record any confirmed values with provenance"]}
-    return {"action_class": REVIEW, "risk": "low", "reversible": True,
-            "proposed_action": f"Review: {title}.",
-            "plan": ["Gather the relevant read-only context", "Summarize and recommend the next step for approval"]}
+        return {"action_class": REQUEST_INFO, "risk": "none", "reversible": True, "impact": "medium", "effort": "5m",
+                "worker": None,
+                "proposed_action": "Assemble a single consolidated data-confirmation request for the operator.",
+                "plan": ["List the exact fields awaiting confirmation, grouped by entity (from the registry)",
+                         "Draft one message the operator can answer in one pass",
+                         "On reply, record confirmed values with provenance"]}
+    return {"action_class": REVIEW, "risk": "low", "reversible": True, "impact": "low", "effort": "15m", "worker": None,
+            "proposed_action": f"Review and recommend a next step for: {title}.",
+            "plan": ["Gather the relevant read-only context", "Summarize + recommend the next action for approval"]}
 
 
 def build_proposals(priorities: list) -> list:
