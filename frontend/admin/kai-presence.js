@@ -91,8 +91,8 @@ function _moduleFromPath() {
 
 // ---- P15 contextual actions: module-derived suggestions (no per-page edits) --
 const SUGGESTIONS = {
-  overview:   ['What needs my attention right now?', 'Summarize system + business health.'],
-  hub:        ['What needs my attention right now?', 'What should I work on next?'],
+  overview:   ['What needs my attention right now?', 'Summarize system + business health.', "How's the holding doing?"],
+  hub:        ['What needs my attention right now?', 'What should I work on next?', "How's the holding doing?"],
   siteboost:  ['Explain SiteBoost launch readiness.', 'What is blocking outbound sends?'],
   portfolio:  ['Explain the portfolio status.', 'Which business needs attention?'],
   shopify:    ['Summarize merchant + MRR health.', 'Any merchants at risk?'],
