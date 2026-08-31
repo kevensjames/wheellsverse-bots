@@ -476,19 +476,23 @@ def seed_manifests() -> list[CM]:
                  "App B runtime — `pip install markitdown` there + redeploy to make it live in prod (health() reports OFFLINE "
                  "honestly where absent; invoke() never fabricates). Feeds the existing RAG pipeline; never overwrites source."),
         CM(id="codebase-memory-mcp", name="Codebase Memory MCP (code intelligence)", type=CT.MCP,
-           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
-           risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=0,
+           availability=AV.DISCOVERED, certification=CE.PARTIAL, activation=AM.MANUAL_ONLY,
+           risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=0, automatic_activation_allowed=False,
            capabilities=["semantic_code_search", "code_knowledge_graph", "impact_analysis"],
            triggers=["find in the codebase", "where is this defined", "trace this function", "code impact"],
-           provenance=_prov2("https://github.com/DeusData/codebase-memory-mcp", "DeusData", "MIT", "",
-                             "prebuilt native C binary (npm/pip/brew/releases) — OPERATOR-GATED, see notes"),
-           notes="§18/Wave-B: PRIMARY fill for KAI's semantic-code-search GAP. Pure-C MCP server, vendored tree-sitter "
-                 "(162 langs), 100% local, zero-cred, no network. Recipe RESOLVED: `npm i -g codebase-memory-mcp` / "
-                 "`pip install codebase-memory-mcp` / GitHub Releases binary (the `curl|bash` install.sh is FORBIDDEN §81); "
-                 "run as MCP `{command:<bin>, args:[]}`. CERTIFICATION GATED — autonomously downloading + executing an "
-                 "UNREVIEWED prebuilt native binary from a small publisher is refused (§81/§83/§84). Path to certify: "
-                 "operator review OR build-from-source + a bumblebee supply-chain scan (§82) → sandboxed MCP handshake → "
-                 "`claude mcp add` / App B wiring → live index+query test. Stays DISCOVERED until then."),
+           provenance=_prov2("https://github.com/DeusData/codebase-memory-mcp", "DeusData", "MIT", "dev",
+                             "BUILT-FROM-SOURCE (scripts/build.sh, standard/no-UI); adapter=SUBPROCESS cli"),
+           notes="§18/Wave-B: PARTIAL — PRIMARY fill for KAI's semantic-code-search GAP. Operator-approved; BUILT FROM "
+                 "SOURCE (not the prebuilt binary, not curl|bash §81) + source-reviewed: no external network egress (only "
+                 "127.0.0.1 opt-out UI + local control socket), DEFENSIVE secret containment (refuses ~/.ssh//etc/$HOME, "
+                 "scans/skips secrets), 30M vendored nomic code-embeddings (licensed). PROVEN in isolation (HOME=scratch): "
+                 "indexed a repo (22 nodes/edges), cross-language grep (search_code), and a semantic search_graph query "
+                 "correctly ranked verify_token/mint_session — zero leak to real home. CodebaseMemoryMcpAdapter (SUBPROCESS, "
+                 "read-only tool allowlist; refuses delete_project/install/uninstall/update) certified both envs, set $CBM_BIN "
+                 "to enable. CAVEATS: it is a fork/exec DAEMON (more surface than a 'static binary'); the cert build is an "
+                 "ephemeral ASan scratchpad artifact -> availability DISCOVERED until a durable release build + a bumblebee "
+                 "scan (§82) + operator-approved live wiring (MCP `claude mcp add` / App B). NEVER run its `install` (it "
+                 "reconfigures 45 external clients)."),
         CM(id="claude-context", name="Claude Context (semantic code search)", type=CT.MCP,
            availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.MANUAL_ONLY,
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=0,
