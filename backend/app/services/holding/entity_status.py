@@ -27,6 +27,10 @@ _PROBES: dict[str, tuple[str, list | None]] = {
                ["subscribers", "leads", "spots_taken", "pages_built", "posts_today", "mrr", "stripe_set"]),
     "narai": (APP_A + "/api/narai/status", ["online", "status", "posts", "videos", "images"]),
     "sol": (SOL + "/", None),   # reachability only (public liveness of the SOL API)
+    # New App-A read-only stat shims (real outbound/loop state that previously lived only in
+    # App-A-volume files); captured whole since their shape is a nested {ok, stats/businesses}.
+    "siteboost": (APP_A + "/api/siteboost/stats", "ALL"),
+    "wmos": (APP_A + "/api/wmos/stats", "ALL"),
 }
 
 
@@ -48,7 +52,9 @@ def collect_live_entity_status() -> dict:
     for eid, (url, fields) in _PROBES.items():
         code, data = _get(url)
         detail = {}
-        if fields and isinstance(data, dict):
+        if fields == "ALL" and isinstance(data, dict):
+            detail = {k: v for k, v in data.items() if k != "_err"}   # capture the whole small response
+        elif fields and isinstance(data, dict):
             detail = {f: data[f] for f in fields if f in data}
         out[eid] = {"ok": code == 200, "http": code, "source": url, "detail": detail}
     return out

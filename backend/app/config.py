@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Daily morning-briefing routine (report-only, no external send). Default off.
     KAI_HOLDING_BRIEFING_ENABLED: bool = False
     KAI_HOLDING_BRIEFING_UTC_HOUR: int = 11   # 07:00 America/New_York (EDT); use 12 for EST
+    # OPT-IN briefing delivery to the operator's own channel (Telegram). Default OFF — a deliberate
+    # exception to report-only; nothing sends unless this is true AND a channel is configured.
+    KAI_HOLDING_DELIVERY_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

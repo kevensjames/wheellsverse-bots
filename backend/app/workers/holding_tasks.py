@@ -38,6 +38,10 @@ def morning_briefing() -> dict:
     # persist=True: the daily scheduled run stores a KPI snapshot so movement/deltas accrue
     # (the on-demand endpoint reads movement but does NOT persist — keeps history one-per-day).
     briefing = run_morning_briefing(now_iso=now, fetch_health=True, audit=_audit, persist=True)
+    # OPT-IN delivery: strict no-op unless the operator enabled KAI_HOLDING_DELIVERY_ENABLED AND
+    # configured a channel. Report-only by default; nothing sends autonomously.
+    from app.services.holding.delivery import deliver_briefing
+    delivery = deliver_briefing(briefing)
     return {"generated": True, "audit_event_ids": audit_ids,
             "entities": len(briefing.get("portfolio_status", [])),
-            "delivery": "in-app only (no external send)"}
+            "delivery": delivery}
