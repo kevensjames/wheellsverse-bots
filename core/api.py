@@ -188,6 +188,8 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 # Holding OS read-only stat shims (App B probes these to self-update those entities)
+                 "/api/siteboost/stats", "/api/wmos/stats",
                  # NarAI autopilot — dashboard-only, protected by same-origin
                  "/api/narai-autopilot/status", "/api/narai-autopilot/start",
                  "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
