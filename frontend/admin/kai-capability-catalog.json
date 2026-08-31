@@ -1431,7 +1431,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "§18: PRIMARY fill for KAI's genuine semantic-code-search GAP. 100% local, zero-cred, tree-sitter graph (162 langs). Distributed as a prebuilt native binary from a small publisher -> prefer build-from-source.",
+      "notes": "§18/Wave-B: PRIMARY fill for KAI's semantic-code-search GAP. Pure-C MCP server, vendored tree-sitter (162 langs), 100% local, zero-cred, no network. Recipe RESOLVED: `npm i -g codebase-memory-mcp` / `pip install codebase-memory-mcp` / GitHub Releases binary (the `curl|bash` install.sh is FORBIDDEN §81); run as MCP `{command:<bin>, args:[]}`. CERTIFICATION GATED — autonomously downloading + executing an UNREVIEWED prebuilt native binary from a small publisher is refused (§81/§83/§84). Path to certify: operator review OR build-from-source + a bumblebee supply-chain scan (§82) → sandboxed MCP handshake → `claude mcp add` / App B wiring → live index+query test. Stays DISCOVERED until then.",
       "provenance": {
         "upstream": "https://github.com/DeusData/codebase-memory-mcp",
         "owner": "DeusData",

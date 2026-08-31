@@ -480,9 +480,15 @@ def seed_manifests() -> list[CM]:
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=0,
            capabilities=["semantic_code_search", "code_knowledge_graph", "impact_analysis"],
            triggers=["find in the codebase", "where is this defined", "trace this function", "code impact"],
-           provenance=_prov2("https://github.com/DeusData/codebase-memory-mcp", "DeusData", "MIT", "", "MCP (build-from-source to de-risk binary)"),
-           notes="§18: PRIMARY fill for KAI's genuine semantic-code-search GAP. 100% local, zero-cred, tree-sitter "
-                 "graph (162 langs). Distributed as a prebuilt native binary from a small publisher -> prefer build-from-source."),
+           provenance=_prov2("https://github.com/DeusData/codebase-memory-mcp", "DeusData", "MIT", "",
+                             "prebuilt native C binary (npm/pip/brew/releases) — OPERATOR-GATED, see notes"),
+           notes="§18/Wave-B: PRIMARY fill for KAI's semantic-code-search GAP. Pure-C MCP server, vendored tree-sitter "
+                 "(162 langs), 100% local, zero-cred, no network. Recipe RESOLVED: `npm i -g codebase-memory-mcp` / "
+                 "`pip install codebase-memory-mcp` / GitHub Releases binary (the `curl|bash` install.sh is FORBIDDEN §81); "
+                 "run as MCP `{command:<bin>, args:[]}`. CERTIFICATION GATED — autonomously downloading + executing an "
+                 "UNREVIEWED prebuilt native binary from a small publisher is refused (§81/§83/§84). Path to certify: "
+                 "operator review OR build-from-source + a bumblebee supply-chain scan (§82) → sandboxed MCP handshake → "
+                 "`claude mcp add` / App B wiring → live index+query test. Stays DISCOVERED until then."),
         CM(id="claude-context", name="Claude Context (semantic code search)", type=CT.MCP,
            availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.MANUAL_ONLY,
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=0,

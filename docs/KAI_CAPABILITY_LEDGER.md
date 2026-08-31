@@ -290,3 +290,31 @@ EXTERNAL_BLOCKED 41 · EXPERIMENTAL 61 · UPSTREAM_UNRESOLVED 5 · REJECTED 12.
 **Not installed / not deployed / not certified-live** — every external capability stays DISCOVERED
 until the operator-approved install → adapter → health → live-route → integration-test path runs.
 This is a catalog wave (§93 Wave A), honestly bounded.
+
+---
+
+# WAVE B (§93) — first real install + certification, 2026-08-31
+
+Promoted the top safe gap from DISCOVERED to genuinely certified. **One capability, end-to-end.**
+
+## markitdown — ✅ CERTIFIED_LOCAL (commit 5b4c2f2)
+Full path walked, with evidence: **install** (`markitdown 0.1.7`, isolated cert venv) → **adapter**
+(`MarkItDownAdapter`, LIBRARY transport, `live_adapters.py`) → **health** (READY where installed,
+OFFLINE-honest where absent) → **invoke** (real HTML→markdown incl. tables) → **normalize**
+(ARTIFACT, `trust=UNTRUSTED`; a hostile document raised `injection_flags`, §24) → **tests**
+(`test_capability_live_markitdown.py`, 6/6 in cert venv AND 6/6 on base python — no fabrication either
+way). Manifest → **AVAILABLE + CERTIFIED**; AVAILABLE set is now the honest **6**. Nexus shows it READY.
+**Caveat (honest):** installed in the cert venv only — NOT in the deployed App B runtime. To make it
+live in prod: `pip install markitdown` on App B + redeploy. Until then its adapter reports OFFLINE there.
+
+## codebase-memory-mcp — ⏸ install recipe RESOLVED, certification OPERATOR-GATED
+It is a **prebuilt native C binary** from a small publisher (npm `codebase-memory-mcp` / pip / brew /
+GitHub Releases; the `curl|bash` installer is forbidden §81). Autonomously downloading + executing an
+unreviewed native binary — or `claude mcp add` (which mutates this session's own MCP config) — is
+**refused** per §81/§83/§84 and the standing "no unreviewed execution" rule. **This is the rule working,
+not a blocker to paper over.** Path to certify (operator-approved): review the publisher **or**
+build-from-source → **bumblebee** supply-chain scan (§82) → start as an isolated subprocess + MCP
+handshake → `claude mcp add` / App B wiring → live index+query test. Stays DISCOVERED until then.
+
+**Wave B state:** 1 capability CERTIFIED_LOCAL, 1 correctly gated. AVAILABLE 5→6. 0 unreviewed binaries
+run. 0 prod change. MONEY_MODE=MOCK.
