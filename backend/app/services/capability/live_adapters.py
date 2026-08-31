@@ -89,3 +89,84 @@ class MarkItDownAdapter(CapabilityAdapter):
 
     def cancel(self, invocation_id: str) -> None:
         return None
+
+
+class YtDlpAdapter(CapabilityAdapter):
+    """yt-dlp behind the LIBRARY transport — authorized media metadata + gated download (§27/§80).
+
+    The CERTIFIED path is READ-ONLY metadata extraction (``extract_info(download=False)``): it
+    returns an Observation of a small, injection-scanned metadata subset. An actual DOWNLOAD is
+    never performed here — ``invoke({"action":"download"})`` returns an inert ActionProposal that
+    only governance (§22) + an authorized-content decision (§80) can turn executable. Where yt-dlp
+    is absent, ``health`` is OFFLINE and ``invoke`` returns a Failure — never a fabricated result.
+    """
+
+    def __init__(self) -> None:
+        super().__init__("yt-dlp", Transport.LIBRARY)
+
+    def _importable(self) -> tuple[bool, str]:
+        try:
+            import yt_dlp  # noqa: F401
+            return True, f"yt-dlp {getattr(yt_dlp.version, '__version__', 'unknown')}"
+        except Exception as e:
+            return False, f"{e.__class__.__name__}: {e}"
+
+    def discover(self) -> list[str]:
+        return ["extract_info", "download"]
+
+    def health(self) -> dict:
+        ok, detail = self._importable()
+        return {"state": "READY" if ok else "OFFLINE",
+                "reason": detail if ok else f"EXTERNAL_BLOCKED: {detail}"}
+
+    def start(self) -> None:
+        return None
+
+    def stop(self) -> None:
+        return None
+
+    def invoke(self, request: dict) -> NormalizedResult:
+        request = request or {}
+        url = request.get("url")
+        action = request.get("action", "extract_info")
+        if not url:
+            return normalize(self.id, ResultKind.FAILURE, summary="yt-dlp: no 'url' in request",
+                             provenance=Provenance.UNAVAILABLE, data={"request": request})
+        # A DOWNLOAD is never executed here — it is proposed, inert, and requires authorization (§80).
+        if action == "download":
+            return normalize(
+                self.id, ResultKind.ACTION_PROPOSAL,
+                summary=f"proposed download of {url} — requires authorized-content approval (§80)",
+                provenance=Provenance.REAL,
+                proposed_action={"capability": "yt-dlp", "action": "download", "url": url,
+                                 "gate": "authorized-content + governance approval"},
+                data={"url": url},
+            )
+        if action != "extract_info":
+            return normalize(self.id, ResultKind.FAILURE, summary=f"yt-dlp: unknown action {action!r}",
+                             provenance=Provenance.UNAVAILABLE, data={"request": request})
+        ok, detail = self._importable()
+        if not ok:
+            return normalize(self.id, ResultKind.FAILURE, summary=f"yt-dlp EXTERNAL_BLOCKED: {detail}",
+                             provenance=Provenance.UNAVAILABLE, data={"request": request})
+        try:
+            import yt_dlp
+            opts = {"quiet": True, "skip_download": True, "noplaylist": True, "socket_timeout": 25}
+            with yt_dlp.YoutubeDL(opts) as y:
+                info = y.extract_info(url, download=False) or {}
+        except Exception as e:
+            return normalize(self.id, ResultKind.FAILURE,
+                             summary=f"yt-dlp metadata extraction failed: {e.__class__.__name__}",
+                             provenance=Provenance.UNAVAILABLE, data={"url": url})
+        # a SMALL metadata subset only (the full info dict is huge + attacker-influenced text)
+        meta = {k: info.get(k) for k in ("id", "title", "uploader", "creator", "duration",
+                                         "extractor", "webpage_url", "license")}
+        meta["format_count"] = len(info.get("formats") or [])
+        return normalize(
+            self.id, ResultKind.OBSERVATION,
+            summary=f"metadata: {str(meta.get('title'))[:60]} ({meta.get('duration')}s, {meta['format_count']} formats)",
+            data=meta, provenance=Provenance.REAL,   # title/uploader are attacker-influenced -> scanned, UNTRUSTED
+        )
+
+    def cancel(self, invocation_id: str) -> None:
+        return None

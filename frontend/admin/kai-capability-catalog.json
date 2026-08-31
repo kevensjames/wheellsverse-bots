@@ -2074,24 +2074,25 @@
       "id": "yt-dlp",
       "name": "yt-dlp (authorized media)",
       "type": "CODE_TOOL",
-      "availability": "DISCOVERED",
-      "certification": "EXPERIMENTAL",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
       "activation": "MANUAL_ONLY",
       "risk_class": "MEDIUM",
       "security_tier": 1,
       "capabilities": [
+        "media_metadata",
         "media_download"
       ],
       "triggers": [],
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "§27/§80: ADOPT for AUTHORIZED content retrieval only (operator owns/is-authorized). Not a piracy workflow. Manual-only; no auto-publish of retrieved media.",
+      "notes": "§27/§80/Wave-B: CERTIFIED_LOCAL — YtDlpAdapter (LIBRARY transport, live_adapters.py). CERTIFIED path = READ-ONLY metadata extract (extract_info download=False), proven live on a CC-BY archive.org item (real title/duration/formats → Observation, trust=UNTRUSTED). DOWNLOAD is NEVER executed here — it returns an inert ActionProposal requiring authorized-content + governance approval (§22/§80); no auto-publish. yt-dlp 2026.08.19 in the cert venv, NOT in deployed App B. automatic_activation_allowed=False → explicit invocation only, never auto-routed; health() OFFLINE-honest where absent.",
       "provenance": {
         "upstream": "https://github.com/yt-dlp/yt-dlp",
         "owner": "yt-dlp",
         "license": "Unlicense",
-        "ref": "",
+        "ref": "2026.08.19",
         "verified": true
       }
     },

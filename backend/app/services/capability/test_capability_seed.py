@@ -29,12 +29,12 @@ def t_catalog_loads():
 
 
 def t_only_certified_are_available():
-    """Native caps + CERTIFIED foundation MCPs + HERO + the Wave-B-certified markitdown are AVAILABLE
-    (§73/§3/§4/§11/Wave-B). Nothing else may be AVAILABLE without a real install + adapter + cert."""
+    """Native caps + CERTIFIED foundation MCPs + HERO + the Wave-B-certified markitdown & yt-dlp are
+    AVAILABLE (§73/§3/§4/§11/Wave-B). Nothing else may be AVAILABLE without a real install+adapter+cert."""
     reg = seed_registry()
     available = [m.id for m in reg.list(availability=AV.AVAILABLE)]
-    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright", "hero", "markitdown"}, \
-        f"unexpected available set: {available}"
+    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright", "hero",
+                              "markitdown", "yt-dlp"}, f"unexpected available set: {available}"
 
 
 def t_external_not_selectable():
@@ -196,15 +196,18 @@ def t_megaexpansion_catalog_grew():
 
 
 def t_megaexpansion_only_wave_b_promoted():
-    """Honest-READY invariant: of the 93 catalog-wave tools, ONLY markitdown was promoted to
-    AVAILABLE — and only after a real install + adapter + live cert (Wave B). Everything else
-    stays DISCOVERED. No tool fake-flips to READY."""
+    """Honest-READY invariant: of the 93 catalog-wave tools, only the Wave-B capabilities that got a
+    real install + adapter + live cert are AVAILABLE (markitdown, yt-dlp). Everything else stays
+    DISCOVERED. No tool fake-flips to READY."""
     reg = seed_registry()
     available = {m.id for m in reg.list(availability=AV.AVAILABLE)}
-    assert available == {"kai-memory", "claude-code", "context7", "playwright", "hero", "markitdown"}, \
-        f"only Wave-B markitdown may be newly AVAILABLE, got {available}"
-    m = reg.get("markitdown")
-    assert m.certification.value == "CERTIFIED" and m.selectable(), "markitdown must be genuinely certified+selectable"
+    assert available == {"kai-memory", "claude-code", "context7", "playwright", "hero",
+                         "markitdown", "yt-dlp"}, f"only Wave-B caps may be newly AVAILABLE, got {available}"
+    for cid in ("markitdown", "yt-dlp"):
+        m = reg.get(cid)
+        assert m.certification.value == "CERTIFIED" and m.selectable(), f"{cid} must be genuinely certified+selectable"
+    # yt-dlp is certified but must NEVER auto-route (media retrieval is explicit-only, §80)
+    assert reg.get("yt-dlp").auto_selectable() is False, "yt-dlp must not be auto-routed"
 
 
 def t_evasion_tools_restricted_disabled_never_auto():

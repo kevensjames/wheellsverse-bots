@@ -674,12 +674,16 @@ def seed_manifests() -> list[CM]:
                  "login cookies; bundles many third-party CLIs/MCPs (broad supply-chain surface). KAI prefers official APIs; "
                  "never bypass auth/ToS. DISABLED."),
         CM(id="yt-dlp", name="yt-dlp (authorized media)", type=CT.CODE_TOOL,
-           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.MANUAL_ONLY,
+           availability=AV.AVAILABLE, certification=CE.CERTIFIED, activation=AM.MANUAL_ONLY,
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=1, automatic_activation_allowed=False,
-           capabilities=["media_download"], triggers=[],
-           provenance=_prov2("https://github.com/yt-dlp/yt-dlp", "yt-dlp", "Unlicense", "", "pip / binary"),
-           notes="§27/§80: ADOPT for AUTHORIZED content retrieval only (operator owns/is-authorized). Not a piracy workflow. "
-                 "Manual-only; no auto-publish of retrieved media."),
+           capabilities=["media_metadata", "media_download"], triggers=[],
+           provenance=_prov2("https://github.com/yt-dlp/yt-dlp", "yt-dlp", "Unlicense", "2026.08.19", "pip install yt-dlp"),
+           notes="§27/§80/Wave-B: CERTIFIED_LOCAL — YtDlpAdapter (LIBRARY transport, live_adapters.py). CERTIFIED path = "
+                 "READ-ONLY metadata extract (extract_info download=False), proven live on a CC-BY archive.org item (real "
+                 "title/duration/formats → Observation, trust=UNTRUSTED). DOWNLOAD is NEVER executed here — it returns an "
+                 "inert ActionProposal requiring authorized-content + governance approval (§22/§80); no auto-publish. "
+                 "yt-dlp 2026.08.19 in the cert venv, NOT in deployed App B. automatic_activation_allowed=False → explicit "
+                 "invocation only, never auto-routed; health() OFFLINE-honest where absent."),
         CM(id="maigret", name="Maigret (username OSINT)", type=CT.OSINT_RESOURCE_PACK,
            availability=AV.DISCOVERED, certification=CE.EXTERNAL_BLOCKED, activation=AM.MANUAL_ONLY,
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=1,

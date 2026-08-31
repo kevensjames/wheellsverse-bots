@@ -20,8 +20,8 @@ test('stateLabel derives strictly from availability; DISCOVERED/BLOCKED never re
 });
 test('on the REAL catalog, only genuinely-available capabilities show READY', () => {
   const ready = C.buildCapabilityRows(catalog).filter((r) => r.state === 'READY').map((r) => r.id);
-  // native caps + CERTIFIED foundation MCPs + HERO + the Wave-B-certified markitdown; nothing else
-  assert.deepStrictEqual(ready.sort(), ['claude-code', 'context7', 'hero', 'kai-memory', 'markitdown', 'playwright'], 'only certified caps show READY (markitdown certified in Wave B)');
+  // native caps + CERTIFIED foundation MCPs + HERO + Wave-B-certified markitdown & yt-dlp; nothing else
+  assert.deepStrictEqual(ready.sort(), ['claude-code', 'context7', 'hero', 'kai-memory', 'markitdown', 'playwright', 'yt-dlp'], 'only certified caps show READY (markitdown + yt-dlp certified in Wave B)');
 });
 
 // ── mode + restricted override ───────────────────────────────────────────────
