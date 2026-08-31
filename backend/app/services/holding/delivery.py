@@ -29,21 +29,40 @@ def _summary(briefing: dict) -> str:
     return "\n".join(lines)
 
 
+def _send_text(text: str) -> dict:
+    """Raw Telegram send if a channel is configured. Never raises; never logs/returns the token."""
+    token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+    chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return {"delivered": False, "reason": "no channel configured (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID unset)"}
+    try:
+        payload = urllib.parse.urlencode({"chat_id": chat_id, "text": text}).encode()
+        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=payload)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return {"delivered": r.status == 200, "channel": "telegram"}
+    except Exception as e:
+        return {"delivered": False, "reason": f"send error: {str(e)[:80]}"}
+
+
 def deliver_briefing(briefing: dict) -> dict:
-    """Send the briefing summary IFF explicitly opted in AND a channel is configured. Strict no-op
-    otherwise. Never raises; never logs/returns the token."""
+    """Send the briefing summary IFF opted in AND a channel is configured. Strict no-op otherwise."""
     try:
         from app.config import settings
         if not getattr(settings, "KAI_HOLDING_DELIVERY_ENABLED", False):
             return {"delivered": False, "reason": "delivery disabled (default) — opt in via KAI_HOLDING_DELIVERY_ENABLED"}
-        token = os.environ.get("TELEGRAM_BOT_TOKEN", "")
-        chat_id = os.environ.get("TELEGRAM_CHAT_ID", "")
-        if not token or not chat_id:
-            return {"delivered": False, "reason": "no channel configured (TELEGRAM_BOT_TOKEN/TELEGRAM_CHAT_ID unset)"}
-        payload = urllib.parse.urlencode({"chat_id": chat_id, "text": _summary(briefing)}).encode()
-        req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=payload)
-        with urllib.request.urlopen(req, timeout=10) as r:
-            return {"delivered": r.status == 200, "channel": "telegram"}
+        return _send_text(_summary(briefing))
+    except Exception as e:
+        return {"delivered": False, "reason": f"send error: {str(e)[:80]}"}
+
+
+def send_alert(text: str) -> dict:
+    """Send a proactive watch alert IFF delivery is opted in AND a channel is configured (reuses the
+    same owner channel). Strict no-op otherwise. Never raises."""
+    try:
+        from app.config import settings
+        if not getattr(settings, "KAI_HOLDING_DELIVERY_ENABLED", False):
+            return {"delivered": False, "reason": "delivery disabled (default)"}
+        return _send_text(text)
     except Exception as e:
         return {"delivered": False, "reason": f"send error: {str(e)[:80]}"}
 

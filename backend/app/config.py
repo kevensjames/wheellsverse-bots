@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     # OPT-IN briefing delivery to the operator's own channel (Telegram). Default OFF — a deliberate
     # exception to report-only; nothing sends unless this is true AND a channel is configured.
     KAI_HOLDING_DELIVERY_ENABLED: bool = False
+    # Continuous watch loop (Wave 1): proactive change/anomaly detection across entities. Default OFF.
+    # Read-only; alerts deliver only if KAI_HOLDING_DELIVERY_ENABLED + a channel is configured too.
+    KAI_HOLDING_WATCH_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
