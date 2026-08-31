@@ -24,6 +24,16 @@
   .prio{display:flex;align-items:flex-start;gap:2px;padding:8px 0;border-top:1px solid var(--border)}
   .kpi{display:inline-block;margin:0 14px 4px 0;color:var(--muted)} .kpi b{color:var(--text)}
   .kpi.up b{color:#ff5c6c} .kpi.down b{color:var(--accent)}
+  .prop{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px;background:rgba(255,255,255,.01)}
+  .prophead{display:flex;align-items:flex-start;gap:9px} .prophead b{font-size:14px;font-weight:600}
+  .pmeta{color:var(--muted);font-size:11.5px;margin:6px 0 0;text-transform:uppercase;letter-spacing:.4px}
+  .plan{margin:9px 0 0;padding-left:20px;color:var(--muted);font-size:13px} .plan li{margin:3px 0}
+  .acts{display:flex;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap}
+  .acts button{font:600 12px 'Space Grotesk',system-ui,sans-serif;border-radius:7px;padding:6px 13px;cursor:pointer;
+    border:1px solid var(--accent);background:var(--accent);color:#04121a}
+  .acts button.ghost{background:transparent;color:var(--text);border-color:var(--border)}
+  .acts button:disabled{opacity:.5;cursor:default}
+  .pres{font-size:12.5px;margin-left:4px} .pres.ok{color:var(--accent)} .pres.bad{color:var(--warn)}
 </style></head>
 <body><div class="wrap">
   <h1>Holding Operations</h1>
@@ -61,6 +71,39 @@ function renderBriefing(b){
   } else { h+='<div class="muted">'+esc(ps)+'</div>'; }
   return h+'</div>';
 }
+function renderProposals(d){
+  const open=d.open||[];
+  let h='<div class="panel"><h2>KAI proposals <span class="muted" style="font-weight:400">('+open.length+' open · KAI proposes, you decide)</span></h2>';
+  h+='<div class="muted" style="font-size:12.5px;margin-bottom:12px">'+esc(d.note||'')+'</div>';
+  if(!open.length){ return h+'<div class="muted">No open proposals — nothing needs a decision right now.</div></div>'; }
+  for(const p of open){
+    const a=p.action||{};
+    h+='<div class="prop"><div class="prophead"><span class="sev '+esc(p.severity)+'">'+esc(p.severity)+'</span>'
+      +'<b>'+esc(a.proposed_action||p.title)+'</b></div>'
+      +'<div class="pmeta">'+esc(a.action_class||'')+' · impact '+esc(a.impact||'—')+' · '+esc(a.effort||'—')
+      +(a.worker?(' · via <code>'+esc(a.worker)+'</code> worker'):'')+' · reversible</div>'
+      +'<ol class="plan">'+((a.plan)||[]).map(s=>'<li>'+esc(s)+'</li>').join('')+'</ol>'
+      +'<div class="acts"><button data-act="approve" data-id="'+p.id+'">Approve</button>'
+      +'<button class="ghost" data-act="reject" data-id="'+p.id+'">Reject</button>'
+      +'<button class="ghost" data-act="execute" data-id="'+p.id+'">Execute</button>'
+      +'<span class="pres" id="pr-'+p.id+'"></span></div></div>';
+  }
+  return h+'</div>';
+}
+async function onProposalAction(e){
+  const b=e.target.closest('button[data-act]'); if(!b) return;
+  const id=b.dataset.id, act=b.dataset.act, r=document.getElementById('pr-'+id);
+  b.disabled=true; r.className='pres muted'; r.textContent='…';
+  try{
+    const path='/admin/kai/holding/proposals/'+id+'/'+act+(act==='reject'?'?reason=via%20UI':'');
+    const resp=await fetch(path,{method:'POST',credentials:'same-origin'});
+    const jd=await resp.json().catch(()=>({}));
+    if(!resp.ok){ r.className='pres bad'; r.textContent='✕ '+(jd.detail||resp.status); }
+    else if(act==='execute'){ const k=(jd.evidence&&jd.evidence.kind)||'executed'; r.className='pres ok'; r.textContent='✓ '+(k==='DISPATCHED'?('dispatched → worker job #'+jd.evidence.job_id):k); }
+    else { r.className='pres ok'; r.textContent='✓ '+act+(act==='approve'?'d — now Execute':'ed'); }
+  }catch(err){ r.className='pres bad'; r.textContent='✕ '+err; }
+  b.disabled=false;
+}
 (async ()=>{
   const out=document.getElementById('out');
   try{
@@ -79,7 +122,9 @@ function renderBriefing(b){
     html+='<div class="panel"><h2>Financials & sensitive data</h2><div class="muted">'+esc(ov.financials)+'</div>'
       +'<div class="muted" style="margin-top:8px">Fields awaiting confirmation: <code>'+esc(ov.requires_confirmation.length)+'</code></div></div>';
     try{ html+=renderBriefing(await j('/admin/kai/holding/briefing')); }catch(_){}
+    try{ html+=renderProposals(await j('/admin/kai/holding/proposals')); }catch(_){}
     out.innerHTML=html;
+    out.addEventListener('click', onProposalAction);   // approve / reject / execute
   }catch(err){ out.innerHTML='<div class="msg">Holding view unavailable ('+esc(err.message)+'). It is enabled only when KAI_HOLDING_ENABLED is on.</div>'; }
 })();
 </script>
