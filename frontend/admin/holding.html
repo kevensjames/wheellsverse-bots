@@ -34,6 +34,13 @@
   .acts button.ghost{background:transparent;color:var(--text);border-color:var(--border)}
   .acts button:disabled{opacity:.5;cursor:default}
   .pres{font-size:12.5px;margin-left:4px} .pres.ok{color:var(--accent)} .pres.bad{color:var(--warn)}
+  .statusgrid{display:flex;flex-wrap:wrap;gap:8px 16px;margin:4px 0 6px}
+  .skpi{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .skpi b{font-weight:700} .ok{color:var(--accent)} .bad{color:var(--warn)} .warn{color:var(--cyan)}
+  .sh{font-size:13px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .wrow{font-size:12.5px;color:var(--muted);margin:4px 0}
+  .wdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .wdot.on{background:var(--accent);box-shadow:0 0 0 3px rgba(77,244,165,.18)} .wdot.off{background:var(--warn)}
 </style></head>
 <body><div class="wrap">
   <h1>Holding Operations</h1>
@@ -90,6 +97,28 @@ function renderProposals(d){
   }
   return h+'</div>';
 }
+function renderStatus(s){
+  const a=s.autonomy||{}, checks=a.checks||{}, ov=a.overall||'—';
+  const ovcls=ov==='AUTONOMOUS_READ_ONLY'?'v':'u';
+  let h='<div class="panel"><h2>KAI autonomy <span class="badge '+ovcls+'">'+esc(ov)+'</span></h2>';
+  h+='<div class="statusgrid">';
+  for(const k of Object.keys(checks)){ const v=checks[k];
+    const cls=(v==='PASS'||v==='MOCK'||v==='CONNECTED')?'ok':((v==='DEGRADED'||v==='UNAVAILABLE')?'bad':'warn');
+    h+='<span class="skpi">'+esc(k.replace(/_/g,' '))+' <b class="'+cls+'">'+esc(v)+'</b></span>'; }
+  h+='</div>';
+  h+='<h3 class="sh">Workers</h3>';
+  const ws=s.workers||[];
+  if(!ws.length){ h+='<div class="muted">No worker has checked in — the persistent runner is not running.</div>'; }
+  for(const w of ws){ h+='<div class="wrow"><span class="wdot '+(w.online?'on':'off')+'"></span><code>'+esc(w.worker_id)+'</code> · '
+    +(w.online?'ONLINE':'OFFLINE')+' · heartbeat '+esc(w.last_heartbeat_secs_ago)+'s ago · v'+esc(w.version||'?')
+    +(w.current_job?(' · job #'+esc(w.current_job)):'')+'</div>'; }
+  const cw=s.cron.watch, cb=s.cron.briefing;
+  h+='<h3 class="sh">Schedules &amp; delivery</h3><div class="muted" style="font-size:12.5px;line-height:1.7">'
+    +'watch <code>'+esc(cw.schedule)+'</code> · last run '+esc(cw.last_run)+'<br>'
+    +'briefing <code>'+esc(cb.schedule)+'</code> ('+esc(cb.timezone)+') · last run '+esc(cb.last_run)+'<br>'
+    +'telegram <b class="'+(s.telegram.state==='CONNECTED'?'ok':'bad')+'">'+esc(s.telegram.state)+'</b> (token '+(s.telegram.token_present?'present':'absent')+')</div>';
+  return h+'</div>';
+}
 async function onProposalAction(e){
   const b=e.target.closest('button[data-act]'); if(!b) return;
   const id=b.dataset.id, act=b.dataset.act, r=document.getElementById('pr-'+id);
@@ -110,7 +139,9 @@ async function onProposalAction(e){
     const who = await j('/admin/session/whoami');
     if(!who.authenticated || who.role!=='owner'){ out.innerHTML='<div class="msg">Owner sign-in required. Open the KAI Command Center, sign in, then reload.</div>'; return; }
     const ov = await j('/admin/kai/holding/overview');          // through the bridge → App B (owner-gated)
-    let html='<div class="grid">';
+    let html='';
+    try{ html+=renderStatus(await j('/admin/kai/holding/status')); }catch(_){}   // operational status first
+    html+='<div class="grid">';
     for(const e of ov.entities){
       html+='<div class="card"><div class="brand">'+esc(e.brand)+' '+badge(e.confidence)+'</div>'
         +'<div class="row"><span>status</span><span>'+esc(e.status)+'</span></div>'
