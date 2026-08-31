@@ -8,6 +8,7 @@ approval-gated action that is intentionally NOT implemented here.
 from __future__ import annotations
 from app.services.holding.reports import build_morning_briefing
 from app.services.holding.signals import collect_live_signals, health_block
+from app.services.holding.entity_status import collect_live_entity_status
 from app.services.holding import kpi_history
 
 
@@ -19,8 +20,10 @@ def run_morning_briefing(*, now_iso: str = "", fetch_health: bool = False,
     history stays one-per-day and deltas stay meaningful. `audit` is optional callable(name,payload)."""
     signals = collect_live_signals() if fetch_health else None
     health = health_block(signals) if signals else None
+    entity_status = collect_live_entity_status() if fetch_health else None   # live per-entity overlay
     prev = kpi_history.previous_snapshot()          # baseline for real movement (None → disclaimed)
-    briefing = build_morning_briefing(health=health, signals=signals, prev_kpis=prev, now_iso=now_iso)
+    briefing = build_morning_briefing(health=health, signals=signals, prev_kpis=prev,
+                                      entity_status=entity_status, now_iso=now_iso)
     if persist:
         kpi_history.record_snapshot(briefing["kpis"])   # fails soft (returns False) if DB unavailable
     if audit is not None:

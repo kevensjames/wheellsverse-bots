@@ -58,9 +58,31 @@ def _movement(cur: dict, prev: Optional[dict]) -> dict:
     return d
 
 
+def _capability_kpi() -> str:
+    """Live capability-fabric readiness (X/32 AVAILABLE) from the pure seed registry. Fail-open."""
+    try:
+        from app.services.capability.seed import seed_registry
+        from app.services.capability.manifest import Availability
+        reg_ = seed_registry()
+        return f"{len(reg_.list(availability=Availability.AVAILABLE))}/{len(reg_)} AVAILABLE"
+    except Exception:
+        return "UNVERIFIED — capability fabric not readable"
+
+
+def _recent_actions(limit: int = 5) -> list:
+    """A short tail of KAI's governed actions (what KAI did lately), from the governance JSONL log.
+    Read-only file read, never raises (returns [] if absent). Fail-open."""
+    try:
+        from app.services.governance import list_actions
+        rows = list_actions(limit=limit) or []
+        return [{"action": r.get("action") or r.get("type"), "at": r.get("at") or r.get("ts")} for r in rows][:limit]
+    except Exception:
+        return []
+
+
 def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[dict] = None,
                            signals: Optional[list] = None, prev_kpis: Optional[dict] = None,
-                           now_iso: str = "") -> dict:
+                           entity_status: Optional[dict] = None, now_iso: str = "") -> dict:
     """Report-only. Reports source-backed status + explicitly what needs confirmation.
     Never fabricates KPI movement, revenue, or system health it wasn't given. `signals` are
     live self-observed probes (feed priorities); `prev_kpis` is the last stored snapshot (feed movement)."""
@@ -77,6 +99,7 @@ def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[d
         "open_risks": sum(len(getattr(e, "risks", None) or []) for e in ents),
         "fields_awaiting_confirmation": len(reg.needs_confirmation()),
         "health": f"{ok_probes}/{len(health)} probes OK" if health else "UNVERIFIED — no live probe this briefing",
+        "capabilities": _capability_kpi(),   # live X/32 AVAILABLE from the capability fabric
     }
     # Deterministic, source-cited ranked priorities (empty only if nothing is surfaced):
     priorities = derive_priorities(health=health, monitor=monitor, signals=signals)
@@ -89,6 +112,10 @@ def build_morning_briefing(*, health: Optional[dict] = None, monitor: Optional[d
             {"brand": e.brand_name, "status": e.operational_status, "confidence": e.confidence.value}
             for e in ents
         ],
+        # Live per-entity status overlay (source-backed, fetched this briefing) — self-updating deploy/
+        # activity state (e.g. real Nexora subscriber/MRR numbers). Absent → disclosed, never guessed.
+        "live_entity_status": entity_status if entity_status else {"note": "not collected this briefing"},
+        "recent_actions": _recent_actions(),   # short tail of KAI's governed actions
         "kpis": kpis,
         # REAL movement when a prior snapshot exists; honest baseline note on the first run.
         "kpi_movement": _movement(kpis, prev_kpis),

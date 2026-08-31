@@ -49,6 +49,34 @@ def _eq_analyze_and_record(user_message: str) -> str:
         return ""
 
 
+_HOLDING_INTENTS = ("holding", "portfolio", "priorities", "businesses", "companies", "entities", "brands")
+
+
+def _holding_context(user_message: str) -> str:
+    """Inject a source-backed, read-only Holding-OS snapshot into the system prompt ONLY when the
+    operator asks about the holding/portfolio, so KAI answers from real registry data (never invents).
+    Gated by KAI_HOLDING_ENABLED; fully fail-open (any error → '' so the chat path is never affected).
+    Pure/no-network: executive_overview + registry-only priorities. The Operational-truth prompt block
+    then binds KAI to answer only from this and refuse to fabricate."""
+    try:
+        from app.config import settings
+        if not getattr(settings, "KAI_HOLDING_ENABLED", False):
+            return ""
+        msg = (user_message or "").lower()
+        if not any(w in msg for w in _HOLDING_INTENTS):
+            return ""
+        import json
+        from app.services.holding import reports
+        from app.services.holding.priorities import derive_priorities
+        block = {"overview": reports.executive_overview(),
+                 "todays_priorities": derive_priorities()}  # registry-only, no network
+        return ("\n\n[Holding operations — trusted context, read-only, source-backed. "
+                "Answer ONLY from this; fields marked REQUIRES_OPERATOR_CONFIRMATION are unknown — "
+                "say so, never guess.]\n" + json.dumps(block, default=str))
+    except Exception:
+        return ""
+
+
 class Brain:
     def __init__(
         self,
@@ -281,6 +309,9 @@ class Brain:
             ctx_line = " ".join(f"{k}={v}" for k, v in context.items() if v)
             if ctx_line:
                 system += f"\n\n[Operator context] {ctx_line}"
+        # Holding Operations: when the operator asks about the holding/portfolio, ground KAI in the
+        # real source-backed registry (fail-open, gated, no-network). Voice narration is free in Nexus.
+        system += _holding_context(user_message)
 
         collected: list[str] = []
         # §24 authoritative boundary: strip reasoning scratchpads from every delta BEFORE
