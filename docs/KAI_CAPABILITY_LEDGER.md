@@ -345,3 +345,41 @@ read-only Nexus market for now; build the execution endpoint as a separately-rev
 **Wave B state:** **3 capabilities certified** (markitdown ✅, yt-dlp ✅ CERTIFIED_LOCAL; codebase-memory-mcp
 ✅ PARTIAL). AVAILABLE 5→7. 0 unreviewed binaries run (cbm built from source + reviewed). **0 prod change.**
 MONEY_MODE=MOCK.
+
+---
+
+# LIVE GOVERNED EXECUTION GATEWAY — V1 (2026-08-31, commits 0041cf5 · 6a18f40)
+
+The missing production execution boundary is BUILT + locally certified. KAI can genuinely invoke a
+certified capability through USER→KAI→Brain→authorization→risk→registry→adapter→execution→normalize→
+audit — one path, one implementation.
+
+- **CapabilityExecutionService** (`execution.py`, §30): the ONE service the HTTP route AND the Brain
+  call (§29). Server-owned OPERATION ALLOWLIST (§8 — no arbitrary shell/command/path §23), V1
+  read-only/compute envelope (§7), SSRF guard (§10), MarkItDown fixture-only boundary
+  (§9 → USER_FILE_INPUT_PENDING), health gate (§13), timeout (§15), idempotency (§19), owner-scoped
+  rate limit (§18), evidence (§21). Delegates policy + execution to the existing `governed_invoke`
+  (§2, reused not duplicated); hardened it to fail-safe on a malformed adapter result.
+- **Brain bridge** (`command.py`, §27/§28): the Brain SELECTS, the same service executes; explicit-only
+  capabilities (yt-dlp) are never auto-selected.
+- **admin_capabilities.py** (§3/§6): THIN owner-only router (require_kai_ultra); builds the owner
+  Principal itself (forged body role/scopes ignored §4); routes /invoke, /status, list, /test (§31),
+  /command (§27), /invocations (§32). **Flag-gated DORMANT** (`KAI_CAPABILITY_EXECUTION_ENABLED`=False).
+
+**Certification (all green):**
+| dimension | result |
+|---|---|
+| Service attack suite (§35/§36) | ✅ 18 tests — SSRF (literal+resolved), arbitrary/traversal path, non-allowlisted ops, V1 envelope, unhealthy→unavailable, non-selectable→denied, oversized bounded, timeout, injection flagged, secret redacted, idempotency, rate limit, audit |
+| HTTP boundary (§39/§44) | ✅ 10 tests — owner 200 / anon 403 / SSRF 400 / download 403 / unknown 404 / non-allowlisted 404 / **forged body fields ignored** / status mapping |
+| Brain bridge (§27/§28) | ✅ 4 tests |
+| Live e2e (real adapters, cert venv) | ✅ yt-dlp metadata OK+evidence · markitdown convert OK · SSRF blocked · download OPERATION_NOT_ENABLED |
+| Suite | 13 files / **173 tests** / 0 fail · Nexus 7/7 |
+| Arbitrary shell · Financial exec · Restricted runtimes | ABSENT · 0 · 0 (MONEY_MODE=MOCK) |
+
+**Verdict: `EXECUTION_V1_CORE_CERTIFIED` — production wiring PENDING (operator-gated).** Per §49, the
+fabric is "operational" only once a capability is executed through the *production* path. Remaining
+(operator-gated): (1) App B doesn't deploy this branch — get the gateway commits into App B's deploy
+source; (2) set `KAI_CAPABILITY_EXECUTION_ENABLED=true` on kai-prod; (3) `railway up --service kai-prod`
+(classifier-gated); (4) prod smoke test (yt-dlp metadata on a public fixture); (5) Nexus frontend
+(§31-34 TEST/history/state/halo) + browser QA (§48). Backend endpoints for all of these exist; only
+the deploy + the frontend visuals remain. **0 prod change this pass.**
