@@ -465,13 +465,16 @@ def seed_manifests() -> list[CM]:
 
         # ── §8/§18/§20/§53 DOCUMENTS · CODE-INTELLIGENCE · RAG · MEMORY ──
         CM(id="markitdown", name="MarkItDown (document convert)", type=CT.CODE_TOOL,
-           availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
+           availability=AV.AVAILABLE, certification=CE.CERTIFIED, activation=AM.ON_DEMAND,
            risk_class=RK.LOW, default_action_class=AC.READ_ONLY, security_tier=0,
            capabilities=["document_convert", "pdf_to_markdown", "office_to_markdown", "media_to_markdown"],
            triggers=["convert to markdown", "pdf to structured", "turn this document into", "parse this file"],
-           provenance=_prov2("https://github.com/microsoft/markitdown", "Microsoft", "MIT", "", "pip install markitdown"),
-           notes="§8: ADOPT — broadens ingestion (audio/image/YouTube/EPub/ZIP) beyond KAI's native extractors; "
-                 "feeds the existing RAG pipeline. Never overwrite source files. Sanitize untrusted input."),
+           provenance=_prov2("https://github.com/microsoft/markitdown", "Microsoft", "MIT", "0.1.7", "pip install markitdown"),
+           notes="§8/Wave-B: CERTIFIED_LOCAL — MarkItDownAdapter (LIBRARY transport, live_adapters.py) built + exercised "
+                 "on REAL files in-process: clean HTML->markdown incl. tables, and a hostile document raised injection_flags "
+                 "while staying trust=UNTRUSTED (§24). markitdown 0.1.7 installed in the cert venv; NOT yet in the deployed "
+                 "App B runtime — `pip install markitdown` there + redeploy to make it live in prod (health() reports OFFLINE "
+                 "honestly where absent; invoke() never fabricates). Feeds the existing RAG pipeline; never overwrites source."),
         CM(id="codebase-memory-mcp", name="Codebase Memory MCP (code intelligence)", type=CT.MCP,
            availability=AV.DISCOVERED, certification=CE.EXPERIMENTAL, activation=AM.ON_DEMAND,
            risk_class=RK.MEDIUM, default_action_class=AC.READ_ONLY, security_tier=0,

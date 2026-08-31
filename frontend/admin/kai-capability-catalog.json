@@ -1379,8 +1379,8 @@
       "id": "markitdown",
       "name": "MarkItDown (document convert)",
       "type": "CODE_TOOL",
-      "availability": "DISCOVERED",
-      "certification": "EXPERIMENTAL",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
       "activation": "ON_DEMAND",
       "risk_class": "LOW",
       "security_tier": 0,
@@ -1399,12 +1399,12 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "§8: ADOPT — broadens ingestion (audio/image/YouTube/EPub/ZIP) beyond KAI's native extractors; feeds the existing RAG pipeline. Never overwrite source files. Sanitize untrusted input.",
+      "notes": "§8/Wave-B: CERTIFIED_LOCAL — MarkItDownAdapter (LIBRARY transport, live_adapters.py) built + exercised on REAL files in-process: clean HTML->markdown incl. tables, and a hostile document raised injection_flags while staying trust=UNTRUSTED (§24). markitdown 0.1.7 installed in the cert venv; NOT yet in the deployed App B runtime — `pip install markitdown` there + redeploy to make it live in prod (health() reports OFFLINE honestly where absent; invoke() never fabricates). Feeds the existing RAG pipeline; never overwrites source.",
       "provenance": {
         "upstream": "https://github.com/microsoft/markitdown",
         "owner": "Microsoft",
         "license": "MIT",
-        "ref": "",
+        "ref": "0.1.7",
         "verified": true
       }
     },
