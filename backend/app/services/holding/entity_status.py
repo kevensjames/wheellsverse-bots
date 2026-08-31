@@ -26,12 +26,13 @@ _PROBES: dict[str, tuple[str, list | None]] = {
     "nexora": (APP_A + "/api/nexora/status",
                ["subscribers", "leads", "spots_taken", "pages_built", "posts_today", "mrr", "stripe_set"]),
     "narai": (APP_A + "/api/narai/status", ["online", "status", "posts", "videos", "images"]),
-    "sol": (SOL + "/", None),   # reachability only (public liveness of the SOL API)
     # New App-A read-only stat shims (real outbound/loop state that previously lived only in
     # App-A-volume files); captured whole since their shape is a nested {ok, stats/businesses}.
     "siteboost": (APP_A + "/api/siteboost/stats", "ALL"),
     "wmos": (APP_A + "/api/wmos/stats", "ALL"),
 }
+# sol + suprema live in App B's own services, so the Holding OS reads them IN-PROCESS (below) —
+# no HTTP/auth needed. (The public sol-api liveness probe was unreliable, so it was dropped.)
 
 
 def _get(url: str, timeout: int = 8):
@@ -46,8 +47,34 @@ def _get(url: str, timeout: int = 8):
         return 0, {"_err": str(e)[:80]}
 
 
+def collect_internal_status() -> dict:
+    """In-process live status for App-B-local entities (sol, suprema) whose data lives in App B's own
+    services — no HTTP/auth needed since the Holding OS runs in App B. Best-effort, fail-open."""
+    out: dict[str, dict] = {}
+    try:
+        from app.services.sol import storage as st
+        circles = st.list_circles()
+        by_status: dict[str, int] = {}
+        for c in circles:
+            by_status[c.status] = by_status.get(c.status, 0) + 1
+        out["sol"] = {"ok": True, "source": "in-process app.services.sol.storage",
+                      "detail": {"total_circles": len(circles), "by_status": by_status}}
+    except Exception as e:
+        out["sol"] = {"ok": False, "source": "in-process sol", "detail": {"_err": str(e)[:80]}}
+    try:
+        from app.services.supreme.scheduler import is_running
+        from app.services.supreme import load_map
+        smap = load_map()
+        out["suprema"] = {"ok": True, "source": "in-process app.services.supreme",
+                          "detail": {"scheduler_running": bool(is_running()), "map_loaded": bool(smap)}}
+    except Exception as e:
+        out["suprema"] = {"ok": False, "source": "in-process suprema", "detail": {"_err": str(e)[:80]}}
+    return out
+
+
 def collect_live_entity_status() -> dict:
-    """Return {entity_id: {ok, http, source, detail}}. Best-effort; never raises."""
+    """Return {entity_id: {ok, http?, source, detail}} for all probeable entities. Best-effort; never
+    raises. HTTP probes + in-process App-B-local reads (sol, suprema) merged."""
     out: dict[str, dict] = {}
     for eid, (url, fields) in _PROBES.items():
         code, data = _get(url)
@@ -57,6 +84,7 @@ def collect_live_entity_status() -> dict:
         elif fields and isinstance(data, dict):
             detail = {f: data[f] for f in fields if f in data}
         out[eid] = {"ok": code == 200, "http": code, "source": url, "detail": detail}
+    out.update(collect_internal_status())   # sol + suprema, in-process (take precedence)
     return out
 
 
