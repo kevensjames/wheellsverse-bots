@@ -147,14 +147,26 @@ def _invoke_bounded(adapter, request: dict, timeout_ms: int):
 
 def governed_invoke(registry: CapabilityRegistry, adapter, cap_id: str, action_class: ActionClass,
                     request: dict, ctx: InvocationContext, *, target: str | None = None,
-                    lifecycle=None, audit: Callable[[AuditEvent], None] | None = None) -> NormalizedResult:
+                    lifecycle=None, audit: Callable[[AuditEvent], None] | None = None,
+                    timeout_ms: int | None = None) -> NormalizedResult:
     """Policy-gated invocation. A DENY never executes; a REQUIRE_APPROVAL returns an inert
     ActionProposal; an ALLOW runs the adapter under a timeout, catches crashes (redacted), and
     RE-OWNS the result's trust (UNTRUSTED + unauthorized + re-scanned). The action tier is
-    floored to the manifest's declared class so a caller can never under-classify it."""
+    floored to the manifest's declared class so a caller can never under-classify it.
+
+    ``timeout_ms`` is a caller-requested deadline that may only TIGHTEN the manifest ceiling,
+    never exceed it (§15): the effective timeout is min(requested, manifest) when both are set."""
     m = registry.get(cap_id)
     # the manifest's declared class is the FLOOR — never evaluate below it (defense in depth §18)
     action_class = _more_severe(m.default_action_class, action_class)
+    # §15: a request may only tighten the manifest's ceiling, never widen it
+    ceiling = m.timeout_ms
+    if timeout_ms is None:
+        eff_timeout = ceiling
+    elif ceiling and ceiling > 0:
+        eff_timeout = min(timeout_ms, ceiling)
+    else:
+        eff_timeout = timeout_ms
 
     # a quarantined/failed/stopping/offline runtime is never invoked (§52) — lifecycle is authoritative
     if lifecycle is not None:
@@ -179,7 +191,7 @@ def governed_invoke(registry: CapabilityRegistry, adapter, cap_id: str, action_c
 
     _emit(audit, "capability.invoked", cap_id, action_class, pol.decision.value, "invoking", ctx)
     try:
-        result = _invoke_bounded(adapter, request, m.timeout_ms)
+        result = _invoke_bounded(adapter, request, eff_timeout)
     except TimeoutError:
         if lifecycle is not None:
             try:
@@ -187,12 +199,19 @@ def governed_invoke(registry: CapabilityRegistry, adapter, cap_id: str, action_c
             except Exception:   # noqa: BLE001
                 pass
         _emit(audit, "capability.failed", cap_id, action_class, pol.decision.value, "timeout", ctx)
-        return normalize(cap_id, ResultKind.FAILURE, summary=f"timeout after {m.timeout_ms}ms",
+        return normalize(cap_id, ResultKind.FAILURE, summary=f"timeout after {eff_timeout}ms",
                          provenance=Provenance.UNAVAILABLE, correlation_id=ctx.correlation_id)
     except BaseException as exc:   # noqa: BLE001 — a crashing adapter must fail safe
         # REDACT: never interpolate the exception message (it may carry a secret) — type only
         _emit(audit, "capability.failed", cap_id, action_class, pol.decision.value, "crashed", ctx)
         return normalize(cap_id, ResultKind.FAILURE, summary=f"adapter error: {type(exc).__name__}",
+                         provenance=Provenance.UNAVAILABLE, correlation_id=ctx.correlation_id)
+
+    # a misbehaving adapter that returns None / a non-NormalizedResult must fail safe, never crash
+    # the gate (defense in depth §24 — adapter output is untrusted, including its very shape)
+    if not isinstance(result, NormalizedResult):
+        _emit(audit, "capability.failed", cap_id, action_class, pol.decision.value, "malformed_result", ctx)
+        return normalize(cap_id, ResultKind.FAILURE, summary="adapter returned a malformed result",
                          provenance=Provenance.UNAVAILABLE, correlation_id=ctx.correlation_id)
 
     # the FABRIC owns trust — the adapter cannot self-authorize or hide injection (§24)

@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     #    authenticates both apps. Legacy X-Admin-Token stays valid regardless.
     OPERATOR_SESSION_ENABLED: bool = False
     SESSION_SIGNING_SECRET: str = ""
+    # Capability Fabric execution gateway (owner-only governed tool execution). Default OFF ->
+    # the /admin/capabilities routes are not mounted, so a disabled deploy has zero new surface.
+    KAI_CAPABILITY_EXECUTION_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
