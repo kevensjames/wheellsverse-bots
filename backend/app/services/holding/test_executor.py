@@ -35,7 +35,7 @@ ck("approved worker-proposal dispatches a job (read-only)",
    r["executed"] is True and r["evidence"]["kind"] == "DISPATCHED" and r["evidence"].get("job_id") is not None)
 ck("a read-only worker job is enqueued (github, list_prs)",
    any(j["worker"] == "github" and j["task"].get("action") == "list_prs"
-       for j in worker_jobs.list_jobs(status="dispatched")))
+       for j in worker_jobs.list_jobs(status="queued")))
 ck("executed proposal leaves the approved set", store.get(verify_p["id"])["status"] == "executed")
 
 # 3) re-executing an already-executed proposal is refused (no longer approved)

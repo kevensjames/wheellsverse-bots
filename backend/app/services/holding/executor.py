@@ -76,8 +76,10 @@ def _dispatch_worker(proposal_id: int, worker: str, entity) -> dict:
     else:
         return {"kind": "DISPATCH_SKIPPED", "reason": f"unknown worker '{worker}'"}
     from app.services.holding import worker_jobs
-    job_id = worker_jobs.enqueue(proposal_id, worker, task)
-    return {"kind": "DISPATCHED", "worker": worker, "job_id": job_id, "task": task,
+    job = worker_jobs.enqueue(proposal_id, worker, task,
+                              idempotency_key=f"prop:{proposal_id}:{worker}", mission_id=f"holding:{proposal_id}") or {}
+    return {"kind": "DISPATCHED", "worker": worker, "job_id": job.get("id"),
+            "correlation_id": job.get("correlation_id"), "deduped": job.get("deduped"), "task": task,
             "note": "queued for the isolated worker-runner (read-only, runs in an isolated container)"}
 
 

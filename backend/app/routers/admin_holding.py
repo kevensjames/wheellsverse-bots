@@ -108,19 +108,42 @@ def holding_worker_jobs(status: str = ""):
 
 
 @router.post("/worker-jobs/claim")
-def holding_worker_claim():
-    """The worker-runner claims the next dispatched job (dispatched -> running). Owner-only."""
+def holding_worker_claim(body: dict = Body(default={})):
+    """The worker-runner claims the next eligible job (queued or a lease-expired reclaim → running),
+    bound to its worker_id. Owner-only. Reclaims stranded jobs first so a crash never permanently strands."""
     from app.services.holding import worker_jobs
-    job = worker_jobs.claim_next()
-    return {"job": job}   # {} when the queue is empty
+    worker_jobs.reclaim_expired()
+    worker_id = str(body.get("worker_id") or "holding-worker-unknown")
+    job = worker_jobs.claim_next(worker_id)
+    return {"job": job, "worker_id": worker_id}   # job is None when the queue is empty
+
+
+@router.post("/worker-jobs/{job_id}/heartbeat")
+def holding_worker_heartbeat(job_id: int, body: dict = Body(default={})):
+    """The worker-runner extends a running job's lease. Owner-only + owning-worker guarded."""
+    from app.services.holding import worker_jobs
+    ok = worker_jobs.heartbeat(job_id, str(body.get("worker_id") or ""))
+    if not ok:
+        raise HTTPException(status_code=409, detail="not running / not owner")
+    return {"heartbeat": True, "job_id": job_id}
 
 
 @router.post("/worker-jobs/{job_id}/complete")
 def holding_worker_complete(job_id: int, body: dict = Body(default={})):
-    """The worker-runner posts a job's read-only evidence (running -> done/failed). Owner-only."""
+    """The worker-runner posts a job's read-only evidence (running -> succeeded/failed). Owner-only,
+    owning-worker guarded, idempotent (a terminal job is a no-op → no duplicate evidence)."""
     from app.services.holding import worker_jobs
-    ok = worker_jobs.complete(job_id, body.get("evidence", body), status=body.get("status", "done"))
+    ok = worker_jobs.complete(job_id, body.get("evidence", body), status=body.get("status", "succeeded"),
+                              worker_id=body.get("worker_id"))
     if not ok:
-        raise HTTPException(status_code=409, detail="job not in 'running' state")
-    _audit_proposal("holding.worker_job.completed", {"job_id": job_id, "status": body.get("status", "done")})
+        raise HTTPException(status_code=409, detail="job not in 'running' state / not owner / already terminal")
+    _audit_proposal("holding.worker_job.completed",
+                    {"job_id": job_id, "status": body.get("status", "succeeded"), "worker_id": body.get("worker_id")})
     return {"completed": True, "job_id": job_id}
+
+
+@router.post("/worker-jobs/reclaim")
+def holding_worker_reclaim():
+    """Return lease-expired stranded jobs to the queue (crash recovery). Owner-only."""
+    from app.services.holding import worker_jobs
+    return {"reclaimed": worker_jobs.reclaim_expired()}
