@@ -26,7 +26,7 @@ def morning_briefing() -> dict:
             from app.models.admin import AuditLog
             s = SessionLocal()
             try:
-                row = AuditLog(action=event, detail=str(payload)[:2000])
+                row = AuditLog(action=event, actor_type="system", event_metadata=payload)
                 s.add(row); s.commit()
                 audit_ids.append(getattr(row, "id", None))
             finally:
