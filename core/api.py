@@ -10954,6 +10954,29 @@ async def money_assets():
 
 _nexora_outputs_dir = ROOT / "outputs" / "agent_workforce" / "102_nexora_builder"
 
+@app.get("/api/siteboost/stats")
+async def siteboost_stats():
+    """SiteBoost outbound-pipeline stats (read-only, public) — lets the Holding OS on App B
+    self-update SiteBoost's real activity instead of an operator-confirmed guess. Best-effort;
+    discloses when unavailable rather than inventing."""
+    try:
+        from core.siteboost_state import stats as _sb_stats
+        return {"ok": True, "stats": _sb_stats()}
+    except Exception as e:
+        return {"ok": False, "note": "siteboost stats unavailable", "error": str(e)[:120]}
+
+
+@app.get("/api/wmos/stats")
+async def wmos_stats():
+    """W-MOS per-business portfolio rollup (read-only, public) — phase/completed/pending/next_step
+    per business, so the Holding OS can self-update W-MOS's real loop state. Best-effort."""
+    try:
+        from core.portfolio.rollup import portfolio_overview
+        return {"ok": True, "businesses": portfolio_overview()}
+    except Exception as e:
+        return {"ok": False, "note": "wmos rollup unavailable", "error": str(e)[:120]}
+
+
 @app.get("/api/nexora/status")
 async def nexora_status():
     """NEXORA platform status and latest recruitment output."""
