@@ -134,3 +134,159 @@ trusted). §12/§13 one isolated worktree/branch per writable worker. 12 coding 
 
 The path to CERTIFIED per capability: install (approved) → build adapter → health check →
 auto-routing verified live → integration-tested → certify. None may be forced (§74).
+
+---
+
+# MEGA-EXPANSION (§6–65) — live-web verified 2026-08-31
+
+93 additional candidates were verified against the **live web** by 7 parallel researchers
+(strict *verify-or-`UPSTREAM_UNRESOLVED`, never fabricate*). All were added to `seed.py` as
+**DISCOVERED** (upstream verified, NOT installed) — the catalog grew **32 → 126** with the
+honest-READY invariant intact: **still exactly 5 AVAILABLE**. Nothing installed, nothing
+deployed, no production change. Money mode remains MOCK; **0** financial executions.
+
+**Catalog roll-up (126):** AVAILABLE 5 · DISCOVERED 121 — CERTIFIED 5 · PARTIAL 2 ·
+EXTERNAL_BLOCKED 41 · EXPERIMENTAL 61 · UPSTREAM_UNRESOLVED 5 · REJECTED 12.
+**False READY states: 0. Restricted auto-executions: 0.**
+
+## Per-candidate ledger (§99) — one row per candidate, nothing dropped
+
+### §7 Knowledge / Reference (all KNOWLEDGE_PACK, REFERENCE_ONLY, DISCOVERED)
+| candidate | canonical | state / note |
+|---|---|---|
+| public-apis | public-apis/public-apis (MIT) | REFERENCE — discovery catalog; validate each API before use (§58) |
+| developer-roadmap | nilbuild/developer-roadmap | **MOVED + RESTRICTED/DISABLED** — license forbids content ingest; link-only |
+| free-programming-books | EbookFoundation/… (CC-BY-4.0) | REFERENCE |
+| build-your-own-x | codecrafters-io/… (CC0) | REFERENCE |
+| system-design-primer | donnemartin/… (CC-BY-4.0) | REFERENCE |
+| coding-interview-university | jwasham/… (CC-BY-SA) | REFERENCE — stale 2024-12, stable |
+| the-art-of-command-line | jlevy/… (CC-BY-SA) | REFERENCE — stale 2023-07 |
+| project-based-learning | practical-tutorials/… (MIT) | REFERENCE |
+| you-dont-know-js | getify/… (CC-BY-NC-ND) | REFERENCE — no commercial/derivatives; read+attribute only |
+| the-book-of-secret-knowledge | trimstray/… (MIT) | REFERENCE — stale 2024-11 |
+| tech-interview-handbook | yangshun/… (MIT) | REFERENCE |
+| freecodecamp | freeCodeCamp/… | REFERENCE — index curriculum prose only, never run the app |
+| javascript-algorithms | trekhleb/… (MIT) | REFERENCE |
+| 30-seconds-of-code | Chalarangelo/… (CC-BY-4.0) | REFERENCE |
+| gitignore | github/gitignore (CC0) | REFERENCE |
+
+### §8/§18/§20/§53 Documents · Code-intelligence · RAG · Memory
+| candidate | canonical | disposition |
+|---|---|---|
+| markitdown | microsoft/markitdown (MIT) | **ADOPT** — broadens ingestion (audio/img/YouTube/EPub) → RAG |
+| codebase-memory-mcp | DeusData/… (MIT) | **ADOPT (PRIMARY)** — fills semantic-code-search gap; 100% local |
+| claude-context | zilliztech/… (MIT) | RESTRICTED — cloud embeddings; local Ollama+Milvus only |
+| codegraph | colbymchenry/codegraph (MIT) | REFERENCE — near-dup alternative; anomalous stars |
+| llama_index | run-llama/… (MIT) | **REJECT_DUPLICATE** — KAI RAG |
+| ragflow | infiniflow/… (Apache-2.0) | **REJECT_DUPLICATE** — heavy stack |
+| supermemory | supermemoryai/… (MIT) | **REJECT_DUPLICATE** — kai-memory |
+| mem0 (“memo”) | mem0ai/mem0 (Apache-2.0) | **REJECT_DUPLICATE** — kai-memory; no “memOai/memo” exists |
+| brain.md | mindmuxai/brain.md (Apache-2.0) | REFERENCE — name-collision w/ mi4uu/brain.md, pin exact |
+| openwiki | langchain-ai/openwiki (MIT) | REFERENCE — self-directed agent; overlaps KAI doc-gen |
+
+### §12/§13 Models / Inference / Routers
+| candidate | canonical | disposition |
+|---|---|---|
+| transformers | huggingface/transformers (Apache-2.0) | ADOPT — heavy, GPU, resource-gated |
+| vllm | vllm-project/vllm (Apache-2.0) | ADOPT — GPU serving behind KAI router |
+| llama.cpp | **ggml-org**/llama.cpp (MIT) | ADOPT — lightest, CPU-ok (canonical MOVED from ggerganov) |
+| DeepSeek V4 | deepseek-ai/DeepSeek-V4 (MIT) | REFERENCE — ~893GB, hosted-API only |
+| Bonsai-27B | prism-ml/Bonsai-27B (Apache-2.0) | REFERENCE — exotic 1-bit weights, unverified claims |
+| nanochat | karpathy/nanochat (MIT) | REFERENCE — educational |
+| Open-Gen-AI | — | **UPSTREAM_UNRESOLVED** — generic name, no clean match |
+| free-llm-api-resources | cheahjs/… **(REMOVED, 404)** | **UPSTREAM_UNRESOLVED** — ⚠ namesake of `feat/kai-freellmapi`; canonical gone |
+| 9Router | decolua/9router (MIT) | EXPERIMENTAL_PROVIDER_GATEWAY — HIGH; holds all keys, ToS risk |
+| OmniRoute (provider) | diegosouzapw/OmniRoute (MIT) | EXPERIMENTAL_PROVIDER_GATEWAY — HIGH; **disambiguated** from geo |
+| Kronos | shiyu-coder/Kronos (MIT) | REFERENCE — financial forecast model; signal ≠ order |
+
+### §10/§36 Browser · Web-data · OSINT · AI-security
+| candidate | canonical | disposition |
+|---|---|---|
+| stagehand | browserbase/stagehand (MIT) | REFERENCE — AI layer over seeded playwright |
+| browser-use | browser-use/… (MIT) | REFERENCE — cloud tier markets stealth (don’t use) |
+| firecrawl | firecrawl/firecrawl (AGPL-3.0) | **ADOPT** — web→RAG crawl gap; isolated self-host/hosted |
+| Scrapling | D4Vinci/Scrapling (BSD-3) | **RESTRICTED (EVASION)** — Cloudflare bypass |
+| Camoufox | daijro/camoufox (MPL-2.0) | **RESTRICTED (EVASION)** — anti-detect Firefox binary |
+| Agent-Reach | Panniantong/Agent-Reach (MIT) | **RESTRICTED** — stores platform cookies, bypasses APIs |
+| yt-dlp | yt-dlp/yt-dlp (Unlicense) | ADOPT — authorized content only |
+| Maigret | soxoj/maigret (MIT) | ADOPT — username OSINT (tier 1, privacy-classified) |
+| Flowsint | reconurge/flowsint (Apache-2.0) | REFERENCE — heavy OSINT stack |
+| Bumblebee | perplexityai/bumblebee (Apache-2.0) | **ADOPT** — read-only supply-chain scanner → install gate (§39/§82) |
+| iFixAI | ifixai-ai/iFixAi (Apache-2.0) | RESTRICTED — tier-3 AI red-teaming; anomalous stars |
+| future-agi | future-agi/… (Apache-2.0) | REFERENCE — eval platform; reuse SDK only |
+
+### §14–17/§40/§46/§47 Agent frameworks · Coding workers · Sandbox · Workflow
+| candidate | canonical | disposition |
+|---|---|---|
+| langchain / langgraph | langchain-ai/* (MIT) | REUSE_LIBRARY — never a second brain |
+| autogen | microsoft/autogen (MIT) | **UNMAINTAINED** → REFERENCE (maintenance mode) |
+| crewAI | crewAIInc/crewAI (MIT) | REUSE_LIBRARY |
+| MetaGPT | FoundationAgents/MetaGPT (MIT) | REFERENCE (MOVED from geekan) |
+| DeerFlow | bytedance/deer-flow (MIT) | REFERENCE — HIGH; rival super-agent |
+| Goose | **aaif-goose**/goose (Apache-2.0) | USE_AS_WORKER (MOVED from block; govern+sandbox) |
+| OpenHands | All-Hands-AI/OpenHands (MIT) | USE_AS_WORKER — Docker sandbox required |
+| ruflo | ruvnet/ruflo (MIT) | **REJECT_DUPLICATE** — HIGH; unbounded swarm brain |
+| n8n | n8n-io/n8n (fair-code) | ADAPTER_ONLY — isolated service |
+| openclaw | openclaw/openclaw (MIT) | **REJECT_DUPLICATE** — HIGH; host-shell rival brain |
+| Aider | Aider-AI/aider (Apache-2.0) | USE_AS_WORKER |
+| Dyad | dyad-sh/dyad (Apache-2.0+FSL) | REFERENCE — GUI builder |
+| Orca | stablyai/orca (MIT) | REFERENCE — overlaps CodingWorkerRouter |
+| claude-task-master | eyaltoledano/… (MIT+Commons) | REUSE_LIBRARY — overlaps Missions/sequential-thinking |
+| Daytona | daytonaio/daytona (AGPL) | **ARCHIVED** → REFERENCE (colima incumbent) |
+| Nango | NangoHQ/nango (Elastic-2.0) | ADAPTER_ONLY — credential broker, compare before adopt |
+
+### §23/§26/§27/§28 Design · Media · Voice
+| candidate | canonical | disposition |
+|---|---|---|
+| three.js / GSAP | mrdoob/three.js (MIT) · greensock/GSAP (non-OSI) | REFERENCE — front-end libraries |
+| Genjutsu | AThevon/genjutsu (MIT) | ADOPT — creative-coding skill; review before load |
+| Penpot | penpot/penpot (MPL-2.0) | HUMAN_INTERACTIVE — design workspace |
+| ai-website-cloner | JCodesMore/… (MIT) | RESTRICTED — authorized/owned sites; original output only (§24) |
+| ComfyUI | comfyanonymous/ComfyUI (GPL-3.0) | ADOPT — isolated, **vetted custom-nodes only** |
+| HyperFrames | heygen-com/hyperframes (Apache-2.0) | ADOPT — HTML→video, deterministic (pin heygen-com) |
+| OpenMontage | calesthio/OpenMontage (AGPL) | RESTRICTED — HIGH; fork-farm, pin canonical |
+| MoneyPrinterTurbo | harry0703/… (MIT) | REFERENCE — spam vector, no auto-publish |
+| Whisper (local) | openai/whisper (MIT) | ADOPT — local STT gap; reuse KAI voice layer |
+| VoxCPM2 | OpenBMB/VoxCPM (Apache-2.0) | RESTRICTED — voice-clone deepfake risk |
+| Pipecat | pipecat-ai/pipecat (BSD-2) | ADOPT — realtime voice transport under KAI controller |
+| Meetily | Zackriya-Solutions/meetily (MIT) | HUMAN_INTERACTIVE — action items → ActionProposal (§51) |
+
+### §30–34/§62/§63/§75/§76 Marketing · Ads · Analytics · Finance · Commerce · Workspace · UI
+| candidate | canonical | disposition |
+|---|---|---|
+| ai-marketing-skills | ericosiu/… (MIT) | RESTRICTED — read/draft only; no autonomous outbound/spend |
+| Claude Ads | ambiguous community forks | **UPSTREAM_UNRESOLVED** — NOT official; dup native ads |
+| ViralityAI | viralityai.net (SaaS) | HUMAN_INTERACTIVE — no public API |
+| Playto | playto.so (SaaS) | **REJECT_DUPLICATE** — vs Stripe/Dwolla/SOL; no API |
+| Plausible | plausible/analytics (AGPL) | SERVICE_CONNECTOR — read-only aggregate stats |
+| TradingAgents | TauricResearch/… (Apache-2.0) | RESTRICTED — research/paper only |
+| Vibe Trading | HKUDS/Vibe-Trading (MIT) | **RESTRICTED — live exec PROHIBITED_INITIALLY** (real brokers) |
+| Fincept Terminal | Fincept-Corp/… (AGPL) | REFERENCE — desktop, no API; live=Enterprise DISABLED |
+| Abacus AI | abacus.ai (proprietary) | SERVICE_CONNECTOR (RESTRICTED) — paid/egress; overlaps FreeLLMAPI |
+| Dify | langgenius/dify | REFERENCE — duplicates orchestration |
+| Langflow | langflow-ai/langflow (MIT) | REFERENCE — HIGH; unauth-RCE history, security-scan |
+| Open WebUI | open-webui/… | **REJECT_DUPLICATE** — Nexus |
+| LobeChat | lobehub/lobe-chat | **REJECT_DUPLICATE** — Nexus |
+| Appwrite | appwrite/appwrite (BSD-3) | REFERENCE — KAI has own backend |
+| AppFlowy | AppFlowy-IO/… (AGPL) | HUMAN_INTERACTIVE — no automation API |
+
+### §56 Web-design prompt pack
+| candidate | disposition |
+|---|---|
+| website.{premium_architect,hero_strategist,homepage_conversion,portfolio_designer,service_landing,about_story,mobile_optimizer,full_copywriter,landing_architect,premium_ux} | **UPSTREAM_UNRESOLVED** — declared as one skill pack; instruction bodies pending (operator message truncated) |
+
+## Fabric-core re-certification (mega-expansion, §74/§88)
+| check | state | evidence |
+|---|---|---|
+| Capability suite | **PASS** | 7/7 files, **59 pure tests** (48 + 11 new invariants), 0 fail |
+| No fake READY | **PASS** | only 5 AVAILABLE after +93; `t_megaexpansion_nothing_new_is_available` |
+| Evasion tools locked | **PASS** | Scrapling/Camoufox/Agent-Reach RESTRICTED+DISABLED, never auto |
+| Money safety | **PASS** | TradingAgents/Vibe-Trading DISABLED+never-auto; live exec PROHIBITED; MOCK |
+| Duplicates rejected | **PASS** | 12 REJECTED, DISABLED, not selectable |
+| Unresolved assert no source | **PASS** | claude-ads/open-gen-ai/free-llm-api-resources/website-design-skills carry no upstream |
+| Wrong-tool avoidance | **PASS** | `2+2`→∅; heavy-model/finance prompts select no uninstalled tool |
+| Nexus catalog | **PASS** | regenerated 126, Nexus JS 7/7 (no fake READY, RESTRICTED distinct, no secrets) |
+
+**Not installed / not deployed / not certified-live** — every external capability stays DISCOVERED
+until the operator-approved install → adapter → health → live-route → integration-test path runs.
+This is a catalog wave (§93 Wave A), honestly bounded.
