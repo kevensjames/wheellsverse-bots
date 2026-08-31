@@ -307,14 +307,41 @@ way). Manifest → **AVAILABLE + CERTIFIED**; AVAILABLE set is now the honest **
 **Caveat (honest):** installed in the cert venv only — NOT in the deployed App B runtime. To make it
 live in prod: `pip install markitdown` on App B + redeploy. Until then its adapter reports OFFLINE there.
 
-## codebase-memory-mcp — ⏸ install recipe RESOLVED, certification OPERATOR-GATED
-It is a **prebuilt native C binary** from a small publisher (npm `codebase-memory-mcp` / pip / brew /
-GitHub Releases; the `curl|bash` installer is forbidden §81). Autonomously downloading + executing an
-unreviewed native binary — or `claude mcp add` (which mutates this session's own MCP config) — is
-**refused** per §81/§83/§84 and the standing "no unreviewed execution" rule. **This is the rule working,
-not a blocker to paper over.** Path to certify (operator-approved): review the publisher **or**
-build-from-source → **bumblebee** supply-chain scan (§82) → start as an isolated subprocess + MCP
-handshake → `claude mcp add` / App B wiring → live index+query test. Stays DISCOVERED until then.
+## yt-dlp — ✅ CERTIFIED_LOCAL (commit 64186a5)
+`YtDlpAdapter` (LIBRARY). CERTIFIED path = READ-ONLY metadata extract (`extract_info(download=False)`),
+proven live on a CC-BY archive.org item (real title/duration/formats → Observation, UNTRUSTED). A
+**download is never executed** — it returns an inert `ActionProposal` gated on authorized-content +
+governance (§22/§80). `test_capability_live_ytdlp.py` 6/6 both envs. Manifest → **AVAILABLE + CERTIFIED**,
+`automatic_activation_allowed=False` (explicit-only, never auto-routed). AVAILABLE set now **7**.
 
-**Wave B state:** 1 capability CERTIFIED_LOCAL, 1 correctly gated. AVAILABLE 5→6. 0 unreviewed binaries
-run. 0 prod change. MONEY_MODE=MOCK.
+## codebase-memory-mcp — ✅ PARTIAL, built-from-source + reviewed + PROVEN (commit 44e3492)
+Operator-approved (a). Took the least-trusting path — **not** the prebuilt binary, **not** `curl|bash`:
+- **Reviewed** 444 own C/H files: no external network egress (only 127.0.0.1 opt-out UI + local control
+  socket), defensive secret containment (refuses `~/.ssh`/`/etc`/`$HOME`; scans+skips secrets), 30M
+  vendored nomic code-embeddings (licensed). Honest caveat: it **is a fork/exec daemon**, not a "static binary".
+- **Built** from source (`scripts/build.sh`, standard/no-UI, ASan/UBSan). **Proven** in isolation
+  (`HOME=scratch`): indexed a repo (22 nodes/edges), cross-language grep, and a semantic `search_graph`
+  query correctly ranked `verify_token`/`mint_session`. **Zero leak** to the real home.
+- `CodebaseMemoryMcpAdapter` (SUBPROCESS, read-only tool **allowlist**; refuses delete/install/uninstall/
+  update; never runs the tool's `install`, which reconfigures 45 clients). `test_capability_live_cbm.py`
+  6/6 unconfigured (OFFLINE + allowlist) AND 6/6 configured (live subprocess round-trip).
+- Manifest → **PARTIAL**, availability **DISCOVERED** (cert build is an ephemeral ASan scratchpad artifact;
+  durable release + bumblebee scan §82 + operator MCP/App B wiring pending). Set `$CBM_BIN` to enable.
+
+## (c) markitdown live on App B — ⛔ NOT a dep install; topology corrected
+Investigated before touching prod. App B (`kai-prod`) is up (`env=production`), and its deployed branch
+carries the fabric *core* — **but the fabric is wired into NO App B endpoint** (nothing imports it in
+`main.py`/routers), and this session's `live_adapters.py` isn't on the deployed branch at all. The fabric's
+only prod surface is **App A serving the static Nexus catalog** (`core/api.py` → `kai-capability-catalog.json`)
+— a read-only market display. So `pip install markitdown` on App B would make **nothing live**: no route
+calls `governed_invoke`. My (c) option text ("install + redeploy") was misleading — corrected here.
+**Two real paths (both operator-gated, not run):** (i) build a governed capability-invocation endpoint on
+App B (`POST /admin/capability/invoke` → Brain → adapter) + add markitdown to App B deps + deploy the fabric
+branch via `railway up --service kai-prod` — a genuine new *prod execution surface*, deserves deliberate
+review; (ii) display-only — push the updated catalog to App A `production` so the live Nexus market shows
+markitdown/yt-dlp CERTIFIED (git push is classifier-gated). Recommendation: keep the fabric's honest
+read-only Nexus market for now; build the execution endpoint as a separately-reviewed increment.
+
+**Wave B state:** **3 capabilities certified** (markitdown ✅, yt-dlp ✅ CERTIFIED_LOCAL; codebase-memory-mcp
+✅ PARTIAL). AVAILABLE 5→7. 0 unreviewed binaries run (cbm built from source + reviewed). **0 prod change.**
+MONEY_MODE=MOCK.
