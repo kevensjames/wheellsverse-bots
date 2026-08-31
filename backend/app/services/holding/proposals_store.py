@@ -19,10 +19,20 @@ _DDL = """CREATE TABLE IF NOT EXISTS holding_proposals (
     severity TEXT, entity TEXT, title TEXT,
     action JSONB NOT NULL DEFAULT '{}',
     status TEXT NOT NULL DEFAULT 'proposed',
-    decided_at TIMESTAMPTZ, decided_by TEXT, reject_reason TEXT
+    decided_at TIMESTAMPTZ, decided_by TEXT, reject_reason TEXT,
+    evidence JSONB, executed_at TIMESTAMPTZ
 )"""
+# For tables created before Wave 3 (no evidence/executed_at columns):
+_ALTERS = ("ALTER TABLE holding_proposals ADD COLUMN IF NOT EXISTS evidence JSONB",
+           "ALTER TABLE holding_proposals ADD COLUMN IF NOT EXISTS executed_at TIMESTAMPTZ")
 
 _VALID = {"approved", "rejected"}
+
+
+def _ensure(db) -> None:
+    db.execute(text(_DDL))
+    for a in _ALTERS:
+        db.execute(text(a))
 
 
 def sync_open(proposals: list) -> int:
@@ -31,7 +41,7 @@ def sync_open(proposals: list) -> int:
     try:
         db = SessionLocal()
         try:
-            db.execute(text(_DDL))
+            _ensure(db)
             inserted = 0
             for p in (proposals or []):
                 sk = p.get("source_key", "")
@@ -64,7 +74,7 @@ def list_proposals(status: Optional[str] = None, limit: int = 50) -> list:
     try:
         db = SessionLocal()
         try:
-            db.execute(text(_DDL))
+            _ensure(db)
             q = "SELECT id, created_at, source_key, severity, entity, title, action, status, decided_at, reject_reason FROM holding_proposals"
             params = {"lim": limit}
             if status:
@@ -92,7 +102,7 @@ def decide(proposal_id: int, status: str, *, reason: Optional[str] = None, by: s
     try:
         db = SessionLocal()
         try:
-            db.execute(text(_DDL))
+            _ensure(db)
             res = db.execute(text("""
                 UPDATE holding_proposals
                    SET status = :st, decided_at = now(), decided_by = :by,
@@ -108,3 +118,44 @@ def decide(proposal_id: int, status: str, *, reason: Optional[str] = None, by: s
             db.close()
     except Exception:
         return None
+
+
+def get(proposal_id: int) -> Optional[dict]:
+    """One proposal by id (with its action + status). None if not found / DB down. Never raises."""
+    try:
+        db = SessionLocal()
+        try:
+            _ensure(db)
+            r = db.execute(text(
+                "SELECT id, source_key, severity, entity, title, action, status FROM holding_proposals WHERE id = :id"),
+                {"id": proposal_id}).fetchone()
+            if not r:
+                return None
+            act = r[5] if isinstance(r[5], dict) else json.loads(r[5] or "{}")
+            return {"id": r[0], "source_key": r[1], "severity": r[2], "entity": r[3],
+                    "title": r[4], "action": act, "status": r[6]}
+        finally:
+            db.close()
+    except Exception:
+        return None
+
+
+def record_execution(proposal_id: int, evidence: dict) -> bool:
+    """Move an 'approved' proposal to 'executed' and store its evidence. Only acts on approved rows
+    (execution is bound to a prior approval). True on success. Never raises."""
+    try:
+        db = SessionLocal()
+        try:
+            _ensure(db)
+            res = db.execute(text("""
+                UPDATE holding_proposals
+                   SET status = 'executed', executed_at = now(), evidence = CAST(:ev AS JSONB)
+                 WHERE id = :id AND status = 'approved'
+             RETURNING id
+            """), {"ev": json.dumps(evidence), "id": proposal_id}).fetchone()
+            db.commit()
+            return bool(res)
+        finally:
+            db.close()
+    except Exception:
+        return False

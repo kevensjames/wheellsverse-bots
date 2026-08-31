@@ -84,3 +84,17 @@ def holding_reject(proposal_id: int, reason: str = ""):
         raise HTTPException(status_code=404, detail="no open proposal with that id")
     _audit_proposal("holding.proposal.rejected", {**r, "reason": reason})
     return {"rejected": True, "proposal": r}
+
+
+@router.post("/proposals/{proposal_id}/execute")
+def holding_execute(proposal_id: int):
+    """Execute an APPROVED proposal's READ-ONLY action (re-probe / gather evidence) — bound to the
+    prior approval. Refuses anything not already approved. No writes, money, or deploys. Audited."""
+    from app.services.holding.executor import execute_approved
+    r = execute_approved(proposal_id)
+    if not r.get("executed"):
+        # 409 when the proposal exists but isn't in an approved state; 404-ish reasons collapse here too
+        raise HTTPException(status_code=409, detail=r.get("reason", "cannot execute"))
+    _audit_proposal("holding.proposal.executed",
+                    {"id": proposal_id, "action_class": r.get("action_class"), "evidence": r.get("evidence")})
+    return r
