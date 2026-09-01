@@ -29,10 +29,12 @@ def t_catalog_loads():
 
 
 def t_only_certified_are_available():
-    """Native caps + CERTIFIED foundation MCPs + the HERO policy are AVAILABLE (§73/§3/§4/§11)."""
+    """Native caps + CERTIFIED foundation MCPs + HERO + the Wave-B-certified markitdown & yt-dlp are
+    AVAILABLE (§73/§3/§4/§11/Wave-B). Nothing else may be AVAILABLE without a real install+adapter+cert."""
     reg = seed_registry()
     available = [m.id for m in reg.list(availability=AV.AVAILABLE)]
-    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright", "hero"}, f"unexpected available set: {available}"
+    assert set(available) == {"kai-memory", "claude-code", "context7", "playwright", "hero",
+                              "markitdown", "yt-dlp"}, f"unexpected available set: {available}"
 
 
 def t_external_not_selectable():
@@ -181,6 +183,123 @@ def t_live_coding_routes_to_claude_code():
     assert "claude-code" in ids, f"implement task must route to the available worker, got {plan.summary}"
     for other in ("codex", "cline", "gemini-cli"):
         assert other not in ids, f"{other} is not installed and must not be selected"
+
+
+# ── mega-expansion (§6-65) honesty invariants ────────────────────────────────
+def t_megaexpansion_catalog_grew():
+    reg = seed_registry()
+    assert len(reg) >= 120, f"mega-expansion should register the full catalog, got {len(reg)}"
+    for cid in ("markitdown", "firecrawl", "codebase-memory-mcp", "vllm", "llama-cpp", "transformers",
+                "yt-dlp", "maigret", "bumblebee", "pipecat", "whisper-local", "hyperframes",
+                "goose", "openhands", "aider", "n8n", "nango", "plausible", "public-apis"):
+        assert reg.has(cid), f"missing expanded capability {cid}"
+
+
+def t_megaexpansion_only_wave_b_promoted():
+    """Honest-READY invariant: of the 93 catalog-wave tools, only the Wave-B capabilities that got a
+    real install + adapter + live cert are AVAILABLE (markitdown, yt-dlp). Everything else stays
+    DISCOVERED. No tool fake-flips to READY."""
+    reg = seed_registry()
+    available = {m.id for m in reg.list(availability=AV.AVAILABLE)}
+    assert available == {"kai-memory", "claude-code", "context7", "playwright", "hero",
+                         "markitdown", "yt-dlp"}, f"only Wave-B caps may be newly AVAILABLE, got {available}"
+    for cid in ("markitdown", "yt-dlp"):
+        m = reg.get(cid)
+        assert m.certification.value == "CERTIFIED" and m.selectable(), f"{cid} must be genuinely certified+selectable"
+    # yt-dlp is certified but must NEVER auto-route (media retrieval is explicit-only, §80)
+    assert reg.get("yt-dlp").auto_selectable() is False, "yt-dlp must not be auto-routed"
+
+
+def t_evasion_tools_restricted_disabled_never_auto():
+    """§11: stealth/anti-bot evasion tooling is RESTRICTED, DISABLED, never auto-selectable."""
+    reg = seed_registry()
+    for cid in ("scrapling", "camoufox", "agent-reach"):
+        m = reg.get(cid)
+        assert m.risk_class.value == "RESTRICTED" and m.activation.value == "DISABLED", f"{cid} not locked down"
+        assert m.auto_selectable() is False, f"{cid} must never auto-select"
+
+
+def t_finance_live_execution_disabled_and_never_auto():
+    """§34/§35/§79: trading tools never auto-activate; real order execution stays DISABLED."""
+    reg = seed_registry()
+    for cid in ("tradingagents", "vibe-trading"):
+        m = reg.get(cid)
+        assert m.activation.value == "DISABLED" and m.automatic_activation_allowed is False, f"{cid} not gated"
+        assert m.auto_selectable() is False, f"{cid} must never auto-select"
+    # the live-broker tool is explicitly a FINANCIAL action class + operator-approval-gated
+    vt = reg.get("vibe-trading")
+    assert vt.default_action_class.value == "FINANCIAL" and vt.operator_approval_required is True
+
+
+def t_reject_duplicates_are_rejected_and_disabled():
+    """Duplicates of KAI-native capabilities are REJECTED + DISABLED, visible but not selectable (§69)."""
+    reg = seed_registry()
+    for cid in ("llama-index", "ragflow", "supermemory", "mem0", "autogen", "ruflo", "openclaw",
+                "playto", "open-webui", "lobe-chat", "daytona"):
+        m = reg.get(cid)
+        assert m.certification.value == "REJECTED", f"{cid} should be certification REJECTED"
+        assert m.activation.value == "DISABLED" and m.auto_selectable() is False, f"{cid} must not be selectable"
+
+
+def t_unresolved_assert_no_source():
+    """§1/§89: an UPSTREAM_UNRESOLVED capability must NOT claim a verified upstream (no fabrication)."""
+    reg = seed_registry()
+    for cid in ("claude-ads", "open-gen-ai", "free-llm-api-resources", "website-design-skills"):
+        m = reg.get(cid)
+        assert m.certification.value == "UPSTREAM_UNRESOLVED", f"{cid} should be UPSTREAM_UNRESOLVED"
+        assert not m.provenance.upstream, f"{cid} must assert no source while unresolved"
+
+
+def t_moved_and_archived_recorded_honestly():
+    """§1 source states: MOVED/ARCHIVED upstreams are recorded, not silently 'verified fine'."""
+    reg = seed_registry()
+    # developer-roadmap MOVED + license-restricted -> DISABLED for ingestion
+    dr = reg.get("developer-roadmap")
+    assert dr.activation.value == "DISABLED" and dr.risk_class.value == "HIGH"
+    # daytona OSS archived -> REJECTED
+    assert reg.get("daytona").certification.value == "REJECTED"
+    # llama.cpp canonical moved to ggml-org
+    assert "ggml-org/llama.cpp" in reg.get("llama-cpp").provenance.upstream
+
+
+def t_code_intelligence_gap_has_one_primary():
+    """§18/§19: the code-intel candidates collapse to ONE primary; the rest are its alternatives."""
+    reg, g = seed_registry(), seed_graph()
+    assert reg.has("codebase-memory-mcp")
+    for alt in ("claude-context", "codegraph"):
+        assert "codebase-memory-mcp" in g.related(alt, __import__("capability.graph", fromlist=["Relation"]).Relation.ALTERNATIVE_TO), \
+            f"{alt} should be an alternative to the primary code-intel tool"
+
+
+def t_heavy_runtimes_declare_resources():
+    """§73: heavy local runtimes declare a resource profile so the Resource Brain can gate them."""
+    reg = seed_registry()
+    for cid in ("vllm", "transformers", "comfyui"):
+        rp = reg.get(cid).resource_profile
+        assert rp.heavy and (rp.gpu or rp.vram_mb > 0), f"{cid} must declare heavy/GPU resources"
+
+
+def t_expansion_workers_not_auto_until_installed():
+    """New coding workers are verified-but-not-installed → not auto-routed (only claude-code is live)."""
+    reg = seed_registry()
+    for cid in ("goose", "openhands", "aider", "dyad"):
+        assert reg.get(cid).auto_selectable() is False, f"{cid} not installed → must not auto-route"
+
+
+def t_live_brain_ignores_uninstalled_on_expansion_prompts():
+    """§91 wrong-tool avoidance: real prompts do not select any DISCOVERED-only expansion capability."""
+    reg, g = seed_registry(), seed_graph()
+    brain = CapabilityBrain(reg, g)
+    # a heavy-model ask must NOT spin up vLLM/comfyui (not installed)
+    p1 = brain.plan("Serve a large language model at high throughput.", Principal("u"))
+    for cid in ("vllm", "transformers", "llama-cpp", "comfyui"):
+        assert cid not in p1.selected_ids(), f"{cid} is not installed and must not be planned"
+    # a trading ask must NOT select any finance tool
+    p2 = brain.plan("Should I buy AAPL stock right now?", Principal("u"))
+    for cid in ("tradingagents", "vibe-trading", "fincept", "kronos-finmodel"):
+        assert cid not in p2.selected_ids(), f"{cid} must never be auto-selected for a finance prompt"
+    # a trivial prompt selects nothing at all
+    assert brain.plan("2 + 2", Principal("u")).selected_ids() == []
 
 
 for _n, _f in list(globals().items()):

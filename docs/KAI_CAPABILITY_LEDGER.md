@@ -134,3 +134,252 @@ trusted). §12/§13 one isolated worktree/branch per writable worker. 12 coding 
 
 The path to CERTIFIED per capability: install (approved) → build adapter → health check →
 auto-routing verified live → integration-tested → certify. None may be forced (§74).
+
+---
+
+# MEGA-EXPANSION (§6–65) — live-web verified 2026-08-31
+
+93 additional candidates were verified against the **live web** by 7 parallel researchers
+(strict *verify-or-`UPSTREAM_UNRESOLVED`, never fabricate*). All were added to `seed.py` as
+**DISCOVERED** (upstream verified, NOT installed) — the catalog grew **32 → 126** with the
+honest-READY invariant intact: **still exactly 5 AVAILABLE**. Nothing installed, nothing
+deployed, no production change. Money mode remains MOCK; **0** financial executions.
+
+**Catalog roll-up (126):** AVAILABLE 5 · DISCOVERED 121 — CERTIFIED 5 · PARTIAL 2 ·
+EXTERNAL_BLOCKED 41 · EXPERIMENTAL 61 · UPSTREAM_UNRESOLVED 5 · REJECTED 12.
+**False READY states: 0. Restricted auto-executions: 0.**
+
+## Per-candidate ledger (§99) — one row per candidate, nothing dropped
+
+### §7 Knowledge / Reference (all KNOWLEDGE_PACK, REFERENCE_ONLY, DISCOVERED)
+| candidate | canonical | state / note |
+|---|---|---|
+| public-apis | public-apis/public-apis (MIT) | REFERENCE — discovery catalog; validate each API before use (§58) |
+| developer-roadmap | nilbuild/developer-roadmap | **MOVED + RESTRICTED/DISABLED** — license forbids content ingest; link-only |
+| free-programming-books | EbookFoundation/… (CC-BY-4.0) | REFERENCE |
+| build-your-own-x | codecrafters-io/… (CC0) | REFERENCE |
+| system-design-primer | donnemartin/… (CC-BY-4.0) | REFERENCE |
+| coding-interview-university | jwasham/… (CC-BY-SA) | REFERENCE — stale 2024-12, stable |
+| the-art-of-command-line | jlevy/… (CC-BY-SA) | REFERENCE — stale 2023-07 |
+| project-based-learning | practical-tutorials/… (MIT) | REFERENCE |
+| you-dont-know-js | getify/… (CC-BY-NC-ND) | REFERENCE — no commercial/derivatives; read+attribute only |
+| the-book-of-secret-knowledge | trimstray/… (MIT) | REFERENCE — stale 2024-11 |
+| tech-interview-handbook | yangshun/… (MIT) | REFERENCE |
+| freecodecamp | freeCodeCamp/… | REFERENCE — index curriculum prose only, never run the app |
+| javascript-algorithms | trekhleb/… (MIT) | REFERENCE |
+| 30-seconds-of-code | Chalarangelo/… (CC-BY-4.0) | REFERENCE |
+| gitignore | github/gitignore (CC0) | REFERENCE |
+
+### §8/§18/§20/§53 Documents · Code-intelligence · RAG · Memory
+| candidate | canonical | disposition |
+|---|---|---|
+| markitdown | microsoft/markitdown (MIT) | **ADOPT** — broadens ingestion (audio/img/YouTube/EPub) → RAG |
+| codebase-memory-mcp | DeusData/… (MIT) | **ADOPT (PRIMARY)** — fills semantic-code-search gap; 100% local |
+| claude-context | zilliztech/… (MIT) | RESTRICTED — cloud embeddings; local Ollama+Milvus only |
+| codegraph | colbymchenry/codegraph (MIT) | REFERENCE — near-dup alternative; anomalous stars |
+| llama_index | run-llama/… (MIT) | **REJECT_DUPLICATE** — KAI RAG |
+| ragflow | infiniflow/… (Apache-2.0) | **REJECT_DUPLICATE** — heavy stack |
+| supermemory | supermemoryai/… (MIT) | **REJECT_DUPLICATE** — kai-memory |
+| mem0 (“memo”) | mem0ai/mem0 (Apache-2.0) | **REJECT_DUPLICATE** — kai-memory; no “memOai/memo” exists |
+| brain.md | mindmuxai/brain.md (Apache-2.0) | REFERENCE — name-collision w/ mi4uu/brain.md, pin exact |
+| openwiki | langchain-ai/openwiki (MIT) | REFERENCE — self-directed agent; overlaps KAI doc-gen |
+
+### §12/§13 Models / Inference / Routers
+| candidate | canonical | disposition |
+|---|---|---|
+| transformers | huggingface/transformers (Apache-2.0) | ADOPT — heavy, GPU, resource-gated |
+| vllm | vllm-project/vllm (Apache-2.0) | ADOPT — GPU serving behind KAI router |
+| llama.cpp | **ggml-org**/llama.cpp (MIT) | ADOPT — lightest, CPU-ok (canonical MOVED from ggerganov) |
+| DeepSeek V4 | deepseek-ai/DeepSeek-V4 (MIT) | REFERENCE — ~893GB, hosted-API only |
+| Bonsai-27B | prism-ml/Bonsai-27B (Apache-2.0) | REFERENCE — exotic 1-bit weights, unverified claims |
+| nanochat | karpathy/nanochat (MIT) | REFERENCE — educational |
+| Open-Gen-AI | — | **UPSTREAM_UNRESOLVED** — generic name, no clean match |
+| free-llm-api-resources | cheahjs/… **(REMOVED, 404)** | **UPSTREAM_UNRESOLVED** — ⚠ namesake of `feat/kai-freellmapi`; canonical gone |
+| 9Router | decolua/9router (MIT) | EXPERIMENTAL_PROVIDER_GATEWAY — HIGH; holds all keys, ToS risk |
+| OmniRoute (provider) | diegosouzapw/OmniRoute (MIT) | EXPERIMENTAL_PROVIDER_GATEWAY — HIGH; **disambiguated** from geo |
+| Kronos | shiyu-coder/Kronos (MIT) | REFERENCE — financial forecast model; signal ≠ order |
+
+### §10/§36 Browser · Web-data · OSINT · AI-security
+| candidate | canonical | disposition |
+|---|---|---|
+| stagehand | browserbase/stagehand (MIT) | REFERENCE — AI layer over seeded playwright |
+| browser-use | browser-use/… (MIT) | REFERENCE — cloud tier markets stealth (don’t use) |
+| firecrawl | firecrawl/firecrawl (AGPL-3.0) | **ADOPT** — web→RAG crawl gap; isolated self-host/hosted |
+| Scrapling | D4Vinci/Scrapling (BSD-3) | **RESTRICTED (EVASION)** — Cloudflare bypass |
+| Camoufox | daijro/camoufox (MPL-2.0) | **RESTRICTED (EVASION)** — anti-detect Firefox binary |
+| Agent-Reach | Panniantong/Agent-Reach (MIT) | **RESTRICTED** — stores platform cookies, bypasses APIs |
+| yt-dlp | yt-dlp/yt-dlp (Unlicense) | ADOPT — authorized content only |
+| Maigret | soxoj/maigret (MIT) | ADOPT — username OSINT (tier 1, privacy-classified) |
+| Flowsint | reconurge/flowsint (Apache-2.0) | REFERENCE — heavy OSINT stack |
+| Bumblebee | perplexityai/bumblebee (Apache-2.0) | **ADOPT** — read-only supply-chain scanner → install gate (§39/§82) |
+| iFixAI | ifixai-ai/iFixAi (Apache-2.0) | RESTRICTED — tier-3 AI red-teaming; anomalous stars |
+| future-agi | future-agi/… (Apache-2.0) | REFERENCE — eval platform; reuse SDK only |
+
+### §14–17/§40/§46/§47 Agent frameworks · Coding workers · Sandbox · Workflow
+| candidate | canonical | disposition |
+|---|---|---|
+| langchain / langgraph | langchain-ai/* (MIT) | REUSE_LIBRARY — never a second brain |
+| autogen | microsoft/autogen (MIT) | **UNMAINTAINED** → REFERENCE (maintenance mode) |
+| crewAI | crewAIInc/crewAI (MIT) | REUSE_LIBRARY |
+| MetaGPT | FoundationAgents/MetaGPT (MIT) | REFERENCE (MOVED from geekan) |
+| DeerFlow | bytedance/deer-flow (MIT) | REFERENCE — HIGH; rival super-agent |
+| Goose | **aaif-goose**/goose (Apache-2.0) | USE_AS_WORKER (MOVED from block; govern+sandbox) |
+| OpenHands | All-Hands-AI/OpenHands (MIT) | USE_AS_WORKER — Docker sandbox required |
+| ruflo | ruvnet/ruflo (MIT) | **REJECT_DUPLICATE** — HIGH; unbounded swarm brain |
+| n8n | n8n-io/n8n (fair-code) | ADAPTER_ONLY — isolated service |
+| openclaw | openclaw/openclaw (MIT) | **REJECT_DUPLICATE** — HIGH; host-shell rival brain |
+| Aider | Aider-AI/aider (Apache-2.0) | USE_AS_WORKER |
+| Dyad | dyad-sh/dyad (Apache-2.0+FSL) | REFERENCE — GUI builder |
+| Orca | stablyai/orca (MIT) | REFERENCE — overlaps CodingWorkerRouter |
+| claude-task-master | eyaltoledano/… (MIT+Commons) | REUSE_LIBRARY — overlaps Missions/sequential-thinking |
+| Daytona | daytonaio/daytona (AGPL) | **ARCHIVED** → REFERENCE (colima incumbent) |
+| Nango | NangoHQ/nango (Elastic-2.0) | ADAPTER_ONLY — credential broker, compare before adopt |
+
+### §23/§26/§27/§28 Design · Media · Voice
+| candidate | canonical | disposition |
+|---|---|---|
+| three.js / GSAP | mrdoob/three.js (MIT) · greensock/GSAP (non-OSI) | REFERENCE — front-end libraries |
+| Genjutsu | AThevon/genjutsu (MIT) | ADOPT — creative-coding skill; review before load |
+| Penpot | penpot/penpot (MPL-2.0) | HUMAN_INTERACTIVE — design workspace |
+| ai-website-cloner | JCodesMore/… (MIT) | RESTRICTED — authorized/owned sites; original output only (§24) |
+| ComfyUI | comfyanonymous/ComfyUI (GPL-3.0) | ADOPT — isolated, **vetted custom-nodes only** |
+| HyperFrames | heygen-com/hyperframes (Apache-2.0) | ADOPT — HTML→video, deterministic (pin heygen-com) |
+| OpenMontage | calesthio/OpenMontage (AGPL) | RESTRICTED — HIGH; fork-farm, pin canonical |
+| MoneyPrinterTurbo | harry0703/… (MIT) | REFERENCE — spam vector, no auto-publish |
+| Whisper (local) | openai/whisper (MIT) | ADOPT — local STT gap; reuse KAI voice layer |
+| VoxCPM2 | OpenBMB/VoxCPM (Apache-2.0) | RESTRICTED — voice-clone deepfake risk |
+| Pipecat | pipecat-ai/pipecat (BSD-2) | ADOPT — realtime voice transport under KAI controller |
+| Meetily | Zackriya-Solutions/meetily (MIT) | HUMAN_INTERACTIVE — action items → ActionProposal (§51) |
+
+### §30–34/§62/§63/§75/§76 Marketing · Ads · Analytics · Finance · Commerce · Workspace · UI
+| candidate | canonical | disposition |
+|---|---|---|
+| ai-marketing-skills | ericosiu/… (MIT) | RESTRICTED — read/draft only; no autonomous outbound/spend |
+| Claude Ads | ambiguous community forks | **UPSTREAM_UNRESOLVED** — NOT official; dup native ads |
+| ViralityAI | viralityai.net (SaaS) | HUMAN_INTERACTIVE — no public API |
+| Playto | playto.so (SaaS) | **REJECT_DUPLICATE** — vs Stripe/Dwolla/SOL; no API |
+| Plausible | plausible/analytics (AGPL) | SERVICE_CONNECTOR — read-only aggregate stats |
+| TradingAgents | TauricResearch/… (Apache-2.0) | RESTRICTED — research/paper only |
+| Vibe Trading | HKUDS/Vibe-Trading (MIT) | **RESTRICTED — live exec PROHIBITED_INITIALLY** (real brokers) |
+| Fincept Terminal | Fincept-Corp/… (AGPL) | REFERENCE — desktop, no API; live=Enterprise DISABLED |
+| Abacus AI | abacus.ai (proprietary) | SERVICE_CONNECTOR (RESTRICTED) — paid/egress; overlaps FreeLLMAPI |
+| Dify | langgenius/dify | REFERENCE — duplicates orchestration |
+| Langflow | langflow-ai/langflow (MIT) | REFERENCE — HIGH; unauth-RCE history, security-scan |
+| Open WebUI | open-webui/… | **REJECT_DUPLICATE** — Nexus |
+| LobeChat | lobehub/lobe-chat | **REJECT_DUPLICATE** — Nexus |
+| Appwrite | appwrite/appwrite (BSD-3) | REFERENCE — KAI has own backend |
+| AppFlowy | AppFlowy-IO/… (AGPL) | HUMAN_INTERACTIVE — no automation API |
+
+### §56 Web-design prompt pack
+| candidate | disposition |
+|---|---|
+| website.{premium_architect,hero_strategist,homepage_conversion,portfolio_designer,service_landing,about_story,mobile_optimizer,full_copywriter,landing_architect,premium_ux} | **UPSTREAM_UNRESOLVED** — declared as one skill pack; instruction bodies pending (operator message truncated) |
+
+## Fabric-core re-certification (mega-expansion, §74/§88)
+| check | state | evidence |
+|---|---|---|
+| Capability suite | **PASS** | 7/7 files, **59 pure tests** (48 + 11 new invariants), 0 fail |
+| No fake READY | **PASS** | only 5 AVAILABLE after +93; `t_megaexpansion_nothing_new_is_available` |
+| Evasion tools locked | **PASS** | Scrapling/Camoufox/Agent-Reach RESTRICTED+DISABLED, never auto |
+| Money safety | **PASS** | TradingAgents/Vibe-Trading DISABLED+never-auto; live exec PROHIBITED; MOCK |
+| Duplicates rejected | **PASS** | 12 REJECTED, DISABLED, not selectable |
+| Unresolved assert no source | **PASS** | claude-ads/open-gen-ai/free-llm-api-resources/website-design-skills carry no upstream |
+| Wrong-tool avoidance | **PASS** | `2+2`→∅; heavy-model/finance prompts select no uninstalled tool |
+| Nexus catalog | **PASS** | regenerated 126, Nexus JS 7/7 (no fake READY, RESTRICTED distinct, no secrets) |
+
+**Not installed / not deployed / not certified-live** — every external capability stays DISCOVERED
+until the operator-approved install → adapter → health → live-route → integration-test path runs.
+This is a catalog wave (§93 Wave A), honestly bounded.
+
+---
+
+# WAVE B (§93) — first real install + certification, 2026-08-31
+
+Promoted the top safe gap from DISCOVERED to genuinely certified. **One capability, end-to-end.**
+
+## markitdown — ✅ CERTIFIED_LOCAL (commit 5b4c2f2)
+Full path walked, with evidence: **install** (`markitdown 0.1.7`, isolated cert venv) → **adapter**
+(`MarkItDownAdapter`, LIBRARY transport, `live_adapters.py`) → **health** (READY where installed,
+OFFLINE-honest where absent) → **invoke** (real HTML→markdown incl. tables) → **normalize**
+(ARTIFACT, `trust=UNTRUSTED`; a hostile document raised `injection_flags`, §24) → **tests**
+(`test_capability_live_markitdown.py`, 6/6 in cert venv AND 6/6 on base python — no fabrication either
+way). Manifest → **AVAILABLE + CERTIFIED**; AVAILABLE set is now the honest **6**. Nexus shows it READY.
+**Caveat (honest):** installed in the cert venv only — NOT in the deployed App B runtime. To make it
+live in prod: `pip install markitdown` on App B + redeploy. Until then its adapter reports OFFLINE there.
+
+## yt-dlp — ✅ CERTIFIED_LOCAL (commit 64186a5)
+`YtDlpAdapter` (LIBRARY). CERTIFIED path = READ-ONLY metadata extract (`extract_info(download=False)`),
+proven live on a CC-BY archive.org item (real title/duration/formats → Observation, UNTRUSTED). A
+**download is never executed** — it returns an inert `ActionProposal` gated on authorized-content +
+governance (§22/§80). `test_capability_live_ytdlp.py` 6/6 both envs. Manifest → **AVAILABLE + CERTIFIED**,
+`automatic_activation_allowed=False` (explicit-only, never auto-routed). AVAILABLE set now **7**.
+
+## codebase-memory-mcp — ✅ PARTIAL, built-from-source + reviewed + PROVEN (commit 44e3492)
+Operator-approved (a). Took the least-trusting path — **not** the prebuilt binary, **not** `curl|bash`:
+- **Reviewed** 444 own C/H files: no external network egress (only 127.0.0.1 opt-out UI + local control
+  socket), defensive secret containment (refuses `~/.ssh`/`/etc`/`$HOME`; scans+skips secrets), 30M
+  vendored nomic code-embeddings (licensed). Honest caveat: it **is a fork/exec daemon**, not a "static binary".
+- **Built** from source (`scripts/build.sh`, standard/no-UI, ASan/UBSan). **Proven** in isolation
+  (`HOME=scratch`): indexed a repo (22 nodes/edges), cross-language grep, and a semantic `search_graph`
+  query correctly ranked `verify_token`/`mint_session`. **Zero leak** to the real home.
+- `CodebaseMemoryMcpAdapter` (SUBPROCESS, read-only tool **allowlist**; refuses delete/install/uninstall/
+  update; never runs the tool's `install`, which reconfigures 45 clients). `test_capability_live_cbm.py`
+  6/6 unconfigured (OFFLINE + allowlist) AND 6/6 configured (live subprocess round-trip).
+- Manifest → **PARTIAL**, availability **DISCOVERED** (cert build is an ephemeral ASan scratchpad artifact;
+  durable release + bumblebee scan §82 + operator MCP/App B wiring pending). Set `$CBM_BIN` to enable.
+
+## (c) markitdown live on App B — ⛔ NOT a dep install; topology corrected
+Investigated before touching prod. App B (`kai-prod`) is up (`env=production`), and its deployed branch
+carries the fabric *core* — **but the fabric is wired into NO App B endpoint** (nothing imports it in
+`main.py`/routers), and this session's `live_adapters.py` isn't on the deployed branch at all. The fabric's
+only prod surface is **App A serving the static Nexus catalog** (`core/api.py` → `kai-capability-catalog.json`)
+— a read-only market display. So `pip install markitdown` on App B would make **nothing live**: no route
+calls `governed_invoke`. My (c) option text ("install + redeploy") was misleading — corrected here.
+**Two real paths (both operator-gated, not run):** (i) build a governed capability-invocation endpoint on
+App B (`POST /admin/capability/invoke` → Brain → adapter) + add markitdown to App B deps + deploy the fabric
+branch via `railway up --service kai-prod` — a genuine new *prod execution surface*, deserves deliberate
+review; (ii) display-only — push the updated catalog to App A `production` so the live Nexus market shows
+markitdown/yt-dlp CERTIFIED (git push is classifier-gated). Recommendation: keep the fabric's honest
+read-only Nexus market for now; build the execution endpoint as a separately-reviewed increment.
+
+**Wave B state:** **3 capabilities certified** (markitdown ✅, yt-dlp ✅ CERTIFIED_LOCAL; codebase-memory-mcp
+✅ PARTIAL). AVAILABLE 5→7. 0 unreviewed binaries run (cbm built from source + reviewed). **0 prod change.**
+MONEY_MODE=MOCK.
+
+---
+
+# LIVE GOVERNED EXECUTION GATEWAY — V1 (2026-08-31, commits 0041cf5 · 6a18f40)
+
+The missing production execution boundary is BUILT + locally certified. KAI can genuinely invoke a
+certified capability through USER→KAI→Brain→authorization→risk→registry→adapter→execution→normalize→
+audit — one path, one implementation.
+
+- **CapabilityExecutionService** (`execution.py`, §30): the ONE service the HTTP route AND the Brain
+  call (§29). Server-owned OPERATION ALLOWLIST (§8 — no arbitrary shell/command/path §23), V1
+  read-only/compute envelope (§7), SSRF guard (§10), MarkItDown fixture-only boundary
+  (§9 → USER_FILE_INPUT_PENDING), health gate (§13), timeout (§15), idempotency (§19), owner-scoped
+  rate limit (§18), evidence (§21). Delegates policy + execution to the existing `governed_invoke`
+  (§2, reused not duplicated); hardened it to fail-safe on a malformed adapter result.
+- **Brain bridge** (`command.py`, §27/§28): the Brain SELECTS, the same service executes; explicit-only
+  capabilities (yt-dlp) are never auto-selected.
+- **admin_capabilities.py** (§3/§6): THIN owner-only router (require_kai_ultra); builds the owner
+  Principal itself (forged body role/scopes ignored §4); routes /invoke, /status, list, /test (§31),
+  /command (§27), /invocations (§32). **Flag-gated DORMANT** (`KAI_CAPABILITY_EXECUTION_ENABLED`=False).
+
+**Certification (all green):**
+| dimension | result |
+|---|---|
+| Service attack suite (§35/§36) | ✅ 18 tests — SSRF (literal+resolved), arbitrary/traversal path, non-allowlisted ops, V1 envelope, unhealthy→unavailable, non-selectable→denied, oversized bounded, timeout, injection flagged, secret redacted, idempotency, rate limit, audit |
+| HTTP boundary (§39/§44) | ✅ 10 tests — owner 200 / anon 403 / SSRF 400 / download 403 / unknown 404 / non-allowlisted 404 / **forged body fields ignored** / status mapping |
+| Brain bridge (§27/§28) | ✅ 4 tests |
+| Live e2e (real adapters, cert venv) | ✅ yt-dlp metadata OK+evidence · markitdown convert OK · SSRF blocked · download OPERATION_NOT_ENABLED |
+| Suite | 13 files / **173 tests** / 0 fail · Nexus 7/7 |
+| Arbitrary shell · Financial exec · Restricted runtimes | ABSENT · 0 · 0 (MONEY_MODE=MOCK) |
+
+**Verdict: `EXECUTION_V1_CORE_CERTIFIED` — production wiring PENDING (operator-gated).** Per §49, the
+fabric is "operational" only once a capability is executed through the *production* path. Remaining
+(operator-gated): (1) App B doesn't deploy this branch — get the gateway commits into App B's deploy
+source; (2) set `KAI_CAPABILITY_EXECUTION_ENABLED=true` on kai-prod; (3) `railway up --service kai-prod`
+(classifier-gated); (4) prod smoke test (yt-dlp metadata on a public fixture); (5) Nexus frontend
+(§31-34 TEST/history/state/halo) + browser QA (§48). Backend endpoints for all of these exist; only
+the deploy + the frontend visuals remain. **0 prod change this pass.**

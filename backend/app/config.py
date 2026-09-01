@@ -64,6 +64,9 @@ class Settings(BaseSettings):
     # Continuous watch loop (Wave 1): proactive change/anomaly detection across entities. Default OFF.
     # Read-only; alerts deliver only if KAI_HOLDING_DELIVERY_ENABLED + a channel is configured too.
     KAI_HOLDING_WATCH_ENABLED: bool = False
+    # Capability Fabric execution gateway (owner-only governed tool execution). Default OFF ->
+    # the /admin/capabilities routes are not mounted, so a disabled deploy has zero new surface.
+    KAI_CAPABILITY_EXECUTION_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
