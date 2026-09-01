@@ -117,6 +117,11 @@ class HoldingAutonomousWorkEngine:
         if verified:
             return wr(EXECUTED, TaskStatus.COMPLETE.value, capability_id=cap, operation=op,
                       evidence_present=True, verified=True, correlation_id=corr)
+        # §57: an unavailable/pending capability never ran → BLOCKED_CAPABILITY, not FAILED.
+        if status == "CAPABILITY_UNAVAILABLE":
+            return wr(BLOCKED_CAPABILITY, TaskStatus.BLOCKED.value, capability_id=cap, operation=op,
+                      failure_class="CAPABILITY_DOWN",
+                      reason=getattr(result, "reason", "") or "capability unavailable", correlation_id=corr)
         return wr(FAILED, TaskStatus.BLOCKED.value, capability_id=cap, operation=op,
                   evidence_present=present, verified=False,
                   failure_class=_FAIL_CLASS.get(status, "LOGIC"),

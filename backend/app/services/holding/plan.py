@@ -77,6 +77,7 @@ class PlanTask:
     goal: str
     reason: str
     source_key: str                       # dedup key — one task per source condition (§13)
+    task_type: str = ""                   # typed HoldingTaskType value (§11) — resolver reads THIS, never the goal text
     horizon: str = Horizon.TODAY.value
     expected_outcome: str = ""
     evidence: list = field(default_factory=list)   # the source-cited signal(s) (§12)
@@ -93,14 +94,16 @@ class PlanTask:
 
 
 # ── §12 PLAN GENERATION — from source-cited material changes, never generic advice ───────────────
-# Each MaterialChange type → (autonomy, assignee, goal template). INFO/recovery changes make no work.
+# Each MaterialChange type → (autonomy, assignee, goal template, task_type). task_type is a typed
+# HoldingTaskType string the resolver maps deterministically (§11). INFO/recovery changes make no work.
 _CHANGE_TASKS = {
-    "INCIDENT_OPENED":        (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Investigate incident on {scope}"),
-    "STATUS_CHANGED":         (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Investigate status change on {scope}"),
-    "WORKER_PLANE_DEGRADED":  (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Diagnose offline worker plane"),
-    "CAPABILITY_UNAVAILABLE": (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Check unavailable capabilities"),
-    "AUTONOMY_CHANGED":       (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Review autonomy degradation"),
-    "OWNER_BLOCKER_ADDED":    (AutonomyClass.A3_EXTERNAL_HIGH_IMPACT, Assignee.OWNER, "Owner decision required on {scope}"),
+    "INCIDENT_OPENED":        (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Investigate incident on {scope}", "HEALTH_PROBE"),
+    "STATUS_CHANGED":         (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Investigate status change on {scope}", "HEALTH_PROBE"),
+    "WORKER_PLANE_DEGRADED":  (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Diagnose offline worker plane", "HEALTH_PROBE"),
+    "CAPABILITY_UNAVAILABLE": (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Check unavailable capabilities", "CAPABILITY_HEALTH"),
+    "AUTONOMY_CHANGED":       (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Review autonomy degradation", "CAPABILITY_HEALTH"),
+    "DEPLOYMENT_CHANGED":     (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Verify deployment status on {scope}", "DEPLOYMENT_STATUS"),
+    "OWNER_BLOCKER_ADDED":    (AutonomyClass.A3_EXTERNAL_HIGH_IMPACT, Assignee.OWNER, "Owner decision required on {scope}", ""),
 }
 
 
@@ -113,7 +116,7 @@ def tasks_from_changes(changes: list, *, now: str = "") -> list[PlanTask]:
         spec = _CHANGE_TASKS.get(ct)
         if not spec:
             continue                                        # recovery / INFO → nothing to do
-        autonomy, assignee, goal_t = spec
+        autonomy, assignee, goal_t, task_type = spec
         scope = c.get("scope", "holding")
         source_key = f"{ct}:{scope}"
         if source_key in seen:                              # §13: never proliferate — one task per key
@@ -121,6 +124,7 @@ def tasks_from_changes(changes: list, *, now: str = "") -> list[PlanTask]:
         seen[source_key] = PlanTask(
             task_id=source_key, company_id=(scope if scope != "holding" else "holding"),
             goal=goal_t.format(scope=scope), reason=c.get("reason", ct), source_key=source_key,
+            task_type=task_type,
             expected_outcome="Condition understood / resolved or escalated with evidence",
             evidence=[c], autonomy=int(autonomy), assigned_to=assignee.value,
             priority=_SEV_PRIORITY.get(c.get("severity"), 2), created_at=now, status=TaskStatus.PROPOSED.value)

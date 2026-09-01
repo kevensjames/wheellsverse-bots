@@ -49,6 +49,8 @@ def fingerprint(snapshot: dict) -> dict:
         fp[(cid, "status")] = c.get("status")
         fp[(cid, "incident_count")] = len(c.get("active_incidents", []) or [])
         fp[(cid, "owner_action_count")] = len(c.get("owner_actions_required", []) or [])
+        deps = c.get("deployments", []) or []
+        fp[(cid, "deployment")] = deps[0] if deps else None
         fp[(cid, "present")] = True
     sr = snapshot.get("shared_resources", {}) or {}
     fp[("holding", "workers_online")] = sr.get("workers_online")
@@ -116,6 +118,9 @@ def reconcile(prev_snapshot: dict | None, cur_snapshot: dict) -> list[MaterialCh
                 emit("CAPABILITY_UNAVAILABLE", scope, key, was, now, "HIGH", f"available capabilities {was} → {now}")
             else:
                 emit("CAPABILITY_RECOVERED", scope, key, was, now, "INFO", f"available capabilities {was} → {now}")
+
+        elif key == "deployment":
+            emit("DEPLOYMENT_CHANGED", scope, key, was, now, "MEDIUM", f"{scope} deployment {was} → {now}")
 
         elif key == "autonomy_overall":
             sev = "HIGH" if str(now).upper() in _DEGRADED_STATUS else "INFO"

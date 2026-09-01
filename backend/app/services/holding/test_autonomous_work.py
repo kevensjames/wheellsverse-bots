@@ -84,11 +84,11 @@ def t_kill_switch_global_and_company():
 
 
 def t_capability_down_classified():
-    """§55: a CAPABILITY_UNAVAILABLE status is classified CAPABILITY_DOWN, bounded (no retry loop)."""
+    """§55/§57: a CAPABILITY_UNAVAILABLE status → BLOCKED_CAPABILITY (it never ran), class CAPABILITY_DOWN."""
     eng = HoldingAutonomousWorkEngine(execute=lambda *a, **k: _Res("CAPABILITY_UNAVAILABLE", reason="not ready"),
                                       resolver=_resolver)
     r = eng.run_task(_task())
-    assert r.outcome == FAILED and r.failure_class == "CAPABILITY_DOWN"
+    assert r.outcome == BLOCKED_CAPABILITY and r.failure_class == "CAPABILITY_DOWN"
 
 
 def t_cycle_no_material_change_executes_nothing():
