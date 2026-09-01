@@ -37,9 +37,11 @@ Maps directly onto much of the mission's §39–55:
 - Router `admin_holding.py` (owner-only): overview, entities/{id}, briefing, proposals(+approve/reject/execute), worker-jobs(+claim/heartbeat/complete/reclaim), workers/heartbeat, status.
 
 ## 3. What the mission needs that does NOT yet exist (the real new build, §37–40)
-- **`SelfModel` / OperationalSelfModel (§37–38)** — 0 files. NEW.
-- **`HoldingDigitalTwin` (§39)** — 0 files (the entity registry is a seed, not the full twin). EXTEND registry → twin.
-- **`StartupStateModel` (§40)** — 0 files. EXTEND registry entities → full startup state.
+- **`SelfModel` / OperationalSelfModel (§37–38)** — ✅ BUILT `self_model.py` (7/7). Live-state wiring to the twin pending (Wave 2/§63).
+- **`HoldingDigitalTwin` (§3/§39)** — ✅ BUILT `digital_twin.py` (9/9): normalized live index over registry/status/priorities/proposals/capability; dynamic company discovery; `Fact` provenance; `SOURCE_MAP`; portfolio view. Not a second DB. See `KAI_HOLDING_DIGITAL_TWIN.md`.
+- **`StartupStateModel` (§4/§40)** — ✅ BUILT (`StartupState` in `digital_twin.py`): typed per-company state, money/customers only via `report_value` → `UNAVAILABLE` when un-sourced.
+- **`HoldingStateReconciler` (§8-10,§17)** — ✅ BUILT `state_reconciler.py` (9/9): deterministic versioned material-change engine; baseline + no-change → `NO_MATERIAL_CHANGE`.
+- Remaining NEW/EXTEND: `CurrentPlan` model + plan reconciliation (§11-13, head of Wave 2), continuous cycle (§16), AutonomousWorkEngine (§19), owner-queue filter + Today brief (§24-27), A2 framework (§34-36), SelfImprovementEngine (§37-40), schedulers (§41-42), Nexus UI (§49-52).
 - **Named A0–A5 action classes (§45)** — the concept exists (`ActionClass`); a holding-facing A0–A5 mapping + the **AutonomousWorkEngine (§46)** that *executes* A0/A1 and certified-A2 (vs. today's propose-only) is NEW/EXTEND.
 - **`SelfImprovementEngine` (§52–54)** — self-heal exists (detection + reversible actions); the safe self-code loop (issue→spec→worktree→worker→independent-review→PR) as a first-class engine is NEW/EXTEND.
 - **Continuous analysis loop (§42)**, **CompanyPlanner/PortfolioPlanner (§43–44)** as first-class, **DecisionJournal (§62)**, **PlanRetrospectives (§63)** — NEW.
