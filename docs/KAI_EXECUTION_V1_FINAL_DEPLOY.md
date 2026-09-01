@@ -8,9 +8,9 @@ production-mutating commands. Money mode stays MOCK. Deploy App B **flag OFF** f
 | target | branch | SHA | worktree |
 |---|---|---|---|
 | **App B** (kai-prod backend) | `feat/kai-exec-appb-integration` | `82c1a53` | `/Users/jhonwheeler/wheellsverse-kai-exec-integration` |
-| **App A** (app.wheellsverse.com) | `feat/kai-exec-appa-integration` | `4a675d7` | `/Users/jhonwheeler/wheellsverse-kai-appa-integration` |
+| **App A** (app.wheellsverse.com) | `feat/kai-exec-appa-integration` | `02f575b` (reconciled onto live `origin/production` 3a11f97) | `/Users/jhonwheeler/wheellsverse-kai-appa-integration` |
 | App B rollback (current prod) | `feature/kai-holding-operations-os` | `914855d` | — |
-| App A rollback (current prod) | `production` | `e9988c5` | — |
+| App A rollback (current prod) | `origin/production` | `3a11f97` (NOT e9988c5 — origin was 4 commits ahead) | — |
 
 ## Verification (both branches, all green)
 - **App B** `82c1a53`: capability 13 files / **173** tests · real `app.main:app` flag **OFF → 0** routes, **ON → 6** · holding preserved (0-line diff) · reasoning-sanitizer 26.
@@ -33,12 +33,14 @@ BASE=https://kai-prod-production.up.railway.app
 curl -s --max-time 15 "$BASE/health"                                            # env=production status=ok
 curl -s -o /dev/null -w "%{http_code}\n" "$BASE/admin/capabilities"             # 404 = routes NOT mounted (flag off) ✓
 ```
-### D. Deploy App A (git-connected; merge integration → production → push):
+### D. Deploy App A (git-connected; the integration branch is a clean FAST-FORWARD over live production):
+The integration branch (`02f575b`) already contains live `origin/production` (`3a11f97`) + the exec UI,
+so there is no merge to do — just fast-forward production onto it:
 ```bash
-cd /Users/jhonwheeler/conductor/repos/wheellsverse-bots        # a worktree tracking production
-git fetch && git checkout production                           # e9988c5
-git merge --no-ff feat/kai-exec-appa-integration -m "deploy(app-a): capability execution UI V1"
-git push origin production                                     # triggers App A (grateful-flexibility) auto-deploy
+cd /Users/jhonwheeler/wheellsverse-kai-appa-integration       # feat/kai-exec-appa-integration @ 02f575b
+git fetch origin                                              # confirm origin/production is still 3a11f97
+git merge-base --is-ancestor origin/production HEAD && echo FF-OK || echo "STOP: origin moved, re-reconcile"
+git push origin feat/kai-exec-appa-integration:production     # fast-forwards origin/production → App A auto-deploy
 ```
 ### E. Wait for App A deploy **SUCCESS**.
 ### F. Browser-smoke App A **before enabling execution**:
@@ -68,7 +70,7 @@ open yt-dlp inspector → press **TEST** → RUNNING→COMPLETED → history row
 ## ROLLBACK (§41)
 1. `railway variables --set KAI_CAPABILITY_EXECUTION_ENABLED=false --service kai-prod` (instant latch off)
 2. App B code: `git checkout feature/kai-holding-operations-os` (914855d) + `railway up --service kai-prod`
-3. App A: `git checkout production && git reset --hard e9988c5 && git push --force-with-lease` (or revert the merge)
+3. App A: `git push origin 3a11f977bc1ece8e66917bdfa5b27c8ba7a0e3aa:production --force-with-lease` (restore live prod head 3a11f97)
 
 ## Guardrails (unchanged by this deploy)
 MONEY_MODE=MOCK · financial exec OFF · Empire/Strix/reverse-skill-active/SecLists/Payloads catalog-only ·
