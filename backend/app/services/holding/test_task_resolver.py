@@ -65,11 +65,11 @@ def t_minimal_args_no_leak():
 
 def t_certified_and_pending_states():
     """§37: certified mappings claim CERTIFIED; runtime-pending ones stay RUNTIME_PENDING."""
-    for tt in (HoldingTaskType.HEALTH_PROBE, HoldingTaskType.CAPABILITY_HEALTH, HoldingTaskType.REPO_INSPECT):
+    for tt in (HoldingTaskType.HEALTH_PROBE, HoldingTaskType.CAPABILITY_HEALTH,
+               HoldingTaskType.REPO_INSPECT, HoldingTaskType.LOG_INSPECT):
         assert R.resolve(_task(tt.value)).cert_state == CertState.CERTIFIED.value, tt
-    for tt in (HoldingTaskType.DEPLOYMENT_STATUS, HoldingTaskType.LOG_INSPECT,
-               HoldingTaskType.RUN_INTERNAL_TEST, HoldingTaskType.BROWSER_VALIDATE,
-               HoldingTaskType.TECH_DOC_LOOKUP):
+    for tt in (HoldingTaskType.DEPLOYMENT_STATUS, HoldingTaskType.RUN_INTERNAL_TEST,
+               HoldingTaskType.BROWSER_VALIDATE, HoldingTaskType.TECH_DOC_LOOKUP):
         rct = R.resolve(_task(tt.value))
         assert rct is not None and rct.cert_state == CertState.RUNTIME_PENDING.value, tt
 

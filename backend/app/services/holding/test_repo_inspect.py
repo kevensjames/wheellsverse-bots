@@ -33,6 +33,12 @@ Path(_TMP, "big.txt").write_text("x" * (MAX_BYTES_PER_FILE + 500))
 Path(_TMP, "bin.dat").write_bytes(bytes(range(256)) * 4)
 os.makedirs(Path(_TMP, "sub"), exist_ok=True)
 Path(_TMP, "sub", "a.txt").write_text("hello")
+# adversarial fixture: a non-sensitively-named symlink pointing at the sensitive .env
+try:
+    os.symlink(Path(_TMP, ".env"), Path(_TMP, "notes.txt"))
+    _HAVE_SYMLINK = True
+except (OSError, NotImplementedError):
+    _HAVE_SYMLINK = False
 _LP = LocalGitProvider(_TMP)
 
 
@@ -58,6 +64,17 @@ def t_path_traversal_rejected():
     for bad in ("../etc/passwd", "/etc/passwd", "sub/../../x", "~/secrets"):
         try:
             _LP.read_file(bad); assert False, f"{bad} should be rejected"
+        except RepoDenied:
+            pass
+
+
+def t_symlink_to_sensitive_denied():
+    """Adversarial recheck findings 1&4: a symlink notes.txt→.env must NOT leak .env content."""
+    if not _HAVE_SYMLINK:
+        return
+    for op in (lambda: _LP.read_file("notes.txt"), lambda: _LP.file_metadata("notes.txt")):
+        try:
+            op(); assert False, "symlinked path must be rejected"
         except RepoDenied:
             pass
 
@@ -91,12 +108,21 @@ def _ents():
 
 def t_resolve_local_vs_external():
     kai = resolve_repository("kai", entities=_ents(), monorepo_root="/repo")
-    assert kai.provider == "local-git" and kai.local_root == "/repo"
+    assert kai.provider == "local-git" and kai.local_root == "/repo"   # kai is allowlisted
     nur = resolve_repository("nurtelle", entities=_ents())
-    assert nur.provider == "github" and nur.local_root == ""     # external → not certified
+    assert nur.provider == "github" and nur.local_root == ""     # not allowlisted → external
     assert resolve_repository("ghost", entities=_ents()) is None  # no repo
     assert resolve_repository("nope", entities=_ents()) is None   # unknown company
     assert "local_root" not in kai.as_dict()                     # never leak the FS root
+
+
+def t_substring_company_not_misrouted():
+    """Adversarial finding 3: an external repo whose name CONTAINS 'wheellsverse-bots' but whose
+    company is not allowlisted must NOT reach the certified local provider."""
+    ents = _ents() + [SimpleNamespace(entity_id="evilco",
+                                      repository="github.com/evil/wheellsverse-bots-fork")]
+    ident = resolve_repository("evilco", entities=ents, monorepo_root="/repo")
+    assert ident.provider == "github" and ident.local_root == ""   # external, not certified local
 
 
 # ── factory policy (§14) ──────────────────────────────────────────────────────────────────────────

@@ -51,9 +51,14 @@ _SECRET_PATTERNS = [
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)\b(authorization|cookie|set-cookie|x-api-key)\b\s*[:=]\s*\S+"),
-    re.compile(r"(?i)\b(password|passwd|secret|api[_-]?key|access[_-]?token|token|private[_-]?key)\b"
+    # compound secret key names in a FLAT string (e.g. aws_secret_access_key=…): allow surrounding
+    # word chars so a hint token embedded in a larger identifier still redacts the whole key=value.
+    re.compile(r"(?i)\b[\w-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|access[_-]?token|"
+               r"refresh[_-]?token|client[_-]?secret|private[_-]?key|credential|\btoken)[\w-]*"
                r"\s*[:=]\s*\S+"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b"),  # JWT
+    re.compile(r"(?i)\b[a-z][a-z0-9+.\-]*://[^\s:@/]+:[^\s@/]+@\S*"),  # scheme://user:PASS@host (DB/URL creds)
+    re.compile(r"\b(?:sk|pk|rk|whsec)_(?:live|test)_[A-Za-z0-9]{10,}\b"),  # Stripe keys
 ]
 # NOTE: no blind 40-char matcher — it would redact legitimate git SHAs (DEPLOYMENT_STATUS.sha).
 # AWS secret keys are caught by the dict-key hint below (they travel under a telling key name).
@@ -163,8 +168,8 @@ _MAPPINGS: dict[str, Mapping] = {
         "REPO_INSPECT_RESOLVE_AUTHORITATIVE_PROVIDER"),
     HoldingTaskType.LOG_INSPECT.value: Mapping(
         "holding.logs", "read_logs", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
-        CertState.RUNTIME_PENDING, ("service", "time_window", "lines_redacted"),
-        "LOG_INSPECT_TYPED_REDACTED_ADAPTER_PENDING"),
+        CertState.CERTIFIED, ("service", "source", "matched_count", "redaction_count"),
+        "LOG_INSPECT_TYPED_REDACTED_LOCAL_PROVIDER"),
     HoldingTaskType.RUN_INTERNAL_TEST.value: Mapping(
         "holding.internal_test", "run_suite", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
         CertState.RUNTIME_PENDING, ("suite", "sha", "passed", "failed", "duration"),
@@ -216,7 +221,7 @@ def _minimal_args(task_type: str, task) -> dict:
     if task_type == HoldingTaskType.REPO_INSPECT.value:
         return {"company_id": cid, "operation": "REPOSITORY_STATUS"}   # safe metadata-only default (§3)
     if task_type == HoldingTaskType.LOG_INSPECT.value:
-        return {"service": cid, "time_window": "1h", "severity": "ERROR", "bounded_limit": 200}
+        return {"service": cid, "company_id": cid, "time_window": "1h", "severity": "ERROR", "bounded_limit": 200}
     if task_type == HoldingTaskType.RUN_INTERNAL_TEST.value:
         return {"suite_id": "holding_core"}
     return {"company_id": cid}
@@ -256,7 +261,7 @@ class _Result:
     def __init__(self, status, evidence=None, reason="", corr=""):
         self.status = status
         self.evidence = redact(evidence or {})              # §29 defense-in-depth: redact all evidence
-        self.reason = reason
+        self.reason = redact(reason) if isinstance(reason, str) else reason   # reason can echo provider errors
         self.correlation_id = corr
 
 
@@ -285,11 +290,13 @@ def _default_capability_health_provider(args: dict) -> dict:
 
 # Certified internal-read providers. Deployment/logs default to None ⇒ RUNTIME_PENDING (fail-closed).
 def default_providers() -> dict:
-    # lazy import avoids a circular import (repo_inspect imports redact/is_forbidden_repo_target here)
+    # lazy imports avoid a circular import (these modules import redact/validate_log_request here)
     from app.services.holding.repo_inspect import make_repo_provider
+    from app.services.holding.log_inspect import make_log_provider
     return {"holding.health": _default_health_provider,
             "holding.capability_health": _default_capability_health_provider,
-            "holding.repo": make_repo_provider()}
+            "holding.repo": make_repo_provider(),
+            "holding.logs": make_log_provider()}
 
 
 _INVOKE_OK = "OK"

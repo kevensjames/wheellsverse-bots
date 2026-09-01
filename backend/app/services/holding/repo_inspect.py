@@ -62,18 +62,23 @@ class RepositoryIdentity:
         d = asdict(self); d.pop("local_root", None); return d   # never leak the absolute FS root
 
 
-# ── path safety (§14 traversal) ──────────────────────────────────────────────────────────────────
+# ── path safety (§14 traversal + symlink) ─────────────────────────────────────────────────────────
 def _safe_join(root: str, rel: str) -> str:
-    """Resolve rel within root, rejecting absolute paths, .. traversal, and symlink escapes."""
+    """Resolve rel within root, rejecting absolute paths, .. traversal, escapes, AND symlinks. A
+    symlink is rejected because realpath would follow it (e.g. notes.txt→.env), so the resolved path
+    is compared to the lexical path: any difference means a link was traversed → deny."""
     if not isinstance(rel, str) or rel == "" or rel.startswith("/") or rel.startswith("~"):
         raise RepoDenied("path must be a relative in-repo path")
     if ".." in rel.replace("\\", "/").split("/"):
         raise RepoDenied("path traversal rejected")
     root_real = os.path.realpath(root)
-    target = os.path.realpath(os.path.join(root_real, rel))
-    if target != root_real and not target.startswith(root_real + os.sep):
+    lexical = os.path.normpath(os.path.join(root_real, rel))
+    if lexical != root_real and not lexical.startswith(root_real + os.sep):
         raise RepoDenied("path escapes the repository root")
-    return target
+    real = os.path.realpath(lexical)
+    if real != lexical:                                      # a symlink (or link component) was followed
+        raise RepoDenied("symlinked path rejected")
+    return real
 
 
 # ── providers ─────────────────────────────────────────────────────────────────────────────────────
@@ -90,7 +95,9 @@ class LocalGitProvider:
         # fixed read-only git subcommands only; list args, shell=False, bounded timeout
         out = subprocess.run(["git", "-C", self.root, *args], capture_output=True, text=True, timeout=15)
         if out.returncode != 0:
-            raise RepoDenied(f"git read failed: {(out.stderr or '').strip()[:80]}")
+            # strip the absolute root from stderr so it never leaks through an error channel (§9)
+            err = (out.stderr or "").strip().replace(self.root, "<repo>")[:80]
+            raise RepoDenied(f"git read failed: {err}")
         return out.stdout
 
     def health(self) -> dict:
@@ -125,10 +132,13 @@ class LocalGitProvider:
                 "is_dir": exists and os.path.isdir(target)}
 
     def read_file(self, rel: str) -> dict:
-        # §5: deny CONTENT of sensitive files UPSTREAM — do not read the bytes at all.
+        # §5: deny CONTENT of sensitive files UPSTREAM — on the raw request AND on the resolved path
+        # (defense-in-depth vs a symlink/normalisation that lands on a sensitive file).
         if is_forbidden_repo_target(rel):
             raise RepoDenied("sensitive file content denied")
         target = _safe_join(self.root, rel)
+        if is_forbidden_repo_target(os.path.relpath(target, os.path.realpath(self.root))):
+            raise RepoDenied("resolved path is sensitive — content denied")
         if not os.path.isfile(target):
             raise RepoDenied("not a readable file")
         with open(target, "rb") as f:
@@ -158,10 +168,18 @@ def _monorepo_root() -> str:
     return str(Path(__file__).resolve().parents[4])
 
 
+# EXPLICIT server-owned allowlist of companies whose AUTHORITATIVE repository is this monorepo. An
+# allowlist (not a substring test on free-text metadata) prevents an external repo whose name merely
+# CONTAINS "wheellsverse-bots" (e.g. "evil/wheellsverse-bots-fork", or sol's secondary frontend repo)
+# from being misrouted to the certified local provider. Companies not listed → external → fail closed.
+_LOCAL_MONOREPO_COMPANIES = frozenset({
+    "kai", "narai", "nexora", "siteboost", "wmos", "suprema", "wheellsverse_bots"})
+
+
 def resolve_repository(company_id: str, *, entities=None, monorepo_root: str | None = None) -> RepositoryIdentity | None:
-    """Resolve a company to its authoritative RepositoryIdentity from holding metadata (§1). Companies
-    whose repo is THIS monorepo get the certified local-git provider; a distinct external repo gets a
-    declared provider (github/gitea) with no certified backend yet. None if the company is unknown."""
+    """Resolve a company to its authoritative RepositoryIdentity from holding metadata (§1). ONLY the
+    explicitly-allowlisted companies map to the certified local-git provider; every other company maps
+    to a declared external provider with no certified backend yet (fail closed). None if unknown/no repo."""
     if entities is None:
         from app.services.holding import registry as reg
         entities = reg.all_entities()
@@ -171,11 +189,11 @@ def resolve_repository(company_id: str, *, entities=None, monorepo_root: str | N
     repo_str = (getattr(ent, "repository", None) or "").strip()
     if not repo_str:
         return None
-    root = monorepo_root or _monorepo_root()
-    if "wheellsverse-bots" in repo_str:                       # the local monorepo → certified provider
+    if company_id in _LOCAL_MONOREPO_COMPANIES:               # explicit allowlist → certified provider
         return RepositoryIdentity(repository_id=f"local:{company_id}", provider="local-git",
                                   owner="kevensjames", repository="wheellsverse-bots",
-                                  default_branch="main", company_id=company_id, local_root=root)
+                                  default_branch="main", company_id=company_id,
+                                  local_root=monorepo_root or _monorepo_root())
     # a distinct external repo — declared provider, no certified read backend yet (fail closed at exec)
     prov = "gitea" if "gitea" in repo_str.lower() else "github"
     return RepositoryIdentity(repository_id=f"{prov}:{company_id}", provider=prov, owner="wheellsverse",
