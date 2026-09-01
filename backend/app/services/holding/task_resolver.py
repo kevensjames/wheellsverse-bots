@@ -172,8 +172,8 @@ _MAPPINGS: dict[str, Mapping] = {
         "LOG_INSPECT_TYPED_REDACTED_LOCAL_PROVIDER"),
     HoldingTaskType.RUN_INTERNAL_TEST.value: Mapping(
         "holding.internal_test", "run_suite", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
-        CertState.RUNTIME_PENDING, ("suite", "sha", "passed", "failed", "duration"),
-        "INTERNAL_TEST_A1_DISABLED_UNTIL_A0_CERT"),
+        CertState.CERTIFIED, ("suite", "test_result", "passed", "failed", "exit_status"),
+        "INTERNAL_TEST_A1_ALLOWLISTED_SUITE"),
     HoldingTaskType.BROWSER_VALIDATE.value: Mapping(
         "playwright", "validate", ActionClass.READ_ONLY, Channel.FABRIC,
         CertState.RUNTIME_PENDING, ("target", "assertions", "screenshot_ref"),
@@ -223,7 +223,7 @@ def _minimal_args(task_type: str, task) -> dict:
     if task_type == HoldingTaskType.LOG_INSPECT.value:
         return {"service": cid, "company_id": cid, "time_window": "1h", "severity": "ERROR", "bounded_limit": 200}
     if task_type == HoldingTaskType.RUN_INTERNAL_TEST.value:
-        return {"suite_id": "holding_core"}
+        return {"suite_id": "holding_self_model", "company_id": cid}   # allowlisted suite, never a command
     return {"company_id": cid}
 
 
@@ -243,9 +243,14 @@ class TaskCapabilityResolver:
         if declared != m.action_class:
             return None                                     # wrong action class → refuse
         args = _minimal_args(task_type, task)
-        # §31: the internal-test mapping carries a suite_id, never a client command.
-        if task_type == HoldingTaskType.RUN_INTERNAL_TEST.value and resolve_test_command(args.get("suite_id", "")) is None:
-            return None
+        # §31: the internal-test mapping carries a suite_id (never a command) that must resolve to a
+        # real server-owned suite; otherwise refuse (fail closed).
+        if task_type == HoldingTaskType.RUN_INTERNAL_TEST.value:
+            try:
+                from app.services.holding.internal_test import resolve_suite
+                resolve_suite(args.get("suite_id", ""), company_id=getattr(task, "company_id", ""))
+            except Exception:
+                return None
         return ResolvedCapabilityTask(
             task_type=task_type, capability_id=m.capability_id, operation=m.operation,
             action_class=m.action_class.value, channel=m.channel.value, cert_state=m.cert_state.value,
@@ -293,10 +298,12 @@ def default_providers() -> dict:
     # lazy imports avoid a circular import (these modules import redact/validate_log_request here)
     from app.services.holding.repo_inspect import make_repo_provider
     from app.services.holding.log_inspect import make_log_provider
+    from app.services.holding.internal_test import make_internal_test_provider
     return {"holding.health": _default_health_provider,
             "holding.capability_health": _default_capability_health_provider,
             "holding.repo": make_repo_provider(),
-            "holding.logs": make_log_provider()}
+            "holding.logs": make_log_provider(),
+            "holding.internal_test": make_internal_test_provider()}
 
 
 _INVOKE_OK = "OK"

