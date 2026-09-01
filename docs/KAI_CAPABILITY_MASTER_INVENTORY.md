@@ -4,7 +4,7 @@ Every candidate the operator supplied appears **exactly once**, reconciled again
 cataloged** (see `KAI_CAPABILITY_LEDGER.md`). No duplicate is silently omitted. Names normalized.
 
 **Totals:** supplied ≈ 150 · **already cataloged ≈ 90** (do NOT re-adopt) · **genuinely new ≈ 55**
-(live-web verification running: workflow `wf_94db2ea5-2f2`, 8 category agents — dispositions land in §B when it returns).
+(live-web **VERIFIED**: workflow `wf_94db2ea5-2f2`, 8 agents → **66 canonical records** with authoritative dispositions in §B).
 
 ---
 
@@ -56,17 +56,104 @@ cataloged** (see `KAI_CAPABILITY_LEDGER.md`). No duplicate is silently omitted. 
 
 > Ponytail is **already active as a user-scope Claude Code plugin** (engineering-scope policy) — see §B for its formal fabric disposition + collapse-with-HERO decision (§12).
 
-## B. GENUINELY NEW — live-web verification IN PROGRESS (`wf_94db2ea5-2f2`)
-Preliminary category guess in parentheses; **authoritative disposition + license_class + supply-chain risk land here when the workflow returns.** None auto-installs (§57): each enters `DISCOVERED_UNVERIFIED` → supply-chain gate (§6).
+## B. GENUINELY NEW — live-web VERIFIED (workflow `wf_94db2ea5-2f2`, 8 agents, 66 records)
 
-- **Output-style / engineering-policy / skills:** Hallmark (DESIGN_SKILL §10) · Attention Span (OUTPUT_STYLE §11) · Ponytail (ENGINEERING_POLICY §12, collapse-with-HERO) · no-ai-slop (OUTPUT_STYLE) · ARIS (ENGINEERING_POLICY) · spec-kit (AGENT_SKILL) · Anthropic Skills / Awesome Claude Skills / Agent-Skills-for-Context-Engineering (skill catalogs) · notebooklm-skill · guizang-ppt-skill
-- **Model runtimes / routers / optimization:** LiteLLM (MODEL_ROUTER §17 — adapter *beneath* the existing router, no big-bang) · Modular MAX/Mojo (MODEL_RUNTIME) · Jan (LOCAL_MODEL_UI, HUMAN_INTERACTIVE) · text-generation-webui · KoboldCpp (MODEL_RUNTIME specialist) · tiktoken (TOKEN_OPTIMIZER, always-safe) · GPTCache (cache — deterministic-only) · LLMLingua (compression — never code/legal/safety §20) · Outlines (structured gen — schema-only) · whichllm · AnythingLLM (RAG/UI dup?)
-- **Computer-use / browser:** UI-TARS/Agent TARS (COMPUTER_USE_WORKER, HIGH §14 — sandbox, never banking/prod/passwords) · Wigolo · Page Agent · OpenCLI · AgenticSeek · MassGen
-- **Memory / code-intel / recording:** Hivemind (MEMORY_PROVIDER_EXPERIMENTAL §13 — egress review before any use) · OpenHuman · code-review-graph · Windrecorder (screen memory — privacy HIGH)
-- **Self-hosted services:** Authentik (§33 auth — INFRA_CHANGE, plan+rollback) · Chatwoot (support §82) · Listmonk (email §83) · Kaneo · Medusa · Bitwarden (§33 secrets — INFRA_CHANGE) · NocoDB (§31 read-only first) · CrowdSec (security) · Uptime Kuma (§26 monitoring — reuse if deployed) · Activepieces (§32 vs n8n — pick one) · dbx (§31 read-only DB) · ChartDB (§31 schema-only) · LifeForge
-- **Design / media / docs / OCR:** Excalidraw (DESIGN) · Presenton (presentations) · Duix-Avatar (avatar) · Unlimited OCR · Dioxus (UI framework) · Vane · LanguageTool (writing quality)
-- **SEO / marketing / social:** open-seo · claude-seo · Postiz (§25 social — draft-first, no auto-publish) · Cheat on Content
-- **Security / spreadsheet / dev-tools / reference:** Strix (SECURITY_ACTIVE, RESTRICTED §15 — never in the always-on loop) · excel-mcp-server (§30 file mutation, root-scoped) · gh-dash · lazy-frames · nanoGPT (REFERENCE) · RealWorld (REFERENCE app) · Awesome Self-Hosted (§99 DISCOVERY_CATALOG) · Awesome Python (catalog) · Clean Code JavaScript / JavaScript Testing Best Practices (REFERENCE)
+Every candidate verified live against its GitHub source (owner, license, maintenance, network/creds/execution, supply-chain risk). **66 canonical records** (some supplied names split into multiple repos). None auto-installs (§57): each is `DISCOVERED` → supply-chain gate (§6) before any use.
+
+**License:** 42 clear · 14 review-required · 10 service-isolation (AGPL/GPL copyleft). **Supply-chain risk:** 26 LOW · 29 MEDIUM · 11 HIGH.
+
+### Must-gate (never auto-adopt; RESTRICTED, sandbox + human-gate; never in the always-on holding loop)
+- **wanshuiyin/Auto-claude-code-research-in-sleep** (EXPERIMENTAL) — Autonomous ML-research orchestrator: idea discovery, cross-model review loops, experiment execution, paper pre
+- **PleasePrompto/notebooklm-skill** (REJECT_SECURITY) — Drives Google NotebookLM via browser automation to get source-grounded, citation-backed answers from your note
+- **bytedance/UI-TARS-desktop** (COMPUTER_USE_WORKER) — Multimodal AI agent stack: Agent TARS (CLI/Web, MCP tools) + UI-TARS-desktop (native GUI agent driving mouse/k
+- **jackwener/opencli** (BROWSER_WORKER) — Turn any website into a CLI and run 'Browser Use' on your logged-in Chrome - a Browser Bridge extension + daem
+- **Fosowl/agenticSeek** (REJECT_DUPLICATE) — 100%-local 'Manus AI' alternative - a voice-enabled autonomous agent that browses the web (Selenium), writes/d
+- **activeloopai/hivemind** (MEMORY_PROVIDER) — Auto-learning memory that captures coding-agent session traces and mines repeated patterns into reusable cross
+- **tinyhumansai/openhuman** (HUMAN_INTERACTIVE_ONLY) — Local-first personal-AI 'brain' desktop app: builds life-memory (Memory Tree + Obsidian wiki + SQLite), orches
+- **crowdsecurity/crowdsec** (SECURITY_ACTIVE) — Crowdsourced host/IP intrusion-detection & remediation engine (IDS/IPS + WAF).
+- **duixcom/Duix-Avatar** (MEDIA_TOOL) — Offline AI avatar / digital-human toolkit — appearance + voice cloning and text/voice-driven video generation.
+- **usestrix/strix** (SECURITY_ACTIVE) — Autonomous open-source AI penetration-testing agent (recon, exploitation, PoC validation) over OWASP Top 10.
+
+### Reject (already covered by the live KAI stack — do NOT re-adopt)
+- **PleasePrompto/notebooklm-skill** (REJECT_SECURITY) → playwright / browser-use / stagehand (existing KAI browser workers)
+- **Mintplex-Labs/anything-llm** (REJECT_DUPLICATE) → open-webui / lobe-chat / dify + KAI-native RAG (pgvector), Nexus chat UI, Holdin
+- **KnockOutEZ/wigolo** (REJECT_DUPLICATE) → firecrawl
+- **Fosowl/agenticSeek** (REJECT_DUPLICATE) → openhands / goose
+- **massgen/MassGen** (REJECT_DUPLICATE) → autogen / crewai / metagpt
+- **tirth8205/code-review-graph** (REJECT_DUPLICATE) → codegraph / codebase-memory-mcp
+- **activepieces/activepieces** (REJECT_DUPLICATE) → n8n
+- **ItzCrazyKns/Vane** (REJECT_DUPLICATE) → ragflow / open-webui / dify + KAI-native RAG (pgvector) + Nexus chat UI
+
+### Full disposition table (sorted HIGH→LOW risk)
+
+| risk | license | disposition | repo | SPDX |
+|---|---|---|---|---|
+| HIGH | clear | BROWSER_WORKER | `jackwener/opencli` | Apache-2.0 |
+| HIGH | clear | COMPUTER_USE_WORKER | `bytedance/UI-TARS-desktop` | Apache-2.0 |
+| HIGH | clear | EXPERIMENTAL | `wanshuiyin/Auto-claude-code-research-in-sleep` | MIT |
+| HIGH | isolate | HUMAN_INTERACTIVE_ONLY | `tinyhumansai/openhuman` | GPL-3.0 |
+| HIGH | review | MEDIA_TOOL | `duixcom/Duix-Avatar` | Custom 'Duix.Avatar mode |
+| HIGH | clear | MEMORY_PROVIDER | `activeloopai/hivemind` | Apache-2.0 |
+| HIGH | isolate | REJECT_DUPLICATE | `Fosowl/agenticSeek` | GPL-3.0 |
+| HIGH | clear | REJECT_SECURITY | `PleasePrompto/notebooklm-skill` | MIT |
+| HIGH | clear | SECURITY_ACTIVE | `crowdsecurity/crowdsec` | MIT |
+| HIGH | clear | SECURITY_ACTIVE | `usestrix/strix` | Apache-2.0 |
+| MEDIUM | clear | AGENT_SKILL | `AgriciDaniel/claude-seo` | MIT |
+| MEDIUM | clear | BROWSER_WORKER | `alibaba/page-agent` | MIT |
+| MEDIUM | review | EXPERIMENTAL | `Lifeforge-app/lifeforge` | CC BY-NC-SA 4.0 |
+| MEDIUM | clear | HUMAN_INTERACTIVE_ONLY | `Andyyyy64/whichllm` | MIT |
+| MEDIUM | isolate | HUMAN_INTERACTIVE_ONLY | `LostRuins/koboldcpp` | AGPL-3.0 |
+| MEDIUM | isolate | HUMAN_INTERACTIVE_ONLY | `oobabooga/text-generation-webui` | AGPL-3.0 |
+| MEDIUM | isolate | HUMAN_INTERACTIVE_ONLY | `yuka-friends/Windrecorder` | GPL-2.0 |
+| MEDIUM | clear | MCP | `t8y2/dbx` | Apache-2.0 |
+| MEDIUM | clear | MEDIA_TOOL | `cosmicstack-labs/lazy-frames` | MIT |
+| MEDIUM | clear | MEDIA_TOOL | `presenton/presenton` | Apache-2.0 |
+| MEDIUM | clear | MODEL_ROUTER | `BerriAI/litellm` | MIT |
+| MEDIUM | review | MODEL_RUNTIME | `modular/modular` | Repo + Mojo language: Ap |
+| MEDIUM | clear | OUTPUT_STYLE | `xr0zv/no-ai-slop` | MIT |
+| MEDIUM | review | REJECT_DUPLICATE | `activepieces/activepieces` | MIT |
+| MEDIUM | clear | REJECT_DUPLICATE | `ItzCrazyKns/Vane` | MIT |
+| MEDIUM | isolate | REJECT_DUPLICATE | `KnockOutEZ/wigolo` | AGPL-3.0-only |
+| MEDIUM | clear | REJECT_DUPLICATE | `massgen/MassGen` | Apache-2.0 |
+| MEDIUM | clear | REJECT_DUPLICATE | `Mintplex-Labs/anything-llm` | MIT |
+| MEDIUM | review | SELF_HOSTED_SERVICE | `baidu/Unlimited-OCR` | Repo code MIT |
+| MEDIUM | isolate | SELF_HOSTED_SERVICE | `bitwarden/server` | AGPL-3.0 |
+| MEDIUM | review | SELF_HOSTED_SERVICE | `chatwoot/chatwoot` | MIT Expat |
+| MEDIUM | clear | SELF_HOSTED_SERVICE | `every-app/open-seo` | MIT |
+| MEDIUM | isolate | SELF_HOSTED_SERVICE | `gitroomhq/postiz-app` | AGPL-3.0 |
+| MEDIUM | review | SELF_HOSTED_SERVICE | `goauthentik/authentik` | MIT |
+| MEDIUM | review | SELF_HOSTED_SERVICE | `medusajs/medusa` | MIT |
+| MEDIUM | review | SELF_HOSTED_SERVICE | `nocodb/nocodb` | Sustainable Use License |
+| MEDIUM | clear | SELF_HOSTED_SERVICE | `usekaneo/kaneo` | MIT |
+| MEDIUM | clear | TOKEN_OPTIMIZER | `microsoft/LLMLingua` | MIT |
+| MEDIUM | clear | TOKEN_OPTIMIZER | `zilliztech/GPTCache` | MIT |
+| LOW | review | AGENT_SKILL | `anthropics/skills` | Apache-2.0 |
+| LOW | clear | AGENT_SKILL | `XBuilderLAB/cheat-on-content` | MIT |
+| LOW | clear | DESIGN_TOOL | `excalidraw/excalidraw` | MIT |
+| LOW | clear | DESIGN_TOOL | `Nutlope/hallmark` | MIT |
+| LOW | review | DESIGN_TOOL | `op7418/guizang-ppt-skill` | AGPL-3.0 |
+| LOW | clear | ENGINEERING_POLICY | `DietrichGebert/ponytail` | MIT |
+| LOW | clear | ENGINEERING_POLICY | `github/spec-kit` | MIT |
+| LOW | clear | ENGINEERING_POLICY | `goldbergyoni/javascript-testing-best-practices` | MIT |
+| LOW | clear | ENGINEERING_POLICY | `ryanmcdermott/clean-code-javascript` | MIT |
+| LOW | clear | EXPERIMENTAL | `karpathy/nanoGPT` | MIT |
+| LOW | clear | HUMAN_INTERACTIVE_ONLY | `dlvhdr/gh-dash` | MIT |
+| LOW | clear | HUMAN_INTERACTIVE_ONLY | `janhq/jan` | Apache-2.0 |
+| LOW | clear | INFRA_TOOL | `DioxusLabs/dioxus` | MIT OR Apache-2.0 |
+| LOW | review | KNOWLEDGE_PACK | `awesome-selfhosted/awesome-selfhosted` | CC-BY-SA-3.0 |
+| LOW | clear | KNOWLEDGE_PACK | `vinta/awesome-python` | CC-BY-4.0 |
+| LOW | clear | MCP | `haris-musa/excel-mcp-server` | MIT |
+| LOW | clear | MODEL_RUNTIME | `dottxt-ai/outlines` | Apache-2.0 |
+| LOW | review | OUTPUT_STYLE | `alexgreensh/attention-span` | AGPL-3.0 |
+| LOW | clear | REFERENCE_PACK | `ComposioHQ/awesome-claude-skills` | Apache-2.0 |
+| LOW | clear | REFERENCE_PACK | `muratcankoylan/Agent-Skills-for-Context-Engineering` | MIT |
+| LOW | clear | REFERENCE_PACK | `realworld-apps/realworld` | MIT |
+| LOW | clear | REJECT_DUPLICATE | `tirth8205/code-review-graph` | MIT |
+| LOW | isolate | SELF_HOSTED_SERVICE | `chartdb/chartdb` | AGPL-3.0 |
+| LOW | isolate | SELF_HOSTED_SERVICE | `knadh/listmonk` | AGPL-3.0 |
+| LOW | review | SELF_HOSTED_SERVICE | `languagetool-org/languagetool` | LGPL-2.1-or-later |
+| LOW | clear | SELF_HOSTED_SERVICE | `louislam/uptime-kuma` | MIT |
+| LOW | clear | TOKEN_OPTIMIZER | `openai/tiktoken` | MIT |
 
 ## C. Intake rules applied (§4–8, §57–58)
 - **No candidate auto-installs.** DISCOVERED → source-verify → license → static inspect → dependency review → **Bumblebee/supply-chain scan (§6)** → sandbox install → network observation → health → tests → promotion.
