@@ -188,6 +188,8 @@ _PUBLIC_PATHS = {"/", "/landing", "/api/health", "/api/overview", "/api/lead", "
                  "/api/wordpress/oauth-callback", "/api/wordpress/oauth-url",
                  "/api/canva/oauth-callback", "/api/canva/oauth-url",
                  "/api/nexora/status", "/api/nexora/recruit", "/api/nexora/growth",
+                 # Holding OS read-only stat shims (App B probes these to self-update those entities)
+                 "/api/siteboost/stats", "/api/wmos/stats",
                  # NarAI autopilot — dashboard-only, protected by same-origin
                  "/api/narai-autopilot/status", "/api/narai-autopilot/start",
                  "/api/narai-autopilot/stop", "/api/narai-autopilot/log",
@@ -940,6 +942,15 @@ def _kai_presence_js():
     p = ROOT / "frontend" / "admin" / "kai-presence.js"
     return FileResponse(p, media_type="text/javascript",
                         headers={"Cache-Control": "public, max-age=60, must-revalidate"})
+
+
+@app.get("/admin/holding", include_in_schema=False)
+def _admin_holding_page():
+    # Read-only Holding Operations view. Fetches owner-gated data through the bridge
+    # (/admin/kai/holding/*); degrades gracefully when the feature is off.
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "holding.html"
+    return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/admin/kai-presence.css", include_in_schema=False)
@@ -10944,6 +10955,29 @@ async def money_assets():
 # ─── NEXORA Platform API ──────────────────────────────────────────────────────
 
 _nexora_outputs_dir = ROOT / "outputs" / "agent_workforce" / "102_nexora_builder"
+
+@app.get("/api/siteboost/stats")
+async def siteboost_stats():
+    """SiteBoost outbound-pipeline stats (read-only, public) — lets the Holding OS on App B
+    self-update SiteBoost's real activity instead of an operator-confirmed guess. Best-effort;
+    discloses when unavailable rather than inventing."""
+    try:
+        from core.siteboost_state import stats as _sb_stats
+        return {"ok": True, "stats": _sb_stats()}
+    except Exception as e:
+        return {"ok": False, "note": "siteboost stats unavailable", "error": str(e)[:120]}
+
+
+@app.get("/api/wmos/stats")
+async def wmos_stats():
+    """W-MOS per-business portfolio rollup (read-only, public) — phase/completed/pending/next_step
+    per business, so the Holding OS can self-update W-MOS's real loop state. Best-effort."""
+    try:
+        from core.portfolio.rollup import portfolio_overview
+        return {"ok": True, "businesses": portfolio_overview()}
+    except Exception as e:
+        return {"ok": False, "note": "wmos rollup unavailable", "error": str(e)[:120]}
+
 
 @app.get("/api/nexora/status")
 async def nexora_status():
