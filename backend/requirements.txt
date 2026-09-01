@@ -49,6 +49,9 @@ piper-tts==1.4.2
 # in mcp_config.json; loader gracefully no-ops when config is absent.
 mcp==1.27.2
 
+# Capability Fabric — Execution V1 adapter runtime (read-only media metadata; download gated §80).
+yt-dlp==2026.8.19
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0

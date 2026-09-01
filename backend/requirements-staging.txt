@@ -61,6 +61,11 @@ pgvector==0.5.0
 PyJWT==2.13.0
 supabase==2.31.0
 
+# Capability Fabric — Execution V1 adapter runtime. yt-dlp powers the certified read-only
+# media-metadata operation (extract_info, download=False); the download action stays an
+# ActionProposal (§80). Pure-Python, no heavy deps. Pinned to the cert-venv-tested version.
+yt-dlp==2026.8.19
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0
