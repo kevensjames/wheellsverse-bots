@@ -28,10 +28,15 @@ def _task(action_type=A2ActionType.EDIT_CODE_IN_WORKTREE.value, company="kai", e
 def _worker_ok(files=None):
     def w(task, wt):
         return WorkerResult(task="fix", worker="coder-1", starting_sha="abc",
-                            files_changed=files or ["app/services/holding/plan.py"],
+                            files_changed=files or ["docs/runbook.md"],   # worker's CLAIM (informational)
                             diff_summary="fixed off-by-one", tests_run=7, tests_passed=7, tests_failed=0,
                             artifacts=["diff.patch"])
     return w
+
+
+def _diff(files):
+    """The AUTHORITATIVE git-derived changed-file set (what the §40 gate actually inspects)."""
+    return lambda worktree, base_sha: list(files)
 
 
 def _tests_pass(wt):
@@ -53,53 +58,78 @@ def t_no_grant_needs_certification():
 
 def t_forbidden_action_owner_required():
     """§38/§41: merge/deploy are never A2."""
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass)
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff(["docs/x.md"]))
     for bad in ("MERGE", "DEPLOY", "PUSH_PRODUCTION", "MONEY", "ROTATE_SECRET"):
         assert fw.prepare(_task(action_type=bad)).state == A2State.OWNER_REQUIRED.value, bad
 
 
 def t_production_env_owner_required():
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass)
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff(["docs/x.md"]))
     assert fw.prepare(_task(env="production")).state == A2State.OWNER_REQUIRED.value
+    assert fw.prepare(_task(env="Production")).state == A2State.OWNER_REQUIRED.value   # case-insensitive (finding 4)
 
 
 def t_unknown_action_blocked():
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass)
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff(["docs/x.md"]))
     assert fw.prepare(_task(action_type="REWRITE_EVERYTHING")).state == A2State.BLOCKED.value
 
 
 def t_granted_flow_ready_for_review_never_merges():
     """§36/§39/§41: granted change → isolated worktree → worker → tests → independent review →
     READY_FOR_REVIEW; never merged or deployed."""
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass)
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass,
+                     diff_fn=_diff(["app/services/sol/storage.py"]))   # genuinely-ordinary code
     r = fw.prepare(_task())
     assert r.state == A2State.READY_FOR_REVIEW.value and r.ready_for_review
     assert r.reviewed and r.certified and r.reviewer == "kai-independent-reviewer"
     assert r.merged is False and r.deployed is False        # the core A2 invariant
     assert r.branch.startswith("kai/") and r.worktree
+    assert r.files_changed == ["app/services/sol/storage.py"]   # git-derived, not the worker's claim
 
 
 def t_authority_immutable_owner_required():
-    """§40: a diff touching approval gates / risk / kill switch / auth / money / audit is OWNER_REQUIRED."""
+    """§40: a diff touching approval gates / RBAC / risk / kill switch / auth / money / audit / the
+    autonomy engine itself is OWNER_REQUIRED (from the recheck: RBAC + kill-switch files added)."""
     for f in ("app/config.py", "app/services/capability/risk.py", "core/kai_bridge.py",
-              "app/services/holding/a2_framework.py", "billing/stripe.py"):
-        fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(files=[f]), test_fn=_tests_pass)
+              "app/services/holding/a2_framework.py", "billing/stripe.py",
+              "app/services/holding/autonomous_work.py", "app/services/holding/plan.py",
+              "app/rbac.py", "app/policy/roles.py", "app/routers/admin_users.py",
+              "app/dependencies/admin.py"):
+        fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff([f]))
         r = fw.prepare(_task())
         assert r.state == A2State.OWNER_REQUIRED.value, f
         assert r.merged is False
-    assert touches_authority(["app/services/holding/plan.py"]) == []   # ordinary code is fine
+    assert touches_authority(["app/services/sol/storage.py"]) == []   # ordinary code is fine
+
+
+def t_untrusted_worker_diff_cannot_bypass_gate():
+    """Recheck finding 1 (HIGH): the gate uses the git-derived diff, NOT the worker's self-report. A
+    worker that edits config.py but CLAIMS docs/notes.md must still be OWNER_REQUIRED."""
+    fw = A2Framework(_reg(_GRANT),
+                     worker_fn=_worker_ok(files=["docs/notes.md"]),        # worker lies
+                     test_fn=_tests_pass, diff_fn=_diff(["app/config.py"]))  # real diff touches authority
+    r = fw.prepare(_task())
+    assert r.state == A2State.OWNER_REQUIRED.value and r.merged is False
+
+
+def t_unverifiable_diff_fails_closed():
+    """No verifiable worktree diff → BLOCKED, never a certified-clean prepared PR."""
+    def boom(worktree, base_sha): raise RuntimeError("no worktree")
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=boom)
+    assert fw.prepare(_task()).state == A2State.BLOCKED.value
 
 
 def t_no_self_approval():
     """§40: the implementing worker can NEVER certify its own result."""
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, reviewer="coder-1")
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, reviewer="coder-1",
+                     diff_fn=_diff(["docs/x.md"]))
     r = fw.prepare(_task())      # reviewer == worker
     assert r.state == A2State.BLOCKED.value and not r.certified
 
 
 def t_failing_tests_block():
     def failing(wt): return {"tests_run": 5, "tests_passed": 3, "tests_failed": 2}
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=failing)
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=failing, diff_fn=_diff(["docs/x.md"]))
     r = fw.prepare(_task())
     assert r.state == A2State.BLOCKED.value and not r.certified and r.merged is False
 
@@ -109,10 +139,11 @@ def t_registry_rejects_bad_grants():
         A2Grant("MERGE", "coding", "kai", "development"); reg = A2GrantRegistry(); reg.grant(A2Grant("MERGE", "coding", "kai", "development")); assert False
     except ValueError:
         pass
-    try:
-        A2GrantRegistry([A2Grant(A2ActionType.EDIT_CODE_IN_WORKTREE.value, "coding", "kai", "production")]); assert False
-    except ValueError:
-        pass
+    for prod in ("production", "Production", "PRODUCTION"):    # case-insensitive (finding 4)
+        try:
+            A2GrantRegistry([A2Grant(A2ActionType.EDIT_CODE_IN_WORKTREE.value, "coding", "kai", prod)]); assert False
+        except ValueError:
+            pass
 
 
 def t_worktree_only_when_no_worker():
@@ -136,7 +167,8 @@ def t_engine_a2_routing():
     eng0 = HoldingAutonomousWorkEngine(execute=lambda *a, **k: None, resolver=lambda x: None)
     assert eng0.run_task(t).outcome == NEEDS_CERTIFICATION
     # framework + grant → prepared, owner-reviewed, never merged
-    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass)
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass,
+                     diff_fn=_diff(["app/services/sol/storage.py"]))
     eng = HoldingAutonomousWorkEngine(execute=lambda *a, **k: None, resolver=lambda x: None, a2_framework=fw)
     r = eng.run_task(t)
     assert r.outcome == A2_READY_FOR_REVIEW and r.task_status == "BLOCKED"   # not COMPLETE — owner merges

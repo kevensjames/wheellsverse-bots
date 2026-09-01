@@ -45,19 +45,34 @@ class A2State(str, Enum):
 
 
 # §40 authority-immutable path fragments — an A2 diff touching any of these is OWNER_REQUIRED. KAI may
-# not autonomously modify its own approval gates, risk classes, kill switches, auth, money, audit, creds.
+# not autonomously modify its own approval gates, RBAC/roles, risk classes, kill switches, the autonomy
+# engine itself, auth, money, audit, or credentials. (Adversarial recheck: the operative kill switches
+# live in the holding autonomy engine and RBAC/approval-gate files, so those are covered explicitly.)
 _AUTHORITY_IMMUTABLE = (
-    "config.py", "app/config", "services/capability/risk", "services/capability/security",
-    "services/capability/manifest", "kai_bridge", "auth", "session", "require_kai_ultra",
+    "config.py", "app/config",
+    # capability governance (the whole governance surface is authority)
+    "services/capability/risk", "services/capability/security", "services/capability/manifest",
+    "services/capability/execution", "services/capability/invocation", "services/capability/lifecycle",
+    "services/capability/governance", "governed_invoke",
+    # the holding AUTONOMY engine + its kill switches / owner-queue routing / grant registry
+    "services/holding/autonomous_work", "services/holding/plan", "services/holding/task_resolver",
+    "services/holding/owner_queue", "services/holding/state_reconciler", "services/holding/a2_framework",
+    "services/holding/digital_twin", "kill_switch", "kill-switch",
+    # auth / RBAC / approval gates
+    "kai_bridge", "auth", "session", "require_kai_ultra", "require_admin", "resolve_principal",
+    "rbac", "role", "policy", "permission", "dependencies/admin", "routers/admin_users", "api_key",
+    # money / audit / credentials / deploy
     "financial", "money", "billing", "stripe", "dwolla", "audit", "credential", "secret",
-    "kill_switch", "deploy", "railway", "resolve_principal", "a2_framework")
+    "deploy", "railway")
 
 
 def touches_authority(files_changed: list) -> list:
-    """Return the subset of changed files that touch authority-immutable surfaces (§40)."""
+    """Return the subset of changed files that touch authority-immutable surfaces (§40). The caller MUST
+    pass the git-derived diff of the worktree, NOT the worker's self-reported list (the gate must not
+    trust the output it polices)."""
     hits = []
     for f in files_changed or []:
-        low = str(f).lower()
+        low = str(f).lower().replace("\\", "/")
         if any(frag in low for frag in _AUTHORITY_IMMUTABLE):
             hits.append(f)
     return hits
@@ -80,14 +95,15 @@ class A2GrantRegistry:
             self.grant(gr)
 
     def grant(self, gr: A2Grant) -> None:
-        if gr.environment == "production":
+        env = (gr.environment or "").strip().lower()
+        if env == "production" or not env:                   # case-insensitive; empty is not allowed
             raise ValueError("A2 grants are never for production (§38/§41)")
         if gr.action_type in FORBIDDEN_A2_ACTIONS:
             raise ValueError(f"'{gr.action_type}' is not an A2 action")
-        self._g.add((gr.action_type, gr.capability, gr.company_id, gr.environment))
+        self._g.add((gr.action_type, gr.capability, gr.company_id, env))
 
     def is_granted(self, action_type: str, capability: str, company_id: str, environment: str) -> bool:
-        return (action_type, capability, company_id, environment) in self._g
+        return (action_type, capability, company_id, (environment or "").strip().lower()) in self._g
 
 
 @dataclass
@@ -116,7 +132,7 @@ class A2Prepared:
 
 class A2Framework:
     def __init__(self, registry: A2GrantRegistry, *, worktree_fn=None, worker_fn=None,
-                 test_fn=None, reviewer: str = "kai-independent-reviewer"):
+                 test_fn=None, diff_fn=None, reviewer: str = "kai-independent-reviewer"):
         self._reg = registry
         # worktree_fn(mission_id, base_sha, base_dir) -> WorktreeAssignment (default: path-only, no FS op)
         self._worktree = worktree_fn or self._default_worktree
@@ -124,6 +140,9 @@ class A2Framework:
         self._worker = worker_fn
         # test_fn(worktree) -> {tests_run,tests_passed,tests_failed} (RUN_INTERNAL_TEST in the worktree)
         self._test = test_fn
+        # diff_fn(worktree, base_sha) -> [changed files] — the AUTHORITATIVE diff from the worktree, used
+        # for the §40 authority gate instead of the untrusted worker self-report. Default: real git diff.
+        self._diff = diff_fn or self._default_diff
         self._reviewer = reviewer
 
     @staticmethod
@@ -131,12 +150,22 @@ class A2Framework:
         # path assignment only (no real git mutation) — the real op plugs in via worktree_fn
         return assign_worktrees(["a2"], mission_id, base_sha, base_dir)[0]
 
+    @staticmethod
+    def _default_diff(worktree, base_sha):
+        # authoritative read-only diff of the worktree; raises if unavailable (→ fail closed)
+        import subprocess
+        args = ["git", "-C", worktree, "diff", "--name-only"] + ([base_sha] if base_sha else [])
+        out = subprocess.run(args, capture_output=True, text=True, timeout=15)
+        if out.returncode != 0:
+            raise RuntimeError("worktree diff unavailable")
+        return [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+
     def prepare(self, task) -> A2Prepared:
         """Run the A2 flow (§39) to a PREPARED result, or a fail-closed non-ready state. Never merges."""
         action_type = getattr(task, "a2_action_type", "") or ""
         company = getattr(task, "company_id", "")
         capability = getattr(task, "capability", "coding")
-        env = getattr(task, "environment", "development")
+        env = (getattr(task, "environment", "development") or "development").strip().lower()   # case-normalized
         mission_id = getattr(task, "task_id", "a2")
 
         def result(state, **kw):
@@ -163,8 +192,13 @@ class A2Framework:
                           branch=wt.branch, worktree=wt.worktree)
         # 5. worker performs the change in the ISOLATED worktree (§39)
         wr: WorkerResult = self._worker(task, wt)
-        files = list(wr.files_changed or [])
-        # 6. §40 authority immutability — a diff touching authority surfaces is OWNER_REQUIRED, not A2
+        # 6. §40 authority immutability — derive the AUTHORITATIVE changed-file set from the worktree
+        #    itself (never the untrusted worker's self-report), then gate. No verifiable diff → fail closed.
+        try:
+            files = list(self._diff(wt.worktree, getattr(task, "base_sha", "")))
+        except Exception as e:
+            return result(A2State.BLOCKED, branch=wt.branch, worktree=wt.worktree,
+                          reason=f"cannot verify worktree diff (fail closed): {str(e)[:80]}")
         auth_hits = touches_authority(files)
         if auth_hits:
             return result(A2State.OWNER_REQUIRED, branch=wt.branch, worktree=wt.worktree,
