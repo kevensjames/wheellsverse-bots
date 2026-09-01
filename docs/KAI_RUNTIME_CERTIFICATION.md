@@ -53,6 +53,30 @@ Slack (`xox…`), Stripe (`sk_live_`), connection-string credentials (`scheme://
 keys (incl. OPENSSH), JWTs, compound key=value names in flat strings (`aws_secret_access_key=…`), and
 dict values under secret-named keys — while **not** redacting legitimate git SHAs.
 
+## Part D — Limited A2 framework (`a2_framework.py`) — REVERSIBLE_INTERNAL_WRITE preparation
+- Granted **per (action_type, capability, company, environment)** — never global (§34); default-empty →
+  `NEEDS_CERTIFICATION`; non-production grants only (env case-normalized). Allowed: worktree / branch /
+  edit-in-worktree / internal-doc / draft-PR-artifact. Forbidden (merge/deploy/publish/permission/
+  credential/money) → `OWNER_REQUIRED`.
+- **No self-approval (§40):** `certify_worker_result` (reused) refuses a worker certifying its own change.
+- **Authority immutability (§40):** the gate derives the changed-file set from the **worktree git diff**
+  (not the untrusted worker's self-report — a recheck HIGH), and any file touching approval gates / RBAC /
+  risk / kill switches / the autonomy engine itself / auth / money / audit / credentials / deploy →
+  `OWNER_REQUIRED`. An unverifiable diff fails closed.
+- **No merge/deploy (§41):** `merged`/`deployed` always `False`; completion is `READY_FOR_REVIEW` → the
+  owner merges. Engine routes A2 → `A2_READY_FOR_REVIEW`, never `COMPLETE`.
+
+## Adversarial rechecks (§42) — all complete, all findings fixed
+| Recheck | Confirmed | Highlights (all fixed) |
+|---|---|---|
+| REPO_INSPECT | 4 | symlink bypass (HIGH), substring misrouting, FS-root error leak, redaction gaps |
+| LOG + TEST | 1 | JSON-credential redaction gap (HIGH); RUN_INTERNAL_TEST clean |
+| A2 framework | 4 | **worker-diff trust boundary (HIGH)**, kill-switch surface gap (HIGH), RBAC gap, env casing |
+
+Pattern that held across all three: the deepest issues were *trust-boundary* — a gate reading the
+output it was meant to police (redaction of provider evidence; the A2 authority gate reading the worker's
+own file list). Each fix moves the decision onto authoritative, independently-derived data.
+
 ## Production
 UNCHANGED. Nothing here deploys on local test pass; all mappings run only behind the existing flags,
 and only the operator runs `railway up` / `git push production`.
