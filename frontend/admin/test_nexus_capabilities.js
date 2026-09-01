@@ -5,7 +5,17 @@ const C = require('./kai-nexus-capabilities.js');
 const catalog = require('./kai-capability-catalog.json');   // the real honest snapshot
 
 let pass = 0;
-function test(name, fn) { try { fn(); console.log('  ok  ' + name); pass++; } catch (e) { console.error('  FAIL ' + name + '\n       ' + e.message); process.exitCode = 1; } }
+let pending = Promise.resolve();   // async tests (returning a promise) are chained + awaited at the end
+function test(name, fn) {
+  try {
+    const r = fn();
+    if (r && typeof r.then === 'function') {
+      pending = pending.then(() => r.then(
+        () => { console.log('  ok  ' + name); pass++; },
+        (e) => { console.error('  FAIL ' + name + '\n       ' + e.message); process.exitCode = 1; }));
+    } else { console.log('  ok  ' + name); pass++; }
+  } catch (e) { console.error('  FAIL ' + name + '\n       ' + e.message); process.exitCode = 1; }
+}
 
 const byId = {};
 catalog.capabilities.forEach((c) => { byId[c.id] = c; });
@@ -93,4 +103,87 @@ test('renderPanel builds one row per capability with an honest data-state', () =
   assert.deepStrictEqual(selected, ['geolibre']);
 });
 
-console.log('\n' + pass + ' passed');
+// ── EXECUTION UI (§3-9) ───────────────────────────────────────────────────────
+test('serverStateLabel is backend-authoritative, else honest CATALOG_ONLY (§33)', () => {
+  assert.strictEqual(C.serverStateLabel({ server_state: 'KAI_SERVER_READY' }), 'KAI_SERVER_READY');
+  assert.strictEqual(C.serverStateLabel({}), 'CATALOG_ONLY');
+  assert.strictEqual(C.serverStateLabel(null), 'CATALOG_ONLY');
+});
+test('testableOperation offers TEST only when the backend declares a safe_test (§4)', () => {
+  assert.strictEqual(C.testableOperation({ operations: [{ operation: 'convert', safe_test: true }] }), 'convert');
+  assert.strictEqual(C.testableOperation({ operations: [{ operation: 'metadata', safe_test: false }] }), null);
+  assert.strictEqual(C.testableOperation({ operations: [] }), null);
+});
+test('executionStateLabel maps statuses; denials never read as success (§6/§32)', () => {
+  assert.strictEqual(C.executionStateLabel('OK'), 'COMPLETED');
+  assert.strictEqual(C.executionStateLabel('OPERATION_NOT_ENABLED'), 'DENIED');
+  assert.strictEqual(C.executionStateLabel('CAPABILITY_UNAVAILABLE'), 'UNAVAILABLE');
+  assert.strictEqual(C.executionStateLabel('INPUT_REJECTED'), 'REJECTED');
+});
+test('activityLabel exposes only a SAFE label, never reasoning (§7)', () => {
+  assert.strictEqual(C.activityLabel('yt-dlp'), 'Inspecting media metadata');
+  assert.strictEqual(C.activityLabel('markitdown'), 'Converting document');
+  assert.ok(!/reason|prompt|think/i.test(C.activityLabel('anything')));
+});
+test('history rows carry no secrets / no request bodies (§5/§32)', () => {
+  const rows = C.historyRows([{ capability: 'yt-dlp', operation: 'metadata', status: 'OK',
+    duration_ms: 661, provenance: 'REAL', correlation_id: 'c-1' }]);
+  assert.strictEqual(rows[0].state, 'COMPLETED');
+  const blob = JSON.stringify(rows).toLowerCase();
+  for (const bad of ['url', 'token', 'secret', 'input', 'cookie', 'password']) {
+    assert.ok(blob.indexOf(bad) === -1, 'history must not surface ' + bad);
+  }
+});
+test('renderHistory builds a row per invocation (fake DOM)', () => {
+  const doc = fakeDoc();
+  const rootEl = doc.createElement('div');
+  const n = C.renderHistory(rootEl, [{ capability: 'yt-dlp', operation: 'metadata', status: 'OK',
+    duration_ms: 5, provenance: 'REAL', correlation_id: 'c-1' }], { document: doc });
+  assert.strictEqual(n, 1);
+  const dataRows = rootEl.firstChild.children.filter((r) => r.dataset && r.dataset.state);
+  assert.strictEqual(dataRows[0].dataset.state, 'COMPLETED');
+});
+
+// controller with an injected fake fetch (no network)
+function fakeFetch(routes) {
+  const calls = [];
+  const f = (url, init) => {
+    calls.push({ url, method: (init && init.method) || 'GET' });
+    const r = routes[url] || routes[(init && init.method || 'GET') + ' ' + url] || { status: 404, body: {} };
+    return Promise.resolve({ ok: r.status < 400, status: r.status || 200, json: () => Promise.resolve(r.body) });
+  };
+  f.calls = calls;
+  return f;
+}
+test('CapabilityConsole hits the BRIDGE path, never App A catalog routes (§16)', () => {
+  const f = fakeFetch({ '/admin/kai/capabilities': { status: 200, body: { capabilities: [] } } });
+  const con = C.CapabilityConsole({ fetch: f });
+  assert.strictEqual(con.base, '/admin/kai/capabilities');
+  return con.loadExecutable().then(() => {
+    assert.ok(f.calls[0].url === '/admin/kai/capabilities', 'must call the bridge exec path');
+    assert.ok(f.calls[0].url.indexOf('/admin/capabilities') !== 0, 'must NOT call App A /admin/capabilities catalog');
+  });
+});
+test('runTest emits started→completed and returns the ExecutionResult (§6/§34-halo)', () => {
+  const events = [];
+  const f = fakeFetch({ 'POST /admin/kai/capabilities/yt-dlp/test':
+    { status: 200, body: { status: 'OK', correlation_id: 'c-9' } } });
+  const con = C.CapabilityConsole({ fetch: f, onEvent: (e) => events.push(e) });
+  return con.runTest('yt-dlp').then((er) => {
+    assert.strictEqual(er.status, 'OK');
+    assert.deepStrictEqual(events.map((e) => e.event), ['capability.started', 'capability.completed']);
+    assert.strictEqual(events[0].activity, 'Inspecting media metadata');
+  });
+});
+test('runTest emits started→failed on a denied/failed result (no fake success)', () => {
+  const events = [];
+  const f = fakeFetch({ 'POST /admin/kai/capabilities/yt-dlp/test':
+    { status: 403, body: { status: 'OPERATION_NOT_ENABLED', correlation_id: 'c-x' } } });
+  const con = C.CapabilityConsole({ fetch: f, onEvent: (e) => events.push(e) });
+  return con.runTest('yt-dlp').then((er) => {
+    assert.strictEqual(er.status, 'OPERATION_NOT_ENABLED');
+    assert.deepStrictEqual(events.map((e) => e.event), ['capability.started', 'capability.failed']);
+  });
+});
+
+pending.then(() => console.log('\n' + pass + ' passed'));

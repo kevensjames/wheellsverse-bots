@@ -240,3 +240,26 @@ def test_audit_emitted_on_anonymous_denied():
     c.get("/admin/kai/kai-chat")
     assert audit_events and audit_events[-1]["status"] == 401
     assert audit_events[-1]["actor_role"] == "anonymous"
+
+
+# ── capability EXECUTION prefix (§6/§16) — owner-only, mapped to App B /admin/capabilities ──
+def test_capabilities_owner_allowed_and_mapped():
+    c = _client()
+    r = c.get("/admin/kai/capabilities", cookies=_cookie("owner"))
+    assert r.status_code == 200
+    assert captured["path"] == "/admin/capabilities"   # bridged to App B's execution route
+
+
+def test_capabilities_operator_denied_owner_only():
+    # execution is owner-only; an operator session must be denied at the bridge, never forwarded.
+    c = _client()
+    r = c.post("/admin/kai/capabilities/yt-dlp/invoke", json={"operation": "metadata"},
+               cookies=_cookie("operator"))
+    assert r.status_code == 403 and r.json()["need"] == osess.SCOPE_KAI_ULTRA
+    assert not captured
+
+
+def test_capabilities_anonymous_denied():
+    c = _client()
+    r = c.get("/admin/kai/capabilities")
+    assert r.status_code in (401, 403) and not captured
