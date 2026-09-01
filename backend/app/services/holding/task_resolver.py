@@ -51,11 +51,13 @@ _SECRET_PATTERNS = [
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)\b(authorization|cookie|set-cookie|x-api-key)\b\s*[:=]\s*\S+"),
-    # compound secret key names in a FLAT string (e.g. aws_secret_access_key=…): allow surrounding
-    # word chars so a hint token embedded in a larger identifier still redacts the whole key=value.
+    # compound secret key names in a FLAT string — handles logfmt (password=x), JSON ("password":"x"),
+    # and quoted keys/values. Surrounding word chars let a hint embedded in a larger identifier
+    # (aws_secret_access_key=…) still redact the whole key→value; the value alternative consumes a
+    # quoted string (spaces incl.) or an unquoted token.
     re.compile(r"(?i)\b[\w-]*(?:password|passwd|secret|api[_-]?key|access[_-]?key|access[_-]?token|"
-               r"refresh[_-]?token|client[_-]?secret|private[_-]?key|credential|\btoken)[\w-]*"
-               r"\s*[:=]\s*\S+"),
+               r"refresh[_-]?token|client[_-]?secret|private[_-]?key|credential|token)[\w-]*"
+               r"[\"']?\s*[:=]\s*(?:\"[^\"]*\"|'[^']*'|[^\s\"',}]+)"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b"),  # JWT
     re.compile(r"(?i)\b[a-z][a-z0-9+.\-]*://[^\s:@/]+:[^\s@/]+@\S*"),  # scheme://user:PASS@host (DB/URL creds)
     re.compile(r"\b(?:sk|pk|rk|whsec)_(?:live|test)_[A-Za-z0-9]{10,}\b"),  # Stripe keys

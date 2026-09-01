@@ -108,6 +108,16 @@ def t_redaction_structured_secret_by_key():
     assert r2["env"]["SESSION_SIGNING_SECRET"] == REDACTED and r2["env"]["PORT"] == 8000
 
 
+def t_redaction_json_credentials():
+    """LOG+TEST recheck finding: JSON-formatted secrets ("password":"x") must be redacted, not just logfmt."""
+    j = 'ERROR ctx={"user":"bob","password":"Pa55w0rd-leak","client_secret":"cs_raw_LEAK","token":"t0kenLEAK"}'
+    r = redact(j)
+    for leak in ("Pa55w0rd-leak", "cs_raw_LEAK", "t0kenLEAK"):
+        assert leak not in r, leak
+    assert "bob" in r and REDACTED in r      # non-secret field survives
+    assert redact('password=hunter2') == REDACTED   # logfmt still works
+
+
 def t_redaction_no_false_positive_on_sha():
     """Guard: a 40-char git SHA (legit DEPLOYMENT_STATUS evidence) must NOT be redacted."""
     sha = "a1b2c3d4e5f6071829304152637485960718293a"   # 40 hex chars

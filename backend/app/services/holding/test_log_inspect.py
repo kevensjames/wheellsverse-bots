@@ -35,6 +35,7 @@ _SECRETS = [
     "ERROR -----END PRIVATE KEY-----",
     f"INFO deploy {_SHA} succeeded",
     "ERROR correlation-XYZ event failed hard",
+    'ERROR auth ctx={"user":"bob","password":"Pa55w0rd-json-LEAK","client_secret":"cs_json_LEAK"}',
 ]
 
 
@@ -55,7 +56,8 @@ def t_no_secret_reproduction():
     ev = _factory()({"service": "kai", "severity": "DEBUG", "bounded_limit": 100})
     blob = str(ev)
     for needle in ("ghp_0123456789", "github_pat_11", "sk-proj-abc", "sk-svcacct-abc", "xoxb-1234567890",
-                   "wJalrXUtnFEMI", "super.secret.jwt", "session=abcdef123456", "MIIEvQreallysecret"):
+                   "wJalrXUtnFEMI", "super.secret.jwt", "session=abcdef123456", "MIIEvQreallysecret",
+                   "Pa55w0rd-json-LEAK", "cs_json_LEAK"):     # JSON-formatted credentials (recheck finding)
         assert needle not in blob, f"LEAKED: {needle}"
     assert REDACTED in blob and ev["redaction_count"] >= 5
 
