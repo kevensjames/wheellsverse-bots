@@ -24,7 +24,8 @@ BLOCKED_WORKER = "BLOCKED_WORKER"
 FAILED = "FAILED"
 OWNER_QUEUED = "OWNER_QUEUED"         # owner-required — did NOT execute, goes to the owner queue
 AUTONOMY_OFF = "AUTONOMY_OFF"         # kill switch — no execution
-NEEDS_CERTIFICATION = "NEEDS_CERTIFICATION"   # A2+ not yet granted (Wave 3)
+NEEDS_CERTIFICATION = "NEEDS_CERTIFICATION"   # A2+ not granted / no A2 framework wired
+A2_READY_FOR_REVIEW = "A2_READY_FOR_REVIEW"   # A2 prepared an isolated change; owner reviews/merges (never KAI)
 
 # §55 failure classification (bounded, deterministic).
 _FAIL_CLASS = {
@@ -64,12 +65,13 @@ def _verify(result) -> tuple[bool, bool]:
 
 
 class HoldingAutonomousWorkEngine:
-    def __init__(self, *, execute=None, resolver=None,
+    def __init__(self, *, execute=None, resolver=None, a2_framework=None,
                  global_autonomy: bool = True, company_autonomy: dict | None = None):
         # execute(capability_id, operation, input, *, mission_id) -> ExecutionResult-like (.status/.evidence)
         self._execute = execute or self._default_execute
         # resolver(task) -> (capability_id, operation, input) | None  (None ⇒ no certified path)
         self._resolve = resolver or (lambda t: None)
+        self._a2 = a2_framework          # optional A2Framework; without it, A2 tasks NEEDS_CERTIFICATION
         self._global = global_autonomy
         self._company = company_autonomy or {}
 
@@ -104,9 +106,20 @@ class HoldingAutonomousWorkEngine:
             return wr(OWNER_QUEUED, TaskStatus.BLOCKED.value, reason="external action is owner-gated")
         if task.assigned_to != Assignee.KAI.value:
             return wr(BLOCKED_CAPABILITY, TaskStatus.BLOCKED.value, reason=f"non-KAI assignee '{task.assigned_to}'")
-        # 3. A2+ internal writes need a per-grant certification we don't have yet (Wave 3)
+        # 3. A2 reversible-internal-write: route through the A2 framework if wired. A2 only PREPARES an
+        #    isolated change (never merges/deploys §41); a ready result is owner-reviewed, not executed.
         if AutonomyClass(task.autonomy) == AutonomyClass.A2_REVERSIBLE_INTERNAL_WRITE:
-            return wr(NEEDS_CERTIFICATION, TaskStatus.BLOCKED.value)
+            if self._a2 is None:
+                return wr(NEEDS_CERTIFICATION, TaskStatus.BLOCKED.value)
+            prep = self._a2.prepare(task)
+            if prep.ready_for_review:
+                return wr(A2_READY_FOR_REVIEW, TaskStatus.BLOCKED.value,
+                          reason=f"prepared on {prep.branch}; owner reviews/merges")
+            if prep.state == "OWNER_REQUIRED":
+                return wr(OWNER_QUEUED, TaskStatus.BLOCKED.value, reason=prep.reason)
+            if prep.state == "NEEDS_CERTIFICATION":
+                return wr(NEEDS_CERTIFICATION, TaskStatus.BLOCKED.value, reason=prep.reason)
+            return wr(FAILED, TaskStatus.BLOCKED.value, failure_class="LOGIC", reason=prep.reason)
         # 4. resolve a certified capability path (§19 — never call adapters directly)
         resolved = self._resolve(task)
         if not resolved:
