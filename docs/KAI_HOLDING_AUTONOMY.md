@@ -42,10 +42,28 @@ plan_dispositions, auto_executed, owner_queued, blocked, failed, autonomy_off, r
 - **Zero fabrication (§58).** MONEY_MODE=MOCK; no financial/destructive path is auto-eligible;
   un-sourced facts stay `UNAVAILABLE` end-to-end.
 
+## TaskCapabilityResolver (`task_resolver.py`) — the deterministic bridge
+The engine's `resolver` is now backed by a **typed mapping registry** (§9-22, §39): 8 `HoldingTaskType`s
+each map to a fixed `(capability_id, operation, action_class, reason_code)`. It is **never** an LLM
+picking a tool. Unknown type → BLOCKED (§11); an action-class mismatch → refuse (§28); a forged
+capability/operation on the task is impossible (only the mapping is used). Arguments are minimal +
+company-isolated (§13/§14). Security boundary lives here: `redact()` (§29), `is_forbidden_repo_target`
+(§30), `TEST_SUITE_ALLOWLIST` (suite_id → certified command, never a raw command §31),
+`validate_log_request` (typed, bounded, no shell §25). `build_holding_executor` is the single §15 gate:
+certified+healthy → run, else `CAPABILITY_UNAVAILABLE` → `BLOCKED_CAPABILITY` (§57).
+
+**Certification honesty (§37):** only `HEALTH_PROBE` + `CAPABILITY_HEALTH` are `CERTIFIED` (internal
+reads over `signals.py` / `CapabilityRegistry`, genuinely available). `DEPLOYMENT_STATUS`, `REPO_INSPECT`,
+`LOG_INSPECT`, `RUN_INTERNAL_TEST`, `BROWSER_VALIDATE`, `TECH_DOC_LOOKUP` are
+`IMPLEMENTED_MAPPING_RUNTIME_PENDING` and fail closed until their runtime is certified. Closed loops
+proven end-to-end (`test_holding_closed_loop.py`): incident→HEALTH_PROBE→evidence→COMPLETE→no owner;
+deployment (fixture runtime); pending-runtime blocks; log redacted; owner-boundary (KAI never deploys);
+no-change→0.
+
 ## Not yet built (next waves)
+- Genuine runtimes for the 6 pending mappings (Railway deploy read, github read op, typed log adapter,
+  worker-plane test runner, Playwright validate, Context7) — each certified separately (§38).
 - Cycle persistence + wiring into a cron/route (the pure `run_cycle` is DB-free today) — Wave 7/8.
-- A real per-task **capability resolver** (task → capability/operation/input); today it is injected,
-  defaulting to "no path → BLOCKED_CAPABILITY" so nothing runs without an explicit certified mapping.
 - Worker-dispatch path for heavy A1 (via `worker_jobs`/`CodingWorkerRouter`) — §23.
 - A2 internal-write framework (§34-36) and the Self-Improvement Engine (§37-40) — Waves 3-4.
 - `OperationalSelfModel` live-state wiring to the twin/cycle (current mission, last cycle) — §63.
