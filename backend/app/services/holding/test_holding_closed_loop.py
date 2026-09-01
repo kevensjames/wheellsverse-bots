@@ -108,6 +108,30 @@ def t_no_change_second_cycle():
     assert res["results"] == []
 
 
+def t_repo_inspect_closed_loop_live():
+    """§13: a REPO_INSPECT task for a local-git company runs through the REAL default executor
+    (resolver → holding.repo → live LocalGitProvider) → real commit evidence → COMPLETE, 0 writes."""
+    from app.services.holding.task_resolver import build_holding_executor
+    task = PlanTask("repo:kai", "kai", "inspect repo", "repository changed", "repo:kai",
+                    task_type=HoldingTaskType.REPO_INSPECT.value, autonomy=int(AutonomyClass.A0_OBSERVE),
+                    assigned_to=Assignee.KAI.value)
+    eng = HoldingAutonomousWorkEngine(execute=build_holding_executor(),   # real default providers
+                                      resolver=make_engine_resolver(TaskCapabilityResolver(), cycle_id="c"))
+    r = eng.run_task(task)
+    assert r.outcome == EXECUTED and r.verified and r.capability_id == "holding.repo"
+
+
+def t_repo_inspect_external_company_blocks():
+    """A company whose repo is NOT the certified local monorepo → BLOCKED_CAPABILITY (no silent mirror)."""
+    from app.services.holding.task_resolver import build_holding_executor
+    task = PlanTask("repo:nurtelle", "nurtelle", "inspect repo", "x", "repo:nurtelle",
+                    task_type=HoldingTaskType.REPO_INSPECT.value, autonomy=int(AutonomyClass.A0_OBSERVE),
+                    assigned_to=Assignee.KAI.value)
+    eng = HoldingAutonomousWorkEngine(execute=build_holding_executor(),
+                                      resolver=make_engine_resolver(TaskCapabilityResolver()))
+    assert eng.run_task(task).outcome == BLOCKED_CAPABILITY
+
+
 def t_unknown_task_type_blocks_in_loop():
     """A plan task with a non-mapped type never executes — fail-closed BLOCKED_CAPABILITY."""
     t = PlanTask("x:sol", "sol", "do a thing", "r", "x:sol", task_type="ARBITRARY",

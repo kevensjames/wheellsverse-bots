@@ -158,9 +158,9 @@ _MAPPINGS: dict[str, Mapping] = {
         CertState.RUNTIME_PENDING, ("service", "deployment_id", "sha", "status", "observed_at"),
         "DEPLOY_STATUS_READONLY_CONNECTOR_PENDING"),
     HoldingTaskType.REPO_INSPECT.value: Mapping(
-        "github", "read_repo_status", ActionClass.READ_ONLY, Channel.FABRIC,
-        CertState.RUNTIME_PENDING, ("repo", "default_branch", "latest_commit"),
-        "REPO_INSPECT_READONLY_GITHUB_PENDING"),
+        "holding.repo", "read_repo_status", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
+        CertState.CERTIFIED, ("provider", "repository", "commit_sha", "operation"),
+        "REPO_INSPECT_RESOLVE_AUTHORITATIVE_PROVIDER"),
     HoldingTaskType.LOG_INSPECT.value: Mapping(
         "holding.logs", "read_logs", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
         CertState.RUNTIME_PENDING, ("service", "time_window", "lines_redacted"),
@@ -214,7 +214,7 @@ def _minimal_args(task_type: str, task) -> dict:
     if task_type == HoldingTaskType.DEPLOYMENT_STATUS.value:
         return {"service": cid}
     if task_type == HoldingTaskType.REPO_INSPECT.value:
-        return {"company_id": cid}
+        return {"company_id": cid, "operation": "REPOSITORY_STATUS"}   # safe metadata-only default (§3)
     if task_type == HoldingTaskType.LOG_INSPECT.value:
         return {"service": cid, "time_window": "1h", "severity": "ERROR", "bounded_limit": 200}
     if task_type == HoldingTaskType.RUN_INTERNAL_TEST.value:
@@ -285,8 +285,11 @@ def _default_capability_health_provider(args: dict) -> dict:
 
 # Certified internal-read providers. Deployment/logs default to None ⇒ RUNTIME_PENDING (fail-closed).
 def default_providers() -> dict:
+    # lazy import avoids a circular import (repo_inspect imports redact/is_forbidden_repo_target here)
+    from app.services.holding.repo_inspect import make_repo_provider
     return {"holding.health": _default_health_provider,
-            "holding.capability_health": _default_capability_health_provider}
+            "holding.capability_health": _default_capability_health_provider,
+            "holding.repo": make_repo_provider()}
 
 
 _INVOKE_OK = "OK"
