@@ -112,8 +112,110 @@
     return rows.length;
   }
 
+  // ══ EXECUTION UI (§3-9) — the live governed-execution layer over the catalog ══════════════
+  // Execution talks to App B via the bridge path /admin/kai/capabilities/* (NEVER App A's own
+  // /admin/capabilities* catalog routes — §16 contract). The catalog display is unchanged.
+  var EXEC_BASE = '/admin/kai/capabilities';
+
+  // §33 truthful KAI-server runtime state (backend is authoritative; fall back to honest CATALOG_ONLY)
+  function serverStateLabel(meta) {
+    return (meta && meta.server_state) ? meta.server_state : 'CATALOG_ONLY';
+  }
+
+  // §4 a TEST button is offered ONLY when the backend declares a safe_test operation (never invented)
+  function testableOperation(meta) {
+    var op = ((meta && meta.operations) || []).filter(function (o) { return o.safe_test; })[0];
+    return op ? op.operation : null;
+  }
+
+  // §6 execution status → display label
+  function executionStateLabel(status) {
+    switch (String(status || '').toUpperCase()) {
+      case 'OK': case 'COMPLETED': return 'COMPLETED';
+      case 'RUNNING': return 'RUNNING';
+      case 'APPROVAL_REQUIRED': return 'APPROVAL REQUIRED';
+      case 'DENIED': case 'OPERATION_NOT_ENABLED': return 'DENIED';
+      case 'CAPABILITY_UNAVAILABLE': return 'UNAVAILABLE';
+      case 'INPUT_REJECTED': return 'REJECTED';
+      case 'RATE_LIMITED': return 'RATE LIMITED';
+      case 'TIMEOUT': return 'TIMEOUT';
+      case 'FAILED': return 'FAILED';
+      default: return status || '—';
+    }
+  }
+
+  // §7 halo lane + a SAFE activity label — never exposes model reasoning
+  var _ACTIVITY = { 'yt-dlp': 'Inspecting media metadata', 'markitdown': 'Converting document',
+                    'codebase-memory-mcp': 'Searching code knowledge' };
+  function activityLabel(capId) { return _ACTIVITY[capId] || 'Running capability'; }
+  function haloLane(cap) { return categoryOf(cap); }
+
+  // §5 invocation history rows — public fields only (no request bodies, no secrets)
+  function historyRows(invocations) {
+    return (invocations || []).map(function (i) {
+      return { capability: i.capability, operation: i.operation, state: executionStateLabel(i.status),
+               duration_ms: i.duration_ms, provenance: i.provenance, correlation_id: i.correlation_id };
+    });
+  }
+  function renderHistory(rootEl, invocations, opts) {
+    opts = opts || {};
+    var doc = opts.document || (typeof document !== 'undefined' ? document : null);
+    if (!doc || !rootEl) return 0;
+    while (rootEl.firstChild) rootEl.removeChild(rootEl.firstChild);
+    var rows = historyRows(invocations);
+    var table = doc.createElement('table'); table.className = 'kai-cap-history';
+    var head = doc.createElement('tr');
+    ['CAPABILITY', 'OPERATION', 'STATE', 'MS', 'PROVENANCE', 'CORRELATION'].forEach(function (h) {
+      var th = doc.createElement('th'); th.textContent = h; head.appendChild(th);
+    });
+    table.appendChild(head);
+    rows.forEach(function (r) {
+      var tr = doc.createElement('tr'); tr.dataset.state = r.state;
+      [r.capability, r.operation, r.state, r.duration_ms, r.provenance, r.correlation_id]
+        .forEach(function (v) { var td = doc.createElement('td'); td.textContent = (v == null ? '—' : v); tr.appendChild(td); });
+      table.appendChild(tr);
+    });
+    rootEl.appendChild(table);
+    return rows.length;
+  }
+
+  // Thin controller — fetch is injected for testability; emits halo/mission events via opts.onEvent.
+  function CapabilityConsole(opts) {
+    opts = opts || {};
+    var _fetch = opts.fetch || (typeof fetch !== 'undefined' ? fetch.bind(null) : null);
+    var base = opts.base || EXEC_BASE;
+    var emit = typeof opts.onEvent === 'function' ? opts.onEvent : function () {};
+    return {
+      base: base,
+      loadExecutable: function () {
+        return _fetch(base, { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); });
+      },
+      history: function () {
+        return _fetch(base + '/invocations', { headers: { Accept: 'application/json' } }).then(function (r) { return r.json(); });
+      },
+      // §4/§6/§7: run the server-owned safe test; emit started→(completed|failed) for the halo
+      runTest: function (capId) {
+        emit({ event: 'capability.started', capability: capId, activity: activityLabel(capId), lane: null });
+        return _fetch(base + '/' + encodeURIComponent(capId) + '/test',
+                      { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+          .then(function (r) { return r.json(); })
+          .then(function (er) {
+            var ok = er.status === 'OK';
+            emit({ event: ok ? 'capability.completed' : 'capability.failed', capability: capId,
+                   status: er.status, correlation_id: er.correlation_id });
+            return er;
+          })
+          .catch(function (e) { emit({ event: 'capability.failed', capability: capId, error: 'unreachable' }); throw e; });
+      },
+    };
+  }
+
   return {
     stateLabel: stateLabel, modeLabel: modeLabel, categoryOf: categoryOf,
     buildCapabilityRows: buildCapabilityRows, inspect: inspect, renderPanel: renderPanel,
+    // execution UI (§3-9)
+    EXEC_BASE: EXEC_BASE, serverStateLabel: serverStateLabel, testableOperation: testableOperation,
+    executionStateLabel: executionStateLabel, activityLabel: activityLabel, haloLane: haloLane,
+    historyRows: historyRows, renderHistory: renderHistory, CapabilityConsole: CapabilityConsole,
   };
 });

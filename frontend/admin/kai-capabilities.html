@@ -51,6 +51,8 @@
   <div class="list" id="list">loading capabilities…</div>
   <aside class="inspector" id="inspector"></aside>
 </div>
+<!-- the TESTED execution-UI module (UMD → window.NexusCapabilities), served no-store by App A -->
+<script src="/admin/kai-nexus-capabilities.js"></script>
 <script>
 (function(){
   "use strict";
@@ -69,6 +71,50 @@
   function pill(s){ if(!s||s==="—") return '<span class="lbl">—</span>';
     return '<span class="pill" style="background:'+color(s)+'22;color:'+color(s)+'">'+s+'</span>'; }
   function esc(t){ var d=document.createElement("div"); d.textContent=(t==null?"":String(t)); return d.innerHTML; }
+
+  // ── EXECUTION wiring (§3-9): reuse the TESTED module; talk ONLY to the owner-only bridge ──
+  // No direct App B backend URL in this page (§4). Execution degrades to DISABLED when the
+  // flag is off / not deployed / not owner (the bridge/App B returns 404/403 → we show DISABLED).
+  var NC = window.NexusCapabilities || null;
+  var CONSOLE = NC ? NC.CapabilityConsole({ base: "/admin/kai/capabilities", onEvent: function(e){
+      try { window.dispatchEvent(new CustomEvent("kai:capability", { detail: e })); } catch(_) {} } }) : null;
+  var EXEC = { available: null, byId: {} };   // available: null=unknown · true · false(disabled)
+  function loadExec(){
+    if(!CONSOLE) { EXEC.available = false; return Promise.resolve(); }
+    return CONSOLE.loadExecutable().then(function(d){
+      EXEC.available = true;
+      (d && d.capabilities || []).forEach(function(m){ EXEC.byId[m.capability_id] = m; });
+    }).catch(function(){ EXEC.available = false; });   // 404 (flag off) / 403 (not owner) → disabled
+  }
+  function renderExecSection(id){
+    var host = document.getElementById("exec-section"); if(!host) return;
+    if(EXEC.available === false){ host.innerHTML =
+      '<div class="lbl">Execution</div><span class="pill" style="background:var(--bad)22;color:var(--bad)">DISABLED</span>'+
+      '<div class="sub" style="margin-top:4px">Catalog browsing only — the governed execution gateway is off or not yet deployed.</div>'; return; }
+    var meta = EXEC.byId[id];
+    if(!meta){ host.innerHTML = '<div class="lbl">Execution</div><span class="sub">Not an executable capability (catalog-only).</span>'; return; }
+    var op = NC.testableOperation(meta);
+    host.innerHTML =
+      '<div class="lbl">Execution · KAI server</div>'+pill(NC.serverStateLabel(meta))+
+      (op ? ' <button id="cap-test" style="margin-left:8px;cursor:pointer;background:var(--connect)22;color:var(--connect);border:1px solid var(--connect);border-radius:6px;padding:3px 12px;font-weight:600">TEST ('+esc(op)+')</button>' : ' <span class="sub">no safe test</span>')+
+      '<div id="cap-exec-result" class="sub" style="margin-top:6px"></div>';
+    var btn = document.getElementById("cap-test");
+    if(btn) btn.addEventListener("click", function(){
+      var out = document.getElementById("cap-exec-result");
+      btn.disabled = true; out.innerHTML = pill("RUNNING")+' '+esc(NC.activityLabel(id));
+      CONSOLE.runTest(id).then(function(er){
+        out.innerHTML = pill(NC.executionStateLabel(er.status))+
+          (er.evidence && er.evidence.title ? ' · '+esc(er.evidence.title) : '')+
+          (er.duration_ms!=null ? ' · '+er.duration_ms+'ms' : '')+
+          (er.correlation_id ? '<div class="sub" style="margin-top:3px">corr: <code>'+esc(er.correlation_id)+'</code></div>' : '');
+        btn.disabled = false; refreshHistory();
+      }).catch(function(){ out.innerHTML = pill("UNAVAILABLE")+' bridge unreachable'; btn.disabled = false; });
+    });
+  }
+  function refreshHistory(){
+    var host = document.getElementById("exec-history"); if(!host || !CONSOLE || EXEC.available!==true) return;
+    CONSOLE.history().then(function(d){ NC.renderHistory(host, (d && d.recent) || []); }).catch(function(){});
+  }
 
   function render(cat){
     document.getElementById("summary").textContent =
@@ -119,8 +165,13 @@
         '<div class="name" style="font-size:15px">'+esc(c.name)+'</div>'+
         '<div class="kv">'+kv+'</div>'+
         '<div style="margin-top:12px;color:var(--dim);font-size:12px">'+esc(c.notes||"")+'</div>'+
-        '<div style="margin-top:10px;color:var(--grey);font-size:11px">No credentials are ever shown.</div>';
+        '<div id="exec-section" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)"></div>'+
+        '<div class="lbl" style="margin-top:14px">Recent invocations</div>'+
+        '<div id="exec-history" style="overflow-x:auto"><span class="sub">—</span></div>'+
+        '<div style="margin-top:10px;color:var(--grey);font-size:11px">No credentials, request bodies, or reasoning are ever shown.</div>';
       document.getElementById("inspector").classList.add("open");
+      renderExecSection(id);   // §7/§8: TEST button + KAI-server state (module-driven, bridge-only)
+      refreshHistory();
       document.getElementById("ins-close").addEventListener("click",function(){
         document.getElementById("inspector").classList.remove("open"); });
     });
@@ -128,7 +179,14 @@
 
   fetch("/admin/capabilities.json",{headers:{Accept:"application/json"}})
     .then(function(r){if(!r.ok)throw new Error("HTTP "+r.status);return r.json();})
-    .then(render)
+    .then(function(cat){ render(cat); return loadExec(); })   // §12: authoritative execution state
+    .then(function(){
+      var es = EXEC.available===true
+        ? '<span style="color:var(--good)">EXECUTION&nbsp;ENABLED</span> (owner-only · read-only/compute V1)'
+        : '<span style="color:var(--bad)">EXECUTION&nbsp;DISABLED</span> (catalog browsing only)';
+      document.getElementById("rt-banner").innerHTML +=
+        '<br>Governed execution: '+es+' · via the owner-only bridge <code>/admin/kai/capabilities</code>.';
+    })
     .catch(function(e){ document.getElementById("list").innerHTML=
       '<div style="color:var(--bad)">Capability API unavailable: '+esc(e.message)+
       '</div><div class="sub">Is KAI_CAPABILITY_FABRIC_ENABLED set on this deployment?</div>'; });

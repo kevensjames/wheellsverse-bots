@@ -1,6 +1,7 @@
 {
-  "generated": "2026-08-26",
+  "generated": "2026-08-31",
   "source": "backend/app/services/capability/seed.py",
+  "count": 126,
   "capabilities": [
     {
       "id": "kai-memory",
@@ -25,7 +26,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "Canonical source of truth for long-term memory (\u00a731). One writer only.",
+      "notes": "Canonical source of truth for long-term memory (§31). One writer only.",
       "provenance": {
         "upstream": "",
         "owner": "",
@@ -57,7 +58,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "PRIMARY engineering/certification worker (\u00a72/\u00a710/\u00a740). May delegate bounded subtasks; no worker merges/deploys independently.",
+      "notes": "PRIMARY engineering/certification worker (§2/§10/§40). May delegate bounded subtasks; no worker merges/deploys independently.",
       "provenance": {
         "upstream": "",
         "owner": "",
@@ -89,7 +90,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a73 CERTIFIED at the Claude Code layer: connected + exercised (returned current FastAPI lifespan docs w/ source fastapi.tiangolo.com), auto-routing proven. CAVEATS: config uses UNPINNED npx (pin a version for the final config, \u00a73/\u00a79); KAI-runtime (App B) wiring EXTERNAL_BLOCKED \u2014 Claude-Code layer only (\u00a713).",
+      "notes": "§3 CERTIFIED at the Claude Code layer: connected + exercised (returned current FastAPI lifespan docs w/ source fastapi.tiangolo.com), auto-routing proven. CAVEATS: config uses UNPINNED npx (pin a version for the final config, §3/§9); KAI-runtime (App B) wiring EXTERNAL_BLOCKED — Claude-Code layer only (§13).",
       "provenance": {
         "upstream": "https://github.com/upstash/context7",
         "owner": "upstash",
@@ -122,7 +123,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a74 CERTIFIED_LOCAL_STAGING at the Claude Code layer: connected + exercised at 3440x1440 / 1920x1080 / 390x844 (no horizontal overflow; console inspection worked). POLICY: local/staging only \u2014 inspection is READ_ONLY; local interaction REVERSIBLE_WRITE; production mutation / deploy / merge is HIGH_IMPACT + approval-gated (\u00a75/\u00a716). CAVEATS: unpinned npx (\u00a73/\u00a79); KAI-runtime EXTERNAL_BLOCKED (\u00a713).",
+      "notes": "§4 CERTIFIED_LOCAL_STAGING at the Claude Code layer: connected + exercised at 3440x1440 / 1920x1080 / 390x844 (no horizontal overflow; console inspection worked). POLICY: local/staging only — inspection is READ_ONLY; local interaction REVERSIBLE_WRITE; production mutation / deploy / merge is HIGH_IMPACT + approval-gated (§5/§16). CAVEATS: unpinned npx (§3/§9); KAI-runtime EXTERNAL_BLOCKED (§13).",
       "provenance": {
         "upstream": "https://github.com/microsoft/playwright-mcp",
         "owner": "microsoft",
@@ -151,7 +152,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a73: CONFIGURED + CONNECTED (pinned 2026.7.4, user config). INTERNAL_ONLY \u2014 raw reasoning must NEVER reach Nexus/messages/memory/audit/TTS/subtitles (\u00a74/\u00a724). Exercise + CERTIFIED_INTERNAL pending one Claude Code restart to load its tools.",
+      "notes": "§3: CONFIGURED + CONNECTED (pinned 2026.7.4, user config). INTERNAL_ONLY — raw reasoning must NEVER reach Nexus/messages/memory/audit/TTS/subtitles (§4/§24). Exercise + CERTIFIED_INTERNAL pending one Claude Code restart to load its tools.",
       "provenance": {
         "upstream": "https://github.com/modelcontextprotocol/servers",
         "owner": "modelcontextprotocol",
@@ -184,7 +185,7 @@
       "permissions": [
         "fs.workspace"
       ],
-      "notes": "\u00a75/\u00a76: CONFIGURED + CONNECTED (pinned 2026.7.10), ROOT-SCOPED to the KAI worktree only. NOT natively read-only \u2014 Phase-1 read-only = root containment + auto-allow READ ops only; write=REVERSIBLE_WRITE (gated), delete=DESTRUCTIVE (denied). Traversal/symlink-escape + CERTIFIED_SCOPED pending one restart to load its tools.",
+      "notes": "§5/§6: CONFIGURED + CONNECTED (pinned 2026.7.10), ROOT-SCOPED to the KAI worktree only. NOT natively read-only — Phase-1 read-only = root containment + auto-allow READ ops only; write=REVERSIBLE_WRITE (gated), delete=DESTRUCTIVE (denied). Traversal/symlink-escape + CERTIFIED_SCOPED pending one restart to load its tools.",
       "provenance": {
         "upstream": "https://github.com/modelcontextprotocol/servers",
         "owner": "modelcontextprotocol",
@@ -218,7 +219,7 @@
       "permissions": [
         "github.read"
       ],
-      "notes": "Needs a scoped credential via the broker (\u00a750); PR/merge = HIGH_IMPACT, approval-gated.",
+      "notes": "Needs a scoped credential via the broker (§50); PR/merge = HIGH_IMPACT, approval-gated.",
       "provenance": {
         "upstream": "",
         "owner": "",
@@ -244,7 +245,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a72: an OUTPUT_MODE, not a medical tool. No network/telemetry. Auto-select for code remediation / deploy / incident tasks; never force terse for research/legal/safety.",
+      "notes": "§2: an OUTPUT_MODE, not a medical tool. No network/telemetry. Auto-select for code remediation / deploy / incident tasks; never force terse for research/legal/safety.",
       "provenance": {
         "upstream": "https://github.com/ayghri/i-have-adhd",
         "owner": "ayghri",
@@ -275,7 +276,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a73/\u00a734: authorized/open-license material ONLY. Distilling an untrusted doc is a prompt-injection surface \u2014 human-review generated skills before load.",
+      "notes": "§3/§34: authorized/open-license material ONLY. Distilling an untrusted doc is a prompt-injection surface — human-review generated skills before load.",
       "provenance": {
         "upstream": "https://github.com/virgiliojr94/book-to-skill",
         "owner": "virgiliojr94",
@@ -309,7 +310,7 @@
       "permissions": [
         "security.authorized"
       ],
-      "notes": "\u00a74/\u00a735: RESTRICTED. Ships OFFENSIVE tooling \u2014 'vet-only, do not wire as-is'. Owned/authorized targets only; accessibility != authorization. SECURITY_GATED.",
+      "notes": "§4/§35: RESTRICTED. Ships OFFENSIVE tooling — 'vet-only, do not wire as-is'. Owned/authorized targets only; accessibility != authorization. SECURITY_GATED.",
       "provenance": {
         "upstream": "https://github.com/zhaoxuya520/reverse-skill",
         "owner": "zhaoxuya520",
@@ -341,7 +342,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a75: KNOWLEDGE_PACK, not a runtime. Reference selected authorized material.",
+      "notes": "§5: KNOWLEDGE_PACK, not a runtime. Reference selected authorized material.",
       "provenance": {
         "upstream": "https://github.com/microsoft/AI-For-Beginners",
         "owner": "microsoft",
@@ -369,7 +370,7 @@
         "kai-memory"
       ],
       "permissions": [],
-      "notes": "\u00a76/\u00a731/\u00a737: EXPERIMENTAL only. Repo documents NO user/team isolation \u2014 KAI must supply per-tenant namespacing. Must NOT co-own canonical memory (conflicts kai-memory).",
+      "notes": "§6/§31/§37: EXPERIMENTAL only. Repo documents NO user/team isolation — KAI must supply per-tenant namespacing. Must NOT co-own canonical memory (conflicts kai-memory).",
       "provenance": {
         "upstream": "https://github.com/TencentCloud/TencentDB-Agent-Memory",
         "owner": "TencentCloud",
@@ -398,7 +399,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a77: REUSE-AS-MCP (search_capabilities/execute_capability); do NOT embed runtime. Routes via vendor Den control plane + per-user OAuth \u2014 never bypasses KAI governance.",
+      "notes": "§7: REUSE-AS-MCP (search_capabilities/execute_capability); do NOT embed runtime. Routes via vendor Den control plane + per-user OAuth — never bypasses KAI governance.",
       "provenance": {
         "upstream": "https://github.com/different-ai/openwork",
         "owner": "different-ai",
@@ -424,7 +425,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a78: canonical RESOLVED to block/buzz (Nostr, signed events). Kept DISABLED \u2014 heavy external platform; ALTERNATIVE to OpenWork, evaluate before enabling.",
+      "notes": "§8: canonical RESOLVED to block/buzz (Nostr, signed events). Kept DISABLED — heavy external platform; ALTERNATIVE to OpenWork, evaluate before enabling.",
       "provenance": {
         "upstream": "https://github.com/block/buzz",
         "owner": "block",
@@ -455,7 +456,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a79: layer-by-layer local inference (70B on 4GB). Benchmark before production \u2014 NOT assumed faster than Ollama. Inference infra, not a brain.",
+      "notes": "§9: layer-by-layer local inference (70B on 4GB). Benchmark before production — NOT assumed faster than Ollama. Inference infra, not a brain.",
       "provenance": {
         "upstream": "https://github.com/lyogavin/airllm",
         "owner": "lyogavin",
@@ -484,7 +485,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "Incumbent local provider (\u00a730/\u00a747). ALTERNATIVE to AirLLM; the default fallback.",
+      "notes": "Incumbent local provider (§30/§47). ALTERNATIVE to AirLLM; the default fallback.",
       "provenance": {
         "upstream": "",
         "owner": "",
@@ -513,7 +514,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a79/\u00a710/\u00a740: bounded lightweight worker, NOT a replacement for Claude Code; never final authority. HIGH risk \u2014 ships a curl|bash installer; inspect before any install.",
+      "notes": "§9/§10/§40: bounded lightweight worker, NOT a replacement for Claude Code; never final authority. HIGH risk — ships a curl|bash installer; inspect before any install.",
       "provenance": {
         "upstream": "https://github.com/1jehuang/jcode",
         "owner": "1jehuang",
@@ -546,7 +547,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a711: canonical is opengeos/GeoLibre (the taka015 hint was a FORK). Preserve location provenance; never fabricate coordinates. Integrate with World Mode.",
+      "notes": "§11: canonical is opengeos/GeoLibre (the taka015 hint was a FORK). Preserve location provenance; never fabricate coordinates. Integrate with World Mode.",
       "provenance": {
         "upstream": "https://github.com/opengeos/GeoLibre",
         "owner": "opengeos",
@@ -582,7 +583,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a72: mobile-app DESIGN agent skill (no offensive execution). Full research features need the EXTERNAL Appllama MCP (mcp.appllama.io) + a paid Pro account \u2014 vendor egress/auth caveat, not a security risk. \u00a736: use for pattern research, never pixel-clone copyrighted apps.",
+      "notes": "§2: mobile-app DESIGN agent skill (no offensive execution). Full research features need the EXTERNAL Appllama MCP (mcp.appllama.io) + a paid Pro account — vendor egress/auth caveat, not a security risk. §36: use for pattern research, never pixel-clone copyrighted apps.",
       "provenance": {
         "upstream": "https://github.com/Appllama/appllama-skills",
         "owner": "Appllama",
@@ -605,7 +606,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a711/\u00a712: a BEHAVIOR POLICY, not a tool \u2014 integrated into CLAUDE.md. Trims speculative over-engineering but can NEVER suppress a load-bearing security/auth/financial/privacy/production/verified-finding concern (enforced by security.hero_allows_reduction). Precedence: system safety > security > regulatory > user > project > HERO.",
+      "notes": "§11/§12: a BEHAVIOR POLICY, not a tool — integrated into CLAUDE.md. Trims speculative over-engineering but can NEVER suppress a load-bearing security/auth/financial/privacy/production/verified-finding concern (enforced by security.hero_allows_reduction). Precedence: system safety > security > regulatory > user > project > HERO.",
       "provenance": {
         "upstream": "https://github.com/wanshuiyin/HERO-Anti-OverDefense",
         "owner": "wanshuiyin",
@@ -636,7 +637,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a78: curated OSINT resource list (tier 1). LAWFUL PUBLIC info only \u2014 never authorizes credential theft, intrusion, private-data access, or doxxing. \u00a735: OSINT results with personal data must route through privacy classification before any memory write.",
+      "notes": "§8: curated OSINT resource list (tier 1). LAWFUL PUBLIC info only — never authorizes credential theft, intrusion, private-data access, or doxxing. §35: OSINT results with personal data must route through privacy classification before any memory write.",
       "provenance": {
         "upstream": "https://github.com/jivoi/awesome-osint",
         "owner": "jivoi",
@@ -665,7 +666,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a79: canonical RESOLVED to Hack-with-Github/Awesome-Hacking (the 0x4D31 candidate is a 404). A meta-list of links \u2014 no code, tier 0.",
+      "notes": "§9: canonical RESOLVED to Hack-with-Github/Awesome-Hacking (the 0x4D31 candidate is a 404). A meta-list of links — no code, tier 0.",
       "provenance": {
         "upstream": "https://github.com/Hack-with-Github/Awesome-Hacking",
         "owner": "Hack-with-Github",
@@ -696,7 +697,7 @@
       "permissions": [
         "security.authorized"
       ],
-      "notes": "\u00a76: offensive payload/methodology REFERENCE (tier 2) \u2014 DATA, not an attack engine. Never auto-loaded for ordinary work; requires an authorized security mission. Retrieve only the needed subset; do not execute payloads because they exist. RISK HIGH.",
+      "notes": "§6: offensive payload/methodology REFERENCE (tier 2) — DATA, not an attack engine. Never auto-loaded for ordinary work; requires an authorized security mission. Retrieve only the needed subset; do not execute payloads because they exist. RISK HIGH.",
       "provenance": {
         "upstream": "https://github.com/swisskyrepo/PayloadsAllTheThings",
         "owner": "swisskyrepo",
@@ -728,7 +729,7 @@
       "permissions": [
         "security.authorized"
       ],
-      "notes": "\u00a77: security DATA pack (tier 2) \u2014 wordlists, leaked-password corpora, web-shell samples (AV false-positive prone). Never auto-loaded; authorized mission only. Retrieve the minimal subset; never surface sensitive list content unnecessarily. RISK HIGH.",
+      "notes": "§7: security DATA pack (tier 2) — wordlists, leaked-password corpora, web-shell samples (AV false-positive prone). Never auto-loaded; authorized mission only. Retrieve the minimal subset; never surface sensitive list content unnecessarily. RISK HIGH.",
       "provenance": {
         "upstream": "https://github.com/danielmiessler/SecLists",
         "owner": "danielmiessler",
@@ -751,7 +752,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a710: 'The Ultimate Cybersecurity Reference Guide' is a generic phrase, not a unique repo \u2014 UPSTREAM_UNRESOLVED \u2192 DISABLED. Do not guess a canonical repo.",
+      "notes": "§10: 'The Ultimate Cybersecurity Reference Guide' is a generic phrase, not a unique repo — UPSTREAM_UNRESOLVED → DISABLED. Do not guess a canonical repo.",
       "provenance": {
         "upstream": "",
         "owner": "",
@@ -780,7 +781,7 @@
       "permissions": [
         "security.redteam"
       ],
-      "notes": "\u00a713-16: EXECUTING post-exploitation C2 (tier 4) \u2014 DISABLED_RESTRICTED_LAB_ONLY. NEVER auto-activated (\u00a723/\u00a731); requires the FULL envelope \u2014 authorized security mission, AuthorizedTarget on the allowlist, explicit high-impact approval, initialized sandbox, network policy, audit. No internet-wide/production targeting, ever (\u00a715). RISK RESTRICTED.",
+      "notes": "§13-16: EXECUTING post-exploitation C2 (tier 4) — DISABLED_RESTRICTED_LAB_ONLY. NEVER auto-activated (§23/§31); requires the FULL envelope — authorized security mission, AuthorizedTarget on the allowlist, explicit high-impact approval, initialized sandbox, network policy, audit. No internet-wide/production targeting, ever (§15). RISK RESTRICTED.",
       "provenance": {
         "upstream": "https://github.com/BC-SECURITY/Empire",
         "owner": "BC-SECURITY",
@@ -810,7 +811,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a73: CLI+IDE+cloud coding worker (`codex exec` headless). VERIFY_INSTALLATION via npm/brew, NOT the curl|bash path (\u00a79). Auth = ChatGPT sign-in or OpenAI key (operator, never in chat). Cannot merge/deploy merely because it can modify code.",
+      "notes": "§3: CLI+IDE+cloud coding worker (`codex exec` headless). VERIFY_INSTALLATION via npm/brew, NOT the curl|bash path (§9). Auth = ChatGPT sign-in or OpenAI key (operator, never in chat). Cannot merge/deploy merely because it can modify code.",
       "provenance": {
         "upstream": "https://github.com/openai/codex",
         "owner": "openai",
@@ -839,7 +840,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a74: headless CLI (`cline --json --auto-approve`) + SDK (@cline/sdk) \u2014 prefer SDK/CLI over UI automation. Multi-provider BYO key (local Ollama needs none). Bounded workspace; no unlimited shell/fs.",
+      "notes": "§4: headless CLI (`cline --json --auto-approve`) + SDK (@cline/sdk) — prefer SDK/CLI over UI automation. Multi-provider BYO key (local Ollama needs none). Bounded workspace; no unlimited shell/fs.",
       "provenance": {
         "upstream": "https://github.com/cline/cline",
         "owner": "Cline Bot Inc.",
@@ -866,7 +867,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a76: headless `gemini -p --output-format json`. Google-only; headless auth = GEMINI_API_KEY / Vertex (OAuth is interactive). Use the STABLE channel in certified config, never nightly.",
+      "notes": "§6: headless `gemini -p --output-format json`. Google-only; headless auth = GEMINI_API_KEY / Vertex (OAuth is interactive). Use the STABLE channel in certified config, never nightly.",
       "provenance": {
         "upstream": "https://github.com/google-gemini/gemini-cli",
         "owner": "google-gemini",
@@ -894,7 +895,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a75: GitHub-native (`copilot -p`). Canonical is github/copilot-cli \u2014 the old `gh copilot` extension is ARCHIVED/DEPRECATED. Proprietary. VERIFY_AUTH: GitHub OAuth + Copilot license (operator, never in chat). Initial mode REVERSIBLE_WRITE; PR merge governed separately.",
+      "notes": "§5: GitHub-native (`copilot -p`). Canonical is github/copilot-cli — the old `gh copilot` extension is ARCHIVED/DEPRECATED. Proprietary. VERIFY_AUTH: GitHub OAuth + Copilot license (operator, never in chat). Initial mode REVERSIBLE_WRITE; PR merge governed separately.",
       "provenance": {
         "upstream": "https://github.com/github/copilot-cli",
         "owner": "github",
@@ -919,7 +920,7 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a77: HUMAN_INTERACTIVE_ONLY \u2014 GUI IDE (rebranded Windsurf\u2192Devin Desktop; Cognition acquired Codeium). No official headless/API interface \u2192 cannot satisfy an unattended mission. KAI may prepare tasks/context for a human handoff; never claims autonomous execution.",
+      "notes": "§7: HUMAN_INTERACTIVE_ONLY — GUI IDE (rebranded Windsurf→Devin Desktop; Cognition acquired Codeium). No official headless/API interface → cannot satisfy an unattended mission. KAI may prepare tasks/context for a human handoff; never claims autonomous execution.",
       "provenance": {
         "upstream": "https://devin.ai/desktop",
         "owner": "Cognition",
@@ -942,13 +943,2421 @@
       "dependencies": [],
       "conflicts": [],
       "permissions": [],
-      "notes": "\u00a78: ARCHIVED (read-only since 2026-05-15) \u2192 DISABLED, do not certify. Successor is Kilo Code (Kilo-Org/kilocode, MIT, @kilocode/cli) \u2014 a SEPARATE product, not adopted here; evaluate independently before any use.",
+      "notes": "§8: ARCHIVED (read-only since 2026-05-15) → DISABLED, do not certify. Successor is Kilo Code (Kilo-Org/kilocode, MIT, @kilocode/cli) — a SEPARATE product, not adopted here; evaluate independently before any use.",
       "provenance": {
         "upstream": "https://github.com/RooCodeInc/Roo-Code",
         "owner": "RooCodeInc",
         "license": "Apache-2.0",
         "ref": "ARCHIVED",
         "verified": true
+      }
+    },
+    {
+      "id": "public-apis",
+      "name": "Public APIs (catalog)",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "api_discovery",
+        "public_api_catalog"
+      ],
+      "triggers": [
+        "public api",
+        "free api",
+        "is there an api for"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§58: discovery catalog only. A listing is NOT a trusted provider — KAI independently validates HTTPS/auth/terms/rate-limit/privacy before any production use of a named API.",
+      "provenance": {
+        "upstream": "https://github.com/public-apis/public-apis",
+        "owner": "public-apis",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "developer-roadmap",
+      "name": "Developer Roadmaps (roadmap.sh)",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: MOVED kamranahmedse->nilbuild. LICENSE forbids content redistribution + commercial use -> DISABLED for ingestion; may LINK to roadmap.sh only, never index the content. HIGH legal risk.",
+      "provenance": {
+        "upstream": "https://github.com/nilbuild/developer-roadmap",
+        "owner": "nilbuild (roadmap.sh)",
+        "license": "Custom restrictive (no commercial/redistribution)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "free-programming-books",
+      "name": "Free Programming Books",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "learning_resources"
+      ],
+      "triggers": [
+        "free book",
+        "learn programming resource"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC-BY-4.0 (attribution). Pure link/list content, no runtime.",
+      "provenance": {
+        "upstream": "https://github.com/EbookFoundation/free-programming-books",
+        "owner": "EbookFoundation",
+        "license": "CC-BY-4.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "build-your-own-x",
+      "name": "Build-Your-Own-X",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "from_scratch_tutorials"
+      ],
+      "triggers": [
+        "build your own",
+        "from scratch tutorial"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC0 public domain. Curated 'build X from scratch' tutorial index.",
+      "provenance": {
+        "upstream": "https://github.com/codecrafters-io/build-your-own-x",
+        "owner": "CodeCrafters",
+        "license": "CC0-1.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "system-design-primer",
+      "name": "System Design Primer",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "system_design",
+        "architecture_reference"
+      ],
+      "triggers": [
+        "system design",
+        "scalability",
+        "design a large-scale system"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC-BY-4.0. System-design study reference; retrieve slices, never dump.",
+      "provenance": {
+        "upstream": "https://github.com/donnemartin/system-design-primer",
+        "owner": "Donne Martin",
+        "license": "CC-BY-4.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "coding-interview-university",
+      "name": "Coding Interview University",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "cs_study_plan"
+      ],
+      "triggers": [
+        "interview prep",
+        "cs study plan"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC-BY-SA share-alike on derivatives. Stale (2024-12) but content-stable.",
+      "provenance": {
+        "upstream": "https://github.com/jwasham/coding-interview-university",
+        "owner": "John Washam",
+        "license": "CC-BY-SA-4.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "the-art-of-command-line",
+      "name": "The Art of Command Line",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "command_line_reference"
+      ],
+      "triggers": [
+        "command line",
+        "shell tips",
+        "cli reference"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC-BY-SA. Stale (2023-07) but stable single-page CLI reference.",
+      "provenance": {
+        "upstream": "https://github.com/jlevy/the-art-of-command-line",
+        "owner": "Joshua Levy",
+        "license": "CC-BY-SA-4.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "project-based-learning",
+      "name": "Project-Based Learning",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "project_tutorials"
+      ],
+      "triggers": [
+        "project tutorial",
+        "learn by building"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: MIT list of project-based tutorials by language.",
+      "provenance": {
+        "upstream": "https://github.com/practical-tutorials/project-based-learning",
+        "owner": "practical-tutorials",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "you-dont-know-js",
+      "name": "You Don't Know JS (Yet)",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "javascript_deep_reference"
+      ],
+      "triggers": [
+        "javascript internals",
+        "how does js work"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC-BY-NC-ND — no commercial, NO derivatives. Read + attribute only; never transform/re-derive. Author-frozen (complete, 2026-01), not neglected.",
+      "provenance": {
+        "upstream": "https://github.com/getify/You-Dont-Know-JS",
+        "owner": "Kyle Simpson",
+        "license": "CC-BY-NC-ND-4.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "book-of-secret-knowledge",
+      "name": "The Book of Secret Knowledge",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "sysadmin_devops_reference",
+        "cheatsheets"
+      ],
+      "triggers": [
+        "cheatsheet",
+        "one-liner",
+        "sysadmin reference",
+        "devops tools"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7/§36: MIT list of manuals/cheatsheets/CLI tools (sysadmin/devops/security). Stale (2024-11) but stable. Broader than seeded awesome-hacking; a reference list, not an execution tool.",
+      "provenance": {
+        "upstream": "https://github.com/trimstray/the-book-of-secret-knowledge",
+        "owner": "trimstray",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "tech-interview-handbook",
+      "name": "Tech Interview Handbook",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "interview_prep"
+      ],
+      "triggers": [
+        "resume tips",
+        "behavioral interview"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: MIT interview-prep reference.",
+      "provenance": {
+        "upstream": "https://github.com/yangshun/tech-interview-handbook",
+        "owner": "Yangshun Tay",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "freecodecamp",
+      "name": "freeCodeCamp (curriculum)",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "coding_curriculum"
+      ],
+      "triggers": [
+        "learn to code",
+        "coding curriculum"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: index the CURRICULUM prose only; the repo is a large full-stack app — never install/run it as a runtime.",
+      "provenance": {
+        "upstream": "https://github.com/freeCodeCamp/freeCodeCamp",
+        "owner": "freeCodeCamp.org",
+        "license": "BSD-3-Clause / CC-BY-SA (curriculum)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "javascript-algorithms",
+      "name": "JavaScript Algorithms",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "algorithms_reference"
+      ],
+      "triggers": [
+        "algorithm",
+        "data structure example"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: MIT algorithms/data-structures with explanations. Index as reference; don't run the test tooling.",
+      "provenance": {
+        "upstream": "https://github.com/trekhleb/javascript-algorithms",
+        "owner": "Oleksii Trekhleb",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "30-seconds-of-code",
+      "name": "30 Seconds of Code",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "code_snippets"
+      ],
+      "triggers": [
+        "code snippet",
+        "how do i in javascript"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC-BY-4.0 short snippets/articles reference.",
+      "provenance": {
+        "upstream": "https://github.com/Chalarangelo/30-seconds-of-code",
+        "owner": "Angelos Chalaris",
+        "license": "CC-BY-4.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "gitignore-templates",
+      "name": "gitignore Templates",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "gitignore_templates"
+      ],
+      "triggers": [
+        "gitignore",
+        "ignore file template"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§7: CC0 .gitignore templates. Pure config data.",
+      "provenance": {
+        "upstream": "https://github.com/github/gitignore",
+        "owner": "GitHub",
+        "license": "CC0-1.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "markitdown",
+      "name": "MarkItDown (document convert)",
+      "type": "CODE_TOOL",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "document_convert",
+        "pdf_to_markdown",
+        "office_to_markdown",
+        "media_to_markdown"
+      ],
+      "triggers": [
+        "convert to markdown",
+        "pdf to structured",
+        "turn this document into",
+        "parse this file"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§8/Wave-B: CERTIFIED_LOCAL — MarkItDownAdapter (LIBRARY transport, live_adapters.py) built + exercised on REAL files in-process: clean HTML->markdown incl. tables, and a hostile document raised injection_flags while staying trust=UNTRUSTED (§24). markitdown 0.1.7 installed in the cert venv; NOT yet in the deployed App B runtime — `pip install markitdown` there + redeploy to make it live in prod (health() reports OFFLINE honestly where absent; invoke() never fabricates). Feeds the existing RAG pipeline; never overwrites source.",
+      "provenance": {
+        "upstream": "https://github.com/microsoft/markitdown",
+        "owner": "Microsoft",
+        "license": "MIT",
+        "ref": "0.1.7",
+        "verified": true
+      }
+    },
+    {
+      "id": "codebase-memory-mcp",
+      "name": "Codebase Memory MCP (code intelligence)",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "PARTIAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "semantic_code_search",
+        "code_knowledge_graph",
+        "impact_analysis"
+      ],
+      "triggers": [
+        "find in the codebase",
+        "where is this defined",
+        "trace this function",
+        "code impact"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§18/Wave-B: PARTIAL — PRIMARY fill for KAI's semantic-code-search GAP. Operator-approved; BUILT FROM SOURCE (not the prebuilt binary, not curl|bash §81) + source-reviewed: no external network egress (only 127.0.0.1 opt-out UI + local control socket), DEFENSIVE secret containment (refuses ~/.ssh//etc/$HOME, scans/skips secrets), 30M vendored nomic code-embeddings (licensed). PROVEN in isolation (HOME=scratch): indexed a repo (22 nodes/edges), cross-language grep (search_code), and a semantic search_graph query correctly ranked verify_token/mint_session — zero leak to real home. CodebaseMemoryMcpAdapter (SUBPROCESS, read-only tool allowlist; refuses delete_project/install/uninstall/update) certified both envs, set $CBM_BIN to enable. CAVEATS: it is a fork/exec DAEMON (more surface than a 'static binary'); the cert build is an ephemeral ASan scratchpad artifact -> availability DISCOVERED until a durable release build + a bumblebee scan (§82) + operator-approved live wiring (MCP `claude mcp add` / App B). NEVER run its `install` (it reconfigures 45 external clients).",
+      "provenance": {
+        "upstream": "https://github.com/DeusData/codebase-memory-mcp",
+        "owner": "DeusData",
+        "license": "MIT",
+        "ref": "dev",
+        "verified": true
+      }
+    },
+    {
+      "id": "claude-context",
+      "name": "Claude Context (semantic code search)",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "semantic_code_search"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [
+        "codebase-memory-mcp"
+      ],
+      "permissions": [
+        "code.local_only"
+      ],
+      "notes": "§18: RESTRICTED — default config sends code to CLOUD embeddings + cloud vector DB. Adopt ONLY in local Ollama+Milvus mode; never let source leave the host. Alternative to codebase-memory-mcp.",
+      "provenance": {
+        "upstream": "https://github.com/zilliztech/claude-context",
+        "owner": "zilliztech",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "codegraph",
+      "name": "CodeGraph (code knowledge graph)",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "code_knowledge_graph"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [
+        "codebase-memory-mcp"
+      ],
+      "permissions": [],
+      "notes": "§18/§53: near-duplicate ALTERNATIVE to codebase-memory-mcp (local Rust graph). Anomalous ~68.7k stars for a young niche tool -> verify publisher authenticity before trust. Not a separate adoption.",
+      "provenance": {
+        "upstream": "https://github.com/colbymchenry/codegraph",
+        "owner": "colbymchenry",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "llama-index",
+      "name": "LlamaIndex",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§20/§54: REJECT_DUPLICATE — KAI already has chunk+embed+pgvector+citations RAG. LlamaIndex would import a competing architecture with a huge dep surface. Reference only.",
+      "provenance": {
+        "upstream": "https://github.com/run-llama/llama_index",
+        "owner": "run-llama",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "ragflow",
+      "name": "RAGFlow",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§54: REJECT_DUPLICATE — heavy multi-service stack (16GB RAM) + bundled code-exec sandbox for the same job KAI's RAG does. Only narrow gap is reranking/deep-parse — not worth the stack. Reference only.",
+      "provenance": {
+        "upstream": "https://github.com/infiniflow/ragflow",
+        "owner": "infiniflow",
+        "license": "Apache-2.0",
+        "ref": "v0.27.1",
+        "verified": true
+      }
+    },
+    {
+      "id": "supermemory",
+      "name": "Supermemory",
+      "type": "MEMORY_PROVIDER",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [
+        "kai-memory"
+      ],
+      "permissions": [],
+      "notes": "§19/§31: REJECT_DUPLICATE — KAI memory is the single canonical writer. Conflicts kai-memory.",
+      "provenance": {
+        "upstream": "https://github.com/supermemoryai/supermemory",
+        "owner": "supermemoryai",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "mem0",
+      "name": "Mem0 (memo)",
+      "type": "MEMORY_PROVIDER",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [
+        "kai-memory"
+      ],
+      "permissions": [],
+      "notes": "§19/§31: REJECT_DUPLICATE — the 'memo' input resolves to Mem0 (no 'memOai/memo' exists). Universal-memory layer duplicating kai-memory. Conflicts kai-memory.",
+      "provenance": {
+        "upstream": "https://github.com/mem0ai/mem0",
+        "owner": "mem0ai",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "brain-md",
+      "name": "brain.md (project brain)",
+      "type": "MEMORY_PROVIDER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [
+        "kai-memory"
+      ],
+      "permissions": [],
+      "notes": "§19: REFERENCE — durable-decisions-as-Markdown. NAME COLLISION with active mi4uu/brain.md (AGPL) — PIN mindmuxai to avoid installing the wrong one. Must not co-own canonical memory (conflicts kai-memory).",
+      "provenance": {
+        "upstream": "https://github.com/mindmuxai/brain.md",
+        "owner": "mindmuxai",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "openwiki",
+      "name": "OpenWiki (repo docs generator)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§18: REFERENCE — auto-maintains a Markdown wiki for a codebase, but runs its OWN self-directed agent with broad provider/connector reach + its own creds. Overlaps KAI's agentic doc gen. Keep governed.",
+      "provenance": {
+        "upstream": "https://github.com/langchain-ai/openwiki",
+        "owner": "langchain-ai",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "transformers",
+      "name": "HuggingFace Transformers",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "local_inference",
+        "training",
+        "multimodal"
+      ],
+      "triggers": [
+        "run a huggingface model",
+        "local transformer"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§12: ADOPT (optional heavy local serving). Resource Brain must check host GPU/RAM before activation. Inference infra, NOT a brain; benchmark before production, never hard-code as 'best'.",
+      "provenance": {
+        "upstream": "https://github.com/huggingface/transformers",
+        "owner": "Hugging Face",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "vllm",
+      "name": "vLLM (serving engine)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "high_throughput_serving",
+        "openai_compatible"
+      ],
+      "triggers": [
+        "serve a model",
+        "high throughput inference"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§12: ADOPT (optional GPU serving). GPU effectively required (24GB+). OpenAI-compatible server can sit BEHIND KAI's existing provider router. Resource-gated + dormant.",
+      "provenance": {
+        "upstream": "https://github.com/vllm-project/vllm",
+        "owner": "vLLM project",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "llama-cpp",
+      "name": "llama.cpp",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "local_inference",
+        "gguf",
+        "cpu_inference"
+      ],
+      "triggers": [
+        "run gguf",
+        "cpu inference",
+        "local model no gpu"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§12: ADOPT (lightest engine, CPU-friendly). Canonical MOVED ggerganov->ggml-org (old path redirects). Alternative to seeded ollama/airllm; the CPU-only fallback.",
+      "provenance": {
+        "upstream": "https://github.com/ggml-org/llama.cpp",
+        "owner": "ggml-org",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "deepseek-v4",
+      "name": "DeepSeek V4 (open weights)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§61: bare weights (~1.6-1.7T MoE, ~893GB), NOT a runtime. Realistic KAI use = hosted API; local self-host needs a multi-GPU datacenter. Verify weights hash if ever hosted locally. Never hard-coded as 'best'.",
+      "provenance": {
+        "upstream": "https://huggingface.co/deepseek-ai/DeepSeek-V4-Pro-0813",
+        "owner": "DeepSeek AI",
+        "license": "MIT (open weights)",
+        "ref": "V4-Pro-0813",
+        "verified": true
+      }
+    },
+    {
+      "id": "bonsai-27b",
+      "name": "Bonsai-27B (1-bit/ternary)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§61: bare weights (exotic 1-bit/ternary), needs a compatible runtime (llama.cpp/BitNet/MLX). Brand-new vendor; aggressive 'runs-on-a-phone / ~90-95% retained' claims UNVERIFIED — benchmark before trust.",
+      "provenance": {
+        "upstream": "https://huggingface.co/collections/prism-ml/bonsai-27b",
+        "owner": "PrismML",
+        "license": "Apache-2.0",
+        "ref": "2026-07-14",
+        "verified": true
+      }
+    },
+    {
+      "id": "nanochat",
+      "name": "nanochat (Karpathy)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§12: REFERENCE — minimal full-stack LLM training pipeline (~$100 to train). Educational; training needs 8xH100. Not a production runtime.",
+      "provenance": {
+        "upstream": "https://github.com/karpathy/nanochat",
+        "owner": "Andrej Karpathy",
+        "license": "MIT",
+        "ref": "a825e63",
+        "verified": true
+      }
+    },
+    {
+      "id": "open-gen-ai",
+      "name": "Open-Gen-AI (unresolved)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "UPSTREAM_UNRESOLVED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§60: UPSTREAM_UNRESOLVED — the name is too generic; the closest match (anil-matcha/Open-Generative-AI) is a cloud-first media-gen studio, a modality mismatch for the claimed 'local multimodal runtime'. No canonical source verified -> DISABLED, no provenance asserted.",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "free-llm-api-resources",
+      "name": "Free LLM API Resources (catalog, upstream removed)",
+      "type": "KNOWLEDGE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "UPSTREAM_UNRESOLVED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§13: MOVED/REMOVED — the canonical cheahjs/free-llm-api-resources now 404s (authenticated), no redirect; only unaffiliated low-star re-uploads remain. This is the NAMESAKE of the feat/kai-freellmapi branch + commit 3a9da00 FreeLLMAPI gateway -> FLAG to whoever owns that integration. No provenance asserted (canonical gone). 'free/unlimited' listings are never auto-trusted (§13).",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "9router",
+      "name": "9Router (provider gateway)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "provider.keys"
+      ],
+      "notes": "§59: EXPERIMENTAL_PROVIDER_GATEWAY, HIGH risk — sits between KAI and providers so it sees ALL prompts + holds ALL keys; multi-account round-robin/OAuth-refresh to farm free tiers = ToS risk; fork-farm provenance. Do NOT place between KAI and sensitive data until privacy/security reviewed.",
+      "provenance": {
+        "upstream": "https://github.com/decolua/9router",
+        "owner": "decolua",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "omniroute-gateway",
+      "name": "OmniRoute (provider gateway)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "provider.keys"
+      ],
+      "notes": "§52/§59: EXPERIMENTAL_PROVIDER_GATEWAY, HIGH risk. NAMING COLLISION resolved: this is the AI-provider router (id 'omniroute-gateway'), DISTINCT from any geospatial 'OmniRoute' (KAI's geo tool is geolibre). Sibling of 9Router (shared marketing, fork-farm); proxies all prompts + holds keys. Privacy review required.",
+      "provenance": {
+        "upstream": "https://github.com/diegosouzapw/OmniRoute",
+        "owner": "diegosouzapw",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "kronos-finmodel",
+      "name": "Kronos (financial forecast model)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§34/§61: financial candlestick forecasting foundation model. FINANCIAL_RESEARCH only — a forecast is a SIGNAL, never an order (§35). Real trading stays DISABLED until a separate financial-execution cert.",
+      "provenance": {
+        "upstream": "https://github.com/shiyu-coder/Kronos",
+        "owner": "shiyu-coder (AAAI 2026)",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "stagehand",
+      "name": "Stagehand (AI browser)",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§10: REFERENCE — self-healing AI layer over the SAME engine KAI already has (playwright). Full features tie to Browserbase cloud + LLM keys. Adopt only if autonomous multi-step nav is genuinely needed.",
+      "provenance": {
+        "upstream": "https://github.com/browserbase/stagehand",
+        "owner": "Browserbase",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "browser-use",
+      "name": "browser-use (AI browser agent)",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 2,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§10/§11: REFERENCE — LLM autonomy layer over Playwright. CAUTION: the hosted Cloud tier markets stealth fingerprinting + CAPTCHA solving + proxy rotation, which KAI must NOT use (§11).",
+      "provenance": {
+        "upstream": "https://github.com/browser-use/browser-use",
+        "owner": "browser-use",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "firecrawl",
+      "name": "Firecrawl (web -> RAG)",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "MEDIUM",
+      "security_tier": 1,
+      "capabilities": [
+        "web_crawl",
+        "site_to_markdown",
+        "structured_extract"
+      ],
+      "triggers": [
+        "crawl this site",
+        "scrape into markdown",
+        "extract the whole website"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§10/§20: ADOPT — fills the web->RAG CRAWL gap KAI lacks (KAI has only single-page fetch). AGPL-3.0 core is an embed/license consideration -> prefer the hosted API or an ISOLATED self-host, not in-process. PRODUCES WebDocument -> consumed by the RAG pipeline. robots/terms respected (§57).",
+      "provenance": {
+        "upstream": "https://github.com/firecrawl/firecrawl",
+        "owner": "Firecrawl (ex-mendableai)",
+        "license": "AGPL-3.0 core / MIT SDKs",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "scrapling",
+      "name": "Scrapling (adaptive scraper)",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 3,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "§11: RESTRICTED (EVASION) — core selling point is anti-bot/CAPTCHA bypass (StealthyFetcher, Cloudflare Turnstile). KAI must NOT use stealth to bypass access controls. DISABLED; never auto-activated.",
+      "provenance": {
+        "upstream": "https://github.com/D4Vinci/Scrapling",
+        "owner": "D4Vinci",
+        "license": "BSD-3-Clause",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "camoufox",
+      "name": "Camoufox (anti-detect Firefox)",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 3,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "§11: RESTRICTED (EVASION), HIGH — purpose IS fingerprint spoofing/anti-detection; distributes an opaque patched Firefox C++ binary. Circumvents access controls -> DISABLED, never auto-activated.",
+      "provenance": {
+        "upstream": "https://github.com/daijro/camoufox",
+        "owner": "daijro",
+        "license": "MPL-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "agent-reach",
+      "name": "Agent-Reach (platform access CLI)",
+      "type": "BROWSER_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 1,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "§11/§57: RESTRICTED, HIGH — bypasses official platform APIs/fees via browser automation + STORES platform login cookies; bundles many third-party CLIs/MCPs (broad supply-chain surface). KAI prefers official APIs; never bypass auth/ToS. DISABLED.",
+      "provenance": {
+        "upstream": "https://github.com/Panniantong/Agent-Reach",
+        "owner": "Panniantong",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "yt-dlp",
+      "name": "yt-dlp (authorized media)",
+      "type": "CODE_TOOL",
+      "availability": "AVAILABLE",
+      "certification": "CERTIFIED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 1,
+      "capabilities": [
+        "media_metadata",
+        "media_download"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§27/§80/Wave-B: CERTIFIED_LOCAL — YtDlpAdapter (LIBRARY transport, live_adapters.py). CERTIFIED path = READ-ONLY metadata extract (extract_info download=False), proven live on a CC-BY archive.org item (real title/duration/formats → Observation, trust=UNTRUSTED). DOWNLOAD is NEVER executed here — it returns an inert ActionProposal requiring authorized-content + governance approval (§22/§80); no auto-publish. yt-dlp 2026.08.19 in the cert venv, NOT in deployed App B. automatic_activation_allowed=False → explicit invocation only, never auto-routed; health() OFFLINE-honest where absent.",
+      "provenance": {
+        "upstream": "https://github.com/yt-dlp/yt-dlp",
+        "owner": "yt-dlp",
+        "license": "Unlicense",
+        "ref": "2026.08.19",
+        "verified": true
+      }
+    },
+    {
+      "id": "maigret",
+      "name": "Maigret (username OSINT)",
+      "type": "OSINT_RESOURCE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 1,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "§36: username OSINT across 3000+ sites (tier 1, passive public info). Profiles individuals -> AUTHORIZED use only; results with personal data route through privacy classification before any memory write (§35).",
+      "provenance": {
+        "upstream": "https://github.com/soxoj/maigret",
+        "owner": "soxoj",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "flowsint",
+      "name": "Flowsint (OSINT investigation graph)",
+      "type": "OSINT_RESOURCE_PACK",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 1,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "§36: REFERENCE — graph-based OSINT platform (Neo4j/Postgres/FastAPI), heavy self-hosted stack. Authorized/lawful public info only; privacy-classified.",
+      "provenance": {
+        "upstream": "https://github.com/reconurge/flowsint",
+        "owner": "reconurge",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "bumblebee",
+      "name": "Bumblebee (AI supply-chain scanner)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 1,
+      "capabilities": [
+        "supply_chain_scan",
+        "dependency_audit"
+      ],
+      "triggers": [
+        "supply chain scan",
+        "check for compromised packages",
+        "dependency exposure"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§39/§82: ADOPT — read-only scanner of on-disk pkg/extension metadata for supply-chain exposure. Go, zero non-stdlib deps, never runs install scripts. HIGH-LEVERAGE: candidate for the capability INSTALL GATE (scan every new plugin/model/MCP before promotion). Young (v0.1.x).",
+      "provenance": {
+        "upstream": "https://github.com/perplexityai/bumblebee",
+        "owner": "Perplexity AI",
+        "license": "Apache-2.0",
+        "ref": "v0.1.2",
+        "verified": true
+      }
+    },
+    {
+      "id": "ifixai",
+      "name": "iFixAI (AI red-teaming)",
+      "type": "SECURITY_EXECUTION_FRAMEWORK",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 3,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "security.authorized"
+      ],
+      "notes": "§37/§38/§65: RESTRICTED (tier 3) — adversarial auditing/red-teaming of AI agents; runs adversarial prompts + hooks agent runtimes. Anomalous 11.9k-stars/88-commits -> human review before trust. A candidate agent must NEVER control its own evaluator (§65). Authorized mission + approval + sandbox only.",
+      "provenance": {
+        "upstream": "https://github.com/ifixai-ai/iFixAi",
+        "owner": "ifixai-ai",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "future-agi",
+      "name": "Future AGI (eval/observability)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§38/§65: REFERENCE — LLM eval/observability/guardrails platform. Heavy multi-lang stack; the Python instrumentation SDK is the lighter adoptable piece. Compare vs KAI's own independent cert harness; don't duplicate if KAI is stronger. Reuse individual eval components at most.",
+      "provenance": {
+        "upstream": "https://github.com/future-agi/future-agi",
+        "owner": "Future AGI",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "langchain",
+      "name": "LangChain (library)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§14/§15: REUSE_LIBRARY — a library KAI could CALL, never a competing orchestrator. KAI is already the orchestrator. Huge transitive dep surface; embed narrowly if ever needed.",
+      "provenance": {
+        "upstream": "https://github.com/langchain-ai/langchain",
+        "owner": "langchain-ai",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "langgraph",
+      "name": "LangGraph (library)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§14/§15: REUSE_LIBRARY — the one ADAPT-worthy orchestration lib IF KAI's tool-loop/plan machine ever needs durable branching. Embed as a library inside KAI's loop, never a rival control loop.",
+      "provenance": {
+        "upstream": "https://github.com/langchain-ai/langgraph",
+        "owner": "langchain-ai",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "autogen",
+      "name": "AutoGen (maintenance mode)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§14/§15: REFERENCE — now in MAINTENANCE MODE (superseded by MS Agent Framework). Recursive multi-agent + code exec = don't adopt as a live component.",
+      "provenance": {
+        "upstream": "https://github.com/microsoft/autogen",
+        "owner": "microsoft",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "crewai",
+      "name": "CrewAI (library)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§14/§15: REUSE_LIBRARY — role-playing crews; embeddable but its autonomous crew loop + code exec must stay governed, never a second brain.",
+      "provenance": {
+        "upstream": "https://github.com/crewAIInc/crewAI",
+        "owner": "crewAIInc",
+        "license": "MIT",
+        "ref": "v0.102.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "metagpt",
+      "name": "MetaGPT (AI software company)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§14/§15: REFERENCE — heavyweight opinionated multi-agent orchestrator (a rival control loop); recursive role spawning + code exec. MOVED geekan->FoundationAgents (old path redirects).",
+      "provenance": {
+        "upstream": "https://github.com/FoundationAgents/MetaGPT",
+        "owner": "FoundationAgents",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "deerflow",
+      "name": "DeerFlow (super-agent)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§15/§48: REFERENCE, HIGH — a full competing 'super-agent' that recursively spawns sub-agents (task tool) + runs shell in sandboxes. Adopting it = a rival orchestrator. KAI's own research system already covers this.",
+      "provenance": {
+        "upstream": "https://github.com/bytedance/deer-flow",
+        "owner": "bytedance",
+        "license": "MIT",
+        "ref": "v2.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "goose",
+      "name": "Goose (coding worker)",
+      "type": "CODING_WORKER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [
+        "implement",
+        "execute",
+        "edit",
+        "test"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§16/§47: USE_AS_WORKER under CodingWorkerRouter — legit coding agent, but runs host SHELL (sandboxing is the operator's job) + loads MCP extensions. MOVED block/goose->aaif-goose (Apr 2026). Recipes are externally-supplied capability defs, all governed by KAI. No autonomous merge/deploy.",
+      "provenance": {
+        "upstream": "https://github.com/aaif-goose/goose",
+        "owner": "aaif-goose (Linux Foundation)",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "openhands",
+      "name": "OpenHands (coding worker)",
+      "type": "CODING_WORKER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [
+        "implement",
+        "execute",
+        "test"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§16/§46: USE_AS_WORKER — powerful coding agent with FULL filesystem access -> Docker sandbox REQUIRED. As a 'control center' it can spawn other agents -> bound to worker role. No production merge/deploy rights.",
+      "provenance": {
+        "upstream": "https://github.com/All-Hands-AI/OpenHands",
+        "owner": "All-Hands-AI",
+        "license": "MIT",
+        "ref": "v1.16.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "ruflo",
+      "name": "ruflo (meta-orchestrator)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§15/§17: REJECT_DUPLICATE, HIGH — a competing meta-orchestrator that recursively spawns 100+ UNBOUNDED swarm agents + self-modifying memory, wrapping the exact coding workers KAI already routes. All parallelism must stay bounded by KAI's CodingWorkerRouter/concurrency budget (§17). Do not adopt as a brain.",
+      "provenance": {
+        "upstream": "https://github.com/ruvnet/ruflo",
+        "owner": "ruvnet",
+        "license": "MIT",
+        "ref": "v3.8.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "n8n",
+      "name": "n8n (workflow automation)",
+      "type": "WORKSPACE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§21: ADAPTER_ONLY — isolated workflow service OUTSIDE the agent loop; never bypasses KAI approval policy. Source-available license restricts hosting-as-a-service. Large integration surface.",
+      "provenance": {
+        "upstream": "https://github.com/n8n-io/n8n",
+        "owner": "n8n-io",
+        "license": "Sustainable Use License (fair-code, non-OSI)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "openclaw",
+      "name": "openclaw (personal agent)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§15: REJECT_DUPLICATE, HIGH — an autonomous personal-agent brain that runs host commands BY DEFAULT (sandbox opt-in) with a messaging-app attack surface. A rival control loop; do not run.",
+      "provenance": {
+        "upstream": "https://github.com/openclaw/openclaw",
+        "owner": "openclaw",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "aider",
+      "name": "Aider (pair-programming CLI)",
+      "type": "CODING_CLI",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "implement",
+        "edit"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§16: USE_AS_WORKER under CodingWorkerRouter — mature single-brain CLI; runs shell/tests + auto-commits in the project dir. Keep governed (no autonomous merge/deploy).",
+      "provenance": {
+        "upstream": "https://github.com/Aider-AI/aider",
+        "owner": "Aider-AI",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "dyad",
+      "name": "Dyad (local app builder)",
+      "type": "CODING_WORKER",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "app_prototype"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§55: REFERENCE — Electron GUI app builder, awkward to govern headless; prefer CodingWorkerRouter for real repo work. FSL-1.1 on pro modules restricts commercial reuse.",
+      "provenance": {
+        "upstream": "https://github.com/dyad-sh/dyad",
+        "owner": "dyad-sh",
+        "license": "Apache-2.0 + FSL-1.1 (src/pro)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "orca",
+      "name": "Orca (parallel-agent IDE)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§17: REFERENCE — runs a fleet of parallel coding-agent CLIs isolated via git worktrees. Overlaps KAI's existing CodingWorkerRouter; useful as a reference for the git-worktree parallel-isolation pattern.",
+      "provenance": {
+        "upstream": "https://github.com/stablyai/orca",
+        "owner": "stablyai",
+        "license": "MIT",
+        "ref": "v1.4.192",
+        "verified": true
+      }
+    },
+    {
+      "id": "claude-task-master",
+      "name": "Claude Task Master",
+      "type": "MCP",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§44: REUSE_LIBRARY — task-planning MCP, no code exec. Overlaps seeded sequential-thinking + KAI Missions/procedures/todos + the Holding operator. Commons Clause restricts resale. Adopt only if it beats native.",
+      "provenance": {
+        "upstream": "https://github.com/eyaltoledano/claude-task-master",
+        "owner": "eyaltoledano",
+        "license": "MIT + Commons Clause",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "daytona",
+      "name": "Daytona (sandbox, archived)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§40: REFERENCE — OSS ARCHIVED (frozen v0.190.0 Jun 2026; core went private) + AGPL network copyleft. KAI already has colima isolation -> comparison reference only, NOT a migration target.",
+      "provenance": {
+        "upstream": "https://github.com/daytonaio/daytona",
+        "owner": "daytonaio",
+        "license": "AGPL-3.0",
+        "ref": "v0.190.0 (final OSS)",
+        "verified": true
+      }
+    },
+    {
+      "id": "nango",
+      "name": "Nango (OAuth/API broker)",
+      "type": "WORKSPACE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "integration.oauth"
+      ],
+      "notes": "§22/§74: ADAPTER_ONLY — OAuth+API broker for 900+ APIs; a credential broker (blast radius if compromised). Architecture comparison BEFORE adoption; do NOT migrate current credentials automatically. Isolated service.",
+      "provenance": {
+        "upstream": "https://github.com/NangoHQ/nango",
+        "owner": "NangoHQ",
+        "license": "Elastic License 2.0 (non-OSI)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "three-js",
+      "name": "Three.js (3D library)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "3d_graphics",
+        "webgl"
+      ],
+      "triggers": [
+        "three.js",
+        "3d scene",
+        "webgl"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§26: a front-end LIBRARY a coding worker USES in its output, not a KAI runtime. Use only when a task needs advanced 3D; do NOT rewrite the existing Nexus avatar/halo architecture.",
+      "provenance": {
+        "upstream": "https://github.com/mrdoob/three.js",
+        "owner": "mrdoob",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "gsap",
+      "name": "GSAP (animation library)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "animation",
+        "motion"
+      ],
+      "triggers": [
+        "gsap",
+        "animate the",
+        "scroll animation"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§26: front-end animation LIBRARY (now fully free). Non-OSI custom license — review before redistribution. Use when motion genuinely serves the work; not always-on.",
+      "provenance": {
+        "upstream": "https://github.com/greensock/GSAP",
+        "owner": "GreenSock",
+        "license": "GreenSock no-charge (non-OSI, now free)",
+        "ref": "3.15",
+        "verified": true
+      }
+    },
+    {
+      "id": "genjutsu",
+      "name": "Genjutsu (creative-coding skill)",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "creative_coding",
+        "animation_design",
+        "design_systems"
+      ],
+      "triggers": [
+        "creative coding",
+        "generative animation",
+        "motion design system"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§23: ADOPT — markdown creative-coding skill pack (animation/3D/motion across React/Vue/Three.js). Small single maintainer (~300 stars) -> human-review skill content before load (untrusted skill surface).",
+      "provenance": {
+        "upstream": "https://github.com/AThevon/genjutsu",
+        "owner": "AThevon",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "penpot",
+      "name": "Penpot (design workspace)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§64: HUMAN_INTERACTIVE — open-source design/prototyping workspace (heavy self-host stack). Prefer official API/automation paths if available; do NOT automate the GUI blindly.",
+      "provenance": {
+        "upstream": "https://github.com/penpot/penpot",
+        "owner": "Penpot (Kaleidos)",
+        "license": "MPL-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "ai-website-cloner",
+      "name": "AI Website Cloner (design analysis)",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§24/§25: RESTRICTED — design ANALYSIS / authorized migration ONLY (owned sites, lost-source reconstruction). Must produce ORIGINAL output from generalized patterns; NEVER reproduce proprietary logos/copy/pixel-identical pages. Not IP theft, not phishing. DISABLED by default.",
+      "provenance": {
+        "upstream": "https://github.com/JCodesMore/ai-website-cloner-template",
+        "owner": "JCodesMore",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "comfyui",
+      "name": "ComfyUI (generative media)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "image_generation",
+        "video_generation"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§27: ADOPT (optional isolated media runtime, GPU). CORE is clean, but third-party CUSTOM NODES execute arbitrary Python = HIGH supply-chain vector -> VETTED nodes only. No auto-publishing of generated content.",
+      "provenance": {
+        "upstream": "https://github.com/comfyanonymous/ComfyUI",
+        "owner": "Comfy-Org",
+        "license": "GPL-3.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "hyperframes",
+      "name": "HyperFrames (HTML -> video)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "html_to_video",
+        "deterministic_render"
+      ],
+      "triggers": [
+        "render a video from html",
+        "code-driven video"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§27/§49: ADOPT — deterministic HTML/CSS/JS->MP4 (headless Chrome + FFmpeg, no GPU/model). PIN heygen-com (the hyperframes/hyperframes org is a placeholder). VideoCapabilityRouter specialist for code-driven video. No auto-publish.",
+      "provenance": {
+        "upstream": "https://github.com/heygen-com/hyperframes",
+        "owner": "HeyGen",
+        "license": "Apache-2.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "openmontage",
+      "name": "OpenMontage (agent video studio)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§49: RESTRICTED, HIGH — agentic video-production system, ~2-3mo old, AGPL, runs arbitrary Python + Remotion, surrounded by a fork/mirror/typosquat cluster + SourceForge mirror. PIN canonical calesthio, keep DORMANT. VideoCapabilityRouter alternative to hyperframes; no auto-publish.",
+      "provenance": {
+        "upstream": "https://github.com/calesthio/OpenMontage",
+        "owner": "calesthio",
+        "license": "AGPL-3.0",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "moneyprinter-turbo",
+      "name": "MoneyPrinterTurbo (short-form video)",
+      "type": "CODE_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§27/§49/§80: REFERENCE — automated short-form pipeline, but purpose-built for MASS/bulk content = spam/low-quality auto-publish misuse. Generated content stays reviewable; NEVER auto-post externally.",
+      "provenance": {
+        "upstream": "https://github.com/harry0703/MoneyPrinterTurbo",
+        "owner": "harry0703",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "whisper-local",
+      "name": "Whisper (local STT)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "ON_DEMAND",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "speech_to_text",
+        "offline_stt"
+      ],
+      "triggers": [
+        "transcribe offline",
+        "local speech to text"
+      ],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§28: ADOPT — LOCAL/offline STT (KAI currently has only hosted whisper-1). Reference impl is stale (faster-whisper forks are more active) but canonical weights. REUSE KAI's existing voice layer; don't duplicate.",
+      "provenance": {
+        "upstream": "https://github.com/openai/whisper",
+        "owner": "OpenAI",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "voxcpm",
+      "name": "VoxCPM2 (TTS + voice clone)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§28: RESTRICTED — zero-shot voice CLONING = deepfake/impersonation misuse risk -> operator approval, authorized voices only. Verify HF weight hashes. DISABLED by default.",
+      "provenance": {
+        "upstream": "https://github.com/OpenBMB/VoxCPM",
+        "owner": "OpenBMB",
+        "license": "Apache-2.0",
+        "ref": "VoxCPM2 (2026-04)",
+        "verified": true
+      }
+    },
+    {
+      "id": "pipecat",
+      "name": "Pipecat (realtime voice transport)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "realtime_voice",
+        "voice_transport"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§28/§29: ADOPT — realtime voice transport/orchestration (STT+LLM+TTS+WebRTC) that sits BENEATH KAI's existing embodiment/voice + policy layer. Does NOT replace KAI's identity/policy; KAI stays the Voice Session Controller. Scope the 100+ optional integrations carefully.",
+      "provenance": {
+        "upstream": "https://github.com/pipecat-ai/pipecat",
+        "owner": "pipecat-ai (Daily)",
+        "license": "BSD-2-Clause",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "meetily",
+      "name": "Meetily (meeting assistant)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§51: HUMAN_INTERACTIVE — privacy-first self-hosted meeting note-taker (local Whisper + diarization + LLM). Desktop binaries capture live audio (privacy-sensitive, verify signatures). Meeting action items become ActionProposal objects — NEVER auto-executed.",
+      "provenance": {
+        "upstream": "https://github.com/Zackriya-Solutions/meetily",
+        "owner": "Zackriya Solutions",
+        "license": "MIT",
+        "ref": "v0.4.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "ai-marketing-skills",
+      "name": "AI Marketing Skills",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [
+        "growth",
+        "seo",
+        "content",
+        "outbound_draft"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§30/§77: RESTRICTED — adopt READ/DRAFT skills only (audit/analyze/score/draft). Autonomous outbound SEND and any ad SPEND are FINANCIAL/APPROVAL_REQUIRED and disabled initially. Executes local Python + opt-in telemetry -> audit + pin before use. Partial overlap with native market/sales skills.",
+      "provenance": {
+        "upstream": "https://github.com/ericosiu/ai-marketing-skills",
+        "owner": "ericosiu (Single Brain)",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "claude-ads",
+      "name": "Claude Ads (ambiguous)",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "UPSTREAM_UNRESOLVED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§31: UPSTREAM_UNRESOLVED — NOT an official Anthropic product (Anthropic states there are no ads in Claude). Maps to several identically-named community Claude-Code skills (AgriciDaniel/claude-ads et al.) that also duplicate KAI's native ads skills. No canonical source -> DISABLED, no provenance asserted. Ad writes/budget changes would be FINANCIAL/APPROVAL_REQUIRED regardless (§31).",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
+      }
+    },
+    {
+      "id": "viralityai",
+      "name": "ViralityAI (SaaS)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§30/§57/§75: HUMAN_INTERACTIVE_ONLY — SaaS viral-content discovery with NO public API. Do NOT scrape the dashboard. Any outbound posting would be approval-gated if an API existed.",
+      "provenance": {
+        "upstream": "https://viralityai.net/",
+        "owner": "ViralityAI",
+        "license": "Proprietary/SaaS",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "playto",
+      "name": "Playto (payments SaaS)",
+      "type": "WORKSPACE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§32: REJECT_DUPLICATE — creator payments SaaS with NO public API (in development) and no gap vs KAI's existing Stripe/Dwolla/SOL infra. 'Collect payments for free' marketing != architecture fact. Financial writes remain approval-bound regardless.",
+      "provenance": {
+        "upstream": "https://www.playto.so/",
+        "owner": "Sanhik Roy Industries Pvt Ltd",
+        "license": "Proprietary/SaaS",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "plausible",
+      "name": "Plausible Analytics",
+      "type": "WORKSPACE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "web_analytics"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "analytics.read"
+      ],
+      "notes": "§33/§62: SERVICE_CONNECTOR — optional privacy-first web analytics via official Stats API (READ). Feed KAI Holding/Nexus AGGREGATE metrics only; never expose individual visitor identities. Migration intentional.",
+      "provenance": {
+        "upstream": "https://github.com/plausible/analytics",
+        "owner": "Plausible Insights OÜ",
+        "license": "AGPLv3 (tracker MIT)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "tradingagents",
+      "name": "TradingAgents (research)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§34/§35/§79: RESTRICTED — multi-agent trading RESEARCH on a SIMULATED exchange. RECOMMENDATION/SIGNAL/BACKTEST/PAPER only; a model saying BUY does NOT authorize a trade. Real brokerage order execution stays DISABLED until a separate financial-execution certification exists.",
+      "provenance": {
+        "upstream": "https://github.com/TauricResearch/TradingAgents",
+        "owner": "TauricResearch",
+        "license": "Apache-2.0",
+        "ref": "v0.4.0",
+        "verified": true
+      }
+    },
+    {
+      "id": "vibe-trading",
+      "name": "Vibe Trading (live broker)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "RESTRICTED",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§34/§35/§79: RESTRICTED, HIGH — an AI agent with REAL LIVE brokerage execution across 10+ brokers (Alpaca/IBKR/Binance/OKX/eToro/MT5). Live order execution is PROHIBITED_INITIALLY and DISABLED; only paper/backtest permitted. Real trading needs the full separate cert (broker/identity/limits/kill-switch).",
+      "provenance": {
+        "upstream": "https://github.com/HKUDS/Vibe-Trading",
+        "owner": "HKUDS (HKU)",
+        "license": "MIT",
+        "ref": "v0.1.14",
+        "verified": true
+      }
+    },
+    {
+      "id": "fincept",
+      "name": "Fincept Terminal",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§34: REFERENCE — desktop financial-research terminal, no automation API (the separate read-only Fincept Data API could be a SERVICE_CONNECTOR if a data gap appears). OSS = analytics/paper only; live broker routing is Enterprise -> DISABLED.",
+      "provenance": {
+        "upstream": "https://github.com/Fincept-Corporation/FinceptTerminal",
+        "owner": "Fincept Corporation",
+        "license": "AGPL-3.0-or-later / Enterprise",
+        "ref": "v4.4.1",
+        "verified": true
+      }
+    },
+    {
+      "id": "abacus-ai",
+      "name": "Abacus.AI (platform)",
+      "type": "MODEL_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [
+        "provider.keys"
+      ],
+      "notes": "§76: SERVICE_CONNECTOR (RESTRICTED) — paid proprietary platform (100+ model router, agents, AutoML) with an official REST/SDK. Paid + credentials + data egress -> budget-capped, privacy-reviewed. Overlaps KAI's FreeLLMAPI/provider gateway (not the Nexus UI). Optional.",
+      "provenance": {
+        "upstream": "https://abacus.ai/",
+        "owner": "Abacus.AI",
+        "license": "Proprietary/SaaS",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "dify",
+      "name": "Dify (agent platform)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXPERIMENTAL",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§9/§14: REFERENCE — heavy agentic-workflow + RAG platform that duplicates KAI's own orchestration runtime. License carries commercial-use conditions. Not a fourth orchestrator.",
+      "provenance": {
+        "upstream": "https://github.com/langgenius/dify",
+        "owner": "LangGenius",
+        "license": "Dify OSS License (Apache-2.0 + conditions)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "langflow",
+      "name": "Langflow (visual builder)",
+      "type": "AGENT_RUNTIME",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "DISABLED",
+      "risk_class": "HIGH",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§9/§81: REFERENCE, HIGH — visual low-code LLM builder that executes arbitrary Python components and has a reported unauthenticated-RCE history. If ever adopted: security-scan, patch, NEVER expose unauthenticated. Duplicates KAI orchestration. DISABLED.",
+      "provenance": {
+        "upstream": "https://github.com/langflow-ai/langflow",
+        "owner": "langflow-ai (DataStax/IBM)",
+        "license": "MIT",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "open-webui",
+      "name": "Open WebUI (chat UI)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§9: REJECT_DUPLICATE — KAI Nexus already provides the chat UI. Could point at KAI's /v1 endpoint but adds a fourth chat interface with no clear gap. Optional/low-priority.",
+      "provenance": {
+        "upstream": "https://github.com/open-webui/open-webui",
+        "owner": "Open WebUI",
+        "license": "Open WebUI License (branding clause)",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "lobe-chat",
+      "name": "LobeChat (chat UI)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "REJECTED",
+      "activation": "DISABLED",
+      "risk_class": "MEDIUM",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§9: REJECT_DUPLICATE — multi-agent chat UI duplicating KAI Nexus. Do not create a fourth chat interface.",
+      "provenance": {
+        "upstream": "https://github.com/lobehub/lobe-chat",
+        "owner": "LobeHub",
+        "license": "LobeHub Community License",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "appwrite",
+      "name": "Appwrite (BaaS)",
+      "type": "WORKSPACE_ADAPTER",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§21: REFERENCE — open-source BaaS (auth/db/storage/functions). KAI already runs its own FastAPI/Postgres/Redis backend; adopt only if a real BaaS gap appears. Governed if ever used.",
+      "provenance": {
+        "upstream": "https://github.com/appwrite/appwrite",
+        "owner": "Appwrite",
+        "license": "BSD-3-Clause",
+        "ref": "v1.9.6",
+        "verified": true
+      }
+    },
+    {
+      "id": "appflowy",
+      "name": "AppFlowy (knowledge workspace)",
+      "type": "COLLABORATION_TOOL",
+      "availability": "DISCOVERED",
+      "certification": "EXTERNAL_BLOCKED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§63: HUMAN_INTERACTIVE_ONLY — open-source Notion alternative with NO documented public automation API. A human WORKSPACE, not KAI's canonical memory. Do NOT scrape.",
+      "provenance": {
+        "upstream": "https://github.com/AppFlowy-IO/AppFlowy",
+        "owner": "AppFlowy-IO",
+        "license": "AGPLv3",
+        "ref": "",
+        "verified": true
+      }
+    },
+    {
+      "id": "website-design-skills",
+      "name": "Premium Website Design Skills (pack)",
+      "type": "AGENT_SKILL",
+      "availability": "DISCOVERED",
+      "certification": "UPSTREAM_UNRESOLVED",
+      "activation": "MANUAL_ONLY",
+      "risk_class": "LOW",
+      "security_tier": 0,
+      "capabilities": [
+        "website.premium_architect",
+        "website.hero_strategist",
+        "website.homepage_conversion",
+        "website.portfolio_designer",
+        "website.service_landing",
+        "website.about_story",
+        "website.mobile_optimizer",
+        "website.full_copywriter",
+        "website.landing_architect",
+        "website.premium_ux"
+      ],
+      "triggers": [],
+      "dependencies": [],
+      "conflicts": [],
+      "permissions": [],
+      "notes": "§23/§56: the ten operator-provided website prompt packs, declared as first-class skill IDs so the Brain + Nexus can see the DESIGN category. Bodies are UPSTREAM_UNRESOLVED — the operator's prompt text was truncated in the source message; register the structured instruction bodies before enabling (MANUAL_ONLY until then).",
+      "provenance": {
+        "upstream": "",
+        "owner": "",
+        "license": "",
+        "ref": "",
+        "verified": false
       }
     }
   ]
