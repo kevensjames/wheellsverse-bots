@@ -84,6 +84,35 @@ def t_redaction():
     assert "MIIEv" not in redact(key)
 
 
+def t_redaction_modern_token_formats():
+    """Adversarial-review findings 2-4: modern OpenAI / GitHub / Slack tokens as BARE values."""
+    for tok in ("sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ",
+                "sk-svcacct-abcdefghijklmnop0123456789",
+                "ghp_0123456789abcdefABCDEF0123456789abcd",
+                "github_pat_11ABCDE0Yabcdefghij_KLMNOPqrstuvwxyz0123456789",
+                "xoxb-1234567890-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx"):
+        assert redact(tok) == REDACTED, tok
+        assert tok not in redact({"note": f"leaked {tok} here"})
+
+
+def t_redaction_structured_secret_by_key():
+    """Finding 1: a secret stored as a dict VALUE under a secret-named key is redacted wholesale."""
+    ev = {"db_password": "S3cr3tPass!", "auth_token": "totally-opaque-value-x", "region": "us-east-1"}
+    r = redact(ev)
+    assert r["db_password"] == REDACTED and r["auth_token"] == REDACTED
+    assert r["region"] == "us-east-1"                   # non-secret field preserved
+    # nested
+    r2 = redact({"env": {"SESSION_SIGNING_SECRET": "abc", "PORT": 8000}})
+    assert r2["env"]["SESSION_SIGNING_SECRET"] == REDACTED and r2["env"]["PORT"] == 8000
+
+
+def t_redaction_no_false_positive_on_sha():
+    """Guard: a 40-char git SHA (legit DEPLOYMENT_STATUS evidence) must NOT be redacted."""
+    sha = "a1b2c3d4e5f6071829304152637485960718293a"   # 40 hex chars
+    assert redact({"sha": sha}) == {"sha": sha}
+    assert redact(sha) == sha
+
+
 def t_forbidden_repo_targets():
     """§30."""
     for bad in (".env", "config/.env.production", "deploy/id_rsa", "certs/server.key",

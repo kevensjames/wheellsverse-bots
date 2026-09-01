@@ -96,6 +96,14 @@ class HoldingAutonomousWorkEngine:
         # 2. owner-required work never auto-executes — route to the owner queue (§24)
         if task.assigned_to == Assignee.OWNER.value or AutonomyClass(task.autonomy) >= AutonomyClass.A3_EXTERNAL_HIGH_IMPACT:
             return wr(OWNER_QUEUED, TaskStatus.BLOCKED.value)
+        # 2b. ONLY KAI-assigned work auto-executes. Worker work needs the (unwired) dispatch plane;
+        #     external work is owner-gated; anything else fails closed (§18/§23 — never assume KAI).
+        if task.assigned_to == Assignee.WORKER.value:
+            return wr(BLOCKED_WORKER, TaskStatus.BLOCKED.value, reason="requires worker dispatch (not wired)")
+        if task.assigned_to == Assignee.EXTERNAL.value:
+            return wr(OWNER_QUEUED, TaskStatus.BLOCKED.value, reason="external action is owner-gated")
+        if task.assigned_to != Assignee.KAI.value:
+            return wr(BLOCKED_CAPABILITY, TaskStatus.BLOCKED.value, reason=f"non-KAI assignee '{task.assigned_to}'")
         # 3. A2+ internal writes need a per-grant certification we don't have yet (Wave 3)
         if AutonomyClass(task.autonomy) == AutonomyClass.A2_REVERSIBLE_INTERNAL_WRITE:
             return wr(NEEDS_CERTIFICATION, TaskStatus.BLOCKED.value)
@@ -154,7 +162,7 @@ def run_cycle(prev_snapshot: dict | None, cur_snapshot: dict, *, engine: Holding
         "materiality_version": recon["materiality_version"],
         "material_changes": len(recon["changes"]),
         "plan_dispositions": {d: sum(1 for rt in reconciled if rt.disposition == d)
-                              for d in {rt.disposition for rt in reconciled}},
+                              for d in sorted({rt.disposition for rt in reconciled})},   # sorted: deterministic audit
         "auto_executed": by.get(EXECUTED, 0),
         "owner_queued": by.get(OWNER_QUEUED, 0),
         "blocked": by.get(BLOCKED_CAPABILITY, 0) + by.get(BLOCKED_WORKER, 0) + by.get(NEEDS_CERTIFICATION, 0),

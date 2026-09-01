@@ -91,6 +91,39 @@ def t_capability_down_classified():
     assert r.outcome == BLOCKED_CAPABILITY and r.failure_class == "CAPABILITY_DOWN"
 
 
+def t_only_kai_assignee_auto_executes():
+    """Adversarial finding 5: a WORKER/EXTERNAL/other-assignee A0 task must NOT auto-execute."""
+    eng = HoldingAutonomousWorkEngine(execute=_ok_execute, resolver=_resolver)
+    from app.services.holding.autonomous_work import BLOCKED_WORKER
+    assert eng.run_task(_task(assignee=Assignee.WORKER)).outcome == BLOCKED_WORKER
+    assert eng.run_task(_task(assignee=Assignee.EXTERNAL)).outcome == OWNER_QUEUED
+    # a forged/unknown assignee fails closed, never executes
+    forged = _task(); forged.assigned_to = "ATTACKER"
+    assert eng.run_task(forged).outcome == BLOCKED_CAPABILITY
+    # KAI still executes
+    assert eng.run_task(_task(assignee=Assignee.KAI)).outcome == EXECUTED
+
+
+def t_eligible_predicate():
+    eng = HoldingAutonomousWorkEngine(execute=_ok_execute, resolver=_resolver)
+    assert eng.eligible(_task(assignee=Assignee.KAI, autonomy=AutonomyClass.A0_OBSERVE))
+    assert not eng.eligible(_task(assignee=Assignee.WORKER))
+    assert not eng.eligible(_task(autonomy=AutonomyClass.A3_EXTERNAL_HIGH_IMPACT))
+
+
+def t_plan_dispositions_deterministic_order():
+    """Adversarial finding 6: audit disposition keys are sorted, not hash-randomized."""
+    def snap(status):
+        return {"companies": [{"company_id": c, "status": status, "active_incidents": [],
+                               "owner_actions_required": []} for c in ("sol", "kai")],
+                "shared_resources": {"workers_online": 1, "capabilities_available": 7},
+                "autonomy_overall": "AUTONOMOUS_READ_ONLY"}
+    eng = HoldingAutonomousWorkEngine(execute=_ok_execute, resolver=_resolver)
+    res = run_cycle(snap("LIVE"), snap("DEGRADED"), engine=eng, cycle_id="c", now="2026-09-01T08:00:00")
+    keys = list(res["plan_dispositions"].keys())
+    assert keys == sorted(keys) and len(keys) >= 1
+
+
 def t_cycle_no_material_change_executes_nothing():
     """§17: identical snapshots → NO_MATERIAL_CHANGE, 0 tasks, 0 autonomous actions."""
     snap = {"companies": [{"company_id": "sol", "status": "LIVE", "active_incidents": [],

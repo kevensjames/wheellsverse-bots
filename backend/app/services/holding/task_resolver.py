@@ -44,8 +44,10 @@ class CertState(str, Enum):
 # ── SECURITY BOUNDARY ────────────────────────────────────────────────────────────────────────────
 REDACTED = "[REDACTED]"
 _SECRET_PATTERNS = [
-    re.compile(r"-----BEGIN[^-]*PRIVATE KEY-----.*?-----END[^-]*PRIVATE KEY-----", re.S),
-    re.compile(r"\bsk-[A-Za-z0-9]{16,}\b"),
+    re.compile(r"-----BEGIN[^-]*(?:PRIVATE KEY|OPENSSH PRIVATE KEY)-----.*?-----END[^-]*-----", re.S),
+    re.compile(r"\bsk-[A-Za-z0-9_-]{16,}\b"),                          # OpenAI incl. modern sk-proj-/sk-svcacct-
+    re.compile(r"\b(?:gh[opsur]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})\b"),  # GitHub tokens
+    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),                   # Slack tokens
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{8,}"),
     re.compile(r"(?i)\b(authorization|cookie|set-cookie|x-api-key)\b\s*[:=]\s*\S+"),
@@ -53,18 +55,35 @@ _SECRET_PATTERNS = [
                r"\s*[:=]\s*\S+"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{6,}\b"),  # JWT
 ]
+# NOTE: no blind 40-char matcher — it would redact legitimate git SHAs (DEPLOYMENT_STATUS.sha).
+# AWS secret keys are caught by the dict-key hint below (they travel under a telling key name).
+
+# A dict key whose NAME implies a secret ⇒ its string value is redacted wholesale, since the
+# co-occurrence regexes above can't see the key name when scanning a value in isolation.
+_SECRET_KEY_HINT = re.compile(
+    r"(?i)(password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|"
+    r"authorization|cookie|bearer|session|signing|pat)")
 
 
 def redact(obj):
     """Recursively redact secret markers (§29) from any string/list/dict. Returns the same shape with
-    API keys / Bearer tokens / cookies / passwords / private keys replaced by [REDACTED]."""
+    API keys (OpenAI/GitHub/Slack/AWS) / Bearer tokens / cookies / passwords / private keys / JWTs
+    replaced by [REDACTED]. A dict value under a secret-named KEY is redacted wholesale (the value is
+    scanned in isolation, so the key name is the only signal — §29 defense-in-depth for structured
+    evidence, closing the 'secret as a bare dict value' gap)."""
     if isinstance(obj, str):
         s = obj
         for pat in _SECRET_PATTERNS:
             s = pat.sub(REDACTED, s)
         return s
     if isinstance(obj, dict):
-        return {k: redact(v) for k, v in obj.items()}
+        out = {}
+        for k, v in obj.items():
+            if isinstance(k, str) and _SECRET_KEY_HINT.search(k) and isinstance(v, (str, int, float)):
+                out[k] = REDACTED
+            else:
+                out[k] = redact(v)
+        return out
     if isinstance(obj, (list, tuple)):
         return type(obj)(redact(v) for v in obj)
     return obj
@@ -294,6 +313,11 @@ def build_holding_executor(*, providers: dict | None = None, execution_service=N
             return _Result(_INVOKE_OK, evidence=evidence, corr=mission_id)
         if execution_service is not None and principal is not None:   # fabric path (op must be allowlisted)
             r = execution_service.invoke(cap, op, input or {}, principal, mission_id=mission_id)
+            try:                                                      # defense-in-depth: redact fabric evidence too
+                if getattr(r, "evidence", None):
+                    r.evidence = redact(r.evidence)
+            except Exception:
+                pass
             return r
         return _Result(_UNAVAILABLE, reason=f"no certified runtime for {cap} (RUNTIME_PENDING)", corr=mission_id)
 
