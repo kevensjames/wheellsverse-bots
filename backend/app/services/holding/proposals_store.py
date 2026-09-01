@@ -121,6 +121,33 @@ def decide(proposal_id: int, status: str, *, reason: Optional[str] = None, by: s
         return None
 
 
+def resolve_absent(active_source_keys: list, *, by: str = "kai-auto") -> int:
+    """Auto-resolve (§3): mark every still-open ('proposed') proposal whose source_key is NOT in the
+    current active set as 'superseded' — the underlying blocker disappeared, so it must not linger in
+    Today. Only touches KAI-derived open rows (never an owner's approved/rejected decision). Returns
+    the count resolved. Never raises. An empty active set resolves ALL open rows (nothing is active)."""
+    try:
+        db = SessionLocal()
+        try:
+            _ensure(db)
+            keys = [k for k in (active_source_keys or []) if k]
+            if keys:
+                res = db.execute(text("""
+                    UPDATE holding_proposals SET status='superseded', decided_at=now(), decided_by=:by
+                     WHERE status='proposed' AND source_key <> ALL(:keys)
+                 RETURNING id"""), {"by": by, "keys": keys}).fetchall()
+            else:
+                res = db.execute(text("""
+                    UPDATE holding_proposals SET status='superseded', decided_at=now(), decided_by=:by
+                     WHERE status='proposed' RETURNING id"""), {"by": by}).fetchall()
+            db.commit()
+            return len(res)
+        finally:
+            db.close()
+    except Exception:
+        return 0
+
+
 def get(proposal_id: int) -> Optional[dict]:
     """One proposal by id (with its action + status). None if not found / DB down. Never raises."""
     try:
