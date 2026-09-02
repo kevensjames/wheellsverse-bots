@@ -72,6 +72,8 @@ dict values under secret-named keys — while **not** redacting legitimate git S
 | REPO_INSPECT | 4 | symlink bypass (HIGH), substring misrouting, FS-root error leak, redaction gaps |
 | LOG + TEST | 1 | JSON-credential redaction gap (HIGH); RUN_INTERNAL_TEST clean |
 | A2 framework | 4 | **worker-diff trust boundary (HIGH)**, kill-switch surface gap (HIGH), RBAC gap, env casing |
+| DEPLOYMENT_STATUS | 2 | cross-company service binding, short-vs-full SHA false-stale |
+| SelfImprovementEngine | 11 | **empty-diff authority bypass (HIGH)**, authority-list omits self_improvement/coding (HIGH), dep-denial gaps (HIGH), worker test-trust, test-cheating scope, review-package honesty, binary/line limits |
 
 Pattern that held across all three: the deepest issues were *trust-boundary* — a gate reading the
 output it was meant to police (redaction of provider evidence; the A2 authority gate reading the worker's
