@@ -66,6 +66,11 @@ supabase==2.31.0
 # ActionProposal (§80). Pure-Python, no heavy deps. Pinned to the cert-venv-tested version.
 yt-dlp==2026.8.19
 
+# BROWSER_VALIDATE (Part B) — staging-only A1 validation runtime, pinned. The pip package alone is not
+# enough: Dockerfile.staging must also run `python -m playwright install --with-deps chromium` to fetch
+# the browser binary. Governed via holding.browser_validate (read-only suites only; no arbitrary JS).
+playwright==1.55.0
+
 # dev / test
 pytest==8.3.3
 pytest-asyncio==0.24.0

@@ -155,11 +155,51 @@ class LocalDeploymentProvider:
                 "sha_comparison": comparison}
 
 
-def make_deployment_provider(*, providers: dict | None = None, sources: dict | None = None, entities=None):
+class RailwayDeploymentReadAdapter:
+    """READ-ONLY Railway deployment-facts adapter (Part D §18-21). It exposes deployment TRUTH and has
+    NO mutation method — deploy/redeploy/restart/rollback/scale/variable/domain simply do not exist here
+    (§20). The Railway API is reached ONLY through an injected read-only client `api(service_id,
+    environment) -> dict`; task input never supplies a Railway project/service selector, CLI args, or a
+    shell command (§18). With no client wired → RUNTIME_PENDING (needs the operator's Railway API token).
+    Environment variable VALUES are never fetched or returned (§21)."""
+    name = "RAILWAY"
+
+    def __init__(self, api=None):
+        self._api = api          # api(service_id, environment) -> {deployment_id, status, sha, created_at, ...}
+
+    def health(self, src: dict) -> dict:
+        return {"state": "READY"} if self._api is not None else {"state": "UNAVAILABLE",
+                                                                 "reason": "no Railway read client wired"}
+
+    def read(self, ident: "DeploymentIdentity", src: dict, source_root: str) -> dict:
+        raw = self._api(ident.service_id, ident.environment) or {}
+        deployed = str(raw.get("sha") or raw.get("deployed_sha") or "")
+        # compare vs source ONLY when both are real commits in the local repo (else UNCOMPARABLE)
+        comparison = compare_shas(source_root, "", deployed) if not source_root else UNCOMPARABLE
+        if source_root and deployed:
+            try:
+                from app.services.holding.repo_inspect import LocalGitProvider
+                src_sha = LocalGitProvider(source_root).repository_status().get("commit_sha", "")
+                comparison = compare_shas(source_root, src_sha, deployed)
+            except Exception:
+                comparison = UNCOMPARABLE
+        # §21 whitelist — never env var values / tokens / raw provider blob
+        return {"deployment_id": raw.get("deployment_id", "UNAVAILABLE"),
+                "deployment_status": raw.get("status", "UNAVAILABLE"),
+                "deployed_sha": deployed or "UNAVAILABLE",
+                "created_at": raw.get("created_at", "UNAVAILABLE"),
+                "completed_at": raw.get("completed_at", "UNAVAILABLE"),
+                "health": raw.get("health", "UNAVAILABLE"), "sha_comparison": comparison}
+
+
+def make_deployment_provider(*, providers: dict | None = None, sources: dict | None = None, entities=None,
+                             railway_api=None):
     """Return provider(args) -> redacted evidence for the composite executor. Fails closed for unknown
     company/service, unconfigured/uncertified provider, unknown/mutation operation. Never returns env
     vars/secrets (§6/§9)."""
-    impls = {"LOCAL": LocalDeploymentProvider(), **(providers or {})}
+    impls = {"LOCAL": LocalDeploymentProvider(),
+             "RAILWAY": RailwayDeploymentReadAdapter(api=railway_api),  # None → RUNTIME_PENDING (needs token)
+             **(providers or {})}
 
     def provider(args: dict) -> dict:
         args = args or {}

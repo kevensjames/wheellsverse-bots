@@ -164,3 +164,29 @@ def holding_status():
     """Operational status: worker liveness, cron, Telegram presence (never the token), autonomy roll-up."""
     from app.services.holding import status as stat
     return stat.full_status()
+
+
+@router.get("/view")
+def holding_view():
+    """The /admin/holding UI view-model (Part E): TODAY FOR YOU first, KAI-work buckets, self-improvement
+    ready-for-review, company cards, the Operational Self Model (never sentient), and autonomy state.
+    Read-only + owner-gated; assembled live from the certified twin + self-model + owner queue. KAI-work
+    and self-improvement lists populate once the persistent cycle runs live (empty until then)."""
+    from app.services.holding.digital_twin import HoldingDigitalTwin
+    from app.services.holding.self_model import OperationalSelfModel
+    from app.services.holding.holding_view import build_holding_view
+    from app.services.holding import proposals_store
+    try:
+        twin = HoldingDigitalTwin().snapshot()
+    except Exception:
+        twin = {}
+    try:
+        sm = OperationalSelfModel(environment="production").snapshot()
+    except Exception:
+        sm = {}
+    try:
+        owner_actions = proposals_store.list_proposals(status="proposed")
+    except Exception:
+        owner_actions = []
+    return build_holding_view(twin_snapshot=twin, self_model=sm, owner_actions=owner_actions,
+                              cycle_record=None, kai_work=[], self_improvements=[])

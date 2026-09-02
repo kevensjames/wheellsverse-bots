@@ -133,6 +133,34 @@ def t_resolve_provider_unavailable_when_unconfigured():
     assert ident.provider == "UNAVAILABLE"
 
 
+def t_railway_adapter_runtime_pending_without_client():
+    """Part D: RAILWAY provider with no read client wired → RUNTIME_PENDING (fail closed)."""
+    from app.services.holding.deployment_status import make_deployment_provider
+    sources = {"appb": {"provider": "RAILWAY", "company_id": "kai", "environment": "production"}}
+    prov = make_deployment_provider(sources=sources, entities=_ents(), railway_api=None)
+    try:
+        prov({"company_id": "kai", "service_id": "appb"}); assert False
+    except DeployDenied:
+        pass
+
+
+def t_railway_adapter_read_only_with_client():
+    """Part D: with an injected READ client → real whitelisted evidence, no secrets, no mutation method."""
+    from app.services.holding.deployment_status import make_deployment_provider, RailwayDeploymentReadAdapter
+    def fake_api(service_id, environment):
+        return {"deployment_id": "dep_abc", "status": "SUCCESS", "sha": _HEAD, "created_at": "2026-09-02",
+                "RAILWAY_TOKEN": "sk-should-not-leak", "env": {"DATABASE_URL": "postgres://u:p@h"}}
+    sources = {"appb": {"provider": "RAILWAY", "company_id": "kai", "environment": "production",
+                        "local_root": _ROOT}}
+    prov = make_deployment_provider(sources=sources, entities=_ents(), railway_api=fake_api)
+    ev = prov({"company_id": "kai", "service_id": "appb"})
+    assert ev["provider"] == "RAILWAY" and ev["deployment_status"] == "SUCCESS" and ev["deployed_sha"] == _HEAD
+    assert "RAILWAY_TOKEN" not in ev and "DATABASE_URL" not in str(ev) and "sk-should-not-leak" not in str(ev)
+    # no mutation method exists on the adapter (§20)
+    for banned in ("deploy", "redeploy", "restart", "rollback", "scale", "set_variable", "delete"):
+        assert not hasattr(RailwayDeploymentReadAdapter, banned), banned
+
+
 def run():
     for _n, _f in list(globals().items()):
         if _n.startswith("t_"):
