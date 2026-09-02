@@ -23,30 +23,40 @@ class _DisabledResult:
 
 
 def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | None = None,
-                      company_autonomy: dict | None = None) -> HoldingAutonomousWorkEngine:
-    """Construct the engine the persistent cron uses, wiring BOTH emergency brakes from config so the
+                      a2_on: bool | None = None, company_autonomy: dict | None = None,
+                      a2_framework=None) -> HoldingAutonomousWorkEngine:
+    """Construct the engine the persistent cron uses, wiring the emergency brakes from config so the
     operator can stop activity without a code rollback:
       • KAI_CAPABILITY_EXECUTION_ENABLED (brake #1) OFF → the executor returns CAPABILITY_UNAVAILABLE
         for everything (no capability runs, even certified reads).
       • HOLDING_AUTONOMY_ENABLED (brake #2) OFF → global_autonomy False → the engine executes 0
         (observation/reconciliation still runs). Independent of brake #1.
+      • KAI_A2_EXECUTION_ENABLED (brake #3) OFF → the A2 prepare-only framework is NOT wired → every A2
+        task stays NEEDS_CERTIFICATION (no isolated-worktree write). A2 is wired ONLY when a framework is
+        INJECTED here AND brake #1 AND brake #3 are on (autonomy is the step-1 kill switch). Production
+        injects no framework, so A2 never runs there regardless of the flag — prepare-only, never merge.
     Overrides are for tests; production reads app.config.settings."""
-    if autonomy_on is None or execution_on is None:
+    if autonomy_on is None or execution_on is None or a2_on is None:
         try:
             from app.config import settings
             autonomy_on = bool(getattr(settings, "HOLDING_AUTONOMY_ENABLED", False)) if autonomy_on is None else autonomy_on
             execution_on = bool(getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False)) if execution_on is None else execution_on
+            a2_on = bool(getattr(settings, "KAI_A2_EXECUTION_ENABLED", False)) if a2_on is None else a2_on
         except Exception:
-            # config unavailable → fail CLOSED (both brakes engaged) — never assume-on for a brake
+            # config unavailable → fail CLOSED (every brake engaged) — never assume-on for a brake
             autonomy_on = False if autonomy_on is None else autonomy_on
             execution_on = False if execution_on is None else execution_on
+            a2_on = False if a2_on is None else a2_on
     from app.services.holding.task_resolver import (TaskCapabilityResolver, make_engine_resolver,
                                                     build_holding_executor)
     if execution_on:
         execute = build_holding_executor()
     else:
         execute = lambda cap, op, inp, *, mission_id="": _DisabledResult("capability execution disabled (brake #1)")
+    # brake #3: A2 prepare-only wired only when a framework is injected AND brakes #1 and #3 are both on.
+    wired_a2 = a2_framework if (a2_framework is not None and execution_on and a2_on) else None
     return HoldingAutonomousWorkEngine(execute=execute, resolver=make_engine_resolver(TaskCapabilityResolver()),
+                                       a2_framework=wired_a2,
                                        global_autonomy=bool(autonomy_on), company_autonomy=company_autonomy or {})
 
 # §19 bounded per-source-volatility intervals (seconds) — 90-day planning is NOT every 15 min.

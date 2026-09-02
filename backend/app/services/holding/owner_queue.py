@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field, asdict
 
 from app.services.holding.plan import Assignee, AutonomyClass
-from app.services.holding.autonomous_work import OWNER_QUEUED
+from app.services.holding.autonomous_work import OWNER_QUEUED, A2_READY_FOR_REVIEW
 
 # §5 ranking ladder (lower = surfaced first).
 _PRIORITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
@@ -67,7 +67,10 @@ def prepare_owner_actions(reconciled_tasks: list, work_results: list, *, now: st
     Deduped by source_key. Rejects generic titles (§2). ``reconciled_tasks`` are ReconciledTask;
     ``work_results`` are WorkResult. A task is owner-bound if assigned OWNER / autonomy≥A3, or its
     work outcome was OWNER_QUEUED."""
-    owner_outcomes = {r.task_id for r in (work_results or []) if r.outcome == OWNER_QUEUED}
+    # OWNER_QUEUED (owner-required work) and A2_READY_FOR_REVIEW (a prepared A2 change awaiting the
+    # owner's review/merge — KAI never merges) both surface exactly one owner review item.
+    owner_outcomes = {r.task_id for r in (work_results or [])
+                      if r.outcome in (OWNER_QUEUED, A2_READY_FOR_REVIEW)}
     out: dict[str, OwnerAction] = {}
     for rt in reconciled_tasks or []:
         t = getattr(rt, "task", rt)
