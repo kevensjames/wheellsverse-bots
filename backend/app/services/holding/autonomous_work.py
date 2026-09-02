@@ -58,11 +58,15 @@ class WorkResult:
 
 
 def _verify(result) -> tuple[bool, bool]:
-    """§22 execution truth: (evidence_present, verified). Verified requires status OK AND real evidence."""
+    """§22 execution truth: (evidence_present, verified). Verified requires status OK, real evidence, AND a
+    TERMINAL execution. An execution that did not complete — e.g. a timed-out suite whose evidence carries
+    execution!='COMPLETED' (omitting the pass/fail result) — is never a verified completion, so it does not
+    mark the task COMPLETE, even though its honest execution marker is preserved for the auditor."""
     status = getattr(result, "status", None)
     evidence = getattr(result, "evidence", None)
     present = bool(evidence)
-    return present, (status == "OK" and present)
+    completed = not (isinstance(evidence, dict) and evidence.get("execution") not in (None, "COMPLETED"))
+    return present, (status == "OK" and present and completed)
 
 
 class HoldingAutonomousWorkEngine:

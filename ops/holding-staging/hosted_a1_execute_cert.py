@@ -102,6 +102,19 @@ fr = fex("holding.internal_test", "run_suite", {"suite_id": "cert_fail"}, missio
 ck("engine sees a FAILED test as OK+evidence (EXECUTED, not a capability failure)",
    fr.status == "OK" and bool(fr.evidence))
 
+print("STEP 2b — TIMEOUT IS NOT A VERIFIED COMPLETION (§22, adversarial F1): a suite that did not complete")
+# a suite TIMEOUT carries honest evidence but omits the pass/fail result -> the engine must NOT mark it
+# EXECUTED/COMPLETE/verified (a deployment-verify that never finished is not a green check).
+timeout_prov = lambda a: {"suite": a.get("suite_id"), "execution": "TIMEOUT", "test_result": "UNAVAILABLE",
+                          "exit_status": None, "duration_s": 1.0}
+teng = HoldingAutonomousWorkEngine(
+    execute=build_holding_executor(providers={"holding.internal_test": timeout_prov}),
+    resolver=make_engine_resolver(TaskCapabilityResolver()), global_autonomy=True)
+tr = teng.run_task(PlanTask(task_id="to", company_id="sol", goal="g", reason="r", source_key="to",
+     task_type="RUN_INTERNAL_TEST", autonomy=int(AutonomyClass.A1_INTERNAL_SAFE)))
+ck("a timed-out suite is NOT verified/COMPLETE (evidence-required-for-COMPLETE holds)",
+   tr.outcome != EXECUTED and tr.verified is False and tr.task_status != "COMPLETE", f"{tr.outcome}/{tr.verified}")
+
 print("STEP 3 — NO ARBITRARY SHELL (§19): only a server-owned suite_id ever reaches execution")
 rct = TaskCapabilityResolver().resolve(PlanTask(task_id="d", company_id="sol", goal="g", reason="r",
       source_key="d", task_type="RUN_INTERNAL_TEST", autonomy=int(AutonomyClass.A1_INTERNAL_SAFE)))
