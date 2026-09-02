@@ -46,6 +46,9 @@ def t_sha_comparison_real_ancestry():
     assert compare_shas(_ROOT, _HEAD, _OLD) == DEPLOYMENT_BEHIND    # source HEAD ahead of deployed OLD
     assert compare_shas(_ROOT, _HEAD, "0" * 40) == UNCOMPARABLE     # unknown commit, not guessed
     assert compare_shas(_ROOT, "", _HEAD) == UNCOMPARABLE
+    # injection defense: a non-hex / flag-like sha is never passed to git → UNCOMPARABLE
+    for bad in ("--all", "-n1", "HEAD; rm -rf /", "main", "$(whoami)"):
+        assert compare_shas(_ROOT, _HEAD, bad) == UNCOMPARABLE, bad
 
 
 def t_deployment_stale_discrimination():
@@ -55,7 +58,9 @@ def t_deployment_stale_discrimination():
 
 
 def t_match_when_current():
-    ev = _factory(_src(deployed_sha=_HEAD))({"company_id": "kai", "service_id": "kai"})
+    from app.services.holding.repo_inspect import LocalGitProvider
+    live_head = LocalGitProvider(_ROOT).repository_status()["commit_sha"]   # deployed == current source
+    ev = _factory(_src(deployed_sha=live_head))({"company_id": "kai", "service_id": "kai"})
     assert ev["sha_comparison"] == MATCH
 
 

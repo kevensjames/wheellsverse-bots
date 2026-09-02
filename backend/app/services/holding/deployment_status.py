@@ -12,11 +12,18 @@ var values / secrets are ever read or returned (§6/§9).
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from dataclasses import dataclass, asdict
 from enum import Enum
 
 from app.services.holding.task_resolver import redact
+
+_SHA_RE = re.compile(r"^[0-9a-fA-F]{7,64}$")   # a real git object id — rejects flags / injection / refs
+
+
+def _is_sha(s) -> bool:
+    return isinstance(s, str) and bool(_SHA_RE.match(s))
 
 
 class DeployOp(str, Enum):
@@ -86,21 +93,25 @@ def resolve_deployment(company_id: str, service_id: str = "", *, entities=None, 
 
 
 def _git_is_ancestor(root: str, maybe_ancestor: str, descendant: str) -> bool:
+    if not (_is_sha(maybe_ancestor) and _is_sha(descendant)):
+        return False
     out = subprocess.run(["git", "-C", root, "merge-base", "--is-ancestor", maybe_ancestor, descendant],
                          capture_output=True, text=True, timeout=15)
     return out.returncode == 0
 
 
 def _git_has_commit(root: str, sha: str) -> bool:
+    if not _is_sha(sha):                                     # reject flags / refs / injection
+        return False
     out = subprocess.run(["git", "-C", root, "cat-file", "-e", sha + "^{commit}"],
                          capture_output=True, text=True, timeout=15)
     return out.returncode == 0
 
 
 def compare_shas(root: str, source_sha: str, deployed_sha: str) -> str:
-    """§7: classify deployed vs source using REAL git ancestry. Unknown commit → UNCOMPARABLE."""
-    if not source_sha or not deployed_sha:
-        return UNCOMPARABLE
+    """§7: classify deployed vs source using REAL git ancestry. Unknown/non-SHA input → UNCOMPARABLE."""
+    if not _is_sha(source_sha) or not _is_sha(deployed_sha):
+        return UNCOMPARABLE                                 # non-hex (incl. a '-flag') is never compared
     if source_sha == deployed_sha:
         return MATCH
     try:
