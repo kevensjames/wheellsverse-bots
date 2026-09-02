@@ -94,7 +94,9 @@ def t_authority_immutable_owner_required():
               "app/services/holding/a2_framework.py", "billing/stripe.py",
               "app/services/holding/autonomous_work.py", "app/services/holding/plan.py",
               "app/rbac.py", "app/policy/roles.py", "app/routers/admin_users.py",
-              "app/dependencies/admin.py"):
+              "app/dependencies/admin.py",
+              "app/services/holding/self_improvement.py",   # recheck: engine's own gates
+              "app/services/capability/coding.py"):         # recheck: the no-self-approval gate
         fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff([f]))
         r = fw.prepare(_task())
         assert r.state == A2State.OWNER_REQUIRED.value, f
@@ -117,6 +119,22 @@ def t_unverifiable_diff_fails_closed():
     def boom(worktree, base_sha): raise RuntimeError("no worktree")
     fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=boom)
     assert fw.prepare(_task()).state == A2State.BLOCKED.value
+
+
+def t_empty_diff_blocks():
+    """Recheck HIGH: an EMPTY diff (committing worker / wrong base_sha) is never 'clean' → BLOCKED,
+    never READY_FOR_REVIEW with an authority-immutable-gate-clean review package."""
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff([]))
+    r = fw.prepare(_task())
+    assert r.state == A2State.BLOCKED.value and not r.ready_for_review
+
+
+def t_no_test_fn_never_trusts_worker():
+    """Recheck: a wired worker with NO independent test_fn → BLOCKED (worker test counts not trusted)."""
+    fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=None,
+                     diff_fn=_diff(["app/services/sol/storage.py"]))
+    r = fw.prepare(_task())
+    assert r.state == A2State.BLOCKED.value and not r.certified
 
 
 def t_no_self_approval():

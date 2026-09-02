@@ -38,12 +38,12 @@ def _worker(files_claim=None):
     return w
 
 
-def _engine(*, diff_files, tests_pass=True, reviewer="kai-independent-reviewer"):
+def _engine(*, diff_files, tests_pass=True, reviewer="kai-independent-reviewer", diff_lines=0):
     reg = A2GrantRegistry([self_improvement_grant_v1("kai")])
     tfn = (lambda wt: {"tests_run": 8, "tests_passed": 8, "tests_failed": 0}) if tests_pass \
         else (lambda wt: {"tests_run": 8, "tests_passed": 6, "tests_failed": 2})
     fw = A2Framework(reg, worker_fn=_worker(), test_fn=tfn, diff_fn=lambda w, s: list(diff_files),
-                     reviewer=reviewer)
+                     diff_lines_fn=lambda w, s: diff_lines, reviewer=reviewer)
     return SelfImprovementEngine(a2_framework=fw)
 
 
@@ -132,11 +132,48 @@ def t_diff_too_large_owner_required():
 
 
 def t_test_cheating_owner_required():
-    """§33: a CORRECTNESS fix that changes ONLY a test file (no source) → OWNER_REQUIRED (suspicious)."""
-    eng = _engine(diff_files=["app/services/holding/test_reports.py"])
-    c = eng.confirm(_cand(outcome="CORRECTNESS"), deployment_comparison=MATCH, test_before_fails=True)
+    """§33: a source-fix that changes ONLY a test file → OWNER_REQUIRED — for ANY source-fix outcome
+    (recheck: the heuristic was gated to CORRECTNESS/RELIABILITY only; now covers SECURITY/PERF/etc.)."""
+    for outcome in ("CORRECTNESS", "SECURITY", "PERFORMANCE", "RELIABILITY"):
+        eng = _engine(diff_files=["app/services/holding/test_reports.py"])
+        c = eng.confirm(_cand(outcome=outcome), deployment_comparison=MATCH, test_before_fails=True)
+        out = eng.prepare(c, _task())
+        assert out["status"] == ImprovementStatus.OWNER_REQUIRED.value \
+            and out["diagnosis"] == "POSSIBLE_TEST_CHEATING", outcome
+
+
+def t_binary_change_owner_required():
+    """Recheck: §25 MAX_BINARY_FILES=0 is now enforced — a binary file → OWNER_REQUIRED."""
+    for f in ("assets/logo.png", "models/en_US.onnx", "vendor/lib.so", "x.whl"):
+        eng = _engine(diff_files=["app/services/holding/reports.py", f])
+        c = eng.confirm(_cand(), deployment_comparison=MATCH, test_before_fails=True)
+        out = eng.prepare(c, _task())
+        assert out["status"] == ImprovementStatus.OWNER_REQUIRED.value and out["diagnosis"] == "BINARY_CHANGE", f
+
+
+def t_diff_lines_too_large_owner_required():
+    """Recheck: §25 now bounds total changed LINES, not just file count — an unbounded rewrite → OWNER."""
+    eng = _engine(diff_files=["app/services/holding/reports.py"], diff_lines=99999)
+    c = eng.confirm(_cand(), deployment_comparison=MATCH, test_before_fails=True)
     out = eng.prepare(c, _task())
-    assert out["status"] == ImprovementStatus.OWNER_REQUIRED.value and out["diagnosis"] == "POSSIBLE_TEST_CHEATING"
+    assert out["status"] == ImprovementStatus.OWNER_REQUIRED.value and out["diagnosis"] == "DIFF_TOO_LARGE"
+
+
+def t_setup_py_dependency_denied():
+    """Recheck: dependency denial now covers setup.py/setup.cfg/requirements dirs/constraints."""
+    for f in ("setup.py", "setup.cfg", "requirements/base.txt", "constraints.txt"):
+        eng = _engine(diff_files=["app/services/holding/reports.py", f])
+        c = eng.confirm(_cand(), deployment_comparison=MATCH, test_before_fails=True)
+        out = eng.prepare(c, _task())
+        assert out["status"] == ImprovementStatus.OWNER_REQUIRED.value and out["diagnosis"] == "DEPENDENCY_CHANGE", f
+
+
+def t_review_package_before_tests_honest():
+    """Recheck: owner_review_package must not hardcode 'FAIL (reproduced)' — it reflects the real fact."""
+    eng = _engine(diff_files=["app/services/holding/reports.py"])
+    c = eng.confirm(_cand(outcome="RELIABILITY"), deployment_comparison=MATCH, test_before_fails=True)
+    out = eng.prepare(c, _task())
+    assert out["review_package"]["tests_before"] == "FAIL (reproduced)" and c.test_before_reproduced
 
 
 def run():

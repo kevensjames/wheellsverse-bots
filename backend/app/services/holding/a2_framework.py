@@ -50,14 +50,15 @@ class A2State(str, Enum):
 # live in the holding autonomy engine and RBAC/approval-gate files, so those are covered explicitly.)
 _AUTHORITY_IMMUTABLE = (
     "config.py", "app/config",
-    # capability governance (the whole governance surface is authority)
+    # capability governance (the whole governance surface is authority) — incl. the no-self-approval gate
     "services/capability/risk", "services/capability/security", "services/capability/manifest",
     "services/capability/execution", "services/capability/invocation", "services/capability/lifecycle",
-    "services/capability/governance", "governed_invoke",
-    # the holding AUTONOMY engine + its kill switches / owner-queue routing / grant registry
+    "services/capability/governance", "services/capability/coding", "governed_invoke",
+    "certify_worker_result",
+    # the holding AUTONOMY engine + its kill switches / owner-queue routing / grant registry / self-improve
     "services/holding/autonomous_work", "services/holding/plan", "services/holding/task_resolver",
     "services/holding/owner_queue", "services/holding/state_reconciler", "services/holding/a2_framework",
-    "services/holding/digital_twin", "kill_switch", "kill-switch",
+    "services/holding/self_improvement", "services/holding/digital_twin", "kill_switch", "kill-switch",
     # auth / RBAC / approval gates
     "kai_bridge", "auth", "session", "require_kai_ultra", "require_admin", "resolve_principal",
     "rbac", "role", "policy", "permission", "dependencies/admin", "routers/admin_users", "api_key",
@@ -122,6 +123,7 @@ class A2Prepared:
     certified: bool = False
     reviewer: str = ""
     evidence: dict = field(default_factory=dict)
+    total_diff_lines: int = 0
     ready_for_review: bool = False
     merged: bool = False            # ALWAYS False — A2 never merges (invariant, asserted by tests)
     deployed: bool = False          # ALWAYS False — A2 never deploys
@@ -132,7 +134,7 @@ class A2Prepared:
 
 class A2Framework:
     def __init__(self, registry: A2GrantRegistry, *, worktree_fn=None, worker_fn=None,
-                 test_fn=None, diff_fn=None, reviewer: str = "kai-independent-reviewer"):
+                 test_fn=None, diff_fn=None, diff_lines_fn=None, reviewer: str = "kai-independent-reviewer"):
         self._reg = registry
         # worktree_fn(mission_id, base_sha, base_dir) -> WorktreeAssignment (default: path-only, no FS op)
         self._worktree = worktree_fn or self._default_worktree
@@ -143,6 +145,8 @@ class A2Framework:
         # diff_fn(worktree, base_sha) -> [changed files] — the AUTHORITATIVE diff from the worktree, used
         # for the §40 authority gate instead of the untrusted worker self-report. Default: real git diff.
         self._diff = diff_fn or self._default_diff
+        # diff_lines_fn(worktree, base_sha) -> int total changed lines (default: git numstat); 0 = unknown
+        self._diff_lines = diff_lines_fn or self._default_diff_lines
         self._reviewer = reviewer
 
     @staticmethod
@@ -152,13 +156,35 @@ class A2Framework:
 
     @staticmethod
     def _default_diff(worktree, base_sha):
-        # authoritative read-only diff of the worktree; raises if unavailable (→ fail closed)
+        # AUTHORITATIVE read-only diff since base_sha, capturing BOTH committed and uncommitted changes
+        # (a committing worker leaves a clean working tree, so base..HEAD must be unioned with base..WT).
+        # base_sha is REQUIRED — without it committed changes are invisible → fail closed (recheck HIGH).
         import subprocess
-        args = ["git", "-C", worktree, "diff", "--name-only"] + ([base_sha] if base_sha else [])
-        out = subprocess.run(args, capture_output=True, text=True, timeout=15)
-        if out.returncode != 0:
-            raise RuntimeError("worktree diff unavailable")
-        return [ln.strip() for ln in out.stdout.splitlines() if ln.strip()]
+        if not base_sha:
+            raise RuntimeError("base_sha required to verify the worktree diff")
+        files = set()
+        for extra in (["HEAD"], []):     # base..HEAD (committed) ∪ base..working-tree (uncommitted)
+            out = subprocess.run(["git", "-C", worktree, "diff", "--name-only", base_sha, *extra],
+                                 capture_output=True, text=True, timeout=15)
+            if out.returncode != 0:
+                raise RuntimeError("worktree diff unavailable")
+            files.update(ln.strip() for ln in out.stdout.splitlines() if ln.strip())
+        return sorted(files)
+
+    @staticmethod
+    def _default_diff_lines(worktree, base_sha):
+        import subprocess
+        if not base_sha:
+            return 0
+        out = subprocess.run(["git", "-C", worktree, "diff", "--numstat", base_sha, "HEAD"],
+                             capture_output=True, text=True, timeout=15)
+        total = 0
+        for ln in out.stdout.splitlines():
+            parts = ln.split("\t")
+            for n in parts[:2]:
+                if n.isdigit():
+                    total += int(n)
+        return total
 
     def prepare(self, task) -> A2Prepared:
         """Run the A2 flow (§39) to a PREPARED result, or a fail-closed non-ready state. Never merges."""
@@ -196,17 +222,27 @@ class A2Framework:
         #    itself (never the untrusted worker's self-report), then gate. No verifiable diff → fail closed.
         try:
             files = list(self._diff(wt.worktree, getattr(task, "base_sha", "")))
+            diff_lines = int(self._diff_lines(wt.worktree, getattr(task, "base_sha", "")) or 0)
         except Exception as e:
             return result(A2State.BLOCKED, branch=wt.branch, worktree=wt.worktree,
                           reason=f"cannot verify worktree diff (fail closed): {str(e)[:80]}")
+        # an EMPTY verifiable diff is never "clean" — it means a no-op or a wrong base_sha (recheck HIGH):
+        # fail closed rather than staging a change with no reviewable evidence.
+        if not files:
+            return result(A2State.BLOCKED, branch=wt.branch, worktree=wt.worktree,
+                          reason="empty/unverifiable diff (no-op or wrong base_sha) — not ready")
         auth_hits = touches_authority(files)
         if auth_hits:
             return result(A2State.OWNER_REQUIRED, branch=wt.branch, worktree=wt.worktree,
-                          files_changed=files,
+                          files_changed=files, total_diff_lines=diff_lines,
                           reason=f"diff touches authority-immutable surface(s): {auth_hits[:5]}")
-        # 7. run tests IN the worktree (§39 RUN_INTERNAL_TEST again)
-        t = self._test(wt) if self._test else {"tests_run": wr.tests_run, "tests_passed": wr.tests_passed,
-                                               "tests_failed": wr.tests_failed}
+        # 7. run tests IN the worktree (§39). Test evidence is NEVER taken from the worker's self-report
+        #    (recheck): a wired worker REQUIRES an independent test_fn, else fail closed.
+        if self._test is None:
+            return result(A2State.BLOCKED, branch=wt.branch, worktree=wt.worktree, files_changed=files,
+                          total_diff_lines=diff_lines,
+                          reason="no independent test verification wired — worker test counts are not trusted")
+        t = self._test(wt)
         wr.tests_run, wr.tests_passed, wr.tests_failed = t["tests_run"], t["tests_passed"], t["tests_failed"]
         # 8. INDEPENDENT review — certify_worker_result refuses self-certification (§40 no self-approval)
         try:
@@ -216,10 +252,12 @@ class A2Framework:
                           reason=str(e))
         if not wr.certified:
             return result(A2State.BLOCKED, branch=wt.branch, worktree=wt.worktree, files_changed=files,
+                          total_diff_lines=diff_lines,
                           tests_run=wr.tests_run, tests_passed=wr.tests_passed, tests_failed=wr.tests_failed,
                           reviewed=wr.reviewed, reason="tests failed or no tests — not ready for review")
         # 9. PREPARED — ready for the OWNER to review/merge (A2 never merges/deploys §41)
         return result(A2State.READY_FOR_REVIEW, branch=wt.branch, worktree=wt.worktree, files_changed=files,
+                      total_diff_lines=diff_lines,
                       tests_run=wr.tests_run, tests_passed=wr.tests_passed, tests_failed=wr.tests_failed,
                       reviewed=True, certified=True, reviewer=self._reviewer, ready_for_review=True,
                       evidence={"diff_summary": wr.diff_summary, "starting_sha": wr.starting_sha,

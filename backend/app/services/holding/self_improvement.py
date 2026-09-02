@@ -37,19 +37,34 @@ DIAG_SOURCE_DEFECT = "SOURCE_DEFECT"; DIAG_DEPLOYMENT_STALE = "DEPLOYMENT_STALE"
 DIAG_CONFIG = "CONFIG"; DIAG_INSUFFICIENT = "INSUFFICIENT"
 
 # §25 diff limits (conservative, versioned) — exceeded → OWNER_REQUIRED.
-DIFF_POLICY_VERSION = "1.0.0"
+DIFF_POLICY_VERSION = "1.1.0"
 MAX_FILES_CHANGED = 10
+MAX_TOTAL_DIFF_LINES = 400
 MAX_BINARY_FILES = 0
+
+# outcomes whose fix should change SOURCE — a change touching ONLY test files is then suspicious (§33).
+# (TEST_COVERAGE legitimately touches only tests; DOCUMENTATION_ACCURACY only docs — excluded.)
+_SOURCE_FIX_OUTCOMES = frozenset({"CORRECTNESS", "RELIABILITY", "SECURITY", "PERFORMANCE",
+                                  "COST", "OBSERVABILITY", "MAINTAINABILITY", "OPERATOR_EFFICIENCY"})
 
 # §26 dependency/build files an A2 self-improvement change must NOT touch autonomously → OWNER_REQUIRED.
 _DEPENDENCY_FILES = re.compile(
-    r"(requirements[^/]*\.txt|pyproject\.toml|poetry\.lock|package(-lock)?\.json|yarn\.lock|"
-    r"pnpm-lock\.yaml|dockerfile|\.dockerfile|docker-compose|\.github/workflows/|pipfile|"
-    r"go\.mod|go\.sum|cargo\.(toml|lock)|gemfile)", re.I)
+    r"(requirements[^/]*\.txt|requirements/|constraints[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|"
+    r"poetry\.lock|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|dockerfile|\.dockerfile|"
+    r"docker-compose|\.github/workflows/|pipfile|go\.mod|go\.sum|cargo\.(toml|lock)|gemfile)", re.I)
+
+# §25 MAX_BINARY_FILES=0 — deny binary-looking files in an autonomous source fix (extension heuristic).
+_BINARY_EXT = re.compile(
+    r"\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tar|7z|so|dylib|dll|exe|bin|wasm|whl|jar|class|pyc|"
+    r"woff2?|ttf|mp4|mov|mp3|onnx|pt|pth|model|db|sqlite)$", re.I)
 
 
 def is_dependency_file(path: str) -> bool:
     return bool(path) and bool(_DEPENDENCY_FILES.search(str(path).lower()))
+
+
+def is_binary_file(path: str) -> bool:
+    return bool(path) and bool(_BINARY_EXT.search(str(path)))
 
 
 @dataclass
@@ -70,6 +85,7 @@ class SelfImprovementCandidate:
     created_at: str = ""
     status: str = ImprovementStatus.DETECTED.value
     diagnosis: str = ""
+    test_before_reproduced: bool = False   # a real reproducing before-test was observed (§30/§36)
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -102,6 +118,7 @@ class SelfImprovementEngine:
             cand.status = ImprovementStatus.OWNER_REQUIRED.value; cand.diagnosis = DIAG_CONFIG; return cand
         if not test_before_fails:                           # §20/§30/§40 need a reproducing test
             cand.status = ImprovementStatus.BLOCKED_EVIDENCE.value; cand.diagnosis = DIAG_INSUFFICIENT; return cand
+        cand.test_before_reproduced = True                  # recorded, so the review package can't fabricate it
         cand.status = ImprovementStatus.CONFIRMED.value; cand.diagnosis = DIAG_SOURCE_DEFECT; return cand
 
     # ── §27-36 prepare via the A2 framework, then apply grant-specific diff limits ────────────────
@@ -125,15 +142,26 @@ class SelfImprovementEngine:
             cand.status = ImprovementStatus.OWNER_REQUIRED.value
             return {"status": cand.status, "diagnosis": "DEPENDENCY_CHANGE", "prepared": prep.as_dict(),
                     "reason": f"dependency/build files require owner review: {deps[:5]}"}
-        # §25 diff bounds
+        # §25 MAX_BINARY_FILES=0 — a binary file in an autonomous source fix → OWNER_REQUIRED
+        binaries = [f for f in files if is_binary_file(f)]
+        if binaries:
+            cand.status = ImprovementStatus.OWNER_REQUIRED.value
+            return {"status": cand.status, "diagnosis": "BINARY_CHANGE", "prepared": prep.as_dict(),
+                    "reason": f"binary files require owner review: {binaries[:5]}"}
+        # §25 diff bounds — file count AND total changed lines
         if len(files) > MAX_FILES_CHANGED:
             cand.status = ImprovementStatus.OWNER_REQUIRED.value
             return {"status": cand.status, "diagnosis": "DIFF_TOO_LARGE", "prepared": prep.as_dict(),
                     "reason": f"{len(files)} files > {MAX_FILES_CHANGED} (policy {DIFF_POLICY_VERSION})"}
-        # §33 test-cheating heuristic: a CORRECTNESS/RELIABILITY fix that changes ONLY test files (no
-        # source) is suspicious (the defect should be fixed in source) → OWNER_REQUIRED.
+        if int(getattr(prep, "total_diff_lines", 0) or 0) > MAX_TOTAL_DIFF_LINES:
+            cand.status = ImprovementStatus.OWNER_REQUIRED.value
+            return {"status": cand.status, "diagnosis": "DIFF_TOO_LARGE", "prepared": prep.as_dict(),
+                    "reason": f"{prep.total_diff_lines} lines > {MAX_TOTAL_DIFF_LINES} (policy {DIFF_POLICY_VERSION})"}
+        # §33 test-cheating heuristic: a SOURCE-fix outcome whose change touches ONLY test files (no
+        # source) is suspicious → OWNER_REQUIRED. (Content-level assertion-weakening/test-deletion is
+        # the independent reviewer's responsibility §32; this filename net is the coarse backstop.)
         non_test = [f for f in files if "test" not in str(f).lower()]
-        if cand.desired_outcome in ("CORRECTNESS", "RELIABILITY") and files and not non_test:
+        if cand.desired_outcome in _SOURCE_FIX_OUTCOMES and files and not non_test:
             cand.status = ImprovementStatus.OWNER_REQUIRED.value
             return {"status": cand.status, "diagnosis": "POSSIBLE_TEST_CHEATING", "prepared": prep.as_dict(),
                     "reason": "change touches only test files for a source-defect fix"}
@@ -146,7 +174,8 @@ class SelfImprovementEngine:
         return {
             "problem": cand.problem, "evidence": cand.evidence_refs, "root_cause": cand.diagnosis,
             "files_changed": prep.files_changed, "branch": prep.branch,
-            "tests_before": "FAIL (reproduced)", "tests_after": f"{prep.tests_passed} passed/{prep.tests_failed} failed",
+            "tests_before": ("FAIL (reproduced)" if cand.test_before_reproduced else "NOT REPRODUCED"),
+            "tests_after": f"{prep.tests_passed} passed/{prep.tests_failed} failed",
             "security_review": "independent reviewer certified; authority-immutable gate clean",
             "diff_summary": (prep.evidence or {}).get("diff_summary", ""),
             "expected_impact": cand.desired_outcome, "rollback": "discard the isolated worktree/branch",
