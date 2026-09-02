@@ -177,13 +177,13 @@ _MAPPINGS: dict[str, Mapping] = {
         CertState.CERTIFIED, ("suite", "test_result", "passed", "failed", "exit_status"),
         "INTERNAL_TEST_A1_ALLOWLISTED_SUITE"),
     HoldingTaskType.BROWSER_VALIDATE.value: Mapping(
-        "playwright", "validate", ActionClass.READ_ONLY, Channel.FABRIC,
-        CertState.RUNTIME_PENDING, ("target", "assertions", "screenshot_ref"),
-        "BROWSER_VALIDATE_ENABLE_AFTER_INTERNAL_TEST_CERT"),
+        "holding.browser_validate", "validate", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
+        CertState.RUNTIME_PENDING, ("suite_id", "target", "passed", "failed"),
+        "BROWSER_VALIDATE_POLICY_CERTIFIED_RUNTIME_PENDING"),
     HoldingTaskType.TECH_DOC_LOOKUP.value: Mapping(
-        "context7", "query_docs", ActionClass.READ_ONLY, Channel.FABRIC,
-        CertState.RUNTIME_PENDING, ("library", "doc_ref"),
-        "TECH_DOC_CONTEXT7_RUNTIME_PENDING"),
+        "holding.tech_doc", "query_docs", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
+        CertState.RUNTIME_PENDING, ("library", "results", "retrieved_at"),
+        "TECH_DOC_CONTEXT7_KAI_SERVER_RUNTIME_PENDING"),
 }
 
 
@@ -222,6 +222,11 @@ def _minimal_args(task_type: str, task) -> dict:
         return {"company_id": cid, "service_id": cid, "operation": "DEPLOYMENT_STATUS"}
     if task_type == HoldingTaskType.REPO_INSPECT.value:
         return {"company_id": cid, "operation": "REPOSITORY_STATUS"}   # safe metadata-only default (§3)
+    if task_type == HoldingTaskType.BROWSER_VALIDATE.value:
+        return {"validation_suite_id": "public_homepage_smoke", "company_id": cid, "environment": "staging",
+                "target_resource_id": ""}
+    if task_type == HoldingTaskType.TECH_DOC_LOOKUP.value:
+        return {"library": cid, "topic": "", "max_results": 3}
     if task_type == HoldingTaskType.LOG_INSPECT.value:
         return {"service": cid, "company_id": cid, "time_window": "1h", "severity": "ERROR", "bounded_limit": 200}
     if task_type == HoldingTaskType.RUN_INTERNAL_TEST.value:
@@ -302,12 +307,16 @@ def default_providers() -> dict:
     from app.services.holding.log_inspect import make_log_provider
     from app.services.holding.internal_test import make_internal_test_provider
     from app.services.holding.deployment_status import make_deployment_provider
+    from app.services.holding.browser_validate import make_browser_validate_provider
+    from app.services.holding.tech_doc_lookup import make_tech_doc_provider
     return {"holding.health": _default_health_provider,
             "holding.capability_health": _default_capability_health_provider,
             "holding.repo": make_repo_provider(),
             "holding.logs": make_log_provider(),
             "holding.internal_test": make_internal_test_provider(),
-            "holding.deployment": make_deployment_provider()}
+            "holding.deployment": make_deployment_provider(),
+            "holding.browser_validate": make_browser_validate_provider(),   # runner=None → fails closed
+            "holding.tech_doc": make_tech_doc_provider()}                   # client=None → fails closed
 
 
 _INVOKE_OK = "OK"
