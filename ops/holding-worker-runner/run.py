@@ -94,7 +94,7 @@ def _heartbeat_loop(job_id):
     return ev
 
 
-def process_one(gh, br) -> bool:
+def process_one(gh, br, co=None) -> bool:
     claim = _post("/admin/holding/worker-jobs/claim", {"worker_id": WORKER_ID})
     job = claim.get("job") if isinstance(claim, dict) else None
     if not job:
@@ -108,6 +108,14 @@ def process_one(gh, br) -> bool:
             result = gh.run_github_task(task)
         elif worker == "browser":
             result = br.run_browser_task(task)
+        elif worker == "coding":
+            # §30 runner-side re-check (defense-in-depth; the authoritative gate is deployed KAI at enqueue):
+            # a governed A2 coding job (prepare-only, real git worktree, never merges/deploys). A governed
+            # OWNER_REQUIRED/BLOCKED is a *completed* job — only a runtime error is a failure.
+            if not co or task.get("environment") != "staging":
+                result = {"status": "denied", "reason": "coding worker unavailable / not staging"}
+            else:
+                result = co.run_coding_task(task)
         else:
             result = {"status": "denied", "reason": f"unknown worker {worker}"}
         status = "succeeded" if result.get("status") == "completed" else "failed"
@@ -129,12 +137,17 @@ def main() -> int:
         signal.signal(sig, lambda *_: _STOP.set())
     gh = _load("ops/github-worker/submit.py", "gh_submit")
     br = _load("ops/browser-worker/submit.py", "br_submit")
-    print(f"[{WORKER_ID}] runner up · v{VERSION} · host={HOST_ID} · base={BASE} · oneshot={ONESHOT}", flush=True)
+    try:
+        co = _load("ops/coding-worker/submit.py", "co_submit")   # A2 coding worker (optional; needs backend deps)
+    except Exception as e:
+        co = None
+        print(f"[{WORKER_ID}] coding worker unavailable ({str(e)[:80]}) — coding jobs will be denied", flush=True)
+    print(f"[{WORKER_ID}] runner up · v{VERSION} · host={HOST_ID} · base={BASE} · oneshot={ONESHOT} · coding={'on' if co else 'off'}", flush=True)
     processed = 0
     while not _STOP.is_set():
         _post("/admin/holding/workers/heartbeat",                 # liveness (even when idle) for the UI
               {"worker_id": WORKER_ID, "host_id": HOST_ID, "version": VERSION, "runtime": "colima/docker"}, retries=1)
-        did = process_one(gh, br)
+        did = process_one(gh, br, co)
         if did:
             processed += 1
             continue                                # drain the queue back-to-back

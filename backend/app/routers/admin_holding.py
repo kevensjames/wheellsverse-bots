@@ -217,6 +217,30 @@ def holding_self_cert(principal=Depends(require_kai_ultra)):
     return out
 
 
+@router.post("/a2-dispatch")
+def holding_a2_dispatch(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
+    """Deployed KAI ENQUEUES ONE governed A2 coding job onto the existing worker plane (worker_jobs) — the
+    §37 hosted-A2 origin. Owner-only, staging-only (else 404), and the enqueue itself refuses unless all
+    three brakes + the grant + a base_sha allow it (a2_dispatch.enqueue_a2_coding_job). KAI never runs git;
+    the colima worker-runner claims the job and runs the whole governed prepare(). Body carries only a
+    non-authoritative mission_id/goal; base_sha is the deployed SHA (server-derived)."""
+    import os
+    from app.config import settings
+    from app.services.holding.a2_dispatch import enqueue_a2_coding_job
+    if str(getattr(settings, "APP_ENV", "")).lower() != "staging":
+        raise HTTPException(status_code=404, detail="not found")
+    mission_id = str(body.get("mission_id") or "a2-hosted-cert")[:64]
+    base_sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or ""
+    r = enqueue_a2_coding_job(mission_id=mission_id, base_sha=base_sha, settings=settings,
+                             company_id="wheellsverse", suite_id="holding_self_model",
+                             goal=str(body.get("goal") or "prepare a bounded fix")[:200])
+    _audit_proposal("holding.a2_job_created", {"principal": getattr(principal, "id", "owner"),
+                    "mission_id": mission_id, "enqueued": r.get("enqueued"), "reason": r.get("reason"),
+                    "job_id": (r.get("job") or {}).get("id")})
+    return {"enqueued": r.get("enqueued"), "reason": r.get("reason"),
+            "job_id": (r.get("job") or {}).get("id"), "base_sha_present": bool(base_sha)}
+
+
 @router.post("/run-cycle")
 def holding_run_cycle(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
     """Run EXACTLY ONE existing Holding cycle (owner-only, staging-cert/diagnostics). Reuses
