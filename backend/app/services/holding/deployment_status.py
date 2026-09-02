@@ -68,13 +68,14 @@ class DeploymentIdentity:
 _DEPLOYMENT_SOURCES: dict[str, dict] = {}
 
 
-def register_deployment_source(service_id: str, *, provider: str, deployed_sha: str = "",
+def register_deployment_source(service_id: str, *, provider: str, company_id: str, deployed_sha: str = "",
                                deployment_id: str = "", status: str = "", environment: str = "production",
                                local_root: str = "") -> None:
-    """Ops/config registers a service's authoritative deployment source (read-only facts only)."""
-    _DEPLOYMENT_SOURCES[service_id] = {"provider": provider, "deployed_sha": deployed_sha,
-                                       "deployment_id": deployment_id, "status": status,
-                                       "environment": environment, "local_root": local_root}
+    """Ops/config registers a service's authoritative deployment source (read-only facts only). The
+    service is BOUND to a company (§Part-A isolation) — a read for a different company is denied."""
+    _DEPLOYMENT_SOURCES[service_id] = {"provider": provider, "company_id": company_id,
+                                       "deployed_sha": deployed_sha, "deployment_id": deployment_id,
+                                       "status": status, "environment": environment, "local_root": local_root}
 
 
 def resolve_deployment(company_id: str, service_id: str = "", *, entities=None, sources: dict | None = None):
@@ -100,24 +101,29 @@ def _git_is_ancestor(root: str, maybe_ancestor: str, descendant: str) -> bool:
     return out.returncode == 0
 
 
-def _git_has_commit(root: str, sha: str) -> bool:
+def _git_resolve(root: str, sha: str):
+    """Canonical full commit id for a sha (short or full), or None if unknown. Resolving first means a
+    short vs full form of the SAME commit compares equal (recheck: short-sha false-stale bug)."""
     if not _is_sha(sha):                                     # reject flags / refs / injection
-        return False
-    out = subprocess.run(["git", "-C", root, "cat-file", "-e", sha + "^{commit}"],
+        return None
+    out = subprocess.run(["git", "-C", root, "rev-parse", "--verify", "--quiet", sha + "^{commit}"],
                          capture_output=True, text=True, timeout=15)
-    return out.returncode == 0
+    return out.stdout.strip() if out.returncode == 0 and out.stdout.strip() else None
 
 
 def compare_shas(root: str, source_sha: str, deployed_sha: str) -> str:
-    """§7: classify deployed vs source using REAL git ancestry. Unknown/non-SHA input → UNCOMPARABLE."""
+    """§7: classify deployed vs source using REAL git ancestry. Unknown/non-SHA input → UNCOMPARABLE.
+    Both SHAs are canonicalized first, so a short vs full form of the same commit is MATCH."""
     if not _is_sha(source_sha) or not _is_sha(deployed_sha):
         return UNCOMPARABLE                                 # non-hex (incl. a '-flag') is never compared
-    if source_sha == deployed_sha:
-        return MATCH
     try:
-        if not (_git_has_commit(root, source_sha) and _git_has_commit(root, deployed_sha)):
-            return UNCOMPARABLE
-        if _git_is_ancestor(root, deployed_sha, source_sha):
+        src_full = _git_resolve(root, source_sha)
+        dep_full = _git_resolve(root, deployed_sha)
+        if src_full is None or dep_full is None:
+            return UNCOMPARABLE                             # unknown commit — never guessed
+        if src_full == dep_full:
+            return MATCH                                    # same commit (short or full form)
+        if _git_is_ancestor(root, dep_full, src_full):
             return DEPLOYMENT_BEHIND          # deployed is an ancestor of source → source has newer commits
         return DEPLOYMENT_AHEAD_OR_UNKNOWN
     except Exception:
@@ -164,6 +170,9 @@ def make_deployment_provider(*, providers: dict | None = None, sources: dict | N
         src = (sources if sources is not None else _DEPLOYMENT_SOURCES).get(ident.service_id)
         if src is None:
             raise DeployDenied(f"no configured deployment source for '{ident.service_id}'")
+        # §Part-A isolation: the service must be bound to THIS company (never read A's service under B)
+        if src.get("company_id") != ident.company_id:
+            raise DeployDenied("service does not belong to this company")
         impl = impls.get(ident.provider)
         if impl is None:
             raise DeployDenied(f"no certified read adapter for provider '{ident.provider}'")   # never substitute

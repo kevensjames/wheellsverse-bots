@@ -34,8 +34,8 @@ def _factory(sources):
 
 
 def _src(**kw):
-    base = {"provider": "LOCAL", "deployed_sha": _HEAD, "deployment_id": "d1", "status": "SUCCESS",
-            "environment": "production", "local_root": _ROOT}
+    base = {"provider": "LOCAL", "company_id": "kai", "deployed_sha": _HEAD, "deployment_id": "d1",
+            "status": "SUCCESS", "environment": "production", "local_root": _ROOT}
     base.update(kw)
     return {"kai": base}
 
@@ -70,11 +70,30 @@ def t_evidence_whitelist_no_secrets():
     for k in ("provider", "service_id", "deployed_sha", "sha_comparison", "deployment_status"):
         assert k in ev, k
     # a source that (hypothetically) carried secrets must not surface them
-    ev2 = _factory({"kai": {"provider": "LOCAL", "deployed_sha": _HEAD, "local_root": _ROOT,
-                            "environment": "production", "status": "SUCCESS",
+    ev2 = _factory({"kai": {"provider": "LOCAL", "company_id": "kai", "deployed_sha": _HEAD,
+                            "local_root": _ROOT, "environment": "production", "status": "SUCCESS",
                             "AIKIDO_TOKEN": "sk-secret", "DATABASE_URL": "postgres://u:p@h"}})(
         {"company_id": "kai", "service_id": "kai"})
     assert "AIKIDO_TOKEN" not in ev2 and "DATABASE_URL" not in ev2 and "sk-secret" not in str(ev2)
+
+
+def t_short_sha_matches_full():
+    """Recheck finding: a short deployed SHA of the SAME commit as source → MATCH, not false-BEHIND."""
+    from app.services.holding.repo_inspect import LocalGitProvider
+    full = LocalGitProvider(_ROOT).repository_status()["commit_sha"]
+    ev = _factory(_src(deployed_sha=full[:7]))({"company_id": "kai", "service_id": "kai"})
+    assert ev["sha_comparison"] == MATCH
+
+
+def t_cross_company_service_denied():
+    """Recheck finding: a service bound to company A cannot be read under company B."""
+    sources = {"svc1": {"provider": "LOCAL", "company_id": "kai", "deployed_sha": _HEAD,
+                        "local_root": _ROOT, "environment": "production", "status": "SUCCESS"}}
+    prov = make_deployment_provider(sources=sources, entities=_ents())
+    try:
+        prov({"company_id": "sol", "service_id": "svc1"}); assert False, "cross-company must be denied"
+    except DeployDenied:
+        pass
 
 
 def t_unknown_and_unconfigured_block():
