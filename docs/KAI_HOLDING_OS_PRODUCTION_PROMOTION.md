@@ -1,6 +1,6 @@
 # KAI Holding OS — Production Promotion Package
 
-**Certified SHA:** `a9f6900` · **Branch:** `feat/kai-exec-appb-integration` · **Holding-OS pure tests:** 184/184, 0 regressions · **Production: UNCHANGED** (App B `3b9caff`, App A `a886ec6`) · MONEY_MODE=MOCK.
+**Staging candidate:** the current tip of `feat/kai-exec-appb-integration` (this document's commit or later — deploy the branch HEAD) · **Holding-OS pure tests:** 196/196, 0 regressions · **Production: UNCHANGED** (App B `3b9caff`, App A `a886ec6`) · MONEY_MODE=MOCK.
 
 > Production promotion is **owner-approved and owner-executed**. This document is the turnkey runbook. Every
 > `railway` / `git push production` command below is **classifier-gated to the operator** — Claude prepared
