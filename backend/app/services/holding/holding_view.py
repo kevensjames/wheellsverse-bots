@@ -1,0 +1,89 @@
+"""Holding UI view-model (Part E, §25-30) — the read-only data contract the existing /admin/holding
+page renders. It does NOT create a new dashboard; it assembles the six sections from the already-built
+twin + owner queue + cycle record + OperationalSelfModel + self-improvement candidates.
+
+Section order puts TODAY FOR YOU first (§25 — more important than telemetry). The Operational Self Model
+section is labelled operationally and NEVER claims sentience/consciousness (§29). All fields are sourced;
+nothing is invented. Pure/injectable so it is a plain ``python3`` self-test; the HTML/route wiring is the
+remaining frontend step.
+"""
+from __future__ import annotations
+
+from app.services.holding.briefing import today_for_you, NO_ACTION
+
+
+def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | None = None,
+                       owner_actions=None, cycle_record: dict | None = None, kai_work=None,
+                       self_improvements=None) -> dict:
+    """Assemble the /admin/holding view model. Every section is derived from real state (§34: no orphan
+    advice). owner_actions are proposal-shaped dicts; kai_work items are work-result-shaped dicts."""
+    twin = twin_snapshot or {}
+    sm = self_model or {}
+    owner_actions = list(owner_actions or [])
+    work = list(kai_work or [])
+    sis = list(self_improvements or [])
+
+    # §25 TODAY FOR YOU first (reuses the certified briefing builder)
+    brief = today_for_you(owner_actions=owner_actions,
+                          kai_completed=[w for w in work if w.get("outcome") == "EXECUTED"],
+                          kai_working_now=[w for w in work if w.get("status") == "ACTIVE"],
+                          material_changes=(cycle_record or {}).get("material_changes_list", []),
+                          risks=[r for c in twin.get("companies", []) for r in (c.get("risks") or [])])
+
+    def _bucket(outcome_or_status):
+        return [{"company": w.get("company_id"), "task": w.get("task_id"),
+                 "capability": w.get("capability_id"), "status": w.get("outcome") or w.get("status"),
+                 "reason": w.get("reason", "")} for w in work
+                if (w.get("outcome") == outcome_or_status or w.get("status") == outcome_or_status)]
+
+    return {
+        # §25
+        "today_for_you": brief["today_for_you"],
+        "today_overflow": brief.get("today_overflow_grouped"),
+        # §26 KAI working
+        "kai_working": {
+            "currently_working": _bucket("ACTIVE"),
+            "ready_for_review": _bucket("A2_READY_FOR_REVIEW"),
+            "blocked": _bucket("BLOCKED_CAPABILITY") + _bucket("BLOCKED_WORKER"),
+            "owner_queued": _bucket("OWNER_QUEUED"),
+        },
+        # §27 self-improvement (READY_FOR_REVIEW only; no private reasoning exposed)
+        "self_improvement_ready": [{"problem": s.get("problem"), "evidence": s.get("evidence"),
+                                    "files_changed": s.get("files_changed"),
+                                    "tests_before": s.get("tests_before"), "tests_after": s.get("tests_after"),
+                                    "independent_review": s.get("security_review"),
+                                    "rollback": s.get("rollback"), "owner_action": s.get("owner_action")}
+                                   for s in sis if (s.get("status") == "READY_FOR_REVIEW" or s.get("owner_action"))],
+        # §28 company cards
+        "company_cards": [{"company_id": c.get("company_id"), "name": c.get("name"),
+                           "current_goal": c.get("current_goal"), "status": c.get("status"),
+                           "latest_material_change": (c.get("recent_material_changes") or [None])[-1]
+                           if c.get("recent_material_changes") else None,
+                           "owner_blocker": bool(c.get("owner_actions_required")),
+                           "plan_freshness": c.get("source_freshness")}
+                          for c in twin.get("companies", [])],
+        # §29 Operational Self Model (labelled; never sentient)
+        "operational_self_model": {
+            "label": "Operational Self Model",
+            "identity": sm.get("identity", "KAI"), "software_version": sm.get("software_version"),
+            "environment": sm.get("environment"), "health": twin.get("autonomy_overall"),
+            "current_mission": (cycle_record or {}).get("cycle_id"),
+            "capabilities_ready": sm.get("available_capability_count"),
+            "workers_online": sm.get("workers_online"),
+            "last_holding_cycle": (cycle_record or {}).get("completed_at"),
+            "owner_required_count": sm.get("owner_required_action_count"),
+            "claims_consciousness": False,   # invariant (§29) — never sentient
+        },
+        # §30 autonomy (backend authoritative)
+        "autonomy": {
+            "global": twin.get("autonomy_overall"), "money_mode": twin.get("money_mode", "MOCK"),
+            "a0_a1": "auto-eligible", "a2_certified_grants": ["SELF_IMPROVEMENT_NONPROD_CODE_FIX_V1"],
+            "last_cycle": (cycle_record or {}).get("completed_at"),
+            "last_cycle_verdict": (cycle_record or {}).get("verdict"),
+        },
+    }
+
+
+if __name__ == "__main__":
+    from app.services.holding.test_holding_view import run
+    run()
