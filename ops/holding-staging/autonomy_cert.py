@@ -97,7 +97,7 @@ ck("owner -> /status 200", ss == 200, f"HTTP {ss}")
 print("STEP 6 — EMERGENCY BRAKE #1 state (capability execution)")
 cs, _ = get("/admin/capabilities", owner)
 brake1_off = cs == 404          # router not mounted -> execution disabled (dark)
-brake1_on = cs == 403           # mounted + owner-gated -> execution enabled
+brake1_on = cs in (200, 403)    # mounted -> enabled (owner=200 authorized, non-owner=403)
 ck("capability-execution brake state readable", brake1_off or brake1_on,
    f"HTTP {cs} -> {'DARK (disabled)' if brake1_off else 'ENABLED' if brake1_on else 'UNEXPECTED'}")
 
