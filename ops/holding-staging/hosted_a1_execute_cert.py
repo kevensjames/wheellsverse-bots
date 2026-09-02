@@ -68,6 +68,16 @@ try:
 except Exception:
     B1 = B2 = None
 print(f"  brake#1 KAI_CAPABILITY_EXECUTION_ENABLED = {B1} ; brake#2 HOLDING_AUTONOMY_ENABLED = {B2}")
+_APP_ENV = os.environ.get("APP_ENV", "?")
+_MONEY = os.environ.get("MONEY_MODE", "?")
+_SHA = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or "UNAVAILABLE"
+print(f"  APP_ENV={_APP_ENV}  MONEY_MODE={_MONEY}  deployed_sha={_SHA}")
+
+print("STEP 0 — SERVER STATE (server-derived, no secrets): confirms WHERE this ran")
+ck("APP_ENV = staging", _APP_ENV == "staging", str(_APP_ENV))
+ck("MONEY_MODE = MOCK", _MONEY == "MOCK", str(_MONEY))
+ck("deployed SHA is known (RAILWAY_GIT_COMMIT_SHA present -> ran inside the container)",
+   _SHA != "UNAVAILABLE", _SHA)
 
 print("STEP 1 — A1 EXECUTE CHAIN: a deploy change -> plan emits RUN_INTERNAL_TEST -> real suite -> COMPLETE")
 ck("both brakes lifted (required to certify A1 execute)", B1 is True and B2 is True,

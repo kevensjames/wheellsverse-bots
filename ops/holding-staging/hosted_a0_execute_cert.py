@@ -53,9 +53,20 @@ try:
 except Exception:
     B1 = B2 = None
 
+_APP_ENV = os.environ.get("APP_ENV", "?")
+_MONEY = os.environ.get("MONEY_MODE", "?")
+_SHA = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or "UNAVAILABLE"
+
 print("A0-LIVE EXECUTE CERT (in-process, real brakes)")
 print(f"  brake#1 KAI_CAPABILITY_EXECUTION_ENABLED = {B1}")
 print(f"  brake#2 HOLDING_AUTONOMY_ENABLED          = {B2}")
+print(f"  APP_ENV={_APP_ENV}  MONEY_MODE={_MONEY}  deployed_sha={_SHA}")
+
+print("STEP 0 — SERVER STATE (server-derived, no secrets): confirms WHERE this ran")
+ck("APP_ENV = staging", _APP_ENV == "staging", str(_APP_ENV))
+ck("MONEY_MODE = MOCK", _MONEY == "MOCK", str(_MONEY))
+ck("deployed SHA is known (RAILWAY_GIT_COMMIT_SHA present -> ran inside the container)",
+   _SHA != "UNAVAILABLE", _SHA)
 
 print("STEP 1 — A0 EXECUTE: a benign transition executes exactly one READ_ONLY probe, with evidence")
 ck("both brakes are lifted (required to certify A0 execute)", B1 is True and B2 is True,

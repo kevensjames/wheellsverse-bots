@@ -131,6 +131,12 @@ def make_internal_test_provider(*, run_fn=None, suites: dict | None = None, cloc
             commit = LocalGitProvider(sd.cwd).repository_status().get("commit_sha", "UNAVAILABLE")
         except Exception:
             pass
+        if commit in (None, "", "UNAVAILABLE"):
+            # containerized deploy: .git is excluded from the image, so the local git read fails. Use the
+            # platform-injected deploy SHA (Railway sets RAILWAY_GIT_COMMIT_SHA) so evidence still carries
+            # the exact commit the running container was built from — the authoritative deployed SHA.
+            import os
+            commit = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or "UNAVAILABLE"
         ev = runner.run(sd, commit_sha=commit)
         from app.services.holding.task_resolver import redact
         return redact(ev)                                   # evidence redacted before it leaves (§29)
