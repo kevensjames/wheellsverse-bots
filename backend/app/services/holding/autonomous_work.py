@@ -26,6 +26,7 @@ OWNER_QUEUED = "OWNER_QUEUED"         # owner-required — did NOT execute, goes
 AUTONOMY_OFF = "AUTONOMY_OFF"         # kill switch — no execution
 NEEDS_CERTIFICATION = "NEEDS_CERTIFICATION"   # A2+ not granted / no A2 framework wired
 A2_READY_FOR_REVIEW = "A2_READY_FOR_REVIEW"   # A2 prepared an isolated change; owner reviews/merges (never KAI)
+BLOCKED_POLICY = "BLOCKED_POLICY"             # §55 malformed/invalid authority value — fail closed, NEVER default to A0
 
 # §55 failure classification (bounded, deterministic).
 _FAIL_CLASS = {
@@ -92,11 +93,18 @@ class HoldingAutonomousWorkEngine:
             return WorkResult(task.task_id, task.company_id, task.autonomy, task.assigned_to,
                               outcome, status, **kw)
 
+        # 0. parse the autonomy class ONCE, fail CLOSED on a malformed value (§55). One corrupt task must
+        #    never crash the whole cycle (it would abort every sibling), and an unparseable authority value
+        #    must NEVER fall back to A0 / an inferred default — it is blocked as INVALID_ACTION_CLASS.
+        try:
+            ac = AutonomyClass(task.autonomy)
+        except (ValueError, TypeError):
+            return wr(BLOCKED_POLICY, TaskStatus.BLOCKED.value, reason="INVALID_ACTION_CLASS")
         # 1. kill switches (§33) — with autonomy off, execution is 0 (observer may still read elsewhere)
         if not self._global or not self._company_on(task.company_id):
             return wr(AUTONOMY_OFF, task.status)
         # 2. owner-required work never auto-executes — route to the owner queue (§24)
-        if task.assigned_to == Assignee.OWNER.value or AutonomyClass(task.autonomy) >= AutonomyClass.A3_EXTERNAL_HIGH_IMPACT:
+        if task.assigned_to == Assignee.OWNER.value or ac >= AutonomyClass.A3_EXTERNAL_HIGH_IMPACT:
             return wr(OWNER_QUEUED, TaskStatus.BLOCKED.value)
         # 2b. ONLY KAI-assigned work auto-executes. Worker work needs the (unwired) dispatch plane;
         #     external work is owner-gated; anything else fails closed (§18/§23 — never assume KAI).
@@ -108,7 +116,7 @@ class HoldingAutonomousWorkEngine:
             return wr(BLOCKED_CAPABILITY, TaskStatus.BLOCKED.value, reason=f"non-KAI assignee '{task.assigned_to}'")
         # 3. A2 reversible-internal-write: route through the A2 framework if wired. A2 only PREPARES an
         #    isolated change (never merges/deploys §41); a ready result is owner-reviewed, not executed.
-        if AutonomyClass(task.autonomy) == AutonomyClass.A2_REVERSIBLE_INTERNAL_WRITE:
+        if ac == AutonomyClass.A2_REVERSIBLE_INTERNAL_WRITE:
             if self._a2 is None:
                 return wr(NEEDS_CERTIFICATION, TaskStatus.BLOCKED.value)
             prep = self._a2.prepare(task)
@@ -178,10 +186,16 @@ def run_cycle(prev_snapshot: dict | None, cur_snapshot: dict, *, engine: Holding
                               for d in sorted({rt.disposition for rt in reconciled})},   # sorted: deterministic audit
         "auto_executed": by.get(EXECUTED, 0),
         "owner_queued": by.get(OWNER_QUEUED, 0),
-        "blocked": by.get(BLOCKED_CAPABILITY, 0) + by.get(BLOCKED_WORKER, 0) + by.get(NEEDS_CERTIFICATION, 0),
+        "blocked": by.get(BLOCKED_CAPABILITY, 0) + by.get(BLOCKED_WORKER, 0)
+                   + by.get(NEEDS_CERTIFICATION, 0) + by.get(BLOCKED_POLICY, 0),
         "failed": by.get(FAILED, 0),
         "autonomy_off": by.get(AUTONOMY_OFF, 0),
         "results": [r.as_dict() for r in results],
+        # in-process handles for the caller's owner-queue writer (§F2): the full reconciled plan (incl.
+        # BLOCK-persisted owner tasks) + the WorkResult objects. Not serialized — run_persistent_cycle
+        # consumes them to prepare owner actions, then builds the CycleRecord (which omits them).
+        "reconciled": reconciled,
+        "work_results": results,
     }
 
 

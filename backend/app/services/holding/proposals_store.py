@@ -70,6 +70,64 @@ def sync_open(proposals: list) -> int:
         return 0
 
 
+# ── §F2 writer-only owner-queue upsert ───────────────────────────────────────────────────────────
+# The pure disposition decision (absent→insert / open→update / terminal→skip) lives DB-free in
+# owner_queue.owner_upsert_disposition so it is testable without a database; upsert_owner_open below is
+# the thin DB mechanics around it. It performs NO status transition and NO resolve/close.
+
+# safe descriptive/evidence fields carried in the action JSON (never authority or decision state)
+_OWNER_ACTION_FIELDS = ("action_class", "proposed_action", "plan", "risk", "reversible", "worker",
+                        "impact", "effort", "kai_completed", "surface", "deadline", "last_observed_at",
+                        "evidence")
+
+
+def upsert_owner_open(items: list) -> dict:
+    """Writer-ONLY owner-queue upsert (§F2). Per source_key, using the newest row's status:
+      - no row       → INSERT status='proposed'
+      - 'proposed'   → UPDATE safe descriptive/evidence fields ONLY (status/decided_* untouched)
+      - terminal     → leave untouched (never reopen a decision the owner already made)
+    Performs NO status transition and NO resolve/close. Returns {ok, inserted, updated, skipped_terminal};
+    ok=False on DB failure (the caller records OWNER_QUEUE_PERSIST_FAILED). Never raises."""
+    from app.services.holding.owner_queue import owner_upsert_disposition
+    out = {"ok": True, "inserted": 0, "updated": 0, "skipped_terminal": 0}
+    try:
+        db = SessionLocal()
+        try:
+            _ensure(db)
+            for p in (items or []):
+                sk = p.get("source_key", "")
+                row = db.execute(text("SELECT status FROM holding_proposals WHERE source_key = :sk "
+                                      "ORDER BY id DESC LIMIT 1"), {"sk": sk}).fetchone()
+                disp = owner_upsert_disposition(row[0] if row else None)
+                action = {k: p.get(k) for k in _OWNER_ACTION_FIELDS}
+                ev = json.dumps(p.get("evidence") or [])
+                if disp == "insert":
+                    db.execute(text(
+                        "INSERT INTO holding_proposals (source_key, severity, entity, title, action, status, evidence)"
+                        " VALUES (:sk,:sev,:ent,:ttl, CAST(:act AS JSONB), 'proposed', CAST(:ev AS JSONB))"),
+                        {"sk": sk, "sev": p.get("severity"), "ent": p.get("entity"), "ttl": p.get("title"),
+                         "act": json.dumps(action), "ev": ev})
+                    out["inserted"] += 1
+                elif disp == "update":
+                    # update ONLY the newest still-open row; status/decided_at/decided_by never touched
+                    db.execute(text(
+                        "UPDATE holding_proposals SET severity=:sev, title=:ttl, action=CAST(:act AS JSONB),"
+                        " evidence=CAST(:ev AS JSONB)"
+                        " WHERE id = (SELECT id FROM holding_proposals WHERE source_key=:sk AND status='proposed'"
+                        "             ORDER BY id DESC LIMIT 1)"),
+                        {"sev": p.get("severity"), "ttl": p.get("title"), "act": json.dumps(action),
+                         "ev": ev, "sk": sk})
+                    out["updated"] += 1
+                else:
+                    out["skipped_terminal"] += 1
+            db.commit()
+            return out
+        finally:
+            db.close()
+    except Exception:
+        return {"ok": False, "inserted": 0, "updated": 0, "skipped_terminal": 0}
+
+
 def list_proposals(status: Optional[str] = None, limit: int = 50) -> list:
     """Rows newest-first, optionally filtered by status. Never raises."""
     try:

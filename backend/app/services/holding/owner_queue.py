@@ -15,6 +15,21 @@ from app.services.holding.autonomous_work import OWNER_QUEUED
 # §5 ranking ladder (lower = surfaced first).
 _PRIORITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
 
+# §F2 — terminal owner-decision states the cycle writer must NEVER transition into OR out of. Kept here
+# (DB-free) so the security-critical decision is testable without a database.
+_TERMINAL_STATES = frozenset({"approved", "rejected", "executed", "superseded"})
+
+
+def owner_upsert_disposition(existing_status: str | None) -> str:
+    """PURE writer-only decision (§F2): given the newest row's status for a source_key (None = no row),
+    return 'insert' | 'update' | 'skip_terminal'. NEVER a status change — absent → create PROPOSED;
+    still-open PROPOSED → update safe fields; any terminal → hands off (never reopen an owner decision)."""
+    if existing_status is None:
+        return "insert"
+    if existing_status == "proposed":
+        return "update"
+    return "skip_terminal"
+
 
 @dataclass
 class OwnerAction:
@@ -108,11 +123,29 @@ def reconcile_owner_queue(prior_open: list, actions: list[OwnerAction]) -> dict:
 
 def apply_owner_queue(actions: list[OwnerAction]) -> dict:
     """DB bridge: upsert prepared actions into proposals_store (deduped) + auto-resolve vanished ones.
-    Fails soft. Returns counts. This is the ONLY writer to the owner queue from the autonomy cycle."""
+    Fails soft. Returns counts. NOTE: this couples the WRITE (visibility) with resolve_absent (auto-close)
+    — it is intentionally NOT wired into the live cycle. The live cycle uses persist_owner_actions
+    (writer-only) so KAI never auto-closes an owner decision. Kept for the closed-loop test."""
     from app.services.holding import proposals_store as ps
     inserted = ps.sync_open(to_proposals(actions))
     resolved = ps.resolve_absent([a.source_key for a in actions])
     return {"inserted": inserted, "resolved_stale": resolved, "active": len(actions)}
+
+
+def persist_owner_actions(actions: list, *, writer=None, now: str | None = None) -> dict:
+    """§F2 writer-ONLY owner-queue persistence: upsert prepared owner actions into the EXISTING
+    proposals_store (create-if-absent, update-safe-fields-if-open, skip-if-terminal). Does NOT resolve,
+    close, approve, reject, or supersede anything — visibility only; the human keeps the decision. The
+    writer is injectable (tests pass a fake); default is proposals_store.upsert_owner_open. Returns the
+    writer's result dict ({ok, inserted, updated, skipped_terminal})."""
+    if writer is None:
+        from app.services.holding import proposals_store as ps
+        writer = ps.upsert_owner_open
+    items = to_proposals(actions or [])
+    if now is not None:
+        for it in items:
+            it["last_observed_at"] = now          # safe descriptive field: when KAI last saw the blocker
+    return writer(items)
 
 
 if __name__ == "__main__":

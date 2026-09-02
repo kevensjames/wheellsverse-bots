@@ -114,14 +114,30 @@ def restart_reconcile_count(missed_intervals: int) -> int:
 
 
 def run_persistent_cycle(prev_snapshot, cur_snapshot, *, engine, cycle_id: str, now: str,
-                         prior_tasks=None, companies_reviewed: int = 0) -> CycleRecord:
+                         prior_tasks=None, companies_reviewed: int = 0, owner_writer=None) -> CycleRecord:
     """One durable cycle. The engine carries the kill switches (§24: global/company autonomy off →
     the engine returns AUTONOMY_OFF and executes 0, while observation/reconciliation still runs).
-    A no-change cycle yields 0 work (§20)."""
+    A no-change cycle yields 0 work (§20). §F2: genuine owner-required work is persisted into the
+    EXISTING owner queue for visibility (writer-only — KAI never auto-closes). owner_writer is
+    injectable for tests; default upserts into proposals_store."""
     res = run_cycle(prev_snapshot, cur_snapshot, engine=engine, prior_tasks=prior_tasks, cycle_id=cycle_id,
                     now=now)
     results = res.get("results", [])
     evidence = [r.get("correlation_id") for r in results if r.get("outcome") == "EXECUTED" and r.get("correlation_id")]
+    # §F2 — surface genuine owner-required work into the queue the owner views. Writer-only:
+    # create-if-absent / update-safe-fields-if-open / skip-if-terminal; never resolves or closes. A
+    # persistence failure is recorded (degraded status) and NEVER treated as permission to proceed —
+    # owner work was already blocked (never executed) in run_cycle regardless of the write.
+    owner_status = None
+    try:
+        from app.services.holding.owner_queue import prepare_owner_actions, persist_owner_actions
+        actions = prepare_owner_actions(res.get("reconciled", []), res.get("work_results", []), now=now)
+        if actions:
+            pr = persist_owner_actions(actions, writer=owner_writer, now=now)
+            if not pr.get("ok", True):
+                owner_status = "OWNER_QUEUE_PERSIST_FAILED"
+    except Exception:
+        owner_status = "OWNER_QUEUE_PERSIST_FAILED"
     return CycleRecord(
         cycle_id=cycle_id, started_at=now, completed_at=now, verdict=res["verdict"],
         companies_reviewed=companies_reviewed, material_changes=res["material_changes"],
@@ -129,7 +145,7 @@ def run_persistent_cycle(prev_snapshot, cur_snapshot, *, engine, cycle_id: str, 
         tasks_considered=len(results),
         tasks_executed=res["auto_executed"], tasks_failed=res["failed"], tasks_blocked=res["blocked"],
         owner_actions_created=res["owner_queued"], autonomy_off=res.get("autonomy_off", 0),
-        evidence_refs=evidence, status=res["verdict"])
+        evidence_refs=evidence, status=(owner_status or res["verdict"]))
 
 
 if __name__ == "__main__":
