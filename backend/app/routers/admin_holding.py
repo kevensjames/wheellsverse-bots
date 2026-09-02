@@ -166,6 +166,67 @@ def holding_status():
     return stat.full_status()
 
 
+_manual_cycle_calls: dict = {}   # principal_id -> [monotonic ts] (conservative owner-scoped rate limit)
+
+
+def _manual_cycle_rate_ok(principal_id: str, *, limit: int = 6, window_s: int = 60) -> bool:
+    import time
+    now = time.monotonic()
+    win = [t for t in _manual_cycle_calls.get(principal_id, []) if now - t < window_s]
+    if len(win) >= limit:
+        _manual_cycle_calls[principal_id] = win
+        return False
+    win.append(now); _manual_cycle_calls[principal_id] = win
+    return True
+
+
+@router.post("/run-cycle")
+def holding_run_cycle(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
+    """Run EXACTLY ONE existing Holding cycle (owner-only, staging-cert/diagnostics). Reuses
+    build_live_engine + run_persistent_cycle — NO new engine. Gated by KAI_HOLDING_MANUAL_CYCLE_ENABLED
+    + APP_ENV=staging (else 404). Both emergency brakes remain authoritative; the route grants nothing.
+    Single-flight (409), idempotent, server-side prior snapshot. Returns a normalized CycleRecord."""
+    from datetime import datetime, timezone
+    from app.config import settings
+    from app.services.holding.manual_cycle import (run_manual_cycle, validate_request,
+                                                   ManualCycleDenied, CycleRunning)
+    pid = getattr(principal, "id", "owner")
+
+    # §5/§6 — off by default, staging-only; not exposed in production merely because autonomy is on
+    if not getattr(settings, "KAI_HOLDING_MANUAL_CYCLE_ENABLED", False) or \
+       str(getattr(settings, "APP_ENV", "")).lower() != "staging":
+        raise HTTPException(status_code=404, detail="not found")
+    if not _manual_cycle_rate_ok(pid):
+        raise HTTPException(status_code=429, detail="manual cycle rate limit")
+    try:
+        req = validate_request(body)   # §3 — only idempotency_key; forbidden keys rejected
+    except ManualCycleDenied as e:
+        _audit_proposal("holding.cycle_denied", {"principal": pid, "reason": str(e)[:120]})
+        raise HTTPException(status_code=400, detail=str(e))
+
+    now = datetime.now(timezone.utc).isoformat()
+    _audit_proposal("holding.cycle_requested", {"principal": pid, "env": getattr(settings, "APP_ENV", ""),
+                    "brakes": {"capability": getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False),
+                               "autonomy": getattr(settings, "HOLDING_AUTONOMY_ENABLED", False)}})
+    from app.services.holding.holding_cycle import build_live_engine
+    from app.services.holding.cycle_store import DbCycleStore
+    from app.services.holding.digital_twin import HoldingDigitalTwin
+    engine = build_live_engine()   # reads BOTH brakes from config; route overrides nothing
+    try:
+        rec = run_manual_cycle(DbCycleStore(), engine,
+                               lambda: HoldingDigitalTwin(observed_at=now, today=now[:10]).snapshot(),
+                               now=now, idempotency_key=req["idempotency_key"])
+    except CycleRunning as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    except Exception as e:
+        _audit_proposal("holding.cycle_failed", {"principal": pid, "reason": str(e)[:120]})
+        raise HTTPException(status_code=500, detail="cycle infrastructure failure")
+    _audit_proposal("holding.cycle_completed", {"principal": pid, "cycle_id": rec.get("cycle_id"),
+                    "status": rec.get("status"), "auto_actions_executed": rec.get("auto_actions_executed"),
+                    "owner_actions_created": rec.get("owner_actions_created")})
+    return rec
+
+
 @router.get("/view")
 def holding_view():
     """The /admin/holding UI view-model (Part E): TODAY FOR YOU first, KAI-work buckets, self-improvement

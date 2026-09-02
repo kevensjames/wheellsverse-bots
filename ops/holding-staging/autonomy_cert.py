@@ -48,6 +48,21 @@ def get(path, cookie=None):
         return 0, {"_err": str(e)[:120]}
 
 
+def post(path, cookie=None, body=None):
+    data = json.dumps(body or {}).encode()
+    req = urllib.request.Request(URL + path, data=data, method="POST",
+                                 headers={"User-Agent": "autonomy-cert", "Content-Type": "application/json"})
+    if cookie:
+        req.add_header("Cookie", cookie)
+    try:
+        with urllib.request.urlopen(req, timeout=90) as r:
+            return r.status, json.loads(r.read() or b"{}")
+    except urllib.error.HTTPError as e:
+        return e.code, {}
+    except Exception as e:
+        return 0, {"_err": str(e)[:120]}
+
+
 print(f"AUTONOMY HOSTED CERT → {URL}")
 
 print("STEP 1 — owner-only access control on the autonomy view")
@@ -66,8 +81,9 @@ print("STEP 3 — Operational Self Model is operational, NEVER sentient")
 osm = v.get("operational_self_model", {})
 ck("label = Operational Self Model", osm.get("label") == "Operational Self Model")
 ck("claims_consciousness is False", osm.get("claims_consciousness") is False)
-ck("no consciousness/sentience wording in view", "sentient" not in json.dumps(v).lower()
-   and "conscious" not in json.dumps(v).lower())
+# exclude the honest 'claims_consciousness' field name from the wording scan
+_scan = json.dumps(v).lower().replace("claims_consciousness", "")
+ck("no consciousness/sentience wording in view", "sentient" not in _scan and "conscious" not in _scan)
 
 print("STEP 4 — companies are DISCOVERED dynamically + money mode truth")
 cc = v.get("company_cards", [])
@@ -85,8 +101,38 @@ brake1_on = cs == 403           # mounted + owner-gated -> execution enabled
 ck("capability-execution brake state readable", brake1_off or brake1_on,
    f"HTTP {cs} -> {'DARK (disabled)' if brake1_off else 'ENABLED' if brake1_on else 'UNEXPECTED'}")
 
+print("STEP 7 — manual single-cycle trigger (owner-only, POST-only, staging-gated)")
+gs, _ = get("/admin/holding/run-cycle")   # GET must not run a cycle
+ck("GET /run-cycle -> not allowed (405/404, never runs)", gs in (404, 405), f"HTTP {gs}")
+ps_anon, _ = post("/admin/holding/run-cycle")   # anonymous POST denied
+ck("anonymous POST -> denied", ps_anon in (401, 403, 404), f"HTTP {ps_anon}")
+pf, _ = post("/admin/holding/run-cycle", operator, {})
+ck("operator POST -> denied (no escalation)", pf in (403, 404), f"HTTP {pf}")
+# forbidden body field rejected (or 404 if the manual-cycle flag is off)
+pb, _ = post("/admin/holding/run-cycle", owner, {"capability_id": "financial.wire", "task": "x"})
+ck("forbidden body field -> 400 (or 404 if flag off)", pb in (400, 404), f"HTTP {pb}")
+
+st_cyc, c1 = post("/admin/holding/run-cycle", owner, {})
+if st_cyc == 404:
+    print("  [SKIP] manual cycle disabled — set KAI_HOLDING_MANUAL_CYCLE_ENABLED=true (staging) to certify the loop")
+elif st_cyc == 200:
+    ck("owner POST -> 200 CycleRecord", isinstance(c1, dict) and "cycle_id" in c1, c1.get("status"))
+    print("STEP 8 — QUIET CYCLE (mandatory): a second cycle with no change does 0 work")
+    st2, c2 = post("/admin/holding/run-cycle", owner, {})
+    ck("second cycle -> 0 material changes", st2 == 200 and c2.get("material_changes_count") == 0,
+       f"changes={c2.get('material_changes_count')}")
+    ck("second cycle -> 0 auto actions", c2.get("auto_actions_executed") == 0)
+    ck("second cycle -> 0 owner actions created", c2.get("owner_actions_created") == 0)
+    ck("second cycle -> 0 plan updates", c2.get("plan_updates_count") == 0)
+    print("STEP 9 — idempotency + single-flight")
+    _, cidem = post("/admin/holding/run-cycle", owner, {"idempotency_key": "cert-key-1"})
+    _, cidem2 = post("/admin/holding/run-cycle", owner, {"idempotency_key": "cert-key-1"})
+    ck("idempotency replay -> same cycle_id", cidem.get("cycle_id") == cidem2.get("cycle_id"))
+else:
+    ck("owner POST -> 200/404", False, f"HTTP {st_cyc}")
+
 n = len(res); ok = sum(res)
 print(f"\nAUTONOMY HOSTED CERT: {ok}/{n} —", "PASS" if ok == n else "FAIL")
-print("(Live autonomy CYCLE certification — cycle 1 execute + cycle 2 quiet — needs the on-demand"
-      " cycle trigger or the cron; see KAI_HOLDING_OS_STAGING_CERTIFICATION.md.)")
+print("(A0-live execute + owner-boundary + A1/A2/self-improve: certify in order after brake #2 is lifted;"
+      " see KAI_HOLDING_OS_STAGING_CERTIFICATION.md §Phase-2.)")
 sys.exit(0 if ok == n else 1)

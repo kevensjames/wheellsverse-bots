@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     # executes 0 (observation/reconciliation still runs per policy), independent of capability execution.
     # Start staging DARK with this False; enable only after DB/Redis/auth/routes/SHA/Chromium verify.
     HOLDING_AUTONOMY_ENABLED: bool = False
+    # Owner-only on-demand single-cycle trigger (POST /admin/holding/run-cycle) — for hosted staging
+    # certification + operator diagnostics ONLY. Default OFF (route 404). Requires APP_ENV=staging.
+    # It grants NO authority: both brakes above remain authoritative; it just runs one existing cycle.
+    KAI_HOLDING_MANUAL_CYCLE_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
