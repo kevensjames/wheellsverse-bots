@@ -44,14 +44,16 @@ def t_validate_rejects_forbidden_keys():
 
 def t_normalize_record_safe_fields_only():
     """§11: only safe normalized fields; no secrets/env/logs/reasoning."""
-    n = normalize_record({"cycle_id": "c1", "verdict": "NO_MATERIAL_CHANGE", "material_changes": 0,
-                          "plan_dispositions": {"KEEP": 2}, "auto_executed": 0, "owner_queued": 0,
+    n = normalize_record({"cycle_id": "c1", "verdict": "MATERIAL_CHANGE", "material_changes": 1,
+                          "plan_dispositions": {"KEEP": 2, "ADD": 3}, "auto_executed": 0, "owner_queued": 0,
                           "started_at": "t", "completed_at": "t", "SESSION_SIGNING_SECRET": "leak"})
     for k in ("cycle_id", "status", "material_changes_count", "plan_updates_count", "auto_actions_executed",
               "owner_actions_created", "duration_ms"):
         assert k in n, k
     assert "SESSION_SIGNING_SECRET" not in n and "leak" not in str(n)
-    assert n["plan_updates_count"] == 2
+    assert n["plan_updates_count"] == 3   # KEEP (unchanged) excluded; only the 3 ADDs are real plan updates
+    # a CycleRecord (no plan_dispositions) falls back to plan_changes (already KEEP-excluded)
+    assert normalize_record({"plan_changes": 4})["plan_updates_count"] == 4
 
 
 def t_quiet_cycle_zero_work():

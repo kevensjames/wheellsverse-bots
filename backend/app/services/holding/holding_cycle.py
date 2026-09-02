@@ -125,7 +125,8 @@ def run_persistent_cycle(prev_snapshot, cur_snapshot, *, engine, cycle_id: str, 
     return CycleRecord(
         cycle_id=cycle_id, started_at=now, completed_at=now, verdict=res["verdict"],
         companies_reviewed=companies_reviewed, material_changes=res["material_changes"],
-        plan_changes=sum(res["plan_dispositions"].values()), tasks_considered=len(results),
+        plan_changes=sum(v for k, v in res["plan_dispositions"].items() if k != "KEEP"),  # KEEP = unchanged, not a change
+        tasks_considered=len(results),
         tasks_executed=res["auto_executed"], tasks_failed=res["failed"], tasks_blocked=res["blocked"],
         owner_actions_created=res["owner_queued"], autonomy_off=res.get("autonomy_off", 0),
         evidence_refs=evidence, status=res["verdict"])

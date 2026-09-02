@@ -42,13 +42,16 @@ def validate_request(body: dict | None) -> dict:
 # §11 — normalized, SAFE cycle-record fields (never secrets/cookies/env/raw logs/reasoning/prompts).
 def normalize_record(rec: dict) -> dict:
     r = rec or {}
-    disp = r.get("plan_dispositions") or {}
+    disp = r.get("plan_dispositions")   # present on a raw run_cycle dict; absent on a CycleRecord (→ plan_changes)
     return {
         "cycle_id": r.get("cycle_id"), "status": r.get("status") or r.get("verdict"),
         "started_at": r.get("started_at"), "completed_at": r.get("completed_at"),
         "companies_reviewed": r.get("companies_reviewed", 0),
         "material_changes_count": r.get("material_changes", 0),
-        "plan_updates_count": sum(disp.values()) if isinstance(disp, dict) else r.get("plan_changes", 0),
+        # KEEP = a condition carried forward unchanged → NOT a plan update. A CycleRecord already
+        # excluded KEEP in plan_changes, so the fallback is the honest count too.
+        "plan_updates_count": (sum(v for k, v in disp.items() if k != "KEEP") if isinstance(disp, dict)
+                               else int(r.get("plan_changes", 0) or 0)),
         "tasks_considered": r.get("tasks_considered", 0),
         "auto_actions_executed": r.get("tasks_executed", r.get("auto_executed", 0)),
         "auto_actions_failed": r.get("tasks_failed", r.get("failed", 0)),
