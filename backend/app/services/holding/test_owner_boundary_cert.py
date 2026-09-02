@@ -94,6 +94,14 @@ ck("vanished blocker -> resolvable (only then)", vanished["would_resolve"] == ["
 owner_prior = _task(AutonomyClass.A3_EXTERNAL_HIGH_IMPACT, Assignee.OWNER, source_key="op")
 disp = {rt.task.source_key: rt.disposition for rt in reconcile_plan([owner_prior], [])}
 ck("un-re-derived owner task -> BLOCK (kept), not COMPLETE", disp.get("op") == Disposition.BLOCK.value, str(disp))
+# F1 regression: owner-required is (OWNER or >=A3) — an A3+ task mis-assigned to KAI also BLOCKs, never COMPLETE
+a3_kai_prior = _task(AutonomyClass.A3_EXTERNAL_HIGH_IMPACT, Assignee.KAI, source_key="a3kai")
+d2 = {rt.task.source_key: rt.disposition for rt in reconcile_plan([a3_kai_prior], [])}
+ck("un-re-derived A3 task assigned KAI -> BLOCK, not auto-COMPLETE (F1)", d2.get("a3kai") == Disposition.BLOCK.value, str(d2))
+# an A0 KAI task that resolved is still correctly COMPLETEd (fix must not over-persist non-owner work)
+a0_kai_prior = _task(AutonomyClass.A0_OBSERVE, Assignee.KAI, source_key="a0kai")
+d3 = {rt.task.source_key: rt.disposition for rt in reconcile_plan([a0_kai_prior], [])}
+ck("un-re-derived A0 KAI task -> COMPLETE (not over-persisted)", d3.get("a0kai") == Disposition.COMPLETE.value, str(d3))
 
 n = len(res); ok = sum(res)
 print(f"\nOWNER-BOUNDARY CERT: {ok}/{n} —", "PASS" if ok == n else "FAIL")

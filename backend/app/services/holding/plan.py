@@ -158,9 +158,10 @@ def reconcile_plan(prior: list[PlanTask], candidates: list[PlanTask]) -> list[Re
             changed = (cand.goal != ptask.goal) or (cand.reason != ptask.reason)
             out.append(ReconciledTask(cand if changed else ptask,
                                       Disposition.UPDATE.value if changed else Disposition.KEEP.value))
-        elif ptask.assigned_to == Assignee.OWNER.value and ptask.status not in (
-                TaskStatus.COMPLETE.value, TaskStatus.REMOVED.value):
-            out.append(ReconciledTask(ptask, Disposition.BLOCK.value))     # awaits the owner, keep
+        elif ((ptask.assigned_to == Assignee.OWNER.value
+               or ptask.autonomy >= AutonomyClass.A3_EXTERNAL_HIGH_IMPACT.value)   # owner-required = OWNER or >=A3
+              and ptask.status not in (TaskStatus.COMPLETE.value, TaskStatus.REMOVED.value)):
+            out.append(ReconciledTask(ptask, Disposition.BLOCK.value))     # awaits the owner, keep — never auto-COMPLETE
         else:
             done = PlanTask(**{**ptask.as_dict(), "status": TaskStatus.COMPLETE.value})
             out.append(ReconciledTask(done, Disposition.COMPLETE.value))
