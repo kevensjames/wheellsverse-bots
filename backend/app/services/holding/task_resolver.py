@@ -162,8 +162,8 @@ _MAPPINGS: dict[str, Mapping] = {
         "CAP_HEALTH_USE_CAPABILITY_REGISTRY"),
     HoldingTaskType.DEPLOYMENT_STATUS.value: Mapping(
         "holding.deployment", "read_deployment_status", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
-        CertState.RUNTIME_PENDING, ("service", "deployment_id", "sha", "status", "observed_at"),
-        "DEPLOY_STATUS_READONLY_CONNECTOR_PENDING"),
+        CertState.CERTIFIED, ("provider", "service_id", "deployed_sha", "sha_comparison"),
+        "DEPLOY_STATUS_RESOLVE_READONLY_PROVIDER"),
     HoldingTaskType.REPO_INSPECT.value: Mapping(
         "holding.repo", "read_repo_status", ActionClass.READ_ONLY, Channel.INTERNAL_READ,
         CertState.CERTIFIED, ("provider", "repository", "commit_sha", "operation"),
@@ -219,7 +219,7 @@ def _minimal_args(task_type: str, task) -> dict:
     if task_type == HoldingTaskType.CAPABILITY_HEALTH.value:
         return {"scope": "all"}
     if task_type == HoldingTaskType.DEPLOYMENT_STATUS.value:
-        return {"service": cid}
+        return {"company_id": cid, "service_id": cid, "operation": "DEPLOYMENT_STATUS"}
     if task_type == HoldingTaskType.REPO_INSPECT.value:
         return {"company_id": cid, "operation": "REPOSITORY_STATUS"}   # safe metadata-only default (§3)
     if task_type == HoldingTaskType.LOG_INSPECT.value:
@@ -301,11 +301,13 @@ def default_providers() -> dict:
     from app.services.holding.repo_inspect import make_repo_provider
     from app.services.holding.log_inspect import make_log_provider
     from app.services.holding.internal_test import make_internal_test_provider
+    from app.services.holding.deployment_status import make_deployment_provider
     return {"holding.health": _default_health_provider,
             "holding.capability_health": _default_capability_health_provider,
             "holding.repo": make_repo_provider(),
             "holding.logs": make_log_provider(),
-            "holding.internal_test": make_internal_test_provider()}
+            "holding.internal_test": make_internal_test_provider(),
+            "holding.deployment": make_deployment_provider()}
 
 
 _INVOKE_OK = "OK"

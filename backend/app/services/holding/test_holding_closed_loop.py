@@ -57,8 +57,9 @@ def t_deployment_closed_loop():
     """§24: deployment changed → DEPLOYMENT_STATUS → read-only evidence (fixture runtime) → no owner."""
     a = _snap([_co("kai", deployment="sha-aaaa")])
     b = _snap([_co("kai", deployment="sha-bbbb")])
-    dep_fixture = {"holding.deployment": lambda args: {"service": args["service"], "deployment_id": "d99",
-                   "sha": "sha-bbbb", "status": "SUCCESS", "observed_at": "2026-09-01"}}
+    dep_fixture = {"holding.deployment": lambda args: {"service_id": args.get("service_id", "kai"),
+                   "deployment_id": "d99", "deployed_sha": "sha-bbbb", "sha_comparison": "MATCH",
+                   "status": "SUCCESS", "observed_at": "2026-09-01"}}
     res = run_cycle(a, b, engine=_engine(dep_fixture), cycle_id="c2", now="2026-09-01T08:00:00")
     assert res["auto_executed"] == 1 and res["owner_queued"] == 0
     assert res["results"][0]["capability_id"] == "holding.deployment"
