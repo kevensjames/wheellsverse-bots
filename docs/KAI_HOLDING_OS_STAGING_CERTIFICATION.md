@@ -16,19 +16,38 @@ Tracks the two-phase certification: **local pre-staging** (done, this branch) an
   surfaces — all confirmed findings fixed + regression-tested.
 
 ## Phase 2 — Hosted staging certification (PENDING PROVISIONING — next mission, certification-only)
-After the operator provisions `kai-staging` + deploys the candidate SHA, the next pass verifies (no new
-features):
-1. staging isolation (DB/Redis/queue/secrets are NOT production)
-2. deployed SHA matches the candidate
-3. BROWSER_VALIDATE real hosted E2E (desktop + mobile) → then the **mandatory SSRF/origin adversarial recheck**
-4. TECH_DOC_LOOKUP hosted E2E (real Context7 source + provenance)
-5. DEPLOYMENT_STATUS_PRODUCTION real read-only E2E (App A + App B SHA/status, no mutation)
-6. persistent autonomy cycle (live)
-7. self-improvement disposable-defect E2E → READY_FOR_REVIEW
-8. restart recovery (one reconcile, no replay storm)
-9. Holding UI + visual screenshots (3440×1440 / 1920×1080 / 1440×900 / 390×844)
-10. final hosted adversarial pass
-11. produce the production promotion package for owner approval
+Establish the **lower layers first** — do NOT start with self-improvement. Deploy DARK (both execution
+brakes off), certify identity/isolation/auth, then lift brake #1 (capability execution), smoke-test,
+then lift brake #2 (autonomy). The most important early test is deliberately boring: **KAI staying quiet
+when there is nothing to do.**
+
+**A. Dark checks (both brakes OFF):**
+1. staging identity — deployed SHA = candidate; project = kai-staging (NOT kai-production)
+2. isolation — Postgres + Redis are staging, not production; no production data
+3. owner auth — holding routes 403 without an owner cookie, 200 with; MONEY_MODE=MOCK
+4. confirm autonomy OFF + capability execution OFF (no autonomous activity possible)
+
+**B. Lift brake #1 (KAI_CAPABILITY_EXECUTION_ENABLED=true), autonomy still OFF:**
+5. capability execution smoke — HEALTH_PROBE / CAPABILITY_HEALTH / REPO_INSPECT / LOG_INSPECT /
+   DEPLOYMENT_STATUS_LOCAL / RUN_INTERNAL_TEST return real evidence
+6. BROWSER_VALIDATE real hosted E2E (desktop + mobile) → then the **mandatory SSRF/origin/redirect
+   adversarial recheck** before certifying it
+7. TECH_DOC_LOOKUP hosted E2E if `CONTEXT7_API_KEY` present, else remains AUTH_PENDING (do not block)
+8. DEPLOYMENT_STATUS_PRODUCTION read-only E2E if `RAILWAY_READ_TOKEN` present, else RUNTIME_PENDING
+
+**C. Lift brake #2 (HOLDING_AUTONOMY_ENABLED=true) — autonomy layers, in order:**
+9. **Cycle 2 (the key test): nothing changed → 0 new tasks, 0 executions, 0 duplicate proposals,
+   0 notifications.** If KAI cannot stay quiet, it is not ready for always-on autonomy.
+10. Cycle 1: a material change → one appropriate autonomous A0 read task → real evidence → COMPLETE
+11. A1 cycle (internal test) · owner boundary (deploy-required → OWNER_QUEUED, KAI never deploys)
+12. limited A2 (isolated worktree/branch, denied-path + no-self-approve) — only with an explicit grant
+13. self-improvement disposable-defect E2E → READY_FOR_REVIEW (never merges/deploys)
+14. restart recovery (one reconcile, no replay storm)
+
+**D. Evidence + close:**
+15. Holding UI + visual screenshots (3440×1440 / 1920×1080 / 1440×900 / 390×844)
+16. final hosted adversarial pass
+17. produce the production promotion package for owner approval
 
 ## Target verdicts
 Phase 1: **HOLDING_AUTONOMY_PRESTAGING_CERTIFIED** ✅
