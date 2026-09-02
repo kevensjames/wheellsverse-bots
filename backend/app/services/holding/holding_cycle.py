@@ -13,7 +13,41 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, asdict
 
-from app.services.holding.autonomous_work import run_cycle
+from app.services.holding.autonomous_work import run_cycle, HoldingAutonomousWorkEngine
+
+
+class _DisabledResult:
+    """ExecutionResult-shaped 'capability execution disabled' — the emergency-brake #1 response."""
+    def __init__(self, reason):
+        self.status = "CAPABILITY_UNAVAILABLE"; self.evidence = {}; self.reason = reason; self.correlation_id = ""
+
+
+def build_live_engine(*, autonomy_on: bool | None = None, execution_on: bool | None = None,
+                      company_autonomy: dict | None = None) -> HoldingAutonomousWorkEngine:
+    """Construct the engine the persistent cron uses, wiring BOTH emergency brakes from config so the
+    operator can stop activity without a code rollback:
+      • KAI_CAPABILITY_EXECUTION_ENABLED (brake #1) OFF → the executor returns CAPABILITY_UNAVAILABLE
+        for everything (no capability runs, even certified reads).
+      • HOLDING_AUTONOMY_ENABLED (brake #2) OFF → global_autonomy False → the engine executes 0
+        (observation/reconciliation still runs). Independent of brake #1.
+    Overrides are for tests; production reads app.config.settings."""
+    if autonomy_on is None or execution_on is None:
+        try:
+            from app.config import settings
+            autonomy_on = bool(getattr(settings, "HOLDING_AUTONOMY_ENABLED", False)) if autonomy_on is None else autonomy_on
+            execution_on = bool(getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False)) if execution_on is None else execution_on
+        except Exception:
+            # config unavailable → fail CLOSED (both brakes engaged) — never assume-on for a brake
+            autonomy_on = False if autonomy_on is None else autonomy_on
+            execution_on = False if execution_on is None else execution_on
+    from app.services.holding.task_resolver import (TaskCapabilityResolver, make_engine_resolver,
+                                                    build_holding_executor)
+    if execution_on:
+        execute = build_holding_executor()
+    else:
+        execute = lambda cap, op, inp, *, mission_id="": _DisabledResult("capability execution disabled (brake #1)")
+    return HoldingAutonomousWorkEngine(execute=execute, resolver=make_engine_resolver(TaskCapabilityResolver()),
+                                       global_autonomy=bool(autonomy_on), company_autonomy=company_autonomy or {})
 
 # §19 bounded per-source-volatility intervals (seconds) — 90-day planning is NOT every 15 min.
 CYCLE_INTERVALS = {

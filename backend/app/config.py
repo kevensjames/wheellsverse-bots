@@ -66,7 +66,13 @@ class Settings(BaseSettings):
     KAI_HOLDING_WATCH_ENABLED: bool = False
     # Capability Fabric execution gateway (owner-only governed tool execution). Default OFF ->
     # the /admin/capabilities routes are not mounted, so a disabled deploy has zero new surface.
+    # This is EMERGENCY BRAKE #1: with it OFF, no capability executes (the live holding executor
+    # returns CAPABILITY_UNAVAILABLE for everything), regardless of autonomy.
     KAI_CAPABILITY_EXECUTION_ENABLED: bool = False
+    # EMERGENCY BRAKE #2 — the holding autonomy master switch. Default OFF: the autonomous work engine
+    # executes 0 (observation/reconciliation still runs per policy), independent of capability execution.
+    # Start staging DARK with this False; enable only after DB/Redis/auth/routes/SHA/Chromium verify.
+    HOLDING_AUTONOMY_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

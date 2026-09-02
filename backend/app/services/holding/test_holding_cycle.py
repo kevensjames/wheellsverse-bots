@@ -8,7 +8,7 @@ from app.services.holding.autonomous_work import HoldingAutonomousWorkEngine  # 
 from app.services.holding.task_resolver import TaskCapabilityResolver, make_engine_resolver, build_holding_executor  # noqa: E402
 from app.services.holding.holding_cycle import (  # noqa: E402
     run_persistent_cycle, category_due, self_improve_allowed, restart_reconcile_count,
-    CycleRecord, SELF_IMPROVE_DAILY_CEILING)
+    build_live_engine, CycleRecord, SELF_IMPROVE_DAILY_CEILING)
 
 _p = 0
 
@@ -87,6 +87,43 @@ def t_restart_reconciles_once():
     """§23: after restart, reconcile once — never replay every missed interval."""
     assert restart_reconcile_count(0) == 1
     assert restart_reconcile_count(500) == 1
+
+
+def _degrade():
+    return (_snap([_co("sol", status="LIVE")]), _snap([_co("sol", status="DEGRADED")]))
+
+
+def t_brake2_autonomy_off_executes_zero_but_observes():
+    """EMERGENCY BRAKE #2: HOLDING_AUTONOMY_ENABLED off → engine executes 0; observation still runs."""
+    a, b = _degrade()
+    eng = build_live_engine(autonomy_on=False, execution_on=True)
+    rec = run_persistent_cycle(a, b, engine=eng, cycle_id="brk2", now="2026-09-02T08:00:00", companies_reviewed=1)
+    assert rec.material_changes == 1 and rec.tasks_executed == 0 and rec.autonomy_off >= 1
+
+
+def t_brake1_capability_execution_off_blocks_even_with_autonomy_on():
+    """EMERGENCY BRAKE #1: KAI_CAPABILITY_EXECUTION_ENABLED off → no capability executes even when
+    autonomy is ON (independent brake); the material change is still observed."""
+    a, b = _degrade()
+    eng = build_live_engine(autonomy_on=True, execution_on=False)
+    rec = run_persistent_cycle(a, b, engine=eng, cycle_id="brk1", now="2026-09-02T08:00:00", companies_reviewed=1)
+    assert rec.material_changes == 1 and rec.tasks_executed == 0 and rec.tasks_blocked >= 1
+
+
+def t_both_brakes_off_dark_start():
+    """Dark-start posture: both brakes off → 0 execution, change observed."""
+    a, b = _degrade()
+    eng = build_live_engine(autonomy_on=False, execution_on=False)
+    rec = run_persistent_cycle(a, b, engine=eng, cycle_id="dark", now="2026-09-02T08:00:00", companies_reviewed=1)
+    assert rec.tasks_executed == 0 and rec.material_changes == 1
+
+
+def t_build_live_engine_fails_closed_without_flags():
+    """If config is unreadable and no overrides → both brakes engaged (fail closed, never assume-on)."""
+    eng = build_live_engine()   # in this test env config load fails → defaults to OFF/OFF
+    a, b = _degrade()
+    rec = run_persistent_cycle(a, b, engine=eng, cycle_id="fc", now="2026-09-02T08:00:00")
+    assert rec.tasks_executed == 0
 
 
 def run():
