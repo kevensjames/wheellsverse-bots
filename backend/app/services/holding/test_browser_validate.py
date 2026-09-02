@@ -122,6 +122,47 @@ def t_no_secret_in_evidence():
     assert "super.secret.token" not in str(ev)
 
 
+def t_playwright_runner_health_fail_closed():
+    """Part A: the real PlaywrightValidationRunner reports UNAVAILABLE where playwright/chromium is
+    absent, and the provider fails closed (RUNTIME_PENDING) instead of crashing mid-launch."""
+    from app.services.holding.browser_validate import PlaywrightValidationRunner
+    r = PlaywrightValidationRunner()
+    h = r.health()
+    assert h["state"] in ("READY", "UNAVAILABLE")
+    if h["state"] == "UNAVAILABLE":
+        prov = make_browser_validate_provider(runner=r, suites=_SUITES)
+        try:
+            prov(_args()); assert False, "must fail closed when runtime not ready"
+        except BrowserDenied:
+            pass
+
+
+def t_health_gate_blocks_unready_runner():
+    class NotReady:
+        def health(self): return {"state": "UNAVAILABLE", "reason": "no chromium"}
+        def __call__(self, t, s): raise AssertionError("must not run when unhealthy")
+    prov = make_browser_validate_provider(runner=NotReady(), suites=_SUITES)
+    try:
+        prov(_args()); assert False
+    except BrowserDenied:
+        pass
+
+
+def t_staging_origins_from_env():
+    """Part A: staging origins come from config (KAI_STAGING_APP_*_ORIGIN); unset → fail closed."""
+    from app.services.holding.browser_validate import configure_staging_origins_from_env
+    suites = configure_staging_origins_from_env({"KAI_STAGING_APP_A_ORIGIN": "https://appa-staging.example.com",
+                                                 "KAI_STAGING_APP_B_ORIGIN": "https://appb-staging.example.com"})
+    assert "https://appa-staging.example.com" in suites["public_homepage_smoke"].approved_origins
+    # unset → the suite keeps its (empty) origins → cannot run
+    empty = configure_staging_origins_from_env({})
+    prov = make_browser_validate_provider(runner=_ok_runner, suites=empty)
+    try:
+        prov({"validation_suite_id": "public_homepage_smoke", "company_id": "kai"}); assert False
+    except BrowserDenied:
+        pass
+
+
 def run():
     for _n, _f in list(globals().items()):
         if _n.startswith("t_"):

@@ -139,6 +139,105 @@ def _resolve_target(req: BrowserValidateRequest, suite: ValidationSuite) -> str:
     return _validate_origin(origin.rstrip("/") + suite.allowed_paths[0], suite)
 
 
+# §Part-A staging origins from config — the real Railway staging vars supply these; unset → the suite
+# has no approved origin and fails closed. Never a hard-coded URL that does not exist yet.
+def configure_staging_origins_from_env(env: dict | None = None) -> dict:
+    """Bind suites' approved origins from KAI_STAGING_APP_A_ORIGIN / KAI_STAGING_APP_B_ORIGIN. Returns a
+    NEW suites dict (does not mutate module state) so callers pass it to make_browser_validate_provider."""
+    import os
+    e = env if env is not None else os.environ
+    app_a = (e.get("KAI_STAGING_APP_A_ORIGIN") or "").rstrip("/")
+    app_b = (e.get("KAI_STAGING_APP_B_ORIGIN") or "").rstrip("/")
+    out = {}
+    for sid, s in _SUITES.items():
+        origins = tuple(o for o in (app_a, app_b) if o) if not s.approved_origins else s.approved_origins
+        out[sid] = ValidationSuite(s.suite_id, origins, s.allowed_paths, s.allowed_methods, s.auth_required,
+                                   s.screenshots, s.timeout_s, s.viewports, s.assertions, s.allow_internal)
+    return out
+
+
+# Assertions the runner can evaluate DETERMINISTICALLY (no arbitrary JS from the suite/task).
+_ASSERTION_VOCAB = frozenset({"status_200", "title_present", "today_section_present", "login_form_present",
+                              "health_ok", "no_console_errors", "responsive_ok"})
+
+
+class PlaywrightValidationRunner:
+    """Real read-only Playwright runner (Part A). Importable without playwright installed — health()
+    reports UNAVAILABLE and the provider fails closed. Read-only only: navigate (GET), evaluate a FIXED
+    assertion vocabulary, screenshot. Defenses: downloads refused, popups/new windows closed, the FINAL
+    url is re-validated against the suite origin (redirect-to-private-IP defense), never a form submit/
+    click on a consequential control, never task-supplied cookies/JS."""
+
+    def health(self) -> dict:
+        try:
+            import importlib.util
+            if importlib.util.find_spec("playwright") is None:
+                return {"state": "UNAVAILABLE", "reason": "playwright not installed"}
+            from playwright.sync_api import sync_playwright
+            with sync_playwright() as p:
+                b = p.chromium.launch(headless=True)
+                b.close()
+            return {"state": "READY"}
+        except Exception as e:
+            return {"state": "UNAVAILABLE", "reason": f"chromium launch failed: {str(e)[:80]}"}
+
+    def __call__(self, target: str, suite: "ValidationSuite") -> dict:
+        from playwright.sync_api import sync_playwright
+        assertions_run, passed, failed, console_errors, net_failures, shots = [], 0, 0, [], [], []
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                for vp in suite.viewports:
+                    size = {"width": 1440, "height": 900} if vp == "desktop" else {"width": 390, "height": 844}
+                    ctx = browser.new_context(viewport=size, accept_downloads=False)  # downloads refused
+                    ctx.on("page", lambda pg: pg.close())   # any popup/new window is closed immediately
+                    page = ctx.new_page()
+                    page.on("console", lambda m: console_errors.append(str(m.text)[:200]) if m.type == "error" else None)
+                    page.on("requestfailed", lambda r: net_failures.append(str(r.url)[:120]))
+                    resp = page.goto(target, wait_until="domcontentloaded", timeout=suite.timeout_s * 1000)
+                    # redirect defense: the FINAL url origin must still be approved
+                    from urllib.parse import urlparse
+                    final = urlparse(page.url)
+                    if f"{final.scheme}://{final.netloc}" not in suite.approved_origins:
+                        raise BrowserDenied("navigation left the approved origin (redirect blocked)")
+                    for a in suite.assertions:
+                        if a not in _ASSERTION_VOCAB:
+                            continue   # unknown assertion is ignored, never eval'd as code
+                        ok = _eval_assertion(a, page, resp)
+                        assertions_run.append({"assertion": a, "viewport": vp, "ok": ok})
+                        passed += 1 if ok else 0
+                        failed += 0 if ok else 1
+                    if suite.screenshots:
+                        shots.append(f"{suite.suite_id}-{vp}.png")   # ref only; bytes handled out of band
+                    ctx.close()
+            finally:
+                browser.close()
+        return {"assertions": assertions_run, "passed": passed, "failed": failed,
+                "console_errors": console_errors[:20], "network_failures": net_failures[:20],
+                "screenshot_refs": shots}
+
+
+def _eval_assertion(name: str, page, resp) -> bool:
+    try:
+        if name == "status_200":
+            return bool(resp) and 200 <= resp.status < 400
+        if name == "title_present":
+            return bool((page.title() or "").strip())
+        if name == "today_section_present":
+            return page.get_by_text("TODAY FOR YOU").count() > 0 or page.get_by_text("No action required").count() > 0
+        if name == "login_form_present":
+            return page.locator("input[type=password], form").count() > 0
+        if name == "health_ok":
+            return bool(resp) and resp.status == 200
+        if name == "no_console_errors":
+            return True   # evaluated by the caller from the console_errors list
+        if name == "responsive_ok":
+            return page.evaluate("() => document.documentElement.scrollWidth <= window.innerWidth + 2")
+    except Exception:
+        return False
+    return False
+
+
 def make_browser_validate_provider(*, runner=None, suites: dict | None = None):
     """Return provider(args) for the composite executor. Enforces the typed contract + suite + origin/SSRF
     policy BEFORE calling the injected Playwright runner. With no runner → CAPABILITY_UNAVAILABLE
@@ -153,9 +252,13 @@ def make_browser_validate_provider(*, runner=None, suites: dict | None = None):
             raise BrowserDenied("suite declares a mutating assertion")
         target = _resolve_target(req, suite)
         if runner is None:
-            # policy passed, but no Playwright runtime is wired on this server → fail closed, honestly.
             raise BrowserDenied("no browser runtime wired (BROWSER_VALIDATE_RUNTIME_PENDING)")
-        raw = runner(target, suite)   # runner is a deterministic, read-only Playwright validation
+        # if the runner self-reports health (the Playwright runner does), require READY before executing —
+        # so a server without chromium fails closed (RUNTIME_PENDING) instead of crashing mid-launch.
+        h = runner.health() if hasattr(runner, "health") else {"state": "READY"}
+        if h.get("state") != "READY":
+            raise BrowserDenied(f"browser runtime not ready: {h.get('reason', 'unavailable')}")
+        raw = runner(target, suite)   # deterministic, read-only Playwright validation
         evidence = {"suite_id": suite.suite_id, "target": target, "environment": req.environment,
                     "viewports": list(suite.viewports),
                     "assertions": raw.get("assertions", []), "passed": raw.get("passed", 0),

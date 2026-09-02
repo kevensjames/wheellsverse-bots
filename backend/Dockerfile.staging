@@ -25,6 +25,11 @@ COPY backend/requirements-staging.txt /tmp/backend-requirements.txt
 RUN pip install --no-cache-dir -r /tmp/backend-requirements.txt \
  && pip install --no-cache-dir 'openai>=1.30.0,<2.0.0' 'anthropic>=0.39.0,<1.0.0'
 
+# BROWSER_VALIDATE (A1) runtime: Chromium only (no Firefox/WebKit) + its OS deps. The playwright pip
+# package is pinned in requirements-staging.txt; this fetches the browser binary so
+# holding.browser_validate can launch it. Governed by read-only validation suites — never arbitrary JS/URL.
+RUN python -m playwright install --with-deps chromium
+
 # Whole repo (core/ + backend/) so the cross-package import resolves.
 COPY . /app
 

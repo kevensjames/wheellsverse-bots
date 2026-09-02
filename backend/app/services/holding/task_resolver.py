@@ -307,7 +307,9 @@ def default_providers() -> dict:
     from app.services.holding.log_inspect import make_log_provider
     from app.services.holding.internal_test import make_internal_test_provider
     from app.services.holding.deployment_status import make_deployment_provider
-    from app.services.holding.browser_validate import make_browser_validate_provider
+    from app.services.holding.browser_validate import (make_browser_validate_provider,
+                                                        PlaywrightValidationRunner,
+                                                        configure_staging_origins_from_env)
     from app.services.holding.tech_doc_lookup import make_tech_doc_provider
     return {"holding.health": _default_health_provider,
             "holding.capability_health": _default_capability_health_provider,
@@ -315,7 +317,10 @@ def default_providers() -> dict:
             "holding.logs": make_log_provider(),
             "holding.internal_test": make_internal_test_provider(),
             "holding.deployment": make_deployment_provider(),
-            "holding.browser_validate": make_browser_validate_provider(),   # runner=None → fails closed
+            # real Playwright runner (health-gated: auto-active on the staging image with chromium, else
+            # fails closed) + suites bound to the configured staging origins
+            "holding.browser_validate": make_browser_validate_provider(
+                runner=PlaywrightValidationRunner(), suites=configure_staging_origins_from_env()),
             "holding.tech_doc": make_tech_doc_provider()}                   # client=None → fails closed
 
 

@@ -74,6 +74,47 @@ def t_happy_path_evidence():
         assert k in ev, k
 
 
+def t_context7_adapter_states():
+    """Part B: no transport → RUNTIME_PENDING; transport but no key → AUTH_PENDING; both → READY."""
+    import os
+    from app.services.holding.tech_doc_lookup import Context7ServerAdapter, DocDenied
+    a0 = Context7ServerAdapter(transport=None)
+    assert a0.health()["state"] == "RUNTIME_PENDING"
+    calls = []
+    def transport(op, params):
+        calls.append(op)
+        if op == "resolve_library_id":
+            return {"library_id": "/tiangolo/fastapi"}
+        return {"results": [{"source": "context7", "url": "https://d", "snippet": "app = FastAPI()"}]}
+    a1 = Context7ServerAdapter(transport=transport, api_key_env="CTX7_TEST_KEY_ABSENT")
+    os.environ.pop("CTX7_TEST_KEY_ABSENT", None)
+    assert a1.health()["state"] == "AUTH_PENDING"
+    try:
+        a1.client("fastapi", "", "", 3); assert False   # client refuses when AUTH_PENDING
+    except DocDenied:
+        pass
+    os.environ["CTX7_TEST_KEY_PRESENT"] = "x"   # a NON-secret test marker, not a real credential
+    a2 = Context7ServerAdapter(transport=transport, api_key_env="CTX7_TEST_KEY_PRESENT")
+    assert a2.health()["state"] == "READY"
+    res = a2.client("fastapi", "lifespan", "", 3)
+    assert res and res[0]["snippet"].startswith("app =") and calls == ["resolve_library_id", "get_docs"]
+    os.environ.pop("CTX7_TEST_KEY_PRESENT", None)
+
+
+def t_context7_adapter_feeds_untrusted_provider():
+    """The adapter's client, fed to the provider, still marks results UNTRUSTED + redacts."""
+    from app.services.holding.tech_doc_lookup import Context7ServerAdapter
+    import os
+    os.environ["CTX7_TEST_KEY2"] = "x"
+    def transport(op, params):
+        return {"library_id": "x"} if op == "resolve_library_id" else \
+            {"results": [{"snippet": "leak ghp_0123456789abcdefABCDEF0123456789abcd"}]}
+    adapter = Context7ServerAdapter(transport=transport, api_key_env="CTX7_TEST_KEY2")
+    ev = make_tech_doc_provider(client=adapter.client)({"library": "fastapi"})
+    assert ev["results"][0]["trust"] == "UNTRUSTED_EXTERNAL_CONTENT" and "ghp_0123456789" not in str(ev)
+    os.environ.pop("CTX7_TEST_KEY2", None)
+
+
 def run():
     for _n, _f in list(globals().items()):
         if _n.startswith("t_"):
