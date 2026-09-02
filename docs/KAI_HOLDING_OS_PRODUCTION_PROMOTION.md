@@ -87,7 +87,7 @@ Health env=staging; `GET /admin/holding/view` (owner cookie) returns TODAY-first
 ## 8. Known limitations (honest)
 - DEPLOYMENT_STATUS_PRODUCTION returns UNAVAILABLE until the Railway read token is injected — production truth is **never** inferred from local git.
 - BROWSER_VALIDATE + TECH_DOC_LOOKUP are policy/contract-certified but their runtimes are not installed on the server yet.
-- The Holding UI has a mounted view-model API (`/admin/holding/view`); the full 6-section HTML render is a small remaining frontend step.
+- The Holding UI is built: `GET /admin/holding/view` + the 6 rendered sections (Today-first) in `holding.html`; its live visual verification happens on hosted staging.
 - No hosted staging exists yet — the full live autonomy chain is proven locally (composed closed-loop + cycle tests), not yet hosted.
 
 ## 9. Production environment changes required
