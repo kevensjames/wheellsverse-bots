@@ -34,14 +34,28 @@ def _deterministic_worker(task, wt):
                         artifacts=["draft-pr"])
 
 
+# The CLI subprocess gets a SCRUBBED env — ONLY an explicit allowlist (goal + cwd + the model-API key the
+# tool needs), never the runner's full environment. This is the §35 credential-isolation prerequisite for
+# enabling KAI_CODING_CLI: without it a wired CLI would inherit SESSION_SIGNING_SECRET / DATABASE_URL /
+# SECRET_KEY under `railway run` and could exfil them — a network side-effect invisible to every diff gate
+# and to owner-review-before-merge. The allowlist is operator-controlled via KAI_CODING_CLI_ENV_ALLOW.
+_ENV_ALLOW_DEFAULT = "PATH,HOME,LANG,LC_ALL,TERM,ANTHROPIC_API_KEY,OPENAI_API_KEY"
+
+
+def _scrubbed_env() -> dict:
+    allow = {k.strip() for k in os.environ.get("KAI_CODING_CLI_ENV_ALLOW", _ENV_ALLOW_DEFAULT).split(",") if k.strip()}
+    return {k: v for k, v in os.environ.items() if k in allow}
+
+
 def _cli_worker(cli: str):
-    """Real coding worker: run a headless coding CLI in the worktree. Never pushes; the framework derives
-    the diff independently. The CLI gets ONLY the goal + its cwd — no credentials/secrets travel here."""
+    """Real coding worker: run a headless coding CLI in the worktree with a SCRUBBED env (no runner
+    secrets). Never pushes; the framework derives the diff independently and the worker is never trusted."""
     def w(task, wt):
         from app.services.capability.coding import WorkerResult
         goal = str(task.get("goal", "") if isinstance(task, dict) else getattr(task, "goal", ""))[:500]
         try:
-            subprocess.run([*cli.split(), goal], cwd=wt.worktree, capture_output=True, text=True, timeout=600)
+            subprocess.run([*cli.split(), goal], cwd=wt.worktree, env=_scrubbed_env(),
+                           capture_output=True, text=True, timeout=600)
         except Exception as e:
             return WorkerResult(task="fix", worker=cli.split()[0], starting_sha=wt.starting_sha,
                                 warnings=[f"cli error: {str(e)[:120]}"])

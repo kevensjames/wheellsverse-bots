@@ -60,8 +60,17 @@ def _default_enqueue(proposal_id, worker, task, *, idempotency_key, mission_id):
     return worker_jobs.enqueue(proposal_id, worker, task, idempotency_key=idempotency_key, mission_id=mission_id)
 
 
-# outcomes the worker's governed A2 prepare() can legitimately return
-_A2_STATES = frozenset({"READY_FOR_REVIEW", "OWNER_REQUIRED", "BLOCKED", "NEEDS_CERTIFICATION", "WORKTREE"})
+# a worker-reported NON-ready governed outcome KAI trusts a fail-closed worker verdict for (carried through)
+_NON_READY = frozenset({"OWNER_REQUIRED", "BLOCKED", "NEEDS_CERTIFICATION", "WORKTREE"})
+
+
+def _safe_int(v) -> int:
+    """Coerce an attacker-controlled numeric field defensively — a non-numeric value counts as 'unknown/
+    over the cap' so it can never buy a permissive outcome (fail closed)."""
+    try:
+        return int(v)
+    except (TypeError, ValueError):
+        return 10 ** 9   # non-numeric → treat as over any cap (fail closed, never permissive)
 
 
 def verify_a2_evidence(evidence: dict, *, expected_company: str = "wheellsverse",
@@ -90,10 +99,10 @@ def verify_a2_evidence(evidence: dict, *, expected_company: str = "wheellsverse"
         return {"decision": "REJECTED", "reasons": ["base_sha mismatch (repo/base substitution)"]}
     # 2. re-run the pure shared gates on the reported diff (defense in depth) — a gate hit is OWNER_REQUIRED
     if (touches_authority(files) or [f for f in files if is_dependency_file(f) or is_binary_file(f)]
-            or len(files) > MAX_FILES_CHANGED or int(ev.get("total_diff_lines", 0) or 0) > MAX_TOTAL_DIFF_LINES):
+            or len(files) > MAX_FILES_CHANGED or _safe_int(ev.get("total_diff_lines", 0)) > MAX_TOTAL_DIFF_LINES):
         return {"decision": "OWNER_REQUIRED", "reasons": ["reported diff hits a shared-gate class"]}
     # 3. a worker-reported NON-ready governed state is carried through (trust a fail-closed worker verdict)
-    if worker_state in ("OWNER_REQUIRED", "BLOCKED", "NEEDS_CERTIFICATION", "WORKTREE"):
+    if worker_state in _NON_READY:
         return {"decision": worker_state, "reasons": [(ev.get("reason") or worker_state)[:100]]}
     # 4. a CLAIMED READY must independently re-verify: files present, certified, reviewed by a DIFFERENT id
     if (worker_state == "READY_FOR_REVIEW" and ev.get("ready_for_review") and ev.get("certified")

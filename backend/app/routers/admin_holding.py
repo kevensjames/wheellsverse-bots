@@ -130,15 +130,29 @@ def holding_worker_heartbeat(job_id: int, body: dict = Body(default={})):
 
 @router.post("/worker-jobs/{job_id}/complete")
 def holding_worker_complete(job_id: int, body: dict = Body(default={})):
-    """The worker-runner posts a job's read-only evidence (running -> succeeded/failed). Owner-only,
-    owning-worker guarded, idempotent (a terminal job is a no-op → no duplicate evidence)."""
+    """The worker-runner posts a job's evidence (running -> succeeded/failed). Owner-only, owning-worker
+    guarded (worker_id REQUIRED so the ownership guard is never optional), idempotent. For an A2 CODING
+    job, deployed KAI INDEPENDENTLY re-verifies the evidence (verify_a2_evidence) and records ITS decision
+    as authoritative — the worker's self-reported state/status is never trusted as the label."""
+    import os
     from app.services.holding import worker_jobs
-    ok = worker_jobs.complete(job_id, body.get("evidence", body), status=body.get("status", "succeeded"),
-                              worker_id=body.get("worker_id"))
+    worker_id = body.get("worker_id")
+    if not worker_id:                                          # §41 — never let the ownership guard be optional
+        raise HTTPException(status_code=400, detail="worker_id required")
+    evidence = body.get("evidence", body)
+    status = body.get("status", "succeeded")
+    # A2 coding evidence carries an A2Prepared shape (state + action_type). Deployed KAI decides, not the worker.
+    if isinstance(evidence, dict) and evidence.get("action_type") and "state" in evidence:
+        from app.services.holding.a2_dispatch import verify_a2_evidence
+        base = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or ""
+        decision = verify_a2_evidence(evidence, expected_company="wheellsverse", expected_base_sha=base)
+        evidence = {**evidence, "kai_decision": decision}     # authoritative decision recorded with the evidence
+        status = "succeeded" if decision["decision"] in ("READY_FOR_REVIEW", "OWNER_REQUIRED") else "failed"
+    ok = worker_jobs.complete(job_id, evidence, status=status, worker_id=worker_id)
     if not ok:
         raise HTTPException(status_code=409, detail="job not in 'running' state / not owner / already terminal")
-    _audit_proposal("holding.worker_job.completed",
-                    {"job_id": job_id, "status": body.get("status", "succeeded"), "worker_id": body.get("worker_id")})
+    _audit_proposal("holding.worker_job.completed", {"job_id": job_id, "status": status, "worker_id": worker_id,
+                    "kai_decision": (evidence.get("kai_decision") or {}).get("decision") if isinstance(evidence, dict) else None})
     return {"completed": True, "job_id": job_id}
 
 

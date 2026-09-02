@@ -111,6 +111,14 @@ ck("same mission_id -> same idempotency_key a2:m1 (queue dedups)", b4box["calls"
 ck("a verified READY_FOR_REVIEW still asserts merged/deployed False (owner merges, KAI never does)",
    ev.get("merged") is False and ev.get("deployed") is False and d["decision"] == "READY_FOR_REVIEW")
 
+print("STEP 8 — ADVERSARIAL FIXES: CLI env scrub (A) + malformed diff-lines fail-closed (D)")
+os.environ["SESSION_SIGNING_SECRET"] = "supersecret"; os.environ["DATABASE_URL"] = "postgres://x"
+scrubbed = coding._scrubbed_env()
+ck("CLI env scrub excludes runner secrets (SESSION_SIGNING_SECRET / DATABASE_URL)",
+   "SESSION_SIGNING_SECRET" not in scrubbed and "DATABASE_URL" not in scrubbed and "SECRET_KEY" not in scrubbed)
+ck("malformed total_diff_lines -> OWNER_REQUIRED (fail closed, no throw)",
+   verify_a2_evidence({**ev, "total_diff_lines": "9999x"})["decision"] == "OWNER_REQUIRED")
+
 subprocess.run(["git", "-C", REPO, "worktree", "prune"], capture_output=True, text=True)
 n = len(res); ok = sum(res)
 print(f"\nLIMITED-A2 HOSTED-DISPATCH CERT: {ok}/{n} —", "PASS" if ok == n else "FAIL")
