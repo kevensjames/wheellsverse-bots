@@ -180,6 +180,43 @@ def _manual_cycle_rate_ok(principal_id: str, *, limit: int = 6, window_s: int = 
     return True
 
 
+@router.get("/self-cert")
+def holding_self_cert(principal=Depends(require_kai_ultra)):
+    """Run the FIXED A0 + A1 certification scripts AS A SUBPROCESS INSIDE THIS DEPLOYED CONTAINER and
+    return their results — true hosted-runtime proof (contrast `railway run`, which executes on the
+    operator's local machine). Owner-only, staging-only, off by default (KAI_HOLDING_SELFCERT_ENABLED).
+    No request input reaches the subprocess (fixed in-repo script paths); bounded output + timeout. The
+    subprocess inherits THIS container's env, so the brakes/APP_ENV/MONEY_MODE it reports are the real ones."""
+    import os
+    import subprocess
+    from pathlib import Path
+    from app.config import settings
+    if not getattr(settings, "KAI_HOLDING_SELFCERT_ENABLED", False) or \
+       str(getattr(settings, "APP_ENV", "")).lower() != "staging":
+        raise HTTPException(status_code=404, detail="not found")
+    root = Path(__file__).resolve().parents[3]   # repo root (/app in the image): holds ops/ + backend/
+    scripts = {"a0": "ops/holding-staging/hosted_a0_execute_cert.py",
+               "a1": "ops/holding-staging/hosted_a1_execute_cert.py"}
+    out = {"ran_in": "deployed-container", "hostname": os.uname().nodename,
+           "app_env": getattr(settings, "APP_ENV", ""),
+           "deployed_sha": os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or "UNAVAILABLE",
+           "results": {}}
+    for name, rel in scripts.items():
+        try:
+            r = subprocess.run(["python3", str(root / rel)], cwd=str(root),
+                               capture_output=True, text=True, timeout=120)
+            stdout = r.stdout or ""
+            verdict = next((ln.strip() for ln in reversed(stdout.splitlines()) if "CERT:" in ln), "")
+            out["results"][name] = {"exit": r.returncode, "passed": r.returncode == 0,
+                                    "verdict": verdict, "output_tail": stdout[-6000:]}
+        except Exception as e:
+            out["results"][name] = {"exit": None, "passed": False, "error": str(e)[:200]}
+    _audit_proposal("holding.self_cert", {"principal": getattr(principal, "id", "owner"),
+                    "a0": out["results"].get("a0", {}).get("passed"),
+                    "a1": out["results"].get("a1", {}).get("passed")})
+    return out
+
+
 @router.post("/run-cycle")
 def holding_run_cycle(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
     """Run EXACTLY ONE existing Holding cycle (owner-only, staging-cert/diagnostics). Reuses

@@ -77,6 +77,10 @@ class Settings(BaseSettings):
     # certification + operator diagnostics ONLY. Default OFF (route 404). Requires APP_ENV=staging.
     # It grants NO authority: both brakes above remain authoritative; it just runs one existing cycle.
     KAI_HOLDING_MANUAL_CYCLE_ENABLED: bool = False
+    # Hosted-runtime self-certification: runs the FIXED A0/A1 cert scripts as a subprocess INSIDE the
+    # deployed container (true hosted proof, vs `railway run` which is local). Owner-only, staging-only,
+    # default OFF (route 404). No request input; grants no authority.
+    KAI_HOLDING_SELFCERT_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
