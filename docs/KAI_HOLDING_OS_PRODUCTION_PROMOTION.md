@@ -26,7 +26,7 @@
 *before* anything can autonomously execute. The two brakes are independent (see §2) — turn autonomy off
 first, then capability execution off, and you never need a code rollback merely to stop activity.
 
-1. Check out the exact SHA **`0bd5815`** (or the branch tip) in a clean worktree.
+1. Check out the exact SHA **`0a00e5f`** (or the branch tip) in a clean worktree.
 2. Link/create the **NEW `kai-staging`** Railway project.
 3. **Positively verify** you are NOT on production — not just the environment name:
    ```
@@ -43,10 +43,10 @@ first, then capability execution off, and you never need a code rollback merely 
    ```
 6. Generate `SESSION_SIGNING_SECRET` **locally** and set it directly in Railway — never paste it into
    Claude/ChatGPT/logs.
-7. `railway up --service kai-staging-appb` from **`0bd5815`** (Dockerfile.staging: migrations 0000→0006 on
+7. `railway up --service kai-staging-appb` from **`0a00e5f`** (Dockerfile.staging: migrations 0000→0006 on
    empty DB + `playwright install chromium`).
 8. Wait for Railway terminal state **SUCCESS**.
-9. Verify: deployed SHA = `0bd5815` · migrations succeeded · Postgres is staging · Redis is staging ·
+9. Verify: deployed SHA = `0a00e5f` · migrations succeeded · Postgres is staging · Redis is staging ·
    MONEY_MODE=MOCK · holding routes owner-gated (403 without owner cookie) · no crash loop ·
    **autonomy OFF · capability execution OFF**.
 10. `railway domain --port 8000` → **APP_B_STAGING_URL**.
