@@ -102,7 +102,7 @@ _CHANGE_TASKS = {
     "WORKER_PLANE_DEGRADED":  (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Diagnose offline worker plane", "HEALTH_PROBE"),
     "CAPABILITY_UNAVAILABLE": (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Check unavailable capabilities", "CAPABILITY_HEALTH"),
     "AUTONOMY_CHANGED":       (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Review autonomy degradation", "CAPABILITY_HEALTH"),
-    "DEPLOYMENT_CHANGED":     (AutonomyClass.A0_OBSERVE, Assignee.KAI, "Verify deployment status on {scope}", "DEPLOYMENT_STATUS"),
+    "DEPLOYMENT_CHANGED":     (AutonomyClass.A1_INTERNAL_SAFE, Assignee.KAI, "Verify deployment on {scope} by running the internal test suite", "RUN_INTERNAL_TEST"),
     "OWNER_BLOCKER_ADDED":    (AutonomyClass.A3_EXTERNAL_HIGH_IMPACT, Assignee.OWNER, "Owner decision required on {scope}", ""),
 }
 

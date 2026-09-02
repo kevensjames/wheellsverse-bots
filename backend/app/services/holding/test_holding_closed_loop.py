@@ -54,24 +54,26 @@ def t_incident_closed_loop_completes_with_evidence():
 
 
 def t_deployment_closed_loop():
-    """§24: deployment changed → DEPLOYMENT_STATUS → read-only evidence (fixture runtime) → no owner."""
+    """§24: deployment changed → RUN_INTERNAL_TEST (A1 verify) → certified suite evidence → no owner.
+    A deploy is now verified by running the internal suite, not merely reading the SHA."""
     a = _snap([_co("kai", deployment="sha-aaaa")])
     b = _snap([_co("kai", deployment="sha-bbbb")])
-    dep_fixture = {"holding.deployment": lambda args: {"service_id": args.get("service_id", "kai"),
-                   "deployment_id": "d99", "deployed_sha": "sha-bbbb", "sha_comparison": "MATCH",
-                   "status": "SUCCESS", "observed_at": "2026-09-01"}}
-    res = run_cycle(a, b, engine=_engine(dep_fixture), cycle_id="c2", now="2026-09-01T08:00:00")
+    test_fixture = {"holding.internal_test": lambda args: {"suite": args.get("suite_id"),
+                    "execution": "COMPLETED", "test_result": "PASSED", "passed": 3, "failed": 0,
+                    "exit_status": 0, "observed_at": "2026-09-01"}}
+    res = run_cycle(a, b, engine=_engine(test_fixture), cycle_id="c2", now="2026-09-01T08:00:00")
     assert res["auto_executed"] == 1 and res["owner_queued"] == 0
-    assert res["results"][0]["capability_id"] == "holding.deployment"
+    assert res["results"][0]["capability_id"] == "holding.internal_test"
 
 
-def t_deployment_without_runtime_blocks():
-    """§37: with NO deployment provider, the pending runtime fails closed to BLOCKED_CAPABILITY."""
-    a = _snap([_co("kai", deployment="sha-aaaa")])
-    b = _snap([_co("kai", deployment="sha-bbbb")])
-    res = run_cycle(a, b, engine=_engine(), cycle_id="c2b", now="2026-09-01T08:00:00")
-    assert res["auto_executed"] == 0 and res["blocked"] == 1
-    assert res["results"][0]["outcome"] == BLOCKED_CAPABILITY
+def t_deployment_status_pending_runtime_blocks():
+    """§37: DEPLOYMENT_STATUS stays a certified capability (no longer deploy-triggered); with its runtime
+    still pending it fails closed to BLOCKED_CAPABILITY — a pending runtime never silently passes."""
+    task = PlanTask("dep:kai", "kai", "check deploy status", "x", "dep:kai",
+                    task_type=HoldingTaskType.DEPLOYMENT_STATUS.value, autonomy=int(AutonomyClass.A0_OBSERVE),
+                    assigned_to=Assignee.KAI.value)
+    r = _engine().run_task(task)
+    assert r.outcome == BLOCKED_CAPABILITY, r.outcome
 
 
 def t_log_inspect_bounded_redacted_in_loop():
