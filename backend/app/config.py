@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     # deployed container (true hosted proof, vs `railway run` which is local). Owner-only, staging-only,
     # default OFF (route 404). No request input; grants no authority.
     KAI_HOLDING_SELFCERT_ENABLED: bool = False
+    # Emergency brake #3 (limited A2 prepare-only writes). Default OFF, production OFF. Subordinate to
+    # both global brakes (KAI_CAPABILITY_EXECUTION_ENABLED + HOLDING_AUTONOMY_ENABLED) — it can never
+    # override them. Even ON, A2 stays NEEDS_CERTIFICATION until a coding worker + grant are wired, and
+    # A2 only ever PREPARES an isolated change (READY_FOR_REVIEW) — it never merges or deploys.
+    KAI_A2_EXECUTION_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
