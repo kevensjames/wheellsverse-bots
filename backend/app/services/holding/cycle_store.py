@@ -4,6 +4,7 @@ manual_cycle.InMemoryCycleStore so the route uses this and the tests use the in-
 """
 from __future__ import annotations
 import json
+import secrets
 
 from sqlalchemy import text
 from app.database import SessionLocal
@@ -11,14 +12,16 @@ from app.database import SessionLocal
 _DDL_STATE = """CREATE TABLE IF NOT EXISTS holding_cycle_state (
     holding_id TEXT PRIMARY KEY,
     prior_snapshot JSONB, last_cycle_id TEXT, seq BIGINT NOT NULL DEFAULT 0,
-    running_until TIMESTAMPTZ, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"""
+    running_until TIMESTAMPTZ, running_token TEXT, updated_at TIMESTAMPTZ NOT NULL DEFAULT now())"""
+# older tables (created before the lease-token fix) get the column added idempotently
+_ALTER_TOKEN = "ALTER TABLE holding_cycle_state ADD COLUMN IF NOT EXISTS running_token TEXT"
 _DDL_RUNS = """CREATE TABLE IF NOT EXISTS holding_cycle_runs (
     idempotency_key TEXT PRIMARY KEY, record JSONB NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT now())"""
 
 
 class DbCycleStore:
     def _ensure(self, db):
-        db.execute(text(_DDL_STATE)); db.execute(text(_DDL_RUNS))
+        db.execute(text(_DDL_STATE)); db.execute(text(_DDL_RUNS)); db.execute(text(_ALTER_TOKEN))
 
     def next_cycle_id(self, holding_id, now):
         try:
@@ -64,7 +67,9 @@ class DbCycleStore:
             pass
 
     def try_lock(self, holding_id, lease_s, now):
-        """Single-flight: acquire only if no live lease (running_until null or in the past). Atomic."""
+        """Single-flight: acquire only if no live lease (running_until null or in the past). Atomic.
+        Returns a LEASE TOKEN (str) on success, else None — so only the holder can release it."""
+        token = secrets.token_hex(8)
         try:
             db = SessionLocal()
             try:
@@ -72,23 +77,27 @@ class DbCycleStore:
                 db.execute(text("INSERT INTO holding_cycle_state (holding_id) VALUES (:h) "
                                 "ON CONFLICT (holding_id) DO NOTHING"), {"h": holding_id})
                 r = db.execute(text(
-                    "UPDATE holding_cycle_state SET running_until = now() + (:lease || ' seconds')::interval "
+                    "UPDATE holding_cycle_state SET running_until = now() + (:lease || ' seconds')::interval, "
+                    "running_token = :tok "
                     "WHERE holding_id = :h AND (running_until IS NULL OR running_until < now()) "
-                    "RETURNING holding_id"), {"h": holding_id, "lease": str(int(lease_s))}).fetchone()
+                    "RETURNING holding_id"), {"h": holding_id, "lease": str(int(lease_s)), "tok": token}).fetchone()
                 db.commit()
-                return bool(r)
+                return token if r else None
             finally:
                 db.close()
         except Exception:
-            return False   # DB down → fail closed (do not run a cycle we cannot lock)
+            return None   # DB down → fail closed (do not run a cycle we cannot lock)
 
-    def release_lock(self, holding_id):
+    def release_lock(self, holding_id, token=None):
+        """Release ONLY our own lease (recheck fix): a late releaser whose lease already expired and was
+        re-acquired by a successor must NOT null the successor's live lease. Token-scoped."""
         try:
             db = SessionLocal()
             try:
                 self._ensure(db)
-                db.execute(text("UPDATE holding_cycle_state SET running_until = NULL WHERE holding_id = :h"),
-                           {"h": holding_id})
+                db.execute(text("UPDATE holding_cycle_state SET running_until = NULL, running_token = NULL "
+                                "WHERE holding_id = :h AND running_token = :tok"),
+                           {"h": holding_id, "tok": token})
                 db.commit()
             finally:
                 db.close()

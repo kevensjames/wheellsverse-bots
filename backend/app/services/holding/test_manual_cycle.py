@@ -92,12 +92,18 @@ def t_single_flight_lock():
     """§7: a concurrent cycle while one is running → CycleRunning (409)."""
     store = InMemoryCycleStore()
     eng = build_live_engine(autonomy_on=False, execution_on=False)
-    assert store.try_lock("wheellsverse", 120, "now") is True   # simulate an in-progress cycle
+    other_token = store.try_lock("wheellsverse", 120, "now")   # simulate an in-progress cycle
+    assert other_token and store.try_lock("wheellsverse", 120, "now") is None   # second acquire blocked
     try:
         run_manual_cycle(store, eng, lambda: _snap(), now="t")
         assert False, "should be single-flight blocked"
     except CycleRunning:
         pass
+    # a late releaser with the WRONG token must NOT clear the live lease (recheck fix)
+    store.release_lock("wheellsverse", "stale-token")
+    assert store.try_lock("wheellsverse", 120, "now") is None   # still locked by other_token
+    store.release_lock("wheellsverse", other_token)             # correct token releases
+    assert store.try_lock("wheellsverse", 120, "now") is not None
 
 
 def t_idempotent_replay():

@@ -77,12 +77,15 @@ class InMemoryCycleStore:
 
     def try_lock(self, holding_id, lease_s, now):
         if self._locks.get(holding_id):
-            return False
-        self._locks[holding_id] = True
-        return True
+            return None
+        import secrets
+        token = secrets.token_hex(4)
+        self._locks[holding_id] = token
+        return token
 
-    def release_lock(self, holding_id):
-        self._locks.pop(holding_id, None)
+    def release_lock(self, holding_id, token=None):
+        if self._locks.get(holding_id) == token:   # lease-scoped: only the holder releases
+            self._locks.pop(holding_id, None)
 
     def load_prior(self, holding_id):
         return self._prior.get(holding_id)
@@ -101,7 +104,8 @@ def run_manual_cycle(store, engine, snapshot_fn, *, holding_id: str = "wheellsve
         prior_run = store.get_run(idempotency_key)
         if prior_run is not None:
             return {**prior_run, "replayed": True}
-    if not store.try_lock(holding_id, lock_lease_s, now):
+    token = store.try_lock(holding_id, lock_lease_s, now)   # lease token (None if already running)
+    if not token:
         raise CycleRunning("a holding cycle is already running")
     try:
         prior = store.load_prior(holding_id)            # authoritative prior state (None on first run)
@@ -116,7 +120,7 @@ def run_manual_cycle(store, engine, snapshot_fn, *, holding_id: str = "wheellsve
             store.save_run(idempotency_key, out)
         return out
     finally:
-        store.release_lock(holding_id)                   # §10 no lingering lock / no next-cycle scheduling
+        store.release_lock(holding_id, token)            # §10 token-scoped: only clears OUR lease
 
 
 if __name__ == "__main__":
