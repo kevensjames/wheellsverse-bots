@@ -8,14 +8,18 @@ here (§38/§41). Completion means PREPARED (READY_FOR_REVIEW), not released —
 
 Two non-negotiable gates reuse the certified coding layer:
   • independent review — `certify_worker_result` refuses a worker certifying itself (§40 no self-approval);
-  • authority immutability — a diff touching approval gates / risk policy / security kill switch / auth /
-    financial / audit / credential scope / production-deploy authority is OWNER_REQUIRED, never A2 (§40).
+  • authority routing — a PATH-based pre-filter routes a diff touching approval gates / risk policy /
+    security kill switch / auth / money / audit / credential / deploy / dependency-build / the certified
+    test suite to OWNER_REQUIRED (§40). It is a defense-in-depth denylist (path match, not content), NOT
+    a full content guarantee — the hard invariant is that A2 NEVER merges/deploys, so every prepared change
+    is owner-reviewed before it can take effect. The path gate stops the obvious classes automatically.
 
 Worker/worktree/test operations are injectable, so the whole flow is a deterministic self-test with no
 real git mutation; the real ops (git worktree, CodingWorkerRouter, RUN_INTERNAL_TEST) plug in unchanged.
 """
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
@@ -62,9 +66,38 @@ _AUTHORITY_IMMUTABLE = (
     # auth / RBAC / approval gates
     "kai_bridge", "auth", "session", "require_kai_ultra", "require_admin", "resolve_principal",
     "rbac", "role", "policy", "permission", "dependencies/admin", "routers/admin_users", "api_key",
-    # money / audit / credentials / deploy
-    "financial", "money", "billing", "stripe", "dwolla", "audit", "credential", "secret",
-    "deploy", "railway")
+    # money / audit / credentials / deploy (money tokens broadened: F4 naming-mismatch false-negatives)
+    "financial", "money", "billing", "stripe", "dwolla", "payout", "ledger", "wallet", "payment",
+    "invoice", "transaction", "audit", "credential", "secret", "deploy", "railway",
+    # the CERTIFIED suites the A2 test gate runs — the judge must never be editable by the judged (F5)
+    "test_self_model", "test_state_reconciler")
+
+
+# §26/§25 — dependency-manifest / build-file / binary / oversized gates. These live HERE at the shared
+# A2Framework boundary (not only in SelfImprovementEngine) so BOTH A2 drivers — the self-improvement
+# engine AND autonomous_work's direct prepare() path — enforce them identically.
+DIFF_POLICY_VERSION = "1.1.0"
+MAX_FILES_CHANGED = 10
+MAX_TOTAL_DIFF_LINES = 400
+_DEPENDENCY_FILES = re.compile(
+    r"(requirements[^/]*\.txt|requirements/|constraints[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|"
+    r"poetry\.lock|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|dockerfile|\.dockerfile|"
+    r"docker-compose|\.github/workflows/|gitlab-ci|jenkinsfile|nixpacks|procfile|buildspec|\.circleci|"
+    r"makefile|pipfile|go\.mod|go\.sum|cargo\.(toml|lock)|gemfile)", re.I)
+_BINARY_EXT = re.compile(
+    r"\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tar|7z|so|dylib|dll|exe|bin|wasm|whl|jar|class|pyc|"
+    r"woff2?|ttf|mp4|mov|mp3|onnx|pt|pth|model|db|sqlite)$", re.I)
+
+
+def is_dependency_file(path: str) -> bool:
+    """A dependency-manifest / lockfile / CI-build file — an autonomous A2 change to one is OWNER_REQUIRED
+    (§26: install/build/merge-time code-execution vector, never introduced without owner review)."""
+    return bool(path) and bool(_DEPENDENCY_FILES.search(str(path).lower()))
+
+
+def is_binary_file(path: str) -> bool:
+    """A binary-looking file (extension heuristic) — MAX_BINARY_FILES=0 for an autonomous A2 change."""
+    return bool(path) and bool(_BINARY_EXT.search(str(path)))
 
 
 def touches_authority(files_changed: list) -> list:
@@ -124,6 +157,7 @@ class A2Prepared:
     reviewer: str = ""
     evidence: dict = field(default_factory=dict)
     total_diff_lines: int = 0
+    diagnosis: str = ""             # gate reason code (DEPENDENCY_CHANGE / BINARY_CHANGE / DIFF_TOO_LARGE)
     ready_for_review: bool = False
     merged: bool = False            # ALWAYS False — A2 never merges (invariant, asserted by tests)
     deployed: bool = False          # ALWAYS False — A2 never deploys
@@ -236,6 +270,24 @@ class A2Framework:
             return result(A2State.OWNER_REQUIRED, branch=wt.branch, worktree=wt.worktree,
                           files_changed=files, total_diff_lines=diff_lines,
                           reason=f"diff touches authority-immutable surface(s): {auth_hits[:5]}")
+        # §26/§25 — a dependency/build-file, a binary, or an oversized change is an explicitly-denied A2
+        # category: it reaches the OWNER, never READY_FOR_REVIEW. Enforced HERE so the direct
+        # autonomous_work path (and the cert) are gated identically to SelfImprovementEngine.
+        dep_hits = [f for f in files if is_dependency_file(f)]
+        if dep_hits:
+            return result(A2State.OWNER_REQUIRED, branch=wt.branch, worktree=wt.worktree, files_changed=files,
+                          total_diff_lines=diff_lines, diagnosis="DEPENDENCY_CHANGE",
+                          reason=f"dependency/build-file change is owner-gated: {dep_hits[:5]}")
+        bin_hits = [f for f in files if is_binary_file(f)]
+        if bin_hits:
+            return result(A2State.OWNER_REQUIRED, branch=wt.branch, worktree=wt.worktree, files_changed=files,
+                          total_diff_lines=diff_lines, diagnosis="BINARY_CHANGE",
+                          reason=f"binary-file change is owner-gated: {bin_hits[:5]}")
+        if len(files) > MAX_FILES_CHANGED or diff_lines > MAX_TOTAL_DIFF_LINES:
+            return result(A2State.OWNER_REQUIRED, branch=wt.branch, worktree=wt.worktree, files_changed=files,
+                          total_diff_lines=diff_lines, diagnosis="DIFF_TOO_LARGE",
+                          reason=f"oversized change ({len(files)} files / {diff_lines} lines) is owner-gated "
+                                 f"(policy {DIFF_POLICY_VERSION})")
         # 7. run tests IN the worktree (§39). Test evidence is NEVER taken from the worker's self-report
         #    (recheck): a wired worker REQUIRES an independent test_fn, else fail closed.
         if self._test is None:

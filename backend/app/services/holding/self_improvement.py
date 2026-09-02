@@ -16,7 +16,8 @@ import re
 from dataclasses import dataclass, field, asdict
 from enum import Enum
 
-from app.services.holding.a2_framework import A2Grant, A2ActionType, A2State
+from app.services.holding.a2_framework import (A2Grant, A2ActionType, A2State, DIFF_POLICY_VERSION,
+    MAX_FILES_CHANGED, MAX_TOTAL_DIFF_LINES, is_dependency_file, is_binary_file)
 from app.services.holding.deployment_status import MATCH, DEPLOYMENT_BEHIND, UNCOMPARABLE
 
 
@@ -36,35 +37,14 @@ VALUE_OUTCOMES = frozenset({
 DIAG_SOURCE_DEFECT = "SOURCE_DEFECT"; DIAG_DEPLOYMENT_STALE = "DEPLOYMENT_STALE"
 DIAG_CONFIG = "CONFIG"; DIAG_INSUFFICIENT = "INSUFFICIENT"
 
-# §25 diff limits (conservative, versioned) — exceeded → OWNER_REQUIRED.
-DIFF_POLICY_VERSION = "1.1.0"
-MAX_FILES_CHANGED = 10
-MAX_TOTAL_DIFF_LINES = 400
+# §25 diff caps + §26 dependency / §25 binary predicates now live in a2_framework (the shared A2 boundary,
+# imported above) so BOTH A2 drivers enforce them identically. MAX_BINARY_FILES kept for the policy doc.
 MAX_BINARY_FILES = 0
 
 # outcomes whose fix should change SOURCE — a change touching ONLY test files is then suspicious (§33).
 # (TEST_COVERAGE legitimately touches only tests; DOCUMENTATION_ACCURACY only docs — excluded.)
 _SOURCE_FIX_OUTCOMES = frozenset({"CORRECTNESS", "RELIABILITY", "SECURITY", "PERFORMANCE",
                                   "COST", "OBSERVABILITY", "MAINTAINABILITY", "OPERATOR_EFFICIENCY"})
-
-# §26 dependency/build files an A2 self-improvement change must NOT touch autonomously → OWNER_REQUIRED.
-_DEPENDENCY_FILES = re.compile(
-    r"(requirements[^/]*\.txt|requirements/|constraints[^/]*\.txt|pyproject\.toml|setup\.py|setup\.cfg|"
-    r"poetry\.lock|package(-lock)?\.json|yarn\.lock|pnpm-lock\.yaml|dockerfile|\.dockerfile|"
-    r"docker-compose|\.github/workflows/|pipfile|go\.mod|go\.sum|cargo\.(toml|lock)|gemfile)", re.I)
-
-# §25 MAX_BINARY_FILES=0 — deny binary-looking files in an autonomous source fix (extension heuristic).
-_BINARY_EXT = re.compile(
-    r"\.(png|jpe?g|gif|webp|ico|pdf|zip|gz|tar|7z|so|dylib|dll|exe|bin|wasm|whl|jar|class|pyc|"
-    r"woff2?|ttf|mp4|mov|mp3|onnx|pt|pth|model|db|sqlite)$", re.I)
-
-
-def is_dependency_file(path: str) -> bool:
-    return bool(path) and bool(_DEPENDENCY_FILES.search(str(path).lower()))
-
-
-def is_binary_file(path: str) -> bool:
-    return bool(path) and bool(_BINARY_EXT.search(str(path)))
 
 
 @dataclass
@@ -130,33 +110,17 @@ class SelfImprovementEngine:
             return {"status": cand.status, "diagnosis": cand.diagnosis, "prepared": None}
         prep = self._a2.prepare(task)                       # A2 does worktree/worker/authority/tests/review
         if not prep.ready_for_review:
-            # A2 already fails closed (OWNER_REQUIRED / BLOCKED / NEEDS_CERTIFICATION) — carry it through
+            # A2 fails closed (OWNER_REQUIRED / BLOCKED / NEEDS_CERTIFICATION) — carry it through, preserving
+            # the shared-gate diagnosis (DEPENDENCY_CHANGE / BINARY_CHANGE / DIFF_TOO_LARGE) set in prepare().
             cand.status = (ImprovementStatus.OWNER_REQUIRED.value if prep.state == A2State.OWNER_REQUIRED.value
                            else ImprovementStatus.FAILED.value if prep.state == A2State.BLOCKED.value
                            else ImprovementStatus.BLOCKED.value)
-            return {"status": cand.status, "diagnosis": cand.diagnosis, "prepared": prep.as_dict()}
+            return {"status": cand.status, "diagnosis": (getattr(prep, "diagnosis", "") or cand.diagnosis),
+                    "prepared": prep.as_dict()}
         files = list(prep.files_changed or [])
-        # §26 dependency/build files → OWNER_REQUIRED (no autonomous dependency introduction)
-        deps = [f for f in files if is_dependency_file(f)]
-        if deps:
-            cand.status = ImprovementStatus.OWNER_REQUIRED.value
-            return {"status": cand.status, "diagnosis": "DEPENDENCY_CHANGE", "prepared": prep.as_dict(),
-                    "reason": f"dependency/build files require owner review: {deps[:5]}"}
-        # §25 MAX_BINARY_FILES=0 — a binary file in an autonomous source fix → OWNER_REQUIRED
-        binaries = [f for f in files if is_binary_file(f)]
-        if binaries:
-            cand.status = ImprovementStatus.OWNER_REQUIRED.value
-            return {"status": cand.status, "diagnosis": "BINARY_CHANGE", "prepared": prep.as_dict(),
-                    "reason": f"binary files require owner review: {binaries[:5]}"}
-        # §25 diff bounds — file count AND total changed lines
-        if len(files) > MAX_FILES_CHANGED:
-            cand.status = ImprovementStatus.OWNER_REQUIRED.value
-            return {"status": cand.status, "diagnosis": "DIFF_TOO_LARGE", "prepared": prep.as_dict(),
-                    "reason": f"{len(files)} files > {MAX_FILES_CHANGED} (policy {DIFF_POLICY_VERSION})"}
-        if int(getattr(prep, "total_diff_lines", 0) or 0) > MAX_TOTAL_DIFF_LINES:
-            cand.status = ImprovementStatus.OWNER_REQUIRED.value
-            return {"status": cand.status, "diagnosis": "DIFF_TOO_LARGE", "prepared": prep.as_dict(),
-                    "reason": f"{prep.total_diff_lines} lines > {MAX_TOTAL_DIFF_LINES} (policy {DIFF_POLICY_VERSION})"}
+        # §26 dependency / §25 binary+oversized gates are enforced in A2Framework.prepare() (the shared
+        # boundary) and surface above as OWNER_REQUIRED with prep.diagnosis. Only the outcome-specific §33
+        # test-cheating heuristic — which needs the candidate's desired_outcome — remains here.
         # §33 test-cheating heuristic: a SOURCE-fix outcome whose change touches ONLY test files (no
         # source) is suspicious → OWNER_REQUIRED. (Content-level assertion-weakening/test-deletion is
         # the independent reviewer's responsibility §32; this filename net is the coarse backstop.)

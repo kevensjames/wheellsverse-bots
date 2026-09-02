@@ -192,6 +192,39 @@ def t_engine_a2_routing():
     assert r.outcome == A2_READY_FOR_REVIEW and r.task_status == "BLOCKED"   # not COMPLETE — owner merges
 
 
+def t_dependency_ci_binary_oversized_gated():
+    """A2 adversarial F2/F3 + oversized: dependency-manifest / CI-build / binary / oversized changes reach
+    the OWNER at the A2Framework boundary (both drivers), never READY_FOR_REVIEW, with a category diagnosis."""
+    for files, diag in [
+            (["app/x.py", "requirements.txt"], "DEPENDENCY_CHANGE"),
+            (["backend/requirements-staging.txt"], "DEPENDENCY_CHANGE"),
+            (["pyproject.toml"], "DEPENDENCY_CHANGE"), (["package.json"], "DEPENDENCY_CHANGE"),
+            (["go.mod"], "DEPENDENCY_CHANGE"), ([".github/workflows/ci.yml"], "DEPENDENCY_CHANGE"),
+            (["Dockerfile"], "DEPENDENCY_CHANGE"), ([".gitlab-ci.yml"], "DEPENDENCY_CHANGE"),
+            (["Jenkinsfile"], "DEPENDENCY_CHANGE"), (["Makefile"], "DEPENDENCY_CHANGE"),
+            (["assets/logo.png"], "BINARY_CHANGE"), (["models/x.onnx"], "BINARY_CHANGE")]:
+        fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff(files))
+        r = fw.prepare(_task())
+        assert r.state == A2State.OWNER_REQUIRED.value and r.diagnosis == diag and r.merged is False, (files, r.state, r.diagnosis)
+    # oversized by file count and by line count
+    many = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass,
+                       diff_fn=_diff([f"app/f{i}.py" for i in range(11)])).prepare(_task())
+    assert many.state == A2State.OWNER_REQUIRED.value and many.diagnosis == "DIFF_TOO_LARGE"
+    big = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff(["app/x.py"]),
+                      diff_lines_fn=lambda wt, base: 99999).prepare(_task())
+    assert big.state == A2State.OWNER_REQUIRED.value and big.diagnosis == "DIFF_TOO_LARGE"
+
+
+def t_certified_suite_and_money_immutable():
+    """A2 adversarial F5/F4: editing the certified test suite (the judge must not be editable by the judged)
+    or a money-domain file is OWNER_REQUIRED (before the tests even run)."""
+    for f in ("backend/app/services/holding/test_self_model.py",
+              "app/services/holding/test_state_reconciler.py",
+              "app/services/sol/payouts.py", "app/services/ledger.py", "wallet/transfer.py"):
+        fw = A2Framework(_reg(_GRANT), worker_fn=_worker_ok(), test_fn=_tests_pass, diff_fn=_diff([f]))
+        assert fw.prepare(_task()).state == A2State.OWNER_REQUIRED.value, f
+
+
 def run():
     for _n, _f in list(globals().items()):
         if _n.startswith("t_"):
