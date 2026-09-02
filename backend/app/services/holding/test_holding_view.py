@@ -69,7 +69,9 @@ def t_kai_work_buckets():
 def t_self_improvement_ready_only():
     sis = [{"status": "READY_FOR_REVIEW", "problem": "bug", "owner_action": "review",
             "files_changed": ["x.py"], "tests_after": "8 passed"},
-           {"status": "BLOCKED", "problem": "other"}]
+           {"status": "BLOCKED", "problem": "other"},
+           # recheck: an un-ready item with a truthy owner_action must NOT surface as ready-for-review
+           {"status": "IN_PROGRESS", "problem": "premature", "owner_action": "needs input"}]
     v = build_holding_view(twin_snapshot=_twin(), self_model=_sm(), self_improvements=sis)
     assert len(v["self_improvement_ready"]) == 1 and v["self_improvement_ready"][0]["problem"] == "bug"
 

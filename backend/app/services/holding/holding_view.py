@@ -53,7 +53,7 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
                                     "tests_before": s.get("tests_before"), "tests_after": s.get("tests_after"),
                                     "independent_review": s.get("security_review"),
                                     "rollback": s.get("rollback"), "owner_action": s.get("owner_action")}
-                                   for s in sis if (s.get("status") == "READY_FOR_REVIEW" or s.get("owner_action"))],
+                                   for s in sis if s.get("status") == "READY_FOR_REVIEW"],   # READY only (§27)
         # §28 company cards
         "company_cards": [{"company_id": c.get("company_id"), "name": c.get("name"),
                            "current_goal": c.get("current_goal"), "status": c.get("status"),

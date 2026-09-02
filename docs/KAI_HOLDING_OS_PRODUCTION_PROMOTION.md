@@ -14,9 +14,9 @@
 | LOG_INSPECT | local-file (2-stage redact) | ✅ CERTIFIED_REDACTED_READ_ONLY | register per-service log sources |
 | RUN_INTERNAL_TEST | allowlisted suites | ✅ CERTIFIED_A1 | — |
 | DEPLOYMENT_STATUS_LOCAL | local-git ancestry | ✅ CERTIFIED_READ_ONLY (non-prod) | — |
-| DEPLOYMENT_STATUS_PRODUCTION | Railway | **IMPLEMENTED_RUNTIME_PENDING** | inject a Railway API read token (step 5) |
-| BROWSER_VALIDATE | Playwright | **POLICY_CERTIFIED / RUNTIME_PENDING** | install Playwright + chromium (step 3), then live cert + adversarial recheck |
-| TECH_DOC_LOOKUP | Context7 | **KAI_SERVER_RUNTIME_PENDING** | wire a governed server-side Context7 client (step 4) |
+| DEPLOYMENT_STATUS_PRODUCTION | Railway | adapter **BUILT** → RUNTIME_PENDING | inject a read-scoped Railway API token (step 5) + `register_deployment_source(..., provider="RAILWAY")` |
+| BROWSER_VALIDATE | Playwright | adapter+image **BUILT** → RUNTIME_PENDING | `Dockerfile.staging` already installs chromium; set `KAI_STAGING_APP_*_ORIGIN`, deploy, then live cert + SSRF adversarial recheck |
+| TECH_DOC_LOOKUP | Context7 | adapter **BUILT** → RUNTIME/AUTH_PENDING | wire a reviewed transport into `Context7ServerAdapter(transport=...)` + set `CONTEXT7_API_KEY` |
 
 ## 2. Feature flags (all default OFF — dark deploy)
 `KAI_HOLDING_ENABLED`, `KAI_HOLDING_BRIEFING_ENABLED`, `KAI_HOLDING_WATCH_ENABLED`, `KAI_CAPABILITY_EXECUTION_ENABLED`, and (new) a global autonomy switch `HOLDING_AUTONOMY_ENABLED` + per-company flags. Autonomous A2/self-improvement run ONLY with an explicit grant present; A2 grants are non-production by construction.
