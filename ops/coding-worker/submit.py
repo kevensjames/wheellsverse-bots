@@ -47,19 +47,34 @@ def _scrubbed_env() -> dict:
     return {k: v for k, v in os.environ.items() if k in allow}
 
 
-def _cli_worker(cli: str):
-    """Real coding worker: run a headless coding CLI in the worktree with a SCRUBBED env (no runner
-    secrets). Never pushes; the framework derives the diff independently and the worker is never trusted."""
+def _dirty(worktree: str) -> bool:
+    r = subprocess.run(["git", "-C", worktree, "status", "--porcelain"], capture_output=True, text=True, timeout=15)
+    return bool((r.stdout or "").strip())
+
+
+def _cli_worker(clis: list):
+    """Real coding worker with an ORDERED fallback (e.g. claude primary, codex backup). Each CLI runs
+    headless in the worktree with a SCRUBBED env (no runner secrets); the FIRST that actually produces a
+    change wins. Never pushes; the framework derives the authoritative diff and the worker is never trusted.
+    A CLI that errors or makes no change (e.g. an auth failure under the scrub) simply yields to the next."""
     def w(task, wt):
         from app.services.capability.coding import WorkerResult
         goal = str(task.get("goal", "") if isinstance(task, dict) else getattr(task, "goal", ""))[:500]
-        try:
-            subprocess.run([*cli.split(), goal], cwd=wt.worktree, env=_scrubbed_env(),
-                           capture_output=True, text=True, timeout=600)
-        except Exception as e:
-            return WorkerResult(task="fix", worker=cli.split()[0], starting_sha=wt.starting_sha,
-                                warnings=[f"cli error: {str(e)[:120]}"])
-        return WorkerResult(task="fix", worker=cli.split()[0], starting_sha=wt.starting_sha)
+        warnings, used = [], ""
+        for cli in [c for c in clis if c.strip()]:
+            name = cli.split()[0]
+            try:
+                p = subprocess.run([*cli.split(), goal], cwd=wt.worktree, env=_scrubbed_env(),
+                                   capture_output=True, text=True, timeout=600)
+                if p.returncode != 0:
+                    warnings.append(f"{name} exit {p.returncode}: {(p.stderr or p.stdout or '')[:80]}")
+            except Exception as e:
+                warnings.append(f"{name} error: {str(e)[:80]}")
+            if _dirty(wt.worktree):                        # this CLI made a change → use it
+                used = name
+                break
+        return WorkerResult(task="fix", worker=used or (clis[0].split()[0] if clis else "cli"),
+                            starting_sha=wt.starting_sha, warnings=warnings)
     return w
 
 
@@ -70,8 +85,8 @@ def run_coding_task(task: dict, *, repo_dir: str | None = None) -> dict:
     repo_dir = repo_dir or REPO_DEFAULT
     from app.services.holding.a2_wiring import build_a2_framework, make_worktree_test_fn, remove_worktree
     from app.services.holding.task_resolver import resolve_test_command
-    cli = os.environ.get("KAI_CODING_CLI", "").strip()
-    worker_fn = _cli_worker(cli) if cli else _deterministic_worker
+    clis = [c for c in (os.environ.get("KAI_CODING_CLI", ""), os.environ.get("KAI_CODING_CLI_BACKUP", "")) if c.strip()]
+    worker_fn = _cli_worker(clis) if clis else _deterministic_worker
     suite_cmd = resolve_test_command(str(task.get("suite_id", "")))     # None → default self-model suite
     test_fn = make_worktree_test_fn(suite_cmd) if suite_cmd else make_worktree_test_fn()
     fw = build_a2_framework(repo_dir=repo_dir, worker_fn=worker_fn, test_fn=test_fn)
@@ -80,7 +95,7 @@ def run_coding_task(task: dict, *, repo_dir: str | None = None) -> dict:
         prepared = fw.prepare(SimpleNamespace(**task))
         out = prepared.as_dict()
         out["status"] = "completed"
-        out["worker"] = "coding-cli" if cli else "coding-deterministic"
+        out["worker"] = "coding-cli" if clis else "coding-deterministic"
         return out
     except Exception as e:
         return {"status": "error", "state": "BLOCKED", "error": str(e)[:200], "merged": False, "deployed": False}
