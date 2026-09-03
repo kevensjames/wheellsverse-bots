@@ -186,19 +186,30 @@ function renderView(v){
       +'<span class="badge '+(en?'ok':'bad')+'">'+(en?'ENABLED':'DISABLED')+'</span> '
       +'<span class="muted">'+esc(f.certification||'')+'</span></div>'; }
   h+='</div></div>';
-  // §29 Operational Self Model — operational only, no consciousness claim
+  // §62 Operational Self Model — FULL field set; operational only, no consciousness claim
   const m=v.operational_self_model||{};
   h+='<div class="panel"><h2>Operational Self Model</h2><div class="statusgrid">'
     +'<span class="skpi">identity <b>'+esc(m.identity)+'</b></span>'
+    +'<span class="skpi">role <b>'+esc(m.role||'—')+'</b></span>'
     +'<span class="skpi">version <b>'+esc(m.software_version)+'</b></span>'
+    +'<span class="skpi">production SHA <b>'+esc(m.production_sha||'UNAVAILABLE')+'</b></span>'
+    +'<span class="skpi">staging SHA <b>'+esc(m.staging_sha||'UNAVAILABLE')+'</b></span>'
     +'<span class="skpi">environment <b>'+esc(m.environment)+'</b></span>'
-    +'<span class="skpi">health <b>'+esc(m.health)+'</b></span>'
+    +'<span class="skpi">runtime <b>'+esc(m.runtime||'UNAVAILABLE')+'</b></span>'
+    +'<span class="skpi">model / provider <b>'+esc(m.model||'UNAVAILABLE')+' / '+esc(m.model_provider||'UNAVAILABLE')+'</b></span>'
+    +'<span class="skpi">autonomy posture <b>'+esc(m.autonomy_posture||'UNAVAILABLE')+'</b></span>'
+    +'<span class="skpi">autonomy class <b>'+esc(m.autonomy_class||'—')+'</b></span>'
+    +'<span class="skpi">capabilities ready <b>'+esc(m.capabilities_ready)+' / '+esc(m.capability_catalog_total||'?')+'</b></span>'
+    +'<span class="skpi">workers <b>'+esc(m.workers_online)+' online / '+esc(m.workers_known||0)+'</b></span>'
     +'<span class="skpi">current mission <b>'+esc(m.current_mission||'—')+'</b></span>'
-    +'<span class="skpi">workers online <b>'+esc(m.workers_online)+'</b></span>'
-    +'<span class="skpi">capabilities ready <b>'+esc(m.capabilities_ready)+'</b></span>'
+    +'<span class="skpi">owner actions <b>'+esc(m.owner_required_count)+'</b></span>'
     +'<span class="skpi">last cycle <b>'+esc(m.last_holding_cycle||'—')+'</b></span>'
-    +'<span class="skpi">owner actions <b>'+esc(m.owner_required_count)+'</b></span></div>'
-    +'<div class="muted" style="font-size:11.5px;margin-top:6px">Operational self-awareness only — KAI makes no claim to consciousness or sentience.</div></div>';
+    +'<span class="skpi">last verified <b>'+esc(m.last_verified||'UNAVAILABLE')+'</b></span></div>';
+  h+='<div class="muted" style="font-size:12.5px;margin-top:8px"><b>Current attention:</b> '+esc(m.current_attention||'—')+'</div>';
+  const lims=m.limitations||[];
+  if(lims.length){ h+='<h3 class="sh" style="margin-top:10px">Limitations <span class="muted" style="font-weight:400">(live-derived from policy &amp; flags)</span></h3><ul class="muted" style="font-size:12.5px;line-height:1.7;margin:4px 0 0 18px">';
+    for(const l of lims){ h+='<li>'+esc(l)+'</li>'; } h+='</ul>'; }
+  h+='<div class="muted" style="font-size:11.5px;margin-top:6px">Operational self-awareness only — KAI makes no claim to consciousness or sentience.</div></div>';
   // §30 autonomy (backend-authoritative)
   const au=v.autonomy||{};
   h+='<div class="panel"><h2>Autonomy</h2><div class="statusgrid">'

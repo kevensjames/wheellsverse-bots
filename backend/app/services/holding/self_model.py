@@ -11,6 +11,7 @@ wrapped fail-open (a subsystem that errors → UNAVAILABLE / empty, never a cras
 """
 from __future__ import annotations
 
+import platform
 from typing import Any, Callable
 
 UNAVAILABLE = "UNAVAILABLE"
@@ -29,7 +30,7 @@ def _cap_split() -> dict:
 
 def _companies() -> list:
     from app.services.holding import registry as hreg
-    return [getattr(e, "id", str(e)) for e in hreg.all_entities()]
+    return [getattr(e, "entity_id", str(e)) for e in hreg.all_entities()]
 
 
 def _autonomy() -> dict:
@@ -47,17 +48,97 @@ def _open_proposals() -> list:
     return ps.list_proposals(status="proposed")
 
 
+def _deployment() -> dict:
+    """§62/§100 real deployment truth (running SHA, prod/staging SHAs, money mode, env)."""
+    from app.config import settings
+    from app.services.holding.holding_deployment import deployment_view, deployed_sha
+    sha = deployed_sha()
+    # This app authoritatively knows only its OWN sha (this_app_sha). Do NOT fabricate a peer
+    # sha here — passing this app's sha as app_b would let a staging / App-A / local deploy
+    # mislabel its own sha as the PRODUCTION sha (§62/§100). Peer SHAs come only from a genuine
+    # cross-app resolver; _prod_staging_sha labels this_app_sha by this app's real environment.
+    return deployment_view(settings, source_head=sha, peer_shas={})
+
+
+def _flags() -> dict:
+    """Real runtime authority flags — the source for live-derived limitations (§63/§99)."""
+    from app.config import settings
+    keys = ("MONEY_MODE", "KAI_A2_EXECUTION_ENABLED", "HOLDING_AUTONOMY_ENABLED",
+            "KAI_CAPABILITY_EXECUTION_ENABLED", "KAI_SELF_IMPROVEMENT_ENABLED", "APP_ENV")
+    return {k: getattr(settings, k, None) for k in keys}
+
+
+def _finance_available() -> bool:
+    """DERIVED: is a LIVE authoritative finance feed wired? Operator-confirmed text / N/A / pre-revenue
+    is NOT a live feed (twin returns UNAVAILABLE for real money), so this is False today — never guessed."""
+    from app.services.holding import registry as reg
+    for e in reg.all_entities():
+        v, _ = reg.report_value(getattr(e, "entity_id", ""), "revenue_metrics")
+        if v and all(s not in v.lower() for s in ("operator-confirmed", "pre-revenue", "n/a")):
+            return True
+    return False
+
+
+def _coding_workers() -> list:
+    """DERIVED from the real capability catalog: coding-worker manifests + whether each is AVAILABLE.
+    A worker that is DISCOVERED/BLOCKED (not AVAILABLE) becomes a live limitation — no fabricated state."""
+    from app.services.capability.seed import seed_registry
+    from app.services.capability.manifest import CapabilityType as CT, Availability as AV
+    reg = seed_registry()
+    types = (CT.CODING_WORKER, CT.CODING_CLI, CT.CODING_IDE_ADAPTER, CT.CODING_CLOUD_AGENT)
+    return [{"id": m.id, "name": m.name, "available": m.availability == AV.AVAILABLE,
+             "state": m.availability.value} for m in reg.list() if m.type in types]
+
+
+def _self_last_verified() -> str:
+    from app.services.holding import registry as reg
+    e = reg.get("kai")
+    return getattr(e, "last_verified_at", None) if e else None
+
+
+def _model() -> dict:
+    """§62 DERIVED: the configured model provider. Provider is derived from real config presence
+    (never the key value). Model name/latency stay UNAVAILABLE — not reliably knowable here without
+    live instrumentation, so they are honestly UNAVAILABLE rather than guessed. {} → all UNAVAILABLE."""
+    from app.config import settings
+    prov = "openai-compatible" if getattr(settings, "OPENAI_API_KEY", "") else ""
+    return {"provider": prov} if prov else {}
+
+
 _DEFAULT_SOURCES: dict[str, Callable[[], Any]] = {
     "capabilities": _cap_split, "companies": _companies, "autonomy": _autonomy,
     "workers": _workers, "open_proposals": _open_proposals,
+    "deployment": _deployment, "flags": _flags, "finance_available": _finance_available,
+    "coding_workers": _coding_workers, "self_last_verified": _self_last_verified, "model": _model,
 }
 
-_KNOWN_LIMITATIONS = [
-    "MONEY_MODE=MOCK — I never move money, trade, pay out, or change budgets.",
-    "I do not merge, deploy to production, change DNS/cloud settings, or rotate credentials — those are owner actions.",
-    "I execute only owner-authorized, read-only/compute capabilities in production (V1 envelope).",
+# Permanent policy-level invariants (§0#11, §1/§141) — always true regardless of flags.
+_INVARIANT_LIMITATIONS = [
+    "I cannot self-approve a production merge, deploy, destructive, financial, or policy change — those are owner-only (policy §0 #11).",
     "I make no claim to consciousness, sentience, or emotions; my self-awareness is operational only.",
 ]
+
+
+def _derive_limitations(flags: dict, *, finance_available: bool, coding_workers: list) -> list:
+    """§63/§99: limitations DERIVED LIVE from real policy/flags/registry state — never a static list.
+    Flip a flag (or wire a finance/worker source) and the text changes. The invariants above are always
+    present; the rest reflect the CURRENT runtime posture, so the panel can never over-claim authority."""
+    flags = flags or {}
+    out = list(_INVARIANT_LIMITATIONS)
+    if (flags.get("MONEY_MODE") or "MOCK") == "MOCK":
+        out.append("MONEY_MODE=MOCK — I never move money, trade, pay out, or change budgets.")
+    if not flags.get("KAI_A2_EXECUTION_ENABLED", False):
+        out.append("Production A2 execution is DISABLED — I prepare changes for review, but execute none.")
+    if not flags.get("HOLDING_AUTONOMY_ENABLED", False):
+        out.append("Holding autonomy is OFF — I observe and reconcile only; I run no autonomous work.")
+    if not finance_available:
+        out.append("No live finance/Stripe integration is wired — revenue/cash figures are UNAVAILABLE, never estimated.")
+    for w in coding_workers or []:
+        if isinstance(w, dict) and not w.get("available", True):
+            nm = w.get("name") or w.get("id") or "a coding worker"
+            out.append(f"The {nm} coding worker is not AVAILABLE ({w.get('state', 'uncertified')}) — "
+                       "it cannot execute coding tasks until certified.")
+    return out
 
 
 class OperationalSelfModel:
@@ -84,17 +165,60 @@ class OperationalSelfModel:
         except Exception:      # noqa: BLE001 — a failing subsystem is honestly UNAVAILABLE, never a guess
             return default
 
+    @staticmethod
+    def _norm_sha(x: Any) -> str:
+        return x if (isinstance(x, str) and x and x != "UNKNOWN") else UNAVAILABLE
+
+    def _prod_staging_sha(self, dep: dict) -> tuple[str, str, str]:
+        """§62/§100 production + staging SHA — honest env-labeling. An app authoritatively knows only
+        its OWN sha (``this_app_sha``), and may label it ONLY as its OWN environment's sha. Peer SHAs
+        (the other environment) come solely from a genuine cross-app resolver (``shas.app_a/app_b``);
+        this app's own sha is NEVER presented as another environment's sha (the mislabel guarded here)."""
+        shas = dep.get("shas", {}) if isinstance(dep, dict) else {}
+        env = (dep.get("environment") if isinstance(dep, dict) else "") or self._env
+        this_sha = self._norm_sha(dep.get("this_app_sha") if isinstance(dep, dict) else None)
+        # Peer SHAs — only trusted from a real cross-app source (never fabricated from this app).
+        prod = next((s for s in (self._norm_sha(shas.get("app_a")), self._norm_sha(shas.get("app_b")))
+                     if s != UNAVAILABLE), UNAVAILABLE)
+        staging = self._norm_sha(shas.get("staging"))
+        # This app's own sha labels ITS environment only; the other stays UNAVAILABLE unless peer-resolved.
+        if this_sha != UNAVAILABLE:
+            if env == "production" and prod == UNAVAILABLE:
+                prod = this_sha
+            elif env == "staging" and staging == UNAVAILABLE:
+                staging = this_sha
+        money_mode = (dep.get("money_mode") if isinstance(dep, dict) else "") or "MOCK"
+        return prod, staging, money_mode
+
+    def _autonomy_class(self, flags: dict) -> str:
+        """§23/§62 DERIVED max-autonomy posture from real flags (A0/A1 auto-eligible; A2 prepare-only gated)."""
+        flags = flags or {}
+        a2 = "ENABLED (prepare-only, non-prod)" if flags.get("KAI_A2_EXECUTION_ENABLED") else "DISABLED"
+        return f"A0_OBSERVE / A1_VERIFY auto-eligible; A2_PREPARE {a2}; A3+ approval-bound"
+
     def snapshot(self) -> dict:
         caps = self._get("capabilities", {})
         autonomy = self._get("autonomy", {})
         owner_actions = self._get("open_proposals", [])
         workers = self._get("workers", [])
+        dep = self._get("deployment", {})
+        flags = self._get("flags", {})
+        model = self._get("model", {})
+        prod_sha, staging_sha, money_mode = self._prod_staging_sha(dep)
+        limitations = _derive_limitations(flags, finance_available=self._get("finance_available", False),
+                                          coding_workers=self._get("coding_workers", []))
         return {
             "identity": self.IDENTITY,
             "system_role": self.SYSTEM_ROLE,
             "software_version": self._ver or UNAVAILABLE,
             "deployment_sha": self._sha or UNAVAILABLE,
+            "production_sha": prod_sha,
+            "staging_sha": staging_sha,
             "environment": self._env or UNAVAILABLE,
+            "runtime": f"Python {platform.python_version()} ({platform.system()} {platform.machine()})",
+            "model": (model.get("model") if isinstance(model, dict) else None) or UNAVAILABLE,
+            "model_provider": (model.get("provider") if isinstance(model, dict) else None) or UNAVAILABLE,
+            "model_latency_ms": (model.get("latency_ms") if isinstance(model, dict) else None) or UNAVAILABLE,
             "owner_principal": self._owner or UNAVAILABLE,
             "holding_id": self._holding,
             "known_companies": self._get("companies", []),
@@ -105,9 +229,12 @@ class OperationalSelfModel:
             "workers_online": sum(1 for w in workers if isinstance(w, dict) and w.get("online")),
             "workers_known": len(workers),
             "autonomy_overall": autonomy.get("overall", UNAVAILABLE) if isinstance(autonomy, dict) else UNAVAILABLE,
-            "money_mode": "MOCK",
+            "autonomy_class": self._autonomy_class(flags),
+            "current_attention": self.what_am_i_doing(),   # bounded, from live state (§17-lite, never hidden CoT)
+            "money_mode": money_mode,
             "owner_required_action_count": len(owner_actions),
-            "known_limitations": list(_KNOWN_LIMITATIONS),
+            "known_limitations": limitations,               # LIVE-DERIVED (§63/§99), not static
+            "last_verified": self._get("self_last_verified", "") or UNAVAILABLE,
             "claims_consciousness": False,      # invariant, asserted by the tests
         }
 
