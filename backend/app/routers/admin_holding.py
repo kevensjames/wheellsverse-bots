@@ -398,6 +398,39 @@ def holding_run_cycle(body: dict = Body(default={}), principal=Depends(require_k
     return rec
 
 
+@router.post("/detect-run")
+def holding_detect_run(principal=Depends(require_kai_ultra)):
+    """DETECT_ONLY — run ONE read-only self-improvement detection pass (owner-only, staging-only else 404).
+    Senses candidates from certified suites, dedups, confirms, notifies on a NEW confirmed candidate, and
+    persists the snapshot. It PREPARES NOTHING (prepared=0) — detection authority never writes. Flag-gated by
+    KAI_SELF_IMPROVEMENT_DETECT_ENABLED (else ran=False). This is the cron-callable + verification entrypoint."""
+    from datetime import datetime, timezone
+    from app.config import settings
+    from app.services.holding.self_improvement_detect import run_detection
+    if str(getattr(settings, "APP_ENV", "")).lower() != "staging":
+        raise HTTPException(status_code=404, detail="not found")
+    now = datetime.now(timezone.utc).isoformat()
+    r = run_detection(now=now, deliver=True)
+    _audit_proposal("holding.self_improvement_detect", {"principal": getattr(principal, "id", "owner"),
+                    "ran": r.get("ran"), "mode": r.get("mode"), "verdict": r.get("verdict"),
+                    "confirmed": r.get("confirmed_count"), "prepared": r.get("prepared"),
+                    "new_confirmed": r.get("new_confirmed")})
+    return r
+
+
+@router.get("/improvement-watch")
+def holding_improvement_watch(principal=Depends(require_kai_ultra)):
+    """DETECT_ONLY view (§14 KAI IMPROVEMENT WATCH): the latest detected candidates, read-only. For each,
+    the action is PREPARATION NOT AUTHORIZED unless mode is PREPARE_ALLOWED — never 'WORKING ON FIX'."""
+    from app.services.holding.self_improvement_detect import DbDetectionStore
+    st = DbDetectionStore().load() or {}
+    mode = st.get("mode", "OFF")
+    cands = st.get("candidates", []) or []
+    return {"mode": mode, "last_run": st.get("last_run"), "candidate_count": len(cands),
+            "action": ("PREPARATION NOT AUTHORIZED" if mode != "PREPARE_ALLOWED" else "PREPARE_ALLOWED"),
+            "candidates": cands}
+
+
 @router.get("/view")
 def holding_view():
     """The /admin/holding UI view-model (Part E): TODAY FOR YOU first, KAI-work buckets, self-improvement

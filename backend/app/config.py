@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     # + the grant (enqueue_a2_coding_job). It can never override a parent brake. Self-improvement is
     # always PREPARE-only (READY_FOR_REVIEW); it never merges/deploys.
     KAI_SELF_IMPROVEMENT_ENABLED: bool = False
+    # DETECTION authority (separate from PREPARATION above). ON → KAI may continuously DETECT + confirm +
+    # notify evidence-backed improvement candidates (read-only). It grants NO write authority: preparation
+    # still requires KAI_SELF_IMPROVEMENT_ENABLED + the three A2 brakes. The three modes are expressed by
+    # these two flags: OFF/OFF=OFF, ON/OFF=DETECT_ONLY, ON/ON=PREPARE_ALLOWED. Default OFF, production OFF.
+    KAI_SELF_IMPROVEMENT_DETECT_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

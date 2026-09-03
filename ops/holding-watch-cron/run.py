@@ -14,6 +14,14 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 def main() -> int:
     from app.services.holding.watch import run_watch
     print("holding-watch-cron:", run_watch(deliver=True))
+    # DETECT_ONLY self-improvement detection runs as part of the SAME bounded cycle (no new daemon, §3).
+    # Read-only + flag-gated (KAI_SELF_IMPROVEMENT_DETECT_ENABLED); prepares nothing.
+    try:
+        from datetime import datetime, timezone
+        from app.services.holding.self_improvement_detect import run_detection
+        print("si-detect:", run_detection(now=datetime.now(timezone.utc).isoformat(), deliver=True))
+    except Exception as e:
+        print("si-detect: error", str(e)[:100])
     return 0
 
 
