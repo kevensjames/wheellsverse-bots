@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- launchd LaunchAgent for the persistent Holding worker-runner. __REPO__ is filled by install.sh.
+     KeepAlive restarts it on crash / logout-login; RunAtLoad starts it at load/boot. The runtime
+     secret (SESSION_SIGNING_SECRET) is NOT here — the runner reads it from the macOS Keychain. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.wheellsverse.kai-holding-worker</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>python3</string>
+        <string>__REPO__/ops/holding-worker-runner/run.py</string>
+    </array>
+    <key>WorkingDirectory</key><string>__REPO__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>BASE_URL</key><string>https://kai-prod-production.up.railway.app</string>
+        <key>POLL_SECONDS</key><string>20</string>
+        <key>LEASE_SECONDS</key><string>300</string>
+        <!-- docker/colima must be on PATH so the runner can launch the isolated worker container -->
+        <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>KeepAlive</key><true/>
+    <key>RunAtLoad</key><true/>
+    <key>ThrottleInterval</key><integer>15</integer>
+    <key>ProcessType</key><string>Background</string>
+    <key>StandardOutPath</key><string>__REPO__/.omc/logs/kai-holding-worker.out.log</string>
+    <key>StandardErrorPath</key><string>__REPO__/.omc/logs/kai-holding-worker.err.log</string>
+</dict>
+</plist>

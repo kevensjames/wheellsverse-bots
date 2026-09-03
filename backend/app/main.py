@@ -207,6 +207,10 @@ app.include_router(predictions.router)
 app.include_router(billing.router)
 app.include_router(admin_data.router)
 app.include_router(admin_chat.router)
+# Holding Operations OS — governed READ-ONLY endpoints, mounted ONLY when enabled (default off).
+if settings.KAI_HOLDING_ENABLED:
+    from app.routers import admin_holding
+    app.include_router(admin_holding.router)
 app.include_router(admin_supreme.router)
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)
@@ -239,6 +243,11 @@ app.include_router(sol.webhook_router)
 app.include_router(transcribe.router)
 app.include_router(tts.router)
 app.include_router(v1.router)
+# Capability Fabric execution gateway — OWNER-ONLY governed tool execution (V1: read-only/compute).
+# Flag-gated + DORMANT by default: no new HTTP surface unless KAI_CAPABILITY_EXECUTION_ENABLED.
+if getattr(settings, "KAI_CAPABILITY_EXECUTION_ENABLED", False):
+    from app.routers import admin_capabilities
+    app.include_router(admin_capabilities.router)
 # Chat router is dual-mounted during the NAI→KAI brand transition. /kai is
 # canonical; /nai stays alive so any in-flight client (cached JS, open SSE
 # stream, third-party bookmark) keeps working until the legacy window closes.
