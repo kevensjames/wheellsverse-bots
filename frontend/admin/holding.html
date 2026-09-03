@@ -34,6 +34,13 @@
   .acts button.ghost{background:transparent;color:var(--text);border-color:var(--border)}
   .acts button:disabled{opacity:.5;cursor:default}
   .pres{font-size:12.5px;margin-left:4px} .pres.ok{color:var(--accent)} .pres.bad{color:var(--warn)}
+  .statusgrid{display:flex;flex-wrap:wrap;gap:8px 16px;margin:4px 0 6px}
+  .skpi{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .skpi b{font-weight:700} .ok{color:var(--accent)} .bad{color:var(--warn)} .warn{color:var(--cyan)}
+  .sh{font-size:13px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
+  .wrow{font-size:12.5px;color:var(--muted);margin:4px 0}
+  .wdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
+  .wdot.on{background:var(--accent);box-shadow:0 0 0 3px rgba(77,244,165,.18)} .wdot.off{background:var(--warn)}
 </style></head>
 <body><div class="wrap">
   <h1>Holding Operations</h1>
@@ -90,6 +97,118 @@ function renderProposals(d){
   }
   return h+'</div>';
 }
+function renderStatus(s){
+  const a=s.autonomy||{}, checks=a.checks||{}, ov=a.overall||'—';
+  const ovcls=ov==='AUTONOMOUS_READ_ONLY'?'v':'u';
+  let h='<div class="panel"><h2>KAI autonomy <span class="badge '+ovcls+'">'+esc(ov)+'</span></h2>';
+  h+='<div class="statusgrid">';
+  for(const k of Object.keys(checks)){ const v=checks[k];
+    const cls=(v==='PASS'||v==='MOCK'||v==='CONNECTED')?'ok':((v==='DEGRADED'||v==='UNAVAILABLE')?'bad':'warn');
+    h+='<span class="skpi">'+esc(k.replace(/_/g,' '))+' <b class="'+cls+'">'+esc(v)+'</b></span>'; }
+  h+='</div>';
+  h+='<h3 class="sh">Workers</h3>';
+  const ws=s.workers||[];
+  if(!ws.length){ h+='<div class="muted">No worker has checked in — the persistent runner is not running.</div>'; }
+  for(const w of ws){ h+='<div class="wrow"><span class="wdot '+(w.online?'on':'off')+'"></span><code>'+esc(w.worker_id)+'</code> · '
+    +(w.online?'ONLINE':'OFFLINE')+' · heartbeat '+esc(w.last_heartbeat_secs_ago)+'s ago · v'+esc(w.version||'?')
+    +(w.current_job?(' · job #'+esc(w.current_job)):'')+'</div>'; }
+  const cw=s.cron.watch, cb=s.cron.briefing;
+  h+='<h3 class="sh">Schedules &amp; delivery</h3><div class="muted" style="font-size:12.5px;line-height:1.7">'
+    +'watch <code>'+esc(cw.schedule)+'</code> · last run '+esc(cw.last_run)+'<br>'
+    +'briefing <code>'+esc(cb.schedule)+'</code> ('+esc(cb.timezone)+') · last run '+esc(cb.last_run)+'<br>'
+    +'telegram <b class="'+(s.telegram.state==='CONNECTED'?'ok':'bad')+'">'+esc(s.telegram.state)+'</b> (token '+(s.telegram.token_present?'present':'absent')+')</div>';
+  return h+'</div>';
+}
+// KAI Autonomy view (Part C) — rendered FIRST from /admin/kai/holding/view. TODAY FOR YOU leads.
+function renderView(v){
+  const st = s => '<span class="sev '+(({A2_READY_FOR_REVIEW:'HIGH',BLOCKED_CAPABILITY:'MEDIUM',BLOCKED_WORKER:'MEDIUM',
+    OWNER_QUEUED:'HIGH',ACTIVE:'LOW',EXECUTED:'LOW'})[s]||'LOW')+'">'+esc(String(s||'').replace(/_/g,' '))+'</span>';
+  let h='<div class="panel"><h2>TODAY FOR YOU</h2>';   // §25 first operational section
+  const t=v.today_for_you;
+  if(Array.isArray(t)){
+    if(!t.length) h+='<div class="muted">No action required right now.</div>';
+    for(const a of t){ h+='<div class="prio"><span class="sev '+esc(a.severity||'MEDIUM')+'">'+esc(a.severity||'')+'</span>'
+      +'<div><div><b>'+esc(a.title)+'</b> · '+esc(a.company)+'</div>'
+      +'<div class="muted" style="font-size:11.5px">'+esc(a.why||'')+' · KAI already did: '+esc(a.kai_completed||'—')
+      +'<br>action: '+esc(a.action||'')+'</div></div></div>'; }
+  } else { h+='<div class="muted">'+esc(t)+'</div>'; }
+  if(v.today_overflow) h+='<div class="muted" style="margin-top:8px">'+esc(v.today_overflow)+'</div>';
+  h+='</div>';
+  // §26 KAI work buckets
+  const w=v.kai_working||{};
+  h+='<div class="panel"><h2>KAI Working</h2>';
+  const bucket=(label,arr)=>{ let b='<h3 class="sh">'+label+' ('+(arr||[]).length+')</h3>';
+    if(!(arr||[]).length) return b+'<div class="muted" style="font-size:12px">none</div>';
+    for(const it of arr){ b+='<div class="wrow">'+st(it.status)+' <code>'+esc(it.company)+'</code> · '+esc(it.task||'')
+      +(it.capability?(' · '+esc(it.capability)):'')+(it.reason?(' · '+esc(it.reason)):'')+'</div>'; } return b; };
+  h+=bucket('Working now',w.currently_working)+bucket('Ready for review',w.ready_for_review)
+    +bucket('Blocked',w.blocked)+bucket('Owner queued',w.owner_queued)+'</div>';
+  // §28 company cards — DYNAMIC (loop over discovered companies; no hard-coded names)
+  h+='<div class="panel"><h2>Companies</h2><div class="grid">';
+  for(const c of (v.company_cards||[])){ h+='<div class="card"><div class="brand">'+esc(c.name||c.company_id)+'</div>'
+    +'<div class="row"><span>status</span><span>'+esc(c.status)+'</span></div>'
+    +'<div class="row"><span>goal</span><span>'+esc(c.current_goal||'—')+'</span></div>'
+    +'<div class="row"><span>plan freshness</span><span>'+esc(c.plan_freshness||'—')+'</span></div>'
+    +'<div class="row"><span>owner blocker</span><span>'+(c.owner_blocker?'<b class="bad">yes</b>':'no')+'</span></div></div>'; }
+  h+='</div></div>';
+  // §27 self-improvement READY_FOR_REVIEW
+  const sis=v.self_improvement_ready||[];
+  h+='<div class="panel"><h2>Self-Improvement — ready for review ('+sis.length+')</h2>';
+  if(!sis.length) h+='<div class="muted">Nothing prepared for review.</div>';
+  for(const s of sis){ h+='<div class="prop"><b>'+esc(s.problem)+'</b>'
+    +'<div class="pmeta">tests before '+esc(s.tests_before)+' · after '+esc(s.tests_after)+' · review: '+esc(s.independent_review)+'</div>'
+    +'<div class="muted" style="font-size:12px;margin-top:6px">files: '+esc((s.files_changed||[]).join(', '))
+    +'<br>rollback: '+esc(s.rollback)+'</div><div class="acts" style="margin-top:8px">'+esc(s.owner_action)+'</div></div>'; }
+  h+='</div>';
+  // KAI IMPROVEMENT WATCH (DETECT_ONLY) — detection only; each row shows the action, never "fixing"
+  const iw=v.improvement_watch||{}; const iwc=iw.candidates||[];
+  h+='<div class="panel"><h2>KAI Improvement Watch <span class="muted" style="font-weight:400">('+esc(iw.mode||'OFF')+')</span></h2>';
+  h+='<div class="muted" style="font-size:12.5px;margin-bottom:6px">action: <b>'+esc(iw.action||'—')+'</b>'+(iw.last_run?(' · last run '+esc(iw.last_run)):'')+'</div>';
+  if(!iwc.length) h+='<div class="muted">No candidates detected.</div>';
+  for(const c of iwc){ const fix=c.source==='CERTIFICATION_FIXTURE';
+    h+='<div class="prop"><b>'+esc(c.problem||c.signature)+'</b> <span class="badge '+(fix?'':'ok')+'">'+(fix?'CERTIFICATION_FIXTURE':'NATURAL')+'</span>'
+    +'<div class="pmeta">'+esc(c.signal_type||'')+(c.confirmed?' · CONFIRMED':'')+' · '+esc(c.severity||'')+'</div>'
+    +'<div class="acts" style="margin-top:6px">'+esc(iw.action||'PREPARATION NOT AUTHORIZED')+'</div></div>'; }
+  h+='</div>';
+  // DEPLOYMENT TRUTH — running SHA + drift + feature registry (deployed vs ENABLED)
+  const dp=v.deployment||{}; const dr=dp.drift||{}; const feats=dp.features||[];
+  h+='<div class="panel"><h2>Deployment &amp; Drift <span class="badge '+((dp.environment==='production')?'':'ok')+'">'+esc((dp.environment||'?').toUpperCase())+'</span></h2>';
+  h+='<div class="statusgrid">'
+    +'<span class="skpi">running SHA <b>'+esc(dp.this_app_sha||'?')+'</b></span>'
+    +'<span class="skpi">drift <b>'+esc(dr.state||'UNKNOWN')+'</b></span>'
+    +'<span class="skpi">money mode <b>'+esc(dp.money_mode||'MOCK')+'</b></span>'
+    +'<span class="skpi">source <b>'+esc((dp.shas||{}).source_head||'UNKNOWN')+'</b></span></div>';
+  h+='<h3 class="sh" style="margin-top:10px">Feature Registry <span class="muted" style="font-weight:400">(deployed ≠ enabled)</span></h3>';
+  h+='<div class="muted" style="font-size:12.5px;line-height:1.8">';
+  for(const f of feats){ const en=f.runtime_enabled; const rc=f.risk_class||'';
+    h+='<div><b>'+esc(f.name)+'</b> <span class="badge">'+esc(rc)+'</span> '
+      +'<span class="badge ok">DEPLOYED</span> '
+      +'<span class="badge '+(en?'ok':'bad')+'">'+(en?'ENABLED':'DISABLED')+'</span> '
+      +'<span class="muted">'+esc(f.certification||'')+'</span></div>'; }
+  h+='</div></div>';
+  // §29 Operational Self Model — operational only, no consciousness claim
+  const m=v.operational_self_model||{};
+  h+='<div class="panel"><h2>Operational Self Model</h2><div class="statusgrid">'
+    +'<span class="skpi">identity <b>'+esc(m.identity)+'</b></span>'
+    +'<span class="skpi">version <b>'+esc(m.software_version)+'</b></span>'
+    +'<span class="skpi">environment <b>'+esc(m.environment)+'</b></span>'
+    +'<span class="skpi">health <b>'+esc(m.health)+'</b></span>'
+    +'<span class="skpi">current mission <b>'+esc(m.current_mission||'—')+'</b></span>'
+    +'<span class="skpi">workers online <b>'+esc(m.workers_online)+'</b></span>'
+    +'<span class="skpi">capabilities ready <b>'+esc(m.capabilities_ready)+'</b></span>'
+    +'<span class="skpi">last cycle <b>'+esc(m.last_holding_cycle||'—')+'</b></span>'
+    +'<span class="skpi">owner actions <b>'+esc(m.owner_required_count)+'</b></span></div>'
+    +'<div class="muted" style="font-size:11.5px;margin-top:6px">Operational self-awareness only — KAI makes no claim to consciousness or sentience.</div></div>';
+  // §30 autonomy (backend-authoritative)
+  const au=v.autonomy||{};
+  h+='<div class="panel"><h2>Autonomy</h2><div class="statusgrid">'
+    +'<span class="skpi">global <b>'+esc(au.global)+'</b></span>'
+    +'<span class="skpi">money mode <b>'+esc(au.money_mode)+'</b></span>'
+    +'<span class="skpi">A0/A1 <b>'+esc(au.a0_a1)+'</b></span>'
+    +'<span class="skpi">A2 grants <b>'+esc((au.a2_certified_grants||[]).join(', ')||'none')+'</b></span>'
+    +'<span class="skpi">last cycle <b>'+esc(au.last_cycle_verdict||au.last_cycle||'—')+'</b></span></div></div>';
+  return h;
+}
 async function onProposalAction(e){
   const b=e.target.closest('button[data-act]'); if(!b) return;
   const id=b.dataset.id, act=b.dataset.act, r=document.getElementById('pr-'+id);
@@ -110,7 +229,10 @@ async function onProposalAction(e){
     const who = await j('/admin/session/whoami');
     if(!who.authenticated || who.role!=='owner'){ out.innerHTML='<div class="msg">Owner sign-in required. Open the KAI Command Center, sign in, then reload.</div>'; return; }
     const ov = await j('/admin/kai/holding/overview');          // through the bridge → App B (owner-gated)
-    let html='<div class="grid">';
+    let html='';
+    try{ html+=renderView(await j('/admin/kai/holding/view')); }catch(_){}       // TODAY FOR YOU leads (§25)
+    try{ html+=renderStatus(await j('/admin/kai/holding/status')); }catch(_){}   // operational status next
+    html+='<div class="grid">';
     for(const e of ov.entities){
       html+='<div class="card"><div class="brand">'+esc(e.brand)+' '+badge(e.confidence)+'</div>'
         +'<div class="row"><span>status</span><span>'+esc(e.status)+'</span></div>'

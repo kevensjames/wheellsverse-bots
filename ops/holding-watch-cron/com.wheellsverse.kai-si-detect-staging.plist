@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- STAGING DETECT_ONLY soak scheduler. Every 4h (StartInterval=14400) it triggers ONE read-only
+     detection pass in App B via /admin/holding/detect-run. This is the trigger only; detection runs in
+     App B. It can never cause a write (server enforces DETECT_ONLY; prepare brakes off). __REPO__ is filled
+     by the loader with the stable worker checkout. The Keychain staging secret (kai-holding-worker-staging)
+     is read at runtime, never placed here. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.wheellsverse.kai-si-detect-staging</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>python3</string>
+        <string>__REPO__/ops/holding-watch-cron/detect_tick.py</string>
+    </array>
+    <key>WorkingDirectory</key><string>__REPO__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>BASE_URL</key><string>https://kai-staging-appb-production.up.railway.app</string>
+        <key>KAI_WORKER_KEYCHAIN_SVC</key><string>kai-holding-worker-staging</string>
+        <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>StartInterval</key><integer>14400</integer>
+    <key>RunAtLoad</key><true/>
+    <key>ProcessType</key><string>Background</string>
+    <key>StandardOutPath</key><string>__REPO__/.omc/logs/kai-si-detect-staging.out.log</string>
+    <key>StandardErrorPath</key><string>__REPO__/.omc/logs/kai-si-detect-staging.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- STAGING LaunchAgent for the persistent Holding worker-runner. DISTINCT from prod:
+     different Label, staging BASE_URL, staging Keychain service, and its own logs. __REPO__ is filled by
+     install-staging.sh with the DEDICATED stable worker checkout (~/kai-worker/repositories/wheellsverse).
+     Persistence != authority: the worker stays ONLINE here, but A2 write authority is a server-side brake
+     (KAI_A2_EXECUTION_ENABLED on kai-staging-appb), OFF by default. The runtime secret is NOT here — the
+     runner reads the staging SESSION_SIGNING_SECRET from the macOS Keychain service kai-holding-worker-staging.
+     Coding CLI is codex (PROVEN under the scrub); claude is intentionally absent until a scrub-surviving
+     CLAUDE_CODE_OAUTH_TOKEN is separately certified. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key><string>com.wheellsverse.kai-holding-worker-staging</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/env</string>
+        <string>python3</string>
+        <string>__REPO__/ops/holding-worker-runner/run.py</string>
+    </array>
+    <key>WorkingDirectory</key><string>__REPO__</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>BASE_URL</key><string>https://kai-staging-appb-production.up.railway.app</string>
+        <key>POLL_SECONDS</key><string>20</string>
+        <key>LEASE_SECONDS</key><string>300</string>
+        <key>WORKER_ID</key><string>macmini-a2-01</string>
+        <key>KAI_WORKER_KEYCHAIN_SVC</key><string>kai-holding-worker-staging</string>
+        <!-- codex is the PROVEN staging coding CLI; it authenticates via ~/.codex/auth.json (needs HOME) -->
+        <key>KAI_CODING_CLI</key><string>codex exec -s workspace-write</string>
+        <!-- tightest scrub: only what codex needs; NO API keys, NO runner/session secrets cross to the child -->
+        <key>KAI_CODING_CLI_ENV_ALLOW</key><string>PATH,HOME,LANG,LC_ALL,TERM</string>
+        <!-- codex is a mise-managed node CLI; its bin dir must be on PATH so both `codex` and its `node`
+             runtime resolve under launchd (a non-login context that does NOT source the user's shell rc) -->
+        <key>PATH</key><string>/Users/jhonwheeler/.local/share/mise/installs/node/22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+    <key>KeepAlive</key><true/>
+    <key>RunAtLoad</key><true/>
+    <key>ThrottleInterval</key><integer>15</integer>
+    <key>ProcessType</key><string>Background</string>
+    <key>StandardOutPath</key><string>__REPO__/.omc/logs/kai-holding-worker-staging.out.log</string>
+    <key>StandardErrorPath</key><string>__REPO__/.omc/logs/kai-holding-worker-staging.err.log</string>
+</dict>
+</plist>

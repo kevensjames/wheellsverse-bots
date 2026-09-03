@@ -77,6 +77,12 @@ jobs:
           # Ephemeral runner-local ledger. Real deployments override
           # this via repository secrets / variables.
           BRAIN_OUTCOME_LEDGER: .ci/repair_outcomes.jsonl
+          # `infra` is a top-level repository package; run the CLI (which does
+          # `from infra.brain.learning...` at call time) with the repo root on
+          # the import path. github.workspace is a trusted runner path, never
+          # event data, so it is safe in env: (keeps the no-inline-interpolation
+          # discipline — this is not attacker-controlled github.event.* data).
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           python scripts/feedback/ingest_github_events.py .ci/event.json \
             --event-type "$BRAIN_EVENT_TYPE" \

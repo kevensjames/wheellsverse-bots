@@ -52,6 +52,57 @@ class Settings(BaseSettings):
     #    authenticates both apps. Legacy X-Admin-Token stays valid regardless.
     OPERATOR_SESSION_ENABLED: bool = False
     SESSION_SIGNING_SECRET: str = ""
+    # Holding Operations OS — governed READ-ONLY holding endpoints. Default off:
+    # when False the router is not mounted at all (zero new surface).
+    KAI_HOLDING_ENABLED: bool = False
+    # Daily morning-briefing routine (report-only, no external send). Default off.
+    KAI_HOLDING_BRIEFING_ENABLED: bool = False
+    KAI_HOLDING_BRIEFING_UTC_HOUR: int = 11   # 07:00 America/New_York (EDT); use 12 for EST
+    # OPT-IN briefing delivery to the operator's own channel (Telegram). Default OFF — a deliberate
+    # exception to report-only; nothing sends unless this is true AND a channel is configured.
+    KAI_HOLDING_DELIVERY_ENABLED: bool = False
+    # Continuous watch loop (Wave 1): proactive change/anomaly detection across entities. Default OFF.
+    # Read-only; alerts deliver only if KAI_HOLDING_DELIVERY_ENABLED + a channel is configured too.
+    KAI_HOLDING_WATCH_ENABLED: bool = False
+    # Capability Fabric execution gateway (owner-only governed tool execution). Default OFF ->
+    # the /admin/capabilities routes are not mounted, so a disabled deploy has zero new surface.
+    # This is EMERGENCY BRAKE #1: with it OFF, no capability executes (the live holding executor
+    # returns CAPABILITY_UNAVAILABLE for everything), regardless of autonomy.
+    KAI_CAPABILITY_EXECUTION_ENABLED: bool = False
+    # EMERGENCY BRAKE #2 — the holding autonomy master switch. Default OFF: the autonomous work engine
+    # executes 0 (observation/reconciliation still runs per policy), independent of capability execution.
+    # Start staging DARK with this False; enable only after DB/Redis/auth/routes/SHA/Chromium verify.
+    HOLDING_AUTONOMY_ENABLED: bool = False
+    # Owner-only on-demand single-cycle trigger (POST /admin/holding/run-cycle) — for hosted staging
+    # certification + operator diagnostics ONLY. Default OFF (route 404). Requires APP_ENV=staging.
+    # It grants NO authority: both brakes above remain authoritative; it just runs one existing cycle.
+    KAI_HOLDING_MANUAL_CYCLE_ENABLED: bool = False
+    # Hosted-runtime self-certification: runs the FIXED A0/A1 cert scripts as a subprocess INSIDE the
+    # deployed container (true hosted proof, vs `railway run` which is local). Owner-only, staging-only,
+    # default OFF (route 404). No request input; grants no authority.
+    KAI_HOLDING_SELFCERT_ENABLED: bool = False
+    # Emergency brake #3 (limited A2 prepare-only writes). Default OFF, production OFF. Subordinate to
+    # both global brakes (KAI_CAPABILITY_EXECUTION_ENABLED + HOLDING_AUTONOMY_ENABLED) — it can never
+    # override them. Even ON, A2 stays NEEDS_CERTIFICATION until a coding worker + grant are wired, and
+    # A2 only ever PREPARES an isolated change (READY_FOR_REVIEW) — it never merges or deploys.
+    KAI_A2_EXECUTION_ENABLED: bool = False
+    # Emergency brake #4 (autonomous self-improvement origination). Default OFF, production OFF.
+    # SUBORDINATE to the three A2 brakes: it only decides whether a self-improvement CANDIDATE may
+    # ORIGINATE an A2 coding dispatch — the dispatch itself still requires staging + all three A2 brakes
+    # + the grant (enqueue_a2_coding_job). It can never override a parent brake. Self-improvement is
+    # always PREPARE-only (READY_FOR_REVIEW); it never merges/deploys.
+    KAI_SELF_IMPROVEMENT_ENABLED: bool = False
+    # DETECTION authority (separate from PREPARATION above). ON → KAI may continuously DETECT + confirm +
+    # notify evidence-backed improvement candidates (read-only). It grants NO write authority: preparation
+    # still requires KAI_SELF_IMPROVEMENT_ENABLED + the three A2 brakes. The three modes are expressed by
+    # these two flags: OFF/OFF=OFF, ON/OFF=DETECT_ONLY, ON/ON=PREPARE_ALLOWED. Default OFF, production OFF.
+    KAI_SELF_IMPROVEMENT_DETECT_ENABLED: bool = False
+    # Additional DETECT_ONLY signal sources (§16) — each default OFF, read-only, no write authority. They
+    # only add more evidence-backed candidate sources to the existing detection pipeline; they never enable
+    # preparation (still gated by KAI_SELF_IMPROVEMENT_ENABLED + the three A2 brakes). Default OFF so the
+    # current soak's signal behavior is unchanged even after this code deploys.
+    KAI_SI_SIGNAL_REPEATED_JOB_FAILURE_ENABLED: bool = False
+    KAI_SI_SIGNAL_CAPABILITY_HEALTH_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;
