@@ -68,11 +68,14 @@ def _github_slug(entity: str) -> str:
 def _dispatch_worker(proposal_id: int, worker: str, entity) -> dict:
     """Enqueue a READ-ONLY isolated-worker job for the approved proposal (executed by the colima
     worker-runner, not prod). Returns the dispatch evidence."""
+    # company_id stamped on every task (non-authoritative routing) so downstream signals attribute a failure
+    # to its company and never aggregate across companies (adversarial A4). repo/url already discriminate the
+    # concrete target within a company.
     if worker == "github":
-        task = {"action": "list_prs", "repo": _github_slug(entity or "")}
+        task = {"action": "list_prs", "repo": _github_slug(entity or ""), "company_id": entity or "?"}
     elif worker == "browser":
         task = {"action": "read_page", "url": "https://app.wheellsverse.com",
-                "allowed_domains": ["app.wheellsverse.com"]}
+                "allowed_domains": ["app.wheellsverse.com"], "company_id": entity or "?"}
     else:
         return {"kind": "DISPATCH_SKIPPED", "reason": f"unknown worker '{worker}'"}
     from app.services.holding import worker_jobs

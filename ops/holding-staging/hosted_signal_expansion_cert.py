@@ -22,9 +22,15 @@ def ck(n, ok, d=""):
     res.append(bool(ok)); print(f"  [{'PASS' if ok else 'FAIL'}] {n}" + (f" — {d}" if d else ""))
 
 
-def jf(jid, cap, state, status="failed", created=N, company="wheellsverse", worker="coding"):
+def jf(jid, cap, state="BLOCKED", status="failed", created=N, company="wheellsverse", worker="coding",
+       reason="", error=""):
+    ev = {"state": state}
+    if reason:
+        ev["reason"] = reason
+    if error:
+        ev["error"] = error
     return {"id": jid, "status": status, "created_at": created, "worker": worker,
-            "task": {"company_id": company, "capability": cap}, "evidence": {"state": state}}
+            "task": {"company_id": company, "capability": cap}, "evidence": ev}
 
 
 print("SIGNAL EXPANSION CERT (local, pure)")
@@ -46,11 +52,14 @@ rr = detect_repeated_job_failures(retries, now_iso=N)
 ck("same root across different timestamps -> 1 candidate, count 3", len(rr) == 1 and rr[0].evidence["failure_count"] == 3)
 
 print("STEP 3 — NON-DEFECT EXCLUSIONS (§5): operational failures are NOT self-improvement candidates")
-for label, state in [("owner-required", "OWNER_REQUIRED"), ("policy denial", "POLICY_DENIED"),
-                     ("credential", "AUTH_PENDING missing token"), ("external outage", "provider 503 outage"),
-                     ("deployment stale", "DEPLOYMENT_BEHIND stale"), ("no material change", "NO_MATERIAL_CHANGE")]:
-    got = detect_repeated_job_failures([jf(i, "c", state) for i in range(3)], now_iso=N)
-    ck(f"3x {label} -> 0 candidates", got == [])
+# structured (authoritative) operational states/decisions
+for label, state in [("owner-required", "OWNER_REQUIRED"), ("no material change", "NO_MATERIAL_CHANGE")]:
+    ck(f"3x {label} (structured) -> 0 candidates", detect_repeated_job_failures([jf(i, "c", state=state) for i in range(3)], now_iso=N) == [])
+# free-text operational reasons (best-effort, fail-safe soft exclusion)
+for label, reason in [("credential", "AUTH_PENDING: missing token, 401"), ("external outage", "provider 503 outage"),
+                      ("deployment stale", "deployment_behind stale")]:
+    got = detect_repeated_job_failures([jf(i, "c", state="BLOCKED", reason=reason) for i in range(3)], now_iso=N)
+    ck(f"3x {label} (free-text reason) -> 0 candidates", got == [])
 
 print("STEP 4 — TIME WINDOW (§3): out-of-window failures excluded")
 old = [jf(i, "c", "BLOCKED", created="2026-09-01T00:00:00") for i in range(3)]
@@ -60,8 +69,9 @@ print("STEP 5 — CAPABILITY_HEALTH transitions + transient filter (§9/§10/§1
 ck("healthy -> 0", detect_capability_degradation({"x": {"state": "READY"}}, {}, now_iso=N) == ([], []))
 ck("single transient degraded -> 0 (suppressed)",
    detect_capability_degradation({"x": {"state": "DEGRADED"}}, {"x": {"state": "READY"}}, now_iso=N) == ([], []))
-cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True}}, {"x": {"state": "DEGRADED"}}, now_iso=N)
-ck("persistent internal degraded (2 checks) -> 1 candidate", len(cands) == 1 and cands[0].signal_type == "CAPABILITY_HEALTH_DEGRADATION")
+cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True, "reason": "TypeError in handler"}},
+                                           {"x": {"state": "DEGRADED"}}, now_iso=N)
+ck("persistent internal degraded (2 checks, positive evidence) -> 1 candidate", len(cands) == 1 and cands[0].signal_type == "CAPABILITY_HEALTH_DEGRADATION")
 ck("certification regression tracked separately", cands[0].evidence.get("certification_regression") is True and cands[0].evidence.get("runtime_health") == "DEGRADED")
 
 print("STEP 6 — CAPABILITY classification (§11): credential/external are operational, not self-code")
@@ -71,7 +81,7 @@ cc, oo = detect_capability_degradation({"y": {"state": "OFFLINE", "reason": "AUT
 ck("credential blocker -> 0 candidate, 1 operational blocker", cc == [] and len(oo) == 1 and oo[0]["classification"] == "CREDENTIAL_BLOCKER")
 
 print("STEP 7 — FALLBACK (§13): primary degraded + fallback used -> one record, no duplicate")
-fc, fo = detect_capability_degradation({"p": {"state": "DEGRADED", "certified": True, "fallback_used": "codex"}},
+fc, fo = detect_capability_degradation({"p": {"state": "DEGRADED", "certified": True, "fallback_used": "codex", "reason": "AttributeError in primary adapter"}},
                                        {"p": {"state": "DEGRADED"}}, now_iso=N)
 ck("one candidate records fallback_used", len(fc) == 1 and fc[0].evidence.get("fallback_used") == "codex")
 
@@ -97,6 +107,28 @@ print("STEP 10 — STRUCTURAL NO-WRITE (§20): the signals module imports no wri
 src = open(os.path.join(REPO, "backend/app/services/holding/self_improvement_signals.py")).read()
 for tok in ("dispatch_self_improvement", "enqueue_a2_coding_job", "a2_dispatch", "a2_wiring", "make_git_worktree", "coding-cli"):
     ck(f"no write path '{tok}'", tok not in src)
+
+print("STEP 11 — ADVERSARIAL FIXES (A3/A4/A7/A8) closed")
+# A3 scatter: same structured fields but DIFFERENT free-text errors -> ONE root (identity is structured only)
+scatter = [jf(1, "c", state="BLOCKED", error="timeout waiting"), jf(2, "c", state="BLOCKED", error="unexpected error X"),
+           jf(3, "c", state="BLOCKED", error="weird glitch Z")]
+rs = detect_repeated_job_failures(scatter, now_iso=N)
+ck("A3: varied free-text error cannot scatter one defect -> 1 candidate", len(rs) == 1 and rs[0].evidence["failure_count"] == 3)
+# A3 over-broad: a genuine BLOCKED failure with benign text (no exclusion token) stays eligible
+ck("A3: benign-text real failures still detected", len(detect_repeated_job_failures([jf(i, "c", state="BLOCKED", error="row mismatch") for i in range(3)], now_iso=N)) == 1)
+# A4: different companies never aggregate; same company groups; absent company never merges
+diffco = [jf(1, "gh", worker="github", company="nurtelle"), jf(2, "gh", worker="github", company="sol"),
+          jf(3, "gh", worker="github", company="nexora")]
+ck("A4: 3 github failures across 3 companies -> 0 combined", detect_repeated_job_failures(diffco, now_iso=N) == [])
+sameco = [jf(i, "gh", worker="github", company="sol") for i in range(3)]
+ck("A4: 3 github failures for ONE company -> 1 candidate", len(detect_repeated_job_failures(sameco, now_iso=N)) == 1)
+absent = [{"id": i, "status": "failed", "created_at": N, "worker": "github", "task": {"repo": "r"}, "evidence": {"state": "BLOCKED"}} for i in range(3)]
+ck("A4: absent company_id -> per-job sentinel, 0 false merge", detect_repeated_job_failures(absent, now_iso=N) == [])
+# A7/A8: unrecognized + external reasons never become self-code candidates
+uk, uko = detect_capability_degradation({"q": {"state": "FAILED", "reason": "mysterious wobble"}}, {"q": {"state": "FAILED"}}, now_iso=N)
+ck("A7/A8: unrecognized degradation -> UNKNOWN operational, 0 candidate", uk == [] and uko[0]["classification"] == "UNKNOWN")
+ex, exo = detect_capability_degradation({"w": {"state": "OFFLINE", "reason": "502 bad gateway upstream"}}, {"w": {"state": "OFFLINE"}}, now_iso=N)
+ck("A8: 502 upstream -> EXTERNAL_PROVIDER_OUTAGE, 0 candidate", ex == [] and exo[0]["classification"] == "EXTERNAL_PROVIDER_OUTAGE")
 
 n = len(res); ok = sum(res)
 print(f"\nSIGNAL EXPANSION CERT: {ok}/{n} —", "PASS" if ok == n else "FAIL")

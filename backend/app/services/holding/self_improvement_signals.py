@@ -16,33 +16,43 @@ from app.services.holding.self_improvement_detect import Candidate
 REPEAT_THRESHOLD = 3          # §3 same-root failures required (versioned, server-owned)
 REPEAT_WINDOW_HOURS = 24
 _FAILURE_STATUSES = ("failed", "expired")
-# §5 tokens that mean a repeated failure is OPERATIONAL, not a KAI code defect — never a self-improvement
-# candidate (they retain their correct operational diagnosis).
-_NON_DEFECT_TOKENS = (
-    "owner_required", "policy", "denied", "not_granted", "brake", "no_material_change", "expected",
-    "credential", "unauthorized", "401", "403", "token", "auth_pending", "login",
-    "provider", "outage", "unreachable", "503", "429", "rate limit", "rate-limit", "upstream",
-    "stale", "deployment_behind", "deployment stale", "worker offline", "worker unavailable",
-    "blocked_worker", "not staging", "staging_only")
+# §5 AUTHORITATIVE (structured/enum) operational reasons — hard-excluded; not attacker-forgeable.
+_STRUCTURED_NON_DEFECT = ("owner_required", "rejected", "policy_denied", "not_granted", "brake_off",
+                          "staging_only", "no_material_change", "blocked_worker")
+# best-effort SOFT operational reasons that only surface in FREE TEXT. A hostile worker echoing one causes a
+# FAIL-SAFE detection miss (read-only DETECT_ONLY → never a wrong action), never a false candidate. Tightened
+# to specific phrases (not bare "token"/"expected"/"stale") to avoid over-broad false drops (adversarial A3).
+# NEVER used for identity — only eligibility.
+_FREETEXT_NON_DEFECT = ("unauthorized", "401", "403", "auth_pending", "missing token", "invalid token",
+                        "login required", "no auth", "provider outage", "503", "502", "504", "429",
+                        "rate limit", "rate-limit", "upstream", "unreachable", "deployment_behind",
+                        "deployment stale", "expected_test_failure", "worker offline", "worker unavailable")
 
 
-def _reason_blob(job: dict) -> str:
+def _structured_blob(job: dict) -> str:
+    """AUTHORITATIVE/structured fields only (status + evidence enums + decision). Drives IDENTITY and the hard
+    eligibility exclusions. NEVER includes free-text ev.reason/ev.error, so injected log text cannot forge a
+    signature or scatter one defect across buckets (adversarial A3)."""
     ev = job.get("evidence") or {}
     kd = ev.get("kai_decision")
     kd = (kd.get("decision") if isinstance(kd, dict) else kd) or ""
-    parts = [job.get("status"), ev.get("state"), kd, ev.get("reason"), ev.get("error")]
+    parts = [job.get("status"), ev.get("state"), ev.get("execution"), ev.get("status"), kd]
     return " ".join(str(p) for p in parts if p).lower()
 
 
-def _normalize_reason_code(job: dict) -> str:
-    """A bounded, stable reason code from authoritative fields — NEVER raw error text as identity (§4)."""
+def _freetext(job: dict) -> str:
     ev = job.get("evidence") or {}
-    blob = _reason_blob(job)
+    return " ".join(str(p) for p in (ev.get("reason"), ev.get("error")) if p).lower()
+
+
+def _normalize_reason_code(job: dict) -> str:
+    """Bounded, stable reason code from STRUCTURED fields only — NEVER raw error text as identity (§4)."""
+    ev = job.get("evidence") or {}
     if job.get("status") == "expired":
         return "RETRY_EXHAUSTED"
-    if "timeout" in blob:
+    if str(ev.get("execution")) == "TIMEOUT":
         return "TIMEOUT"
-    if str(ev.get("status")) == "error" or "error" in blob and "no error" not in blob:
+    if str(ev.get("status")) == "error":
         return "RUNTIME_ERROR"
     if str(ev.get("state")) == "BLOCKED":
         return "GATE_BLOCKED"
@@ -52,15 +62,22 @@ def _normalize_reason_code(job: dict) -> str:
 def _eligible_failure(job: dict) -> bool:
     if job.get("status") not in _FAILURE_STATUSES:
         return False
-    return not any(tok in _reason_blob(job) for tok in _NON_DEFECT_TOKENS)
+    if any(tok in _structured_blob(job) for tok in _STRUCTURED_NON_DEFECT):   # authoritative exclusion
+        return False
+    if any(tok in _freetext(job) for tok in _FREETEXT_NON_DEFECT):            # best-effort (fail-safe) soft exclusion
+        return False
+    return True
 
 
 def _root_signature(job: dict, reason_code: str) -> str:
-    """Stable root identity from authoritative fields (company/worker/capability|suite/reason/subsystem).
-    Deliberately excludes timestamps/request-IDs/raw text so retries collapse to ONE root (§4)."""
+    """Stable root identity from AUTHORITATIVE fields (company/worker/capability|repo/reason). Excludes
+    timestamps/request-IDs/raw text so retries collapse to ONE root (§4). A MISSING/blank company is a
+    per-job UNIQUE sentinel (job id / correlation id) so absent-company jobs NEVER merge across companies
+    (adversarial A4) — real per-company grouping requires the dispatcher to stamp company_id."""
     t = job.get("task") or {}
-    cap = t.get("capability") or t.get("suite_id") or job.get("worker") or "?"
-    return f"jobfail:{t.get('company_id', '?')}:{job.get('worker', '?')}:{cap}:{reason_code}"
+    company = t.get("company_id") or f"job:{job.get('id') or job.get('correlation_id') or '?'}"
+    cap = t.get("capability") or t.get("suite_id") or t.get("repo") or job.get("worker") or "?"
+    return f"jobfail:{company}:{job.get('worker', '?')}:{cap}:{reason_code}"
 
 
 def _within_window(created_at: str, now_iso: str, hours: int) -> bool:
@@ -108,19 +125,32 @@ DEGRADE_CLASSES = ("LOCAL_RUNTIME_DEFECT", "CONFIGURATION_BLOCKER", "CREDENTIAL_
                    "EXTERNAL_PROVIDER_OUTAGE", "UNKNOWN")
 
 
+# positive internal-defect evidence — the ONLY thing that classifies an unhealthy capability as KAI's own
+# code defect. Absent this, an unhealthy capability is operational (never wrongly blame KAI, adversarial A7/A8).
+_INTERNAL_DEFECT_MARKERS = ("traceback", "exception", "stacktrace", "stack trace", "assert", "internalerror",
+                            "internal error", "keyerror", "typeerror", "valueerror", "attributeerror",
+                            "nonetype", "segfault", "crash", "panic", "unhandled", "importerror",
+                            "modulenotfound", "indexerror", "recursionerror")
+
+
 def classify_degradation(state: str, reason: str) -> str:
-    """§11 — only LOCAL_RUNTIME_DEFECT is an eligible self-improvement candidate; credential/config/external
-    are operational blockers, not KAI code defects."""
+    """§11 FAIL-SAFE — LOCAL_RUNTIME_DEFECT (an eligible self-improvement candidate) ONLY on POSITIVE
+    internal-defect evidence. Every credential/external/config cause AND every unrecognized/empty reason is
+    operational (credential/external/config/UNKNOWN) — never a self-code candidate. This inverts the prior
+    permissive default that confidently blamed KAI code for anything it could not parse."""
     r = (reason or "").lower()
-    if any(x in r for x in ("credential", "unauthorized", "401", "403", "token", "auth_pending", "login", "no auth")):
+    if any(x in r for x in ("credential", "unauthorized", "401", "403", "auth_pending", "login",
+                            "missing token", "invalid token", "no auth", "api key")):
         return "CREDENTIAL_BLOCKER"
-    if any(x in r for x in ("provider", "outage", "unreachable", "503", "429", "rate limit", "upstream", "external")):
+    if any(x in r for x in ("provider", "outage", "unreachable", "503", "502", "504", "500", "429",
+                            "rate limit", "rate-limit", "upstream", "timed out", "timeout", "connection",
+                            "network", "dns", "gateway", "external")):
         return "EXTERNAL_PROVIDER_OUTAGE"
     if any(x in r for x in ("config", "misconfig", "not configured", "missing env", "env var", "setting")):
         return "CONFIGURATION_BLOCKER"
-    if str(state).upper() in _UNHEALTHY:
+    if any(x in r for x in _INTERNAL_DEFECT_MARKERS):
         return "LOCAL_RUNTIME_DEFECT"
-    return "UNKNOWN"
+    return "UNKNOWN"                                          # unrecognized/empty → operational (fail safe)
 
 
 def detect_capability_degradation(health_now: dict, health_prev: dict, *, now_iso: str) -> tuple:
@@ -178,12 +208,15 @@ def demo() -> None:
     outside = [jf(i, "c", "BLOCKED", created="2026-09-01T00:00:00") for i in range(3)]
     assert detect_repeated_job_failures(outside, now_iso=N) == [], "out-of-window excluded"
 
-    # §15: healthy→0; single transient→0; persistent internal→1; credential/external→operational not candidate
+    # §15: healthy→0; single transient→0; persistent INTERNAL (positive evidence)→1; credential/external→operational
     assert detect_capability_degradation({"x": {"state": "READY"}}, {}, now_iso=N) == ([], [])
-    assert detect_capability_degradation({"x": {"state": "DEGRADED"}}, {"x": {"state": "READY"}}, now_iso=N) == ([], []), "single transient suppressed"
-    cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True}},
+    assert detect_capability_degradation({"x": {"state": "DEGRADED", "reason": "TypeError"}}, {"x": {"state": "READY"}}, now_iso=N) == ([], []), "single transient suppressed"
+    cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True, "reason": "TypeError in handler"}},
                                                {"x": {"state": "DEGRADED"}}, now_iso=N)
     assert len(cands) == 1 and cands[0].signal_type == "CAPABILITY_HEALTH_DEGRADATION" and ops == []
+    # unrecognized/empty reason → operational UNKNOWN, NOT a self-code candidate (fail safe, A7/A8)
+    ucc, uoo = detect_capability_degradation({"u": {"state": "DEGRADED", "reason": "weird thing"}}, {"u": {"state": "DEGRADED"}}, now_iso=N)
+    assert ucc == [] and uoo and uoo[0]["classification"] == "UNKNOWN", "ambiguous degradation is operational, not self-code"
     cc, oo = detect_capability_degradation({"y": {"state": "OFFLINE", "reason": "AUTH_PENDING: missing token"}},
                                            {"y": {"state": "OFFLINE"}}, now_iso=N)
     assert cc == [] and oo and oo[0]["classification"] == "CREDENTIAL_BLOCKER", "credential blocker not a self-code candidate"
