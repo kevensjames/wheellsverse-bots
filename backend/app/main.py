@@ -211,6 +211,10 @@ app.include_router(admin_chat.router)
 if settings.KAI_HOLDING_ENABLED:
     from app.routers import admin_holding
     app.include_router(admin_holding.router)
+# Cyber Operations — governed READ-ONLY security endpoints, mounted ONLY when enabled (default off).
+if settings.KAI_CYBER_OPS_ENABLED:
+    from app.routers import admin_security
+    app.include_router(admin_security.router)
 app.include_router(admin_supreme.router)
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)

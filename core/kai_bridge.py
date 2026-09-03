@@ -58,8 +58,11 @@ class BridgeConfig:
     # <upstream>/admin/kai-chat. Configurable in case App B remounts.
     upstream_prefix: str = "/admin"
     allow_prefixes: tuple = ("kai-chat", "kg", "twin", "persona", "briefing",
-                             "research", "memory", "holding", "capabilities")
+                             "research", "memory", "holding", "capabilities", "cyber")
     allow_methods: frozenset = frozenset({"GET", "POST"})
+    # Prefixes that are GET-only at the bridge — fail-closed even if App B ever grows
+    # a POST route under them. Cyber Ops is strictly read-only (spec §0/§49).
+    read_only_prefixes: tuple = ("cyber",)
     # App B's /admin/kai-chat ALWAYS runs as a synthetic tier='ultra' operator
     # (admin_chat.py: "bypasses every paid-gate"), and App B's require_admin_token
     # is binary (any admin passes). So the owner-vs-operator distinction MUST be
@@ -68,7 +71,7 @@ class BridgeConfig:
     # escalation. The read routes (kg/twin/persona/…) stay kai.chat (operator-ok).
     # capability EXECUTION is owner-only too (App B enforces require_kai_ultra; the bridge
     # enforces the same kai.ultra scope here so an operator session can never reach it §6/§16).
-    ultra_prefixes: tuple = ("kai-chat", "capabilities")
+    ultra_prefixes: tuple = ("kai-chat", "capabilities", "cyber")
     timeout: float = 30.0
     # Test seam: returns an httpx.AsyncClient (default targets the real upstream).
     client_factory: Optional[Callable[[], httpx.AsyncClient]] = field(default=None)
@@ -172,6 +175,9 @@ def install_kai_bridge(app: FastAPI, cfg: BridgeConfig) -> None:
         # 2) Method allowlist.
         if request.method not in cfg.allow_methods:
             return _deny(405, {"error": "method_not_allowed"})
+        # 2b) Read-only prefixes are GET-only here — fail-closed vs a future POST route.
+        if _first_segment(path) in cfg.read_only_prefixes and request.method != "GET":
+            return _deny(405, {"error": "method_not_allowed", "reason": "read_only_prefix"})
         # 3) Path prefix allowlist (blocks arbitrary upstream paths / traversal).
         if ".." in path or _first_segment(path) not in cfg.allow_prefixes:
             return _deny(404, {"error": "path_not_allowed"})

@@ -133,6 +133,19 @@ def test_ultra_query_flag_gated_for_operator():
     assert r.status_code == 403
 
 
+def test_cyber_prefix_is_get_only():
+    """Cyber Ops is strictly read-only (spec §0/§49): the bridge enforces GET-only for
+    the 'cyber' prefix — fail-closed even if App B ever grows a POST route there."""
+    c = _client()
+    rget = c.get("/admin/kai/cyber/overview", cookies=_cookie("owner"))
+    assert rget.status_code != 405, f"owner GET to cyber must pass the method gate, got {rget.status_code}"
+    assert captured.get("path") == "/admin/cyber/overview", "GET should forward to App B cyber path"
+    captured.clear()  # so the next assertion proves the POST was NOT forwarded
+    rpost = c.post("/admin/kai/cyber/overview", json={}, cookies=_cookie("owner"))
+    assert rpost.status_code == 405 and not captured, \
+        f"POST to read-only cyber prefix must be 405 at the bridge (never forwarded), got {rpost.status_code}"
+
+
 # ── allowlists / SSRF guards ─────────────────────────────────────────────────
 def test_path_not_in_allowlist_404():
     c = _client()
