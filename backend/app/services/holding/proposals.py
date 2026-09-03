@@ -85,11 +85,11 @@ def build_proposals(priorities: list) -> list:
 
 
 def build_daily_plan(proposals: list) -> dict:
-    """A ranked, time-boxed plan from the open proposals (draft-only; the operator approves/edits)."""
-    order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3, "": 4}
+    """A ranked, time-boxed plan from the open proposals (draft-only; the operator approves/edits).
+    Ranked by the ONE §22 ranker (priorities.rank_key) — no local severity→ordinal map."""
+    from app.services.holding.priorities import rank_key
     est = {INVESTIGATE: "30m", VERIFY: "20m", REQUEST_INFO: "5m", REVIEW: "15m"}
-    ranked = sorted([p for p in proposals if p.get("status") == _OPEN],
-                    key=lambda p: order.get(p.get("severity", ""), 9))
+    ranked = sorted([p for p in proposals if p.get("status") == _OPEN], key=rank_key)
     steps = [{"n": i + 1, "severity": p.get("severity"), "do": p.get("proposed_action"),
               "est": est.get(p.get("action_class"), "15m"), "class": p.get("action_class"),
               "entity": p.get("entity")} for i, p in enumerate(ranked)]
