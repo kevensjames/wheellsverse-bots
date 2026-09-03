@@ -1,4 +1,8 @@
 /* KAI Presence — orb + drawer. Matches the admin dark theme; KAI accent = cyan→purple. */
+/* Premium type identity loaded from ONE place so every admin page that links this stylesheet
+   (cyber-operations + holding) gets Space Grotesk + JetBrains Mono. Robust fallback stacks are
+   kept on each `font:` declaration, so the pages still read well if Google Fonts is blocked. */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 :root {
   --kaip-bg: #0b0f1a;
   --kaip-panel: #11172a;

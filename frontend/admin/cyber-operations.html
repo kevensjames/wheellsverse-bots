@@ -1,0 +1,858 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KAI Cyber Operations</title>
+<link rel="stylesheet" href="/admin/kai-presence.css">
+<style>
+  /* KAI Cyber Operations Center — original Wheellsverse/KAI mission-control design.
+     Dark navy, cyan telemetry, blue system lines, orange anomaly, red critical, green healthy.
+     Every displayed value is fetched from /admin/kai/cyber/* or shown as an honest marker (§49). */
+  :root{
+    --bg:#070a12; --bg2:#0b0f1a; --panel:#0f1526; --panel2:#111a30; --border:#1c2743;
+    --border2:#26365c; --text:#e8edf5; --muted:#8a95a8; --dim:#7f8aa1;
+    --cyan:#00e5ff; --blue:#4d7cff; --green:#38f5a5; --orange:#ff9d3c; --red:#ff4d5e;
+    --grid:rgba(77,124,255,.06); --glow:rgba(0,229,255,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{overflow-x:hidden}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(0,229,255,.06), transparent 60%),
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      var(--bg);
+    color:var(--text);font:14px/1.55 'Space Grotesk',system-ui,-apple-system,Segoe UI,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{max-width:1400px;margin:0 auto;padding:18px 18px 80px}
+  a{color:var(--cyan);text-decoration:none} a:hover{text-decoration:underline}
+
+  /* ── header ─────────────────────────────────────────────── */
+  header.hdr{display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+    border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:16px;
+    background:linear-gradient(180deg,rgba(17,26,48,.9),rgba(15,21,38,.7));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03), 0 0 40px rgba(0,229,255,.04)}
+  .brandmark{width:38px;height:38px;flex:0 0 auto}
+  .htitle{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .htitle h1{font-size:17px;letter-spacing:.14em;margin:0;font-weight:700;text-transform:uppercase;
+    background:linear-gradient(90deg,#fff,var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .htitle .tag{font-size:11px;letter-spacing:.22em;color:var(--dim);text-transform:uppercase}
+  .hspace{flex:1 1 40px}
+  .pill{display:inline-flex;align-items:center;gap:7px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    font-weight:700;border-radius:999px;padding:6px 12px;border:1px solid var(--border2);white-space:nowrap}
+  .pill .ic{width:9px;height:9px;border-radius:50%;background:var(--blue);box-shadow:0 0 0 3px rgba(77,124,255,.15)}
+  .pill.def{color:var(--cyan);border-color:rgba(0,229,255,.4);background:rgba(0,229,255,.06)}
+  .pill.def .ic{background:var(--cyan);box-shadow:0 0 0 3px rgba(0,229,255,.16)}
+  .core{display:inline-flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+  .core .dot{width:11px;height:11px;border-radius:50%;background:var(--dim);position:relative}
+  .core[data-s="LIVE"] .dot{background:var(--green);box-shadow:0 0 0 4px rgba(56,245,165,.18)}
+  .core[data-s="LIVE"] .dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid var(--green);opacity:.6;animation:ring 2.4s ease-out infinite}
+  .core[data-s="DEGRADED"] .dot{background:var(--orange);box-shadow:0 0 0 4px rgba(255,157,60,.18)}
+  .core[data-s="OFFLINE"] .dot{background:var(--red);box-shadow:0 0 0 4px rgba(255,77,94,.14)}
+  .core .lbl{color:var(--muted)} .core .val{color:var(--text)}
+
+  /* ── auth banner ─────────────────────────────────────────── */
+  .authbar{border:1px solid rgba(255,157,60,.35);background:rgba(255,157,60,.06);color:#ffd9a8;
+    border-radius:10px;padding:9px 13px;font-size:12.5px;margin-bottom:14px;display:none}
+  .authbar.show{display:block}
+
+  /* ── stat tiles (§36 overview) ───────────────────────────── */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+  .tile{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:11px 13px;position:relative;overflow:hidden}
+  .tile::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--border2)}
+  .tile.s-ok::before{background:var(--green)} .tile.s-warn::before{background:var(--orange)}
+  .tile.s-crit::before{background:var(--red)} .tile.s-info::before{background:var(--cyan)} .tile.s-off::before{background:var(--dim)}
+  .tile .tl{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .tile .tv{font-size:20px;font-weight:700;margin-top:5px;line-height:1.1}
+  .tile .ts{font-size:11px;color:var(--dim);margin-top:3px}
+
+  /* ── layout grid ─────────────────────────────────────────── */
+  .cols{display:grid;grid-template-columns:320px 1fr 340px;gap:14px;align-items:start}
+  .stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .panel{background:linear-gradient(180deg,rgba(17,26,48,.55),rgba(15,21,38,.55));
+    border:1px solid var(--border);border-radius:13px;padding:14px;min-width:0}
+  .panel > h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;margin:0 0 4px;color:var(--text);
+    display:flex;align-items:center;gap:8px;font-weight:700}
+  .panel > h2 .hint{margin-left:auto;font-size:10px;letter-spacing:.05em;color:var(--dim);text-transform:none;font-weight:400}
+  .panel .desc{font-size:11.5px;color:var(--dim);margin:0 0 10px}
+
+  /* ── honest state badges (§49) — icon + label + text, never colour alone (§48) ── */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    font-weight:700;border-radius:6px;padding:2px 7px;border:1px solid var(--border2);color:var(--muted);white-space:nowrap}
+  .badge .bi{font-size:10px;line-height:1}
+  .badge.ok{color:var(--green);border-color:rgba(56,245,165,.4);background:rgba(56,245,165,.06)}
+  .badge.info{color:var(--cyan);border-color:rgba(0,229,255,.4);background:rgba(0,229,255,.06)}
+  .badge.warn{color:var(--orange);border-color:rgba(255,157,60,.4);background:rgba(255,157,60,.06)}
+  .badge.crit{color:var(--red);border-color:rgba(255,77,94,.4);background:rgba(255,77,94,.07)}
+  .badge.off{color:var(--dim);border-color:var(--border);background:rgba(255,255,255,.01)}
+
+  /* severity chips */
+  .sev{font-size:10px;text-transform:uppercase;letter-spacing:.05em;font-weight:700;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .sev.CRITICAL{color:var(--red);border:1px solid rgba(255,77,94,.45);background:rgba(255,77,94,.08)}
+  .sev.HIGH{color:var(--orange);border:1px solid rgba(255,157,60,.4)}
+  .sev.MEDIUM{color:#ffe08a;border:1px solid rgba(255,224,138,.3)}
+  .sev.LOW{color:var(--muted);border:1px solid var(--border2)}
+  .sev.INFO{color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
+
+  .muted{color:var(--muted)} .dim{color:var(--dim)}
+  .kvs{display:flex;flex-wrap:wrap;gap:6px 14px} .kv{font-size:11.5px;color:var(--muted)} .kv b{color:var(--text);font-weight:700}
+  .row{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;padding:6px 0;border-top:1px solid var(--border)}
+  .row:first-of-type{border-top:0}
+  .loading{color:var(--dim);font-size:12px;padding:8px 0}
+  .empty{color:var(--muted);font-size:12px;padding:6px 0}
+
+  /* ── graph ───────────────────────────────────────────────── */
+  .graphwrap{position:relative}
+  .graphhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .graphhead h2{margin:0}
+  .gbtns{margin-left:auto;display:flex;gap:8px}
+  .gsvg{width:100%;height:auto;display:block;border-radius:12px;
+    background:radial-gradient(600px 340px at 50% 46%, rgba(0,229,255,.05), transparent 70%);
+    border:1px solid var(--border)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:9px;font-size:11px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .ndetail{margin-top:10px;border:1px dashed var(--border2);border-radius:10px;padding:11px;font-size:12px;display:none}
+  .ndetail.show{display:block}
+  .ndetail h3{margin:0 0 7px;font-size:13px;letter-spacing:.04em}
+  /* SVG element styles */
+  .edge{stroke:var(--blue);stroke-width:1.4;opacity:.5;fill:none}
+  .edge.boundary{stroke:var(--orange);stroke-dasharray:5 4;opacity:.7}
+  .edge.flow{stroke-dasharray:3 7;animation:flow 1.2s linear infinite}
+  .gnode{cursor:pointer}
+  .gnode circle.body{stroke-width:1.6}
+  .gnode:focus{outline:none} .gnode:focus circle.body,.gnode:hover circle.body{stroke:var(--cyan);stroke-width:2.4}
+  .gnode text{font:600 10px 'Space Grotesk',system-ui,sans-serif;fill:var(--text)}
+  .h-healthy{fill:rgba(56,245,165,.14);stroke:var(--green)}
+  .h-degraded{fill:rgba(255,157,60,.14);stroke:var(--orange)}
+  .h-unknown{fill:rgba(90,103,128,.14);stroke:var(--dim)}
+  .h-infra{fill:rgba(77,124,255,.12);stroke:var(--blue)}
+  .corering{fill:none;stroke:rgba(0,229,255,.25);stroke-width:1}
+  .corering.spin{transform-origin:center;animation:spin 26s linear infinite}
+  .corepulse{transform-origin:center;animation:corepulse 3.4s ease-in-out infinite}
+  /* node health = colour AND a non-colour cue (§48): glyph + dashed stroke on degraded/unknown */
+  .gnode text.gglyph{font:700 13px 'Space Grotesk',system-ui,sans-serif;fill:var(--text);pointer-events:none}
+  .gnode circle.body.dashed{stroke-dasharray:4 3}
+  /* hub spokes: core → registry member (membership/observation, not a fabricated protocol edge) */
+  .spoke{stroke:var(--blue);stroke-width:1;stroke-dasharray:2 6;opacity:.16;fill:none}
+
+  /* ── risk gauge ──────────────────────────────────────────── */
+  .gauge{display:flex;align-items:center;gap:14px;margin-bottom:8px}
+  .gauge svg{flex:0 0 auto}
+  .gauge .gval{font-size:30px;font-weight:800;line-height:1}
+  .gauge .gband{font-size:12px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;margin-top:2px}
+  .cov{font-size:11.5px;color:var(--orange);margin:6px 0 4px;display:flex;align-items:center;gap:6px}
+  .comps{list-style:none;margin:8px 0 0;padding:0;max-height:150px;overflow:auto}
+  .comps li{font-size:11.5px;color:var(--muted);padding:3px 0;display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--border)}
+  .comps li b{color:var(--text)}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px}
+
+  /* ── event timeline ──────────────────────────────────────── */
+  .tl-list{max-height:340px;overflow:auto;margin-top:4px}
+  .ev{display:flex;gap:9px;padding:8px 0;border-top:1px solid var(--border);align-items:flex-start}
+  .ev:first-child{border-top:0}
+  .ev .evb{min-width:0} .ev .evt{font-size:12px;color:var(--text);word-break:break-word}
+  .ev .evm{font-size:10.5px;color:var(--dim);margin-top:2px}
+  .obs{font-size:9px;letter-spacing:.1em;color:var(--cyan);border:1px solid rgba(0,229,255,.3);border-radius:4px;padding:1px 4px}
+
+  /* ── capabilities ────────────────────────────────────────── */
+  .cap{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--border);font-size:12px}
+  .cap:first-of-type{border-top:0} .cap .cn{min-width:0;flex:1} .cap .cn small{color:var(--dim);display:block;font-size:10.5px}
+
+  /* ── quick actions (§19 safe read only) ──────────────────── */
+  .qa{display:flex;flex-wrap:wrap;gap:8px}
+  .qa button{font:600 11.5px 'Space Grotesk',system-ui,sans-serif;border-radius:8px;padding:7px 12px;cursor:pointer;
+    border:1px solid var(--border2);background:rgba(77,124,255,.08);color:var(--text);letter-spacing:.03em}
+  .qa button:hover{border-color:var(--cyan);color:var(--cyan)}
+  .qa button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+  .qa .note{font-size:10.5px;color:var(--dim);width:100%;margin-top:2px}
+
+  button:focus-visible,[tabindex]:focus-visible,a:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:4px}
+
+  /* ── modal (mobile fullscreen graph) ─────────────────────── */
+  .modal{position:fixed;inset:0;background:rgba(3,6,12,.92);z-index:60;display:none;flex-direction:column;padding:14px}
+  .modal.show{display:flex}
+  .modal .mhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .modal .mbody{flex:1;overflow:auto}
+  .modal .mclose{margin-left:auto;font:600 12px 'Space Grotesk',sans-serif;border:1px solid var(--border2);
+    background:transparent;color:var(--text);border-radius:8px;padding:7px 13px;cursor:pointer}
+
+  .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+  /* ── attack path (§7) — vertical staged graphic, per-step state chips ────── */
+  .apath{display:flex;flex-direction:column;gap:0}
+  .astep{border:1px solid var(--border);border-radius:10px;padding:9px 11px;background:rgba(77,124,255,.04)}
+  .astep-t{font-size:12.5px;font-weight:700}
+  .astep-d{font-size:10.5px;color:var(--muted);margin-top:1px}
+  .achips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+  .achip{font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);border:1px solid var(--border2);border-radius:5px;padding:1px 6px}
+  .achip b{color:var(--dim)}
+  .aarrow{text-align:center;color:var(--dim);font-size:14px;line-height:1;padding:3px 0}
+  /* ── Phase-C engine grid (§11/§12) ───────────────────────── */
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px;align-items:start}
+
+  /* ── motion (§46) — all animation OFF under reduced-motion (§46/§48) ── */
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.2);opacity:0}}
+  @keyframes flow{to{stroke-dashoffset:-20}}
+  @keyframes corepulse{0%,100%{opacity:.85}50%{opacity:1}}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .edge.flow{stroke-dasharray:none}
+  }
+
+  /* ── mobile (§47) — stacked cards; graph via fullscreen modal ── */
+  @media (max-width:1080px){ .cols,.cols2{grid-template-columns:1fr} }
+  @media (max-width:640px){
+    .wrap{padding:12px 12px 70px}
+    header.hdr{padding:12px}
+    .htitle h1{font-size:15px;letter-spacing:.1em}
+    .tiles{grid-template-columns:repeat(auto-fit,minmax(45%,1fr))}
+    .gauge .gval{font-size:26px}
+    #graphInline{display:none} /* graph opens as a fullscreen modal on small screens */
+    #graphOpen{display:inline-flex}
+  }
+  #graphOpen{display:none}
+</style></head>
+<body>
+<div class="wrap">
+  <header class="hdr">
+    <svg class="brandmark" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="none" stroke="var(--cyan)" stroke-width="1.4" opacity=".5"/>
+      <circle cx="20" cy="20" r="11" fill="none" stroke="var(--blue)" stroke-width="1.4" opacity=".7"/>
+      <circle cx="20" cy="20" r="4.2" fill="var(--cyan)"/>
+      <path d="M20 3 V9 M20 31 V37 M3 20 H9 M31 20 H37" stroke="var(--cyan)" stroke-width="1.3" opacity=".7"/>
+    </svg>
+    <div class="htitle">
+      <h1>KAI Cyber Operations</h1>
+      <span class="tag">Wheellsverse AI Security Command &amp; Control · Defensive</span>
+    </div>
+    <div class="hspace"></div>
+    <span class="pill def"><span class="ic"></span>Defensive Mode</span>
+    <span class="core" id="core" data-s="OFFLINE" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="lbl">AI Security Core</span> <span class="val" id="coreState">OFFLINE</span>
+    </span>
+  </header>
+
+  <div class="authbar" id="authbar" role="status"></div>
+
+  <section class="tiles" id="tiles" aria-label="Security overview">
+    <div class="loading">Loading overview…</div>
+  </section>
+
+  <section class="panel" style="margin-bottom:16px" aria-label="Quick actions">
+    <h2>Quick Actions <span class="hint">safe read-only · mutating actions require governance (§19)</span></h2>
+    <div class="qa" id="qa">
+      <button data-qa="refresh">↻ Run Security Health Check</button>
+      <button data-qa="graph">⬡ View Attack Graph</button>
+      <button data-qa="events">≡ View Audit Events</button>
+      <button data-qa="risk">◔ Review Risk</button>
+      <span class="note">Containment, blocking, session-revoke and rollback are DISABLED capabilities in this phase — never exposed as controls.</span>
+    </div>
+  </section>
+
+  <div class="cols">
+    <!-- LEFT RAIL -->
+    <div class="stack">
+      <section class="panel" id="p-risk" aria-label="Security risk score">
+        <h2>Security Risk <span class="hint" id="riskVer"></span></h2>
+        <p class="desc">Deterministic, versioned score (§26). No LLM. Unmeasured sources are shown, never a fake all-clear.</p>
+        <div id="riskBody"><div class="loading">Loading…</div></div>
+      </section>
+
+      <section class="panel" id="p-aikido" aria-label="Aikido security">
+        <h2>Aikido Security</h2>
+        <p class="desc">Primary vulnerability intelligence (§16). NOT_CONNECTED until API secrets are provisioned — never a fake zero.</p>
+        <div id="aikidoBody"><div class="loading">Loading…</div></div>
+      </section>
+
+      <section class="panel" id="p-posture" aria-label="Posture and identity">
+        <h2>Posture &amp; Identity</h2>
+        <p class="desc">Controls present (deployed) vs enforced (runtime). A missing signal is UNKNOWN, never a guess (§22/§23).</p>
+        <div id="postureBody"><div class="loading">Loading…</div></div>
+      </section>
+    </div>
+
+    <!-- CENTER: GRAPH -->
+    <div class="stack">
+      <section class="panel graphwrap" aria-label="Security intelligence graph">
+        <div class="graphhead">
+          <h2>Security Intelligence Graph</h2>
+          <div class="gbtns">
+            <button class="qa" id="graphOpen" aria-haspopup="dialog">Open fullscreen</button>
+          </div>
+        </div>
+        <p class="desc">Real holding systems + config-evidence edges only (§4/§6). Topology is never fabricated; edges appear only where App B config proves them.</p>
+        <div id="graphInline"><div class="loading">Loading graph…</div></div>
+        <div class="legend" id="legend" hidden>
+          <span><i style="background:var(--green)"></i>Healthy</span>
+          <span><i style="background:var(--orange)"></i>Degraded</span>
+          <span><i style="background:var(--dim)"></i>Unknown (no probe)</span>
+          <span><i style="background:var(--blue)"></i>Infrastructure (edge-evidenced)</span>
+          <span><i style="background:var(--orange);border-radius:2px"></i>Trust boundary</span>
+        </div>
+        <div class="ndetail" id="ndetail" role="region" aria-live="polite"></div>
+      </section>
+
+      <section class="panel" id="p-flows" aria-label="Trust and data flows">
+        <h2>Trust Boundaries &amp; Flows <span class="hint">analysis, not exploitation (§7)</span></h2>
+        <p class="desc">Each edge is real config evidence from App B (bridge / DB / cache / deploy). Reachability is never proven by attacking production.</p>
+        <div id="flowsBody"><div class="loading">Loading…</div></div>
+      </section>
+
+      <section class="panel" id="p-attack" aria-label="Attack path">
+        <h2>Attack Path <span class="hint">defensive analysis (§7)</span></h2>
+        <div id="attackBody"></div>
+      </section>
+    </div>
+
+    <!-- RIGHT RAIL -->
+    <div class="stack">
+      <section class="panel" id="p-incidents" aria-label="Active incidents">
+        <h2>Active Incidents</h2>
+        <div id="incidentsBody"><div class="loading">Loading…</div></div>
+      </section>
+
+      <section class="panel" id="p-caps" aria-label="Security capabilities">
+        <h2>Cyber Capabilities <span class="hint">read-only surfaces (§32)</span></h2>
+        <div id="capsBody"><div class="loading">Loading…</div></div>
+      </section>
+
+      <section class="panel" id="p-events" aria-label="Security event timeline">
+        <h2>Security Events <span class="hint">OBSERVED audit (§10/§21)</span></h2>
+        <p class="desc">Governance audit records, newest first. correlation_id / ip are UNKNOWN — the audit schema carries neither.</p>
+        <div id="eventsBody"><div class="loading">Loading…</div></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- §11/§12 analysis engines — present so the mission-control grid is complete AND honest (Phase C) -->
+  <div class="cols2" aria-label="Phase C analysis engines">
+    <section class="panel" id="p-correlation" aria-label="Data correlation">
+      <h2>Data Correlation <span class="hint">§11 · Phase C</span></h2>
+      <p class="desc">Correlates related events, matching findings, common actor / IP, correlation-id and deployment proximity into one incident hypothesis — never asserting causality without evidence.</p>
+      <div id="correlationBody"></div>
+    </section>
+    <section class="panel" id="p-behavior" aria-label="Behavior analysis">
+      <h2>Behavior Analysis <span class="hint">§12 · Phase C</span></h2>
+      <p class="desc">Scores auth-failure spikes, unusual access, latency and capability-invocation signals as NORMAL / SUSPICIOUS / ANOMALOUS / CRITICAL — always with confidence and explained evidence.</p>
+      <div id="behaviorBody"></div>
+    </section>
+  </div>
+</div>
+
+<!-- fullscreen graph modal (mobile / on demand) -->
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="Security graph fullscreen">
+  <div class="mhead">
+    <strong style="letter-spacing:.1em;text-transform:uppercase;font-size:13px">Security Intelligence Graph</strong>
+    <button class="mclose" id="modalClose">Close ✕</button>
+  </div>
+  <div class="mbody" id="modalBody"></div>
+</div>
+
+<script type="module" src="/admin/kai-presence.js"></script>
+<script>
+"use strict";
+/* ────────────────────────────────────────────────────────────────────────
+   KAI Cyber Operations — client. NO hardcoded finding / incident / metric /
+   topology: every displayed value comes from a /admin/kai/cyber/* fetch or is
+   rendered as an explicit honest marker (§49). Bounded + timed-out fetches (§56).
+   ──────────────────────────────────────────────────────────────────────── */
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = id => document.getElementById(id);
+const num = v => (typeof v==='number');
+
+// One bounded, credentialed, timed-out GET (AbortController + 8s). Shared by api()
+// and the whoami context probe so BOTH are bounded the same way (§56).
+async function bfetch(url){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 8000);
+  try{ return await fetch(url, {credentials:'include', signal:ctrl.signal, headers:{'Accept':'application/json'}}); }
+  finally{ clearTimeout(timer); }
+}
+// Any non-2xx / network / timeout -> a typed NOT_CONNECTED marker (never invents data, §49).
+async function api(name, qs){
+  const url = '/admin/kai/cyber/'+name + (qs?('?'+qs):'');
+  try{
+    const r = await bfetch(url);
+    if(!r.ok) return {__unavailable:true, __http:r.status};
+    return await r.json();
+  }catch(e){
+    return {__unavailable:true, __err: e && e.name==='AbortError' ? 'timeout' : String(e&&e.message||e)};
+  }
+}
+const failed = d => !d || d.__unavailable === true;
+
+// Honest state badge — icon + label + text (never colour alone, §48).
+const STATE_META = {
+  WORKING:{c:'ok',i:'✓',t:'Working'}, LIVE:{c:'ok',i:'✓',t:'Live'},
+  READY:{c:'ok',i:'✓',t:'Ready'}, CONNECTED:{c:'ok',i:'✓',t:'Connected'},
+  PARTIAL:{c:'warn',i:'◐',t:'Partial'},
+  NOT_CONNECTED:{c:'off',i:'○',t:'Not connected'},
+  UNAVAILABLE:{c:'off',i:'○',t:'Unavailable'},
+  UNKNOWN:{c:'off',i:'?',t:'Unknown'},
+  PHASE_C_PENDING:{c:'info',i:'⧗',t:'Phase C pending'},
+  DISABLED:{c:'off',i:'⊘',t:'Disabled'},
+  AVAILABLE:{c:'ok',i:'✓',t:'Available'},
+  DISABLED_WITH_REASON:{c:'warn',i:'⊘',t:'Disabled'},
+};
+function badge(state, label){
+  const m = STATE_META[state] || {c:'off',i:'○',t:(state||'—')};
+  return '<span class="badge '+m.c+'" title="'+esc(state||'')+'"><span class="bi" aria-hidden="true">'+m.i+
+    '</span>'+esc(label||m.t)+'</span>';
+}
+// A metric value that is a number renders as the number; anything else renders as
+// an honest marker badge. Never fabricates a 0.
+function metric(v){
+  if(num(v)) return '<b>'+esc(v)+'</b>';
+  return badge(v);
+}
+function fmtTs(ts){
+  if(!ts || ts==='UNKNOWN') return 'UNKNOWN';
+  const d = new Date(ts); if(isNaN(d)) return esc(ts);
+  return d.toISOString().replace('T',' ').replace(/\.\d+Z$/,'Z');
+}
+
+/* ── header core state (driven by /overview, §4) ── */
+function setCore(state){ const el=$('core'); el.dataset.s=state; $('coreState').textContent=state; }
+
+/* ── overview tiles (§36) ── */
+function renderTiles(o){
+  const t = $('tiles');
+  if(failed(o)){
+    setCore('OFFLINE');
+    t.innerHTML = '<div class="tile s-off"><div class="tl">Security Core</div>'
+      +'<div class="tv">'+badge('NOT_CONNECTED')+'</div>'
+      +'<div class="ts">'+esc(o&&o.__http?('HTTP '+o.__http):(o&&o.__err)||'no backend / owner sign-in required')+'</div></div>';
+    return;
+  }
+  const risk = o.risk||{}, aik=o.aikido||{}, ev=o.events||{}, inc=o.incidents||{}, sy=o.systems||{}, ed=o.edges||{};
+  const degraded = (o.state && o.state!=='WORKING') || risk.band==='HIGH' || risk.band==='CRITICAL';
+  setCore(degraded ? 'DEGRADED' : 'LIVE');
+
+  // Healthy (green) ONLY for an explicit LOW band; UNKNOWN/missing/unrecognized ⇒
+  // neutral (s-off), never a green all-clear on an unmeasured risk (§49).
+  const riskCls = risk.band==='CRITICAL'?'s-crit'
+    : (risk.band==='HIGH'||risk.band==='MODERATE')?'s-warn'
+    : risk.band==='LOW'?'s-ok' : 's-off';
+  const tile = (cls,label,val,sub) => '<div class="tile '+cls+'"><div class="tl">'+esc(label)+'</div>'
+      +'<div class="tv">'+val+'</div><div class="ts">'+sub+'</div></div>';
+
+  t.innerHTML =
+    tile(riskCls,'Risk Score',
+        (num(risk.score)?('<b>'+esc(risk.score)+'</b> <span class="sev '+(risk.band==='CRITICAL'?'CRITICAL':risk.band==='HIGH'?'HIGH':'MEDIUM')+'">'+esc(risk.band||'—')+'</span>'):badge(risk.state||'UNKNOWN')),
+        'coverage '+esc(risk.coverage||'—')+(risk.version?(' · v'+esc(risk.version)):''))
+    + tile('s-info','Systems', metric(sy.count), 'graph nodes · '+esc(sy.state||''))
+    + tile('s-info','Edges', metric(ed.count), 'config-evidence · '+esc(ed.state||''))
+    + tile((ev.count?'s-info':'s-off'),'Security Events', metric(ev.count),
+        'last: '+(ev.last_event?esc(fmtTs(ev.last_event.timestamp)):'—'))
+    + tile('s-info','Active Incidents',
+        (Array.isArray(inc.incidents)?'<b>'+inc.incidents.length+'</b> ':'')+badge(inc.state||'PHASE_C_PENDING'),
+        esc(inc.reason||'no correlation engine this phase'))
+    + tile((aik.state==='WORKING'?'s-ok':'s-off'),'Aikido', badge(aik.state||'NOT_CONNECTED'),
+        esc(aik.reason||'vulnerability intelligence'));
+}
+
+/* ── risk gauge (§26) ── */
+function renderRisk(r){
+  const el=$('riskBody');
+  if(failed(r)){ el.innerHTML = honestPanel(r,'Risk score'); return; }
+  $('riskVer').textContent = r.version ? ('formula v'+r.version) : '';
+  const score = num(r.score)?r.score:null;
+  const band = r.band||'—';
+  // Green ONLY for LOW; UNKNOWN/missing/unrecognized ⇒ neutral dim, never a green
+  // gauge on an unmeasured risk (§49).
+  const bandColor = band==='CRITICAL'?'var(--red)'
+    : (band==='HIGH'||band==='MODERATE')?'var(--orange)'
+    : band==='LOW'?'var(--green)' : 'var(--dim)';
+  const frac = score==null?0:Math.max(0,Math.min(1,score/100));
+  const C = 2*Math.PI*34;
+  let h = '<div class="gauge"><svg width="92" height="92" viewBox="0 0 92 92" aria-hidden="true">'
+    + '<circle cx="46" cy="46" r="34" fill="none" stroke="var(--border2)" stroke-width="8"/>'
+    + '<circle cx="46" cy="46" r="34" fill="none" stroke="'+bandColor+'" stroke-width="8" stroke-linecap="round"'
+    + ' stroke-dasharray="'+(C*frac).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 46 46)"/></svg>'
+    + '<div><div class="gval">'+(score==null?badge(r.state||'UNKNOWN'):esc(score)+'<span style="font-size:14px;color:var(--dim)">/100</span>')+'</div>'
+    + '<div class="gband" style="color:'+bandColor+'">'+esc(band)+'</div></div></div>';
+  // coverage — MUST surface the partial coverage honestly (§26/§49)
+  if(r.coverage){
+    h += '<div class="cov"><span aria-hidden="true">◐</span> '+esc(r.coverage)+' factors measured'
+       + (r.state==='PARTIAL'?' · '+badge('PARTIAL'):'')+'</div>';
+  }
+  const unmeasured = r.unmeasured_sources||[];
+  if(unmeasured.length){
+    h += '<div class="dim" style="font-size:11px;margin-bottom:2px">Unmeasured sources:</div><div class="chips">'
+       + unmeasured.map(s=>'<span class="badge off"><span class="bi" aria-hidden="true">○</span>'+esc(s)+'</span>').join('')+'</div>';
+  }
+  const comps = r.components||[];
+  if(comps.length){
+    h += '<ul class="comps">'+comps.map(c=>'<li><span>'+esc(c.reason)+'</span><b>'+(num(c.points)?('+'+c.points):esc(c.points))+'</b></li>').join('')+'</ul>';
+  }
+  el.innerHTML = h;
+}
+
+/* ── Aikido (§16) ── */
+function renderAikido(a){
+  const el=$('aikidoBody');
+  if(failed(a)){ el.innerHTML = honestPanel(a,'Aikido'); return; }
+  const connected = a.state==='WORKING';
+  const issues = Array.isArray(a.issues)?a.issues:[];
+  const count = sev => connected ? issues.filter(i=>String(i.severity||'').toUpperCase()===sev).length : 'UNAVAILABLE';
+  let h = '<div style="margin-bottom:8px">'+badge(a.state||'NOT_CONNECTED')
+        + (a.reason?' <span class="dim" style="font-size:11px">'+esc(a.reason)+'</span>':'')+'</div>';
+  h += '<div class="kvs">'
+     + ['CRITICAL','HIGH','MEDIUM','LOW'].map(s=>'<span class="kv"><span class="sev '+s+'">'+s.toLowerCase()+'</span> '
+         + (connected?('<b>'+count(s)+'</b>'):badge('UNAVAILABLE'))+'</span>').join('')
+     + '</div>';
+  h += '<div class="row"><span class="muted">open issues</span><span>'+(connected?('<b>'+issues.length+'</b>'):badge('NOT_CONNECTED'))+'</span></div>';
+  const hs = a.health && a.health.state;
+  if(hs) h += '<div class="row"><span class="muted">adapter</span><span>'+badge(hs)
+      +(a.health.reason?' <span class="dim" style="font-size:10.5px">'+esc(a.health.reason)+'</span>':'')+'</span></div>';
+  el.innerHTML = h;
+}
+
+/* ── posture / identity (§22/§23) ── */
+function renderPosture(p){
+  const el=$('postureBody');
+  if(failed(p)){ el.innerHTML = honestPanel(p,'Posture'); return; }
+  const controls = p.controls||[];
+  let h = '<div class="row"><span class="muted">App A status source</span><span>'+badge(p.app_a_status||'UNKNOWN')+'</span></div>';
+  const enf = e => e===true ? '<span class="badge ok"><span class="bi" aria-hidden="true">✓</span>Enforced</span>'
+                 : e===false ? '<span class="badge warn"><span class="bi" aria-hidden="true">⊘</span>Not enforced</span>'
+                 : badge('UNKNOWN');
+  // "Deployed" is NEVER asserted from mere array membership (§49): derive from an
+  // explicit boolean (c.deployed ?? c.present); absent ⇒ UNKNOWN, mirroring enf().
+  const dep = d => d===true ? '<span class="badge ok" style="opacity:.85"><span class="bi" aria-hidden="true">▣</span>Deployed</span>'
+                 : d===false ? '<span class="badge off"><span class="bi" aria-hidden="true">○</span>Not deployed</span>'
+                 : badge('UNKNOWN');
+  for(const c of controls){
+    h += '<div class="row"><span class="cn" style="min-width:0">'+esc(c.name||c.control_id)
+       + ' <span class="dim" style="font-size:10px">'+esc(c.category||'')+'</span></span>'
+       + '<span style="display:flex;gap:5px;align-items:center">'
+       + dep(c.deployed ?? c.present)
+       + enf(c.enforced)+'</span></div>'
+       + (c.attestation?'<div class="dim" style="font-size:10px;margin:-2px 0 2px">attestation: '+esc(c.attestation)+'</div>':'');
+  }
+  if(p.note) h += '<div class="dim" style="font-size:10.5px;margin-top:6px">'+esc(p.note)+'</div>';
+  el.innerHTML = h;
+}
+
+/* ── incidents (§14) — never fabricated ── */
+function renderIncidents(d){
+  const el=$('incidentsBody');
+  if(failed(d)){ el.innerHTML = honestPanel(d,'Incidents'); return; }
+  const list = Array.isArray(d.incidents)?d.incidents:[];
+  if(!list.length){
+    el.innerHTML = '<div style="margin-bottom:6px">'+badge(d.state||'PHASE_C_PENDING')+'</div>'
+      + '<div class="empty">Zero incidents shown — the correlation / triage engine is not built ('
+      + esc(d.reason||'spec §58 Phase C')+'). No "ATTACK DETECTED" is ever shown without evidence (§55).</div>';
+    return;
+  }
+  el.innerHTML = list.map(i=>'<div class="row"><span><span class="sev '+esc(i.severity)+'">'+esc(i.severity)+'</span> '
+      + esc(i.title)+'</span><span>'+badge(i.status)+'</span></div>').join('');
+}
+
+/* ── capabilities (§32) ── */
+function renderCaps(c){
+  const el=$('capsBody');
+  if(failed(c)){ el.innerHTML = honestPanel(c,'Capabilities'); return; }
+  const caps = c.capabilities||[], s=c.summary||{};
+  let h = '<div class="kvs" style="margin-bottom:8px">'
+    + '<span class="kv">read-only available <b>'+esc(s.read_only_available)+'</b></span>'
+    + '<span class="kv">standard disabled <b>'+esc(s.standard_disabled)+'</b></span>'
+    + '<span class="kv">privileged disabled <b>'+esc(s.privileged_disabled)+'</b></span>'
+    + '<span class="kv">privileged selectable <b style="color:'+(s.privileged_selectable?'var(--red)':'var(--green)')+'">'+esc(s.privileged_selectable)+'</b></span>'
+    + '</div>';
+  const order = {READ_ONLY:0,STANDARD:1,PRIVILEGED:2};
+  const sorted = caps.slice().sort((a,b)=>(order[a.class]??9)-(order[b.class]??9));
+  for(const m of sorted){
+    const avail = m.availability;
+    const b = avail==='AVAILABLE' ? badge('AVAILABLE') : badge('DISABLED');
+    const cls = m.class==='PRIVILEGED'?'crit':m.class==='STANDARD'?'warn':'info';
+    h += '<div class="cap"><span class="badge '+cls+'" style="min-width:78px;justify-content:center">'+esc(m.class||'')+'</span>'
+       + '<span class="cn">'+esc(m.name||m.id)+'<small>'+esc(m.default_action_class||'')+' · risk '+esc(m.risk_class||'')
+       + (m.selectable?'':' · not selectable')+'</small></span>'+b+'</div>';
+  }
+  el.innerHTML = h;
+}
+
+/* ── event timeline (§10/§21) ── */
+function renderEvents(e){
+  const el=$('eventsBody');
+  if(failed(e)){ el.innerHTML = honestPanel(e,'Events'); return; }
+  const evs = e.events||[];
+  let h = '<div style="margin-bottom:6px">'+badge(e.state||'WORKING')+' <span class="dim" style="font-size:11px">'
+        + esc(e.count)+' records</span></div>';
+  if(!evs.length){ el.innerHTML = h+'<div class="empty">No audit records yet — the in-process governance log is empty (honestly zero, not fabricated).</div>'; return; }
+  h += eventsSparkline(evs);   // §25 telemetry — real audit records only, no fabricated points
+  h += '<div class="tl-list">';
+  for(const v of evs){
+    h += '<div class="ev"><span class="sev '+esc(v.severity)+'">'+esc(v.severity)+'</span>'
+       + '<div class="evb"><div class="evt"><span class="obs" aria-hidden="true">OBSERVED</span> '
+       + esc(v.action)+' → '+esc(v.result)+'</div>'
+       + '<div class="evm">'+esc(fmtTs(v.timestamp))+' · actor '+esc(v.actor)+' · '+esc(v.resource)
+       + ' · corr '+esc(v.correlation_id)+' · ip '+esc(v.ip)+'</div></div></div>';
+  }
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+/* ── generic honest-failure panel body ── */
+function honestPanel(d, what){
+  const reason = d && d.__http ? ('HTTP '+d.__http+(d.__http===401||d.__http===403?' — owner sign-in required':d.__http===404?' — endpoint disabled (KAI_CYBER_OPS_ENABLED off) or no backend':''))
+               : d && d.__err ? d.__err : 'no backend reachable';
+  return '<div>'+badge('NOT_CONNECTED')+'</div>'
+    + '<div class="empty">'+esc(what)+' data not connected: '+esc(reason)+'. No value is fabricated (§49).</div>';
+}
+
+/* ── security graph (§4/§6) — lazy inline SVG, built only when data arrives ── */
+let GRAPH=null;
+function buildGraph(g){
+  GRAPH = failed(g) ? null : g;
+  const inline = $('graphInline');
+  if(failed(g)){ inline.innerHTML = honestPanel(g,'Graph'); return; }
+  const nodes = g.nodes||[], edges = g.edges||[];
+  if(!nodes.length && !edges.length){
+    inline.innerHTML = '<div>'+badge(g.nodes_state||'UNAVAILABLE')+'</div><div class="empty">No registry nodes and no config-evidence edges available.</div>';
+    return;
+  }
+  inline.innerHTML = graphSVG(g, 820, 520);
+  $('legend').hidden = false;
+  wireGraph(inline);
+}
+// Build the SVG string. Node set = registry nodes + any edge endpoint not already a
+// node (rendered as an evidence-backed "infrastructure" node — derived from real edges,
+// never invented). Radial layout around a central KAI core.
+function graphSVG(g, W, H){
+  const isCore = v => String(v||'').trim().toUpperCase()==='KAI';
+  // registry nodes, minus any KAI node — the drawn centre IS KAI, so dedupe it (D4).
+  const nodes = (g.nodes||[]).filter(n=>!isCore(n.system||n.node_id))
+    .map(n=>({id:n.node_id, label:n.system||n.node_id, health:(n.health||'UNKNOWN'), infra:false, data:n}));
+  const known = new Set(nodes.map(n=>n.id));
+  for(const e of (g.edges||[])){
+    for(const end of [e.source, e.target]){
+      if(end && !isCore(end) && !known.has(end)){ known.add(end); nodes.push({id:end, label:end, health:'infra', infra:true, data:{node_id:end, system:end, _inferred:'edge endpoint (config evidence)'}}); }
+    }
+  }
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.36;
+  const N=nodes.length;
+  nodes.forEach((n,i)=>{ const ang=-Math.PI/2 + i*2*Math.PI/Math.max(1,N); n.x=cx+R*Math.cos(ang); n.y=cy+R*Math.sin(ang); });
+  const pos = Object.fromEntries(nodes.map(n=>[n.id,n]));
+  const corePt = {x:cx, y:cy};
+  const resolve = id => isCore(id) ? corePt : pos[id];   // KAI endpoints route to the centre (D4)
+
+  let svg = '<svg class="gsvg" id="gsvg" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Security intelligence graph: '+N+' systems around the KAI security core">';
+  // hub spokes — core → each system. A membership/observation relationship (every node is
+  // a real registry member the KAI core watches), NOT a fabricated protocol edge: rendered
+  // faint + dotted and titled as such so it can never be read as a config edge (D4/§49).
+  for(const n of nodes){
+    svg += '<line class="spoke" x1="'+cx+'" y1="'+cy+'" x2="'+n.x.toFixed(1)+'" y2="'+n.y.toFixed(1)+'">'
+         + '<title>'+esc(n.label)+' · registry member observed by the KAI security core</title></line>';
+  }
+  // real config-evidence edges (KAI endpoints now touch the centre instead of a chord)
+  for(const e of (g.edges||[])){
+    const a=resolve(e.source), b=resolve(e.target); if(!a||!b) continue;
+    const boundary = e.trust_boundary===true;
+    svg += '<line class="edge flow'+(boundary?' boundary':'')+'" x1="'+a.x.toFixed(1)+'" y1="'+a.y.toFixed(1)+'" x2="'+b.x.toFixed(1)+'" y2="'+b.y.toFixed(1)+'">'
+         + '<title>'+esc(e.source)+' → '+esc(e.target)+' · '+esc(e.relationship||'')+(boundary?' · trust boundary':'')+'</title></line>';
+  }
+  // core — drawn above the lines so its label stays readable
+  svg += '<g class="corepulse"><circle class="corering spin" cx="'+cx+'" cy="'+cy+'" r="'+(R*0.42)+'"/>'
+       + '<circle class="corering" cx="'+cx+'" cy="'+cy+'" r="'+(R*0.30)+'"/>'
+       + '<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.16)+'" fill="rgba(0,229,255,.08)" stroke="var(--cyan)" stroke-width="1.4"/>'
+       + '<text x="'+cx+'" y="'+(cy-2)+'" text-anchor="middle" style="fill:var(--cyan);font:700 11px \'Space Grotesk\',sans-serif;letter-spacing:.12em">KAI</text>'
+       + '<text x="'+cx+'" y="'+(cy+13)+'" text-anchor="middle" style="fill:var(--dim);font:600 8px \'Space Grotesk\',sans-serif;letter-spacing:.14em">SECURITY CORE</text></g>';
+  // nodes — health shown by colour AND a non-colour cue: glyph (✓ healthy / ! degraded /
+  // ? unknown / ⬡ infra) + dashed stroke on degraded/unknown, so state is never colour-alone (§48).
+  nodes.forEach((n,i)=>{
+    const hc = n.infra?'h-infra':(n.health==='healthy'?'h-healthy':n.health==='degraded'?'h-degraded':'h-unknown');
+    const dashed = !n.infra && n.health!=='healthy';
+    const glyph = n.infra?'⬡':(n.health==='healthy'?'✓':n.health==='degraded'?'!':'?');
+    const short = String(n.label).length>14 ? String(n.label).slice(0,13)+'…' : n.label;
+    svg += '<g class="gnode" tabindex="0" role="button" data-i="'+i+'" aria-label="'+esc(n.label)+', health '+esc(n.infra?'infrastructure':n.health)+'">'
+         + '<circle class="body '+hc+(dashed?' dashed':'')+'" cx="'+n.x.toFixed(1)+'" cy="'+n.y.toFixed(1)+'" r="21"/>'
+         + '<text class="gglyph" x="'+n.x.toFixed(1)+'" y="'+(n.y+4).toFixed(1)+'" text-anchor="middle" aria-hidden="true">'+glyph+'</text>'
+         + '<text x="'+n.x.toFixed(1)+'" y="'+(n.y+34).toFixed(1)+'" text-anchor="middle">'+esc(short)+'</text></g>';
+  });
+  svg += '</svg>';
+  // stash node data for detail lookup
+  graphSVG._nodes = nodes;
+  return svg;
+}
+function wireGraph(container){
+  const nodes = graphSVG._nodes||[];
+  const show = i => {
+    const n = nodes[i]; if(!n) return;
+    const d = n.data||{};
+    const det = $('ndetail');
+    if(n.infra){
+      det.innerHTML = '<h3>'+esc(n.label)+' '+badge('info','Infrastructure')+'</h3>'
+        + '<div class="dim" style="font-size:11px">'+esc(d._inferred||'edge endpoint')+' — appears because a real App B config edge references it. Not a registry business entity.</div>';
+    } else {
+      det.innerHTML = '<h3>'+esc(d.system||n.id)+'</h3>'
+        + '<div class="row"><span class="muted">health</span><span>'+badge((d.health||'UNKNOWN').toUpperCase())+'</span></div>'
+        + '<div class="row"><span class="muted">company</span><span>'+esc(d.company)+'</span></div>'
+        + '<div class="row"><span class="muted">asset type</span><span>'+esc(d.asset_type)+'</span></div>'
+        + '<div class="row"><span class="muted">environment</span><span>'+esc(d.environment)+'</span></div>'
+        + '<div class="row"><span class="muted">trust zone</span><span>'+esc(d.trust_zone)+'</span></div>'
+        + '<div class="row"><span class="muted">exposure</span><span>'+esc(d.exposure)+'</span></div>'
+        + '<div class="row"><span class="muted">security state</span><span>'+badge((d.security_state||'UNKNOWN'))+'</span></div>'
+        + '<div class="row"><span class="muted">findings</span><span>'+metric(d.findings_count)+'</span></div>'
+        + '<div class="row"><span class="muted">incidents</span><span>'+metric(d.incident_count)+'</span></div>'
+        + '<div class="row"><span class="muted">last seen</span><span>'+esc(fmtTs(d.last_seen))+'</span></div>';
+    }
+    det.classList.add('show');
+  };
+  container.querySelectorAll('.gnode').forEach(g=>{
+    const i = +g.dataset.i;
+    g.addEventListener('click', ()=>show(i));
+    g.addEventListener('keydown', ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); show(i); } });
+  });
+}
+
+/* ── fullscreen modal (mobile §47) — focus-trapped dialog (§48) ── */
+let modalPrevFocus=null;
+function modalTrap(e){
+  if(e.key!=='Tab') return;
+  const f=$('modal').querySelectorAll('button,[href],[tabindex]:not([tabindex="-1"]),.gnode');
+  if(!f.length) return;
+  const first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+}
+function openModal(){
+  const m=$('modal'), body=$('modalBody'), wrap=document.querySelector('.wrap');
+  body.innerHTML = GRAPH ? graphSVG(GRAPH, 720, 700) : '<div class="empty">Graph not connected.</div>';
+  if(GRAPH) wireGraph(body);
+  modalPrevFocus = document.activeElement;                 // saved so focus can be restored (§48)
+  if(wrap){ wrap.setAttribute('inert',''); wrap.setAttribute('aria-hidden','true'); }  // background inert
+  m.classList.add('show');
+  document.addEventListener('keydown', modalTrap, true);   // trap Tab inside the dialog
+  $('modalClose').focus();
+}
+function closeModal(){
+  const m=$('modal'), wrap=document.querySelector('.wrap');
+  if(!m.classList.contains('show')) return;
+  m.classList.remove('show');
+  if(wrap){ wrap.removeAttribute('inert'); wrap.removeAttribute('aria-hidden'); }
+  document.removeEventListener('keydown', modalTrap, true);
+  const back = (modalPrevFocus && document.contains(modalPrevFocus)) ? modalPrevFocus : $('graphOpen');
+  if(back && back.focus) back.focus();                     // restore focus (→ #graphOpen fallback)
+  modalPrevFocus=null;
+}
+$('modalClose').addEventListener('click', closeModal);
+$('graphOpen').addEventListener('click', openModal);
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
+
+/* ── quick actions (§19 safe read-only) ── */
+$('qa').addEventListener('click', e=>{
+  const b=e.target.closest('button[data-qa]'); if(!b) return;
+  const a=b.dataset.qa;
+  if(a==='refresh') boot();
+  else if(a==='graph') openModal();
+  else if(a==='events') $('p-events').scrollIntoView({behavior:'smooth',block:'start'});
+  else if(a==='risk') $('p-risk').scrollIntoView({behavior:'smooth',block:'start'});
+});
+
+/* ── boot: paint shell now, fetch EACH endpoint independently, fill honestly.
+   Every panel renders as its OWN fetch resolves (§56) — a slow endpoint can never
+   stall the first paint of the fast ones. api() never rejects (it returns typed
+   NOT_CONNECTED markers), so a bare per-endpoint .then is safe. ── */
+function boot(){
+  // whoami is best-effort context only — bounded like every other call (§56).
+  // The shell renders regardless so honest NOT_CONNECTED states are always visible.
+  bfetch('/admin/session/whoami').then(r=>r.ok?r.json():null).then(w=>{
+    const bar=$('authbar');
+    if(!w || !w.authenticated || w.role!=='owner'){
+      bar.className='authbar show';
+      bar.innerHTML='Owner sign-in required for live security data. Open the KAI Command Center, sign in, then reload — panels below show live connection state meanwhile.';
+    } else { bar.className='authbar'; bar.innerHTML=''; }
+  }).catch(()=>{});
+
+  // Static, backend-free panels paint their honest markers immediately.
+  renderPhaseC();       // §11/§12 engines — PHASE_C_PENDING
+  renderAttackPath();   // §7 architectural path — all-UNKNOWN step chips
+
+  // Fire each endpoint on its own; the fast panels paint first.
+  api('overview').then(renderTiles);
+  api('risk').then(renderRisk);
+  api('aikido').then(renderAikido);
+  api('posture').then(renderPosture);
+  api('incidents').then(renderIncidents);
+  api('capabilities').then(renderCaps);
+  api('events','limit=60').then(renderEvents);
+  const gp = api('graph');
+  gp.then(renderFlows);
+  // graph built lazily off the SAME fetch so it never blocks first paint (§56)
+  gp.then(g=> requestAnimationFrame(()=> setTimeout(()=>buildGraph(g), 0)));
+}
+
+/* ── trust flows list (§7) — derived only from real /graph edges ── */
+function renderFlows(g){
+  const el=$('flowsBody');
+  if(failed(g)){ el.innerHTML = honestPanel(g,'Trust flows'); return; }
+  const edges=g.edges||[];
+  if(!edges.length){ el.innerHTML = '<div>'+badge(g.edges_state||'UNKNOWN')+'</div><div class="empty">No config-evidence edges provable in this environment — no topology is fabricated (§4).</div>'; return; }
+  el.innerHTML = edges.map(e=>'<div class="row"><span>'+esc(e.source)+' <span class="dim">→</span> '+esc(e.target)
+    + ' <span class="dim" style="font-size:10.5px">'+esc(e.relationship||'')+'</span></span>'
+    + '<span style="display:flex;gap:5px;align-items:center">'
+    + (e.trust_boundary?'<span class="badge warn"><span class="bi" aria-hidden="true">⚑</span>boundary</span>':'')
+    + '<span class="badge info">'+esc(e.protocol||'?')+'</span>'
+    + '<span class="badge off">'+esc(e.authorization||'?')+'</span></span></div>'
+    + '<div class="dim" style="font-size:10px;margin:-2px 0 2px">exposure: '+esc(e.exposure||'UNKNOWN')
+    + (e.evidence?(' · evidence: '+esc(e.evidence.source_type||'')+' '+esc(e.evidence.source_id||'')):'')+'</div>').join('');
+}
+
+/* ── Phase-C engines (§11/§12) — honest placeholders, no fabricated correlation/verdict ── */
+function renderPhaseC(){
+  const pc = '<div>'+badge('PHASE_C_PENDING')+'</div>';
+  const cor=$('correlationBody'), beh=$('behaviorBody');
+  if(cor) cor.innerHTML = pc + '<div class="empty">Correlation engine is Phase C (spec §11/§58). No related events, common-actor/IP or deployment-proximity links are fabricated before it exists.</div>';
+  if(beh) beh.innerHTML = pc + '<div class="empty">Behavior-analysis engine is Phase C (spec §12/§58). No NORMAL / SUSPICIOUS / ANOMALOUS / CRITICAL verdict is shown without evidence and confidence.</div>';
+}
+
+/* ── attack path (§7) — vertical staged graphic. Stages are the KNOWN architectural
+   request path (App A front / owner session / App B bridge / capability / resource); each
+   step's state is UNKNOWN because reachability is never probed by attacking production. ── */
+const ATTACK_STAGES = [
+  {n:'Public Internet', d:'untrusted origin'},
+  {n:'Cloudflare', d:'edge / WAF fronting App A'},
+  {n:'App A · Holding', d:'Command Center'},
+  {n:'Owner Session', d:'authenticated owner'},
+  {n:'App B · KAI Runtime', d:'governed bridge'},
+  {n:'Capability', d:'policy-gated'},
+  {n:'Resource', d:'data / action'},
+];
+const PATH_STATES = ['reachable','protected','authenticated','authorized','monitored','vulnerable'];
+function renderAttackPath(){
+  const el=$('attackBody'); if(!el) return;
+  let h='<div class="dim" style="font-size:11px;margin-bottom:8px">Architectural request path (§7). Each step’s state is UNKNOWN until an authorized non-destructive probe reports it — reachability is never proven by attacking production.</div><div class="apath">';
+  ATTACK_STAGES.forEach((s,i)=>{
+    h+='<div class="astep"><div class="astep-t">'+esc(s.n)+'</div><div class="astep-d">'+esc(s.d)+'</div>'
+      +'<div class="achips">'+PATH_STATES.map(st=>'<span class="achip">'+st+' <b>?</b></span>').join('')
+      +'<span class="achip">unknown <b>?</b></span></div></div>';
+    if(i<ATTACK_STAGES.length-1) h+='<div class="aarrow" aria-hidden="true">↓</div>';
+  });
+  el.innerHTML = h+'</div>';
+}
+
+/* ── events telemetry (§25) — a minimal inline-SVG histogram bucketed from the REAL
+   /events timestamps. Pure aggregation of returned records; if there is no usable
+   series (<2 timestamped events) it says so honestly, never inventing points. ── */
+function eventsSparkline(evs){
+  const times = evs.map(v=>Date.parse(v.timestamp)).filter(t=>!isNaN(t)).sort((a,b)=>a-b);
+  if(times.length < 2) return '<div class="dim" style="font-size:10.5px;margin:2px 0 8px">no historical series available (need ≥ 2 timestamped events)</div>';
+  const min=times[0], max=times[times.length-1], span=(max-min)||1, NB=12;
+  const buckets=new Array(NB).fill(0);
+  for(const t of times){ let b=Math.floor((t-min)/span*NB); if(b>=NB)b=NB-1; if(b<0)b=0; buckets[b]++; }
+  const peak=Math.max.apply(null, buckets.concat(1));
+  const BW=12, H=34, W=NB*BW;
+  let bars='';
+  buckets.forEach((c,i)=>{ const bh=Math.round(c/peak*(H-6));
+    bars+='<rect x="'+(i*BW+1)+'" y="'+(H-bh)+'" width="'+(BW-2)+'" height="'+bh+'" rx="1.5" fill="var(--cyan)" opacity="'+(c?0.85:0.14)+'"><title>'+c+' event'+(c===1?'':'s')+'</title></rect>'; });
+  return '<div class="dim" style="font-size:10px;margin:2px 0 3px">events over time · '+times.length+' real audit records · '+NB+' buckets</div>'
+    + '<svg width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Security events over time: '+times.length+' records" style="display:block;max-width:100%;margin-bottom:8px">'+bars+'</svg>';
+}
+
+boot();
+</script>
+</body></html>

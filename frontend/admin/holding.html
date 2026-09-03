@@ -2,6 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Holding Operations</title>
+<link rel="stylesheet" href="/admin/kai-presence.css">
 <style>
   :root{--bg:#0b0f1a;--panel:#11172a;--border:#1e2740;--text:#e8edf5;--muted:#8a95a8;--cyan:#00d4ff;--purple:#a855f7;--accent:#4df4a5;--warn:#ffb547}
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 'Space Grotesk',system-ui,sans-serif}
@@ -45,6 +46,11 @@
 <body><div class="wrap">
   <h1>Holding Operations</h1>
   <div class="sub">Source-backed only · financials/customers/legal shown as <span class="confirm">requires operator confirmation</span> until you verify them · read-only</div>
+  <div class="panel" id="cyberCard" style="margin-top:0">
+    <h2>Cyber Operations <span class="badge k" id="cyState">…</span>
+      <a href="/admin/security/cyber-operations" style="float:right;font-size:12px;font-weight:400">Open Command Center →</a></h2>
+    <div class="statusgrid" id="cyGrid"><span class="skpi muted">Loading security overview…</span></div>
+  </div>
   <div id="out"><div class="msg">Loading… (sign in via the KAI Command Center if this stays blank)</div></div>
 </div>
 <script>
@@ -248,6 +254,50 @@ async function onProposalAction(e){
     out.innerHTML=html;
     out.addEventListener('click', onProposalAction);   // approve / reject / execute
   }catch(err){ out.innerHTML='<div class="msg">Holding view unavailable ('+esc(err.message)+'). It is enabled only when KAI_HOLDING_ENABLED is on.</div>'; }
+})();
+</script>
+<script>
+/* Cyber Operations §36 card — every field from /admin/kai/cyber/overview or an honest
+   marker; zero fabricated finding/incident/metric. Independent of the main loader above. */
+(function(){
+  const E = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  const B = st => { const ok=(st==='WORKING'||st==='LIVE');
+    // NOT_CONNECTED / UNKNOWN / UNAVAILABLE / PHASE_C_PENDING are neutral gray (matching the
+    // standalone page); amber ('u') is reserved for a genuinely DEGRADED state (D5).
+    const neutral=(st==='PHASE_C_PENDING'||st==='NOT_CONNECTED'||st==='NOT CONNECTED'||st==='UNKNOWN'||st==='UNAVAILABLE');
+    const cls = ok?'v':(neutral?'k':'u'); return '<span class="badge '+cls+'">'+E(st||'—')+'</span>'; };
+  const kpi = (label,html) => '<span class="skpi">'+E(label)+' <b>'+html+'</b></span>';
+  (async()=>{
+    const grid=document.getElementById('cyGrid'), state=document.getElementById('cyState');
+    let o;
+    try{
+      const ctrl=new AbortController(); const t=setTimeout(()=>ctrl.abort(),8000);
+      const r=await fetch('/admin/kai/cyber/overview',{credentials:'include',signal:ctrl.signal}); clearTimeout(t);
+      if(!r.ok){ state.className='badge k'; state.textContent='NOT CONNECTED';
+        grid.innerHTML='<span class="skpi muted">Security overview not connected (HTTP '+r.status+
+          (r.status===401||r.status===403?' — owner sign-in required':r.status===404?' — feature off / no backend':'')+
+          '). No value fabricated.</span>'; return; }
+      o=await r.json();
+    }catch(err){ state.className='badge k'; state.textContent='OFFLINE';
+      grid.innerHTML='<span class="skpi muted">Security core unreachable ('+E(err&&err.message||err)+').</span>'; return; }
+    const risk=o.risk||{}, aik=o.aikido||{}, inc=o.incidents||{}, ev=o.events||{};
+    const degraded=(o.state&&o.state!=='WORKING')||risk.band==='HIGH'||risk.band==='CRITICAL';
+    state.className='badge '+(degraded?'u':'v'); state.textContent=degraded?'DEGRADED':'LIVE';
+    const un=risk.unmeasured_sources||[];
+    // Critical findings / auth anomalies are Aikido/monitor-sourced — NOT_CONNECTED in this phase.
+    const crit = (aik.state==='WORKING') ? '<b>see Aikido</b>' : B(aik.state||'NOT_CONNECTED');
+    const auth = un.indexOf('auth_anomalies')>=0 ? B('NOT_CONNECTED') : (o.auth_anomalies!=null?('<b>'+E(o.auth_anomalies)+'</b>'):B('UNKNOWN'));
+    // Only emit a count when we actually have the incidents array; otherwise show just
+    // the state badge with NO leading number (mirrors the standalone page) (§49 H1).
+    const incCount = Array.isArray(inc.incidents)?(inc.incidents.length+' '):'';
+    grid.innerHTML =
+      kpi('security state', (typeof risk.score==='number'?('risk '+E(risk.score)+' / '+E(risk.band||'—')):E(o.state||'—')))
+      + kpi('active incidents', incCount+B(inc.state||'PHASE_C_PENDING'))
+      + kpi('critical findings', crit)
+      + kpi('auth anomalies', auth)
+      + kpi('aikido', B(aik.state||'NOT_CONNECTED'))
+      + kpi('last security event', (ev.last_event&&ev.last_event.timestamp?E(ev.last_event.timestamp):'—'));
+  })();
 })();
 </script>
 </body></html>

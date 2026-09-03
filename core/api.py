@@ -953,6 +953,17 @@ def _admin_holding_page():
     return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/admin/security/cyber-operations", include_in_schema=False)
+def _admin_cyber_operations_page():
+    # Read-only KAI Cyber Operations Center. Fetches owner-gated security data through
+    # the bridge (/admin/kai/cyber/*); every panel degrades to an honest NOT_CONNECTED
+    # marker when the backend/feature is off. FileResponse skips _inject_kai_presence,
+    # so the page carries the two kai-presence tags itself (link + module script).
+    from fastapi.responses import FileResponse
+    p = ROOT / "frontend" / "admin" / "cyber-operations.html"
+    return FileResponse(p, media_type="text/html", headers={"Cache-Control": "no-store"})
+
+
 @app.get("/admin/kai-presence.css", include_in_schema=False)
 def _kai_presence_css():
     from fastapi.responses import FileResponse
