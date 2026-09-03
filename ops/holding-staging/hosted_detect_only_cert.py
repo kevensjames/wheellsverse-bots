@@ -72,8 +72,12 @@ ck("detect ON + prepare OFF -> mode DETECT_ONLY, prepared 0",
 
 print("STEP 7 — STRUCTURAL NO-WRITE: the detection module imports NO preparation/dispatch path")
 src = open(os.path.join(REPO, "backend/app/services/holding/self_improvement_detect.py")).read()
-for tok in ("dispatch_self_improvement", "enqueue_a2_coding_job", "a2_dispatch", "a2_wiring", "worker_jobs", "make_git_worktree"):
+for tok in ("dispatch_self_improvement", "enqueue_a2_coding_job", "a2_dispatch", "a2_wiring", "make_git_worktree"):
     ck(f"no reference to write path '{tok}'", tok not in src)
+# detection may READ worker_jobs.list_jobs (repeated-job source) but must call NO worker_jobs WRITE op
+for wtok in ("worker_jobs.enqueue", ".enqueue(", "worker_jobs.complete", "worker_jobs.claim", ".claim_next("):
+    ck(f"no worker_jobs WRITE op '{wtok}'", wtok not in src)
+ck("worker_jobs used read-only (list_jobs present)", "list_jobs" in src)
 
 print("STEP 8 — PREPARATION ATTACK (§16): a detected candidate CANNOT be prepared with the prepare brake OFF")
 box = {"calls": []}

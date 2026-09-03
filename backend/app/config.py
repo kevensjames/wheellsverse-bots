@@ -97,6 +97,12 @@ class Settings(BaseSettings):
     # still requires KAI_SELF_IMPROVEMENT_ENABLED + the three A2 brakes. The three modes are expressed by
     # these two flags: OFF/OFF=OFF, ON/OFF=DETECT_ONLY, ON/ON=PREPARE_ALLOWED. Default OFF, production OFF.
     KAI_SELF_IMPROVEMENT_DETECT_ENABLED: bool = False
+    # Additional DETECT_ONLY signal sources (§16) — each default OFF, read-only, no write authority. They
+    # only add more evidence-backed candidate sources to the existing detection pipeline; they never enable
+    # preparation (still gated by KAI_SELF_IMPROVEMENT_ENABLED + the three A2 brakes). Default OFF so the
+    # current soak's signal behavior is unchanged even after this code deploys.
+    KAI_SI_SIGNAL_REPEATED_JOB_FAILURE_ENABLED: bool = False
+    KAI_SI_SIGNAL_CAPABILITY_HEALTH_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

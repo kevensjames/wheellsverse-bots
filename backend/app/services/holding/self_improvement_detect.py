@@ -25,6 +25,9 @@ EXCLUDED_SURFACES = frozenset({
 
 # Certified READ-ONLY suites detection runs each cycle to sense correctness signals (non-authority only).
 DETECTION_SUITES = ("holding_self_model", "holding_reconciler", "si_before_after")
+# Seeded certification fixtures — real failing suites deliberately deployed to PROVE detection. Kept in the
+# safety ledger but tagged source=CERTIFICATION_FIXTURE so they are NEVER counted as organic signal (§18).
+CERTIFICATION_FIXTURE_SUITES = frozenset({"si_before_after"})
 DAILY_CONFIRMED_CEILING = 3          # §5 surfacing cap; zero is always valid (§4 no-change rule)
 _SEV = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "INFO": 3}
 _CAT_WEIGHT = {"FAILING_CERTIFIED_TEST": 5, "CORRECTNESS_REGRESSION": 5, "REPEATED_CAPABILITY_FAILURE": 4,
@@ -42,6 +45,8 @@ class Candidate:
     confirmed: bool = False           # a certified test actually reproduced the defect (§8/§9)
     severity: str = "MEDIUM"
     rank_score: int = 0
+    source: str = "NATURAL"           # NATURAL | CERTIFICATION_FIXTURE (§18/§19 provenance)
+    signal_type: str = ""             # FAILING_CERTIFIED_TEST | REPEATED_JOB_FAILURE | CAPABILITY_HEALTH_DEGRADATION
 
     def as_dict(self) -> dict:
         return asdict(self)
@@ -70,7 +75,9 @@ def collect_candidates(run_suite_fn, *, suites=DETECTION_SUITES) -> list:
                 evidence={"suite_id": sid, "execution": ev.get("execution"), "test_result": ev.get("test_result"),
                           "passed": ev.get("passed"), "failed": ev.get("failed"),
                           "commit_sha": ev.get("commit_sha")},
-                confirmed=True, severity="HIGH"))             # a reproduced failing certified test IS the confirmation
+                confirmed=True, severity="HIGH",              # a reproduced failing certified test IS the confirmation
+                signal_type="FAILING_CERTIFIED_TEST",
+                source=("CERTIFICATION_FIXTURE" if sid in CERTIFICATION_FIXTURE_SUITES else "NATURAL")))
     return out
 
 
@@ -101,16 +108,30 @@ def _format_alert(new_confirmed: list, mode: str) -> str:
 
 def run_detection(*, run_suite_fn=None, store=None, deliver: bool = True, now: str = "",
                   detect_on: bool | None = None, prepare_on: bool | None = None,
-                  deliver_fn=None, ceiling: int = DAILY_CONFIRMED_CEILING) -> dict:
+                  deliver_fn=None, ceiling: int = DAILY_CONFIRMED_CEILING,
+                  sig_repeated_on: bool | None = None, sig_health_on: bool | None = None,
+                  jobs_fn=None, health_fn=None) -> dict:
     """One detection pass. Flag-gated by KAI_SELF_IMPROVEMENT_DETECT_ENABLED. READ-ONLY: senses candidates,
     diffs vs the last-notified set, notifies the owner ONLY on a materially-new confirmed candidate, and
     persists the snapshot. It PREPARES NOTHING (prepared=0 always) — detection authority never writes. The
-    self-model reports 'detected/confirmed', never 'fixing'. Pure/injectable; never raises fatally."""
+    self-model reports 'detected/confirmed', never 'fixing'. Pure/injectable; never raises fatally.
+
+    Additional signal sources (§16) are each gated + default OFF, so behavior is unchanged until enabled:
+    sig_repeated_on -> REPEATED_JOB_FAILURE (over worker_jobs history), sig_health_on ->
+    CAPABILITY_HEALTH_DEGRADATION (over a capability-health snapshot; prior health persisted for the
+    transient filter). All read-only; none can prepare/dispatch/write."""
     try:
-        if detect_on is None or prepare_on is None:
-            from app.config import settings
-            detect_on = bool(getattr(settings, "KAI_SELF_IMPROVEMENT_DETECT_ENABLED", False)) if detect_on is None else detect_on
-            prepare_on = bool(getattr(settings, "KAI_SELF_IMPROVEMENT_ENABLED", False)) if prepare_on is None else prepare_on
+        if None in (detect_on, prepare_on, sig_repeated_on, sig_health_on):
+            try:
+                from app.config import settings as _s
+            except Exception:
+                _s = None                                     # config unavailable → fail CLOSED (flags off)
+            def _flag(name, cur):
+                return cur if cur is not None else (bool(getattr(_s, name, False)) if _s is not None else False)
+            detect_on = _flag("KAI_SELF_IMPROVEMENT_DETECT_ENABLED", detect_on)
+            prepare_on = _flag("KAI_SELF_IMPROVEMENT_ENABLED", prepare_on)
+            sig_repeated_on = _flag("KAI_SI_SIGNAL_REPEATED_JOB_FAILURE_ENABLED", sig_repeated_on)
+            sig_health_on = _flag("KAI_SI_SIGNAL_CAPABILITY_HEALTH_ENABLED", sig_health_on)
         if not detect_on:
             return {"ran": False, "reason": "KAI_SELF_IMPROVEMENT_DETECT_ENABLED off", "mode": "OFF"}
         mode = "PREPARE_ALLOWED" if prepare_on else "DETECT_ONLY"
@@ -122,6 +143,23 @@ def run_detection(*, run_suite_fn=None, store=None, deliver: bool = True, now: s
             store = DbDetectionStore()
         cands = detect(run_suite_fn)                          # confirmed, deduped, ranked
         st = store.load() or {}
+        health_now = None
+        # §16 additional signal sources — gated, read-only, additive (each import is local; no write path)
+        if sig_repeated_on:
+            from app.services.holding.self_improvement_signals import detect_repeated_job_failures
+            jobs = (jobs_fn or _default_jobs)()
+            cands = cands + detect_repeated_job_failures(jobs, now_iso=now)
+        if sig_health_on:
+            from app.services.holding.self_improvement_signals import detect_capability_degradation
+            health_now = (health_fn or _default_health)()
+            more, _operational = detect_capability_degradation(health_now, st.get("capability_health") or {}, now_iso=now)
+            cands = cands + more
+        # dedup the merged candidate set by root signature (one active candidate per root, §7/§11)
+        _seen: dict = {}
+        for c in cands:
+            if c.signature not in _seen:
+                _seen[c.signature] = c
+        cands = list(_seen.values())
         notified = set(st.get("notified") or [])
         day = (now or "")[:10]
         confirmed_today = int(st.get("confirmed_today") or 0) if st.get("day") == day else 0
@@ -139,17 +177,39 @@ def run_detection(*, run_suite_fn=None, store=None, deliver: bool = True, now: s
                     delivered = send_alert(msg)
                 except Exception as e:
                     delivered = {"delivered": False, "reason": f"delivery error: {str(e)[:60]}"}
-        # persist snapshot (report-only; the ONLY thing this loop mutates)
+        # persist snapshot (report-only; the ONLY thing this loop mutates). capability_health is carried so
+        # the next cycle's transient filter can require 2 consecutive degraded checks.
         store.save({"last_run": now, "mode": mode,
                     "candidates": [c.as_dict() for c in cands],
                     "notified": sorted(notified | {c.signature for c in surfaced}),
-                    "confirmed_today": confirmed_today + len(surfaced), "day": day})
+                    "confirmed_today": confirmed_today + len(surfaced), "day": day,
+                    "capability_health": health_now if health_now is not None else (st.get("capability_health") or {})})
         verdict = "NO_ACTION" if not cands else "CANDIDATES"
         return {"ran": True, "mode": mode, "verdict": verdict, "prepared": 0,
                 "candidates": [c.as_dict() for c in cands], "confirmed_count": len(cands),
                 "new_confirmed": [c.signature for c in surfaced], "delivered": delivered}
     except Exception as e:
         return {"ran": False, "reason": f"detect error: {str(e)[:120]}", "mode": "OFF"}
+
+
+def _default_jobs() -> list:
+    """Read-only worker-job history (the REPEATED_JOB_FAILURE source). Fail-soft -> []."""
+    try:
+        from app.services.holding import worker_jobs
+        return worker_jobs.list_jobs(limit=200)
+    except Exception:
+        return []
+
+
+def _default_health() -> dict:
+    """Best-effort read-only capability-health snapshot {cap_id: {state, reason, certified, ...}} (the
+    CAPABILITY_HEALTH source). Fail-soft -> {} so a missing/'' source yields no candidate (never fabricate)."""
+    try:
+        from app.services.capability.registry import CapabilityRegistry   # noqa: F401
+        # A concrete registry-health adapter is wired at deploy time; until then return {} (no candidate).
+        return {}
+    except Exception:
+        return {}
 
 
 # ── minimal detection-state store (single row JSONB; self-creating; fail-soft) ─────────────────────────
