@@ -170,6 +170,22 @@ function renderView(v){
     +'<div class="pmeta">'+esc(c.signal_type||'')+(c.confirmed?' · CONFIRMED':'')+' · '+esc(c.severity||'')+'</div>'
     +'<div class="acts" style="margin-top:6px">'+esc(iw.action||'PREPARATION NOT AUTHORIZED')+'</div></div>'; }
   h+='</div>';
+  // DEPLOYMENT TRUTH — running SHA + drift + feature registry (deployed vs ENABLED)
+  const dp=v.deployment||{}; const dr=dp.drift||{}; const feats=dp.features||[];
+  h+='<div class="panel"><h2>Deployment &amp; Drift <span class="badge '+((dp.environment==='production')?'':'ok')+'">'+esc((dp.environment||'?').toUpperCase())+'</span></h2>';
+  h+='<div class="statusgrid">'
+    +'<span class="skpi">running SHA <b>'+esc(dp.this_app_sha||'?')+'</b></span>'
+    +'<span class="skpi">drift <b>'+esc(dr.state||'UNKNOWN')+'</b></span>'
+    +'<span class="skpi">money mode <b>'+esc(dp.money_mode||'MOCK')+'</b></span>'
+    +'<span class="skpi">source <b>'+esc((dp.shas||{}).source_head||'UNKNOWN')+'</b></span></div>';
+  h+='<h3 class="sh" style="margin-top:10px">Feature Registry <span class="muted" style="font-weight:400">(deployed ≠ enabled)</span></h3>';
+  h+='<div class="muted" style="font-size:12.5px;line-height:1.8">';
+  for(const f of feats){ const en=f.runtime_enabled; const rc=f.risk_class||'';
+    h+='<div><b>'+esc(f.name)+'</b> <span class="badge">'+esc(rc)+'</span> '
+      +'<span class="badge ok">DEPLOYED</span> '
+      +'<span class="badge '+(en?'ok':'bad')+'">'+(en?'ENABLED':'DISABLED')+'</span> '
+      +'<span class="muted">'+esc(f.certification||'')+'</span></div>'; }
+  h+='</div></div>';
   // §29 Operational Self Model — operational only, no consciousness claim
   const m=v.operational_self_model||{};
   h+='<div class="panel"><h2>Operational Self Model</h2><div class="statusgrid">'

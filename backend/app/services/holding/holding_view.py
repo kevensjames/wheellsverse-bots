@@ -14,7 +14,8 @@ from app.services.holding.briefing import today_for_you, NO_ACTION
 
 def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | None = None,
                        owner_actions=None, cycle_record: dict | None = None, kai_work=None,
-                       self_improvements=None, improvement_watch: dict | None = None) -> dict:
+                       self_improvements=None, improvement_watch: dict | None = None,
+                       deployment: dict | None = None) -> dict:
     """Assemble the /admin/holding view model. Every section is derived from real state (§34: no orphan
     advice). owner_actions are proposal-shaped dicts; kai_work items are work-result-shaped dicts.
     improvement_watch is the DETECT_ONLY snapshot (detection candidates); it is DETECTION only — each row
@@ -68,6 +69,8 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
                             "evidence": c.get("evidence")}
                            for c in (iw.get("candidates") or [])],
         },
+        # DEPLOYMENT TRUTH (§7-10) — running SHA + drift + feature registry (deployed vs ENABLED)
+        "deployment": deployment or {},
         # §28 company cards
         "company_cards": [{"company_id": c.get("company_id"), "name": c.get("name"),
                            "current_goal": c.get("current_goal"), "status": c.get("status"),

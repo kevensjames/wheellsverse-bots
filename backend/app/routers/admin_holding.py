@@ -418,6 +418,17 @@ def holding_detect_run(principal=Depends(require_kai_ultra)):
     return r
 
 
+@router.get("/deployment")
+def holding_deployment(principal=Depends(require_kai_ultra)):
+    """Deployment TRUTH (§7-10): this app's running commit SHA + env + the FEATURE REGISTRY (deployed vs
+    ENABLED per feature) + drift. Read-only; enables nothing. The dashboard renders this so the operator can
+    always see what is built, deployed, disabled, staging-only, and running — never discovering drift from chat."""
+    from app.config import settings
+    from app.services.holding.holding_deployment import deployment_view, deployed_sha
+    sha = deployed_sha()
+    return deployment_view(settings, source_head=sha, peer_shas={"app_b": sha})
+
+
 @router.get("/improvement-watch")
 def holding_improvement_watch(principal=Depends(require_kai_ultra)):
     """DETECT_ONLY view (§14 KAI IMPROVEMENT WATCH): the latest detected candidates, read-only. For each,
@@ -458,6 +469,13 @@ def holding_view():
         improvement_watch = DbDetectionStore().load() or {}
     except Exception:
         improvement_watch = {}
+    try:   # DEPLOYMENT TRUTH — running SHA + feature registry (deployed vs enabled) + drift
+        from app.config import settings as _settings
+        from app.services.holding.holding_deployment import deployment_view, deployed_sha
+        _sha = deployed_sha()
+        deployment = deployment_view(_settings, source_head=_sha, peer_shas={"app_b": _sha})
+    except Exception:
+        deployment = {}
     return build_holding_view(twin_snapshot=twin, self_model=sm, owner_actions=owner_actions,
                               cycle_record=None, kai_work=[], self_improvements=[],
-                              improvement_watch=improvement_watch)
+                              improvement_watch=improvement_watch, deployment=deployment)
