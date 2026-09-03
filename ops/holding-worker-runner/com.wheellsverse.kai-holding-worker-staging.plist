@@ -29,7 +29,9 @@
         <key>KAI_CODING_CLI</key><string>codex exec -s workspace-write</string>
         <!-- tightest scrub: only what codex needs; NO API keys, NO runner/session secrets cross to the child -->
         <key>KAI_CODING_CLI_ENV_ALLOW</key><string>PATH,HOME,LANG,LC_ALL,TERM</string>
-        <key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        <!-- codex is a mise-managed node CLI; its bin dir must be on PATH so both `codex` and its `node`
+             runtime resolve under launchd (a non-login context that does NOT source the user's shell rc) -->
+        <key>PATH</key><string>/Users/jhonwheeler/.local/share/mise/installs/node/22/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     </dict>
     <key>KeepAlive</key><true/>
     <key>RunAtLoad</key><true/>
