@@ -8,6 +8,7 @@ snapshots passed in) so the whole thing is a plain python3 self-test.
 """
 from __future__ import annotations
 
+import re
 from datetime import datetime, timedelta
 
 from app.services.holding.self_improvement_detect import Candidate
@@ -125,32 +126,31 @@ DEGRADE_CLASSES = ("LOCAL_RUNTIME_DEFECT", "CONFIGURATION_BLOCKER", "CREDENTIAL_
                    "EXTERNAL_PROVIDER_OUTAGE", "UNKNOWN")
 
 
-# positive internal-defect evidence — the ONLY thing that classifies an unhealthy capability as KAI's own
-# code defect. Absent this, an unhealthy capability is operational (never wrongly blame KAI, adversarial A7/A8).
-_INTERNAL_DEFECT_MARKERS = ("traceback", "exception", "stacktrace", "stack trace", "assert", "internalerror",
-                            "internal error", "keyerror", "typeerror", "valueerror", "attributeerror",
-                            "nonetype", "segfault", "crash", "panic", "unhandled", "importerror",
-                            "modulenotfound", "indexerror", "recursionerror")
-
-
-def classify_degradation(state: str, reason: str) -> str:
-    """§11 FAIL-SAFE — LOCAL_RUNTIME_DEFECT (an eligible self-improvement candidate) ONLY on POSITIVE
-    internal-defect evidence. Every credential/external/config cause AND every unrecognized/empty reason is
-    operational (credential/external/config/UNKNOWN) — never a self-code candidate. This inverts the prior
-    permissive default that confidently blamed KAI code for anything it could not parse."""
+def classify_degradation(state: str, reason: str, *, classification: str = "") -> str:
+    """§11 FAIL-SAFE — an unhealthy capability is classified KAI's OWN code defect (LOCAL_RUNTIME_DEFECT)
+    ONLY when a TRUSTED STRUCTURED signal says so (the health adapter's explicit `classification` field).
+    Free-text `reason` can NEVER, by itself, produce LOCAL_RUNTIME_DEFECT — because exception text appears
+    verbatim in credential failures (KeyError: 'X_API_KEY'), DB failovers (InternalError: transaction is
+    aborted), and provider 5xx bodies ("Internal error encountered.") alike (adversarial A7/A8). Free-text is
+    used only to ROUTE to operational categories; anything unrecognized defaults to UNKNOWN (operational,
+    never a candidate)."""
+    if str(classification or "").strip().upper() == "LOCAL_RUNTIME_DEFECT":
+        return "LOCAL_RUNTIME_DEFECT"                        # only a trusted structured signal blames KAI code
     r = (reason or "").lower()
-    if any(x in r for x in ("credential", "unauthorized", "401", "403", "auth_pending", "login",
-                            "missing token", "invalid token", "no auth", "api key")):
+    # credential: explicit keywords OR a secret-shaped identifier (…_api_key/_token/_secret/_key) in the text
+    # (e.g. KeyError: 'OPENAI_API_KEY', None token) — the common real manifestation of a missing credential.
+    if (any(x in r for x in ("credential", "unauthorized", "401", "403", "auth_pending", "login",
+                             "missing token", "invalid token", "no auth", "api key", "api_key", "apikey"))
+            or re.search(r"[a-z0-9]*(?:_api_key|_token|_secret|_key|_password|_credential)\b", r)):
         return "CREDENTIAL_BLOCKER"
-    if any(x in r for x in ("provider", "outage", "unreachable", "503", "502", "504", "500", "429",
+    if any(x in r for x in ("provider", "outage", "unreachable", "503", "502", "504", "500", "5xx", "429",
                             "rate limit", "rate-limit", "upstream", "timed out", "timeout", "connection",
-                            "network", "dns", "gateway", "external")):
+                            "network", "dns", "gateway", "external", "service unavailable",
+                            "temporarily unavailable", "transaction is aborted", "bad gateway", "econnrefused")):
         return "EXTERNAL_PROVIDER_OUTAGE"
     if any(x in r for x in ("config", "misconfig", "not configured", "missing env", "env var", "setting")):
         return "CONFIGURATION_BLOCKER"
-    if any(x in r for x in _INTERNAL_DEFECT_MARKERS):
-        return "LOCAL_RUNTIME_DEFECT"
-    return "UNKNOWN"                                          # unrecognized/empty → operational (fail safe)
+    return "UNKNOWN"                                          # ambiguous/exception text alone → operational (fail safe)
 
 
 def detect_capability_degradation(health_now: dict, health_prev: dict, *, now_iso: str) -> tuple:
@@ -167,7 +167,7 @@ def detect_capability_degradation(health_now: dict, health_prev: dict, *, now_is
         prev_state = str(((health_prev or {}).get(cap_id) or {}).get("state") or "").upper()
         if prev_state not in _UNHEALTHY:
             continue                                          # §10 first degraded check → suppress transient
-        cls = classify_degradation(state, h.get("reason"))
+        cls = classify_degradation(state, h.get("reason"), classification=h.get("classification"))
         certified = bool(h.get("certified"))
         fallback = h.get("fallback_used")
         ev = {"capability_id": cap_id, "previous_state": prev_state, "current_state": state,
@@ -208,15 +208,18 @@ def demo() -> None:
     outside = [jf(i, "c", "BLOCKED", created="2026-09-01T00:00:00") for i in range(3)]
     assert detect_repeated_job_failures(outside, now_iso=N) == [], "out-of-window excluded"
 
-    # §15: healthy→0; single transient→0; persistent INTERNAL (positive evidence)→1; credential/external→operational
+    # §15: healthy→0; single transient→0; persistent internal (TRUSTED structured classification)→1
     assert detect_capability_degradation({"x": {"state": "READY"}}, {}, now_iso=N) == ([], [])
-    assert detect_capability_degradation({"x": {"state": "DEGRADED", "reason": "TypeError"}}, {"x": {"state": "READY"}}, now_iso=N) == ([], []), "single transient suppressed"
-    cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True, "reason": "TypeError in handler"}},
+    assert detect_capability_degradation({"x": {"state": "DEGRADED", "classification": "LOCAL_RUNTIME_DEFECT"}}, {"x": {"state": "READY"}}, now_iso=N) == ([], []), "single transient suppressed"
+    cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True, "classification": "LOCAL_RUNTIME_DEFECT"}},
                                                {"x": {"state": "DEGRADED"}}, now_iso=N)
     assert len(cands) == 1 and cands[0].signal_type == "CAPABILITY_HEALTH_DEGRADATION" and ops == []
-    # unrecognized/empty reason → operational UNKNOWN, NOT a self-code candidate (fail safe, A7/A8)
-    ucc, uoo = detect_capability_degradation({"u": {"state": "DEGRADED", "reason": "weird thing"}}, {"u": {"state": "DEGRADED"}}, now_iso=N)
-    assert ucc == [] and uoo and uoo[0]["classification"] == "UNKNOWN", "ambiguous degradation is operational, not self-code"
+    # A7/A8: exception TEXT alone never blames KAI — credential KeyError + external "internal error" → operational
+    for cid, reason, expect in [("cred", "KeyError: 'OPENAI_API_KEY'", "CREDENTIAL_BLOCKER"),
+                                ("ext", "InternalError: current transaction is aborted", "EXTERNAL_PROVIDER_OUTAGE"),
+                                ("amb", "TypeError in handler", "UNKNOWN")]:
+        c, o = detect_capability_degradation({cid: {"state": "FAILED", "reason": reason}}, {cid: {"state": "FAILED"}}, now_iso=N)
+        assert c == [] and o and o[0]["classification"] == expect, (reason, o)
     cc, oo = detect_capability_degradation({"y": {"state": "OFFLINE", "reason": "AUTH_PENDING: missing token"}},
                                            {"y": {"state": "OFFLINE"}}, now_iso=N)
     assert cc == [] and oo and oo[0]["classification"] == "CREDENTIAL_BLOCKER", "credential blocker not a self-code candidate"

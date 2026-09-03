@@ -69,7 +69,7 @@ print("STEP 5 — CAPABILITY_HEALTH transitions + transient filter (§9/§10/§1
 ck("healthy -> 0", detect_capability_degradation({"x": {"state": "READY"}}, {}, now_iso=N) == ([], []))
 ck("single transient degraded -> 0 (suppressed)",
    detect_capability_degradation({"x": {"state": "DEGRADED"}}, {"x": {"state": "READY"}}, now_iso=N) == ([], []))
-cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True, "reason": "TypeError in handler"}},
+cands, ops = detect_capability_degradation({"x": {"state": "DEGRADED", "certified": True, "classification": "LOCAL_RUNTIME_DEFECT", "reason": "TypeError in handler"}},
                                            {"x": {"state": "DEGRADED"}}, now_iso=N)
 ck("persistent internal degraded (2 checks, positive evidence) -> 1 candidate", len(cands) == 1 and cands[0].signal_type == "CAPABILITY_HEALTH_DEGRADATION")
 ck("certification regression tracked separately", cands[0].evidence.get("certification_regression") is True and cands[0].evidence.get("runtime_health") == "DEGRADED")
@@ -81,7 +81,7 @@ cc, oo = detect_capability_degradation({"y": {"state": "OFFLINE", "reason": "AUT
 ck("credential blocker -> 0 candidate, 1 operational blocker", cc == [] and len(oo) == 1 and oo[0]["classification"] == "CREDENTIAL_BLOCKER")
 
 print("STEP 7 — FALLBACK (§13): primary degraded + fallback used -> one record, no duplicate")
-fc, fo = detect_capability_degradation({"p": {"state": "DEGRADED", "certified": True, "fallback_used": "codex", "reason": "AttributeError in primary adapter"}},
+fc, fo = detect_capability_degradation({"p": {"state": "DEGRADED", "certified": True, "fallback_used": "codex", "classification": "LOCAL_RUNTIME_DEFECT", "reason": "AttributeError in primary adapter"}},
                                        {"p": {"state": "DEGRADED"}}, now_iso=N)
 ck("one candidate records fallback_used", len(fc) == 1 and fc[0].evidence.get("fallback_used") == "codex")
 
@@ -129,6 +129,16 @@ uk, uko = detect_capability_degradation({"q": {"state": "FAILED", "reason": "mys
 ck("A7/A8: unrecognized degradation -> UNKNOWN operational, 0 candidate", uk == [] and uko[0]["classification"] == "UNKNOWN")
 ex, exo = detect_capability_degradation({"w": {"state": "OFFLINE", "reason": "502 bad gateway upstream"}}, {"w": {"state": "OFFLINE"}}, now_iso=N)
 ck("A8: 502 upstream -> EXTERNAL_PROVIDER_OUTAGE, 0 candidate", ex == [] and exo[0]["classification"] == "EXTERNAL_PROVIDER_OUTAGE")
+# re-attack killers: EXCEPTION TEXT alone (no structured classification) never becomes a self-code candidate
+for cid, reason, expect in [("k", "KeyError: 'OPENAI_API_KEY'", "CREDENTIAL_BLOCKER"),        # credential-as-exception
+                            ("d", "InternalError: current transaction is aborted", "EXTERNAL_PROVIDER_OUTAGE"),  # DB failover
+                            ("g", "Internal error encountered.", "UNKNOWN"),                   # provider 500 body, no code
+                            ("a", "AttributeError: 'NoneType' object has no attribute 'encode'", "UNKNOWN")]:
+    c, o = detect_capability_degradation({cid: {"state": "FAILED", "reason": reason}}, {cid: {"state": "FAILED"}}, now_iso=N)
+    ck(f"A7/A8: exception text '{reason[:28]}...' -> {expect}, 0 self-code candidate", c == [] and o and o[0]["classification"] == expect)
+# only a TRUSTED structured classification blames KAI code
+tc, to = detect_capability_degradation({"z": {"state": "FAILED", "classification": "LOCAL_RUNTIME_DEFECT", "reason": "anything"}}, {"z": {"state": "FAILED"}}, now_iso=N)
+ck("LOCAL_RUNTIME_DEFECT requires trusted structured classification -> 1 candidate", len(tc) == 1)
 
 n = len(res); ok = sum(res)
 print(f"\nSIGNAL EXPANSION CERT: {ok}/{n} —", "PASS" if ok == n else "FAIL")
