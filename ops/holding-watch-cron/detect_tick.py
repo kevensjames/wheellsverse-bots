@@ -48,8 +48,12 @@ def main() -> int:
         out = {"_http_error": e.code, "_body": e.read().decode()[:120]}
     except Exception as e:
         out = {"_error": str(e)[:120]}
-    rec = {"ran": out.get("ran"), "mode": out.get("mode"), "verdict": out.get("verdict"),
-           "confirmed": out.get("confirmed_count"), "new_confirmed": out.get("new_confirmed"),
+    from datetime import datetime, timezone
+    rec = {"ts": datetime.now(timezone.utc).isoformat(),
+           "ran": out.get("ran"), "mode": out.get("mode"), "verdict": out.get("verdict"),
+           "confirmed": out.get("confirmed_count"),
+           "candidates": [c.get("signature") for c in (out.get("candidates") or [])],   # full per-cycle set
+           "new_confirmed": out.get("new_confirmed"),
            "prepared": out.get("prepared"), "err": out.get("_http_error") or out.get("_error")}
     os.makedirs(os.path.dirname(LOG), exist_ok=True)
     with open(LOG, "a") as f:
