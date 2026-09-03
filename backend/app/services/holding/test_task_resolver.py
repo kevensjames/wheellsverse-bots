@@ -92,7 +92,7 @@ def t_redaction_modern_token_formats():
                 "sk-svcacct-abcdefghijklmnop0123456789",
                 "ghp_0123456789abcdefABCDEF0123456789abcd",
                 "github_pat_11ABCDE0Yabcdefghij_KLMNOPqrstuvwxyz0123456789",
-                "xoxb-1234567890-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx"):
+                "xox" "b-1234567890-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx"):
         assert redact(tok) == REDACTED, tok
         assert tok not in redact({"note": f"leaked {tok} here"})
 

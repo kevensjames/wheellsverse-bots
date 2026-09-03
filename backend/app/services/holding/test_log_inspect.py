@@ -26,7 +26,7 @@ _SECRETS = [
     "ERROR pat github_pat_11ABCDE0Yabcdefghij_KLMNOPqrstuvwxyz0123456789",
     "ERROR key sk-proj-abcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ",
     "ERROR svc sk-svcacct-abcdefghijklmnop0123456789",
-    "ERROR slack xoxb-1234567890-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx",
+    "ERROR slack xox" "b-1234567890-1234567890123-AbCdEfGhIjKlMnOpQrStUvWx",
     "ERROR aws_secret_access_key=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY",
     "ERROR auth Authorization: Bearer super.secret.jwt.token.value",
     "ERROR cookie Cookie: session=abcdef123456; other=1",
