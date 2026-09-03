@@ -151,13 +151,20 @@ class SelfImprovementEngine:
 def dispatch_self_improvement(cand: SelfImprovementCandidate, *, settings, base_sha: str, goal: str,
                               deployment_comparison: str = UNCOMPARABLE, test_before_fails: bool = False,
                               is_config_issue: bool = False, suite_id: str = "holding_self_model",
-                              company_autonomy: dict | None = None, enqueue_fn=None) -> dict:
+                              company_autonomy: dict | None = None, enqueue_fn=None,
+                              enforce_guardrails: bool = False, prep_jobs=None, now_date: str = "",
+                              ceiling: int = 3) -> dict:
     """Deployed-KAI hosted self-improvement ORIGIN. Runs confirm() (the §18/§20/§26/§42 evidence gates),
     then — ONLY if the candidate is CONFIRMED AND the §22 self-improvement brake is on — dispatches it
     through the ALREADY-CERTIFIED A2 path (enqueue_a2_coding_job), which itself still requires staging +
     all three A2 brakes + the grant + base_sha. The persistent worker runs the whole prepare(); KAI verifies
     the returned evidence. It NEVER calls a coding CLI directly and NEVER spins up a second engine/queue
     (§27). Pure/injectable (settings + enqueue_fn passed in) so the gate logic is a plain python3 test.
+
+    enforce_guardrails=True (the future CONTINUOUS PREPARE_ALLOWED path) additionally applies the §5/§12/§23
+    admission bounds against the current coding queue (prep_jobs): yield-to-operational, one-at-a-time,
+    one-per-root, daily budget — refusing with a typed reason and tagging the mission 'si:<root>' so the
+    queue stays classifiable. Manual owner-triggered dispatch leaves it False (an explicit owner action).
     Returns {dispatched, reason, candidate, job?, task?}."""
     eng = SelfImprovementEngine(a2_framework=None)          # confirm() needs no a2 framework
     cand = eng.confirm(cand, deployment_comparison=deployment_comparison,
@@ -166,8 +173,17 @@ def dispatch_self_improvement(cand: SelfImprovementCandidate, *, settings, base_
         return {"dispatched": False, "reason": cand.diagnosis or cand.status, "candidate": cand.as_dict()}
     if not bool(getattr(settings, "KAI_SELF_IMPROVEMENT_ENABLED", False)):   # §22 subordinate brake, never overrides parents
         return {"dispatched": False, "reason": "SELF_IMPROVEMENT_DISABLED", "candidate": cand.as_dict()}
+    mission = cand.improvement_id
+    if enforce_guardrails:                                  # §5/§12/§23 continuous-preparation bounds
+        from app.services.holding.self_improvement_guardrails import (preparation_admission, describe,
+            DAILY_PREPARATION_CEILING)
+        adm = preparation_admission(root_signature=cand.improvement_id, jobs=describe(prep_jobs or []),
+                                    now_date=now_date, ceiling=ceiling or DAILY_PREPARATION_CEILING)
+        if not adm["admit"]:
+            return {"dispatched": False, "reason": adm["reason"], "candidate": cand.as_dict()}
+        mission = f"si:{cand.improvement_id}"              # tag origin+root for queue classification
     from app.services.holding.a2_dispatch import enqueue_a2_coding_job
-    r = enqueue_a2_coding_job(mission_id=cand.improvement_id, base_sha=base_sha, settings=settings,
+    r = enqueue_a2_coding_job(mission_id=mission, base_sha=base_sha, settings=settings,
                               company_id=cand.company_id or "wheellsverse", suite_id=suite_id, goal=goal,
                               company_autonomy=company_autonomy, enqueue_fn=enqueue_fn)
     return {"dispatched": bool(r.get("enqueued")), "reason": r.get("reason"),
