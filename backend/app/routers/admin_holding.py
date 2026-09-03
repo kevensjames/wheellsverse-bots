@@ -453,5 +453,11 @@ def holding_view():
         owner_actions = proposals_store.list_proposals(status="proposed")
     except Exception:
         owner_actions = []
+    try:   # KAI IMPROVEMENT WATCH (DETECT_ONLY) snapshot — read-only; empty when detection has not run
+        from app.services.holding.self_improvement_detect import DbDetectionStore
+        improvement_watch = DbDetectionStore().load() or {}
+    except Exception:
+        improvement_watch = {}
     return build_holding_view(twin_snapshot=twin, self_model=sm, owner_actions=owner_actions,
-                              cycle_record=None, kai_work=[], self_improvements=[])
+                              cycle_record=None, kai_work=[], self_improvements=[],
+                              improvement_watch=improvement_watch)

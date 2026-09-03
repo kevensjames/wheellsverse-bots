@@ -160,6 +160,16 @@ function renderView(v){
     +'<div class="muted" style="font-size:12px;margin-top:6px">files: '+esc((s.files_changed||[]).join(', '))
     +'<br>rollback: '+esc(s.rollback)+'</div><div class="acts" style="margin-top:8px">'+esc(s.owner_action)+'</div></div>'; }
   h+='</div>';
+  // KAI IMPROVEMENT WATCH (DETECT_ONLY) — detection only; each row shows the action, never "fixing"
+  const iw=v.improvement_watch||{}; const iwc=iw.candidates||[];
+  h+='<div class="panel"><h2>KAI Improvement Watch <span class="muted" style="font-weight:400">('+esc(iw.mode||'OFF')+')</span></h2>';
+  h+='<div class="muted" style="font-size:12.5px;margin-bottom:6px">action: <b>'+esc(iw.action||'—')+'</b>'+(iw.last_run?(' · last run '+esc(iw.last_run)):'')+'</div>';
+  if(!iwc.length) h+='<div class="muted">No candidates detected.</div>';
+  for(const c of iwc){ const fix=c.source==='CERTIFICATION_FIXTURE';
+    h+='<div class="prop"><b>'+esc(c.problem||c.signature)+'</b> <span class="badge '+(fix?'':'ok')+'">'+(fix?'CERTIFICATION_FIXTURE':'NATURAL')+'</span>'
+    +'<div class="pmeta">'+esc(c.signal_type||'')+(c.confirmed?' · CONFIRMED':'')+' · '+esc(c.severity||'')+'</div>'
+    +'<div class="acts" style="margin-top:6px">'+esc(iw.action||'PREPARATION NOT AUTHORIZED')+'</div></div>'; }
+  h+='</div>';
   // §29 Operational Self Model — operational only, no consciousness claim
   const m=v.operational_self_model||{};
   h+='<div class="panel"><h2>Operational Self Model</h2><div class="statusgrid">'

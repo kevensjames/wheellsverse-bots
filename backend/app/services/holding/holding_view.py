@@ -14,14 +14,17 @@ from app.services.holding.briefing import today_for_you, NO_ACTION
 
 def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | None = None,
                        owner_actions=None, cycle_record: dict | None = None, kai_work=None,
-                       self_improvements=None) -> dict:
+                       self_improvements=None, improvement_watch: dict | None = None) -> dict:
     """Assemble the /admin/holding view model. Every section is derived from real state (§34: no orphan
-    advice). owner_actions are proposal-shaped dicts; kai_work items are work-result-shaped dicts."""
+    advice). owner_actions are proposal-shaped dicts; kai_work items are work-result-shaped dicts.
+    improvement_watch is the DETECT_ONLY snapshot (detection candidates); it is DETECTION only — each row
+    shows PREPARATION NOT AUTHORIZED unless mode is PREPARE_ALLOWED (never 'fixing')."""
     twin = twin_snapshot or {}
     sm = self_model or {}
     owner_actions = list(owner_actions or [])
     work = list(kai_work or [])
     sis = list(self_improvements or [])
+    iw = improvement_watch or {}
 
     # §25 TODAY FOR YOU first (reuses the certified briefing builder)
     brief = today_for_you(owner_actions=owner_actions,
@@ -54,6 +57,17 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
                                     "independent_review": s.get("security_review"),
                                     "rollback": s.get("rollback"), "owner_action": s.get("owner_action")}
                                    for s in sis if s.get("status") == "READY_FOR_REVIEW"],   # READY only (§27)
+        # KAI IMPROVEMENT WATCH (DETECT_ONLY) — detection only; never "fixing". action reflects the mode.
+        "improvement_watch": {
+            "mode": iw.get("mode", "OFF"),
+            "last_run": iw.get("last_run"),
+            "action": ("PREPARATION NOT AUTHORIZED" if iw.get("mode") != "PREPARE_ALLOWED" else "PREPARE_ALLOWED"),
+            "candidates": [{"signature": c.get("signature"), "problem": c.get("problem"),
+                            "source": c.get("source", "NATURAL"), "signal_type": c.get("signal_type"),
+                            "confirmed": c.get("confirmed"), "severity": c.get("severity"),
+                            "evidence": c.get("evidence")}
+                           for c in (iw.get("candidates") or [])],
+        },
         # §28 company cards
         "company_cards": [{"company_id": c.get("company_id"), "name": c.get("name"),
                            "current_goal": c.get("current_goal"), "status": c.get("status"),
