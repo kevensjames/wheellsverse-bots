@@ -169,6 +169,46 @@ _ENTITIES: list[HoldingEntity] = [
 _BY_ID = {e.entity_id: e for e in _ENTITIES}
 
 
+# ── §14 EXPLICIT holding hierarchy ───────────────────────────────────────────────────────────────
+# Parent→child is stated EXPLICITLY here (from the seed ownership facts) instead of being inferred
+# from the holding parent's implicit products[] name list. wheellsverse_holdings is the root (parent
+# None). SOL sits under the SOLCIRCLE LLC, which sits under the holding — a real multi-level chain.
+_PARENT: dict[str, str | None] = {
+    "wheellsverse_holdings": None,          # root
+    "solcircle": "wheellsverse_holdings",
+    "sol": "solcircle",                     # SOL is operated by the SOLCIRCLE LLC (per its ownership)
+    "kai": "wheellsverse_holdings",
+    "nurtelle": "wheellsverse_holdings",
+    "narai": "wheellsverse_holdings",
+    "nexora": "wheellsverse_holdings",
+    "siteboost": "wheellsverse_holdings",
+    "wmos": "wheellsverse_holdings",
+    "suprema": "wheellsverse_holdings",
+    "wheellsverse_bots": "wheellsverse_holdings",
+}
+
+
+def parent_of(entity_id: str) -> str | None:
+    """The EXPLICIT parent entity_id of a holding entity (None for the root / unknown)."""
+    return _PARENT.get(entity_id)
+
+
+def hierarchy_edges() -> list[dict]:
+    """Explicit parent→child edges (§14/§56): {parent, child, child_name, relation}. Relation is derived
+    from the parent's entity_type ('operates' when the parent is an operating LLC, else 'owns'). Only edges
+    whose BOTH ends are real registry entities are emitted — never a fabricated node."""
+    out = []
+    for child_id, parent_id in _PARENT.items():
+        if not parent_id or parent_id not in _BY_ID or child_id not in _BY_ID:
+            continue
+        parent = _BY_ID[parent_id]
+        child = _BY_ID[child_id]
+        relation = "operates" if parent.entity_type == "LLC" else "owns"
+        out.append({"parent": parent_id, "child": child_id, "child_name": child.brand_name,
+                    "relation": relation})
+    return out
+
+
 def all_entities() -> list[HoldingEntity]:
     return list(_ENTITIES)
 

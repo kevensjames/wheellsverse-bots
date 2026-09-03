@@ -79,17 +79,28 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
                            "owner_blocker": bool(c.get("owner_actions_required")),
                            "plan_freshness": c.get("source_freshness")}
                           for c in twin.get("companies", [])],
-        # §29 Operational Self Model (labelled; never sentient)
+        # §62 Operational Self Model — FULL field set (labelled; never sentient). Every value is taken
+        # straight from the self-model snapshot (REAL/DERIVED/UNAVAILABLE); the panel renders it verbatim.
         "operational_self_model": {
             "label": "Operational Self Model",
-            "identity": sm.get("identity", "KAI"), "software_version": sm.get("software_version"),
-            "environment": sm.get("environment"), "health": twin.get("autonomy_overall"),
+            "identity": sm.get("identity", "KAI"), "role": sm.get("system_role"),
+            "software_version": sm.get("software_version"),
+            "production_sha": sm.get("production_sha"), "staging_sha": sm.get("staging_sha"),
+            "environment": sm.get("environment"), "runtime": sm.get("runtime"),
+            "model": sm.get("model"), "model_provider": sm.get("model_provider"),
+            "model_latency_ms": sm.get("model_latency_ms"),
+            "autonomy_posture": twin.get("autonomy_overall"),  # §57 real health score is a later phase
+            "autonomy_class": sm.get("autonomy_class"),
+            "current_attention": sm.get("current_attention"),
             "current_mission": (cycle_record or {}).get("cycle_id"),
             "capabilities_ready": sm.get("available_capability_count"),
-            "workers_online": sm.get("workers_online"),
+            "capability_catalog_total": sm.get("capability_catalog_total"),
+            "workers_online": sm.get("workers_online"), "workers_known": sm.get("workers_known"),
             "last_holding_cycle": (cycle_record or {}).get("completed_at"),
+            "last_verified": sm.get("last_verified"),
             "owner_required_count": sm.get("owner_required_action_count"),
-            "claims_consciousness": False,   # invariant (§29) — never sentient
+            "limitations": list(sm.get("known_limitations", [])),   # LIVE-DERIVED (§63/§99)
+            "claims_consciousness": False,   # invariant (§29/§141) — never sentient
         },
         # §30 autonomy (backend authoritative)
         "autonomy": {

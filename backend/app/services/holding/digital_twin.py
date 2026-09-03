@@ -60,14 +60,34 @@ def _freshness(observed_at: str, window_days: int, today: str) -> str:
 
 
 def fact(value: Any, source: str, *, observed_at: str = UNAVAILABLE, fact_type: str = "",
-         today: str = "", status: str = REAL) -> dict:
-    """One operational datum with provenance. value None/UNAVAILABLE ⇒ status UNAVAILABLE (§58)."""
+         today: str = "", status: str = REAL, confidence: str | None = None,
+         evidence_ref: str | None = None) -> dict:
+    """One operational datum with provenance. value None/UNAVAILABLE ⇒ status UNAVAILABLE (§58).
+
+    §16 knowledge-freshness: a Fact may ALSO carry ``confidence`` (from registry.Confidence / data
+    provenance) and ``evidence_ref`` (a pointer at the source record, e.g. ``holding.registry:sol.revenue``).
+    Both are ADDITIVE and only appear when supplied — a call with neither returns the original 5-key shape,
+    so every existing caller/consumer is unchanged (backward-compatible)."""
     if value is None or value == UNAVAILABLE:
-        return {"value": UNAVAILABLE, "source": source, "observed_at": observed_at,
-                "freshness": "UNKNOWN", "status": UNAVAILABLE}
-    window = SOURCE_MAP.get(fact_type, {}).get("freshness_days", 30)
-    return {"value": value, "source": source, "observed_at": observed_at,
-            "freshness": _freshness(observed_at, window, today), "status": status}
+        d = {"value": UNAVAILABLE, "source": source, "observed_at": observed_at,
+             "freshness": "UNKNOWN", "status": UNAVAILABLE}
+    else:
+        window = SOURCE_MAP.get(fact_type, {}).get("freshness_days", 30)
+        d = {"value": value, "source": source, "observed_at": observed_at,
+             "freshness": _freshness(observed_at, window, today), "status": status}
+    if confidence is not None:
+        d["confidence"] = confidence
+    if evidence_ref is not None:
+        d["evidence_ref"] = evidence_ref
+    return d
+
+
+def _confidence_from_prov(prov: str) -> str:
+    """Pull the registry Confidence marker out of a report_value provenance string (§16 confidence).
+    ``"... · confidence=VERIFIED"`` → ``"VERIFIED"``; no marker → ``"UNVERIFIED"`` (never guessed higher)."""
+    if isinstance(prov, str) and "confidence=" in prov:
+        return prov.split("confidence=", 1)[1].split()[0].strip()
+    return "UNVERIFIED"
 
 
 # ── §4 STARTUP STATE MODEL ─────────────────────────────────────────────────────────────────────
@@ -169,10 +189,15 @@ def _cap_split() -> dict:
     return {"available": avail, "available_count": len(avail), "catalog_total": len(reg)}
 
 
+def _hierarchy() -> list:
+    from app.services.holding import registry as reg
+    return reg.hierarchy_edges()
+
+
 _DEFAULT_SOURCES: dict[str, Callable] = {
     "entities": _entities, "report_value": _report_value, "priorities": _priorities,
     "open_proposals": _open_proposals, "autonomy": _autonomy, "workers": _workers,
-    "capabilities": _cap_split,
+    "capabilities": _cap_split, "hierarchy": _hierarchy,
 }
 
 
@@ -196,13 +221,18 @@ class HoldingDigitalTwin:
             return default
 
     def _money_fact(self, entity_id: str, field_name: str, fact_type: str) -> dict:
-        """report_value is the ONLY money/customer read path — None ⇒ UNAVAILABLE (never invented)."""
+        """report_value is the ONLY money/customer read path — None ⇒ UNAVAILABLE (never invented).
+        §16: carries confidence (parsed from the registry provenance) + evidence_ref (the source record)."""
         rv = self._src.get("report_value")
         try:
             value, prov = rv(entity_id, field_name) if rv else (None, "no source")
         except Exception:
             value, prov = None, "source error"
-        return fact(value, prov, fact_type=fact_type, today=self._today)
+        # confidence: UNAVAILABLE for an un-sourced value; else the registry's own confidence marker if present.
+        confidence = UNAVAILABLE if value is None else _confidence_from_prov(prov)
+        evidence_ref = f"holding.registry:{entity_id}.{field_name}"
+        return fact(value, prov, fact_type=fact_type, today=self._today,
+                    confidence=confidence, evidence_ref=evidence_ref)
 
     def _proposals_for(self, entity_id: str, proposals: list) -> list:
         return [{"proposal_id": p.get("id"), "title": p.get("title"), "severity": p.get("severity"),
@@ -253,9 +283,16 @@ class HoldingDigitalTwin:
         caps = self._get("capabilities", {})
         workers = self._get("workers", [])
         autonomy = self._get("autonomy", {})
+        try:                                  # single source of truth, not a stale hardcode (§0#18)
+            from app.config import settings as _s
+            money_mode = getattr(_s, "MONEY_MODE", "MOCK") or "MOCK"
+        except Exception:                     # noqa: BLE001 — config unavailable → honest default
+            money_mode = "MOCK"
         return {
             "holding": self.HOLDING_ID,
             "observed_at": self._observed_at,
+            # §14 EXPLICIT parent→child hierarchy (edges), not just each company's implicit products[].
+            "hierarchy": self._get("hierarchy", []),
             "companies": [c.as_dict() for c in companies],
             "company_count": len(companies),
             "shared_resources": {
@@ -271,7 +308,7 @@ class HoldingDigitalTwin:
                               for p in proposals if isinstance(p, dict)],
             "active_missions": self._get("active_missions", []),
             "autonomy_overall": autonomy.get("overall", UNAVAILABLE) if isinstance(autonomy, dict) else UNAVAILABLE,
-            "money_mode": "MOCK",
+            "money_mode": money_mode,
             "last_reconciled_at": self._observed_at,
         }
 
