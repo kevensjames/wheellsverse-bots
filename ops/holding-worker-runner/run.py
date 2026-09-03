@@ -45,8 +45,9 @@ def _secret() -> str:
     s = os.environ.get("SESSION_SIGNING_SECRET", "")
     if s:
         return s
+    svc = os.environ.get("KAI_WORKER_KEYCHAIN_SVC", "kai-holding-worker")   # staging uses a DISTINCT service
     try:  # macOS Keychain — never stored plaintext on disk
-        out = subprocess.run(["security", "find-generic-password", "-s", "kai-holding-worker",
+        out = subprocess.run(["security", "find-generic-password", "-s", svc,
                               "-a", "SESSION_SIGNING_SECRET", "-w"], capture_output=True, text=True, timeout=5)
         return out.stdout.strip()
     except Exception:
