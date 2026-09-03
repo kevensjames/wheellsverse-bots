@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     # override them. Even ON, A2 stays NEEDS_CERTIFICATION until a coding worker + grant are wired, and
     # A2 only ever PREPARES an isolated change (READY_FOR_REVIEW) — it never merges or deploys.
     KAI_A2_EXECUTION_ENABLED: bool = False
+    # Emergency brake #4 (autonomous self-improvement origination). Default OFF, production OFF.
+    # SUBORDINATE to the three A2 brakes: it only decides whether a self-improvement CANDIDATE may
+    # ORIGINATE an A2 coding dispatch — the dispatch itself still requires staging + all three A2 brakes
+    # + the grant (enqueue_a2_coding_job). It can never override a parent brake. Self-improvement is
+    # always PREPARE-only (READY_FOR_REVIEW); it never merges/deploys.
+    KAI_SELF_IMPROVEMENT_ENABLED: bool = False
 
     # Telegram alerting — used by app.services.observability to notify the
     # operator of signup / paid-conversion / cancellation events. Optional;

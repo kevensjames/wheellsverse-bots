@@ -255,6 +255,42 @@ def holding_a2_dispatch(body: dict = Body(default={}), principal=Depends(require
             "job_id": (r.get("job") or {}).get("id"), "base_sha_present": bool(base_sha)}
 
 
+@router.post("/self-improvement-dispatch")
+def holding_self_improvement_dispatch(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
+    """Part C (§21) HOSTED self-improvement ORIGIN. Owner-only, staging-only (else 404). Deployed KAI turns
+    a candidate + evidence into a CONFIRMED decision (self_improvement.confirm) and — only if confirmed AND
+    the §22 self-improvement brake is on — dispatches it through the CERTIFIED A2 path (which still needs all
+    three A2 brakes + grant + base_sha). The persistent worker runs the whole prepare(); nothing is merged/
+    deployed. The self-imp brake is enforced INSIDE dispatch (typed SELF_IMPROVEMENT_DISABLED), not by a 404,
+    so the brake-off refusal is observable. base_sha is the deployed SHA (server-derived, never client)."""
+    import os
+    from app.config import settings
+    from app.services.holding.self_improvement import dispatch_self_improvement, SelfImprovementCandidate
+    if str(getattr(settings, "APP_ENV", "")).lower() != "staging":
+        raise HTTPException(status_code=404, detail="not found")
+    base_sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or ""
+    cand = SelfImprovementCandidate(
+        improvement_id=str(body.get("improvement_id") or "si-hosted-cert")[:64],
+        subsystem=str(body.get("subsystem") or "holding")[:80],
+        problem_type=str(body.get("problem_type") or "DEFECT")[:40],
+        problem=str(body.get("problem") or "")[:400],
+        desired_outcome=str(body.get("desired_outcome") or "CORRECTNESS")[:40],
+        company_id=str(body.get("company_id") or "wheellsverse")[:40],
+        evidence_refs=list(body.get("evidence_refs") or [])[:20])
+    r = dispatch_self_improvement(
+        cand, settings=settings, base_sha=base_sha,
+        goal=str(body.get("goal") or "prepare a bounded fix")[:200],
+        deployment_comparison=str(body.get("deployment_comparison") or "UNCOMPARABLE"),
+        test_before_fails=bool(body.get("test_before_fails")),
+        is_config_issue=bool(body.get("is_config_issue")))
+    _audit_proposal("holding.self_improvement_dispatch", {"principal": getattr(principal, "id", "owner"),
+                    "improvement_id": cand.improvement_id, "dispatched": r.get("dispatched"),
+                    "reason": r.get("reason"), "job_id": (r.get("job") or {}).get("id")})
+    return {"dispatched": r.get("dispatched"), "reason": r.get("reason"),
+            "candidate_status": (r.get("candidate") or {}).get("status"),
+            "job_id": (r.get("job") or {}).get("id"), "base_sha_present": bool(base_sha)}
+
+
 @router.post("/run-cycle")
 def holding_run_cycle(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
     """Run EXACTLY ONE existing Holding cycle (owner-only, staging-cert/diagnostics). Reuses
