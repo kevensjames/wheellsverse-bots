@@ -47,6 +47,12 @@ _SUITES: dict[str, SuiteDef] = {
         ("python3", "app/services/holding/test_state_reconciler.py"), _BACKEND,
         env_profile=(("PYTHONPATH", _BACKEND),)),
     "disabled_example": SuiteDef("disabled_example", ("python3", "-c", "pass"), _BACKEND, enabled=False),
+    # disposable self-improvement BEFORE/AFTER fixture guard (non-authority). Deployed KAI runs THIS on the
+    # deployed (buggy) code to establish a REAL failing baseline (never a client-supplied boolean); the
+    # worker later runs the same byte-identical suite in its fixed worktree for the AFTER result.
+    "si_before_after": SuiteDef("si_before_after",
+        ("python3", "app/services/holding/test_si_calc_guard.py"), _BACKEND,
+        env_profile=(("PYTHONPATH", _BACKEND),)),
 }
 
 

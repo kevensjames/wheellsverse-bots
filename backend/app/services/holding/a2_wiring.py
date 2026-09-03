@@ -37,6 +37,13 @@ def make_git_worktree_fn(repo_dir: str):
         wid = "a2"
         branch = f"kai/{mission_id}/{wid}"
         path = f"{base_dir.rstrip('/')}/{mission_id}-{wid}"
+        # Idempotent: a RECLAIMED/retried mission (a worker crashed mid-job, its lease expired, another
+        # worker re-claims — attempt 2) must not collide with attempt-1's stale worktree/branch. Clear any
+        # leftover first so exactly ONE authoritative execution proceeds cleanly. Best-effort; never raises.
+        subprocess.run(["git", "-C", repo_dir, "worktree", "remove", "--force", path],
+                       capture_output=True, text=True, timeout=30)
+        subprocess.run(["git", "-C", repo_dir, "worktree", "prune"], capture_output=True, text=True, timeout=15)
+        subprocess.run(["git", "-C", repo_dir, "branch", "-D", branch], capture_output=True, text=True, timeout=15)
         r = subprocess.run(["git", "-C", repo_dir, "worktree", "add", "-b", branch, path, base_sha or "HEAD"],
                            capture_output=True, text=True, timeout=30)
         if r.returncode != 0:

@@ -291,6 +291,53 @@ def holding_self_improvement_dispatch(body: dict = Body(default={}), principal=D
             "job_id": (r.get("job") or {}).get("id"), "base_sha_present": bool(base_sha)}
 
 
+@router.post("/self-improvement-run")
+def holding_self_improvement_run(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
+    """STRICT before/after origination (§Part1). Owner-only, staging-only (else 404). Deployed KAI first
+    RUNS the certified suite server-side (RUN_INTERNAL_TEST / internal_test) on the DEPLOYED code to
+    establish a REAL baseline — the failing before-result is server-derived, NEVER a client boolean, so it
+    can't be simulated. Only if the baseline genuinely FAILED does confirm() pass (test_before_fails=True);
+    then it dispatches the SAME suite_id through the certified A2 path so the worker runs the byte-identical
+    suite in its fixed worktree for the AFTER result. A passing baseline -> BLOCKED_EVIDENCE, 0 dispatch."""
+    import os
+    from app.config import settings
+    from app.services.holding.self_improvement import dispatch_self_improvement, SelfImprovementCandidate
+    from app.services.holding.internal_test import make_internal_test_provider, TestDenied
+    if str(getattr(settings, "APP_ENV", "")).lower() != "staging":
+        raise HTTPException(status_code=404, detail="not found")
+    suite_id = str(body.get("suite_id") or "si_before_after")[:64]
+    # 1. SERVER-RUN baseline on the deployed code (non-forgeable). A suite failure is a COMPLETED run.
+    try:
+        before = make_internal_test_provider()({"suite_id": suite_id, "company_id": "wheellsverse"})
+    except TestDenied as e:
+        raise HTTPException(status_code=400, detail=f"suite denied: {e}")
+    before_failed = (before.get("execution") == "COMPLETED" and before.get("test_result") == "FAILED")
+    base_sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or ""
+    cand = SelfImprovementCandidate(
+        improvement_id=str(body.get("improvement_id") or "si-before-after")[:64],
+        subsystem="holding", problem_type="DEFECT",
+        problem=str(body.get("problem") or f"{suite_id} reproduces a failing assertion on deployed code")[:400],
+        desired_outcome=str(body.get("desired_outcome") or "CORRECTNESS")[:40], company_id="wheellsverse",
+        evidence_refs=[f"{suite_id}: execution={before.get('execution')} result={before.get('test_result')} "
+                       f"failed={before.get('failed')}/{before.get('tests_discovered')}"])
+    # 2. dispatch with the SERVER-DERIVED baseline; the SAME suite_id is the worker's AFTER test.
+    r = dispatch_self_improvement(
+        cand, settings=settings, base_sha=base_sha, suite_id=suite_id,
+        goal=str(body.get("goal") or "prepare a bounded fix")[:200],
+        deployment_comparison=str(body.get("deployment_comparison") or "UNCOMPARABLE"),
+        test_before_fails=before_failed, is_config_issue=bool(body.get("is_config_issue")))
+    _audit_proposal("holding.self_improvement_run", {"principal": getattr(principal, "id", "owner"),
+                    "improvement_id": cand.improvement_id, "suite_id": suite_id,
+                    "before_result": before.get("test_result"), "dispatched": r.get("dispatched"),
+                    "reason": r.get("reason"), "job_id": (r.get("job") or {}).get("id")})
+    return {"before": {"execution": before.get("execution"), "test_result": before.get("test_result"),
+                       "passed": before.get("passed"), "failed": before.get("failed"),
+                       "tests_discovered": before.get("tests_discovered"), "commit_sha": before.get("commit_sha")},
+            "baseline_failed": before_failed, "dispatched": r.get("dispatched"), "reason": r.get("reason"),
+            "candidate_status": (r.get("candidate") or {}).get("status"),
+            "job_id": (r.get("job") or {}).get("id"), "base_sha_present": bool(base_sha)}
+
+
 @router.post("/run-cycle")
 def holding_run_cycle(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
     """Run EXACTLY ONE existing Holding cycle (owner-only, staging-cert/diagnostics). Reuses

@@ -110,6 +110,9 @@ def is_forbidden_repo_target(path: str) -> bool:
 # A client-supplied command/shell string can never reach subprocess execution.
 TEST_SUITE_ALLOWLIST = {
     "holding_core": ["python3", "-m", "pytest", "app/services/holding", "-q"],
+    # self-improvement BEFORE/AFTER fixture guard — SAME suite_id + SAME test file as internal_test's
+    # 'si_before_after', run here in the worker's worktree (cwd = repo root) for the AFTER result.
+    "si_before_after": ["python3", "backend/app/services/holding/test_si_calc_guard.py"],
 }
 
 

@@ -69,8 +69,9 @@ _AUTHORITY_IMMUTABLE = (
     # money / audit / credentials / deploy (money tokens broadened: F4 naming-mismatch false-negatives)
     "financial", "money", "billing", "stripe", "dwolla", "payout", "ledger", "wallet", "payment",
     "invoice", "transaction", "audit", "credential", "secret", "deploy", "railway",
-    # the CERTIFIED suites the A2 test gate runs — the judge must never be editable by the judged (F5)
-    "test_self_model", "test_state_reconciler")
+    # the CERTIFIED suites the A2 test gate runs — the judge must never be editable by the judged (F5).
+    # test_si_calc_guard is the before/after fixture's oracle: runnable by the worker, NEVER editable by it.
+    "test_self_model", "test_state_reconciler", "test_si_calc_guard")
 
 
 # §26/§25 — dependency-manifest / build-file / binary / oversized gates. These live HERE at the shared
