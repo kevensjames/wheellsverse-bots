@@ -258,17 +258,30 @@ def holding_a2_dispatch(body: dict = Body(default={}), principal=Depends(require
 @router.post("/self-improvement-dispatch")
 def holding_self_improvement_dispatch(body: dict = Body(default={}), principal=Depends(require_kai_ultra)):
     """Part C (§21) HOSTED self-improvement ORIGIN. Owner-only, staging-only (else 404). Deployed KAI turns
-    a candidate + evidence into a CONFIRMED decision (self_improvement.confirm) and — only if confirmed AND
-    the §22 self-improvement brake is on — dispatches it through the CERTIFIED A2 path (which still needs all
-    three A2 brakes + grant + base_sha). The persistent worker runs the whole prepare(); nothing is merged/
-    deployed. The self-imp brake is enforced INSIDE dispatch (typed SELF_IMPROVEMENT_DISABLED), not by a 404,
-    so the brake-off refusal is observable. base_sha is the deployed SHA (server-derived, never client)."""
+    a candidate into a CONFIRMED decision (self_improvement.confirm) and — only if confirmed AND the §22
+    self-improvement brake is on — dispatches it through the CERTIFIED A2 path (which still needs all three
+    A2 brakes + grant + base_sha). The persistent worker runs the whole prepare(); nothing is merged/deployed.
+
+    HARDENED (Part 5 / V6): the failing baseline is NEVER a client boolean. Like /self-improvement-run, this
+    endpoint RUNS the certified suite server-side (internal_test) on the deployed code and derives
+    test_before_fails from the real result. Without a suite_id whose suite genuinely FAILS, the candidate
+    cannot confirm -> BLOCKED_EVIDENCE, 0 dispatch. (This endpoint is now equivalent to /self-improvement-run,
+    retained for back-compat; prefer /self-improvement-run.)"""
     import os
     from app.config import settings
     from app.services.holding.self_improvement import dispatch_self_improvement, SelfImprovementCandidate
+    from app.services.holding.internal_test import make_internal_test_provider, TestDenied
     if str(getattr(settings, "APP_ENV", "")).lower() != "staging":
         raise HTTPException(status_code=404, detail="not found")
     base_sha = os.environ.get("RAILWAY_GIT_COMMIT_SHA") or os.environ.get("GIT_COMMIT_SHA") or ""
+    suite_id = str(body.get("suite_id") or "")[:64]
+    before_failed = False                                    # server-derived only; a bare client boolean is ignored
+    if suite_id:
+        try:
+            before = make_internal_test_provider()({"suite_id": suite_id, "company_id": "wheellsverse"})
+        except TestDenied as e:
+            raise HTTPException(status_code=400, detail=f"suite denied: {e}")
+        before_failed = (before.get("execution") == "COMPLETED" and before.get("test_result") == "FAILED")
     cand = SelfImprovementCandidate(
         improvement_id=str(body.get("improvement_id") or "si-hosted-cert")[:64],
         subsystem=str(body.get("subsystem") or "holding")[:80],
@@ -278,10 +291,10 @@ def holding_self_improvement_dispatch(body: dict = Body(default={}), principal=D
         company_id=str(body.get("company_id") or "wheellsverse")[:40],
         evidence_refs=list(body.get("evidence_refs") or [])[:20])
     r = dispatch_self_improvement(
-        cand, settings=settings, base_sha=base_sha,
+        cand, settings=settings, base_sha=base_sha, suite_id=suite_id or "holding_self_model",
         goal=str(body.get("goal") or "prepare a bounded fix")[:200],
         deployment_comparison=str(body.get("deployment_comparison") or "UNCOMPARABLE"),
-        test_before_fails=bool(body.get("test_before_fails")),
+        test_before_fails=before_failed,                     # NEVER from the client body
         is_config_issue=bool(body.get("is_config_issue")))
     _audit_proposal("holding.self_improvement_dispatch", {"principal": getattr(principal, "id", "owner"),
                     "improvement_id": cand.improvement_id, "dispatched": r.get("dispatched"),
