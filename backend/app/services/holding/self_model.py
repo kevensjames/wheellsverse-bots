@@ -245,6 +245,19 @@ class OperationalSelfModel:
                 "I am self-aware operationally — I track my own version, runtime, capabilities, and "
                 "limitations — but I make no claim to consciousness, sentience, or emotions.")
 
+    def current_attention(self) -> dict:
+        """§17 (additive): the FULL, structured CurrentAttentionModel — KAI's bounded, sourced
+        operational focus (primary_mission/secondary/company/blocker/owner-request/worker-jobs/
+        pending-approval/priority-reason), or an honest IDLE state. Distinct from ``what_am_i_doing``
+        (the one-line posture summary that still populates ``snapshot()["current_attention"]``).
+        Reuses this self-model's already-injected proposal/worker sources; portfolio/plan use live
+        defaults. Not hidden chain-of-thought — every field is a real source value or UNAVAILABLE."""
+        from app.services.holding.attention_model import CurrentAttentionModel
+        return CurrentAttentionModel(sources={
+            "owner_requests": self._src.get("open_proposals"),
+            "workers": self._src.get("workers"),
+        }).snapshot()
+
     def what_am_i_doing(self) -> str:
         """§72: answer from live state — never invent background activity."""
         autonomy = self._get("autonomy", {})
