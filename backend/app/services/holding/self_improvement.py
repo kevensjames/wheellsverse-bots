@@ -133,18 +133,33 @@ class SelfImprovementEngine:
         return {"status": cand.status, "diagnosis": cand.diagnosis, "prepared": prep.as_dict(),
                 "review_package": self.owner_review_package(cand, prep)}
 
-    # ── §36 owner review package (ONE review action, KAI already did the rest) ─────────────────────
+    # ── §36/§60 owner review package (ONE review action, KAI already did the rest) ─────────────────
     def owner_review_package(self, cand: SelfImprovementCandidate, prep) -> dict:
-        return {
-            "problem": cand.problem, "evidence": cand.evidence_refs, "root_cause": cand.diagnosis,
-            "files_changed": prep.files_changed, "branch": prep.branch,
-            "tests_before": ("FAIL (reproduced)" if cand.test_before_reproduced else "NOT REPRODUCED"),
-            "tests_after": f"{prep.tests_passed} passed/{prep.tests_failed} failed",
+        """The §60 approval evidence package for a self-improvement fix. Built on the SHARED §60 builder
+        (approval_package.build_approval_package) so it carries the canonical field set every approval
+        type does — then extends it with the self-improvement-specific keys existing consumers rely on
+        (reuse, not fork)."""
+        from app.services.holding.approval_package import build_approval_package
+        tests_before = "FAIL (reproduced)" if cand.test_before_reproduced else "NOT REPRODUCED"
+        tests_after = f"{prep.tests_passed} passed/{prep.tests_failed} failed"
+        pkg = build_approval_package(
+            approval_type="self_improvement",
+            objective=cand.desired_outcome, problem=cand.problem, evidence=cand.evidence_refs,
+            proposed_action=f"merge the prepared fix on {prep.branch}", risk=cand.diagnosis,
+            diff_artifact=(prep.evidence or {}).get("diff_summary", "") or f"branch {prep.branch}",
+            tests=f"before: {tests_before}; after: {tests_after}",
+            independent_review="independent reviewer certified; authority-immutable gate clean",
+            rollback="discard the isolated worktree/branch", environment="isolated-worktree",
+            authority_requested="REVIEW + approve the next higher-class action (merge) if acceptable")
+        pkg.update({
+            "root_cause": cand.diagnosis, "files_changed": prep.files_changed, "branch": prep.branch,
+            "tests_before": tests_before, "tests_after": tests_after,
             "security_review": "independent reviewer certified; authority-immutable gate clean",
             "diff_summary": (prep.evidence or {}).get("diff_summary", ""),
-            "expected_impact": cand.desired_outcome, "rollback": "discard the isolated worktree/branch",
+            "expected_impact": cand.desired_outcome,
             "known_limitations": "prepared only — NOT merged or deployed (owner action required)",
-            "owner_action": "REVIEW + approve the next higher-class action (merge) if acceptable"}
+            "owner_action": "REVIEW + approve the next higher-class action (merge) if acceptable"})
+        return pkg
 
 
 # ── Part C (§21/§27) HOSTED origination: confirm → subordinate brake → CERTIFIED A2 dispatch ───────────
