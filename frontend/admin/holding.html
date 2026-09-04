@@ -1,264 +1,1156 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Holding Operations</title>
+<title>Holding Command</title>
+<link rel="stylesheet" href="/admin/kai-presence.css">
 <style>
-  :root{--bg:#0b0f1a;--panel:#11172a;--border:#1e2740;--text:#e8edf5;--muted:#8a95a8;--cyan:#00d4ff;--purple:#a855f7;--accent:#4df4a5;--warn:#ffb547}
-  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 'Space Grotesk',system-ui,sans-serif}
-  .wrap{max-width:1100px;margin:0 auto;padding:24px}
-  h1{font-size:19px;margin:0 0 4px} .sub{color:var(--muted);font-size:12.5px;margin-bottom:20px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px}
-  .brand{font-weight:700;font-size:15px} .row{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);margin-top:6px}
-  .badge{font-size:10px;text-transform:uppercase;letter-spacing:1px;font-weight:700;border-radius:6px;padding:2px 7px}
-  .v{color:var(--accent);border:1px solid rgba(77,244,165,.35)} .u{color:var(--warn);border:1px solid rgba(255,181,71,.35)} .k{color:var(--muted);border:1px solid var(--border)}
-  .confirm{color:var(--warn);font-style:italic}
-  .panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px;margin-top:18px}
-  .panel h2{font-size:14px;margin:0 0 10px} .muted{color:var(--muted)} code{color:var(--cyan)}
-  a{color:var(--cyan)} .msg{color:var(--warn);padding:14px}
-  .sev{font-size:10px;text-transform:uppercase;letter-spacing:.5px;font-weight:700;border-radius:5px;padding:2px 6px;margin-right:8px;white-space:nowrap}
-  .sev.CRITICAL{color:#ff5c6c;border:1px solid rgba(255,92,108,.45);background:rgba(255,92,108,.08)}
-  .sev.HIGH{color:var(--warn);border:1px solid rgba(255,181,71,.4)}
-  .sev.MEDIUM{color:#ffe08a;border:1px solid rgba(255,224,138,.3)}
-  .sev.LOW{color:var(--muted);border:1px solid var(--border)}
-  .prio{display:flex;align-items:flex-start;gap:2px;padding:8px 0;border-top:1px solid var(--border)}
-  .kpi{display:inline-block;margin:0 14px 4px 0;color:var(--muted)} .kpi b{color:var(--text)}
-  .kpi.up b{color:#ff5c6c} .kpi.down b{color:var(--accent)}
-  .prop{border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-top:10px;background:rgba(255,255,255,.01)}
-  .prophead{display:flex;align-items:flex-start;gap:9px} .prophead b{font-size:14px;font-weight:600}
-  .pmeta{color:var(--muted);font-size:11.5px;margin:6px 0 0;text-transform:uppercase;letter-spacing:.4px}
-  .plan{margin:9px 0 0;padding-left:20px;color:var(--muted);font-size:13px} .plan li{margin:3px 0}
-  .acts{display:flex;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap}
-  .acts button{font:600 12px 'Space Grotesk',system-ui,sans-serif;border-radius:7px;padding:6px 13px;cursor:pointer;
-    border:1px solid var(--accent);background:var(--accent);color:#04121a}
-  .acts button.ghost{background:transparent;color:var(--text);border-color:var(--border)}
-  .acts button:disabled{opacity:.5;cursor:default}
-  .pres{font-size:12.5px;margin-left:4px} .pres.ok{color:var(--accent)} .pres.bad{color:var(--warn)}
-  .statusgrid{display:flex;flex-wrap:wrap;gap:8px 16px;margin:4px 0 6px}
-  .skpi{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
-  .skpi b{font-weight:700} .ok{color:var(--accent)} .bad{color:var(--warn)} .warn{color:var(--cyan)}
-  .sh{font-size:13px;margin:16px 0 6px;color:var(--muted);text-transform:uppercase;letter-spacing:1px}
-  .wrow{font-size:12.5px;color:var(--muted);margin:4px 0}
-  .wdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px;vertical-align:middle}
-  .wdot.on{background:var(--accent);box-shadow:0 0 0 3px rgba(77,244,165,.18)} .wdot.off{background:var(--warn)}
-</style></head>
-<body><div class="wrap">
-  <h1>Holding Operations</h1>
-  <div class="sub">Source-backed only · financials/customers/legal shown as <span class="confirm">requires operator confirmation</span> until you verify them · read-only</div>
-  <div id="out"><div class="msg">Loading… (sign in via the KAI Command Center if this stays blank)</div></div>
-</div>
-<script>
-const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-const badge = c => c==='VERIFIED'?'<span class="badge v">verified</span>' : (c==='UNKNOWN'?'<span class="badge k">unknown</span>':'<span class="badge u">'+esc((c||'').toLowerCase())+'</span>');
-async function j(p){ const r=await fetch(p,{credentials:'same-origin'}); if(!r.ok) throw new Error(r.status); return r.json(); }
-function renderBriefing(b){
-  const k=b.kpis||{}, mv=b.kpi_movement||{}, ps=b.todays_priorities;
-  let h='<div class="panel"><h2>Morning briefing — '+esc(k.as_of||b.generated_at||'')+'</h2>';
-  h+='<div class="muted" style="margin-bottom:10px">'+esc(b.timezone)+' · '+esc(b.delivery)+'</div>';
-  h+='<div style="margin-bottom:8px">'
-    +'<span class="kpi">entities <b>'+esc(k.entities_total)+'</b></span>'
-    +'<span class="kpi">verified <b>'+esc(k.entities_verified)+'</b></span>'
-    +'<span class="kpi">open risks <b>'+esc(k.open_risks)+'</b></span>'
-    +'<span class="kpi">incidents <b>'+esc(k.open_incidents)+'</b></span>'
-    +'<span class="kpi">awaiting confirmation <b>'+esc(k.fields_awaiting_confirmation)+'</b></span>'
-    +'<span class="kpi">health <b>'+esc(k.health)+'</b></span></div>';
-  if(mv && mv.status){ h+='<div class="muted" style="margin-bottom:10px">movement: '+esc(mv.status)+'</div>'; }
-  else if(mv){
-    const d=(f,label,goodDown)=>{ const v=mv[f]; if(v==null) return ''; const cls=v===0?'':((goodDown? v<0:v>0)?'down':'up'); return '<span class="kpi '+cls+'">'+label+' <b>'+(v>0?'+':'')+esc(v)+'</b></span>'; };
-    h+='<div style="margin-bottom:10px"><span class="muted">movement since '+esc(mv.since)+':</span> '
-      +d('entities_verified','verified',false)+d('open_risks','risks',true)+d('open_incidents','incidents',true)+d('fields_awaiting_confirmation','pending',true)+'</div>';
+  /* KAI Omnipresent Holding Command OS (§148) — original Wheellsverse/KAI mission-control design.
+     Dark navy, cyan telemetry, blue system lines. Every displayed value is a live fetch through the
+     App A→App B bridge (/admin/kai/holding/*) or an explicit honest marker (§0 #16-19): UNAVAILABLE /
+     NOT_CONNECTED / INSUFFICIENT_DATA / PHASE_C_PENDING / REQUIRES_OPERATOR_CONFIRMATION. No number is
+     ever hardcoded or fabricated. State is never colour-alone (icon + label + text, §71). */
+  :root{
+    --bg:#070a12; --bg2:#0b0f1a; --panel:#0f1526; --panel2:#111a30; --border:#1c2743;
+    --border2:#26365c; --text:#e8edf5; --muted:#9aa6bd; --dim:#7f8aa1;
+    --cyan:#00e5ff; --blue:#4d7cff; --green:#38f5a5; --orange:#ff9d3c; --red:#ff4d5e; --purple:#b98cff;
+    --grid:rgba(77,124,255,.06); --glow:rgba(0,229,255,.35);
   }
-  if(Array.isArray(ps)){
-    h+='<h2 style="margin-top:6px">Today’s priorities <span class="muted" style="font-weight:400">('+ps.length+', ranked)</span></h2>';
-    for(const p of ps){
-      h+='<div class="prio"><span class="sev '+esc(p.severity)+'">'+esc(p.severity)+'</span>'
-        +'<div><div>'+esc(p.title)+'</div><div class="muted" style="font-size:11.5px">source: <code>'+esc(p.source)+'</code>'
-        +(p.detail?(' · '+esc(Array.isArray(p.detail)?p.detail.join(', '):p.detail)):'')+'</div></div></div>';
-    }
-  } else { h+='<div class="muted">'+esc(ps)+'</div>'; }
-  return h+'</div>';
+  *{box-sizing:border-box}
+  html,body{overflow-x:hidden}
+  body{margin:0;background:
+      radial-gradient(1200px 600px at 50% -10%, rgba(0,229,255,.06), transparent 60%),
+      linear-gradient(var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/40px 40px,
+      var(--bg);
+    color:var(--text);font:14px/1.55 'Space Grotesk',system-ui,-apple-system,Segoe UI,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .mono{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{max-width:1320px;margin:0 auto;padding:16px 16px 90px}
+  a{color:var(--cyan);text-decoration:none} a:hover{text-decoration:underline}
+
+  /* skip link (§71) */
+  .skip{position:absolute;left:-999px;top:8px;z-index:100;background:var(--panel);color:var(--cyan);
+    border:1px solid var(--cyan);border-radius:8px;padding:8px 14px}
+  .skip:focus{left:12px}
+
+  /* ── header ─────────────────────────────────────────────── */
+  header.hdr{display:flex;flex-wrap:wrap;align-items:center;gap:14px;
+    border:1px solid var(--border);border-radius:14px;padding:14px 18px;margin-bottom:16px;
+    background:linear-gradient(180deg,rgba(17,26,48,.9),rgba(15,21,38,.7));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.03), 0 0 40px rgba(0,229,255,.04)}
+  .brandmark{width:38px;height:38px;flex:0 0 auto}
+  .htitle{display:flex;flex-direction:column;gap:2px;min-width:0}
+  .htitle h1{font-size:17px;letter-spacing:.14em;margin:0;font-weight:700;text-transform:uppercase;
+    background:linear-gradient(90deg,#fff,var(--cyan));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .htitle .tag{font-size:11px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+  .hspace{flex:1 1 40px}
+  .cmdk{display:inline-flex;align-items:center;gap:7px;font:600 11.5px 'Space Grotesk',sans-serif;
+    letter-spacing:.05em;border-radius:9px;padding:8px 12px;cursor:pointer;color:var(--text);
+    border:1px solid var(--border2);background:rgba(77,124,255,.08)}
+  .cmdk:hover{border-color:var(--cyan);color:var(--cyan)}
+  .cmdk kbd{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font:600 10px 'JetBrains Mono',monospace}
+  .core{display:inline-flex;align-items:center;gap:9px;font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700}
+  .core .dot{width:11px;height:11px;border-radius:50%;background:var(--dim);position:relative}
+  .core[data-s="LIVE"] .dot{background:var(--green);box-shadow:0 0 0 4px rgba(56,245,165,.18)}
+  .core[data-s="LIVE"] .dot::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:1px solid var(--green);opacity:.6;animation:ring 2.4s ease-out infinite}
+  .core[data-s="DEGRADED"] .dot{background:var(--orange);box-shadow:0 0 0 4px rgba(255,157,60,.18)}
+  .core[data-s="OFFLINE"] .dot{background:var(--red);box-shadow:0 0 0 4px rgba(255,77,94,.14)}
+  .core .lbl{color:var(--muted)} .core .val{color:var(--text)}
+
+  /* ── auth banner ─────────────────────────────────────────── */
+  .authbar{border:1px solid rgba(255,157,60,.35);background:rgba(255,157,60,.06);color:#ffd9a8;
+    border-radius:10px;padding:9px 13px;font-size:12.5px;margin-bottom:14px;display:none}
+  .authbar.show{display:block}
+
+  /* ── layout ──────────────────────────────────────────────── */
+  .cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  .cols3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;align-items:start}
+  .stack{display:flex;flex-direction:column;gap:14px;min-width:0}
+  .panel{background:linear-gradient(180deg,rgba(17,26,48,.55),rgba(15,21,38,.55));
+    border:1px solid var(--border);border-radius:13px;padding:14px;min-width:0;margin-bottom:14px}
+  .panel > h2{font-size:12px;letter-spacing:.13em;text-transform:uppercase;margin:0 0 4px;color:var(--text);
+    display:flex;align-items:center;gap:8px;font-weight:700}
+  .panel > h2 .hint{margin-left:auto;font-size:10px;letter-spacing:.04em;color:var(--dim);text-transform:none;font-weight:400}
+  .panel .desc{font-size:11.5px;color:var(--dim);margin:0 0 10px}
+
+  /* ── honest state badges (§71) — icon + label + text, never colour alone ── */
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+    font-weight:700;border-radius:6px;padding:2px 7px;border:1px solid var(--border2);color:var(--muted);white-space:nowrap}
+  .badge .bi{font-size:10px;line-height:1}
+  .badge.ok{color:var(--green);border-color:rgba(56,245,165,.4);background:rgba(56,245,165,.06)}
+  .badge.info{color:var(--cyan);border-color:rgba(0,229,255,.4);background:rgba(0,229,255,.06)}
+  .badge.warn{color:var(--orange);border-color:rgba(255,157,60,.4);background:rgba(255,157,60,.06)}
+  .badge.crit{color:var(--red);border-color:rgba(255,77,94,.4);background:rgba(255,77,94,.07)}
+  .badge.off{color:var(--dim);border-color:var(--border);background:rgba(255,255,255,.01)}
+  .badge.pur{color:var(--purple);border-color:rgba(185,140,255,.4);background:rgba(185,140,255,.06)}
+
+  /* severity + confidence + provenance chips */
+  .sev{font-size:10px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;border-radius:5px;padding:2px 6px;white-space:nowrap}
+  .sev.CRITICAL{color:var(--red);border:1px solid rgba(255,77,94,.45);background:rgba(255,77,94,.08)}
+  .sev.HIGH{color:var(--orange);border:1px solid rgba(255,157,60,.4)}
+  .sev.MEDIUM{color:#ffe08a;border:1px solid rgba(255,224,138,.3)}
+  .sev.LOW{color:var(--muted);border:1px solid var(--border2)}
+  .sev.INFO{color:var(--cyan);border:1px solid rgba(0,229,255,.3)}
+
+  .muted{color:var(--muted)} .dim{color:var(--dim)}
+  .kvs{display:flex;flex-wrap:wrap;gap:6px 14px} .kv{font-size:11.5px;color:var(--muted)} .kv b{color:var(--text);font-weight:700}
+  .kv b.ok{color:var(--green)} .kv b.bad{color:var(--orange)} .kv b.info{color:var(--cyan)}
+  .row{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;padding:6px 0;border-top:1px solid var(--border)}
+  .row:first-of-type{border-top:0}
+  .loading{color:var(--dim);font-size:12px;padding:8px 0}
+  .empty{color:var(--muted);font-size:12px;padding:6px 0}
+  code{color:var(--cyan);font-family:'JetBrains Mono',monospace;font-size:11.5px}
+
+  /* cards / items */
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:11px;padding:12px}
+  .card .brand{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px}
+  .item{border:1px solid var(--border);border-radius:10px;padding:11px 13px;margin-top:10px;background:rgba(255,255,255,.01)}
+  .item:first-of-type{margin-top:0}
+  .itemhead{display:flex;align-items:flex-start;gap:9px;flex-wrap:wrap}
+  .itemhead b{font-size:13.5px;font-weight:600}
+  .meta{color:var(--dim);font-size:11px;margin-top:5px;letter-spacing:.02em}
+  .plan{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:12.5px} .plan li{margin:3px 0}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}
+  .prog{height:5px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:7px}
+  .prog i{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),var(--blue))}
+
+  /* action buttons */
+  .acts{display:flex;align-items:center;gap:8px;margin-top:11px;flex-wrap:wrap}
+  .btn{font:600 12px 'Space Grotesk',sans-serif;border-radius:8px;padding:6px 13px;cursor:pointer;
+    border:1px solid var(--accent,var(--green));background:var(--green);color:#04121a}
+  .btn.ghost{background:transparent;color:var(--text);border-color:var(--border2)}
+  .btn.ghost:hover{border-color:var(--cyan);color:var(--cyan)}
+  .btn:disabled{opacity:.5;cursor:default}
+  .btn.ev{font-size:11px;padding:5px 10px;background:rgba(0,229,255,.08);color:var(--cyan);border-color:rgba(0,229,255,.3)}
+  .btn.ev:hover{background:rgba(0,229,255,.16)}
+  .pres{font-size:12.5px;margin-left:4px} .pres.ok{color:var(--green)} .pres.bad{color:var(--orange)}
+  button:focus-visible,[tabindex]:focus-visible,a:focus-visible,.gnode:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;border-radius:4px}
+
+  /* ── health gauge (§57) ─────────────────────────────────── */
+  .gauge{display:flex;align-items:center;gap:16px;margin-bottom:8px;flex-wrap:wrap}
+  .gauge .gval{font-size:30px;font-weight:800;line-height:1}
+  .gauge .gband{font-size:12px;letter-spacing:.12em;text-transform:uppercase;font-weight:700;margin-top:3px}
+  .comps{list-style:none;margin:8px 0 0;padding:0}
+  .comps li{font-size:11.5px;color:var(--muted);padding:4px 0;display:flex;justify-content:space-between;gap:10px;border-top:1px solid var(--border)}
+  .comps li b{color:var(--text)}
+  .compbar{height:4px;border-radius:2px;background:var(--border);overflow:hidden;width:70px;flex:0 0 auto;align-self:center}
+  .compbar i{display:block;height:100%;background:var(--green)}
+
+  /* ── graph (§56) ─────────────────────────────────────────── */
+  .graphhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .graphhead h2{margin:0}
+  .gbtns{margin-left:auto;display:flex;gap:8px}
+  .gsvg{width:100%;height:auto;display:block;border-radius:12px;
+    background:radial-gradient(600px 340px at 50% 46%, rgba(0,229,255,.05), transparent 70%);
+    border:1px solid var(--border)}
+  .legend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:9px;font-size:11px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+  .ndetail{margin-top:10px;border:1px dashed var(--border2);border-radius:10px;padding:11px;font-size:12px;display:none}
+  .ndetail.show{display:block}
+  .ndetail h3{margin:0 0 7px;font-size:13px;letter-spacing:.03em}
+  .edge{stroke:var(--blue);stroke-width:1.4;opacity:.55;fill:none}
+  .edge.flow{stroke-dasharray:3 7;animation:flow 1.2s linear infinite}
+  .spoke{stroke:var(--blue);stroke-width:1;stroke-dasharray:2 6;opacity:.15;fill:none}
+  .gnode{cursor:pointer}
+  .gnode circle.body{stroke-width:1.6}
+  .gnode:hover circle.body,.gnode:focus circle.body{stroke:var(--cyan);stroke-width:2.4}
+  .gnode text{font:600 10px 'Space Grotesk',sans-serif;fill:var(--text)}
+  .gnode text.gglyph{font:700 12px 'Space Grotesk',sans-serif;fill:var(--text);pointer-events:none}
+
+  /* ── side drawer (evidence §59) + palette (§53) + graph modal — shared dialog styles ── */
+  .backdrop{position:fixed;inset:0;background:rgba(3,6,12,.62);z-index:2147482000;opacity:0;pointer-events:none;transition:opacity .2s}
+  .backdrop.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:-560px;width:520px;max-width:96vw;height:100vh;z-index:2147482200;
+    display:flex;flex-direction:column;background:var(--bg2);border-left:1px solid var(--border2);
+    box-shadow:-22px 0 60px rgba(0,0,0,.55);transition:right .24s cubic-bezier(.4,0,.2,1)}
+  .drawer.open{right:0}
+  .dhead{display:flex;align-items:center;gap:10px;justify-content:space-between;padding:15px 18px;border-bottom:1px solid var(--border)}
+  .dhead h3{margin:0;font-size:14px;letter-spacing:.05em}
+  .dclose{background:none;border:none;color:var(--muted);font-size:22px;line-height:1;cursor:pointer;padding:0 4px}
+  .dclose:hover{color:var(--text)}
+  .dbody{flex:1;overflow:auto;padding:16px 18px}
+  .evitem{border:1px solid var(--border);border-radius:10px;padding:11px;margin-bottom:11px;background:var(--panel)}
+  .evitem .evk{font-size:10.5px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+  .evitem .evrow{display:flex;justify-content:space-between;gap:10px;font-size:12px;padding:3px 0;border-top:1px solid var(--border)}
+  .evitem .evrow:first-of-type{border-top:0}
+  .evitem pre{margin:6px 0 0;font-size:11px;color:var(--muted);white-space:pre-wrap;word-break:break-word;font-family:'JetBrains Mono',monospace}
+
+  /* command palette */
+  .palette{position:fixed;top:12vh;left:50%;transform:translateX(-50%);width:640px;max-width:94vw;z-index:2147482300;
+    background:var(--bg2);border:1px solid var(--border2);border-radius:14px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+    display:none;flex-direction:column;overflow:hidden}
+  .palette.show{display:flex}
+  .palette input{width:100%;border:none;border-bottom:1px solid var(--border);background:transparent;color:var(--text);
+    font:15px 'Space Grotesk',sans-serif;padding:15px 18px;outline:none}
+  .palette input::placeholder{color:var(--dim)}
+  .presults{max-height:52vh;overflow:auto;padding:6px}
+  .presult{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;cursor:pointer;font-size:13px}
+  .presult .pk{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--dim);border:1px solid var(--border2);border-radius:5px;padding:1px 6px;flex:0 0 auto}
+  .presult .pt{min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .presult[aria-selected="true"],.presult:hover{background:rgba(0,229,255,.1)}
+  .pfoot{padding:8px 14px;border-top:1px solid var(--border);font-size:10.5px;color:var(--dim);display:flex;gap:14px}
+  .pfoot kbd{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:1px 5px;font:600 10px 'JetBrains Mono',monospace}
+
+  /* graph fullscreen modal */
+  .modal{position:fixed;inset:0;background:rgba(3,6,12,.94);z-index:2147482400;display:none;flex-direction:column;padding:14px}
+  .modal.show{display:flex}
+  .modal .mhead{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .modal .mbody{flex:1;overflow:auto}
+  .modal .mclose{margin-left:auto;font:600 12px 'Space Grotesk',sans-serif;border:1px solid var(--border2);
+    background:transparent;color:var(--text);border-radius:8px;padding:7px 13px;cursor:pointer}
+
+  .sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+  /* ── motion (§46/§70) — all animation OFF under reduced-motion ── */
+  @keyframes ring{0%{transform:scale(1);opacity:.6}100%{transform:scale(2.2);opacity:0}}
+  @keyframes flow{to{stroke-dashoffset:-20}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes corepulse{0%,100%{opacity:.85}50%{opacity:1}}
+  .corering.spin{transform-origin:center;animation:spin 26s linear infinite}
+  .corepulse{transform-origin:center;animation:corepulse 3.4s ease-in-out infinite}
+  @media (prefers-reduced-motion: reduce){
+    *,*::before,*::after{animation:none !important;transition:none !important}
+    .edge.flow{stroke-dasharray:none}
+  }
+
+  /* ── responsive (§144/§47) — stack at 390px; graph via fullscreen modal ── */
+  @media (max-width:1080px){ .cols2,.cols3{grid-template-columns:1fr} }
+  @media (max-width:640px){
+    .wrap{padding:12px 10px 80px}
+    header.hdr{padding:12px}
+    .htitle h1{font-size:14px;letter-spacing:.09em}
+    .grid{grid-template-columns:1fr}
+    #graphInline{display:none}   /* graph opens as a fullscreen modal on small screens */
+    #graphOpen{display:inline-flex}
+    .drawer{width:100vw;right:-100vw}
+    .palette{top:6vh;width:96vw}
+  }
+  #graphOpen{display:none}
+</style></head>
+<body>
+<a class="skip" href="#main">Skip to main content</a>
+<div class="wrap">
+  <header class="hdr" role="banner">
+    <svg class="brandmark" viewBox="0 0 40 40" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="none" stroke="var(--cyan)" stroke-width="1.4" opacity=".5"/>
+      <circle cx="20" cy="20" r="11" fill="none" stroke="var(--blue)" stroke-width="1.4" opacity=".7"/>
+      <circle cx="20" cy="20" r="4.2" fill="var(--cyan)"/>
+      <path d="M20 3 V9 M20 31 V37 M3 20 H9 M31 20 H37" stroke="var(--cyan)" stroke-width="1.3" opacity=".7"/>
+    </svg>
+    <div class="htitle">
+      <h1>KAI Holding Command</h1>
+      <span class="tag">Wheellsverse Omnipresent Holding OS &middot; Read-only &middot; Source-backed</span>
+    </div>
+    <div class="hspace"></div>
+    <button class="cmdk" id="cmdkBtn" aria-haspopup="dialog" aria-label="Open command palette">
+      <span aria-hidden="true">⌘</span> Command <kbd>K</kbd>
+    </button>
+    <span class="core" id="core" data-s="OFFLINE" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="lbl">Holding health</span> <span class="val" id="coreState">CONNECTING…</span>
+    </span>
+  </header>
+
+  <div class="authbar" id="authbar" role="status"></div>
+
+  <main id="main">
+  <div class="cols2">
+    <div class="stack">
+      <section class="panel" id="p-today" aria-labelledby="h-today">
+        <h2 id="h-today">Today For You <span class="hint">§25 irreducible owner steps</span></h2>
+        <div id="todayBody"><div class="loading">Loading…</div></div>
+      </section>
+      <section class="panel" id="p-attention" aria-labelledby="h-attn">
+        <h2 id="h-attn">Current Attention <span class="hint">§17 · bounded, no hidden reasoning</span></h2>
+        <div id="attnBody"><div class="loading">Loading…</div></div>
+      </section>
+    </div>
+    <div class="stack">
+      <section class="panel" id="p-brief" aria-labelledby="h-brief">
+        <h2 id="h-brief">KAI Brief <span class="hint">§13 · source-cited</span></h2>
+        <div id="briefBody"><div class="loading">Loading…</div></div>
+      </section>
+    </div>
+  </div>
+
+  <section class="panel" id="p-working" aria-labelledby="h-work">
+    <h2 id="h-work">KAI Working Now <span class="hint">§29 · live per-mission · writes shown honestly</span></h2>
+    <p class="desc">One row per active mission, derived live from its linked worker jobs + owner proposals. <b>writes = NONE</b> while autonomy is dark (0 executions) — never fabricated progress.</p>
+    <div id="workBody"><div class="loading">Loading…</div></div>
+  </section>
+
+  <div class="cols2">
+    <section class="panel" id="p-problems" aria-labelledby="h-prob">
+      <h2 id="h-prob">Problems <span class="hint">§18 · one deduped stream</span></h2>
+      <p class="desc">Causes are always candidate hypotheses — never a single confirmed root cause. Each card cites real evidence.</p>
+      <div id="probBody"><div class="loading">Loading…</div></div>
+    </section>
+    <section class="panel" id="p-opps" aria-labelledby="h-opp">
+      <h2 id="h-opp">Opportunities <span class="hint">§20 · evidence-backed only</span></h2>
+      <p class="desc">Growth / consolidation / reliability opportunities with a cited gap. Generic ideas (no evidence) are dropped.</p>
+      <div id="oppBody"><div class="loading">Loading…</div></div>
+    </section>
+  </div>
+
+  <section class="panel" id="p-decisions" aria-labelledby="h-dec">
+    <h2 id="h-dec">Decisions For You <span class="hint">§24/§25 · KAI proposes, you decide</span></h2>
+    <p class="desc">Approval records a decision only. Execute runs a proposal's READ-ONLY action (re-probe / gather evidence) — no writes, money, or deploys.</p>
+    <div id="decBody"><div class="loading">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="p-companies" aria-labelledby="h-co">
+    <h2 id="h-co">Companies <span class="hint">§14 · dynamically discovered</span></h2>
+    <div id="coBody"><div class="loading">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="p-missions" aria-labelledby="h-mis">
+    <h2 id="h-mis">Missions <span class="hint">§27 · wraps plan/proposals/worker-jobs</span></h2>
+    <p class="desc">A mission is COMPLETE only with real verified evidence — code-only "done" derives to READY_FOR_REVIEW.</p>
+    <div id="misBody"><div class="loading">Loading…</div></div>
+  </section>
+
+  <div class="cols3">
+    <section class="panel" id="p-workers" aria-labelledby="h-wrk">
+      <h2 id="h-wrk">Workers <span class="hint">§30</span></h2>
+      <div id="wrkBody"><div class="loading">Loading…</div></div>
+    </section>
+    <section class="panel" id="p-caps" aria-labelledby="h-cap">
+      <h2 id="h-cap">Capabilities <span class="hint">§37/§38</span></h2>
+      <div id="capBody"><div class="loading">Loading…</div></div>
+    </section>
+    <section class="panel" id="p-autonomy" aria-labelledby="h-auto">
+      <h2 id="h-auto">Autonomy <span class="hint">§23 · fail-closed</span></h2>
+      <div id="autoBody"><div class="loading">Loading…</div></div>
+    </section>
+  </div>
+
+  <section class="panel" id="p-deploy" aria-labelledby="h-dep">
+    <h2 id="h-dep">Deployments &amp; Drift <span class="hint">§7-10 · deployed ≠ enabled</span></h2>
+    <div id="depBody"><div class="loading">Loading…</div></div>
+  </section>
+
+  <section class="panel" id="p-selfmodel" aria-labelledby="h-sm">
+    <h2 id="h-sm">Operational Self Model <span class="hint">§62 · operational only, no consciousness claim</span></h2>
+    <div id="smBody"><div class="loading">Loading…</div></div>
+  </section>
+
+  <div class="cols2">
+    <section class="panel" id="p-health" aria-labelledby="h-hl">
+      <h2 id="h-hl">System Health <span class="hint" id="hlVer">§57</span></h2>
+      <p class="desc">Deterministic, versioned weighted average over ONLY measured dimensions. An unconnected source is INSUFFICIENT_DATA and dropped — never scored healthy, never a fabricated number.</p>
+      <div id="hlBody"><div class="loading">Loading…</div></div>
+    </section>
+    <section class="panel" id="p-timeline" aria-labelledby="h-tl">
+      <h2 id="h-tl">Timeline <span class="hint">§61 · observable events only</span></h2>
+      <div id="tlBody"><div class="loading">Loading…</div></div>
+    </section>
+  </div>
+
+  <section class="panel" id="p-graph" aria-labelledby="h-gr">
+    <div class="graphhead">
+      <h2 id="h-gr">System Graph <span class="hint">§56 · real registries, provenance-tagged</span></h2>
+      <div class="gbtns"><button class="btn ghost" id="graphOpen" aria-haspopup="dialog">Open fullscreen</button></div>
+    </div>
+    <p class="desc">Companies + the §14 owned_by hierarchy around the KAI core. Every node/edge cites a real source; topology is never fabricated.</p>
+    <div id="graphInline"><div class="loading">Loading graph…</div></div>
+    <div class="legend" id="legend" hidden>
+      <span><i style="background:var(--cyan)"></i>Company / entity</span>
+      <span><i style="background:var(--blue)"></i>Deployment</span>
+      <span><i style="background:var(--purple)"></i>Vendor</span>
+      <span><i style="background:var(--green)"></i>Monitor</span>
+      <span><i style="background:var(--dim)"></i>Domain / other</span>
+    </div>
+    <div class="ndetail" id="ndetail" role="region" aria-live="polite"></div>
+  </section>
+
+  <div class="cols2">
+    <section class="panel" id="p-finance" aria-labelledby="h-fin">
+      <h2 id="h-fin">Finance &amp; Customer <span class="hint">§45/§46 · MONEY_MODE governs</span></h2>
+      <p class="desc">Money/customer facts stay REQUIRES_OPERATOR_CONFIRMATION / UNAVAILABLE until authoritative sources (Stripe/CRM/billing) are wired. No number is invented.</p>
+      <div id="finBody"><div class="loading">Loading…</div></div>
+    </section>
+    <section class="panel" id="p-security" aria-labelledby="h-sec">
+      <h2 id="h-sec">Security <span class="hint">§48 · defensive</span>
+        <a href="/admin/security/cyber-operations" style="margin-left:auto;font-size:11px;font-weight:400">Open Command Center →</a></h2>
+      <div id="secBody"><div class="loading">Loading security overview…</div></div>
+    </section>
+  </div>
+  </main>
+</div>
+
+<!-- ── Evidence drawer (§59) — reusable SHOW EVIDENCE. Secrets redacted client-side (belt & braces). ── -->
+<div class="backdrop" id="evBack"></div>
+<aside class="drawer" id="evDrawer" role="dialog" aria-modal="true" aria-labelledby="evTitle" aria-hidden="true">
+  <div class="dhead"><h3 id="evTitle">Evidence</h3><button class="dclose" id="evClose" aria-label="Close evidence">✕</button></div>
+  <div class="dbody" id="evBody"></div>
+</aside>
+
+<!-- ── Command palette (§53) ── -->
+<div class="backdrop" id="palBack"></div>
+<div class="palette" id="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+  <input id="palInput" type="text" placeholder="Ask KAI, search holding, open a company, show a problem…"
+         autocomplete="off" spellcheck="false" role="combobox" aria-expanded="true" aria-controls="palResults" aria-activedescendant="">
+  <div class="presults" id="palResults" role="listbox" aria-label="Commands and results"></div>
+  <div class="pfoot"><span><kbd>↑</kbd><kbd>↓</kbd> navigate</span><span><kbd>↵</kbd> select</span><span><kbd>esc</kbd> close</span></div>
+</div>
+
+<!-- ── graph fullscreen modal (mobile §47) ── -->
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-label="System graph fullscreen">
+  <div class="mhead">
+    <strong style="letter-spacing:.1em;text-transform:uppercase;font-size:13px">System Graph</strong>
+    <button class="mclose" id="modalClose">Close ✕</button>
+  </div>
+  <div class="mbody" id="modalBody"></div>
+</div>
+
+<script>
+"use strict";
+/* ────────────────────────────────────────────────────────────────────────────
+   KAI Holding Command — client. ZERO hardcoded finding / metric / number: every
+   displayed value comes from a /admin/kai/holding/* (or /admin/kai/cyber/*) fetch
+   through the App A→App B bridge, or is rendered as an explicit honest marker.
+   Bounded + timed-out, credentialed fetches (§72). All animation respects
+   prefers-reduced-motion (CSS). State is never colour-alone (badge = icon+text).
+   ──────────────────────────────────────────────────────────────────────────── */
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $ = id => document.getElementById(id);
+const num = v => (typeof v==='number');
+const arr = v => Array.isArray(v)?v:[];
+
+/* One bounded, credentialed, timed-out GET (AbortController + 9s). */
+async function bfetch(url){
+  const ctrl = new AbortController();
+  const timer = setTimeout(()=>ctrl.abort(), 9000);
+  try{ return await fetch(url, {credentials:'include', signal:ctrl.signal, headers:{'Accept':'application/json'}}); }
+  finally{ clearTimeout(timer); }
 }
-function renderProposals(d){
-  const open=d.open||[];
-  let h='<div class="panel"><h2>KAI proposals <span class="muted" style="font-weight:400">('+open.length+' open · KAI proposes, you decide)</span></h2>';
-  h+='<div class="muted" style="font-size:12.5px;margin-bottom:12px">'+esc(d.note||'')+'</div>';
-  if(!open.length){ return h+'<div class="muted">No open proposals — nothing needs a decision right now.</div></div>'; }
+/* Any non-2xx / network / timeout -> a typed NOT_CONNECTED marker (never invents data). */
+async function api(path){
+  try{
+    const r = await bfetch(path);
+    if(!r.ok) return {__unavailable:true, __http:r.status};
+    return await r.json();
+  }catch(e){
+    return {__unavailable:true, __err: e && e.name==='AbortError' ? 'timeout' : String(e&&e.message||e)};
+  }
+}
+const failed = d => !d || d.__unavailable === true;
+
+/* Honest state badge — icon + label + text (never colour alone, §71). */
+const STATE_META = {
+  WORKING:{c:'ok',i:'✓'}, LIVE:{c:'ok',i:'✓'}, READY:{c:'ok',i:'✓'}, CONNECTED:{c:'ok',i:'✓'},
+  IN_SYNC:{c:'ok',i:'✓'}, MET:{c:'ok',i:'✓'}, ACTIVE:{c:'info',i:'▸'}, ENABLED:{c:'ok',i:'✓'},
+  MONITORING:{c:'info',i:'◉'}, IDLE:{c:'off',i:'○'}, PROPOSED:{c:'off',i:'○'},
+  PLANNING:{c:'info',i:'▹'}, WAITING:{c:'warn',i:'◷'}, WAITING_FOR_APPROVAL:{c:'warn',i:'◷'},
+  VERIFYING:{c:'info',i:'◈'}, READY_FOR_REVIEW:{c:'warn',i:'⚑'}, BLOCKED:{c:'crit',i:'⛔'},
+  COMPLETE:{c:'ok',i:'✓'}, FAILED:{c:'crit',i:'✕'}, CANCELLED:{c:'off',i:'⊘'},
+  GAP:{c:'warn',i:'△'}, PARTIAL:{c:'warn',i:'◐'}, DEGRADED:{c:'warn',i:'!'},
+  DISABLED:{c:'off',i:'⊘'}, DISABLED_WITH_REASON:{c:'warn',i:'⊘'},
+  NOT_CONNECTED:{c:'off',i:'○'}, 'NOT CONNECTED':{c:'off',i:'○'},
+  UNAVAILABLE:{c:'off',i:'○'}, UNKNOWN:{c:'off',i:'?'}, OFFLINE:{c:'crit',i:'✕'},
+  INSUFFICIENT_DATA:{c:'off',i:'○'}, PHASE_C_PENDING:{c:'info',i:'⧗'},
+  REQUIRES_OPERATOR_CONFIRMATION:{c:'warn',i:'⚑'},
+  REAL:{c:'ok',i:'●'}, DERIVED:{c:'info',i:'◐'},
+  HIGH:{c:'ok',i:'▲'}, LOW:{c:'off',i:'▽'},
+};
+function badge(state, label){
+  const key = String(state==null?'':state);
+  const m = STATE_META[key] || {c:'off',i:'○'};
+  return '<span class="badge '+m.c+'" title="'+esc(key)+'"><span class="bi" aria-hidden="true">'+m.i+
+    '</span>'+esc(label||key.replace(/_/g,' ')||'—')+'</span>';
+}
+/* A metric that is a number renders as the number; anything else renders as an honest marker. Never a fake 0. */
+function metric(v){ return num(v) ? '<b>'+esc(v)+'</b>' : badge(v); }
+const sevChip = s => '<span class="sev '+esc(String(s||'MEDIUM').toUpperCase())+'">'+esc(String(s||'—').toUpperCase())+'</span>';
+const conf = c => { const u=String(c||'UNKNOWN').toUpperCase();
+  return '<span class="badge '+(u==='HIGH'?'ok':u==='MEDIUM'?'warn':u==='LOW'?'off':'off')+'" title="evidence quality">'
+    +'<span class="bi" aria-hidden="true">'+(u==='HIGH'?'▲':u==='MEDIUM'?'◆':'▽')+'</span>conf '+esc(u.toLowerCase())+'</span>'; };
+function fmtTs(ts){
+  if(!ts || ts==='UNKNOWN' || ts==='UNAVAILABLE') return esc(ts||'—');
+  const d = new Date(ts); if(isNaN(d)) return esc(ts);
+  return d.toISOString().replace('T',' ').replace(/\.\d+Z$/,'Z').replace('Z','');
+}
+/* generic honest-failure body */
+function honest(d, what){
+  const reason = d && d.__http ? ('HTTP '+d.__http+(d.__http===401||d.__http===403?' — owner sign-in required'
+      : d.__http===404?' — feature off (KAI_HOLDING_ENABLED) or no backend':''))
+    : d && d.__err ? d.__err : 'no backend reachable';
+  return '<div>'+badge('NOT_CONNECTED')+'</div>'
+    + '<div class="empty">'+esc(what)+' not connected: '+esc(reason)+'. No value is fabricated.</div>';
+}
+const emptyMsg = t => '<div class="empty">'+esc(t)+'</div>';
+
+/* ── evidence drawer (§59) ─────────────────────────────────────────────────── */
+const EVID = {};                       // id -> {title, items, meta}
+let _evKey = 0;
+function stashEvidence(title, items, meta){
+  const k = 'ev'+(++_evKey);
+  EVID[k] = {title, items: arr(items), meta: meta||{}};
+  return k;
+}
+const _SECRET_RE = /(token|secret|password|passwd|api[_-]?key|apikey|authorization|bearer|credential|private[_-]?key)/i;
+function redact(v){
+  if(Array.isArray(v)) return v.map(redact);
+  if(v && typeof v==='object'){ const o={}; for(const k of Object.keys(v)){ o[k]=_SECRET_RE.test(k)?'[REDACTED]':redact(v[k]); } return o; }
+  if(typeof v==='string' && v.length>16 && /^(sk-|ghp_|xox|eyJ|Bearer )/.test(v)) return '[REDACTED]';
+  return v;
+}
+function evBtn(title, items, meta){
+  if(!arr(items).length) return '';
+  const k = stashEvidence(title, items, meta);
+  return '<button class="btn ev" data-ev="'+k+'" aria-haspopup="dialog">Show evidence ('+arr(items).length+')</button>';
+}
+function renderEvidenceItem(it){
+  if(it==null) return '';
+  if(typeof it!=='object'){ return '<div class="evitem"><pre>'+esc(String(it))+'</pre></div>'; }
+  const r = redact(it);
+  // surface §59 facets when present: source / timestamp / artifact / confidence / freshness
+  const facet = (k,label)=> r[k]!=null ? '<div class="evrow"><span class="evk">'+label+'</span><span>'+esc(String(r[k]))+'</span></div>' : '';
+  let head = facet('source','source')+facet('source_type','source')+facet('source_key','source key')
+           + facet('timestamp','timestamp')+facet('observed_at','observed')+facet('ts','timestamp')
+           + facet('artifact','artifact')+facet('correlation_id','correlation')+facet('event_id','event id')
+           + facet('confidence','confidence')+facet('freshness','freshness')+facet('provenance','provenance');
+  const shown = new Set(['source','source_type','source_key','timestamp','observed_at','ts','artifact',
+    'correlation_id','event_id','confidence','freshness','provenance']);
+  const rest = {}; for(const k of Object.keys(r)) if(!shown.has(k)) rest[k]=r[k];
+  let body = Object.keys(rest).length ? '<pre>'+esc(JSON.stringify(rest,null,2))+'</pre>' : '';
+  if(!head && !body) body='<pre>'+esc(JSON.stringify(r,null,2))+'</pre>';
+  return '<div class="evitem">'+head+body+'</div>';
+}
+let _evPrevFocus=null;
+function openEvidence(k){
+  const e = EVID[k]; if(!e) return;
+  $('evTitle').textContent = e.title || 'Evidence';
+  const meta = e.meta||{};
+  let h='';
+  if(meta.subtitle) h+='<p class="dim" style="margin:0 0 12px">'+esc(meta.subtitle)+'</p>';
+  if(meta.confidence) h+='<div style="margin-bottom:12px">'+conf(meta.confidence)+' <span class="dim" style="font-size:11px">§58 evidence quality</span></div>';
+  h += e.items.length ? e.items.map(renderEvidenceItem).join('') : emptyMsg('No evidence records.');
+  h += '<p class="dim" style="font-size:10.5px;margin-top:10px">Secrets are redacted. Evidence is real source data — never a fabricated cite (§0 #16-19).</p>';
+  $('evBody').innerHTML = h;
+  _evPrevFocus = document.activeElement;
+  $('evBack').classList.add('show'); $('evDrawer').classList.add('open'); $('evDrawer').setAttribute('aria-hidden','false');
+  document.addEventListener('keydown', evTrap, true);
+  $('evClose').focus();
+}
+function closeEvidence(){
+  const d=$('evDrawer'); if(!d.classList.contains('open')) return;
+  d.classList.remove('open'); d.setAttribute('aria-hidden','true'); $('evBack').classList.remove('show');
+  document.removeEventListener('keydown', evTrap, true);
+  if(_evPrevFocus && document.contains(_evPrevFocus)) _evPrevFocus.focus();
+}
+function evTrap(e){
+  if(e.key==='Escape'){ e.preventDefault(); closeEvidence(); return; }
+  if(e.key!=='Tab') return;
+  const f=$('evDrawer').querySelectorAll('button,[href],[tabindex]:not([tabindex="-1"])');
+  if(!f.length) return; const first=f[0], last=f[f.length-1];
+  if(e.shiftKey && document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey && document.activeElement===last){ e.preventDefault(); first.focus(); }
+}
+$('evClose').addEventListener('click', closeEvidence);
+$('evBack').addEventListener('click', closeEvidence);
+document.addEventListener('click', e=>{ const b=e.target.closest('[data-ev]'); if(b) openEvidence(b.dataset.ev); });
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   SECTION RENDERERS — each takes the relevant slice of the /view aggregate (or the
+   NOT_CONNECTED marker) and renders honestly. All content is derived from the fetch.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* §25 TODAY FOR YOU */
+function renderToday(v){
+  const el=$('todayBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Today'); return; }
+  const t = v.today_for_you;
+  if(!Array.isArray(t)){ el.innerHTML = emptyMsg(String(t||'No action required right now.')); return; }
+  if(!t.length){ el.innerHTML = emptyMsg('No action required right now — nothing needs a decision.'); return; }
+  let h='';
+  for(const a of t){
+    h+='<div class="item"><div class="itemhead">'+sevChip(a.severity||'MEDIUM')
+      +'<b>'+esc(a.title||'')+'</b> <span class="dim">'+esc(a.company||'')+'</span></div>'
+      +'<div class="meta">'+esc(a.why||'')+(a.kai_completed?(' · KAI already did: '+esc(a.kai_completed)):'')+'</div>'
+      +(a.action?'<div class="meta">action: '+esc(a.action)+'</div>':'')
+      + regSearch(a.title, 'today', ()=>jump('p-today'))
+      +'</div>';
+  }
+  if(v.today_overflow) h+='<div class="dim" style="margin-top:8px;font-size:11.5px">'+esc(v.today_overflow)+'</div>';
+  el.innerHTML = h;
+}
+
+/* §17 CURRENT ATTENTION */
+function renderAttention(v){
+  const el=$('attnBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Attention'); return; }
+  const a = v.attention||{};
+  if(a.status==='UNAVAILABLE' || (!a.focus_state)){ el.innerHTML = '<div>'+badge('UNAVAILABLE')+'</div>'+emptyMsg('Attention model unavailable.'); return; }
+  let h = '<div style="margin-bottom:8px">'+badge(a.focus_state)+' <span class="dim" style="font-size:11.5px">'+esc(a.summary||'')+'</span></div>';
+  h += '<div class="kvs">'
+    + '<span class="kv">company <b>'+esc(a.current_company||'—')+'</b></span>'
+    + '<span class="kv">mission <b>'+esc(a.primary_mission||'—')+'</b></span>'
+    + '<span class="kv">pending approvals <b>'+esc(a.pending_approval)+'</b></span>'
+    + '<span class="kv">worker jobs <b>'+arr(a.active_worker_jobs).length+'</b></span></div>';
+  if(a.priority_reason && a.priority_reason!=='UNAVAILABLE') h+='<div class="meta" style="margin-top:6px">why: '+esc(a.priority_reason)+'</div>';
+  if(a.current_blocker && a.current_blocker!=='UNAVAILABLE') h+='<div class="meta">blocker: '+esc(a.current_blocker)+'</div>';
+  const so = arr(a.secondary_observations);
+  if(so.length){ h+='<ul class="plan">'+so.map(o=>'<li>'+esc(o.observation||o)+'</li>').join('')+'</ul>'; }
+  h += '<div class="dim" style="font-size:10.5px;margin-top:8px">Bounded read of live state — hidden reasoning exposed: '+String(!!a.hidden_reasoning_exposed)+' (§17/§87).</div>';
+  el.innerHTML = h;
+}
+
+/* §13 KAI BRIEF (from /briefing) */
+function renderBrief(b){
+  const el=$('briefBody');
+  if(failed(b)){ el.innerHTML = honest(b,'Briefing'); return; }
+  const k=b.kpis||{}, ps=b.todays_priorities;
+  let h='<div class="dim" style="font-size:11.5px;margin-bottom:8px">'+esc(k.as_of||b.generated_at||'')+' · '+esc(b.timezone||'')+' · '+esc(b.delivery||'')+'</div>';
+  h+='<div class="kvs" style="margin-bottom:8px">'
+    +'<span class="kv">entities <b>'+esc(k.entities_total)+'</b></span>'
+    +'<span class="kv">verified <b>'+esc(k.entities_verified)+'</b></span>'
+    +'<span class="kv">open risks <b>'+esc(k.open_risks)+'</b></span>'
+    +'<span class="kv">incidents <b>'+esc(k.open_incidents)+'</b></span>'
+    +'<span class="kv">awaiting confirm <b>'+esc(k.fields_awaiting_confirmation)+'</b></span>'
+    +'<span class="kv">health <b>'+esc(k.health)+'</b></span></div>';
+  if(Array.isArray(ps)){
+    h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:6px 0 2px">Priorities ('+ps.length+', ranked)</div>';
+    for(const p of ps){
+      h+='<div class="row"><span>'+sevChip(p.severity)+' '+esc(p.title)+'</span></div>'
+        +'<div class="meta">source: <code>'+esc(p.source)+'</code>'+(p.detail?(' · '+esc(Array.isArray(p.detail)?p.detail.join(', '):p.detail)):'')+'</div>';
+    }
+  } else if(ps!=null){ h+=emptyMsg(String(ps)); }
+  el.innerHTML = h;
+}
+
+/* §29 KAI WORKING NOW (derived from view.missions — active, non-terminal, non-PROPOSED) */
+const _WORKING = new Set(['PLANNING','ACTIVE','WAITING','WAITING_FOR_APPROVAL','BLOCKED','VERIFYING','READY_FOR_REVIEW']);
+function renderWorking(v){
+  const el=$('workBody');
+  if(failed(v)){ el.innerHTML = honest(v,'KAI working'); return; }
+  const rows = arr(v.missions).filter(m=>_WORKING.has(m.status));
+  if(!rows.length){ el.innerHTML = emptyMsg('KAI is not working on any mission now — the persistent cycle is not running live (honestly idle, not fabricated).'); return; }
+  let h='';
+  for(const m of rows){
+    const writes = m.writes;
+    const wlabel = (!writes || writes==='NONE' || (Array.isArray(writes)&&!writes.length)) ? badge('DISABLED','writes: NONE') : '<span class="badge warn"><span class="bi" aria-hidden="true">✎</span>writes: '+arr(writes).length+'</span>';
+    h+='<div class="item"><div class="itemhead">'+badge(m.status)
+      +'<b>'+esc(m.objective||m.mission_id)+'</b> <span class="dim">'+esc(m.company||'')+'</span></div>'
+      +'<div class="meta">action: '+esc(m.action||'—')+(m.capability?(' · cap '+esc(m.capability)):'')
+        +(m.worker?(' · worker '+esc(m.worker)):'')+' · started '+fmtTs(m.started_at)+'</div>'
+      +'<div class="meta">next: '+esc(m.next_step||'—')+' · progress '+esc(m.progress||'0/0')+' · '+wlabel+'</div>'
+      +'<div class="chips">'+evBtn('Mission evidence · '+(m.objective||m.mission_id), m.evidence, {subtitle:'mission '+esc(m.mission_id)})+'</div></div>';
+  }
+  el.innerHTML = h;
+}
+
+/* §18 PROBLEMS + §55 cross-company shared issues */
+function renderProblems(v){
+  const el=$('probBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Problems'); return; }
+  const ps = arr(v.problems), cc = arr(v.cross_company);
+  let h='';
+  if(!ps.length && !cc.length){ el.innerHTML = emptyMsg('No problems detected across the operational, code-defect, drift, mission-failure, security or stale-plan streams.'); return; }
+  for(const p of ps){
+    h+='<div class="item"><div class="itemhead">'+sevChip(p.severity)+' '+conf(p.confidence)
+      +(p.owner_required?'<span class="badge warn"><span class="bi" aria-hidden="true">⚑</span>owner</span>':'')
+      +'<b>'+esc(p.observed_facts||p.category)+'</b></div>'
+      +'<div class="meta"><code>'+esc(p.category)+'</code> · '+esc(p.company)+'/'+esc(p.system)+' · impact: '+esc(p.impact)+'</div>';
+    if(arr(p.possible_causes).length){ h+='<div class="meta">possible causes (hypotheses): '+esc(p.possible_causes.join('; '))+'</div>'; }
+    if(arr(p.recommended_actions).length){ h+='<div class="chips">'+p.recommended_actions.map(a=>'<span class="badge info">'+esc(a)+'</span>').join('')+'</div>'; }
+    h+='<div class="chips">'+evBtn('Problem evidence · '+(p.observed_facts||p.category), p.evidence, {confidence:p.confidence, subtitle:esc(p.root_signature)})+'</div></div>';
+    regSearch(p.observed_facts||p.category, 'problem', ()=>jump('p-problems'));
+  }
+  if(cc.length){
+    h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:12px 0 4px">Cross-company shared issues (§55)</div>';
+    for(const i of cc){
+      h+='<div class="item"><div class="itemhead">'+sevChip(i.severity)+' '+conf(i.confidence)
+        +'<b>'+esc(i.observed_facts||i.issue_type)+'</b></div>'
+        +'<div class="meta"><code>'+esc(i.issue_type)+'</code> · companies: '+esc(arr(i.companies).join(', '))+' · shared: '+esc(i.shared_resource)+'</div>'
+        +'<div class="chips">'+evBtn('Shared-issue evidence · '+i.issue_type, i.evidence, {confidence:i.confidence})+'</div></div>';
+    }
+  }
+  el.innerHTML = h;
+}
+
+/* §20 OPPORTUNITIES */
+function renderOpps(v){
+  const el=$('oppBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Opportunities'); return; }
+  const os = arr(v.opportunities);
+  if(!os.length){ el.innerHTML = emptyMsg('No evidence-backed opportunities right now.'); return; }
+  let h='';
+  for(const o of os){
+    h+='<div class="item"><div class="itemhead"><span class="badge pur"><span class="bi" aria-hidden="true">✦</span>'+esc(o.category||'GROWTH')+'</span>'
+      +conf(o.confidence)+'<b>'+esc(o.title)+'</b> <span class="dim">'+esc(o.company||'')+'</span></div>'
+      +'<div class="meta">why now: '+esc(o.why_now||'—')+'</div>'
+      +'<div class="meta">benefit: '+esc(o.expected_benefit)+' · effort '+esc(o.effort)+' · risk '+esc(o.risk)
+        +(o.owner_impact?' · owner decision':'')+'</div>'
+      +(o.recommended_next_step&&o.recommended_next_step!=='UNKNOWN'?'<div class="meta">next: '+esc(o.recommended_next_step)+'</div>':'')
+      +'<div class="chips">'+evBtn('Opportunity evidence · '+o.title, o.evidence, {confidence:o.confidence})+'</div></div>';
+    regSearch(o.title, 'opportunity', ()=>jump('p-opps'));
+  }
+  el.innerHTML = h;
+}
+
+/* §24/§25 DECISIONS FOR YOU (from /proposals — approve / reject / execute) */
+function renderDecisions(d){
+  const el=$('decBody');
+  if(failed(d)){ el.innerHTML = honest(d,'Decisions'); return; }
+  const open = arr(d.open);
+  if(!open.length){ el.innerHTML = emptyMsg('No open proposals — nothing needs a decision right now.'); return; }
+  let h='<div class="dim" style="font-size:11.5px;margin-bottom:8px">'+esc(d.note||'')+'</div>';
   for(const p of open){
     const a=p.action||{};
-    h+='<div class="prop"><div class="prophead"><span class="sev '+esc(p.severity)+'">'+esc(p.severity)+'</span>'
-      +'<b>'+esc(a.proposed_action||p.title)+'</b></div>'
-      +'<div class="pmeta">'+esc(a.action_class||'')+' · impact '+esc(a.impact||'—')+' · '+esc(a.effort||'—')
-      +(a.worker?(' · via <code>'+esc(a.worker)+'</code> worker'):'')+' · reversible</div>'
-      +'<ol class="plan">'+((a.plan)||[]).map(s=>'<li>'+esc(s)+'</li>').join('')+'</ol>'
-      +'<div class="acts"><button data-act="approve" data-id="'+p.id+'">Approve</button>'
-      +'<button class="ghost" data-act="reject" data-id="'+p.id+'">Reject</button>'
-      +'<button class="ghost" data-act="execute" data-id="'+p.id+'">Execute</button>'
-      +'<span class="pres" id="pr-'+p.id+'"></span></div></div>';
+    h+='<div class="item"><div class="itemhead">'+sevChip(p.severity)+'<b>'+esc(a.proposed_action||p.title)+'</b></div>'
+      +'<div class="meta">'+esc(a.action_class||'')+' · impact '+esc(a.impact||'—')+' · '+esc(a.effort||'—')
+        +(a.worker?(' · via <code>'+esc(a.worker)+'</code>'):'')+' · reversible</div>'
+      +(arr(a.plan).length?('<ol class="plan">'+a.plan.map(s=>'<li>'+esc(s)+'</li>').join('')+'</ol>'):'')
+      +'<div class="acts"><button class="btn" data-act="approve" data-id="'+esc(p.id)+'">Approve</button>'
+      +'<button class="btn ghost" data-act="reject" data-id="'+esc(p.id)+'">Reject</button>'
+      +'<button class="btn ghost" data-act="execute" data-id="'+esc(p.id)+'">Execute</button>'
+      +evBtn('Proposal evidence · '+(a.proposed_action||p.title), a.evidence||p.evidence, {})
+      +'<span class="pres" id="pr-'+esc(p.id)+'" role="status" aria-live="polite"></span></div></div>';
   }
-  return h+'</div>';
+  el.innerHTML = h;
 }
-function renderStatus(s){
-  const a=s.autonomy||{}, checks=a.checks||{}, ov=a.overall||'—';
-  const ovcls=ov==='AUTONOMOUS_READ_ONLY'?'v':'u';
-  let h='<div class="panel"><h2>KAI autonomy <span class="badge '+ovcls+'">'+esc(ov)+'</span></h2>';
-  h+='<div class="statusgrid">';
-  for(const k of Object.keys(checks)){ const v=checks[k];
-    const cls=(v==='PASS'||v==='MOCK'||v==='CONNECTED')?'ok':((v==='DEGRADED'||v==='UNAVAILABLE')?'bad':'warn');
-    h+='<span class="skpi">'+esc(k.replace(/_/g,' '))+' <b class="'+cls+'">'+esc(v)+'</b></span>'; }
-  h+='</div>';
-  h+='<h3 class="sh">Workers</h3>';
-  const ws=s.workers||[];
-  if(!ws.length){ h+='<div class="muted">No worker has checked in — the persistent runner is not running.</div>'; }
-  for(const w of ws){ h+='<div class="wrow"><span class="wdot '+(w.online?'on':'off')+'"></span><code>'+esc(w.worker_id)+'</code> · '
-    +(w.online?'ONLINE':'OFFLINE')+' · heartbeat '+esc(w.last_heartbeat_secs_ago)+'s ago · v'+esc(w.version||'?')
-    +(w.current_job?(' · job #'+esc(w.current_job)):'')+'</div>'; }
-  const cw=s.cron.watch, cb=s.cron.briefing;
-  h+='<h3 class="sh">Schedules &amp; delivery</h3><div class="muted" style="font-size:12.5px;line-height:1.7">'
-    +'watch <code>'+esc(cw.schedule)+'</code> · last run '+esc(cw.last_run)+'<br>'
-    +'briefing <code>'+esc(cb.schedule)+'</code> ('+esc(cb.timezone)+') · last run '+esc(cb.last_run)+'<br>'
-    +'telegram <b class="'+(s.telegram.state==='CONNECTED'?'ok':'bad')+'">'+esc(s.telegram.state)+'</b> (token '+(s.telegram.token_present?'present':'absent')+')</div>';
-  return h+'</div>';
-}
-// KAI Autonomy view (Part C) — rendered FIRST from /admin/kai/holding/view. TODAY FOR YOU leads.
-function renderView(v){
-  const st = s => '<span class="sev '+(({A2_READY_FOR_REVIEW:'HIGH',BLOCKED_CAPABILITY:'MEDIUM',BLOCKED_WORKER:'MEDIUM',
-    OWNER_QUEUED:'HIGH',ACTIVE:'LOW',EXECUTED:'LOW'})[s]||'LOW')+'">'+esc(String(s||'').replace(/_/g,' '))+'</span>';
-  let h='<div class="panel"><h2>TODAY FOR YOU</h2>';   // §25 first operational section
-  const t=v.today_for_you;
-  if(Array.isArray(t)){
-    if(!t.length) h+='<div class="muted">No action required right now.</div>';
-    for(const a of t){ h+='<div class="prio"><span class="sev '+esc(a.severity||'MEDIUM')+'">'+esc(a.severity||'')+'</span>'
-      +'<div><div><b>'+esc(a.title)+'</b> · '+esc(a.company)+'</div>'
-      +'<div class="muted" style="font-size:11.5px">'+esc(a.why||'')+' · KAI already did: '+esc(a.kai_completed||'—')
-      +'<br>action: '+esc(a.action||'')+'</div></div></div>'; }
-  } else { h+='<div class="muted">'+esc(t)+'</div>'; }
-  if(v.today_overflow) h+='<div class="muted" style="margin-top:8px">'+esc(v.today_overflow)+'</div>';
-  h+='</div>';
-  // §26 KAI work buckets
-  const w=v.kai_working||{};
-  h+='<div class="panel"><h2>KAI Working</h2>';
-  const bucket=(label,arr)=>{ let b='<h3 class="sh">'+label+' ('+(arr||[]).length+')</h3>';
-    if(!(arr||[]).length) return b+'<div class="muted" style="font-size:12px">none</div>';
-    for(const it of arr){ b+='<div class="wrow">'+st(it.status)+' <code>'+esc(it.company)+'</code> · '+esc(it.task||'')
-      +(it.capability?(' · '+esc(it.capability)):'')+(it.reason?(' · '+esc(it.reason)):'')+'</div>'; } return b; };
-  h+=bucket('Working now',w.currently_working)+bucket('Ready for review',w.ready_for_review)
-    +bucket('Blocked',w.blocked)+bucket('Owner queued',w.owner_queued)+'</div>';
-  // §28 company cards — DYNAMIC (loop over discovered companies; no hard-coded names)
-  h+='<div class="panel"><h2>Companies</h2><div class="grid">';
-  for(const c of (v.company_cards||[])){ h+='<div class="card"><div class="brand">'+esc(c.name||c.company_id)+'</div>'
-    +'<div class="row"><span>status</span><span>'+esc(c.status)+'</span></div>'
-    +'<div class="row"><span>goal</span><span>'+esc(c.current_goal||'—')+'</span></div>'
-    +'<div class="row"><span>plan freshness</span><span>'+esc(c.plan_freshness||'—')+'</span></div>'
-    +'<div class="row"><span>owner blocker</span><span>'+(c.owner_blocker?'<b class="bad">yes</b>':'no')+'</span></div></div>'; }
-  h+='</div></div>';
-  // §27 self-improvement READY_FOR_REVIEW
-  const sis=v.self_improvement_ready||[];
-  h+='<div class="panel"><h2>Self-Improvement — ready for review ('+sis.length+')</h2>';
-  if(!sis.length) h+='<div class="muted">Nothing prepared for review.</div>';
-  for(const s of sis){ h+='<div class="prop"><b>'+esc(s.problem)+'</b>'
-    +'<div class="pmeta">tests before '+esc(s.tests_before)+' · after '+esc(s.tests_after)+' · review: '+esc(s.independent_review)+'</div>'
-    +'<div class="muted" style="font-size:12px;margin-top:6px">files: '+esc((s.files_changed||[]).join(', '))
-    +'<br>rollback: '+esc(s.rollback)+'</div><div class="acts" style="margin-top:8px">'+esc(s.owner_action)+'</div></div>'; }
-  h+='</div>';
-  // KAI IMPROVEMENT WATCH (DETECT_ONLY) — detection only; each row shows the action, never "fixing"
-  const iw=v.improvement_watch||{}; const iwc=iw.candidates||[];
-  h+='<div class="panel"><h2>KAI Improvement Watch <span class="muted" style="font-weight:400">('+esc(iw.mode||'OFF')+')</span></h2>';
-  h+='<div class="muted" style="font-size:12.5px;margin-bottom:6px">action: <b>'+esc(iw.action||'—')+'</b>'+(iw.last_run?(' · last run '+esc(iw.last_run)):'')+'</div>';
-  if(!iwc.length) h+='<div class="muted">No candidates detected.</div>';
-  for(const c of iwc){ const fix=c.source==='CERTIFICATION_FIXTURE';
-    h+='<div class="prop"><b>'+esc(c.problem||c.signature)+'</b> <span class="badge '+(fix?'':'ok')+'">'+(fix?'CERTIFICATION_FIXTURE':'NATURAL')+'</span>'
-    +'<div class="pmeta">'+esc(c.signal_type||'')+(c.confirmed?' · CONFIRMED':'')+' · '+esc(c.severity||'')+'</div>'
-    +'<div class="acts" style="margin-top:6px">'+esc(iw.action||'PREPARATION NOT AUTHORIZED')+'</div></div>'; }
-  h+='</div>';
-  // DEPLOYMENT TRUTH — running SHA + drift + feature registry (deployed vs ENABLED)
-  const dp=v.deployment||{}; const dr=dp.drift||{}; const feats=dp.features||[];
-  h+='<div class="panel"><h2>Deployment &amp; Drift <span class="badge '+((dp.environment==='production')?'':'ok')+'">'+esc((dp.environment||'?').toUpperCase())+'</span></h2>';
-  h+='<div class="statusgrid">'
-    +'<span class="skpi">running SHA <b>'+esc(dp.this_app_sha||'?')+'</b></span>'
-    +'<span class="skpi">drift <b>'+esc(dr.state||'UNKNOWN')+'</b></span>'
-    +'<span class="skpi">money mode <b>'+esc(dp.money_mode||'MOCK')+'</b></span>'
-    +'<span class="skpi">source <b>'+esc((dp.shas||{}).source_head||'UNKNOWN')+'</b></span></div>';
-  h+='<h3 class="sh" style="margin-top:10px">Feature Registry <span class="muted" style="font-weight:400">(deployed ≠ enabled)</span></h3>';
-  h+='<div class="muted" style="font-size:12.5px;line-height:1.8">';
-  for(const f of feats){ const en=f.runtime_enabled; const rc=f.risk_class||'';
-    h+='<div><b>'+esc(f.name)+'</b> <span class="badge">'+esc(rc)+'</span> '
-      +'<span class="badge ok">DEPLOYED</span> '
-      +'<span class="badge '+(en?'ok':'bad')+'">'+(en?'ENABLED':'DISABLED')+'</span> '
-      +'<span class="muted">'+esc(f.certification||'')+'</span></div>'; }
-  h+='</div></div>';
-  // §62 Operational Self Model — FULL field set; operational only, no consciousness claim
-  const m=v.operational_self_model||{};
-  h+='<div class="panel"><h2>Operational Self Model</h2><div class="statusgrid">'
-    +'<span class="skpi">identity <b>'+esc(m.identity)+'</b></span>'
-    +'<span class="skpi">role <b>'+esc(m.role||'—')+'</b></span>'
-    +'<span class="skpi">version <b>'+esc(m.software_version)+'</b></span>'
-    +'<span class="skpi">production SHA <b>'+esc(m.production_sha||'UNAVAILABLE')+'</b></span>'
-    +'<span class="skpi">staging SHA <b>'+esc(m.staging_sha||'UNAVAILABLE')+'</b></span>'
-    +'<span class="skpi">environment <b>'+esc(m.environment)+'</b></span>'
-    +'<span class="skpi">runtime <b>'+esc(m.runtime||'UNAVAILABLE')+'</b></span>'
-    +'<span class="skpi">model / provider <b>'+esc(m.model||'UNAVAILABLE')+' / '+esc(m.model_provider||'UNAVAILABLE')+'</b></span>'
-    +'<span class="skpi">autonomy posture <b>'+esc(m.autonomy_posture||'UNAVAILABLE')+'</b></span>'
-    +'<span class="skpi">autonomy class <b>'+esc(m.autonomy_class||'—')+'</b></span>'
-    +'<span class="skpi">capabilities ready <b>'+esc(m.capabilities_ready)+' / '+esc(m.capability_catalog_total||'?')+'</b></span>'
-    +'<span class="skpi">workers <b>'+esc(m.workers_online)+' online / '+esc(m.workers_known||0)+'</b></span>'
-    +'<span class="skpi">current mission <b>'+esc(m.current_mission||'—')+'</b></span>'
-    +'<span class="skpi">owner actions <b>'+esc(m.owner_required_count)+'</b></span>'
-    +'<span class="skpi">last cycle <b>'+esc(m.last_holding_cycle||'—')+'</b></span>'
-    +'<span class="skpi">last verified <b>'+esc(m.last_verified||'UNAVAILABLE')+'</b></span></div>';
-  h+='<div class="muted" style="font-size:12.5px;margin-top:8px"><b>Current attention:</b> '+esc(m.current_attention||'—')+'</div>';
-  const lims=m.limitations||[];
-  if(lims.length){ h+='<h3 class="sh" style="margin-top:10px">Limitations <span class="muted" style="font-weight:400">(live-derived from policy &amp; flags)</span></h3><ul class="muted" style="font-size:12.5px;line-height:1.7;margin:4px 0 0 18px">';
-    for(const l of lims){ h+='<li>'+esc(l)+'</li>'; } h+='</ul>'; }
-  h+='<div class="muted" style="font-size:11.5px;margin-top:6px">Operational self-awareness only — KAI makes no claim to consciousness or sentience.</div></div>';
-  // §30 autonomy (backend-authoritative)
-  const au=v.autonomy||{};
-  h+='<div class="panel"><h2>Autonomy</h2><div class="statusgrid">'
-    +'<span class="skpi">global <b>'+esc(au.global)+'</b></span>'
-    +'<span class="skpi">money mode <b>'+esc(au.money_mode)+'</b></span>'
-    +'<span class="skpi">A0/A1 <b>'+esc(au.a0_a1)+'</b></span>'
-    +'<span class="skpi">A2 grants <b>'+esc((au.a2_certified_grants||[]).join(', ')||'none')+'</b></span>'
-    +'<span class="skpi">last cycle <b>'+esc(au.last_cycle_verdict||au.last_cycle||'—')+'</b></span></div></div>';
-  return h;
-}
-async function onProposalAction(e){
+async function onDecisionAction(e){
   const b=e.target.closest('button[data-act]'); if(!b) return;
-  const id=b.dataset.id, act=b.dataset.act, r=document.getElementById('pr-'+id);
+  const id=b.dataset.id, act=b.dataset.act, r=$('pr-'+id); if(!r) return;
   b.disabled=true; r.className='pres muted'; r.textContent='…';
   try{
     const path='/admin/kai/holding/proposals/'+id+'/'+act+(act==='reject'?'?reason=via%20UI':'');
-    const resp=await fetch(path,{method:'POST',credentials:'same-origin'});
+    const resp=await fetch(path,{method:'POST',credentials:'include'});
     const jd=await resp.json().catch(()=>({}));
     if(!resp.ok){ r.className='pres bad'; r.textContent='✕ '+(jd.detail||resp.status); }
-    else if(act==='execute'){ const k=(jd.evidence&&jd.evidence.kind)||'executed'; r.className='pres ok'; r.textContent='✓ '+(k==='DISPATCHED'?('dispatched → worker job #'+jd.evidence.job_id):k); }
+    else if(act==='execute'){ const k=(jd.evidence&&jd.evidence.kind)||'executed'; r.className='pres ok'; r.textContent='✓ '+(k==='DISPATCHED'?('dispatched → job #'+jd.evidence.job_id):k); }
     else { r.className='pres ok'; r.textContent='✓ '+act+(act==='approve'?'d — now Execute':'ed'); }
   }catch(err){ r.className='pres bad'; r.textContent='✕ '+err; }
   b.disabled=false;
 }
-(async ()=>{
-  const out=document.getElementById('out');
-  try{
-    const who = await j('/admin/session/whoami');
-    if(!who.authenticated || who.role!=='owner'){ out.innerHTML='<div class="msg">Owner sign-in required. Open the KAI Command Center, sign in, then reload.</div>'; return; }
-    const ov = await j('/admin/kai/holding/overview');          // through the bridge → App B (owner-gated)
-    let html='';
-    try{ html+=renderView(await j('/admin/kai/holding/view')); }catch(_){}       // TODAY FOR YOU leads (§25)
-    try{ html+=renderStatus(await j('/admin/kai/holding/status')); }catch(_){}   // operational status next
-    html+='<div class="grid">';
-    for(const e of ov.entities){
-      html+='<div class="card"><div class="brand">'+esc(e.brand)+' '+badge(e.confidence)+'</div>'
-        +'<div class="row"><span>status</span><span>'+esc(e.status)+'</span></div>'
-        +'<div class="row"><span>stage</span><span>'+esc(e.stage||'—')+'</span></div>'
-        +'<div class="row"><span>repo</span><span>'+esc(e.repository||'—')+'</span></div>'
-        +'<div class="row"><span>deploy</span><span>'+esc(e.deployment||'—')+'</span></div></div>';
+
+/* §14 COMPANIES (from /overview entities) */
+const badgeConf = c => c==='VERIFIED'?badge('CONNECTED','verified'):(c==='UNKNOWN'?badge('UNKNOWN'):'<span class="badge warn"><span class="bi" aria-hidden="true">◐</span>'+esc(String(c||'').toLowerCase())+'</span>');
+function renderCompanies(ov){
+  const el=$('coBody');
+  if(failed(ov)){ el.innerHTML = honest(ov,'Companies'); return; }
+  const ents = arr(ov.entities);
+  if(!ents.length){ el.innerHTML = emptyMsg('No companies discovered.'); return; }
+  let h='<div class="grid">';
+  for(const e of ents){
+    h+='<div class="card"><div class="brand">'+esc(e.brand)+' '+badgeConf(e.confidence)+'</div>'
+      +'<div class="row"><span class="dim">status</span><span>'+esc(e.status||'—')+'</span></div>'
+      +'<div class="row"><span class="dim">stage</span><span>'+esc(e.stage||'—')+'</span></div>'
+      +'<div class="row"><span class="dim">repo</span><span>'+esc(e.repository||'—')+'</span></div>'
+      +'<div class="row"><span class="dim">deploy</span><span>'+esc(e.deployment||'—')+'</span></div></div>';
+    regSearch(e.brand, 'company', ()=>jump('p-companies'));
+  }
+  el.innerHTML = h+'</div>';
+}
+
+/* §27 MISSIONS (full list from view.missions) */
+function renderMissions(v){
+  const el=$('misBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Missions'); return; }
+  const ms = arr(v.missions);
+  if(!ms.length){ el.innerHTML = emptyMsg('No missions — none created (the persistent cycle has not run live). Nothing fabricated.'); return; }
+  let h='';
+  for(const m of ms){
+    h+='<div class="item"><div class="itemhead">'+badge(m.status)
+      +'<b>'+esc(m.objective||m.mission_id)+'</b> <span class="dim">'+esc(m.company||'')+'</span>'
+      +' <span class="badge off">'+esc(m.origin||'')+'</span> <span class="badge off">'+esc(m.authority_level||'')+'</span></div>'
+      +'<div class="meta">progress '+esc(m.progress||'0/0')+' · next: '+esc(m.next_step||'—')
+        +' · linked '+esc((m.linked||{}).worker_jobs||0)+' jobs / '+esc((m.linked||{}).proposals||0)+' proposals</div>';
+    const done = parseInt(String(m.progress||'0/0').split('/')[0])||0, tot=parseInt(String(m.progress||'0/0').split('/')[1])||0;
+    if(tot>0) h+='<div class="prog"><i style="width:'+Math.round(done/tot*100)+'%"></i></div>';
+    h+='<div class="chips">'+evBtn('Mission evidence · '+(m.objective||m.mission_id), m.evidence, {subtitle:'mission '+esc(m.mission_id)})+'</div></div>';
+    regSearch(m.objective||m.mission_id, 'mission', ()=>jump('p-missions'));
+  }
+  el.innerHTML = h;
+}
+
+/* §30 WORKERS + schedules + telegram (from /status) */
+function renderWorkers(s){
+  const el=$('wrkBody');
+  if(failed(s)){ el.innerHTML = honest(s,'Workers'); return; }
+  const ws=arr(s.workers);
+  let h='';
+  if(!ws.length){ h+=emptyMsg('No worker has checked in — the persistent runner is not running.'); }
+  for(const w of ws){
+    h+='<div class="row"><span>'+badge(w.online?'CONNECTED':'OFFLINE', w.online?'online':'offline')+' <code>'+esc(w.worker_id)+'</code></span>'
+      +'<span class="dim" style="font-size:11px">hb '+esc(w.last_heartbeat_secs_ago)+'s · v'+esc(w.version||'?')+(w.current_job?(' · job #'+esc(w.current_job)):'')+'</span></div>';
+  }
+  const cw=(s.cron||{}).watch||{}, cb=(s.cron||{}).briefing||{}, tg=s.telegram||{};
+  h+='<div class="meta" style="margin-top:8px;line-height:1.8">'
+    +'watch <code>'+esc(cw.schedule||'—')+'</code> · last '+esc(cw.last_run||'—')+'<br>'
+    +'briefing <code>'+esc(cb.schedule||'—')+'</code> · last '+esc(cb.last_run||'—')+'<br>'
+    +'telegram '+badge(tg.state==='CONNECTED'?'CONNECTED':'NOT_CONNECTED', tg.state||'—')+' (token '+(tg.token_present?'present':'absent')+')</div>';
+  el.innerHTML = h;
+}
+
+/* §37/§38 CAPABILITIES (from view.system_model) */
+function renderCaps(v){
+  const el=$('capBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Capabilities'); return; }
+  const m=v.system_model||{};
+  if(m.status==='UNAVAILABLE' || (!m.identity && m.available_capability_count==null)){ el.innerHTML='<div>'+badge('UNAVAILABLE')+'</div>'+emptyMsg('Capability model unavailable.'); return; }
+  let h='<div class="kvs" style="margin-bottom:8px">'
+    +'<span class="kv">available <b class="ok">'+esc(m.available_capability_count)+'</b></span>'
+    +'<span class="kv">unavailable <b>'+esc(m.unavailable_capability_count)+'</b></span>'
+    +'<span class="kv">catalog total <b>'+esc(m.capability_catalog_total)+'</b></span></div>';
+  const av=arr(m.available_capabilities);
+  if(av.length){ h+='<div class="chips">'+av.slice(0,40).map(c=>'<span class="badge ok">'+esc(typeof c==='object'?(c.name||c.id):c)+'</span>').join('')+'</div>'; }
+  else h+=emptyMsg('No AVAILABLE capabilities reported.');
+  el.innerHTML = h;
+}
+
+/* §23 AUTONOMY (from view.autonomy) */
+function renderAutonomy(v){
+  const el=$('autoBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Autonomy'); return; }
+  const a=v.autonomy||{};
+  let h='<div class="kvs">'
+    +'<span class="kv">global <b>'+esc(a.global)+'</b></span>'
+    +'<span class="kv">money mode <b class="info">'+esc(a.money_mode)+'</b></span>'
+    +'<span class="kv">A0/A1 <b>'+esc(a.a0_a1)+'</b></span>'
+    +'<span class="kv">A2 grants <b>'+esc(arr(a.a2_certified_grants).join(', ')||'none')+'</b></span>'
+    +'<span class="kv">last cycle <b>'+esc(a.last_cycle_verdict||a.last_cycle||'—')+'</b></span></div>';
+  el.innerHTML = h;
+}
+
+/* §7-10 DEPLOYMENTS & DRIFT (from view.deployment) */
+function renderDeploy(v){
+  const el=$('depBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Deployment'); return; }
+  const dp=v.deployment||{}, dr=dp.drift||{}, feats=arr(dp.features);
+  let h='<div class="kvs" style="margin-bottom:8px">'
+    +'<span class="kv">environment <b>'+esc((dp.environment||'?').toUpperCase())+'</b></span>'
+    +'<span class="kv">running SHA <b><code>'+esc(dp.this_app_sha||'?')+'</code></b></span>'
+    +'<span class="kv">drift <b>'+esc(dr.state||'UNKNOWN')+'</b></span>'
+    +'<span class="kv">money mode <b class="info">'+esc(dp.money_mode||'MOCK')+'</b></span>'
+    +'<span class="kv">source <b><code>'+esc((dp.shas||{}).source_head||'UNKNOWN')+'</code></b></span></div>';
+  if(feats.length){
+    h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 4px">Feature registry (deployed ≠ enabled)</div>';
+    for(const f of feats){
+      h+='<div class="row"><span><b>'+esc(f.name)+'</b> <span class="badge off">'+esc(f.risk_class||'')+'</span></span>'
+        +'<span style="display:flex;gap:5px;align-items:center">'+badge('READY','deployed')+' '
+        +badge(f.runtime_enabled?'ENABLED':'DISABLED')+'</span></div>'
+        +(f.certification?'<div class="meta">'+esc(f.certification)+'</div>':'');
     }
-    html+='</div>';
-    html+='<div class="panel"><h2>Financials & sensitive data</h2><div class="muted">'+esc(ov.financials)+'</div>'
-      +'<div class="muted" style="margin-top:8px">Fields awaiting confirmation: <code>'+esc(ov.requires_confirmation.length)+'</code></div></div>';
-    try{ html+=renderBriefing(await j('/admin/kai/holding/briefing')); }catch(_){}
-    try{ html+=renderProposals(await j('/admin/kai/holding/proposals')); }catch(_){}
-    out.innerHTML=html;
-    out.addEventListener('click', onProposalAction);   // approve / reject / execute
-  }catch(err){ out.innerHTML='<div class="msg">Holding view unavailable ('+esc(err.message)+'). It is enabled only when KAI_HOLDING_ENABLED is on.</div>'; }
-})();
+  }
+  el.innerHTML = h;
+}
+
+/* §62 OPERATIONAL SELF MODEL (prefer richer view.system_model; fall back to operational_self_model) */
+function renderSelfModel(v){
+  const el=$('smBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Self model'); return; }
+  const sm=v.system_model||{}, om=v.operational_self_model||{};
+  const g=(a,b)=> (sm[a]!=null&&sm[a]!=='')?sm[a]:(om[b]!=null?om[b]:undefined);
+  const has = sm.identity || om.identity;
+  if(!has){ el.innerHTML='<div>'+badge('UNAVAILABLE')+'</div>'+emptyMsg('Self model unavailable.'); return; }
+  const cell=(label,val)=>'<span class="kv">'+esc(label)+' <b>'+esc(val==null||val===''?'UNAVAILABLE':val)+'</b></span>';
+  let h='<div class="kvs">'
+    +cell('identity', g('identity','identity'))
+    +cell('role', sm.system_role||om.role)
+    +cell('version', g('software_version','software_version'))
+    +cell('production SHA', g('production_sha','production_sha'))
+    +cell('staging SHA', g('staging_sha','staging_sha'))
+    +cell('environment', g('environment','environment'))
+    +cell('runtime', g('runtime','runtime'))
+    +cell('model / provider', esc(g('model','model')||'UNAVAILABLE')+' / '+esc(sm.model_provider||om.model_provider||'UNAVAILABLE'))
+    +cell('autonomy', sm.autonomy_overall||om.autonomy_posture)
+    +cell('autonomy class', sm.autonomy_class||om.autonomy_class)
+    +cell('capabilities', esc(sm.available_capability_count!=null?sm.available_capability_count:om.capabilities_ready)+' / '+esc(sm.capability_catalog_total||om.capability_catalog_total||'?'))
+    +cell('workers', esc(sm.workers_online!=null?sm.workers_online:om.workers_online)+' online / '+esc(sm.workers_known!=null?sm.workers_known:om.workers_known||0))
+    +cell('money mode', sm.money_mode||om.money_mode)
+    +cell('owner actions', sm.owner_required_action_count!=null?sm.owner_required_action_count:om.owner_required_count)
+    +cell('last verified', g('last_verified','last_verified'))
+    +'</div>';
+  const attn = sm.current_attention||om.current_attention;
+  if(attn) h+='<div class="meta" style="margin-top:8px"><b>Current attention:</b> '+esc(attn)+'</div>';
+  const lims = arr(sm.known_limitations).length?sm.known_limitations:arr(om.limitations);
+  if(lims.length){ h+='<div class="dim" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;margin:8px 0 2px">Limitations (live-derived §63)</div><ul class="plan">'+lims.map(l=>'<li>'+esc(l)+'</li>').join('')+'</ul>'; }
+  h+='<div class="dim" style="font-size:10.5px;margin-top:8px">Operational self-awareness only — claims_consciousness = '+String(sm.claims_consciousness===true)+'. KAI makes no claim to consciousness or sentience.</div>';
+  el.innerHTML = h;
+}
+
+/* §57 SYSTEM HEALTH — never a fake number; formula version + INSUFFICIENT_DATA honest */
+function renderHealth(v){
+  const el=$('hlBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Health'); $('core').dataset.s='OFFLINE'; $('coreState').textContent='NOT CONNECTED'; return; }
+  const hh=v.health||{};
+  $('hlVer').textContent = hh.version ? ('§57 · formula v'+hh.version) : '§57';
+  const scoreNum = num(hh.score) ? hh.score : null;
+  const band = hh.band||'INSUFFICIENT_DATA';
+  const bandColor = band==='CRITICAL'?'var(--red)':band==='AT_RISK'?'var(--orange)'
+    :band==='FAIR'?'#ffe08a':band==='GOOD'?'var(--green)':band==='HEALTHY'?'var(--green)':'var(--dim)';
+  // header core state
+  const cs = scoreNum==null?'DEGRADED':(band==='CRITICAL'||band==='AT_RISK')?'DEGRADED':'LIVE';
+  $('core').dataset.s = cs==='LIVE'?'LIVE':(band==='CRITICAL'?'OFFLINE':'DEGRADED');
+  $('coreState').textContent = scoreNum==null?'INSUFFICIENT DATA':(scoreNum+' / '+band);
+  const C=2*Math.PI*34, frac = scoreNum==null?0:Math.max(0,Math.min(1,scoreNum/100));
+  let h='<div class="gauge"><svg width="92" height="92" viewBox="0 0 92 92" aria-hidden="true">'
+    +'<circle cx="46" cy="46" r="34" fill="none" stroke="var(--border2)" stroke-width="8"/>'
+    +'<circle cx="46" cy="46" r="34" fill="none" stroke="'+bandColor+'" stroke-width="8" stroke-linecap="round"'
+    +' stroke-dasharray="'+(C*frac).toFixed(1)+' '+C.toFixed(1)+'" transform="rotate(-90 46 46)"/></svg>'
+    +'<div><div class="gval">'+(scoreNum==null?badge('INSUFFICIENT_DATA'):esc(scoreNum)+'<span style="font-size:14px;color:var(--dim)">/100</span>')+'</div>'
+    +'<div class="gband" style="color:'+bandColor+'">'+esc(band)+'</div>'
+    +'<div class="dim" style="font-size:11px;margin-top:4px">'+esc(hh.measured_dimensions!=null?hh.measured_dimensions:'?')+' / '+esc(hh.required_dimensions!=null?hh.required_dimensions:'?')+' dimensions measured</div></div></div>';
+  const comps=arr(hh.components);
+  if(comps.length){
+    h+='<ul class="comps">'+comps.map(c=>{
+      const meas = c.status==='MEASURED';
+      const pct = (meas&&c.max_points)?Math.round((c.points/c.max_points)*100):0;
+      return '<li><span>'+esc(c.dimension)+' <span class="dim" style="font-size:10.5px">'+esc(c.detail||'')+'</span></span>'
+        +(meas?('<span style="display:flex;gap:8px;align-items:center"><span class="compbar"><i style="width:'+pct+'%"></i></span><b>'+esc(c.points)+'/'+esc(c.max_points)+'</b></span>')
+              :badge('INSUFFICIENT_DATA'))+'</li>';
+    }).join('')+'</ul>';
+  }
+  if(arr(hh.insufficient_data).length) h+='<div class="dim" style="font-size:10.5px;margin-top:8px">Insufficient data (dropped, not scored healthy): '+esc(hh.insufficient_data.join(', '))+'</div>';
+  el.innerHTML = h;
+}
+
+/* §61 TIMELINE */
+function renderTimeline(v){
+  const el=$('tlBody');
+  if(failed(v)){ el.innerHTML = honest(v,'Timeline'); return; }
+  const raw = v.timeline;
+  const evs = Array.isArray(raw)?raw:arr(raw&&raw.events);
+  if(!evs.length){ el.innerHTML = emptyMsg('No observable events ingested yet (no fabricated history).'); return; }
+  let h='';
+  for(const e of evs){
+    h+='<div class="row"><span>'+badge(e.provenance||'DERIVED')+' <span class="badge off">'+esc(e.type)+'</span> '+esc(e.summary)+'</span></div>'
+      +'<div class="meta">'+fmtTs(e.ts)+' · '+esc(e.company)+' · <code>'+esc(e.source)+'</code></div>';
+  }
+  el.innerHTML = h;
+}
+
+/* §45/§46 FINANCE + CUSTOMER (from /overview + view.health insufficient) */
+function renderFinance(ov, v){
+  const el=$('finBody');
+  const hh=(v&&!failed(v))?(v.health||{}):{};
+  const insuff = arr(hh.insufficient_data);
+  const mm = (v&&!failed(v)&&(v.autonomy||{}).money_mode) || ((v&&(v.deployment||{}).money_mode)) || 'MOCK';
+  let h='<div class="kvs" style="margin-bottom:8px">'
+    +'<span class="kv">money mode <b class="info">'+esc(mm)+'</b></span>'
+    +'<span class="kv">finance <b>'+(insuff.indexOf('financial_status')>=0?'INSUFFICIENT_DATA':'REQUIRES_OPERATOR_CONFIRMATION')+'</b></span>'
+    +'<span class="kv">customers <b>'+(insuff.indexOf('customer_impact')>=0?'INSUFFICIENT_DATA':'REQUIRES_OPERATOR_CONFIRMATION')+'</b></span></div>';
+  h+='<div class="row"><span class="dim">revenue / cash / runway</span><span>'+badge('REQUIRES_OPERATOR_CONFIRMATION')+'</span></div>';
+  h+='<div class="row"><span class="dim">customers / churn</span><span>'+badge('REQUIRES_OPERATOR_CONFIRMATION')+'</span></div>';
+  if(!failed(ov)){
+    h+='<div class="meta" style="margin-top:8px">'+esc(ov.financials||'')+'</div>';
+    const rc=arr(ov.requires_confirmation);
+    h+='<div class="meta">Fields awaiting operator confirmation: <b>'+rc.length+'</b>'+(rc.length?(' — '+esc(rc.slice(0,8).join(', '))):'')+'</div>';
+  } else {
+    h+='<div class="dim" style="margin-top:6px">'+honest(ov,'Overview financials')+'</div>';
+  }
+  h+='<div class="dim" style="font-size:10.5px;margin-top:8px">No revenue/customer number is displayed until Stripe/CRM/billing are wired and the operator confirms. Money stays '+esc(mm)+'.</div>';
+  el.innerHTML = h;
+}
+
+/* §48 SECURITY card (independent /admin/kai/cyber/overview fetch) */
+function renderSecurity(o){
+  const el=$('secBody');
+  if(failed(o)){ el.innerHTML = honest(o,'Security overview'); return; }
+  const risk=o.risk||{}, aik=o.aikido||{}, inc=o.incidents||{}, ev=o.events||{};
+  const un=arr(risk.unmeasured_sources);
+  const crit = (aik.state==='WORKING')?'<b>see Aikido</b>':badge(aik.state||'NOT_CONNECTED');
+  const auth = un.indexOf('auth_anomalies')>=0?badge('NOT_CONNECTED'):(o.auth_anomalies!=null?('<b>'+esc(o.auth_anomalies)+'</b>'):badge('UNKNOWN'));
+  const incCount = Array.isArray(inc.incidents)?(inc.incidents.length+' '):'';
+  el.innerHTML = '<div class="kvs">'
+    + '<span class="kv">security state <b>'+(num(risk.score)?('risk '+esc(risk.score)+' / '+esc(risk.band||'—')):esc(o.state||'—'))+'</b></span>'
+    + '<span class="kv">incidents <b>'+incCount+'</b>'+badge(inc.state||'PHASE_C_PENDING')+'</span>'
+    + '<span class="kv">critical findings '+crit+'</span>'
+    + '<span class="kv">auth anomalies '+auth+'</span>'
+    + '<span class="kv">aikido '+badge(aik.state||'NOT_CONNECTED')+'</span>'
+    + '<span class="kv">last event <b>'+((ev.last_event&&ev.last_event.timestamp)?fmtTs(ev.last_event.timestamp):'—')+'</b></span></div>';
+}
+
+/* ── §56 SYSTEM GRAPH — lazy inline SVG, built only when data arrives ─────────── */
+let GRAPH=null;
+const _NODE_COLOR = {deployment:'var(--blue)', domain:'var(--dim)', vendor:'var(--purple)',
+  monitor:'var(--green)', capability:'var(--blue)', mission:'var(--orange)', worker:'var(--cyan)'};
+const _isEntity = t => !(_NODE_COLOR[t]);   // entity/company/product/etc. get the cyan entity colour
+function nodeColor(t){ return _NODE_COLOR[t] || 'var(--cyan)'; }
+function buildGraph(v){
+  const g = (v&&!failed(v))?(v.system_graph||{}):null;
+  const inline=$('graphInline');
+  if(!g || (g.status==='UNAVAILABLE')){ inline.innerHTML = honest(v&&v.__unavailable?v:{__unavailable:true},'Graph'); return; }
+  GRAPH=g;
+  const nodes=arr(g.nodes), edges=arr(g.edges);
+  if(!nodes.length){ inline.innerHTML='<div>'+badge('UNAVAILABLE')+'</div>'+emptyMsg('No graph nodes available from the registries.'); return; }
+  inline.innerHTML = graphSVG(g, 900, 520);
+  $('legend').hidden=false;
+  const sm=g.summary||{};
+  inline.insertAdjacentHTML('beforeend','<div class="meta" style="margin-top:8px">nodes: <b>'+esc(sm.nodes_total!=null?sm.nodes_total:nodes.length)
+    +'</b> ('+esc(Object.entries(sm.nodes_by_type||{}).map(([k,n])=>k+' '+n).join(', ')||'—')+') · edges: <b>'+esc(sm.edges_total!=null?sm.edges_total:edges.length)
+    +'</b> ('+esc(Object.entries(sm.edges_by_type||{}).map(([k,n])=>k+' '+n).join(', ')||'—')+')</div>');
+  wireGraph(inline);
+}
+function graphSVG(g, W, H){
+  const nodes = arr(g.nodes).map(n=>({id:n.id, label:n.label||n.id, type:n.type||'entity', data:n}));
+  const edges = arr(g.edges);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.37, N=nodes.length;
+  nodes.forEach((n,i)=>{ const a=-Math.PI/2 + i*2*Math.PI/Math.max(1,N); n.x=cx+R*Math.cos(a); n.y=cy+R*Math.sin(a); });
+  const pos=Object.fromEntries(nodes.map(n=>[n.id,n]));
+  let svg='<svg class="gsvg" id="gsvg" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Holding system graph: '+N+' nodes around the KAI core">';
+  // membership spokes: core → each node (registry membership, not a fabricated protocol edge)
+  for(const n of nodes){ svg+='<line class="spoke" x1="'+cx+'" y1="'+cy+'" x2="'+n.x.toFixed(1)+'" y2="'+n.y.toFixed(1)+'"><title>'+esc(n.label)+' · observed by the KAI core</title></line>'; }
+  // real provenance-backed edges (owned_by etc.)
+  for(const e of edges){ const a=pos[e.src], b=pos[e.dst]; if(!a||!b) continue;
+    svg+='<line class="edge flow" x1="'+a.x.toFixed(1)+'" y1="'+a.y.toFixed(1)+'" x2="'+b.x.toFixed(1)+'" y2="'+b.y.toFixed(1)+'">'
+      +'<title>'+esc(e.src)+' '+esc(e.rel)+' '+esc(e.dst)+' · '+esc(e.provenance||'')+'</title></line>'; }
+  // KAI core
+  svg+='<g class="corepulse"><circle class="corering spin" cx="'+cx+'" cy="'+cy+'" r="'+(R*0.42)+'" fill="none" stroke="rgba(0,229,255,.25)" stroke-width="1"/>'
+    +'<circle cx="'+cx+'" cy="'+cy+'" r="'+(R*0.15)+'" fill="rgba(0,229,255,.08)" stroke="var(--cyan)" stroke-width="1.4"/>'
+    +'<text x="'+cx+'" y="'+(cy+4)+'" text-anchor="middle" style="fill:var(--cyan);font:700 11px \'Space Grotesk\',sans-serif;letter-spacing:.12em">KAI</text></g>';
+  // nodes — colour by type AND a glyph label (non-colour cue, §71)
+  nodes.forEach((n,i)=>{
+    const col=nodeColor(n.type);
+    const short=String(n.label).length>14?String(n.label).slice(0,13)+'…':n.label;
+    svg+='<g class="gnode" tabindex="0" role="button" data-i="'+i+'" aria-label="'+esc(n.label)+', type '+esc(n.type)+'">'
+      +'<circle class="body" cx="'+n.x.toFixed(1)+'" cy="'+n.y.toFixed(1)+'" r="20" fill="'+col.replace('var(--','rgba(').replace(')',',.14)').replace('rgba(cyan','rgba(0,229,255').replace('rgba(blue','rgba(77,124,255').replace('rgba(purple','rgba(185,140,255').replace('rgba(green','rgba(56,245,165').replace('rgba(dim','rgba(127,138,161').replace('rgba(orange','rgba(255,157,60')+'" stroke="'+col+'"/>'
+      +'<text x="'+n.x.toFixed(1)+'" y="'+(n.y+34).toFixed(1)+'" text-anchor="middle">'+esc(short)+'</text></g>';
+  });
+  svg+='</svg>';
+  graphSVG._nodes=nodes;
+  return svg;
+}
+function wireGraph(container){
+  const nodes=graphSVG._nodes||[];
+  const show=i=>{ const n=nodes[i]; if(!n) return; const d=n.data||{}, at=d.attrs||{};
+    let h='<h3>'+esc(n.label)+' <span class="badge info">'+esc(n.type)+'</span></h3>'
+      +'<div class="row"><span class="dim">id</span><span><code>'+esc(n.id)+'</code></span></div>'
+      +'<div class="row"><span class="dim">provenance</span><span>'+esc(d.provenance||'—')+'</span></div>';
+    for(const k of Object.keys(at)){ if(at[k]!=null&&at[k]!=='') h+='<div class="row"><span class="dim">'+esc(k)+'</span><span>'+esc(String(at[k]))+'</span></div>'; }
+    const det=$('ndetail'); det.innerHTML=h; det.classList.add('show');
+  };
+  container.querySelectorAll('.gnode').forEach(gn=>{ const i=+gn.dataset.i;
+    gn.addEventListener('click', ()=>show(i));
+    gn.addEventListener('keydown', ev=>{ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); show(i); } });
+  });
+}
+/* graph fullscreen modal (mobile §47) */
+let _modalPrev=null;
+function modalTrap(e){ if(e.key==='Escape'){ closeModal(); return; } if(e.key!=='Tab') return;
+  const f=$('modal').querySelectorAll('button,[tabindex]:not([tabindex="-1"]),.gnode'); if(!f.length) return;
+  const first=f[0], last=f[f.length-1];
+  if(e.shiftKey&&document.activeElement===first){ e.preventDefault(); last.focus(); }
+  else if(!e.shiftKey&&document.activeElement===last){ e.preventDefault(); first.focus(); } }
+function openModal(){ const m=$('modal'), body=$('modalBody');
+  body.innerHTML = GRAPH ? graphSVG(GRAPH,760,700) : emptyMsg('Graph not connected.');
+  if(GRAPH) wireGraph(body);
+  _modalPrev=document.activeElement; m.classList.add('show');
+  document.addEventListener('keydown', modalTrap, true); $('modalClose').focus(); }
+function closeModal(){ const m=$('modal'); if(!m.classList.contains('show')) return;
+  m.classList.remove('show'); document.removeEventListener('keydown', modalTrap, true);
+  if(_modalPrev&&document.contains(_modalPrev)) _modalPrev.focus(); }
+$('modalClose').addEventListener('click', closeModal);
+$('graphOpen').addEventListener('click', openModal);
+
+/* ── §53 COMMAND PALETTE ─────────────────────────────────────────────────────── */
+const SEARCH_INDEX=[];   // {label, kind, run}
+function regSearch(label, kind, run){ if(label) SEARCH_INDEX.push({label:String(label), kind, run}); return ''; }
+function jump(id){ const el=$(id); if(el){ el.scrollIntoView({behavior:'smooth',block:'start'}); el.style.transition='box-shadow .3s'; el.style.boxShadow='0 0 0 2px var(--cyan)'; setTimeout(()=>el.style.boxShadow='',1400); } }
+const PAL_COMMANDS=[
+  {label:'Ask KAI…', kind:'ask', run:(q)=>askKai(q)},
+  {label:'Search Holding', kind:'nav', run:()=>{}},
+  {label:'Show problems', kind:'nav', run:()=>jump('p-problems')},
+  {label:'Show opportunities', kind:'nav', run:()=>jump('p-opps')},
+  {label:'Show approvals / decisions', kind:'nav', run:()=>jump('p-decisions')},
+  {label:'Show evidence (problems)', kind:'nav', run:()=>jump('p-problems')},
+  {label:'Show system health', kind:'nav', run:()=>jump('p-health')},
+  {label:'Show missions', kind:'nav', run:()=>jump('p-missions')},
+  {label:'Open company…', kind:'nav', run:()=>jump('p-companies')},
+];
+function askKai(q){
+  // Wire to the existing presence drawer (§8 NL front-end). No /admin/holding/command endpoint exists
+  // in this read-only phase, so we route to the governed presence chat, never a fabricated command call.
+  try{
+    if(window.KAI && typeof window.KAI.ask==='function'){ window.KAI.ask(q||''); return true; }
+    if(window.KAI && typeof window.KAI.open==='function'){ window.KAI.open(); return true; }
+  }catch(_){}
+  // honest fallback — presence not present on this render (e.g. offline static test)
+  alert('Ask KAI is delivered through the KAI presence drawer (Cmd/Ctrl+K opens it when the presence layer is loaded). No holding /command endpoint exists in this read-only phase.');
+  return false;
+}
+let _palIdx=0, _palRows=[], _palPrev=null;
+function palRender(q){
+  const results=$('palResults'); const query=(q||'').trim();
+  let rows=[];
+  if(query){
+    rows.push({label:'Ask KAI: “'+query+'”', kind:'ask', run:()=>askKai(query)});
+    for(const c of PAL_COMMANDS){ if(c.kind==='nav' && c.label.toLowerCase().includes(query.toLowerCase())) rows.push(c); }
+    const seen=new Set();
+    for(const s of SEARCH_INDEX){ if(s.label.toLowerCase().includes(query.toLowerCase())){ const key=s.kind+':'+s.label; if(seen.has(key)) continue; seen.add(key); rows.push(s); if(rows.length>40) break; } }
+  } else {
+    rows = PAL_COMMANDS.slice();
+  }
+  _palRows=rows; _palIdx=0;
+  results.innerHTML = rows.length ? rows.map((r,i)=>'<div class="presult" role="option" id="palrow-'+i+'" aria-selected="'+(i===0)+'" data-i="'+i+'"><span class="pk">'+esc(r.kind)+'</span><span class="pt">'+esc(r.label)+'</span></div>').join('') : '<div class="empty" style="padding:14px">No matches.</div>';
+  palSel(0);
+}
+function palSel(i){ if(!_palRows.length) return; _palIdx=(i+_palRows.length)%_palRows.length;
+  $('palResults').querySelectorAll('.presult').forEach((el,idx)=>{ el.setAttribute('aria-selected', idx===_palIdx); if(idx===_palIdx){ el.scrollIntoView({block:'nearest'}); $('palInput').setAttribute('aria-activedescendant','palrow-'+idx); } }); }
+function palRun(i){ const r=_palRows[i]; if(!r) return; closePalette(); const q=$('palInput').value.trim(); if(r.kind==='ask'){ r.run(q); } else { r.run(q); } }
+function openPalette(){ _palPrev=document.activeElement; $('palBack').classList.add('show'); $('palette').classList.add('show');
+  $('palInput').value=''; palRender(''); $('palInput').focus(); document.addEventListener('keydown', palKey, true); }
+function closePalette(){ const p=$('palette'); if(!p.classList.contains('show')) return; p.classList.remove('show'); $('palBack').classList.remove('show');
+  document.removeEventListener('keydown', palKey, true); if(_palPrev&&document.contains(_palPrev)) _palPrev.focus(); }
+function palKey(e){
+  if(!$('palette').classList.contains('show')) return;
+  if(e.key==='Escape'){ e.preventDefault(); closePalette(); }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); palSel(_palIdx+1); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); palSel(_palIdx-1); }
+  else if(e.key==='Enter'){ e.preventDefault(); palRun(_palIdx); }
+}
+$('palInput').addEventListener('input', e=>palRender(e.target.value));
+$('palResults').addEventListener('click', e=>{ const r=e.target.closest('.presult'); if(r) palRun(+r.dataset.i); });
+$('palBack').addEventListener('click', closePalette);
+$('cmdkBtn').addEventListener('click', openPalette);
+document.addEventListener('keydown', e=>{ if((e.metaKey||e.ctrlKey) && (e.key==='k'||e.key==='K')){ e.preventDefault(); e.stopPropagation(); if($('palette').classList.contains('show')) closePalette(); else openPalette(); } }, true);
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   BOOT — paint the shell, fetch each endpoint independently through the bridge,
+   fill honestly. The /view aggregate powers most Command-OS surfaces in one fetch;
+   overview/briefing/proposals/status/cyber are independent so a slow one can never
+   stall the fast panels' first paint (§72). Every fetch returns a typed marker on
+   failure — never rejects — so honest NOT_CONNECTED states are always shown.
+   ════════════════════════════════════════════════════════════════════════════ */
+function boot(){
+  // whoami — best-effort context; the shell renders regardless.
+  api('/admin/session/whoami').then(w=>{
+    const bar=$('authbar');
+    if(failed(w) || !w.authenticated || w.role!=='owner'){
+      bar.className='authbar show';
+      bar.innerHTML='Owner sign-in required for live holding data. Open the KAI Command Center, sign in, then reload — every panel below shows its honest live connection state meanwhile.';
+    } else { bar.className='authbar'; bar.innerHTML=''; }
+  });
+
+  // §148 aggregate — one fetch powers TODAY/ATTENTION/WORKING/PROBLEMS/OPPS/COMPANIES/MISSIONS/
+  // CAPABILITIES/AUTONOMY/DEPLOY/SELF-MODEL/HEALTH/GRAPH/TIMELINE. On failure each renders NOT_CONNECTED.
+  const viewP = api('/admin/kai/holding/view');
+  viewP.then(v=>{
+    renderToday(v); renderAttention(v); renderWorking(v); renderProblems(v); renderOpps(v);
+    renderMissions(v); renderCaps(v); renderAutonomy(v); renderDeploy(v); renderSelfModel(v);
+    renderHealth(v); renderTimeline(v);
+    // graph lazy — built after first paint so it never blocks the fast panels (§72)
+    requestAnimationFrame(()=> setTimeout(()=>buildGraph(v), 0));
+  });
+
+  // independent endpoints
+  const ovP = api('/admin/kai/holding/overview');
+  ovP.then(renderCompanies);
+  api('/admin/kai/holding/briefing').then(renderBrief);
+  const decP = api('/admin/kai/holding/proposals'); decP.then(renderDecisions);
+  api('/admin/kai/holding/status').then(renderWorkers);
+  api('/admin/kai/cyber/overview').then(renderSecurity);
+
+  // FINANCE needs both overview + view — render when both settle (honest either way)
+  Promise.all([ovP, viewP]).then(([ov,v])=>renderFinance(ov,v));
+
+  // decision actions (approve/reject/execute) — delegated on the panel
+  $('decBody').addEventListener('click', onDecisionAction);
+}
+boot();
 </script>
 </body></html>
