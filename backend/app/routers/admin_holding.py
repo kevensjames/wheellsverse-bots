@@ -442,12 +442,273 @@ def holding_improvement_watch(principal=Depends(require_kai_ultra)):
             "candidates": cands}
 
 
+# ──────────────────────────────────────────────────────────────────────────────────────────────────
+# Phase 6b-1 — READ-ONLY Command-OS surfaces (§56/§57/§61/§17/§27/§18/§55/§20/§81-82/§15/§62).
+# Each endpoint is GET + owner-gated and calls exactly ONE service function. Every section fails SOFT:
+# a failing/absent source returns its honest UNAVAILABLE/empty marker (never a 500 that hides state,
+# never a fabricated value). The SAME builders fold into /view so one fetch powers the dashboard.
+# No execution, no mutation — read-only by construction.
+# ──────────────────────────────────────────────────────────────────────────────────────────────────
+_UNAVAILABLE = {"status": "UNAVAILABLE"}
+
+
+def _soft(fn, default):
+    """Run a section builder fail-soft: any exception (or a None result) → the honest default marker."""
+    try:
+        v = fn()
+        return v if v is not None else default
+    except Exception:
+        return default
+
+
+def _health_inputs() -> dict:
+    """Gather the §57 health dimensions from their REAL live sources, fail-soft per source. A failing or
+    unconnected source stays its honest marker/None so compute_health records INSUFFICIENT_DATA and drops
+    it from the average — never a fabricated healthy value (§0 #16-19). Keys == compute_health kwargs."""
+    out = {"availability": None, "security": None, "deployment_health": None,
+           "mission_blockers": None, "data_freshness": None,
+           "customer_impact": None, "financial_status": None}
+    # availability ← live service-health probes (holding.signals): {healthy,total} over the *_health probes
+    try:
+        from app.services.holding.signals import collect_live_signals
+        sig = [s for s in collect_live_signals() if str(s.get("name", "")).endswith("_health")]
+        if sig:
+            out["availability"] = {"healthy": sum(1 for s in sig if s.get("ok")), "total": len(sig)}
+    except Exception:
+        pass
+    # security ← aikido findings feed. NOT_CONNECTED/UNAVAILABLE marker → INSUFFICIENT_DATA (a missing
+    # feed is NEVER read as "secure", §57); only a connected feed yields real {high,critical} counts.
+    try:
+        from app.services import security as _sec
+        av = _sec.aikido_view()
+        if av.get("state") == "WORKING":
+            iss = av.get("issues") or []
+            out["security"] = {"high": sum(1 for i in iss if i.get("severity") == "high"),
+                               "critical": sum(1 for i in iss if i.get("severity") == "critical")}
+        else:
+            out["security"] = av.get("state") or "NOT_CONNECTED"
+    except Exception:
+        out["security"] = "NOT_CONNECTED"
+    # deployment_health ← holding_deployment drift state (UNKNOWN when no SHA is known → INSUFFICIENT_DATA)
+    try:
+        from app.config import settings as _s
+        from app.services.holding.holding_deployment import deployment_view, deployed_sha
+        _sha = deployed_sha()
+        out["deployment_health"] = (deployment_view(_s, source_head=_sha, peer_shas={"app_b": _sha})
+                                    .get("drift", {}).get("state"))
+    except Exception:
+        pass
+    # mission_blockers ← count of blocking HoldingProblems (owner_required OR CRITICAL). [] → 0 (measured).
+    try:
+        from app.services.holding.holding_problems import detect_problems
+        out["mission_blockers"] = sum(1 for p in detect_problems()
+                                      if getattr(p, "owner_required", False)
+                                      or getattr(p, "severity", "") == "CRITICAL")
+    except Exception:
+        pass
+    # data_freshness ← tally FRESH/STALE over the twin's provenance Facts (UNKNOWN-age facts count neither;
+    # money/customer facts are UNAVAILABLE today → they don't inflate freshness).
+    try:
+        from app.services.holding.digital_twin import HoldingDigitalTwin
+        fresh = stale = 0
+        for c in (HoldingDigitalTwin().snapshot().get("companies", []) or []):
+            for v in (c.values() if isinstance(c, dict) else []):
+                if isinstance(v, dict) and "freshness" in v:
+                    fresh += v["freshness"] == "FRESH"
+                    stale += v["freshness"] == "STALE"
+        if fresh or stale:
+            out["data_freshness"] = {"fresh": int(fresh), "stale": int(stale)}
+    except Exception:
+        pass
+    # customer_impact / financial_status ← twin.report_value is UNAVAILABLE today (§45/§46) → left None →
+    # INSUFFICIENT_DATA. NEVER a fabricated money/customer health signal.
+    return out
+
+
+def _sec_health() -> dict:
+    from app.services.holding.health_score import compute_health
+    return compute_health(**_health_inputs())
+
+
+def _sec_system_graph() -> dict:
+    from app.services.holding.system_graph import build_graph
+    return build_graph().view()                    # bounded structural overview (entities + §14 hierarchy)
+
+
+def _sec_timeline(*, type: str | None = None, company: str | None = None, limit: int = 100) -> list:
+    from app.services.holding.timeline import query
+    return query(type=type, company=company, limit=limit)
+
+
+def _sec_attention() -> dict:
+    from app.services.holding.attention_model import CurrentAttentionModel
+    return CurrentAttentionModel().snapshot()
+
+
+def _sec_missions() -> list:
+    """§27/§29 active missions, each derived LIVE from its linked worker jobs + owner proposals. Terminal
+    (cancelled/completed) headers are excluded — they are never 'working now'. (Single source, reused by
+    both /missions and /view — no duplicated assembly.)"""
+    from app.services.holding import mission as _mission, worker_jobs as _wj, proposals_store as _ps
+    # N+1 fix: fetch proposals ONCE and group by source_key (== root_signature).
+    _props_by_root: dict = {}
+    try:
+        for _p in _ps.list_proposals(limit=200):
+            _props_by_root.setdefault(_p.get("source_key"), []).append(_p)
+    except Exception:
+        _props_by_root = {}
+    missions = []
+    for _hdr in _mission.list_missions(limit=50):
+        if _hdr.get("cancelled") or _hdr.get("completed_at"):
+            continue
+        _rs = _hdr.get("root_signature", "")
+        missions.append(_mission.mission_view(
+            _hdr, worker_jobs=_wj.list_for_mission(_hdr.get("mission_id", "")),
+            proposals=(_props_by_root.get(_rs, []) if _rs else [])))
+    return missions
+
+
+def _sec_problems() -> list:
+    from app.services.holding.holding_problems import detect_problems
+    return [p.as_dict() for p in detect_problems()]
+
+
+def _sec_cross_company() -> list:
+    from app.services.holding.cross_company import detect_shared_issues
+    return [i.as_dict() for i in detect_shared_issues()]
+
+
+def _sec_opportunities() -> list:
+    from app.services.holding.opportunity_engine import detect_opportunities
+    return [o.as_dict() for o in detect_opportunities()]
+
+
+def _sec_goals() -> list:
+    from app.services.holding.goal_registry import analyze_all
+    return analyze_all()
+
+
+def _sec_knowledge(q: str = "") -> dict:
+    from datetime import datetime, timezone
+    from app.services.holding.knowledge_index import SystemKnowledgeIndex
+    ki = SystemKnowledgeIndex(today=datetime.now(timezone.utc).isoformat()[:10])
+    return ki.ask(q) if q else ki.whats_changed()
+
+
+def _sec_proactive() -> dict:
+    """§11 PURE preview: which live problems/opportunities WOULD notify under the §31 policy. Records,
+    delivers, writes NOTHING (proactive_engine.evaluate is a preview). Sources fail-soft to empty."""
+    from app.services.holding.proactive_engine import evaluate
+    from app.services.holding.holding_problems import detect_problems
+    from app.services.holding.opportunity_engine import detect_opportunities
+    return evaluate(problems=_soft(detect_problems, []),
+                    opportunities=_soft(detect_opportunities, []))
+
+
+def _sec_system_model() -> dict:
+    from app.services.holding.self_model import OperationalSelfModel
+    return OperationalSelfModel(environment="production").snapshot()
+
+
+@router.get("/health")
+def holding_health(principal=Depends(require_kai_ultra)):
+    """§57 HoldingHealthScore wired to its REAL live sources (availability/security/deployment/blockers/
+    freshness; customer+finance UNAVAILABLE today). Returns a real 0-100 score+band, or NO_SCORE/
+    INSUFFICIENT_DATA when too few dimensions are measurable — never a fabricated number. Read-only."""
+    return _soft(_sec_health, {"score": "NO SCORE / INSUFFICIENT_DATA", "band": "INSUFFICIENT_DATA"})
+
+
+@router.get("/system-graph")
+def holding_system_graph(principal=Depends(require_kai_ultra)):
+    """§56 HoldingSystemGraph — a bounded structural overview (companies + §14 owned_by hierarchy + type
+    counts) built LIVE from real registries. Every node/edge carries provenance; no fabricated topology."""
+    return _soft(_sec_system_graph, {"nodes": [], "edges": [], "summary": {}, **_UNAVAILABLE})
+
+
+@router.get("/timeline")
+def holding_timeline(type: str | None = None, company: str | None = None, limit: int = 100,
+                     principal=Depends(require_kai_ultra)):
+    """§61 HoldingTimeline — bounded, newest-first observable events (optionally filtered by type/company).
+    Read-only; empty list when the store is unavailable or nothing has been ingested."""
+    return {"events": _soft(lambda: _sec_timeline(type=type, company=company, limit=limit), [])}
+
+
+@router.get("/attention")
+def holding_attention(principal=Depends(require_kai_ultra)):
+    """§17 CurrentAttentionModel — KAI's bounded operational focus assembled from live state (plan/portfolio/
+    owner queue/workers). One read, no loop; UNAVAILABLE fields where no live source backs them."""
+    return _soft(_sec_attention, _UNAVAILABLE)
+
+
+@router.get("/missions")
+def holding_missions(principal=Depends(require_kai_ultra)):
+    """§27/§29 active missions + the §29 'working now' view derived from them. Read-only; empty until the
+    persistent cycle runs live."""
+    views = _soft(_sec_missions, [])
+    from app.services.holding.mission import working_now
+    return {"missions": views, "working_now": _soft(lambda: working_now(views), [])}
+
+
+@router.get("/problems")
+def holding_problems(principal=Depends(require_kai_ultra)):
+    """§18 unified HoldingProblem list — deduped, most-severe first, from the operational + code-defect +
+    drift + mission-failure + security + stale-plan streams. Fail-open per source; empty when none."""
+    return {"problems": _soft(_sec_problems, [])}
+
+
+@router.get("/cross-company")
+def holding_cross_company(principal=Depends(require_kai_ultra)):
+    """§55 shared-issue detector — issues shared across 2+ companies from REAL shared tokens only (vendor/
+    provider/repo/domain/duplicate-capability). Read-only; empty when nothing is genuinely shared."""
+    return {"shared_issues": _soft(_sec_cross_company, [])}
+
+
+@router.get("/opportunities")
+def holding_opportunities(principal=Depends(require_kai_ultra)):
+    """§20 OpportunityEngine — evidence-backed opportunities from goal gaps / shared issues / problems.
+    Candidates with empty/UNKNOWN-only evidence are dropped (no generic ideas). Read-only."""
+    return {"opportunities": _soft(_sec_opportunities, [])}
+
+
+@router.get("/goals")
+def holding_goals(principal=Depends(require_kai_ultra)):
+    """§81/§82 HoldingGoalRegistry gap analysis over all goals. A goal with no source target stays
+    UNAVAILABLE (never an invented target). Read-only."""
+    return {"goals": _soft(_sec_goals, [])}
+
+
+@router.get("/knowledge")
+def holding_knowledge(q: str = "", principal=Depends(require_kai_ultra)):
+    """§15 SystemKnowledgeIndex — deterministic (no-LLM) answers over arch/dependency/change questions with
+    cited evidence. With ?q= it routes the question; without, it returns 'what changed / what's deployed'.
+    Out-of-scope or unbacked questions return UNKNOWN, never a fabricated answer. Read-only."""
+    return _soft(lambda: _sec_knowledge(q), {"status": "UNKNOWN", "evidence_refs": []})
+
+
+@router.get("/proactive")
+def holding_proactive(principal=Depends(require_kai_ultra)):
+    """§11 proactive preview — which live problems/opportunities WOULD notify under the §31 policy. PURE:
+    records/delivers/writes nothing. Read-only."""
+    return _soft(_sec_proactive, {"candidates": 0, "would_notify": [], "suppressed": []})
+
+
+@router.get("/system-model")
+def holding_system_model(principal=Depends(require_kai_ultra)):
+    """§62 Operational Self Model snapshot (labelled operationally; claims_consciousness=False invariant).
+    Read-only; every field REAL/DERIVED/UNAVAILABLE from live state."""
+    return _soft(_sec_system_model, _UNAVAILABLE)
+
+
 @router.get("/view")
 def holding_view():
     """The /admin/holding UI view-model (Part E): TODAY FOR YOU first, KAI-work buckets, self-improvement
     ready-for-review, company cards, the Operational Self Model (never sentient), and autonomy state.
     Read-only + owner-gated; assembled live from the certified twin + self-model + owner queue. KAI-work
-    and self-improvement lists populate once the persistent cycle runs live (empty until then)."""
+    and self-improvement lists populate once the persistent cycle runs live (empty until then).
+
+    Phase 6b-1: folds the Command-OS sections (health/system_graph/timeline/attention/problems/
+    cross_company/opportunities/goals/knowledge/proactive/system_model) so one fetch powers the dashboard.
+    Each section is fail-soft — a failing source becomes its honest UNAVAILABLE/empty marker, never a 500."""
     from app.services.holding.digital_twin import HoldingDigitalTwin
     from app.services.holding.self_model import OperationalSelfModel
     from app.services.holding.holding_view import build_holding_view
@@ -476,27 +737,24 @@ def holding_view():
         deployment = deployment_view(_settings, source_head=_sha, peer_shas={"app_b": _sha})
     except Exception:
         deployment = {}
-    try:   # §29 — active missions, each derived LIVE from its linked worker jobs + owner proposals
-        from app.services.holding import mission as _mission, worker_jobs as _wj, proposals_store as _ps
-        # N+1 fix: fetch proposals ONCE and group by source_key (== root_signature), instead of a
-        # per-mission _linked_proposals() call that re-ran list_proposals for every mission.
-        _props_by_root: dict = {}
-        try:
-            for _p in _ps.list_proposals(limit=200):
-                _props_by_root.setdefault(_p.get("source_key"), []).append(_p)
-        except Exception:
-            _props_by_root = {}
-        missions = []
-        for _hdr in _mission.list_missions(limit=50):
-            if _hdr.get("cancelled") or _hdr.get("completed_at"):
-                continue                                   # terminal headers never appear as "working now"
-            _rs = _hdr.get("root_signature", "")
-            missions.append(_mission.mission_view(
-                _hdr, worker_jobs=_wj.list_for_mission(_hdr.get("mission_id", "")),
-                proposals=(_props_by_root.get(_rs, []) if _rs else [])))
-    except Exception:
-        missions = []
-    return build_holding_view(twin_snapshot=twin, self_model=sm, owner_actions=owner_actions,
+    missions = _soft(_sec_missions, [])                # §29 — reuses the single mission builder (no dup)
+    view = build_holding_view(twin_snapshot=twin, self_model=sm, owner_actions=owner_actions,
                               cycle_record=None, kai_work=[], self_improvements=[],
                               improvement_watch=improvement_watch, deployment=deployment,
                               missions=missions)
+    # Phase 6b-1 — fold the Command-OS sections in (each fail-soft to its honest marker/empty).
+    view.update({
+        "health": _soft(_sec_health, {"score": "NO SCORE / INSUFFICIENT_DATA", "band": "INSUFFICIENT_DATA"}),
+        "system_graph": _soft(_sec_system_graph, {"nodes": [], "edges": [], "summary": {}, **_UNAVAILABLE}),
+        "timeline": _soft(lambda: _sec_timeline(limit=25), []),
+        "attention": _soft(_sec_attention, _UNAVAILABLE),
+        "missions": missions,
+        "problems": _soft(_sec_problems, []),
+        "cross_company": _soft(_sec_cross_company, []),
+        "opportunities": _soft(_sec_opportunities, []),
+        "goals": _soft(_sec_goals, []),
+        "knowledge": _soft(lambda: _sec_knowledge(""), {"status": "UNKNOWN", "evidence_refs": []}),
+        "proactive": _soft(_sec_proactive, {"candidates": 0, "would_notify": [], "suppressed": []}),
+        "system_model": _soft(_sec_system_model, _UNAVAILABLE),
+    })
+    return view
