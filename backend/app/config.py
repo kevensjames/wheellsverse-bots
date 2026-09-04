@@ -62,6 +62,14 @@ class Settings(BaseSettings):
     # exec'd as a shell. Consequential intents fail closed to REQUIRE_APPROVAL; capability EXECUTION
     # still requires KAI_CAPABILITY_EXECUTION_ENABLED (brake #1), else the Brain returns PREPARE_ONLY.
     KAI_HOLDING_COMMAND_ENABLED: bool = False
+    # §7 Voice Command Center (Phase 7a, BACKEND). Default OFF: with it off, VoiceSessionManager.enabled
+    # is False and every voice turn returns VOICE_DISABLED — nothing listens, routes, speaks, or persists.
+    # Enabling grants NO authority: voice turns still route through the SAME §8 command resolver and a
+    # voice confirmation can NEVER authorize a consequential action (§75/§128-130 — approval_dialog
+    # refuses the voice channel). The covert core/wake_word_listener.py stays disabled regardless; the mic
+    # is never covert (a visible indicator is mandatory), and WAKE_WORD_LOCAL is UNAVAILABLE unless a
+    # genuinely on-device engine is present (no cloud continuous-audio fallback).
+    KAI_VOICE_ENABLED: bool = False
     # Cyber Operations (Phase A) — governed READ-ONLY defensive security endpoints. Default OFF:
     # when False the admin_security router is not mounted at all (zero new surface). All empty secret
     # refs below fail SOFT to NOT_CONNECTED (never raise, never fabricate a zero) — see arch §7.
