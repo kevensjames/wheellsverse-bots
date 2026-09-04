@@ -211,6 +211,12 @@ app.include_router(admin_chat.router)
 if settings.KAI_HOLDING_ENABLED:
     from app.routers import admin_holding
     app.include_router(admin_holding.router)
+# §90 Holding Command API — ONE typed governed command entrypoint, mounted ONLY when enabled
+# (default off → route absent, zero new surface). TYPED routing over the existing Brain/knowledge
+# index, never NL-to-shell; consequential intents fail closed to REQUIRE_APPROVAL.
+if getattr(settings, "KAI_HOLDING_COMMAND_ENABLED", False):
+    from app.routers import admin_holding_command
+    app.include_router(admin_holding_command.router)
 app.include_router(admin_supreme.router)
 app.include_router(admin_briefing.router)
 app.include_router(admin_presets.router)
