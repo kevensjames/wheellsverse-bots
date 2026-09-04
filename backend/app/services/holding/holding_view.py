@@ -10,12 +10,13 @@ remaining frontend step.
 from __future__ import annotations
 
 from app.services.holding.briefing import today_for_you, NO_ACTION
+from app.services.holding import mission
 
 
 def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | None = None,
                        owner_actions=None, cycle_record: dict | None = None, kai_work=None,
                        self_improvements=None, improvement_watch: dict | None = None,
-                       deployment: dict | None = None) -> dict:
+                       deployment: dict | None = None, missions=None) -> dict:
     """Assemble the /admin/holding view model. Every section is derived from real state (§34: no orphan
     advice). owner_actions are proposal-shaped dicts; kai_work items are work-result-shaped dicts.
     improvement_watch is the DETECT_ONLY snapshot (detection candidates); it is DETECTION only — each row
@@ -44,12 +45,15 @@ def build_holding_view(*, twin_snapshot: dict | None = None, self_model: dict | 
         # §25
         "today_for_you": brief["today_for_you"],
         "today_overflow": brief.get("today_overflow_grouped"),
-        # §26 KAI working
+        # §26/§29 KAI working. The coarse WorkResult buckets stay; `working_now` is the §29 enriched
+        # per-active-mission view (mission/company/action/capability/worker/started_at/progress/next_step/
+        # writes) derived live from the mission aggregate — writes='NONE' when read-only, no fabrication.
         "kai_working": {
             "currently_working": _bucket("ACTIVE"),
             "ready_for_review": _bucket("A2_READY_FOR_REVIEW"),
             "blocked": _bucket("BLOCKED_CAPABILITY") + _bucket("BLOCKED_WORKER"),
             "owner_queued": _bucket("OWNER_QUEUED"),
+            "working_now": mission.working_now(missions or []),   # §29
         },
         # §27 self-improvement (READY_FOR_REVIEW only; no private reasoning exposed)
         "self_improvement_ready": [{"problem": s.get("problem"), "evidence": s.get("evidence"),

@@ -158,6 +158,31 @@ def run_persistent_cycle(prev_snapshot, cur_snapshot, *, engine, cycle_id: str, 
         evidence_refs=evidence, status=(owner_status or res["verdict"]))
 
 
+# ── §30 scheduler wiring — a celery-beat entry for the bounded cycle, built by a PURE function so its ────
+# darkness is unit-testable without importing celery. Gated by the DEDICATED flag KAI_HOLDING_CYCLE_ENABLED
+# (default OFF → {} → no entry → the cron is DARK), decoupled from watch so enabling watch does NOT also
+# schedule the read-only cycle. NO new daemon (§79): the tick runs EXACTLY ONE existing cycle
+# (run_manual_cycle) on the existing celery-beat scheduler. Deploy-not-enable: the tick reuses
+# build_live_engine, whose 3 fail-closed brakes stay authoritative — scheduling grants NO execution
+# authority (with the brakes off, a no-change cycle yields 0 work).
+HOLDING_CYCLE_BEAT_MINUTES = 15   # matches the documented watch cadence (status.cron_status)
+
+
+def beat_schedule_entry(settings) -> dict:
+    """Return the {name: entry} celery-beat mapping for the bounded holding cycle, or {} when the schedule
+    is DARK (KAI_HOLDING_CYCLE_ENABLED off, or config unreadable → fail closed to dark). Pure: no side
+    effects; celery is imported only when an entry is actually produced."""
+    try:
+        on = bool(getattr(settings, "KAI_HOLDING_CYCLE_ENABLED", False))
+    except Exception:
+        on = False
+    if not on:
+        return {}
+    from celery.schedules import crontab
+    return {"holding-cycle": {"task": "app.workers.holding_tasks.holding_cycle_tick",
+                              "schedule": crontab(minute=f"*/{HOLDING_CYCLE_BEAT_MINUTES}")}}
+
+
 if __name__ == "__main__":
     from app.services.holding.test_holding_cycle import run
     run()

@@ -207,6 +207,36 @@ def get(job_id: int) -> Optional[dict]:
         return None
 
 
+def list_for_mission(mission_id: str, limit: int = 200) -> list:
+    """§27 mission linkage — the jobs a Mission header WRAPS (join by the existing mission_id column,
+    no copy). Includes status + evidence so the mission's status/verified_outcome is DERIVED live from
+    the real worker-plane state. Never raises."""
+    if not mission_id:
+        return []
+    try:
+        db = SessionLocal()
+        try:
+            _ensure(db)
+            rows = db.execute(text(
+                "SELECT id, created_at, claimed_at, done_at, proposal_id, worker, task, status, claimed_by, "
+                "attempt, max_attempts, evidence, correlation_id FROM holding_worker_jobs "
+                "WHERE mission_id=:m ORDER BY created_at ASC, id ASC LIMIT :lim"),
+                {"m": mission_id, "lim": limit}).fetchall()
+            out = []
+            for r in rows:
+                out.append({"id": r[0], "created_at": str(r[1]), "claimed_at": str(r[2]) if r[2] else None,
+                            "done_at": str(r[3]) if r[3] else None, "proposal_id": r[4], "worker": r[5],
+                            "task": r[6] if isinstance(r[6], dict) else json.loads(r[6] or "{}"),
+                            "status": r[7], "claimed_by": r[8], "attempt": r[9], "max_attempts": r[10],
+                            "evidence": r[11] if isinstance(r[11], (dict, list)) else (json.loads(r[11]) if r[11] else None),
+                            "correlation_id": r[12]})
+            return out
+        finally:
+            db.close()
+    except Exception:
+        return []
+
+
 def list_jobs(status: Optional[str] = None, limit: int = 50) -> list:
     try:
         db = SessionLocal()
