@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # Continuous watch loop (Wave 1): proactive change/anomaly detection across entities. Default OFF.
     # Read-only; alerts deliver only if KAI_HOLDING_DELIVERY_ENABLED + a channel is configured too.
     KAI_HOLDING_WATCH_ENABLED: bool = False
+    # §11 ProactiveBriefingEngine funnel (Phase 3b). Default OFF: evaluate() (pure preview) always works,
+    # but the stateful run() funnel that records dedup + delegates delivery only runs when this is True.
+    # It adds NO new sender — every emission still routes through the §31 NotificationPolicy (delivery
+    # itself stays gated by KAI_HOLDING_DELIVERY_ENABLED + a configured channel).
+    KAI_PROACTIVE_ENABLED: bool = False
     # Capability Fabric execution gateway (owner-only governed tool execution). Default OFF ->
     # the /admin/capabilities routes are not mounted, so a disabled deploy has zero new surface.
     # This is EMERGENCY BRAKE #1: with it OFF, no capability executes (the live holding executor
