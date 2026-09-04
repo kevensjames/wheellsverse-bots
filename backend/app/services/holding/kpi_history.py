@@ -54,3 +54,35 @@ def previous_snapshot() -> Optional[dict]:
             db.close()
     except Exception:
         return None
+
+
+def snapshot_before(days: int = 7) -> Optional[dict]:
+    """§83 week-over-week baseline: the NEWEST snapshot at least ``days`` old. If none is that old, the
+    OLDEST snapshot is returned instead — so the weekly review's period label reflects the REAL (shorter)
+    history age rather than a hardcoded window (the baked-in prior-pass fix). ``as_of`` is backfilled from
+    the row's captured_at when the stored kpis lack one, so the caller always has a real baseline timestamp.
+    None if empty/unavailable."""
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text(_DDL))
+            row = db.execute(text(
+                "SELECT kpis, captured_at FROM holding_kpi_history "
+                "WHERE captured_at <= now() - make_interval(days => :d) "
+                "ORDER BY captured_at DESC, id DESC LIMIT 1"), {"d": max(0, int(days))}).fetchone()
+            if not row:
+                row = db.execute(text(
+                    "SELECT kpis, captured_at FROM holding_kpi_history "
+                    "ORDER BY captured_at ASC, id ASC LIMIT 1")).fetchone()
+            if not row:
+                return None
+            v = row[0]
+            k = v if isinstance(v, dict) else json.loads(v)
+            if not k.get("as_of") and row[1] is not None:
+                k = dict(k)
+                k["as_of"] = row[1].isoformat() if hasattr(row[1], "isoformat") else str(row[1])
+            return k
+        finally:
+            db.close()
+    except Exception:
+        return None
