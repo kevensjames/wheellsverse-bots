@@ -211,6 +211,12 @@ app.include_router(admin_chat.router)
 if settings.KAI_HOLDING_ENABLED:
     from app.routers import admin_holding
     app.include_router(admin_holding.router)
+# §90 Holding Command API — ONE typed governed command entrypoint, mounted ONLY when enabled
+# (default off → route absent, zero new surface). TYPED routing over the existing Brain/knowledge
+# index, never NL-to-shell; consequential intents fail closed to REQUIRE_APPROVAL.
+if getattr(settings, "KAI_HOLDING_COMMAND_ENABLED", False):
+    from app.routers import admin_holding_command
+    app.include_router(admin_holding_command.router)
 # Cyber Operations — governed READ-ONLY security endpoints, mounted ONLY when enabled (default off).
 if settings.KAI_CYBER_OPS_ENABLED:
     from app.routers import admin_security

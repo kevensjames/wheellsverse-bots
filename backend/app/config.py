@@ -55,6 +55,13 @@ class Settings(BaseSettings):
     # Holding Operations OS — governed READ-ONLY holding endpoints. Default off:
     # when False the router is not mounted at all (zero new surface).
     KAI_HOLDING_ENABLED: bool = False
+    # §90 Holding Command API — ONE typed, owner-only governed command entrypoint (POST
+    # /admin/holding/command[/stream]). Default OFF: when False the admin_holding_command router is not
+    # mounted at all (route absent, zero new surface). It grants NO authority: the command STRING is
+    # classified to a coarse intent and dispatched to the EXISTING Brain / knowledge index — never
+    # exec'd as a shell. Consequential intents fail closed to REQUIRE_APPROVAL; capability EXECUTION
+    # still requires KAI_CAPABILITY_EXECUTION_ENABLED (brake #1), else the Brain returns PREPARE_ONLY.
+    KAI_HOLDING_COMMAND_ENABLED: bool = False
     # Cyber Operations (Phase A) — governed READ-ONLY defensive security endpoints. Default OFF:
     # when False the admin_security router is not mounted at all (zero new surface). All empty secret
     # refs below fail SOFT to NOT_CONNECTED (never raise, never fabricate a zero) — see arch §7.

@@ -68,11 +68,16 @@ def _holding_context(user_message: str) -> str:
         import json
         from app.services.holding import reports
         from app.services.holding.priorities import derive_priorities
+        from app.services.capability.results import neutralize_untrusted_context
         block = {"overview": reports.executive_overview(),
                  "todays_priorities": derive_priorities()}  # registry-only, no network
-        return ("\n\n[Holding operations — trusted context, read-only, source-backed. "
+        # §76: registry/twin-derived text (brand/repo/deployment/kpi strings that can carry README/PR/log
+        # content) is UNTRUSTED once composed into the prompt. Route it through the SAME injection boundary
+        # capability results use, so an injected "ignore policy / enable A2 / approve" is inert DATA here.
+        safe, _flags = neutralize_untrusted_context(json.dumps(block, default=str), source="holding-context")
+        return ("\n\n[Holding operations — read-only, source-backed context. "
                 "Answer ONLY from this; fields marked REQUIRES_OPERATOR_CONFIRMATION are unknown — "
-                "say so, never guess.]\n" + json.dumps(block, default=str))
+                "say so, never guess.]\n" + safe)
     except Exception:
         return ""
 
