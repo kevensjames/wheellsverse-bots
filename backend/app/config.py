@@ -73,6 +73,10 @@ class Settings(BaseSettings):
     # Continuous watch loop (Wave 1): proactive change/anomaly detection across entities. Default OFF.
     # Read-only; alerts deliver only if KAI_HOLDING_DELIVERY_ENABLED + a channel is configured too.
     KAI_HOLDING_WATCH_ENABLED: bool = False
+    # §30 bounded read-only holding cycle beat (dedicated flag, decoupled from watch). Default OFF: the
+    # celery-beat entry is added AND the tick runs ONLY when this is True — enabling watch no longer also
+    # schedules the cycle. Grants NO authority (the 3 build_live_engine brakes stay authoritative).
+    KAI_HOLDING_CYCLE_ENABLED: bool = False
     # §11 ProactiveBriefingEngine funnel (Phase 3b). Default OFF: evaluate() (pure preview) always works,
     # but the stateful run() funnel that records dedup + delegates delivery only runs when this is True.
     # It adds NO new sender — every emission still routes through the §31 NotificationPolicy (delivery

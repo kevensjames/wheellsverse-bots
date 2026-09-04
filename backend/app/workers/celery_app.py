@@ -46,3 +46,10 @@ if getattr(settings, "KAI_HOLDING_BRIEFING_ENABLED", False):
         "task": "app.workers.holding_tasks.morning_briefing",
         "schedule": crontab(hour=int(getattr(settings, "KAI_HOLDING_BRIEFING_UTC_HOUR", 11)), minute=0),
     }
+
+# §30 Holding autonomous cycle — bounded, on the EXISTING scheduler. DARK by default: the entry is added
+# ONLY when the dedicated KAI_HOLDING_CYCLE_ENABLED is on (else {} → not scheduled; decoupled from watch),
+# and even then the tick reuses build_live_engine, whose 3 fail-closed brakes (all off by default) execute
+# 0 — a no-change cycle yields 0 work. Deploy-not-enable: scheduling this grants NO authority. No new daemon (§79).
+from app.services.holding.holding_cycle import beat_schedule_entry as _holding_cycle_beat  # noqa: E402
+celery_app.conf.beat_schedule.update(_holding_cycle_beat(settings))

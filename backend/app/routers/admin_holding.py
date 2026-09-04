@@ -476,6 +476,27 @@ def holding_view():
         deployment = deployment_view(_settings, source_head=_sha, peer_shas={"app_b": _sha})
     except Exception:
         deployment = {}
+    try:   # §29 — active missions, each derived LIVE from its linked worker jobs + owner proposals
+        from app.services.holding import mission as _mission, worker_jobs as _wj, proposals_store as _ps
+        # N+1 fix: fetch proposals ONCE and group by source_key (== root_signature), instead of a
+        # per-mission _linked_proposals() call that re-ran list_proposals for every mission.
+        _props_by_root: dict = {}
+        try:
+            for _p in _ps.list_proposals(limit=200):
+                _props_by_root.setdefault(_p.get("source_key"), []).append(_p)
+        except Exception:
+            _props_by_root = {}
+        missions = []
+        for _hdr in _mission.list_missions(limit=50):
+            if _hdr.get("cancelled") or _hdr.get("completed_at"):
+                continue                                   # terminal headers never appear as "working now"
+            _rs = _hdr.get("root_signature", "")
+            missions.append(_mission.mission_view(
+                _hdr, worker_jobs=_wj.list_for_mission(_hdr.get("mission_id", "")),
+                proposals=(_props_by_root.get(_rs, []) if _rs else [])))
+    except Exception:
+        missions = []
     return build_holding_view(twin_snapshot=twin, self_model=sm, owner_actions=owner_actions,
                               cycle_record=None, kai_work=[], self_improvements=[],
-                              improvement_watch=improvement_watch, deployment=deployment)
+                              improvement_watch=improvement_watch, deployment=deployment,
+                              missions=missions)
