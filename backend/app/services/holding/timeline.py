@@ -44,6 +44,7 @@ _COT_KEYS = frozenset({
     "chain_of_thought", "cot", "reasoning_trace", "reasoning_steps", "internal_monologue",
     "scratchpad", "hidden_reasoning", "private_reasoning", "thoughts", "deliberation", "raw_thought",
     "thinking", "inner_monologue",
+    "reasoning", "thought",     # §87 bare forms — the ONE vocabulary explain / what_i_did / attention strip on
 })
 
 

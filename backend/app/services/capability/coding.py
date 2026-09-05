@@ -171,11 +171,17 @@ class WorkerResult:
     certified: bool = False
 
 
+def assert_independent_reviewer(author: str, reviewer: str) -> None:
+    """§16/§89 the ONE reviewer≠author identity rule. Shared by certify_worker_result and the holding
+    challenge (§88) / review-panel (§89) seams — no second copy of the rule anywhere. Raises ValueError."""
+    if not reviewer or reviewer == author:
+        raise ValueError(f"no identity may review or certify its own output (§16/§89): {author!r}")
+
+
 def certify_worker_result(result: WorkerResult, *, reviewed_by: str, tests_ok: bool) -> WorkerResult:
     """§16 verification doctrine: a worker never certifies itself. Certification requires an
     independent review AND passing tests — 'done' without evidence is never trusted."""
-    if not reviewed_by or reviewed_by == result.worker:
-        raise ValueError("a coding worker cannot certify its own result (§16)")
+    assert_independent_reviewer(result.worker, reviewed_by)
     result.reviewed = True
     result.certified = bool(tests_ok and result.tests_failed == 0 and result.tests_run > 0)
     return result
